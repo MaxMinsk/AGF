@@ -92,6 +92,65 @@ describe("PickupSystem", () => {
     expect(renderer?.material).toBeUndefined();
   });
 
+  it("records the carrier's Presence.playerId as Repairable.lastRepairedBy on repair", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Presence", { playerId: "alpha" });
+
+    step(world); // pick up
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world); // deposit
+
+    const repair = world.getComponent<{ repaired?: boolean; lastRepairedBy?: string }>(
+      "beacon",
+      "Repairable"
+    );
+    expect(repair?.repaired).toBe(true);
+    expect(repair?.lastRepairedBy).toBe("alpha");
+  });
+
+  it("does not set lastRepairedBy when the carrier has no Presence", () => {
+    const world = buildWorld();
+
+    step(world); // pick up
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world); // deposit
+
+    const repair = world.getComponent<{ repaired?: boolean; lastRepairedBy?: string }>(
+      "beacon",
+      "Repairable"
+    );
+    expect(repair?.repaired).toBe(true);
+    expect(repair?.lastRepairedBy).toBeUndefined();
+  });
+
+  it("clears lastRepairedBy on decay", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Presence", { playerId: "alpha" });
+    world.setComponent("beacon", "Repairable", {
+      accepts: "energy-core",
+      repaired: false,
+      repairedColor: "#4af0a8",
+      decayAfter: 0.2
+    });
+
+    step(world); // pick up
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world); // deposit
+    expect(
+      world.getComponent<{ lastRepairedBy?: string }>("beacon", "Repairable")?.lastRepairedBy
+    ).toBe("alpha");
+
+    world.setComponent("drone", "Transform", { position: [20, 0, 20] });
+    step(world, 0.3); // decay
+
+    const decayed = world.getComponent<{ repaired?: boolean; lastRepairedBy?: string }>(
+      "beacon",
+      "Repairable"
+    );
+    expect(decayed?.repaired).toBe(false);
+    expect(decayed?.lastRepairedBy).toBeUndefined();
+  });
+
   it("swaps the beacon material when Repairable.repairedMaterial is set, then restores the original material on decay", () => {
     const world = buildWorld();
     world.setComponent("beacon", "Repairable", {

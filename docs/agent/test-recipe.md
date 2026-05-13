@@ -99,6 +99,11 @@ npm run test:e2e
 
 Playwright drives the running dev server and asserts on the canvas and `window.__agf`. New e2e tests go in `tests/e2e/*.spec.ts`.
 
+**Parallel safety:** Playwright runs files in parallel by default. Two rules:
+
+- Any test that **writes files under `examples/`** must declare `test.describe.configure({ mode: "serial" })` at the top of the file. Otherwise its HMR events collide with concurrent tests observing the same Vite dev server. See `tests/e2e/glb-hot-reload.spec.ts` / `tests/e2e/material-hmr-audit.spec.ts` for the pattern.
+- When asserting on HMR, poll `window.__agf.reloadEvents` (append-only log of `{ ref, count }`) for the expected ref after a baseline length, instead of reading `lastReloadedAsset` — the latter can be overwritten between observation and assertion.
+
 ## 8. Backend round-trip (only if the change touches the protocol)
 
 ```bash

@@ -39,7 +39,10 @@ type RepairableComponent = {
   decayIn?: number;
   originalMaterial?: string;
   originalColor?: string;
+  lastRepairedBy?: string;
 };
+
+type PresenceComponent = { playerId: string };
 
 type MeshRendererComponent = {
   mesh: string;
@@ -198,6 +201,10 @@ function handleCarry(
     if (repair.decayAfter !== undefined) {
       repairedRepair.decayIn = repair.decayAfter;
     }
+    const carrierPresence = world.getComponent<PresenceComponent>(carrierId, "Presence");
+    if (carrierPresence?.playerId !== undefined) {
+      repairedRepair.lastRepairedBy = carrierPresence.playerId;
+    }
     world.setComponent(beaconId, "Repairable", repairedRepair);
 
     despawnOrRemove(world, carriedId, pickup);
@@ -300,6 +307,7 @@ function tickBeaconDecays(world: World, dt: number, q: PickupQueries): void {
     delete decayed.decayIn;
     delete decayed.originalMaterial;
     delete decayed.originalColor;
+    delete decayed.lastRepairedBy;
     world.setComponent(beaconId, "Repairable", decayed);
   }
 }

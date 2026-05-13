@@ -135,9 +135,26 @@ export function createApp(
     scheduler.register(createBeaconRoundSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createBeaconRoundAutoResetSystem(), { profiles: ["static", "connected"] });
     if (networked) {
-      scheduler.register(createBeaconNetworkDroneSyncSystem({ playerId }), {
-        profiles: ["connected"]
-      });
+      scheduler.register(
+        createBeaconNetworkDroneSyncSystem({
+          playerId,
+          getUnackedInputCount: (): number => {
+            if (network === undefined) {
+              return 0;
+            }
+            const acked = network.lastAckedFor(playerId);
+            const highest = network.highestOutboundSequence();
+            if (highest < 0) {
+              return 0;
+            }
+            if (acked === undefined) {
+              return highest + 1;
+            }
+            return Math.max(0, highest - acked);
+          }
+        }),
+        { profiles: ["connected"] }
+      );
       scheduler.register(
         createBeaconRemotePresenceDecoratorSystem({
           localPlayerId: playerId,

@@ -13,6 +13,7 @@
 //   * dispose() closes the socket and removes the server-owned entities.
 
 import type { EngineCommand } from "../../core/commands/types";
+import { createProtocolValidator, type ProtocolValidator } from "./protocol-validator";
 
 type SnapshotComponents = Record<string, unknown>;
 
@@ -22,7 +23,15 @@ type SnapshotEntity = {
 };
 
 type ProtocolMessage =
-  | { kind: "world.snapshot"; sequence?: number; payload: { elapsed?: number; entities: SnapshotEntity[] } }
+  | {
+      kind: "world.snapshot";
+      sequence?: number;
+      payload: {
+        elapsed?: number;
+        entities: SnapshotEntity[];
+        lastAcked?: Record<string, number>;
+      };
+    }
   | { kind: "player.join"; payload: { playerId: string; displayName?: string } }
   | { kind: "player.leave"; payload: { playerId: string; reason?: string } }
   | { kind: "intent.move"; sequence?: number; payload: { playerId: string; direction: [number, number] } };
@@ -73,6 +82,15 @@ export type WsNetworkAdapterOptions = {
   /** Hook for unit tests so they don't have to wait real-world milliseconds. */
   setTimeoutFn?: (handler: () => void, delayMs: number) => unknown;
   clearTimeoutFn?: (handle: unknown) => void;
+  /**
+   * Validate every inbound message against `schemas/protocol.schema.json`
+   * before routing it. Invalid messages are dropped with a log line. Defaults
+   * to `true`; tests that drive the adapter with hand-crafted strings can
+   * pass `false` to skip validation.
+   */
+  validateInbound?: boolean;
+  /** Override the validator factory. Used by tests. */
+  validatorFactory?: () => ProtocolValidator;
 };
 
 export type WsNetworkAdapterHandle = {
@@ -86,6 +104,18 @@ export type WsNetworkAdapterHandle = {
   reconnectCount(): number;
   /** Number of snapshot-sequence gaps detected so far (each triggers a resync). */
   snapshotGapCount(): number;
+  /**
+   * Last `intent.move` sequence the server reports it has applied for the
+   * given playerId, or `undefined` if no ack has been observed yet. Used by
+   * the reconciliation system to know how far behind the server is on input.
+   */
+  lastAckedFor(playerId: string): number | undefined;
+  /**
+   * Highest outbound intent sequence number sent so far, or `-1` when no
+   * intent has been sent. Combined with `lastAckedFor` this gives the count
+   * of un-acked inputs.
+   */
+  highestOutboundSequence(): number;
   /**
    * Returns a stable reference to the per-entity snapshot sample buffer.
    * Callers should treat it as read-only. Samples are appended in receive
@@ -113,6 +143,10 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     options.clearTimeoutFn ??
     ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   const reconnectConfig = resolveReconnectConfig(options.reconnect);
+  const validateInbound = options.validateInbound !== false;
+  const validateProtocol: ProtocolValidator | undefined = validateInbound
+    ? (options.validatorFactory ?? createProtocolValidator)()
+    : undefined;
   const nowSeconds =
     options.nowSeconds ??
     ((): number =>
@@ -121,7 +155,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
 
   const serverOwnedIds = new Set<string>();
   const snapshotBuffer = new Map<string, SnapshotSample[]>();
+  const lastAckedBy = new Map<string, number>();
   let outboundSequence = 0;
+  let highestSent = -1;
   let lastSequence: number | undefined;
   let disposed = false;
   let attempts = 0;
@@ -149,12 +185,21 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       if (disposed) {
         return;
       }
-      let message: ProtocolMessage;
+      let parsed: unknown;
       try {
-        message = JSON.parse(typeof event.data === "string" ? event.data : String(event.data));
+        parsed = JSON.parse(typeof event.data === "string" ? event.data : String(event.data));
       } catch {
+        log("[ws-adapter] dropping non-JSON frame");
         return;
       }
+      if (validateProtocol !== undefined) {
+        const validation = validateProtocol(parsed);
+        if (validation !== true) {
+          log(`[ws-adapter] dropping invalid frame: ${validation}`);
+          return;
+        }
+      }
+      const message = parsed as ProtocolMessage;
       if (message.kind !== "world.snapshot") {
         return;
       }
@@ -170,6 +215,16 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         gapCount += 1;
       }
       lastSequence = message.sequence;
+      if (message.payload.lastAcked !== undefined) {
+        for (const [pid, seq] of Object.entries(message.payload.lastAcked)) {
+          if (typeof seq === "number" && Number.isFinite(seq)) {
+            const previous = lastAckedBy.get(pid);
+            if (previous === undefined || seq > previous) {
+              lastAckedBy.set(pid, seq);
+            }
+          }
+        }
+      }
       applySnapshot(message.payload.entities);
     });
 
@@ -231,6 +286,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     }
     serverOwnedIds.clear();
     snapshotBuffer.clear();
+    lastAckedBy.clear();
     options.applyCommands(commands);
   }
 
@@ -252,9 +308,19 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     const commands: EngineCommand[] = [];
 
     for (const entity of entities) {
-      inboundIds.add(entity.id);
       const isNewToServer = !serverOwnedIds.has(entity.id);
       const isUnknownLocally = !knownIds.has(entity.id);
+      if (isNewToServer && !isUnknownLocally) {
+        // Id collision: the server is claiming an id the client already owns
+        // (e.g. `player.drone`). Reject — never mutate or capture a local
+        // entity. Logged once per offending id per snapshot so a misbehaving
+        // backend is visible without spamming the console.
+        log(
+          `[ws-adapter] dropping snapshot entity "${entity.id}" — id already owned by the local world`
+        );
+        continue;
+      }
+      inboundIds.add(entity.id);
       if (isNewToServer && isUnknownLocally) {
         commands.push({
           kind: "entity.create",
@@ -306,6 +372,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         sequence: outboundSequence,
         payload: { playerId: options.playerId, direction: [direction[0], direction[1]] }
       });
+      highestSent = outboundSequence;
       outboundSequence += 1;
     },
     lastSnapshotSequence(): number | undefined {
@@ -322,6 +389,12 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     },
     snapshotGapCount(): number {
       return gapCount;
+    },
+    lastAckedFor(playerId: string): number | undefined {
+      return lastAckedBy.get(playerId);
+    },
+    highestOutboundSequence(): number {
+      return highestSent;
     },
     getSnapshotBuffer(): ReadonlyMap<string, ReadonlyArray<SnapshotSample>> {
       return snapshotBuffer;

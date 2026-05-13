@@ -27,6 +27,13 @@ declare global {
       lastReloadedAsset?: string;
       /** Monotonic counter that increments every time `lastReloadedAsset` is updated. Useful for tests that need to wait for "another" reload. */
       reloadCount: number;
+      /**
+       * Append-only log of every HMR reload. Tests should poll this for the
+       * ref they expect to see instead of reading `lastReloadedAsset`, which
+       * can be overwritten between observation and assertion when multiple
+       * HMR events fire in parallel.
+       */
+      reloadEvents: Array<{ ref: string; count: number }>;
     };
   }
 }
@@ -101,7 +108,8 @@ if (import.meta.env.DEV) {
     snapshot: () => app.snapshot(),
     applyCommands: (commands) => app.applyCommands(commands),
     resetRound: () => app.resetRound(),
-    reloadCount: 0
+    reloadCount: 0,
+    reloadEvents: []
   };
 }
 
@@ -162,6 +170,7 @@ if (import.meta.hot) {
     if (window.__agf !== undefined) {
       window.__agf.lastReloadedAsset = ref;
       window.__agf.reloadCount += 1;
+      window.__agf.reloadEvents.push({ ref, count: window.__agf.reloadCount });
     }
     console.info(`[agf] hot-reloaded asset ${ref}`);
   });

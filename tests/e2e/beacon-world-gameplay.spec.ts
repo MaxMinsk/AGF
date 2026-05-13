@@ -11,6 +11,10 @@ test("drone picks up an energy core and repairs a beacon", async ({ page }, test
   await page.goto("/?project=beacon-world");
   await page.waitForFunction(() => Boolean(window.__agf));
 
+  // Start the test from a clean state — repaired beacons / consumed pickups
+  // from previous tests cannot bleed through.
+  await page.evaluate(() => window.__agf!.resetRound());
+
   // Teleport the drone next to core.north so the pickup radius triggers.
   await page.evaluate(() => {
     window.__agf!.applyCommands([
@@ -22,11 +26,17 @@ test("drone picks up an energy core and repairs a beacon", async ({ page }, test
       }
     ]);
   });
-  await page.waitForTimeout(150);
 
-  const afterPickup = (await page.evaluate(() => window.__agf!.snapshot())) as Snapshot;
-  const drone = afterPickup.entities.find((entity) => entity.id === "player.drone");
-  expect((drone!.components["Carrier"] as { carrying?: string }).carrying).toBe("core.north");
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.__agf!.snapshot();
+      const drone = snapshot.entities.find((entity) => entity.id === "player.drone");
+      const carrier = drone?.components["Carrier"] as { carrying?: string } | undefined;
+      return carrier?.carrying === "core.north";
+    },
+    undefined,
+    { timeout: 5000 }
+  );
 
   // Teleport next to beacon.west.
   await page.evaluate(() => {
@@ -39,7 +49,17 @@ test("drone picks up an energy core and repairs a beacon", async ({ page }, test
       }
     ]);
   });
-  await page.waitForTimeout(150);
+
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.__agf!.snapshot();
+      const beacon = snapshot.entities.find((entity) => entity.id === "beacon.west");
+      const repair = beacon?.components["Repairable"] as { repaired?: boolean } | undefined;
+      return repair?.repaired === true;
+    },
+    undefined,
+    { timeout: 5000 }
+  );
 
   const afterDeposit = (await page.evaluate(() => window.__agf!.snapshot())) as Snapshot;
 

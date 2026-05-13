@@ -243,6 +243,146 @@ describe("WsNetworkAdapter ↔ node-world-server", () => {
     }
   });
 
+  it("drops a snapshot entity whose id collides with a local entity, leaving the local one intact", async () => {
+    type Listener = (event: { data: string }) => void;
+    class FakeSocket {
+      readyState = 1;
+      messageListeners: Listener[] = [];
+      openListeners: Array<() => void> = [];
+      constructor(public url: string) {
+        setTimeout(() => {
+          for (const handler of this.openListeners) {
+            handler();
+          }
+        }, 0);
+      }
+      addEventListener(type: string, handler: () => void): void {
+        if (type === "open") {
+          this.openListeners.push(handler);
+        } else if (type === "message") {
+          this.messageListeners.push(handler as Listener);
+        }
+      }
+      send(): void {}
+      close(): void {}
+      emit(payload: unknown): void {
+        const event = { data: JSON.stringify(payload) };
+        for (const listener of this.messageListeners) {
+          listener(event);
+        }
+      }
+    }
+
+    const sockets: FakeSocket[] = [];
+    const factory = function (url: string) {
+      const socket = new FakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    } as unknown as typeof globalThis.WebSocket;
+
+    const clientWorld = new World();
+    clientWorld.addEntity("player.drone");
+    clientWorld.setComponent("player.drone", "Transform", { position: [9, 9, 9] });
+
+    const logLines: string[] = [];
+    const adapter = startWsNetworkAdapter({
+      url: "ws://fake",
+      playerId: "echo",
+      applyCommands: (commands) => applyAll(clientWorld, commands),
+      knownEntityIds: () => clientWorld.entityIds(),
+      log: (line) => logLines.push(line),
+      WebSocketCtor: factory
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const socket = sockets[0]!;
+
+      socket.emit({
+        kind: "world.snapshot",
+        sequence: 0,
+        payload: {
+          entities: [
+            { id: "player.drone", components: { Transform: { position: [0, 0, 0] } } },
+            { id: "player.echo", components: { Transform: { position: [1, 0, 0] } } }
+          ]
+        }
+      });
+
+      expect(clientWorld.hasEntity("player.drone")).toBe(true);
+      const droneTransform = clientWorld.getComponent<{
+        position: [number, number, number];
+      }>("player.drone", "Transform");
+      expect(droneTransform?.position).toEqual([9, 9, 9]);
+      expect(clientWorld.hasEntity("player.echo")).toBe(true);
+      expect(logLines.some((line) => line.includes('dropping snapshot entity "player.drone"'))).toBe(
+        true
+      );
+    } finally {
+      adapter.dispose();
+      expect(clientWorld.hasEntity("player.drone")).toBe(true);
+    }
+  });
+
+  it("drops an inbound frame that fails protocol schema validation", async () => {
+    type Listener = (event: { data: string }) => void;
+    class FakeSocket {
+      readyState = 1;
+      messageListeners: Listener[] = [];
+      openListeners: Array<() => void> = [];
+      constructor(public url: string) {
+        setTimeout(() => {
+          for (const handler of this.openListeners) {
+            handler();
+          }
+        }, 0);
+      }
+      addEventListener(type: string, handler: () => void): void {
+        if (type === "open") {
+          this.openListeners.push(handler);
+        } else if (type === "message") {
+          this.messageListeners.push(handler as Listener);
+        }
+      }
+      send(): void {}
+      close(): void {}
+      emit(payload: unknown): void {
+        const event = { data: JSON.stringify(payload) };
+        for (const listener of this.messageListeners) {
+          listener(event);
+        }
+      }
+    }
+
+    const sockets: FakeSocket[] = [];
+    const factory = function (url: string) {
+      const socket = new FakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    } as unknown as typeof globalThis.WebSocket;
+
+    const clientWorld = new World();
+    const logLines: string[] = [];
+    const adapter = startWsNetworkAdapter({
+      url: "ws://fake",
+      playerId: "zeta",
+      applyCommands: (commands) => applyAll(clientWorld, commands),
+      log: (line) => logLines.push(line),
+      WebSocketCtor: factory
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const socket = sockets[0]!;
+
+      socket.emit({ kind: "intent.move", payload: { wrong: true } });
+      expect(logLines.some((line) => line.includes("dropping invalid frame"))).toBe(true);
+      expect(clientWorld.entityIds()).toEqual([]);
+    } finally {
+      adapter.dispose();
+    }
+  });
+
   it("dispose() removes server-owned entities without touching local ones", async () => {
     const serverWorld = new ServerWorld();
     const transport = await startWsTransport({
