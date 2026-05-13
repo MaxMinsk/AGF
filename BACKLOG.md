@@ -21,36 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 29 — Determinism, project-file patches, prefab schema, doctor build flag
+## Current Sprint: Sprint 30 — TBD
 
-Sprint 29 focus: close the record/replay determinism gap (**M2b-seed**), open the agent-authored edit channel via a patch contract (**M13**), seed the prefab path (**M3** schema-only), and let `engine doctor` self-build when `dist/` is missing.
+Sprint 30 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
-### Stories
+### Candidates
 
-#### M2b-seed — Deterministic RNG
+Anchor candidate: **`E.80` engine dev server investigation** (M15) — by far the highest-leverage agent-loop story open today. Write `docs/research/engine-dev-server-investigation.md` and sequence the implementation sprints that follow.
 
-- `E.70` Seeded RNG helper — `engine/core/util/seeded-rng.ts` exposes `createSeededRng(seed)` (mulberry32) with `next()` / `nextRange()` / `nextInt()` and unit tests for determinism + uniformity.
-- `E.71` Wire seeded RNG into Beacon hazard pulse — replace `Math.random()` in `hazard-system.ts` with an injected RNG; profile-gated so production stays non-deterministic.
-- `E.72` Wire seeded RNG into Beacon pickup respawn — same approach in `pickup-system.ts`; one playtest captures a recording and `engine replay` confirms zero drift.
+#### M15 — Engine dev server
 
-#### M13 — Project-file patch contract
+- `E.80` Engine dev server investigation — design doc covering use cases, architecture options, endpoint surface, security stance, and a sequenced implementation plan. See `HIGH_LEVEL_BACKLOG.md` for the full brief.
 
-- `E.73` Patch contract types + `applyPatch` library — `engine/tools/patch/project-patch.ts` defines `EnginePatch` (an ordered list of `set` / `delete` / `insert` operations addressed by JSON pointer + target file) and `applyPatch(projectDir, patch, opts)`. Pure; `--check` is a dry-run; `--write` mutates files.
-- `E.74` `engine patch <projectDir> <patch.json> [--check|--write]` CLI dispatcher + `npm run engine:patch` script.
-- `E.75` Patch unit tests — round-trip a `set` on `project.json`, an `insert` into a scene's `entities` array, an `insert` into `asset-sources.json`; reject malformed paths and unknown ops.
+#### M3 — Prefab follow-ups
 
-#### M3 — Prefab schema scaffold
+- `M3-b` Scene `instances: [{ prefab, overrides }]` syntax + `expandScenePrefabs` pure function — the actual scene-level prefab expansion. Schema landed in Sprint 29; engine integration follows.
+- `M3-c` Beacon World adopts prefabs for repeated cores / hazards — proves the path end-to-end.
 
-- `E.76` `schemas/prefab.schema.json` + `AGF_PREFAB_INVALID` diagnostic; `engine check` validates `*.prefab.json` files under each project's `prefabs/` directory. Schema-only, no scene expansion yet — locked for a future Sprint 30 story.
+#### Backend follow-ups
+
+- `10.5+` C# skeleton WebSocket transport — first transport on top of the smoke skeleton from Sprint 25.
+- `10.14` Server-authoritative carry; `10.16` snapshot delta; `10.18` server hazard state.
+
+#### Beacon World polish
+
+- `13.13` Audio asset path — replace the procedural Web Audio beeps with short licensed `.ogg` clips once the audio loader exists.
 
 #### Engine polish
 
-- `E.77` `engine doctor --build` — when `dist/` is missing, optionally invoke `npm run build` (or detect failure and surface a clear recommendation). Defaults to "no, ask the agent to run build first".
-- `RH.3` Extend repo-hygiene CI — add `vite build` + `bundle:check` to the existing `typecheck-and-unit` job so a PR can't merge with a broken build or oversized bundle. (E2E stays local for now.)
-
-### Carried to Sprint 30
-
-- `M3-b` Scene `instances` + `expandScenePrefabs` — the actual prefab expansion path. Schema lands now; engine integration follows.
-- `10.5+` C# skeleton WebSocket transport.
-- `10.14` Server-authoritative carry; `10.16` snapshot delta; `10.18` server hazard state.
-- `13.13` Audio asset loader + first licensed `.ogg`.
+- `M13-c` `engine patch` schema validation — after applying a patch in `--check` mode, re-run the relevant `engine check` validators against the resulting in-memory files so the agent knows whether the patch would leave the project well-formed.
