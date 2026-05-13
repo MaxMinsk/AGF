@@ -24,7 +24,8 @@ describe("DIAGNOSTIC_CODES", () => {
       "AGF_SCHEMA_VALIDATION_FAILED",
       "AGF_FORMAT_VERSION_MISSING",
       "AGF_FORMAT_VERSION_TOO_OLD",
-      "AGF_FORMAT_VERSION_UNSUPPORTED"
+      "AGF_FORMAT_VERSION_UNSUPPORTED",
+      "AGF_PREFAB_INVALID"
     ];
     expect([...ALL_DIAGNOSTIC_CODES].sort()).toEqual([...expected].sort());
     for (const code of expected) {

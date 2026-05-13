@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "valid-project-with-prefabs",
+  "name": "Valid Project With Prefabs",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}

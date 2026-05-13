@@ -76,6 +76,24 @@ describe("project check", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("accepts a project with a valid prefab", () => {
+    const result = checkProject(resolve(fixturesRoot, "valid-project-with-prefabs"));
+    expect(result.ok).toBe(true);
+    const prefabDiagnostics = result.diagnostics.filter((d) => d.code === "AGF_PREFAB_INVALID");
+    expect(prefabDiagnostics).toEqual([]);
+  });
+
+  it("errors with AGF_PREFAB_INVALID when a prefab.json fails schema validation", () => {
+    const result = checkProject(resolve(fixturesRoot, "invalid-prefab"));
+    expect(result.ok).toBe(false);
+    const prefabErrors = result.diagnostics.filter((d) => d.code === "AGF_PREFAB_INVALID");
+    expect(prefabErrors.length).toBeGreaterThan(0);
+    expect(prefabErrors[0]).toMatchObject({
+      severity: "error",
+      file: "prefabs/broken.prefab.json"
+    });
+  });
+
   it("reports unknown components and duplicate entity ids", () => {
     const result = checkProject(resolve(fixturesRoot, "invalid-project"));
     const codes = result.diagnostics.map((diagnostic) => diagnostic.code);

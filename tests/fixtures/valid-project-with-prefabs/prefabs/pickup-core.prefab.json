@@ -1,0 +1,9 @@
+{
+  "agfFormatVersion": 1,
+  "id": "pickup-core",
+  "description": "Energy core that drones can carry.",
+  "components": {
+    "Transform": { "position": [0, 0.5, 0] }
+  },
+  "tags": ["pickup", "core"]
+}

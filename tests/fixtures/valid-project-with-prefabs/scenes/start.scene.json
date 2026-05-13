@@ -1,0 +1,36 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Transform": {
+          "position": [0, 2, 5],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Camera": {
+          "kind": "perspective",
+          "active": true
+        }
+      }
+    },
+    {
+      "id": "cube",
+      "components": {
+        "Name": {
+          "label": "Cube"
+        },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#f7c948"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/prefab.schema.json",
+  "title": "AGF Prefab",
+  "description": "A reusable bundle of components. Scenes can instantiate prefabs with optional per-instance overrides. The component set itself is validated against the scene component schemas at scene-load time, not at prefab parse time, because prefabs may carry project-extension components.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agfFormatVersion", "id", "components"],
+  "properties": {
+    "agfFormatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "AGF project format version. Mirrors the project.json field so each prefab travels with its own version stamp."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Project-local prefab id. Referenced from scenes via `instances: [{ prefab: <id> }]`."
+    },
+    "description": {
+      "type": "string"
+    },
+    "components": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Default component values. Scene-level overrides are merged on top of these at scene-load time."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "description": "Optional free-form tags for grouping (e.g. `pickup`, `hazard`). No engine semantics."
+    }
+  }
+}
