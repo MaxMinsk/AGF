@@ -24,6 +24,9 @@
     },
     "Respawnable": {
       "$ref": "#/definitions/respawnableComponent"
+    },
+    "WorldSignal": {
+      "$ref": "#/definitions/worldSignalComponent"
     }
   },
   "definitions": {
@@ -169,6 +172,29 @@
           "type": "number",
           "minimum": 0,
           "description": "Time-elapsed value past which the entity becomes vulnerable again."
+        }
+      }
+    },
+    "worldSignalComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "health": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Smoothed [0,1] world signal — EMA of the repaired-beacon ratio."
+        },
+        "target": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Most-recent raw ratio of repaired beacons over total Repairable entities."
+        },
+        "tau": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Smoothing rate, larger = snappier. Defaults to 2.0."
         }
       }
     },

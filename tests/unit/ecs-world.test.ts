@@ -103,6 +103,43 @@ describe("World", () => {
     expect(world.query(["Transform"])).toEqual([]);
   });
 
+  it("createQuery returns a handle that reuses results across calls when structure is unchanged", () => {
+    const world = new World();
+    world.addEntity("a");
+    world.setComponent("a", "Transform", {});
+    world.setComponent("a", "MeshRenderer", {});
+
+    const query = world.createQuery(["Transform", "MeshRenderer"]);
+    const first = query.run();
+    const second = query.run();
+    expect(first).toBe(second);
+    expect(first).toEqual(["a"]);
+
+    world.setComponent("a", "Transform", { position: [1, 1, 1] });
+    const third = query.run();
+    expect(third).toBe(second);
+
+    world.addEntity("b");
+    world.setComponent("b", "Transform", {});
+    world.setComponent("b", "MeshRenderer", {});
+    const fourth = query.run();
+    expect(fourth).not.toBe(third);
+    expect(fourth.sort()).toEqual(["a", "b"]);
+  });
+
+  it("createQuery invalidates the cache when a component is removed", () => {
+    const world = new World();
+    world.addEntity("a");
+    world.setComponent("a", "Transform", {});
+    world.setComponent("a", "MeshRenderer", {});
+
+    const query = world.createQuery(["Transform", "MeshRenderer"]);
+    expect(query.run()).toEqual(["a"]);
+
+    world.removeComponent("a", "MeshRenderer");
+    expect(query.run()).toEqual([]);
+  });
+
   it("builds a world from a normalized scene", () => {
     const world = World.fromScene({
       id: "start",
