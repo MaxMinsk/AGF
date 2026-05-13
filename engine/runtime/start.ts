@@ -2,6 +2,7 @@ import type { SceneInput } from "../core/ecs/types";
 import { World } from "../core/ecs/world";
 import { advanceFixedStep } from "../core/loop/fixed-step";
 import type { TimeContext } from "../core/loop/types";
+import type { SystemScheduler } from "../core/systems/scheduler";
 import { ThreeRenderer } from "../render/three-renderer";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 
@@ -14,6 +15,8 @@ export type RuntimeOptions = {
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
+  /** Optional scheduler whose systems run once per fixed step, before fixedUpdate. */
+  scheduler?: SystemScheduler;
   /** Maximum fixed steps to run per render frame before dropping surplus time. */
   maxFixedStepsPerFrame?: number;
   /** Mounts the dev FPS overlay next to the canvas. */
@@ -38,6 +41,7 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
 
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
   const fixedUpdate = options.fixedUpdate;
+  const scheduler = options.scheduler;
   const maxFixedStepsPerFrame = options.maxFixedStepsPerFrame;
 
   const time: TimeContext = {
@@ -87,7 +91,7 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
     const stepResult = advanceFixedStep(accumulator, frameDt, fixedDt, maxFixedStepsPerFrame);
     accumulator = stepResult.accumulator;
 
-    if (fixedUpdate !== undefined && stepResult.steps > 0) {
+    if (stepResult.steps > 0 && (scheduler !== undefined || fixedUpdate !== undefined)) {
       const fixedTime: TimeContext = {
         elapsed: time.elapsed,
         dt: fixedDt,
@@ -98,7 +102,12 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
       for (let step = 0; step < stepResult.steps; step += 1) {
         fixedTime.elapsed += fixedDt;
         fixedTime.fixedStepCount += 1;
-        fixedUpdate(fixedTime, world);
+        if (scheduler !== undefined) {
+          scheduler.runFixedStep({ time: fixedTime, world });
+        }
+        if (fixedUpdate !== undefined) {
+          fixedUpdate(fixedTime, world);
+        }
       }
       time.elapsed = fixedTime.elapsed;
       time.fixedStepCount = fixedTime.fixedStepCount;

@@ -29,10 +29,32 @@ Stories below are listed at the epic level. Each story must be expanded with tas
 
 ### Epic 6: Gameplay Systems v0
 
-Stories:
+**Story 6.1: System Scheduler**
 
-- `6.1`: System scheduler.
-- `6.2`: Sample movement system.
+Status: Implemented.
+
+Tasks:
+
+- Define a `System` shape with a unique `name` and an optional `fixedUpdate(context)` hook.
+- Define a `SystemContext` exposing the active `World` and current `TimeContext`.
+- Implement `SystemScheduler` with `register`, `unregister`, `has`, `systemNames`, `size` and `runFixedStep`.
+- Wire the scheduler into `startRuntime` so registered systems run on every fixed step.
+- Keep `engine/core/systems/` independent from Three.js, DOM and Vite.
+
+Acceptance criteria:
+
+- Multiple systems can be registered and run in registration order on every fixed step.
+- Registering a system with a duplicate name throws an actionable error.
+- A system without `fixedUpdate` is skipped without affecting the rest.
+- A runtime with no scheduler behaves exactly as before (no regressions).
+
+Verification:
+
+- Vitest suite for the scheduler (registration, run order, missing hook, duplicate guard, unregister re-index).
+
+**Story 6.2: Sample Movement System** (planned)
+
+Tasks/acceptance/verification will be expanded when picked up.
 
 ### Epic 7: Scene Patches And Hot Reload
 
