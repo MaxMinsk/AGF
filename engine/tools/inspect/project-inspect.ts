@@ -17,6 +17,7 @@ export type InspectResult = {
   ok: boolean;
   projectDir: string;
   diagnostics: Diagnostic[];
+  filter?: InspectFilterSummary;
   project?: {
     id: string;
     name: string;
@@ -27,11 +28,24 @@ export type InspectResult = {
   scene?: {
     id: string;
     entityCount: number;
+    matchedEntityCount: number;
     entities: InspectEntity[];
   };
 };
 
-export function inspectProject(projectDirInput: string): InspectResult {
+export type InspectOptions = {
+  /** Entity must have ALL of these components to be included. */
+  components?: ReadonlyArray<string>;
+  /** Entity id must be in this list to be included. */
+  entityIds?: ReadonlyArray<string>;
+};
+
+export type InspectFilterSummary = {
+  components: ReadonlyArray<string>;
+  entityIds: ReadonlyArray<string>;
+};
+
+export function inspectProject(projectDirInput: string, options: InspectOptions = {}): InspectResult {
   const checkResult = checkProject(projectDirInput);
   if (!checkResult.ok) {
     return {
@@ -44,9 +58,11 @@ export function inspectProject(projectDirInput: string): InspectResult {
   const projectData = readJsonObject(resolve(checkResult.projectDir, "project.json"));
   const startScene = readRequiredString(projectData, "startScene");
   const sceneData = readJsonObject(resolve(checkResult.projectDir, startScene));
-  const entities = normalizeEntities(sceneData);
+  const allEntities = normalizeEntities(sceneData);
+  const filter = normaliseFilter(options);
+  const entities = applyFilter(allEntities, filter);
 
-  return {
+  const result: InspectResult = {
     ok: true,
     projectDir: checkResult.projectDir,
     diagnostics: checkResult.diagnostics,
@@ -59,10 +75,17 @@ export function inspectProject(projectDirInput: string): InspectResult {
     },
     scene: {
       id: readRequiredString(sceneData, "id"),
-      entityCount: entities.length,
+      entityCount: allEntities.length,
+      matchedEntityCount: entities.length,
       entities
     }
   };
+
+  if (filter.components.length > 0 || filter.entityIds.length > 0) {
+    result.filter = filter;
+  }
+
+  return result;
 }
 
 export function formatInspection(result: InspectResult): string {
@@ -70,22 +93,55 @@ export function formatInspection(result: InspectResult): string {
     return formatDiagnostics(result as CheckResult);
   }
 
-  const lines = [
-    `Project: ${result.project.name} (${result.project.id})`,
-    `Start scene: ${result.project.startScene}`,
-    `Scene: ${result.scene.id}`,
-    `Entities: ${result.scene.entityCount}`,
-    ...result.scene.entities.map((entity) => {
-      const componentText = entity.componentNames.length === 0 ? "no components" : entity.componentNames.join(", ");
-      return `- ${entity.id}: ${componentText}`;
-    })
-  ];
+  const lines = [`Project: ${result.project.name} (${result.project.id})`, `Start scene: ${result.project.startScene}`, `Scene: ${result.scene.id}`];
+
+  if (result.filter !== undefined) {
+    const parts: string[] = [];
+    if (result.filter.components.length > 0) {
+      parts.push(`components=[${result.filter.components.join(", ")}]`);
+    }
+    if (result.filter.entityIds.length > 0) {
+      parts.push(`entities=[${result.filter.entityIds.join(", ")}]`);
+    }
+    lines.push(`Filter: ${parts.join(" ")}`);
+    lines.push(`Entities: ${result.scene.matchedEntityCount} / ${result.scene.entityCount}`);
+  } else {
+    lines.push(`Entities: ${result.scene.entityCount}`);
+  }
+
+  for (const entity of result.scene.entities) {
+    const componentText = entity.componentNames.length === 0 ? "no components" : entity.componentNames.join(", ");
+    lines.push(`- ${entity.id}: ${componentText}`);
+  }
 
   if (result.diagnostics.length > 0) {
     lines.push("", "Diagnostics:", formatDiagnostics(result as CheckResult));
   }
 
   return lines.join("\n");
+}
+
+function normaliseFilter(options: InspectOptions): InspectFilterSummary {
+  const components = (options.components ?? []).filter((value) => value.length > 0);
+  const entityIds = (options.entityIds ?? []).filter((value) => value.length > 0);
+  return { components, entityIds };
+}
+
+function applyFilter(entities: InspectEntity[], filter: InspectFilterSummary): InspectEntity[] {
+  if (filter.components.length === 0 && filter.entityIds.length === 0) {
+    return entities;
+  }
+  return entities.filter((entity) => {
+    if (filter.entityIds.length > 0 && !filter.entityIds.includes(entity.id)) {
+      return false;
+    }
+    for (const name of filter.components) {
+      if (!entity.componentNames.includes(name)) {
+        return false;
+      }
+    }
+    return true;
+  });
 }
 
 function normalizeEntities(sceneData: JsonObject): InspectEntity[] {

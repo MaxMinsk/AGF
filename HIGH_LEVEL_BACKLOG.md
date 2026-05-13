@@ -56,6 +56,7 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Executable agent skills | Later | Turn repeated AGF workflows into runnable skill helpers after failures are known. |
 | Benchmark-style reports | Later | Build/runtime/scene/playtest/visual/protocol health summary. |
 | Workspace/package split | Later | Consider workspaces only after boundaries become painful. |
+| Procedural Character Generator | Later | Standalone tool inside the engine. Node-graph UI; emits a rigged + Mixamo-animatable mesh (human, robot, dog, spider, …) for use as a runtime asset. Tracked in its own backlog: `docs/proposals/procedural-character-generator.md`. Take it on once Beacon World gameplay v0 is stable; staffing it earlier blocks game progress. |
 
 ## Parking Lot
 

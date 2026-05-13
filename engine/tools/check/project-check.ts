@@ -7,7 +7,7 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string
 
 type JsonObject = { [key: string]: JsonValue };
 
-type StaticSchemaKey = "project" | "assetSources" | "material";
+type StaticSchemaKey = "project" | "assetSources" | "material" | "playtest";
 
 type StaticSchemas = Record<StaticSchemaKey, ValidateFunction>;
 
@@ -53,7 +53,8 @@ const primitiveMeshes = new Set(["box", "sphere", "plane"]);
 const staticSchemaPaths: Record<StaticSchemaKey, string> = {
   project: "schemas/project.schema.json",
   assetSources: "schemas/asset-sources.schema.json",
-  material: "schemas/material.schema.json"
+  material: "schemas/material.schema.json",
+  playtest: "schemas/playtest.schema.json"
 };
 const baseSceneSchemaPath = "schemas/scene.schema.json";
 
@@ -94,6 +95,8 @@ export function checkProject(projectDirInput: string): CheckResult {
   if (startScene !== undefined) {
     validateStartScene(projectDir, startScene, assetRoot, diagnostics);
   }
+
+  validatePlaytestScenarios(projectDir, diagnostics);
 
   return result(projectDir, diagnostics);
 }
@@ -142,6 +145,30 @@ function validateStartScene(
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
+  }
+}
+
+function validatePlaytestScenarios(projectDir: string, diagnostics: Diagnostic[]): void {
+  const playtestsDir = resolve(projectDir, "playtests");
+  if (!isDirectory(playtestsDir)) {
+    return;
+  }
+
+  const entries = readdirSync(playtestsDir);
+  for (const entry of entries) {
+    if (!entry.endsWith(".playtest.json")) {
+      continue;
+    }
+    const filePath = resolve(playtestsDir, entry);
+    if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
+      continue;
+    }
+    const json = readJson(filePath, projectDir);
+    if (!json.ok) {
+      diagnostics.push(json.diagnostic);
+      continue;
+    }
+    diagnostics.push(...validateStaticSchema("playtest", json.data, filePath, projectDir));
   }
 }
 
@@ -376,7 +403,8 @@ function getStaticSchemas(): StaticSchemas {
   staticSchemasCache = {
     project: ajv.compile(readSchema(staticSchemaPaths.project)),
     assetSources: ajv.compile(readSchema(staticSchemaPaths.assetSources)),
-    material: ajv.compile(readSchema(staticSchemaPaths.material))
+    material: ajv.compile(readSchema(staticSchemaPaths.material)),
+    playtest: ajv.compile(readSchema(staticSchemaPaths.playtest))
   };
   return staticSchemasCache;
 }
