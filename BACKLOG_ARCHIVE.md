@@ -59,3 +59,51 @@ Status: Completed and archived.
 - Asset metadata should be implemented early enough to avoid anonymous files.
 - Keep repository files in English.
 
+## Sprint 1 - Playable Foundation
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `1.1` Scaffolded the TypeScript/Vite workspace with strict `tsconfig.json` and the engine/examples/schemas/tests folder split.
+- `1.2` Established the Vitest + Playwright baseline with a screenshot-attaching browser smoke test.
+- `2.1` Authored `schemas/scene.schema.json` covering `Transform`, `Camera`, `MeshRenderer` and `Name`; valid/invalid fixtures with actionable diagnostics.
+- `2.2` Added `schemas/project.schema.json` plus `examples/hello-3d/project.json`; missing `startScene` reports a field-specific diagnostic.
+- `2.3` Laid out `examples/hello-3d/assets/` with `_sources/asset-sources.json` and a typed metadata schema.
+- `2.4` Added asset reference validation for `MeshRenderer` mesh/material under `assetRoot`; primitive meshes stay valid without files.
+- `3.1` Pragmatic ECS `World` with sparse component stores, query intersections and `World.fromScene`.
+- `3.2` Command pipeline v0 with `EngineCommand` union (`entity.create`, `entity.delete`, `component.set`, `scene.load`), `CommandQueue` and ordered command log.
+- `4.1` Three.js render adapter — `ThreeRenderer` mirrors World state into a `THREE.Scene`, supports primitive meshes, reads Camera and applies Transform every frame.
+- `4.2` Fixed-step loop with pure `advanceFixedStep` accumulator, `TimeContext` and dev FPS overlay shown only when `import.meta.env.DEV`.
+- `5.0` Shared CLI diagnostic shape (`code`/`file`/`path`/`severity`/`message`/`suggestion`) with valid + intentionally invalid fixtures.
+- `5.1` `engine check <projectDir>` CLI with human-readable and `--json` output; exit code `0`/`1`.
+- `5.2` `engine inspect <projectDir>` CLI prints normalized scene entities, with `--json` for agents.
+
+### Deliverables
+
+- `engine/core/{ecs,commands,loop}/`
+- `engine/runtime/{start,dev-overlay}.ts`
+- `engine/render/three-renderer.ts`
+- `engine/tools/{check,inspect,cli}.ts`
+- `schemas/{project,scene,asset-sources}.schema.json`
+- `examples/hello-3d/`
+- `src/{main,app}.ts`, `src/styles.css`, `index.html`
+- `tests/unit/{math,project-check,engine-cli,ecs-world,commands,fixed-step}.test.ts`
+- `tests/e2e/app.spec.ts`
+- `tests/fixtures/{valid-project,invalid-project,missing-start-scene,valid-asset-reference,missing-asset-reference,invalid-asset-metadata}/`
+- `docs/diagnostics.md` (canonical diagnostic code catalog)
+- `.claude/commands/{adr-new,archive-sprint}.md`
+- `.claude/settings.json` (project allowlist)
+
+### Verification
+
+- `npm run preflight` at sprint close — typecheck, 34 Vitest tests across 6 files, vite build, 1 Playwright e2e (nonblank Three.js canvas).
+- Screenshot artifact `hello-3d-canvas.png` confirms the yellow cube + blue floor + dev overlay.
+
+### Follow-Ups
+
+- Sprint 2 candidates `11.1`–`11.4` (preflight script, debug-protocol, template-policy, quality-axes docs) were authored during Sprint 0/1 and already exist. They should be moved to this archive (or to Sprint 0) instead of re-running in Sprint 2.
+- Vite production bundle includes Three.js and crosses the 500 KB warning threshold. Consider manual chunking when bundle hygiene becomes a real concern.
+- `WebGLRenderer` runs with `preserveDrawingBuffer: true` so e2e pixel readback works. Revisit if a perf budget appears.
+- Cyrillic-character CI check is parked in `HIGH_LEVEL_BACKLOG.md` parking lot as a Sprint 2 candidate.
+
