@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 18 - TBD
+## Current Sprint: Sprint 19 - TBD
 
-Sprint 18 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 19 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -31,18 +31,19 @@ Sprint 18 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
 - `10.10` Authority hand-off for the Beacon drone — when `?networked=1`, hide/remove the local `player.drone` and route the local pickup/hazard systems through the server-owned `player.<playerId>` entity. Needs a small protocol extension for outbound `intent.pickup` / `intent.drop`.
-- `10.11` Multi-client e2e — Playwright test that starts the node-world-server, opens two browser pages with different `playerId`s, and proves each page sees the other player's entity through the snapshot.
+- `10.12` Resync on snapshot gap — when the client adapter observes a missing sequence between two `world.snapshot` messages, drop all server-owned entities and let the next snapshot rebuild them so a missed delete cannot ghost forever.
 
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.15` Round reset — when `RoundState.phase === "complete"` and a player presses an action key (or after a delay), reset all `Repairable.repaired = false`, `Pickup.consumed = false` and `RoundState.phase = "active"` with `holdProgress = 0`.
+- `13.16` HUD restart affordance — when `RoundState.phase === "complete"`, the HUD shows "Press R to restart" under `ROUND COMPLETE`.
 
 #### Engine polish
 
-- `E.7` Inspect snapshot to stable JSON — `engine inspect --save` currently includes `time` and `componentNames` ordering that depend on world insertion order. Normalise the output so the diff between two runs is byte-stable when the world is identical.
-- `E.8` Agent test recipe doc — a one-page doc in `docs/agent/` showing the canonical "edit JSON → engine check → engine inspect --diff → playtest" recipe, with command snippets pinned to actual scripts in `package.json`.
+- `E.9` `engine inspect --tail N` for component-data subset — current `--tail` only applies to `--diff`. Add it to plain inspect so an agent can ask for "the last N entities by id" without filters.
+- `E.10` Smaller `applyCommand` boundary — split the implementation so it never imports from a system file, only from `ecs/`. Then add a Vitest case that imports `applyCommand` in isolation and proves the worst-case command set runs on a fresh `World` in under N microseconds.
 
 #### Asset polish
 
 - `14.7` Drone material variant family — small palette of drone materials so a future networked profile can colour different players differently.
+- `14.8` Material HMR audit — confirm that editing every material under `examples/beacon-world/assets/runtime/materials/` lives-reloads via the existing `agf:asset-changed` path, including the new `beacon-repaired.material.json`.

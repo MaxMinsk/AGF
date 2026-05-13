@@ -13,6 +13,7 @@ import { createPickupSystem as createBeaconPickupSystem } from "../examples/beac
 import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
 import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
 import { createRoundSystem as createBeaconRoundSystem } from "../examples/beacon-world/src/systems/round-system";
+import { resetBeaconRound } from "../examples/beacon-world/src/round-reset";
 import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
@@ -55,6 +56,12 @@ export type AppHandle = {
   reloadAsset(ref: string): void;
   /** Active WS adapter, if `?server=` was provided. Useful for tests. */
   readonly network: WsNetworkAdapterHandle | undefined;
+  /**
+   * Project-local action. For Beacon World, re-arms all beacons, respawns
+   * all consumed pickups and resets `RoundState` to `"active"`. Returns
+   * the number of mutations applied. For other projects, returns 0.
+   */
+  resetRound(): number;
   dispose(): void;
 };
 
@@ -137,8 +144,19 @@ export function createApp(
   const runtime: RuntimeHandle = startRuntime(runtimeOptions);
 
   let healthHud: HealthHudHandle | undefined;
+  let keyboardResetHandler: ((event: KeyboardEvent) => void) | undefined;
   if (projectId === "beacon-world") {
     healthHud = createBeaconHealthHud(shell, runtime);
+    keyboardResetHandler = (event: KeyboardEvent): void => {
+      if (event.code !== "KeyR" || event.repeat) {
+        return;
+      }
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      resetBeaconRound(runtime.world);
+    };
+    window.addEventListener("keydown", keyboardResetHandler);
   }
 
   if (options.serverUrl !== undefined) {
@@ -166,7 +184,16 @@ export function createApp(
     get network(): WsNetworkAdapterHandle | undefined {
       return network;
     },
+    resetRound(): number {
+      if (projectId !== "beacon-world") {
+        return 0;
+      }
+      return resetBeaconRound(runtime.world);
+    },
     dispose(): void {
+      if (keyboardResetHandler !== undefined) {
+        window.removeEventListener("keydown", keyboardResetHandler);
+      }
       network?.dispose();
       healthHud?.dispose();
       runtime.stop();

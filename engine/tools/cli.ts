@@ -4,6 +4,7 @@ import { checkProject, formatDiagnostics } from "./check/project-check";
 import {
   formatInspection,
   inspectProject,
+  toStableInspectResult,
   type InspectOptions
 } from "./inspect/project-inspect";
 import {
@@ -57,7 +58,8 @@ if (parsedArgs.command === "check") {
       options.entityIds = parsedArgs.entityIds;
     }
     const result = inspectProject(parsedArgs.projectDir, options);
-    emitResult(result, parsedArgs, () => formatInspection(result));
+    const persisted = parsedArgs.savePath !== undefined ? toStableInspectResult(result) : result;
+    emitResult(persisted, parsedArgs, () => formatInspection(result));
     process.exitCode = result.ok ? 0 : 1;
   }
 } else {

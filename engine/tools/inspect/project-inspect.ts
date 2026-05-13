@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { checkProject, formatDiagnostics, type CheckResult, type Diagnostic } from "../check/project-check";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -86,6 +86,52 @@ export function inspectProject(projectDirInput: string, options: InspectOptions 
   }
 
   return result;
+}
+
+/**
+ * Returns a copy of {@link result} with machine-specific fields normalised so
+ * two runs of the same project on different machines produce byte-identical
+ * JSON when the world is unchanged.
+ *
+ * Currently this means:
+ *   * `projectDir` collapses to just the directory basename
+ *     (`/Users/.../examples/hello-3d` → `hello-3d`).
+ *   * top-level keys are emitted in a stable, alphabetical order so JSON
+ *     output is byte-stable across Node versions.
+ *
+ * Component values themselves are already sorted alphabetically by
+ * `inspectProject`, so no further work is needed there.
+ */
+export function toStableInspectResult(result: InspectResult): InspectResult {
+  const stable: InspectResult = {
+    ok: result.ok,
+    diagnostics: result.diagnostics,
+    projectDir: basename(result.projectDir)
+  };
+  if (result.filter !== undefined) {
+    stable.filter = result.filter;
+  }
+  if (result.project !== undefined) {
+    stable.project = result.project;
+  }
+  if (result.scene !== undefined) {
+    stable.scene = result.scene;
+  }
+  return JSON.parse(JSON.stringify(stable, stableReplacer)) as InspectResult;
+}
+
+function stableReplacer(_key: string, value: unknown): unknown {
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+      left.localeCompare(right)
+    );
+    const sorted: Record<string, unknown> = {};
+    for (const [key, entry] of entries) {
+      sorted[key] = entry;
+    }
+    return sorted;
+  }
+  return value;
 }
 
 export function formatInspection(result: InspectResult): string {
