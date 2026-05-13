@@ -78,7 +78,7 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 | `M10` Security / trust boundary for agent-authored projects | Active | Doc + CLI warning + network hardening (already partially shipped via protocol-validator, id-collision and size caps). Mostly documentation work. |
 | `M11` Resource lifecycle + leak tests | **High priority** | HMR-heavy workflow means leaks build up silently. Renderer lifecycle audit (geometries / materials / textures count), HMR stress test, network adapter create/dispose loop. |
 | `M12` Template / project creation CLI | Active | `engine new -- <name> --template hello-3d`. Less urgent while only two examples exist; gains value once a third sample is added. |
-| `M14` Live-process debug bridge | **High priority** | The user has the game running in their tab and describes a bug — today there is no single command to share that state with an agent. Surface bundle: one-shot `__agf.bugReport()` JSON, browser-side recorder access on `window.__agf`, `engine inspect --state-from <file>` mode, diagnostics-overlay "Copy bug report" button, typed `AgentBugReport` schema. See stories `E.80–E.84` below. |
+| `M15` Engine dev server | **High priority — investigate first** | The "Node CLI + browser runtime" split does not cover live-process debugging: when the user has the game running in their tab, there is no programmatic surface an agent can reach without going through DevTools or clipboard. Needs a DEV-only dev server (likely a Vite plugin) exposing HTTP + WS endpoints under `/__agf/*` driven by a page-side bootstrap. **No human-paste flows.** Detailed design in `docs/research/engine-dev-server-investigation.md` (to be written). |
 
 **Sequencing the M-list:**
 
@@ -102,19 +102,35 @@ Concrete candidates pulled from the "Summer Engine" comparison note. Each one is
 
 **Sequencing:** ~~Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story.~~ **E.52 / E.53 / E.54 / E.56 — done in Sprint 27.** **E.55** waits until there is a real inspector epic to anchor it.
 
-## M14 — Live-process debug bridge (new epic, 2026-05-13)
+## M15 — Engine dev server (investigation story)
 
-The user has a running game and describes a bug. There is no agent-readable bridge from that live tab back to me today; the workflow degrades to "open DevTools, copy snapshots manually". These stories close that gap.
+AGF's current split — Node-side CLI tools that read the filesystem + browser runtime — does not cover **live-process** workflows. When the user is running the game in their tab and describes a bug, there is no agent-reachable surface: the only options today are DevTools manipulation or human-mediated clipboard / file paste. Both are wrong for an agent-first engine.
+
+Likely shape (to be confirmed by investigation): a **DEV-only Vite plugin** that adds HTTP + WebSocket endpoints under `/__agf/*`, paired with a tiny page-side bootstrap that opens a WS on mount. An agent then reaches the running game by HTTP — no human in the loop.
+
+### Story
+
+- `E.80` **Engine dev server — investigation.** Produce `docs/research/engine-dev-server-investigation.md` covering:
+  - The exact use cases an agent needs against a running tab (state pull, command injection, recording capture, event streaming, asset hot reload triggered by the agent, an HTTP "Playwright-light" alternative).
+  - Architecture options compared on agent ergonomics + dev-server overhead: Vite plugin with `configureServer` + WS bridge vs. a standalone Node sidecar vs. extending an existing dev tool. Pick one.
+  - Endpoint surface (`/__agf/snapshot`, `/__agf/bug-report`, `/__agf/recording/{start,stop}`, `/__agf/commands`, `/__agf/events` SSE, etc.) with request/response schemas.
+  - Security stance (localhost-only, no auth in DEV, plugin excluded from production builds, M10 coverage for prod).
+  - How HMR, recorder (Sprint 28), diagnostics bus (Sprint 26), and renderer-info (Sprint 26) connect to the bridge.
+  - First-implementation sprint plan: a sequenced list of stories sized for one sprint each.
+
+**Explicit non-goals at investigation stage:** no Ctrl-C / Ctrl-V flows, no "download as file" affordances, no "Copy bug report" buttons. If a story implies human-mediated state transfer, it is the wrong story for an agent-first engine.
+
+The user has a running game and describes a bug. There is no agent-readable bridge from that live tab back to me today. AGF is **agent-first** — the answer is NOT "open DevTools, copy / paste / download" but a programmatic bridge so an agent can pull state directly from the running dev tab.
 
 | Story | Notes |
 |---|---|
-| `E.80` `window.__agf.bugReport()` | Single call bundles `snapshot()` + `diagnostics()` + `rendererInfo()` + `reloadEvents` + project id + active profile + active networking config into one JSON; copies to clipboard and returns the same JSON string. Mirrors `copyDiagnostics()` (Sprint 27) but for the full state. |
-| `E.81` Recorder on `window.__agf` | Expose `__agf.startRecording()` / `__agf.stopRecording()` / `__agf.downloadRecording(filename?)`. Today `RuntimeHandle.startRecording` exists (Sprint 28) but is not reachable from DevTools. Use case: user reproduces the bug, calls `__agf.downloadRecording('bug.replay.json')`, drops the file into the chat, I run `engine replay`. |
-| `E.82` `engine inspect --state-from <snapshot.json>` | New mode that ingests a pre-captured `WorldSnapshot` (e.g. the `snapshot` field of a bug-report JSON) and runs the existing inspect filters against it without needing the project on disk. Pairs with `E.80` and the existing `inspect --diff` flow. |
-| `E.83` Diagnostics-overlay "Copy bug report" button | Adds a tiny button to `engine/runtime/diagnostics/diagnostics-overlay.ts` that calls `__agf.bugReport()` so the user does not need DevTools at all. Stays behind the existing DEV-only mount. |
-| `E.84` `AgentBugReport` schema | `schemas/bug-report.schema.json` defining `{ agfFormatVersion, projectId, capturedAt, profile, snapshot, diagnostics, rendererInfo, recordingSummary?, description? }`. `engine check` validates pasted bug-report files; agents can rely on a typed shape. |
+| `E.80` `window.__agf.bugReport()` | Single call bundles `snapshot()` + `diagnostics()` + `rendererInfo()` + project id + active profile + networking config into one JSON. **Pure data producer** — no clipboard, no download, just returns the JSON string. Other consumers (bridge endpoint, page-side overlay) wrap it. |
+| `E.81` Recorder on `window.__agf` | Expose `__agf.startRecording()` / `__agf.stopRecording()`. `RuntimeHandle.startRecording` exists since Sprint 28 — this just plumbs it through the AppHandle and onto the DEV global. **No file download** — the dev-server bridge (`E.82`) ships recordings over HTTP. |
+| `E.82` Vite dev-server agent bridge | New Vite plugin + WebSocket loop. Browser opens a WS to `/__agf/ws` on mount; dev server exposes `GET /__agf/bug-report`, `GET /__agf/snapshot`, `GET /__agf/diagnostics`, `POST /__agf/recording/start`, `POST /__agf/recording/stop` (returns the Recording JSON), `POST /__agf/commands` (forwards EngineCommands to the page). The agent runs `curl http://localhost:5173/__agf/bug-report` — no human interaction. |
+| `E.83` `engine inspect --state-from <snapshot.json>` | Ingests a pre-captured `WorldSnapshot` (e.g. the `snapshot` field of a bug-report JSON, or a recording's `finalSnapshot`) and runs the existing inspect filters against it. Pairs with `E.82` so an agent can pipe `curl /__agf/bug-report | jq .snapshot > /tmp/s.json && engine inspect --state-from /tmp/s.json`. |
+| `E.84` `AgentBugReport` schema | `schemas/bug-report.schema.json` defining `{ agfFormatVersion, projectId, capturedAt, profile, snapshot, diagnostics, rendererInfo, recordingSummary?, description? }`. `engine check` validates bug-report files; agents can rely on a typed shape. |
 
-Sequencing: ship `E.80` + `E.81` + `E.84` as one Sprint-30 vertical slice (the user can copy/share state). `E.82` and `E.83` follow once the basic shape is locked in. **Skip a remote bridge for v0** — clipboard + file paste is enough; an HTTP/MCP bridge can come later if and when the clipboard flow proves too slow.
+Sequencing: **the bridge (`E.82`) is the load-bearing story** — it converts every other `window.__agf.*` surface from "human-typed in DevTools" into "agent HTTP GET". Ship `E.80` + `E.81` + `E.84` first as primitives, then `E.82` to expose them, then `E.83` to consume snapshots offline. **Explicitly skip:** anchor-tag downloads, clipboard-only flows, "Copy bug report" buttons. These are human-in-the-loop affordances; AGF agents reach the page directly.
 
 ## From `Notes/kenji_engine_analysis.md` (most ideas already match AGF's direction)
 

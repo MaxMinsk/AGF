@@ -40,14 +40,15 @@ describe("createSeededRng", () => {
     const values = ["a", "b", "c", "d"];
     const counts: Record<string, number> = { a: 0, b: 0, c: 0, d: 0 };
     for (let i = 0; i < 4000; i += 1) {
-      counts[rng.pick(values)] += 1;
+      const key = rng.pick(values);
+      counts[key] = (counts[key] ?? 0) + 1;
     }
     // Each bucket should hover around 1000 ± wide tolerance. The point is to
     // catch a degenerate impl (e.g. always returning index 0), not to gate
     // mulberry32's statistical quality.
     for (const v of values) {
-      expect(counts[v]).toBeGreaterThan(700);
-      expect(counts[v]).toBeLessThan(1300);
+      expect(counts[v] ?? 0).toBeGreaterThan(700);
+      expect(counts[v] ?? 0).toBeLessThan(1300);
     }
   });
 
