@@ -21,52 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 5 - Backend Contracts
+## Current Sprint: Sprint 6 - TBD
 
-Goal: land the backend-facing seams that Sprint 2's archive parked here — a stable wire schema, a clearly-bounded reference backend skeleton, and the scene-side components that make presence and authority explicit.
+Sprint 6 focus is picked at sprint start. The candidate list below is the natural pool to draw from. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
 
-### Epic 10: Backend-Agnostic Persistent World Seam
+### Candidates
 
-**Story 10.1: Protocol Schema v0**
-
-Status: Implemented.
-
-Tasks:
-
-- Author `schemas/protocol.schema.json` as a discriminated union over `kind`.
-- Cover four v0 message kinds: `world.snapshot`, `player.join`, `player.leave`, `intent.move`.
-- Each variant fixes its payload shape with `additionalProperties: false`; envelope-level `sequence` is optional and monotonic.
-- Reuse the dot-namespaced `kind` style from `EngineCommand` so the wire vocabulary stays consistent with the client-side command pipeline.
-- Add ADR-0007 documenting the choice (JSON Schema discriminated union; no binary wire format at v0).
-- Validate the schema directly via `ajv` in a unit test with valid + invalid fixtures for each `kind`.
-
-Acceptance criteria:
-
-- Schema compiles under `ajv` (`strict: false`) without errors.
-- Sample messages of each kind validate; intentionally broken messages (unknown kind, missing required field, wrong-arity vector, unknown reason enum) fail.
-- ADR-0007 is referenced from `docs/adr/README.md` placement (numbered next to existing ADRs).
-
-Verification:
-
-- `npm test` — 10 new protocol-schema cases.
-
-**Story 10.2: Reference Backend Skeleton Boundary** (next)
-
-Tasks/acceptance/verification expanded when picked up.
-
-**Story 10.3: Network / World Components In Scene Schema** (next)
-
-Tasks/acceptance/verification expanded when picked up.
-
-### Sprint 5 Candidates Not Picked Yet
+#### Beacon World gameplay (Epic 13 continuation)
 
 - `13.4` Pickup component + spawner — energy core entity, lifetime, world-spawn system.
-- `13.5` Carry / deposit interaction — drone picks a core up on proximity, drops it on a beacon, beacon switches to a "repaired" material.
-- `14.3` Real authored `.glb` for Beacon World drone/beacons.
-- `15.1` In-page inspector overlay.
-- `16.1` Material file hot reload.
-- `17.1` Scene editor command palette.
+- `13.5` Carry / deposit interaction — drone picks up a core on proximity, drops it on a beacon, beacon switches to a "repaired" material.
+
+#### Asset polish
+
+- `14.3` Real authored `.glb` for the Beacon World drone and beacons — replace primitives once an art pipeline appears.
+- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
+
+#### Inspector and authoring tools
+
+- `15.1` In-page inspector overlay — read-only entity/component tree, toggle hotkey TBD (not F12, not F2).
+- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
+
+#### Backend follow-ups (when ready)
+
+- `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
+- `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton, validating the same schema.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 5 reaches close.
+Will be detailed when Sprint 6 reaches close.
