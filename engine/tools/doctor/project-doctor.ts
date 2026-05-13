@@ -4,7 +4,8 @@
 // performance-budget.json validation. Does NOT run e2e or browser smoke; if
 // the agent needs that, prints the canonical commands.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { checkProject, type Diagnostic } from "../check/project-check";
 import { summarizeProject, type ProjectSummary } from "../summarize/project-summarize";
@@ -29,16 +30,24 @@ export type RendererMetric =
   | "triangles"
   | "meshes";
 
+export type BundleStat = {
+  largestChunk: string;
+  largestChunkGzipKb: number;
+  /** Violation level vs the project's bundle budget, if one is configured. */
+  violation: "hard" | "soft" | "none";
+};
+
 export type DoctorReport = {
   projectDir: string;
   ok: boolean;
   diagnostics: Diagnostic[];
   summary: ProjectSummary;
   budget: PerformanceBudget | undefined;
+  bundle: BundleStat | undefined;
   recommendations: string[];
 };
 
-export function runDoctor(projectDirInput: string): DoctorReport {
+export function runDoctor(projectDirInput: string, repoRoot?: string): DoctorReport {
   const projectDir = resolve(projectDirInput);
   const check = checkProject(projectDir);
   const summary = summarizeProject(projectDir);
@@ -47,6 +56,8 @@ export function runDoctor(projectDirInput: string): DoctorReport {
   if (existsSync(budgetPath)) {
     budget = JSON.parse(readFileSync(budgetPath, "utf8")) as PerformanceBudget;
   }
+
+  const bundle = measureBundle(repoRoot ?? process.cwd(), budget);
 
   const recommendations: string[] = [];
   const errorCount = check.diagnostics.filter((d) => d.severity === "error").length;
@@ -70,17 +81,70 @@ export function runDoctor(projectDirInput: string): DoctorReport {
       `No performance-budget.json — add one to enforce renderer / bundle ceilings (\`schemas/performance-budget.schema.json\` for the shape).`
     );
   }
+  if (bundle === undefined) {
+    recommendations.push(
+      `No \`dist/assets\` build present — run \`npm run build\` so \`engine doctor\` can report bundle size.`
+    );
+  } else if (bundle.violation === "hard") {
+    recommendations.push(
+      `Largest JS chunk \`${bundle.largestChunk}\` is ${bundle.largestChunkGzipKb.toFixed(1)} KB gzipped — over the hard bundle budget.`
+    );
+  } else if (bundle.violation === "soft") {
+    recommendations.push(
+      `Largest JS chunk \`${bundle.largestChunk}\` is ${bundle.largestChunkGzipKb.toFixed(1)} KB gzipped — over the soft bundle budget (still under hard).`
+    );
+  }
   recommendations.push(
     `For browser smoke and HMR, run \`npm run test:e2e\` and \`npm run dev\` (engine doctor stays headless).`
   );
 
+  const ok = check.ok && bundle?.violation !== "hard";
+
   return {
     projectDir,
-    ok: check.ok,
+    ok,
     diagnostics: check.diagnostics,
     summary,
     budget,
+    bundle,
     recommendations
+  };
+}
+
+function measureBundle(repoRoot: string, budget: PerformanceBudget | undefined): BundleStat | undefined {
+  const assetsDir = resolve(repoRoot, "dist/assets");
+  if (!existsSync(assetsDir)) {
+    return undefined;
+  }
+  if (!statSync(assetsDir).isDirectory()) {
+    return undefined;
+  }
+  let largestBytes = 0;
+  let largestName = "";
+  for (const name of readdirSync(assetsDir)) {
+    if (!name.endsWith(".js")) continue;
+    const full = resolve(assetsDir, name);
+    const bytes = readFileSync(full);
+    const gzipped = gzipSync(bytes).length;
+    if (gzipped > largestBytes) {
+      largestBytes = gzipped;
+      largestName = name;
+    }
+  }
+  if (largestName === "") {
+    return undefined;
+  }
+  const gzipKb = largestBytes / 1024;
+  let violation: BundleStat["violation"] = "none";
+  if (budget?.bundle?.hardLargestChunkGzipKb !== undefined && gzipKb > budget.bundle.hardLargestChunkGzipKb) {
+    violation = "hard";
+  } else if (budget?.bundle?.softLargestChunkGzipKb !== undefined && gzipKb > budget.bundle.softLargestChunkGzipKb) {
+    violation = "soft";
+  }
+  return {
+    largestChunk: largestName,
+    largestChunkGzipKb: gzipKb,
+    violation
   };
 }
 
@@ -120,6 +184,11 @@ export function formatDoctor(report: DoctorReport): string {
         `  bundle: soft ${report.budget.bundle.softLargestChunkGzipKb ?? "—"} KB, hard ${report.budget.bundle.hardLargestChunkGzipKb ?? "—"} KB`
       );
     }
+  }
+  if (report.bundle !== undefined) {
+    lines.push(
+      `  measured: \`${report.bundle.largestChunk}\` at ${report.bundle.largestChunkGzipKb.toFixed(1)} KB gzipped (${report.bundle.violation})`
+    );
   }
   lines.push("");
 

@@ -66,8 +66,10 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 |---|---|---|
 | `M1` Versioned project format + migrations | **Done (v0)** | Shipped Sprint 27: `agfFormatVersion` on `project.json` schema + reference projects; `AGF_FORMAT_VERSION_MISSING/_TOO_OLD/_UNSUPPORTED` diagnostics; `engine migrate <projectDir> [--dry-run]` v0 adds the field when missing. Follow-up: extend to scene-extension and material manifests. |
 | `M2` Project bootstrap / plugin boundary | **Done** | Shipped Sprint 22 (`engine/runtime/project-bootstrap.ts` + per-project `bootstrap.ts`) and Sprint 23 (dynamic loaders in `src/main.ts`). Keep here for traceability. |
+| `M2b` Deterministic record/replay tooling | **Done (v0)** | Shipped Sprint 28: `engine/runtime/recording/recorder.ts` + `engine replay <file> [--expect ...]` + two unit tests. Follow-up: profile-flag-gated seeded RNG helper for Beacon's hazard pulse / pickup respawn so replays survive RNG drift. |
 | `M3` Prefabs, variants, scene composition | Active | `prefabs/*.prefab.json`, scene instantiation with overrides, inspect expansion. Beacon's duplicate cores / hazards motivate this. |
 | `M4` Save / load + persistence adapter | Active | Backend-agnostic adapter (IndexedDB first, REST later); Beacon-World local persistence slice for repaired beacons / scores / signal across reloads. |
+| `M4-docs` Schema-driven docs generation | **Done (v0)** | Shipped Sprint 28: `engine docs <projectDir>` renders Markdown from every `schemas/*.schema.json` + the project's `template_context.md` into `docs/generated/<projectId>/`. Regenerable; gitignored. |
 | `M5` Runtime diagnostics + browser-side error channel | **High priority** | Structured `window.__agf.diagnostics()` event bus. Agents currently have no in-page error contract beyond console; this directly improves the agent loop. |
 | `M6` Deterministic replay / recording | Active | Record (time, inputs, commands, snapshots, diagnostics); replay headlessly; attach AGF recording to failed Playwright tests. |
 | `M7` Performance budgets + renderer metrics | **Done (v0)** | Shipped Sprint 27: per-project `performance-budget.json` + `schemas/performance-budget.schema.json` + `engine doctor` reads the budget and exposes `compareRendererInfo(info, budget)` for soft/hard renderer violations. Renderer `info` already on `window.__agf` from Sprint 26. Follow-up (`E.64`): roll bundle:check into the doctor report. |
@@ -81,9 +83,9 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 
 1. ~~Take **M5** + **M11** next~~ — **Done in Sprint 26**. Runtime diagnostics bus, asset/network/HMR emit paths, renderer-info exposure, HMR stress test, adapter create/dispose stress, renderer-import-boundary test.
 2. ~~Take **M1** + **M7** next~~ — **Done in Sprint 27**. Project versioning (`agfFormatVersion` + diagnostics + `engine migrate`), per-project performance budget + schema, `engine doctor` reads the budget.
-3. Take **M6** (record/replay) + **M4** (`engine docs`) next — replay closes the determinism gap that blocks agent-driven regression bisection; docs generation removes the "read the whole schema" tax for agents.
-4. **M3** prefabs and existing **M4** save/load follow once Beacon World is rich enough to motivate the de-duplication / persistence pressure.
-5. **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
+3. ~~Take **M2b** (record/replay) + **M4-docs** (`engine docs`) next~~ — **Done in Sprint 28**. Recorder + `engine replay` (v0), schema-to-Markdown generator, lazy renderer, bundle-in-doctor, CI typecheck job, Beacon sound pings.
+4. Take **M2b-seed** (deterministic RNG) + **M3** (prefabs) next — closes the record/replay determinism gap and reduces Beacon's repeated-content tax.
+5. Existing **M4** save/load, **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
 
 ## AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)
 

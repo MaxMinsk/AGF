@@ -21,36 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 28 - TBD
+## Current Sprint: Sprint 29 — TBD
 
-Sprint 28 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 29 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
-Anchor candidates: continue the M-list — **M2** (deterministic-replay tooling) and **M4** (schema-driven docs generation) per `HIGH_LEVEL_BACKLOG.md` — plus the deferred polish item and a first real C# transport.
+Anchor candidates: continue the M-list — **M2-b** (deterministic seed) closes the record/replay determinism gap, **M3** (prefabs) reduces Beacon's duplicate cores / hazards, and the backend epic **10.5+** has been pending since Sprint 25.
 
 #### M-list follow-ups
 
-- `M2-a` Record-and-replay v0 — capture every applied `EngineCommand` plus the initial scene to a `.replay.json` artifact, then a CLI `engine replay <file>` that drives the runtime headlessly and diffs the resulting snapshot against an expected one.
-- `M2-b` Deterministic seed for `Math.random` consumers inside ECS systems (Beacon World pickup spawn, hazard pulse) — gated by a profile flag so production stays non-deterministic.
-- `M4` `engine docs` — generate human-readable docs from `schemas/*.schema.json` + per-project `template_context.md`. One JSON-Schema-to-Markdown pass per file plus an index.
-
-#### Engine polish
-
-- `E.63` Lazy renderer import — convert `engine/runtime/start.ts` to dynamically `import("../render/three-renderer")`; pair with the renderer-import-boundary lock so headless tooling can drop three from the chunk. (Carried over from Sprint 27.)
-- `E.64` `engine doctor` runs the bundle pass — invoke the existing `bundle:check` (or its underlying logic) and fold the result into the doctor report alongside the renderer budget.
+- `M2-b` Deterministic RNG — profile-flag-gated seeded RNG helper consumed by Beacon hazard pulse + pickup respawn so `engine replay` survives RNG drift.
+- `M3-a` Prefab schema v0 — `prefabs/*.prefab.json` + `prefab.schema.json` + `prefab.instantiate` command. Beacon's repeated cores / hazards motivate it.
+- `M3-b` Scene `instances: [{ prefab, overrides }]` syntax with schema validation + expansion in `scene.load`.
+- `E.69` `engine doctor` follow-up — if `dist/` is missing, optionally invoke `vite build` (gated by `--build` flag) so a fresh checkout can be scored end-to-end.
 
 #### Backend follow-ups
 
-- `10.5+` C# skeleton WebSocket transport — first transport on top of the smoke-only skeleton shipped in Sprint 25.
+- `10.5+` C# skeleton WebSocket transport — real transport on top of the smoke skeleton shipped in Sprint 25.
 - `10.14` Server-authoritative carry — `intent.pickup` / `intent.drop` protocol extension.
 - `10.16` Snapshot delta encoding — server sends only changed components per entity.
-- `10.18` Server-side hazard / pickup state — move pulse timing + core respawns onto the server so two tabs see the same pattern.
+- `10.18` Server-side hazard / pickup state — move pulse timing + core respawns onto the server.
 
-#### Beacon World gameplay
+#### Parking-lot promotions
 
-- `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
+- `M13` Project-file patch contract — design a JSON / AGF-command patch format + `engine patch --check`/`--write` flow. Pairs with `E.55`.
 
-#### Repo hygiene
+#### Beacon World polish
 
-- `RH.1` Cyrillic-in-repo GitHub Action — already on the pending list per memory `project-pending-cyrillic-check`.
+- `13.13` Audio asset path — replace the procedural Web Audio beeps with short licensed `.ogg` clips once the audio loader exists.

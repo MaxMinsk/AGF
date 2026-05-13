@@ -21,6 +21,8 @@ import { formatSummary, summarizeProject } from "./summarize/project-summarize";
 import { applyMigration, formatPlan, planMigration } from "./migrate/project-migrate";
 import { formatDoctor, runDoctor } from "./doctor/project-doctor";
 import { importAsset } from "./asset/asset-import";
+import { formatReplay, replay } from "./replay/project-replay";
+import { formatDocsResult, generateDocs } from "./docs/project-docs";
 
 type ParsedArgs = {
   command: string | undefined;
@@ -41,6 +43,7 @@ type ParsedArgs = {
   assetLicense: string | undefined;
   assetNotes: string | undefined;
   assetSubdir: string | undefined;
+  expectPath: string | undefined;
   positional: string[];
 };
 
@@ -89,6 +92,21 @@ if (parsedArgs.command === "check") {
   const report = runDoctor(parsedArgs.projectDir);
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
+} else if (parsedArgs.command === "docs") {
+  const result = generateDocs({ projectDir: parsedArgs.projectDir });
+  emitResult(result, parsedArgs, () => formatDocsResult(result));
+  process.exitCode = 0;
+} else if (parsedArgs.command === "replay") {
+  const positional = parsedArgs.positional;
+  const recordingPath = positional[1] ?? positional[0];
+  if (recordingPath === undefined || recordingPath === ".") {
+    console.error("Usage: engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]");
+    process.exitCode = 2;
+  } else {
+    const result = replay(recordingPath, parsedArgs.expectPath);
+    emitResult(result, parsedArgs, () => formatReplay(result));
+    process.exitCode = result.drift !== undefined ? 1 : 0;
+  }
 } else if (parsedArgs.command === "asset") {
   const positional = parsedArgs.positional;
   const sub = positional[1];
@@ -268,6 +286,7 @@ function parseArgs(args: string[]): ParsedArgs {
     assetLicense: undefined,
     assetNotes: undefined,
     assetSubdir: undefined,
+    expectPath: undefined,
     positional: []
   };
 
@@ -397,6 +416,13 @@ function parseArgs(args: string[]): ParsedArgs {
       }
       continue;
     }
+    if (current === "--expect") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.expectPath = value;
+      }
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -421,7 +447,9 @@ function printUsage(): void {
       "  engine summarize <projectDir> [--json] [--save <path>]",
       "  engine doctor <projectDir> [--json] [--save <path>]",
       "  engine migrate <projectDir> [--dry-run] [--json] [--save <path>]",
-      "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]"
+      "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]",
+      "  engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]",
+      "  engine docs <projectDir> [--json] [--save <path>]"
     ].join("\n")
   );
 }

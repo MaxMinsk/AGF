@@ -56,7 +56,19 @@ const DEFAULT_INVULNERABILITY_SECONDS = 1;
  * When `Health.current` reaches zero, the entity is respawned at its
  * `Respawnable.position` and `Health.current` is restored to `max`.
  */
-export function createHazardSystem(): System {
+export type HazardEvent = {
+  kind: "damage";
+  entityId: EntityId;
+  remainingHealth: number;
+  damage: number;
+};
+
+export type HazardSystemOptions = {
+  onEvent?: (event: HazardEvent) => void;
+};
+
+export function createHazardSystem(options: HazardSystemOptions = {}): System {
+  const onEvent = options.onEvent;
   let cachedWorld: World | undefined;
   let hazardQuery: QueryHandle | undefined;
   let candidateQuery: QueryHandle | undefined;
@@ -106,7 +118,7 @@ export function createHazardSystem(): System {
             continue;
           }
 
-          handleHit(world, entityId, hazard, time.elapsed);
+          handleHit(world, entityId, hazard, time.elapsed, onEvent);
         }
       }
     }
@@ -117,7 +129,8 @@ function handleHit(
   world: World,
   entityId: EntityId,
   hazard: HazardComponent,
-  elapsed: number
+  elapsed: number,
+  onEvent: ((event: HazardEvent) => void) | undefined
 ): void {
   const damage = hazard.damage ?? DEFAULT_DAMAGE;
   const invulnerabilitySeconds = hazard.invulnerabilitySeconds ?? DEFAULT_INVULNERABILITY_SECONDS;
@@ -128,6 +141,9 @@ function handleHit(
     const nextCurrent = Math.max(0, health.current - damage);
     nextHealth = { ...health, current: nextCurrent };
     world.setComponent(entityId, "Health", nextHealth);
+    if (onEvent !== undefined) {
+      onEvent({ kind: "damage", entityId, remainingHealth: nextCurrent, damage });
+    }
   }
 
   dropCarried(world, entityId);

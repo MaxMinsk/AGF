@@ -7,6 +7,9 @@ test-results/
 playwright-report/
 tests/tmp/
 
+# Generated docs (run `npm run engine:docs -- <projectDir>`)
+docs/generated/
+
 # .NET build output
 **/bin/
 **/obj/

@@ -59,14 +59,24 @@ const CARRY_HEIGHT_OFFSET = 0.6;
 const DEFAULT_REPAIRED_COLOR = "#4af0a8";
 const CONSUMED_PARK_Y = -100;
 
+export type PickupEvent =
+  | { kind: "pickup"; carrierId: EntityId; pickupId: EntityId; playerId?: string }
+  | { kind: "deposit"; carrierId: EntityId; beaconId: EntityId; playerId?: string };
+
 export type PickupSystemOptions = {
   pickupRadius?: number;
   depositRadius?: number;
+  /**
+   * Fires once per pickup / deposit transition. Beacon World wires audio
+   * cues through this; tests can also subscribe to assert the loop ran.
+   */
+  onEvent?: (event: PickupEvent) => void;
 };
 
 export function createPickupSystem(options: PickupSystemOptions = {}): System {
   const pickupRadius = options.pickupRadius ?? DEFAULT_PICKUP_RADIUS;
   const depositRadius = options.depositRadius ?? DEFAULT_DEPOSIT_RADIUS;
+  const onEvent = options.onEvent;
   let cachedWorld: World | undefined;
   let queries: PickupQueries | undefined;
 
@@ -97,21 +107,24 @@ export function createPickupSystem(options: PickupSystemOptions = {}): System {
         const position = transform.position ?? [0, 0, 0];
 
         if (carrier.carrying === undefined) {
-          tryPickup(world, carrierId, position, pickupRadius, q);
+          tryPickup(world, carrierId, position, pickupRadius, q, onEvent);
         } else {
-          handleCarry(world, carrierId, carrier.carrying, position, depositRadius, q);
+          handleCarry(world, carrierId, carrier.carrying, position, depositRadius, q, onEvent);
         }
       }
     }
   };
 }
 
+type PickupEventHandler = (event: PickupEvent) => void;
+
 function tryPickup(
   world: World,
   carrierId: EntityId,
   position: Vec3,
   radius: number,
-  q: PickupQueries
+  q: PickupQueries,
+  onEvent: PickupEventHandler | undefined
 ): void {
   const pickups = q.carryingPickups.run();
   let closestId: EntityId | undefined;
@@ -134,6 +147,14 @@ function tryPickup(
   if (closestId !== undefined) {
     world.setComponent(carrierId, "Carrier", { carrying: closestId });
     applyCarryTint(world, carrierId, closestId);
+    if (onEvent !== undefined) {
+      const presence = world.getComponent<PresenceComponent>(carrierId, "Presence");
+      const event: PickupEvent = { kind: "pickup", carrierId, pickupId: closestId };
+      if (presence?.playerId !== undefined) {
+        event.playerId = presence.playerId;
+      }
+      onEvent(event);
+    }
   }
 }
 
@@ -197,7 +218,8 @@ function handleCarry(
   carriedId: EntityId,
   carrierPosition: Vec3,
   depositRadius: number,
-  q: PickupQueries
+  q: PickupQueries,
+  onEvent: PickupEventHandler | undefined
 ): void {
   if (!world.hasEntity(carriedId)) {
     world.setComponent(carrierId, "Carrier", {});
@@ -280,6 +302,13 @@ function handleCarry(
       world.getComponent<PickupComponent>(carriedId, "Pickup") ?? pickup;
     despawnOrRemove(world, carriedId, cleanedPickup);
     world.setComponent(carrierId, "Carrier", {});
+    if (onEvent !== undefined) {
+      const event: PickupEvent = { kind: "deposit", carrierId, beaconId };
+      if (ownerPlayerId !== undefined) {
+        event.playerId = ownerPlayerId;
+      }
+      onEvent(event);
+    }
     return;
   }
 }
