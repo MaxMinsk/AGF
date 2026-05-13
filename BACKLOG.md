@@ -21,97 +21,30 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 4 - Browser Polish And Gameplay v0
+## Current Sprint: Sprint 5 - TBD
 
-Goal: unblock viewing Beacon World in the browser, make `npm run build` ship runtime assets correctly, and add the first gameplay loop to Beacon World.
+Per the stakeholder note in Sprint 2's archive, Epic 10 (Backend persistent-world contracts) was deferred to "Sprint ~5". The actual focus is picked at sprint start; the candidate list below seeds the choice. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
 
-### Epic 18: Project Switcher
+### Candidates
 
-**Story 18.1: URL-Driven Project Switcher**
+#### Backend (Epic 10, deferred since Sprint 2)
 
-Status: Implemented.
+- `10.1` Protocol schema v0 — JSON Schema for client/server messages, lives in `schemas/net/`, validated by `engine check`.
+- `10.2` Reference backend skeleton boundary — directory layout under `examples/backends/` plus an ADR that nails down what is "engine" vs "reference backend".
+- `10.3` Network/world components in scene schema — `Networked`, `Presence`, `Authority`; renderer keeps no special-case behavior, but `engine inspect` shows them.
 
-Tasks:
+#### Beacon World gameplay (Epic 13 continuation)
 
-- Statically import `project.json` and `start.scene.json` for both `hello-3d` and `beacon-world` in `src/main.ts`.
-- Read `?project=<id>` from the URL; default to `hello-3d`; fall back to the default on unknown ids.
-- Thread `projectId` into `createApp` so the asset registry's `baseUrl` resolves to `examples/<projectId>/assets/`.
-- Render the selected project name and a small `?project=<id>` switcher chip in the status panel; tag elements with `data-testid` for e2e.
-- Keep scene HMR working for the active project (one `import.meta.hot.accept` per project, static paths so Vite tracks them).
+- `13.4` Pickup component + spawner — energy core entity, lifetime, world-spawn system.
+- `13.5` Carry / deposit interaction — drone picks a core up on proximity, drops it on a beacon, beacon switches to a "repaired" material.
 
-Acceptance criteria:
+#### Engine polish (Epic 14 / 15 / 16 / 17)
 
-- Visiting `/` loads `hello-3d`.
-- Visiting `/?project=beacon-world` loads Beacon World — drone + two beacons appear in the snapshot.
-- Editing the active project's `start.scene.json` still triggers the existing scene HMR diff.
-- Existing e2e tests still pass; two new e2e tests confirm the switcher.
-
-Verification:
-
-- `npm run typecheck`
-- `npm run test:e2e` — canvas smoke + agent loop + project-switcher pair (4 tests).
-
-### Epic 14: Asset Pipeline Polish
-
-**Story 14.2: Production Asset Serving**
-
-Status: Implemented.
-
-Tasks:
-
-- Add a small `agf-copy-example-assets` Vite plugin in `vite.config.ts` that copies `examples/<projectId>/assets/` into `dist/examples/<projectId>/assets/` on `closeBundle`.
-- Skip `.gitkeep` markers; otherwise copy the tree as-is so `*.material.json`, `*.glb` and any future runtime files ship with the build.
-- Keep the plugin source-only (no new npm dep).
-- Track the list of known example projects in one place inside `vite.config.ts`; keep in sync with the project switcher.
-
-Acceptance criteria:
-
-- After `npm run build`, `dist/examples/hello-3d/assets/runtime/materials/cube-hero.material.json` exists.
-- After `npm run build`, `dist/examples/hello-3d/assets/runtime/models/cube.glb` is 1524 bytes (matches the source).
-- After `npm run build`, `dist/examples/beacon-world/assets/runtime/materials/beacon.material.json` exists.
-- `vite preview` serves all of the above with `200 OK`.
-
-Verification:
-
-- `npm run build` + `curl -sf http://127.0.0.1:4173/examples/<projectId>/assets/runtime/...` returns the expected JSON / GLB bytes.
-
-### Epic 13: Beacon World Sample Game
-
-**Story 13.3: Beacon World Gameplay v0**
-
-Status: Implemented.
-
-Tasks:
-
-- Add a `PlayerControlled` component to `schemas/scene.schema.json` (`speed: number > 0`).
-- Update `engine check` componentNames so unknown-component diagnostics suggest the new name.
-- Implement `engine/runtime/player-input-system.ts`: opt-in `window` keydown/keyup listeners populate a `Set<string>` of pressed key codes; each fixed step the system walks entities with `PlayerControlled + Transform`, normalises diagonal input and updates `Transform.position` in the XZ plane. The system supports WASD and arrow keys and exposes `dispose()`.
-- Attach `PlayerControlled` to `player.drone` in `examples/beacon-world/scenes/start.scene.json` (`speed: 3.5`).
-- Register the input system in `src/app.ts` for every project; dispose it when the app tears down.
-
-Acceptance criteria:
-
-- Loading `?project=beacon-world` and pressing W/A/S/D (or arrows) moves the drone in the expected XZ direction.
-- Diagonal input produces speed equal to `speed`, not `speed × √2` (normalisation works).
-- Projects without `PlayerControlled` entities are unaffected.
-- A unit test suite covers no-input, single axis, diagonal, missing components and arrow-key fallback.
-- A new Playwright test asserts that `KeyD` moves Beacon World's drone along +X.
-
-Verification:
-
-- `npm run engine:check -- examples/beacon-world`
-- `npm test` — 12 files / 72 tests including 6 for the input system
-- `npm run test:e2e` — 5 tests pass
-
-### Sprint 4 Candidates Not Picked Yet
-
-- `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
+- `14.3` Real authored `.glb` for Beacon World drone/beacons — replace primitives once an art pipeline appears.
+- `15.1` In-page inspector overlay — read-only entity/component tree, toggle hotkey TBD (not F12, not F2).
 - `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
 - `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
-- `14.3` Real `.glb` for Beacon World drone/beacons — replace the primitive sphere/box with an authored model.
-
-Epic 10 (Backend contracts) is deferred to ~Sprint 5 by stakeholder decision.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 4 reaches close.
+Will be detailed when Sprint 5 reaches close.
