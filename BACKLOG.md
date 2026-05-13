@@ -27,26 +27,37 @@ Sprint 30 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 ### Candidates
 
-Anchor candidate: **`E.80` engine dev server investigation** (M15) — by far the highest-leverage agent-loop story open today. Write `docs/research/engine-dev-server-investigation.md` and sequence the implementation sprints that follow.
+Two parallel anchor candidates this sprint:
+
+1. **`E.80` engine dev server investigation** (M15) — write the design doc that sequences the live-process bridge.
+2. **`M16-a / M16-b` transform hierarchy schema + resolver** — open the composition path. New per `Notes/linkedin_web_engine_part3_analysis.md`.
 
 #### M15 — Engine dev server
 
-- `E.80` Engine dev server investigation — design doc covering use cases, architecture options, endpoint surface, security stance, and a sequenced implementation plan. See `HIGH_LEVEL_BACKLOG.md` for the full brief.
+- `E.80` Engine dev server investigation — design doc (use cases, architecture options, endpoint surface, security stance, sequenced implementation plan).
+
+#### M16 — Transform hierarchy
+
+- `M16-a` Add optional `Transform.parent` to `scenes/*.scene.json` schema + `agfFormatVersion` bump in `engine/tools/check/format-version.ts`. Diagnostics: `AGF_TRANSFORM_PARENT_MISSING`, `AGF_TRANSFORM_PARENT_CYCLE`, `AGF_TRANSFORM_PARENT_SELF`.
+- `M16-b` Pure transform-hierarchy resolver — `engine/core/transform/resolve.ts` returns `{ local, world }` per entity given the world's `Transform` components. Unit tests on flat, single-parent, deep chain, and cycle-detection paths.
+- `M16-c` (stretch) Renderer consumes derived world transforms via the resolver, preserving the renderer-import-boundary (renderer never reads ECS components directly past the resolver).
+- `M16-d` (stretch) `engine inspect` prints `parent` + derived `worldPosition` per entity.
 
 #### M3 — Prefab follow-ups
 
-- `M3-b` Scene `instances: [{ prefab, overrides }]` syntax + `expandScenePrefabs` pure function — the actual scene-level prefab expansion. Schema landed in Sprint 29; engine integration follows.
-- `M3-c` Beacon World adopts prefabs for repeated cores / hazards — proves the path end-to-end.
+- `M3-b` Scene `instances: [{ prefab, overrides }]` + `expandScenePrefabs` pure function. Schema landed in Sprint 29; engine integration follows.
+- `M3-c` Beacon World adopts prefabs for repeated cores / hazards.
 
-#### Backend follow-ups
+#### M4 — Persistence v0 (sharpened in Sprint 29)
 
-- `10.5+` C# skeleton WebSocket transport — first transport on top of the smoke skeleton from Sprint 25.
-- `10.14` Server-authoritative carry; `10.16` snapshot delta; `10.18` server hazard state.
-
-#### Beacon World polish
-
-- `13.13` Audio asset path — replace the procedural Web Audio beeps with short licensed `.ogg` clips once the audio loader exists.
+- `M4-a` IndexedDB adapter behind a single `engine/runtime/persistence/local-store.ts` interface; per-project + per-profile save namespace; format version.
+- `M4-b` `runtime.save()` / `runtime.load()` / `runtime.clearSave()` API + an explicit component allowlist via `project.json#persistence.components` OR a `Persisted` marker component.
+- `M4-c` Beacon World local-save proof: repaired beacons + scoreboard survive reload.
 
 #### Engine polish
 
-- `M13-c` `engine patch` schema validation — after applying a patch in `--check` mode, re-run the relevant `engine check` validators against the resulting in-memory files so the agent knows whether the patch would leave the project well-formed.
+- `M13-c` `engine patch` post-apply schema validation — re-run relevant `engine check` validators against the in-memory result so the agent knows whether the patch would leave the project well-formed.
+
+#### CI / dev-loop
+
+- `CI fix` — get PRs #31 and #32 green; npm 11.11 on the runner crashes during `npm ci` even with `--no-audit --no-fund`. Need a deeper look: try `npm install --omit=optional`, or pin npm via `setup-node`'s `package-manager` cache, or fall back to `pnpm`/`yarn` for CI.
