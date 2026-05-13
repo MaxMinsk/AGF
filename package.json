@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "engine:check": "tsx engine/tools/cli.ts check",
     "engine:inspect": "tsx engine/tools/cli.ts inspect",
+    "backend:node": "tsx examples/backends/node-world-server/src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

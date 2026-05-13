@@ -27,6 +27,7 @@
     "engine/**/*.ts",
     "src/**/*.ts",
     "tests/**/*.ts",
+    "examples/backends/**/*.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"
