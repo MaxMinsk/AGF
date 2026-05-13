@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agentsgameframework.dev/schemas/playtest.schema.json",
+  "id": "hazard-damage",
+  "name": "Hazard contact subtracts Health and grants invulnerability",
+  "project": "beacon-world",
+  "description": "Teleport the drone into hazard.center and confirm a single tick of damage: Health.current drops from 3 to 2 and an Invulnerable component appears.",
+  "steps": [
+    {
+      "kind": "applyCommands",
+      "commands": [
+        {
+          "kind": "component.set",
+          "entityId": "player.drone",
+          "component": "Transform",
+          "data": { "position": [-1.6, 0.4, -0.6], "rotation": [0, 0, 0], "scale": [0.7, 0.7, 0.7] }
+        }
+      ]
+    },
+    { "kind": "wait", "seconds": 0.2 },
+    {
+      "kind": "expectComponent",
+      "entityId": "player.drone",
+      "component": "Health",
+      "match": { "current": 2, "max": 3 }
+    },
+    {
+      "kind": "expectComponent",
+      "entityId": "player.drone",
+      "component": "Invulnerable",
+      "match": {}
+    }
+  ]
+}

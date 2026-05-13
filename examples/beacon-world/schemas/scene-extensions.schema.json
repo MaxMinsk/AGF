@@ -15,6 +15,15 @@
     },
     "Hazard": {
       "$ref": "#/definitions/hazardComponent"
+    },
+    "Health": {
+      "$ref": "#/definitions/healthComponent"
+    },
+    "Invulnerable": {
+      "$ref": "#/definitions/invulnerableComponent"
+    },
+    "Respawnable": {
+      "$ref": "#/definitions/respawnableComponent"
     }
   },
   "definitions": {
@@ -112,6 +121,57 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Full pulse cycle length in seconds."
+        },
+        "damage": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How much health a carrier loses per hit. Defaults to 1."
+        },
+        "invulnerabilitySeconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "After a hit the carrier gets this many seconds of immunity. Defaults to 1."
+        }
+      }
+    },
+    "healthComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "max"],
+      "properties": {
+        "current": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "invulnerableComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["until"],
+      "properties": {
+        "until": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Time-elapsed value past which the entity becomes vulnerable again."
+        }
+      }
+    },
+    "respawnableComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position"],
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "World position the entity is sent back to when it dies and respawns."
         }
       }
     }
