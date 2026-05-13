@@ -125,10 +125,47 @@ Verification:
 
 ### Epic 8: Material And Shader v0
 
-Stories:
+**Story 8.1: Material Manifest**
 
-- `8.1`: Material manifest.
-- `8.2`: Shader manifest spike.
+Status: Implemented.
+
+Tasks:
+
+- Author `schemas/material.schema.json` (`id`, `shader`, `color`, optional `roughness`/`metalness`/`emissive`/`alphaMode`).
+- Extend `engine check` to scan `<assetRoot>/runtime/materials/*.material.json` and validate each file with the schema.
+- Update the placeholder `tests/fixtures/valid-asset-reference` material with the full set of required fields.
+- Add a `tests/fixtures/invalid-material` fixture (unknown property + bad shader enum + bad color hex).
+
+Acceptance criteria:
+
+- Valid material files pass `engine check` with no diagnostics.
+- Invalid material files produce `AGF_SCHEMA_*` diagnostics pointing at the offending JSON path.
+- Projects without a `runtime/materials/` directory are unaffected.
+
+Verification:
+
+- Vitest covers valid + invalid material fixtures.
+- `npm run engine:check -- tests/fixtures/valid-asset-reference` is green.
+
+**Story 8.2: Shader Manifest Spike**
+
+Status: Implemented.
+
+Tasks:
+
+- Draft `schemas/shader.schema.json` skeleton (id, kind, glsl source path, declared uniforms).
+- Write `docs/research/spikes/shader-manifest.md` capturing the proposed runtime flow and what is intentionally out of scope for v0.
+- Do not wire the shader manifest into the renderer yet — that lands when a real custom shader use case appears.
+
+Acceptance criteria:
+
+- Shader schema can describe a vertex/fragment glsl pair with optional uniforms.
+- Spike doc explains how a material would reference a shader and what the renderer would do at load time.
+- The spike is explicit about not being a load path yet.
+
+Verification:
+
+- Manual review.
 
 ### Epic 8.5: Runtime Asset Loading v0
 

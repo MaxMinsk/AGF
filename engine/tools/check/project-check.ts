@@ -1,5 +1,5 @@
 import Ajv, { type AnySchema, type ErrorObject, type ValidateFunction } from "ajv";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,7 +7,7 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string
 
 type JsonObject = { [key: string]: JsonValue };
 
-type SchemaKey = "project" | "scene" | "assetSources";
+type SchemaKey = "project" | "scene" | "assetSources" | "material";
 
 type CompiledSchemas = Record<SchemaKey, ValidateFunction>;
 
@@ -44,7 +44,8 @@ const primitiveMeshes = new Set(["box", "sphere", "plane"]);
 const schemaPaths: Record<SchemaKey, string> = {
   project: "schemas/project.schema.json",
   scene: "schemas/scene.schema.json",
-  assetSources: "schemas/asset-sources.schema.json"
+  assetSources: "schemas/asset-sources.schema.json",
+  material: "schemas/material.schema.json"
 };
 
 let compiledSchemas: CompiledSchemas | undefined;
@@ -70,6 +71,7 @@ export function checkProject(projectDirInput: string): CheckResult {
   const assetRoot = typeof assetRootValue === "string" ? assetRootValue : undefined;
   if (assetRoot !== undefined) {
     validateAssetRoot(projectDir, assetRoot, diagnostics);
+    validateMaterialFiles(projectDir, assetRoot, diagnostics);
   }
 
   const startSceneValue = projectJson.data["startScene"];
@@ -124,6 +126,30 @@ function validateStartScene(
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
+  }
+}
+
+function validateMaterialFiles(projectDir: string, assetRoot: string, diagnostics: Diagnostic[]): void {
+  const materialsDir = resolve(projectDir, assetRoot, "runtime/materials");
+  if (!isDirectory(materialsDir)) {
+    return;
+  }
+
+  const entries = readdirSync(materialsDir);
+  for (const entry of entries) {
+    if (!entry.endsWith(".material.json")) {
+      continue;
+    }
+    const materialPath = resolve(materialsDir, entry);
+    if (!existsSync(materialPath) || statSync(materialPath).isDirectory()) {
+      continue;
+    }
+    const json = readJson(materialPath, projectDir);
+    if (!json.ok) {
+      diagnostics.push(json.diagnostic);
+      continue;
+    }
+    diagnostics.push(...validateWithSchema("material", json.data, materialPath, projectDir));
   }
 }
 
@@ -324,7 +350,8 @@ function getCompiledSchemas(): CompiledSchemas {
   compiledSchemas = {
     project: ajv.compile(readSchema(schemaPaths.project)),
     scene: ajv.compile(readSchema(schemaPaths.scene)),
-    assetSources: ajv.compile(readSchema(schemaPaths.assetSources))
+    assetSources: ajv.compile(readSchema(schemaPaths.assetSources)),
+    material: ajv.compile(readSchema(schemaPaths.material))
   };
 
   return compiledSchemas;

@@ -1,0 +1,6 @@
+{
+  "id": "broken",
+  "shader": "fancy",
+  "color": "not-a-color",
+  "extra": "should not be allowed"
+}

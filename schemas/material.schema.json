@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/material.schema.json",
+  "title": "AGF Material Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "shader", "color"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Stable kebab-case material id, unique within the project."
+    },
+    "shader": {
+      "enum": ["standard"],
+      "description": "Shader pipeline. v0 only supports `standard` (Three.js MeshStandardMaterial)."
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "Base color, six-digit hex (e.g. #f7c948)."
+    },
+    "roughness": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Surface roughness in [0, 1]; 0 = mirror-smooth, 1 = fully diffuse."
+    },
+    "metalness": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Metallic factor in [0, 1]; 0 = dielectric, 1 = metal."
+    },
+    "emissive": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "Emissive color, six-digit hex. Defaults to #000000 (non-emissive)."
+    },
+    "alphaMode": {
+      "enum": ["opaque", "blend"],
+      "description": "Blend mode. v0 supports opaque and standard alpha blending."
+    }
+  }
+}

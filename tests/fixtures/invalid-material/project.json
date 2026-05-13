@@ -1,0 +1,10 @@
+{
+  "id": "invalid-material",
+  "name": "Invalid Material",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl"
+  },
+  "profiles": ["static"]
+}
