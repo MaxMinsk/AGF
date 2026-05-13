@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 14 - TBD
+## Current Sprint: Sprint 15 - TBD
 
-Sprint 14 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 15 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -35,14 +35,13 @@ Sprint 14 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 #### Beacon World gameplay
 
-- `13.11` World signal / score state — repaired beacons contribute to a running `WorldSignal` value; HUD displays it next to Health.
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
+- `13.13` Scoring / world health — derive a smoothed `WorldHealth` (e.g. EMA of repaired-beacon ratio) and expose it as a snapshot-level field so a future scoring system / win condition can consume it directly.
 
 #### Asset polish
 
-- `14.5` Authored `.glb` for energy cores — replace the primitive sphere with a faceted procedural shape; same script pattern.
-- `14.6` Procedural material variants — generate a small family of material manifests with shared schema (e.g. `beacon-repaired.material.json`) so beacon repair can swap materials cleanly instead of dropping the ref.
+- `14.7` Drone material variant — pull `examples/beacon-world/assets/runtime/materials/drone.material.json` into a small palette family so player-vs-other-presence visualisation has a place to land.
 
 #### Engine polish
 
-- `E.1` Tighter component query helpers — replace ad-hoc `world.query(["A", "B"])` patterns with a tiny cached query so scenes with more entities don't pay a full scan per system per frame.
+- `E.2` Cached query handles — once smallest-pivot is in, the next win is caching the chosen pivot per system so the heuristic isn't recomputed every frame. Optional.

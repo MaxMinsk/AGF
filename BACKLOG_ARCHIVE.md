@@ -582,3 +582,84 @@ The sprint goal — "Beacon World Damage + Multi-Hazard" — was met:
 - Death currently teleports — no animation, no audio. Both later.
 - The hazard logic still iterates every entity with a `Transform` per frame; fine at 9 entities, will need a tighter query when scenes grow.
 
+## Sprint 13 - Hazard Mesh + Agent Iteration Docs + Beacon HUD
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `14.4` Hazard `.glb` — `scripts/build-hazard-glb.mjs` emits a 2.9 KB stellated-octahedron mesh through the shared `scripts/lib/write-glb.mjs` writer. Both `hazard.center` and `hazard.east` swap their primitive sphere for `mesh: "runtime/models/hazard.glb"` while keeping their inline colours, so the mesh is shared and intent stays in the scene. `asset-sources.json` declares the new runtime file.
+- `D.1` Agent iteration docs — `docs/agent/iteration-loop.md` walks the edit → inspect → run loop: `engine inspect` filters, `--save`, `--diff`; `window.__agf` `snapshot`/`applyCommands`/`lastReloadedAsset`/`reloadCount`; playtest scenarios and the runner; `playtest:watch`. Linked from `docs/agent/claude-code.md`.
+- `13.10` Health / Invulnerable HUD — `examples/beacon-world/src/ui/health-hud.ts` polls `runtime.snapshot()` every 100 ms and renders HP cells plus an INVULN badge. `src/app.ts` mounts the HUD only when `projectId === "beacon-world"` and disposes it on `AppHandle.dispose`. DOM stays secondary; the canonical state is still the entity's `Health`/`Invulnerable` components reachable through `window.__agf.snapshot()`.
+- Recorded `feedback-sprint-size` memory: default sprint is 4–6 stories; grow undersized sprints by pulling adjacent candidates.
+
+### Deliverables
+
+- `scripts/build-hazard-glb.mjs`, `examples/beacon-world/assets/runtime/models/hazard.glb`
+- `examples/beacon-world/assets/_sources/asset-sources.json` (`beacon-world.hazard-mesh`)
+- `docs/agent/iteration-loop.md`, `docs/agent/claude-code.md` link
+- `examples/beacon-world/src/ui/health-hud.ts`, `src/app.ts` mount/dispose
+- `memory/feedback-sprint-size.md`
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 109 unit tests across 16 files, vite build OK, 10 Playwright e2e tests.
+- `engine check examples/beacon-world` green; HUD visible in the dev server only for `beacon-world`.
+
+### Goal Recap
+
+The sprint goal — a slightly larger Sprint 13 honouring the new `feedback-sprint-size` rule — was met:
+
+- The hazard authoring path matches the beacon path: shared procedural script, shared writer, shared `asset-sources` shape.
+- A human-readable iteration doc explains the agent loop end-to-end so a fresh agent does not have to rediscover it from code.
+- The Beacon HUD demonstrates the agent-first pattern: DOM is one read-only view of the snapshot, never the source of truth.
+
+### Follow-Ups
+
+- HUD does not yet show any derived world signal (repaired beacon count, score). Picked up in Sprint 14 (`13.11`).
+- Hazard mesh is uniform across both entities. Per-hazard variation deferred.
+- Sound pings (`13.12`) still pending.
+
+## Sprint 14 - Asset Polish + World Signal + Smallest-Pivot Query
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `14.5` Core `.glb` — `scripts/build-core-glb.mjs` emits a 1.7 KB flat-shaded pentagonal-bipyramid mesh through the shared `scripts/lib/write-glb.mjs` writer. Both `core.north` and `core.south` swap their primitive sphere for `mesh: "runtime/models/core.glb"` and keep their inline `color`, so the mesh is shared but the scene still controls intent. `asset-sources.json` declares the new runtime file.
+- `14.6` Material variants — new `examples/beacon-world/assets/runtime/materials/beacon-repaired.material.json` provides the repaired-beacon look (teal `#4af0a8`, emissive, lower roughness, higher metalness). `Repairable` schema gains optional `repairedMaterial` and runtime-only `originalColor`. `pickup-system.ts` deposit/decay refactored to swap the `MeshRenderer.material` ref when `repairedMaterial` is present and restore the original material (or inline colour) on decay; the legacy `repairedColor` path remains as a fallback for color-only scenes. New unit tests cover the material-swap path and the colour-only fallback.
+- `13.11` Derived world signal in HUD — `health-hud.ts` now also counts repaired vs total `Repairable` entities from the snapshot and renders a `SIG repaired/total` line with filled cells. No new component; the HUD reads pure derived state through `runtime.snapshot()`, matching the agent-first principle.
+- `E.1` Smallest-pivot query — `engine/core/ecs/world.ts` `query` now picks the component with the fewest entities as the pivot instead of always using the first argument. Missing-store short-circuit covered. New `tests/unit/ecs-world.test.ts` cases prove a 100-entity / 3-hazard scene reaches the matches through the small store.
+
+### Deliverables
+
+- `scripts/build-core-glb.mjs`, `examples/beacon-world/assets/runtime/models/core.glb`
+- `examples/beacon-world/assets/runtime/materials/beacon-repaired.material.json`
+- `examples/beacon-world/assets/_sources/asset-sources.json` (`beacon-world.core-mesh`)
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`repairedMaterial`, `originalColor`)
+- `examples/beacon-world/scenes/start.scene.json` (cores → `core.glb`, beacons → `repairedMaterial`)
+- `examples/beacon-world/src/systems/pickup-system.ts` (material swap + colour fallback)
+- `examples/beacon-world/src/ui/health-hud.ts` (`SIG` line)
+- `engine/core/ecs/world.ts` (smallest-pivot query)
+- `tests/unit/ecs-world.test.ts`, `examples/beacon-world/tests/unit/pickup-system.test.ts`
+
+### Verification
+
+- `engine check examples/beacon-world` green.
+- Sprint-close `npm run preflight`: typecheck clean, 113 Vitest tests across 16 files, vite build OK, 10 Playwright e2e tests (including the updated `beacon-world-gameplay` material-swap assertions).
+
+### Goal Recap
+
+The sprint goal — asset polish stretched per the `feedback-sprint-size` rule — was met:
+
+- Both moving prop families (cores, beacons) now use authored `.glb` + named materials; the procedural-primitive era is over for the dogfood scene.
+- The repair loop swaps material refs instead of dropping them, so HMR on `beacon-repaired.material.json` will live-update repaired beacons.
+- The HUD now surfaces a real-time world signal derived from the snapshot, giving the agent a one-glance check that the gameplay loop is producing progress.
+- ECS queries no longer scale with the first-argument store; gameplay code can pass the broadest filter first without paying for it.
+
+### Follow-Ups
+
+- Per-core or per-beacon material variants (e.g. "north" vs "south") would let scenes distinguish entities by material alone. Deferred — no gameplay call for it yet.
+- `13.12` Sound pings still pending.
+- `10.4`/`10.5`/`10.6` backend follow-ups still pending.
+

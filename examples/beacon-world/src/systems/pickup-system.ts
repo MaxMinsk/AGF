@@ -26,9 +26,11 @@ type RepairableComponent = {
   accepts: string;
   repaired?: boolean;
   repairedColor?: string;
+  repairedMaterial?: string;
   decayAfter?: number;
   decayIn?: number;
   originalMaterial?: string;
+  originalColor?: string;
 };
 
 type MeshRendererComponent = {
@@ -154,10 +156,16 @@ function handleCarry(
       if (renderer.material !== undefined) {
         repairedRepair.originalMaterial = renderer.material;
       }
-      world.setComponent(beaconId, "MeshRenderer", {
-        mesh: renderer.mesh,
-        color: repair.repairedColor ?? DEFAULT_REPAIRED_COLOR
-      });
+      if (renderer.color !== undefined) {
+        repairedRepair.originalColor = renderer.color;
+      }
+      const repaired: MeshRendererComponent = { mesh: renderer.mesh };
+      if (repair.repairedMaterial !== undefined) {
+        repaired.material = repair.repairedMaterial;
+      } else {
+        repaired.color = repair.repairedColor ?? DEFAULT_REPAIRED_COLOR;
+      }
+      world.setComponent(beaconId, "MeshRenderer", repaired);
     }
     if (repair.decayAfter !== undefined) {
       repairedRepair.decayIn = repair.decayAfter;
@@ -252,6 +260,8 @@ function tickBeaconDecays(world: World, dt: number): void {
       const restored: MeshRendererComponent = { mesh: renderer.mesh };
       if (repair.originalMaterial !== undefined) {
         restored.material = repair.originalMaterial;
+      } else if (repair.originalColor !== undefined) {
+        restored.color = repair.originalColor;
       } else if (renderer.color !== undefined) {
         restored.color = renderer.color;
       }
@@ -261,6 +271,7 @@ function tickBeaconDecays(world: World, dt: number): void {
     const decayed: RepairableComponent = { ...repair, repaired: false };
     delete decayed.decayIn;
     delete decayed.originalMaterial;
+    delete decayed.originalColor;
     world.setComponent(beaconId, "Repairable", decayed);
   }
 }

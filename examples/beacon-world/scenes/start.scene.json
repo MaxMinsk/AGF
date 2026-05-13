@@ -94,7 +94,7 @@
         "Repairable": {
           "accepts": "energy-core",
           "repaired": false,
-          "repairedColor": "#4af0a8",
+          "repairedMaterial": "runtime/materials/beacon-repaired.material.json",
           "decayAfter": 6
         },
         "Networked": {
@@ -124,7 +124,7 @@
         "Repairable": {
           "accepts": "energy-core",
           "repaired": false,
-          "repairedColor": "#4af0a8",
+          "repairedMaterial": "runtime/materials/beacon-repaired.material.json",
           "decayAfter": 6
         },
         "Networked": {
@@ -144,7 +144,7 @@
           "scale": [0.4, 0.4, 0.4]
         },
         "MeshRenderer": {
-          "mesh": "sphere",
+          "mesh": "runtime/models/core.glb",
           "color": "#4af0a8"
         },
         "Pickup": {
@@ -169,7 +169,7 @@
           "scale": [0.4, 0.4, 0.4]
         },
         "MeshRenderer": {
-          "mesh": "sphere",
+          "mesh": "runtime/models/core.glb",
           "color": "#4af0a8"
         },
         "Pickup": {

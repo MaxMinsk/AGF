@@ -85,18 +85,40 @@ export class World {
       return [...this.entities];
     }
 
-    const pivotName = componentNames[0];
-    if (pivotName === undefined) {
-      return [];
+    let pivotStore: Map<EntityId, ComponentData> | undefined;
+    let pivotSize = Infinity;
+    for (const name of componentNames) {
+      const store = this.stores.get(name);
+      if (store === undefined) {
+        return [];
+      }
+      if (store.size < pivotSize) {
+        pivotStore = store;
+        pivotSize = store.size;
+      }
     }
-    const pivotStore = this.stores.get(pivotName);
     if (pivotStore === undefined) {
       return [];
     }
 
+    if (componentNames.length === 1) {
+      return [...pivotStore.keys()];
+    }
+
     const matches: EntityId[] = [];
     for (const entityId of pivotStore.keys()) {
-      if (componentNames.every((name) => this.stores.get(name)?.has(entityId) === true)) {
+      let ok = true;
+      for (const name of componentNames) {
+        const store = this.stores.get(name);
+        if (store === pivotStore) {
+          continue;
+        }
+        if (store === undefined || !store.has(entityId)) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) {
         matches.push(entityId);
       }
     }
