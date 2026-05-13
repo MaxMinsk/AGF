@@ -383,3 +383,48 @@ The sprint goal — "Agent Loop + World Evolution" — was met:
 - Beacon World still has no hazards (`13.7`) and no real authored `.glb` for drone/beacons (`14.3`).
 - The agent does not yet have a structured way to script multi-step playtests (e.g. "pick up + deposit + wait for respawn + repeat"). Promote a "scenario format" story when this becomes a bottleneck.
 
+## Sprint 8 - Agent Loop Tools
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `9.4` Inspect filters — `engine inspect` accepts `--component <Name>` (repeatable), `--query A,B` (AND of components) and `--entity <id>` (repeatable). `InspectResult` gains `matchedEntityCount` + an optional `filter` summary so the JSON output is unambiguous.
+- `9.5` Snapshot diff — `engine inspect --diff <prev.json> <next.json>` reports added/removed entities and added/removed/changed components per entity. `diffSnapshots` is a pure function with seven unit tests; CLI exposes `formatDiff` for humans and `--json` for tools.
+- `9.3` Scripted playtest scenarios — new `schemas/playtest.schema.json` (`waitStep`, `applyCommandsStep`, `expectComponentStep`, `expectEntityMissingStep`). `engine check` validates any `<projectDir>/playtests/*.playtest.json`. New Playwright runner `tests/e2e/playtest-runner.spec.ts` dynamically discovers scenarios under `examples/*/playtests/` and runs each as a separate test. First scenario lands in `examples/beacon-world/playtests/pickup-cycle.playtest.json`.
+- Roadmap addition: `docs/proposals/procedural-character-generator.md` parks the future Procedural Character Generator tool (node-graph-driven rigged-mesh generator emitting Mixamo-compatible characters), tracked in its own proposal-level backlog.
+
+### Deliverables
+
+- `engine/tools/inspect/project-inspect.ts` (filters, matchedEntityCount, filter summary)
+- `engine/tools/inspect/snapshot-diff.ts` (new)
+- `engine/tools/cli.ts` (rewritten arg parser with `--component`, `--query`, `--entity`, `--diff`)
+- `engine/tools/check/project-check.ts` (`playtest` static schema, `validatePlaytestScenarios`)
+- `schemas/playtest.schema.json` (new)
+- `examples/beacon-world/playtests/pickup-cycle.playtest.json` (new)
+- `tests/e2e/playtest-runner.spec.ts` (new, dynamic discovery)
+- `tests/unit/snapshot-diff.test.ts` (new, 7 cases)
+- `docs/proposals/procedural-character-generator.md` (new, parked proposal)
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 101 Vitest tests across 15 files, vite build OK, 7 Playwright e2e tests (canvas + agent loop + switcher × 2 + KeyD movement + Beacon gameplay + scripted playtest).
+- `engine check examples/beacon-world` validates `playtests/pickup-cycle.playtest.json` against the new schema.
+- `engine inspect examples/beacon-world --component Pickup` returns the two energy cores; `--query Carrier,Transform` returns the drone.
+
+### Goal Recap
+
+The sprint goal — "Agent Loop Tools" — was met:
+
+- The agent can ask narrow questions of a project (`engine inspect --component ...` / `--query ...`).
+- The agent can compare two world states without reading the whole snapshot (`engine inspect --diff ...`).
+- The agent can script multi-step playtests as data, not Playwright code, and the runner picks them up automatically.
+
+### Follow-Ups
+
+- Playtest scenarios can't yet assert pixel-level rendering. Deferred.
+- The `expectComponent` match is shallow (top-level keys only). Nested deep-equal would generalise, but the shapes used so far don't need it.
+- `engine inspect --diff` reads two snapshots but doesn't yet record them via a CLI flow. A `--save <path>` shortcut would be nice.
+- Hot-reload of `playtest.json` files isn't wired — editing a scenario in dev currently needs a manual `npm run test:e2e` invocation.
+- Procedural Character Generator is parked; pick it up after Beacon World gameplay v0 stabilises.
+
