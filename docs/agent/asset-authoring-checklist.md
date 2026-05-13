@@ -60,3 +60,7 @@ If something is wrong, `engine check` reports:
 - `AGF_ASSET_SOURCES_MISSING` — `_sources/asset-sources.json` is missing under `assetRoot`.
 
 Fix at the lowest layer that the diagnostic points at; do not work around it in the renderer.
+
+## Future: Remote/CDN Asset Delivery
+
+Today assets live in the project tree and are served by Vite in dev / by static hosting in build. A future "Addressables-lite" epic (tracked in `HIGH_LEVEL_BACKLOG.md`) will let an asset catalog point at remote URLs with hashed names, persistent browser-side cache and lazy bundles, while the `AssetRegistry` keeps the same `get<T>(ref)` API. Do not invent CDN paths in `MeshRenderer.mesh`/`MeshRenderer.material` today — keep references relative to `assetRoot`.

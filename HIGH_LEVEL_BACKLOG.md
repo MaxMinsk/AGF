@@ -52,6 +52,7 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | 2D renderer layer | Later | Orthographic/sprite path after 3D vertical slice. |
 | Audio | Later | Positional audio and UI/music buses. |
 | Production asset pipeline | Later | Texture compression, LODs, automated Blender/Meshy tooling. |
+| Remote/CDN asset delivery | Later | AGF-flavoured "Addressables-lite": asset catalog manifest with hashed URLs, CORS-aware loaders, persistent browser cache (IndexedDB/Cache API), versioned cache busting, progress events and lazy bundles. Builds on top of the existing `AssetRegistry`. |
 | Executable agent skills | Later | Turn repeated AGF workflows into runnable skill helpers after failures are known. |
 | Benchmark-style reports | Later | Build/runtime/scene/playtest/visual/protocol health summary. |
 | Workspace/package split | Later | Consider workspaces only after boundaries become painful. |
