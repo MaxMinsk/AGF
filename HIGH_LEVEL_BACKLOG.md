@@ -40,15 +40,15 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Agent reliability infrastructure | Archived | Preflight script, debug protocol, template policy and quality axes docs exist. |
 | Material and shader system | Archived | Material manifest v0 + shader spike shipped in Sprint 2; runtime shader compile is a later epic. |
 | Runtime asset loading | Archived | Asset registry, loader contracts and material binding shipped in Sprint 2; first real `.glb` import (hand-rolled cube) landed in Sprint 3. |
-| Hot reload | Archived | Scene diff and Vite HMR for scene JSON shipped in Sprint 2. Asset (material/shader) hot reload remains a Sprint 4 candidate. |
+| Hot reload | Archived | Scene diff and Vite HMR for scene JSON shipped in Sprint 2. Asset (material/shader) hot reload remains a Sprint 5+ candidate. |
 | Playtest runner | Archived | Runtime inspect API + scripted robot playtest shipped in Sprint 2. |
-| Persistent world backend contracts | Deferred | Parked for Sprint ~5 by stakeholder decision; solo-client features take priority first. |
+| Persistent world backend contracts | Active | Sprint 5 candidate per the stakeholder note; protocol schema, reference-backend boundary and network components. |
 | Repo hygiene CI | Archived | Cyrillic-in-repo check shipped in Sprint 2. |
 | Template policy | Active | Maintained examples as templates, not one-shot generated archives. |
 | Reference backend implementations | Later | C#/.NET first, Node.js-compatible architecture by contract. Aligned with the deferred backend contracts epic. |
-| Beacon World sample | Active | Scaffold + first static scene shipped in Sprint 3; gameplay (movement, pickups, repairs) is Sprint 4+. |
+| Beacon World sample | Active | Scaffold + scene + drone movement shipped through Sprint 4; pickups, carry/deposit and hazards remain. |
 | Rapier physics | Later | 3D first, 2D later. |
-| Inspector overlay | Active | Sprint 4 candidate — in-page entity/component overlay, toggle hotkey TBD (not F12, not F2). |
+| Inspector overlay | Active | Sprint 5+ candidate — in-page entity/component overlay, toggle hotkey TBD (not F12, not F2). |
 | 2D renderer layer | Later | Orthographic/sprite path after 3D vertical slice. |
 | Audio | Later | Positional audio and UI/music buses. |
 | Production asset pipeline | Later | Texture compression, LODs, automated Blender/Meshy tooling. |

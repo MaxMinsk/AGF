@@ -3,6 +3,7 @@ import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
 import { AssetRegistry } from "../engine/runtime/asset-registry";
 import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
+import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
@@ -20,7 +21,13 @@ export type AppHandle = {
   dispose(): void;
 };
 
-export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneInput): AppHandle {
+export function createApp(
+  root: HTMLElement,
+  project: ProjectMeta,
+  scene: SceneInput,
+  projectId: string,
+  availableProjectIds: ReadonlyArray<string> = [projectId]
+): AppHandle {
   root.textContent = "";
 
   const shell = document.createElement("main");
@@ -33,19 +40,32 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
   const status = document.createElement("section");
   status.className = "status-panel";
   status.setAttribute("aria-label", "Engine status");
+  status.setAttribute("data-testid", "status-panel");
+
+  const switcherLinks = availableProjectIds
+    .map((id) =>
+      id === projectId
+        ? `<strong data-testid="project-link-active">${escapeText(id)}</strong>`
+        : `<a href="?project=${encodeURIComponent(id)}" data-testid="project-link-${escapeText(id)}">${escapeText(id)}</a>`
+    )
+    .join(" · ");
+
   status.innerHTML = `
-    <h1 class="status-title">${project.name}</h1>
+    <h1 class="status-title" data-testid="project-name">${escapeText(project.name)}</h1>
     <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS. Edit the scene file to hot-reload.</p>
+    <p class="status-copy">Project: <code data-testid="project-id">${escapeText(projectId)}</code> · ${switcherLinks}</p>
   `;
 
   shell.append(canvas, status);
   root.append(shell);
 
   const scheduler = new SystemScheduler();
+  const playerInputSystem = createPlayerInputSystem();
+  scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
 
   const assetRegistry = new AssetRegistry({
-    baseUrl: new URL("examples/hello-3d/assets/", window.location.href).href,
+    baseUrl: new URL(`examples/${projectId}/assets/`, window.location.href).href,
     loaders: [createMaterialLoader(), createGlbLoader()]
   });
 
@@ -71,7 +91,27 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
     },
     dispose(): void {
       runtime.stop();
+      playerInputSystem.dispose();
       root.textContent = "";
     }
   };
+}
+
+function escapeText(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
 }

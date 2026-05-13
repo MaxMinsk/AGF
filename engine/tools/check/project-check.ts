@@ -38,7 +38,7 @@ export type CheckResult = {
   diagnostics: Diagnostic[];
 };
 
-const componentNames = ["Camera", "MeshRenderer", "Name", "Spin", "Transform"] as const;
+const componentNames = ["Camera", "MeshRenderer", "Name", "PlayerControlled", "Spin", "Transform"] as const;
 const primitiveMeshes = new Set(["box", "sphere", "plane"]);
 
 const schemaPaths: Record<SchemaKey, string> = {

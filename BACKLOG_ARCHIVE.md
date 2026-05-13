@@ -207,3 +207,45 @@ The sprint goal — "Sample Game Kickoff And GLB Smoke" — was met:
 - `npm run build` still does not publish `examples/<project>/assets/` into `dist/`. Production asset serving (Sprint 4 candidate `14.2`) is the next deliverable for the asset epic.
 - The hand-rolled GLB has no UVs, no tangents and only flat shading; it is enough for smoke testing but will not survive a real material with textures. A real art pipeline + real `.glb`s for Beacon World is later work.
 
+## Sprint 4 - Browser Polish And Gameplay v0
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `18.1` URL-driven project switcher: `?project=<id>` selects between `hello-3d` (default) and `beacon-world`. `createApp` receives `projectId` so the `AssetRegistry` baseUrl resolves to `examples/<projectId>/assets/`. Status panel renders the project name, the current id, and a switcher chip to the alternative project. Scene HMR stays alive on the active project through static `import.meta.hot.accept` paths.
+- `14.2` Production asset serving: tiny zero-dep Vite plugin `agf-copy-example-assets` copies `examples/<id>/assets/` → `dist/examples/<id>/assets/` on `closeBundle`, skipping `.gitkeep`. Verified by `vite preview` returning 200 OK on the material manifests and on the 1524-byte `cube.glb`.
+- `13.3` Beacon World gameplay v0: new `PlayerControlled` component in the scene schema, `createPlayerInputSystem` in `engine/runtime/` attaches keyboard listeners, normalises diagonal input and updates `Transform.position` on the XZ plane each fixed step. WASD and arrow keys are interchangeable. `examples/beacon-world` drone is now movable; a Playwright test confirms `KeyD` advances the drone along +X.
+
+### Deliverables
+
+- `src/main.ts`, `src/app.ts` (project switcher + status-panel chip + asset-registry baseUrl)
+- `vite.config.ts` (`agf-copy-example-assets` plugin)
+- `engine/runtime/player-input-system.ts`
+- `schemas/scene.schema.json` (`PlayerControlled`)
+- `engine/tools/check/project-check.ts` (suggested component list update)
+- `examples/beacon-world/scenes/start.scene.json` (`PlayerControlled` on the drone)
+- `tests/unit/player-input-system.test.ts`
+- `tests/e2e/project-switcher.spec.ts` (3 tests: switcher, default, KeyD movement)
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 72 Vitest tests across 12 files, vite build OK, 5 Playwright e2e tests (canvas + agent loop + switcher × 2 + KeyD movement).
+- `vite preview` serves `examples/<id>/assets/runtime/...` with 200 OK and the expected bytes.
+- `engine check` on both `hello-3d` and `beacon-world` stays green.
+
+### Goal Recap
+
+The sprint goal — "Browser Polish And Gameplay v0" — was met:
+
+- Beacon World is reachable in the browser via `?project=beacon-world` without swapping imports.
+- `npm run build` produces a static bundle in which the runtime asset fetches resolve.
+- Beacon World's drone is the first interactive entity in the engine; the rest of the gameplay loop (pickups, repairs, hazards) can build on top of `PlayerControlled` + `Spin` + the existing systems.
+
+### Follow-Ups
+
+- A new player input fall-back path for touch/mobile is not in scope; current input is WASD/arrow only.
+- The dev FPS overlay and the `PlayerInputSystem` both register on `window`. Two runtimes on the same page would conflict; we have only one live runtime at a time, but if multi-instance ever appears, the listener attachment needs to be scoped.
+- Beacon World still has no pickups, no repair state and no hazards — gameplay v0 is movement-only. A `13.4`/`13.5` pair (Pickup component + carry/deposit interaction) is the next natural step for the Beacon World epic.
+- Bundle is still ~605 KB / 154 KB gzip. Code-split for Three.js when bundle size becomes a real constraint.
+

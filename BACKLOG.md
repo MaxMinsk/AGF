@@ -21,22 +21,30 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 4 - TBD
+## Current Sprint: Sprint 5 - TBD
 
-Sprint 4 focus will be picked at the start of the sprint from the candidate list below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
+Per the stakeholder note in Sprint 2's archive, Epic 10 (Backend persistent-world contracts) was deferred to "Sprint ~5". The actual focus is picked at sprint start; the candidate list below seeds the choice. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
 
 ### Candidates
 
-- `14.2` Production asset serving — fix `dist/` build so material/glb references resolve in `npm run build`, not just `npm run dev`.
-- `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
-- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry and rebind on the renderer side without a page reload.
-- `17.1` Scene editor command palette — DOM panel that runs the existing `applyCommands` API with autocomplete on entity ids and component names.
-- `18.1` Project switcher — pick the loaded project via URL query (`?project=beacon-world`) so Beacon World can be previewed without swapping imports.
-- `13.3` Beacon World gameplay v0 — pickup component + first interaction system, beacon repair toggle, a small handful of new commands.
-- `14.3` Real `.glb` for Beacon World drone/beacon — replace the primitive sphere/box with an authored model once an art pipeline appears.
+#### Backend (Epic 10, deferred since Sprint 2)
 
-Epic 10 (Backend contracts) is deferred to ~Sprint 5 by stakeholder decision.
+- `10.1` Protocol schema v0 — JSON Schema for client/server messages, lives in `schemas/net/`, validated by `engine check`.
+- `10.2` Reference backend skeleton boundary — directory layout under `examples/backends/` plus an ADR that nails down what is "engine" vs "reference backend".
+- `10.3` Network/world components in scene schema — `Networked`, `Presence`, `Authority`; renderer keeps no special-case behavior, but `engine inspect` shows them.
+
+#### Beacon World gameplay (Epic 13 continuation)
+
+- `13.4` Pickup component + spawner — energy core entity, lifetime, world-spawn system.
+- `13.5` Carry / deposit interaction — drone picks a core up on proximity, drops it on a beacon, beacon switches to a "repaired" material.
+
+#### Engine polish (Epic 14 / 15 / 16 / 17)
+
+- `14.3` Real authored `.glb` for Beacon World drone/beacons — replace primitives once an art pipeline appears.
+- `15.1` In-page inspector overlay — read-only entity/component tree, toggle hotkey TBD (not F12, not F2).
+- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
+- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 4 reaches close.
+Will be detailed when Sprint 5 reaches close.
