@@ -1371,5 +1371,61 @@ Sprint 28 cleared the remaining "regression / docs / polish" gaps from the M-lis
 - `M13` Project-file patch contract (parking-lot) — design + first slice.
 - `E.64` follow-up — invoke `vite build` from `engine doctor` if `dist/` is missing, so the doctor can run from a clean checkout.
 
+## Sprint 29 — Determinism primitive, project-file patches, prefab schema, doctor --build, CI build job
+
+Status: Completed and archived.
+
+### Completed Work
+
+- **Hotfix** (out of cycle, merged via `fix/ci-engine-check-local-tsx`) — `scripts/engine-check-examples.mjs` now spawns the local `node_modules/.bin/tsx` instead of `npx tsx`, which on CI was re-installing tsx into the npx cache and failing to resolve `ajv`. PR #31.
+- `E.70` Deterministic seeded RNG primitive — new `engine/core/util/seeded-rng.ts` (mulberry32) with `next` / `nextRange` / `nextInt` / `pick` / `state` and seven unit tests. **No beacon-world wire-up shipped** — `Math.random()` is not used by Beacon's hazard pulse or pickup respawn today, so the primitive sits ready until a system actually rolls dice.
+- `E.73` Patch contract types + `applyPatch` library — `engine/tools/patch/project-patch.ts` defines `EnginePatch` (ordered `set` / `delete` / `insert` ops addressed by JSON pointer + target file). Pure; `--check` is in-memory dry-run, `--write` mutates files.
+- `E.74` `engine patch <projectDir> <patch.json> [--check|--write]` CLI + `npm run engine:patch` script.
+- `E.75` Five patch unit tests covering set dry-run, set write, insert at array, delete object key, and reject-malformed (no leading slash / missing file / insert pointed at non-array).
+- `E.76` Prefab schema scaffold — `schemas/prefab.schema.json` defines `{ agfFormatVersion, id, components, tags?, description? }`. `engine check` walks `<projectDir>/prefabs/*.prefab.json` and emits `AGF_PREFAB_INVALID` on schema violations. Two new fixtures (`valid-project-with-prefabs`, `invalid-prefab`) + two new `project-check` unit tests. Scene-level `instances` expansion is **intentionally not shipped** here — that will follow once a sample project actually consumes prefabs.
+- `E.77` `engine doctor --build` flag — when `dist/` is missing, doctor optionally invokes `npm run build` first so a fresh checkout can be scored end-to-end. Default behaviour unchanged.
+- `RH.3` Build + bundle:check CI job — sibling to the Sprint 28 `typecheck-and-unit` job. A PR can no longer merge with a broken vite build or a chunk over the 250 KB gzipped budget.
+- `E.78` `engine summarize` reports prefab count + lists every `*.prefab.json` so an agent reading the summary knows which prefabs exist before grepping.
+- **`M15` investigation story** — added `M15 — Engine dev server` epic in `HIGH_LEVEL_BACKLOG.md` after the user pushed back on a clipboard/download draft of "live debug bridge". The single story (`E.80`) is an investigate-only ticket that will produce `docs/research/engine-dev-server-investigation.md` covering use cases, architecture options (Vite plugin vs sidecar), endpoint surface, security stance, and a sequenced implementation sprint plan. **Explicit non-goals:** no Ctrl-C/Ctrl-V, no file-download flows, no overlay "Copy bug report" buttons.
+
+### Deliverables
+
+- `engine/core/util/seeded-rng.ts`
+- `engine/tools/patch/project-patch.ts`
+- `engine/tools/cli.ts` (`patch` dispatcher, `--check`/`--write`/`--build` flags)
+- `engine/tools/doctor/project-doctor.ts` (`DoctorOptions.build`)
+- `engine/tools/summarize/project-summarize.ts` (`prefabs` field)
+- `engine/tools/check/project-check.ts` (prefab validator) + `diagnostic-codes.ts` (`AGF_PREFAB_INVALID`)
+- `schemas/prefab.schema.json`
+- `scripts/engine-check-examples.mjs` (local tsx binary, no npx)
+- `package.json` (`engine:patch` script)
+- `.github/workflows/repo-hygiene.yml` (`build-and-bundle-check` job)
+- `HIGH_LEVEL_BACKLOG.md` (M15 investigation epic + M2b/M13/M3 status updates)
+- `tests/unit/seeded-rng.test.ts`, `tests/unit/patch.test.ts`, `tests/unit/project-check.test.ts` (+2 prefab cases)
+- `tests/fixtures/valid-project-with-prefabs/`, `tests/fixtures/invalid-prefab/`
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, **232 Vitest tests across 36 files**, vite build OK (still under the 250 KB gzip bundle budget), all **15 Playwright e2e tests** green (15.8 s).
+- Manual: `npm run engine:patch -- tests/fixtures/valid-project /tmp/patch.json --check` round-trips set / insert / delete ops; `engine doctor --build` builds when `dist/` is missing.
+
+### Goal Recap
+
+Sprint 29 was a "primitives + investigation" sprint:
+
+- **Determinism primitive** is on the shelf for the first system that rolls dice.
+- **Patch contract** opens the agent-authored edit channel — agents can produce reviewable JSON patches that the engine validates before mutating the repo.
+- **Prefab schema** lays the foundation for de-duplication; the scene-level expansion follows when a project needs it.
+- **Doctor self-build + CI build job** removes the "broken build slipped past local preflight" failure mode that hit Sprint 28's CI job on first run.
+- **M15 investigation** captures the right shape for the next big arc (engine dev server) after the user explicitly rejected the clipboard/download draft. AGF stays agent-first.
+
+### Follow-Ups
+
+- `E.80` M15 investigation — write `docs/research/engine-dev-server-investigation.md`, then a sequenced implementation sprint.
+- M3-b scene `instances` syntax + `expandScenePrefabs` once a sample project consumes a prefab.
+- M2b-seed wire-up — when the first system actually rolls dice.
+- M13 follow-ups — `engine patch` schema validation post-apply, AGF-command patch variant.
+- Existing 10.x backend follow-ups still pending.
+
 
 
