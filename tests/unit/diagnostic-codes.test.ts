@@ -25,7 +25,10 @@ describe("DIAGNOSTIC_CODES", () => {
       "AGF_FORMAT_VERSION_MISSING",
       "AGF_FORMAT_VERSION_TOO_OLD",
       "AGF_FORMAT_VERSION_UNSUPPORTED",
-      "AGF_PREFAB_INVALID"
+      "AGF_PREFAB_INVALID",
+      "AGF_TRANSFORM_PARENT_MISSING",
+      "AGF_TRANSFORM_PARENT_SELF",
+      "AGF_TRANSFORM_PARENT_CYCLE"
     ];
     expect([...ALL_DIAGNOSTIC_CODES].sort()).toEqual([...expected].sort());
     for (const code of expected) {

@@ -83,6 +83,11 @@
         },
         "scale": {
           "$ref": "#/definitions/vec3"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$",
+          "description": "Optional entity id of this transform's parent. When set, position/rotation/scale are interpreted in the parent's local frame; otherwise they are world-frame. Cycle / self-reference / missing-target are validated by engine check."
         }
       }
     },
