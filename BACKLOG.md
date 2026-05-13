@@ -143,6 +143,8 @@ Verification:
 
 **Story 2.4: Asset Reference Validation v0**
 
+Status: Implemented.
+
 Tasks:
 
 - Add validation for asset paths referenced by `MeshRenderer` and material files.
@@ -164,6 +166,8 @@ Verification:
 
 **Story 3.1: Entity And Component Storage**
 
+Status: Implemented.
+
 Tasks:
 
 - Implement `World`.
@@ -183,6 +187,8 @@ Verification:
 - Vitest suite for ECS storage.
 
 **Story 3.2: Command Pipeline v0**
+
+Status: Implemented.
 
 Tasks:
 
@@ -288,6 +294,8 @@ Verification:
 - CLI tests with valid/invalid fixtures.
 
 **Story 5.2: `engine inspect` v0**
+
+Status: Implemented.
 
 Tasks:
 
