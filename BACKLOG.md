@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 24 - TBD
+## Current Sprint: Sprint 25 - TBD
 
-Sprint 24 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 25 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -37,14 +37,14 @@ Sprint 24 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.20` Player-colour drone variants — apply the per-player palette to the local `player.drone` too, not just the remote ones, so an `?playerId=alpha` tab visually agrees with how `?playerId=bravo` sees it.
+- `13.21` Core palette by carry owner — apply the drone palette to a held `core.glb` while it is being carried so two tabs see "alpha is holding it".
 
 #### Engine polish
 
-- `E.15` `engine inspect --json --watch` machine-readable stream — make watch mode emit one JSON object per refresh on stdout (line-delimited) so agents can `tail -f` and parse without re-running.
-- `E.16` Dynamic renderer import — split `engine/render/` into a lazy chunk; only the active project loads Three.js. Pairs with the bundle-size follow-up from `codex_review_1.md` P3.
+- `E.16` Dynamic renderer import — split `engine/render/` (and Three.js) into a lazy chunk so a non-renderer entrypoint (CLI, future server-side simulator) does not have to ship it.
+- `E.17` `engine inspect --json --watch` schema doc — short `docs/agent/inspect-stream.md` describing the NDJSON line shape (one `InspectResult` per line) so external tools have a contract.
 
 #### Asset polish
 
-- `14.11` Hazard material variants — paired with `14.9` so the existing `hazard.center` / `hazard.east` differ visually beyond the inline `MeshRenderer.color`.
-- `14.12` Asset diagnostics on `engine inspect` — propagate the `AGF_ASSET_RUNTIME_UNDECLARED` warning into the inspect output too so an agent watching `--watch` notices the moment they drop a new file under `runtime/`.
+- `14.13` Asset diagnostic on `engine check --json` schema — extend the existing JSON output type with the new `AGF_ASSET_RUNTIME_UNDECLARED` code in a typed enum so CI tooling can pattern-match without string parsing.
+- `14.14` HMR for hazard materials — confirm the new `hazard-warning.material.json` / `hazard-amber.material.json` live-reload via `agf:asset-changed`; pairs with the existing audit.

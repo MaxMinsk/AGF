@@ -87,4 +87,12 @@ describe("tailInspectResult", () => {
     const hidden = result.scene!.matchedEntityCount - 1;
     expect(formatted).toContain(`Showing last 1 of ${result.scene!.matchedEntityCount} (${hidden} hidden by --tail).`);
   });
+
+  it("formatInspection surfaces asset-runtime-undeclared warnings under a Diagnostics section", () => {
+    const result = inspectProject(resolve(fixturesRoot, "undeclared-runtime-asset"));
+    const formatted = formatInspection(result);
+    expect(formatted).toMatch(/Diagnostics:/);
+    expect(formatted).toMatch(/AGF_ASSET_RUNTIME_UNDECLARED/);
+    expect(formatted).toMatch(/runtime\/models\/orphan\.glb/);
+  });
 });

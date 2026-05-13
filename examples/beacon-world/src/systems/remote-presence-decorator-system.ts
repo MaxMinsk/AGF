@@ -1,5 +1,6 @@
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
+import { DRONE_MATERIAL_PALETTE, pickDroneMaterialFor } from "../drone-palette";
 
 type PresenceComponent = { playerId: string };
 type NetworkedComponent = { authority?: "server" | "client" };
@@ -9,13 +10,6 @@ type TransformComponent = {
   rotation?: ReadonlyArray<number>;
   scale?: ReadonlyArray<number>;
 };
-
-const REMOTE_MATERIAL_PALETTE: ReadonlyArray<string> = [
-  "runtime/materials/drone-orange.material.json",
-  "runtime/materials/drone-cyan.material.json",
-  "runtime/materials/drone-violet.material.json",
-  "runtime/materials/drone-amber.material.json"
-];
 
 const REMOTE_SCALE: [number, number, number] = [0.7, 0.7, 0.7];
 
@@ -53,7 +47,7 @@ export type RemotePresenceDecoratorOptions = {
 export function createRemotePresenceDecoratorSystem(
   options: RemotePresenceDecoratorOptions
 ): System {
-  const palette = options.materialPalette ?? REMOTE_MATERIAL_PALETTE;
+  const palette = options.materialPalette ?? DRONE_MATERIAL_PALETTE;
   let cachedWorld: World | undefined;
   let networkedQuery: QueryHandle | undefined;
   return {
@@ -75,7 +69,7 @@ export function createRemotePresenceDecoratorSystem(
 
         const renderer = world.getComponent<MeshRendererComponent>(id, "MeshRenderer");
         if (renderer === undefined) {
-          const paletteMaterial = pickPaletteMaterial(presence.playerId, palette) ?? options.material;
+          const paletteMaterial = pickDroneMaterialFor(presence.playerId, palette) ?? options.material;
           world.setComponent(id, "MeshRenderer", {
             mesh: options.mesh,
             material: paletteMaterial
@@ -92,15 +86,4 @@ export function createRemotePresenceDecoratorSystem(
       }
     }
   };
-}
-
-function pickPaletteMaterial(playerId: string, palette: ReadonlyArray<string>): string | undefined {
-  if (palette.length === 0) {
-    return undefined;
-  }
-  let hash = 0;
-  for (let i = 0; i < playerId.length; i += 1) {
-    hash = (hash * 31 + playerId.charCodeAt(i)) >>> 0;
-  }
-  return palette[hash % palette.length];
 }

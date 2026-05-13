@@ -1095,5 +1095,51 @@ The sprint goal — finish the netcode polish from PR #24's follow-ups and pay d
 - Three.js + AJV are still the dominant weight in the main bundle (~700 KB pre-gzip). A future story can lazy-import the renderer too once the contract there is stable.
 - Beacon palette currently only affects the *repaired* material; a future story could colour pickups (`core.glb`) or the carry effect by the same playerId hash for stronger ownership reads.
 
+## Sprint 24 - Local Drone Palette + JSON Watch Stream + Hazard Materials + Inspect Diagnostics Echo
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `13.20` Local drone palette — new shared `examples/beacon-world/src/drone-palette.ts` exports `DRONE_MATERIAL_PALETTE` + `pickDroneMaterialFor(playerId, palette?)`. The remote-presence decorator now imports from it instead of carrying its own copy. Beacon's bootstrap `attachUi` calls `tintLocalDrone(runtime, playerId)` when networked, which rewrites the local `player.drone.MeshRenderer.material` to the palette entry hashed off the player's id. Result: an `?playerId=alpha` tab shows the same drone colour another tab sees through the remote-presence decorator. Five new unit tests cover the helper (palette membership, stability, empty-id, empty-palette, custom-palette).
+- `E.15` `engine inspect --json --watch` NDJSON stream — `emitResult` now emits compact single-line JSON when both `--watch` and `--json` are set, so agents can pipe the stream through line-delimited JSON parsers. Without `--watch`, `--json` still produces pretty-printed output (existing callers unchanged).
+- `14.11` Hazard material variants — two new manifests under `examples/beacon-world/assets/runtime/materials/`: `hazard-warning.material.json` (red emissive, used by the west-route hazard) and `hazard-amber.material.json` (warm amber, east route). `asset-sources.json` declares them under `beacon-world.hazard-materials`. `scenes/start.scene.json` swaps the inline `MeshRenderer.color` on both hazards for the named materials. Hazard pulses (`Transform.scale` animation) keep working unchanged because they touch scale, not material.
+- `14.12` `engine inspect` echoes asset-diagnostics — `formatInspection` already passes through `result.diagnostics` under a `Diagnostics:` section. Locked the contract with a new unit test that asserts an `AGF_ASSET_RUNTIME_UNDECLARED` warning produces a line containing both the code and the orphaned file path. Agents running `engine inspect --watch` now see the warning the moment they drop a new file under `runtime/`.
+
+### Deliverables
+
+- `examples/beacon-world/src/drone-palette.ts` (new shared helper)
+- `examples/beacon-world/src/systems/remote-presence-decorator-system.ts` (uses shared palette)
+- `examples/beacon-world/bootstrap.ts` (`tintLocalDrone` on networked boot)
+- `examples/beacon-world/tests/unit/drone-palette.test.ts`
+- `examples/beacon-world/assets/runtime/materials/hazard-warning.material.json`
+- `examples/beacon-world/assets/runtime/materials/hazard-amber.material.json`
+- `examples/beacon-world/scenes/start.scene.json` (hazards use named materials)
+- `examples/beacon-world/assets/_sources/asset-sources.json` (hazard-materials entry)
+- `engine/tools/cli.ts` (NDJSON when `--watch --json`)
+- `tests/unit/project-inspect-stable.test.ts` (diagnostics-in-formatInspection assertion)
+
+### Verification
+
+- `engine check` green on every `examples/*/project.json`.
+- Sprint-close `npm run preflight`: typecheck clean, 192 Vitest tests across 28 files (+5 palette, +1 diagnostics-echo), vite build OK, 12 Playwright e2e tests.
+- Manual: `npm run engine:inspect -- examples/beacon-world --watch --json --tail 1` emits a single JSON line per refresh.
+
+### Goal Recap
+
+The sprint goal — close the visible-polish gap that multiplayer left open and make the agent's watch loop a first-class data stream — was met:
+
+- Both tabs in a two-tab session now see the local drone in the same palette colour. No more "alpha sees grey, bravo sees orange". The palette is a single source of truth (`drone-palette.ts`) used by both the decorator and the local tinter.
+- `engine inspect --watch --json` is now usable as a continuous data feed for any agent / tool that wants to react to scene changes.
+- Hazards visually distinguish themselves via materials instead of inline `MeshRenderer.color`, which pairs with the existing material HMR audit so future palette tweaks live-reload.
+- The inspect diagnostics contract is now under test: an undeclared runtime asset will always surface in the human output (and in JSON `result.diagnostics`).
+
+### Follow-Ups
+
+- `10.5` C#/.NET reference skeleton still pending.
+- `10.18` Server-side hazard / pickup state still pending; would make hazards / cores consistent across browser tabs.
+- `13.12` Sound pings still pending.
+- `E.16` Dynamic renderer import (lazy `engine/render/`) still pending — main bundle is dominated by Three.js + AJV.
+
 
 
