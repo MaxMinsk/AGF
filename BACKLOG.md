@@ -169,11 +169,76 @@ Verification:
 
 ### Epic 8.5: Runtime Asset Loading v0
 
-Stories:
+**Story 8.3: Asset Registry And Loader Contracts**
 
-- `8.3`: Asset registry and loader contracts.
-- `8.4`: First GLB import path.
-- `8.5`: Asset authoring checklist for Beacon World.
+Status: Implemented.
+
+Tasks:
+
+- Implement `engine/runtime/asset-registry.ts`: `AssetRegistry` with `baseUrl`, `register(loader)`, `get<T>(ref)` and caching.
+- Failed loads drop out of the cache so callers can retry after fixing the source.
+- Implement `MaterialLoader` in `engine/runtime/asset-loaders/material-loader.ts` (matches `.material.json`, fetches and JSON-parses).
+- Pass the registry through `RuntimeOptions.assetRegistry` to `ThreeRenderer`.
+- `ThreeRenderer` reads `MeshRenderer.material`, loads the manifest via the registry, applies `color`/`roughness`/`metalness`/`emissive` to the `MeshStandardMaterial` once the promise resolves.
+
+Acceptance criteria:
+
+- Registering a loader and calling `get(ref)` returns the loader's parsed value.
+- Repeated `get(ref)` returns the same promise (caching).
+- `get(ref)` rejects if no loader matches.
+- Failed loads can be retried after the underlying issue is fixed.
+- `engine check examples/hello-3d` stays OK with a material reference in the scene.
+
+Verification:
+
+- Vitest covers register/get/cache/no-match/retry and the URL resolution.
+- Manual: hero cube in `examples/hello-3d` renders with the metalness/roughness from its material manifest, not the inline color.
+
+**Story 8.4: First GLB Import Path**
+
+Status: Implemented.
+
+Tasks:
+
+- Implement `engine/render/glb-loader.ts` wrapping Three.js `GLTFLoader`.
+- Register the GLB loader alongside the material loader in `src/app.ts`.
+- Add a unit test for the matcher (`.glb` and `.gltf` only).
+- Do not add a real `.glb` to `examples/hello-3d` yet — no art pipeline; tracked as a follow-up.
+
+Acceptance criteria:
+
+- A `.glb`/`.gltf` reference passed to the registry is routed to the GLB loader, not the material loader.
+- The loader resolves with `{ scene }` from `GLTFLoader.load`, rejects with a clear error message on failure.
+- Registry + GLB loader pair is usable from `src/app.ts` without further wiring.
+
+Verification:
+
+- Vitest covers the matcher.
+- Manual hand-off: when a project ships a `.glb`, the renderer can load it through the registry without further code change.
+
+Follow-up:
+
+- Author a minimal `.glb` for `hello-3d` (Sprint 3 candidate) so the GLB path has an end-to-end smoke test.
+
+**Story 8.5: Asset Authoring Checklist For Beacon World**
+
+Status: Implemented.
+
+Tasks:
+
+- Write `docs/agent/asset-authoring-checklist.md` covering folder layout, per-asset steps, material/shader manifests, anti-patterns and expected diagnostics.
+- Keep it short enough for an agent to load as context when adding a single asset.
+
+Acceptance criteria:
+
+- The doc names the folders (`source/`, `runtime/models|materials|textures|shaders/`).
+- The doc references the material schema and the shader manifest spike.
+- The doc spells out what NOT to do (anonymous binaries, paths escaping assetRoot, inline material data).
+- The doc lists the diagnostic codes an author will hit when something is wrong.
+
+Verification:
+
+- Manual review.
 
 ### Epic 9: Agent Playtest Loop
 

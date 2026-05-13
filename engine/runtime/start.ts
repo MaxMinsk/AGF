@@ -6,6 +6,7 @@ import { advanceFixedStep } from "../core/loop/fixed-step";
 import type { TimeContext } from "../core/loop/types";
 import type { SystemScheduler } from "../core/systems/scheduler";
 import { ThreeRenderer } from "../render/three-renderer";
+import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 
@@ -26,6 +27,8 @@ export type RuntimeOptions = {
   devOverlay?: boolean;
   /** Where to mount the dev overlay; defaults to canvas.parentElement. */
   devOverlayParent?: HTMLElement;
+  /** Optional asset registry used by the renderer to resolve material/glb references. */
+  assetRegistry?: AssetRegistry;
 };
 
 export type RuntimeHandle = {
@@ -42,7 +45,7 @@ const METRICS_WINDOW_SECONDS = 0.5;
 
 export function startRuntime(options: RuntimeOptions): RuntimeHandle {
   const world = World.fromScene(options.scene);
-  const renderer = new ThreeRenderer(world, options.canvas, options.background);
+  const renderer = new ThreeRenderer(world, options.canvas, options.background, options.assetRegistry);
 
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
   const fixedUpdate = options.fixedUpdate;

@@ -17,6 +17,8 @@ import {
 } from "three";
 import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
+import type { AssetRegistry } from "../runtime/asset-registry";
+import type { MaterialManifest } from "../runtime/asset-loaders/material-loader";
 
 type Vec3 = ReadonlyArray<number>;
 
@@ -48,12 +50,20 @@ export class ThreeRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene: Scene;
   private readonly meshes = new Map<EntityId, Mesh>();
+  private readonly appliedMaterials = new Map<EntityId, string>();
+  private readonly assetRegistry: AssetRegistry | undefined;
   private camera: PerspectiveCamera | undefined;
   private cameraEntityId: EntityId | undefined;
 
-  constructor(world: World, canvas: HTMLCanvasElement, background?: string) {
+  constructor(
+    world: World,
+    canvas: HTMLCanvasElement,
+    background?: string,
+    assetRegistry?: AssetRegistry
+  ) {
     this.world = world;
     this.canvas = canvas;
+    this.assetRegistry = assetRegistry;
     this.renderer = new WebGLRenderer({
       canvas,
       antialias: true,
@@ -145,6 +155,7 @@ export class ThreeRenderer {
         mesh.geometry.dispose();
         disposeMaterial(mesh.material);
         this.meshes.delete(id);
+        this.appliedMaterials.delete(id);
       }
     }
 
@@ -166,12 +177,56 @@ export class ThreeRenderer {
         mesh = new Mesh(geometry, material);
         this.scene.add(mesh);
         this.meshes.set(id, mesh);
-      } else if (mesh.material instanceof MeshStandardMaterial) {
+      } else if (mesh.material instanceof MeshStandardMaterial && meshComponent.material === undefined) {
         mesh.material.color.set(meshComponent.color ?? DEFAULT_COLOR);
+      }
+
+      if (meshComponent.material !== undefined) {
+        this.maybeApplyMaterial(id, mesh, meshComponent.material);
+      } else if (this.appliedMaterials.has(id)) {
+        this.appliedMaterials.delete(id);
       }
 
       applyTransform(mesh, this.world.getComponent<TransformComponent>(id, "Transform"));
     }
+  }
+
+  private maybeApplyMaterial(entityId: EntityId, mesh: Mesh, materialRef: string): void {
+    if (this.assetRegistry === undefined) {
+      return;
+    }
+    if (this.appliedMaterials.get(entityId) === materialRef) {
+      return;
+    }
+    this.appliedMaterials.set(entityId, materialRef);
+
+    this.assetRegistry.get<MaterialManifest>(materialRef).then(
+      (manifest) => {
+        if (!(mesh.material instanceof MeshStandardMaterial)) {
+          return;
+        }
+        if (this.appliedMaterials.get(entityId) !== materialRef) {
+          return;
+        }
+        mesh.material.color.set(manifest.color);
+        if (manifest.roughness !== undefined) {
+          mesh.material.roughness = manifest.roughness;
+        }
+        if (manifest.metalness !== undefined) {
+          mesh.material.metalness = manifest.metalness;
+        }
+        if (manifest.emissive !== undefined) {
+          mesh.material.emissive.set(manifest.emissive);
+        }
+        mesh.material.needsUpdate = true;
+      },
+      (error: unknown) => {
+        console.error(`[agf] material load failed for "${entityId}" → "${materialRef}":`, error);
+        if (this.appliedMaterials.get(entityId) === materialRef) {
+          this.appliedMaterials.delete(entityId);
+        }
+      }
+    );
   }
 
   private canvasAspect(): number {

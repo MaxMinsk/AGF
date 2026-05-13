@@ -51,6 +51,7 @@
         },
         "MeshRenderer": {
           "mesh": "box",
+          "material": "runtime/materials/cube-hero.material.json",
           "color": "#f7c948"
         },
         "Spin": {

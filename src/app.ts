@@ -1,6 +1,9 @@
 import { startRuntime, type RuntimeHandle, type RuntimeOptions } from "../engine/runtime/start";
 import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
+import { AssetRegistry } from "../engine/runtime/asset-registry";
+import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
+import { createGlbLoader } from "../engine/render/glb-loader";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
@@ -41,7 +44,12 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
   const scheduler = new SystemScheduler();
   scheduler.register(createSpinSystem());
 
-  const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler };
+  const assetRegistry = new AssetRegistry({
+    baseUrl: new URL("examples/hello-3d/assets/", window.location.href).href,
+    loaders: [createMaterialLoader(), createGlbLoader()]
+  });
+
+  const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler, assetRegistry };
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;
