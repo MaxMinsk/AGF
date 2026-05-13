@@ -21,16 +21,11 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 9 - TBD
+## Current Sprint: Sprint 10 - TBD
 
-Sprint 9 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies — prefer schema/diagnostics/inspect/HMR work over visual GUI tooling.
+Sprint 10 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies.
 
 ### Candidates
-
-#### Asset polish
-
-- `14.3` Real authored `.glb` for the Beacon World drone and beacons.
-- `16.2` Asset HMR for GLB files — same plumbing as `16.1`, exercised end-to-end against a real model edit.
 
 #### Beacon World gameplay (Epic 13 continuation)
 
@@ -46,7 +41,8 @@ Sprint 9 focus is picked at sprint start. Candidate pool below. Agent-first prio
 - `9.6` `engine inspect --save <path>` shortcut so diff workflow doesn't require shell redirection.
 - `9.7` Playtest scenario hot reload — edits to `.playtest.json` rerun the affected test on save.
 - `9.8` Deep-equal `match` in `expectComponent` for nested keys.
+- `9.9` Structured HMR signal on `window.__agf` (e.g. `lastReloadedAsset`) so tests don't depend on a console-string contract.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 9 reaches close.
+Will be detailed when Sprint 10 reaches close.
