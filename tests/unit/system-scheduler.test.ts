@@ -113,6 +113,46 @@ describe("SystemScheduler", () => {
     expect(log).toEqual(["spin-fixed", "input", "camera"]);
   });
 
+  it("skips registration when no profile in options matches the active set", () => {
+    const scheduler = new SystemScheduler({ activeProfiles: ["static"] });
+    const ran: string[] = [];
+
+    const registered = scheduler.register(
+      {
+        name: "network-sync",
+        frameUpdate(): void {
+          ran.push("network-sync");
+        }
+      },
+      { profiles: ["connected"] }
+    );
+
+    expect(registered).toBe(false);
+    expect(scheduler.has("network-sync")).toBe(false);
+    scheduler.runFrame(makeContext());
+    expect(ran).toEqual([]);
+  });
+
+  it("registers when at least one profile in options matches the active set", () => {
+    const scheduler = new SystemScheduler({ activeProfiles: ["static", "connected"] });
+    const ran: string[] = [];
+
+    const registered = scheduler.register(
+      {
+        name: "network-sync",
+        frameUpdate(): void {
+          ran.push("network-sync");
+        }
+      },
+      { profiles: ["connected"] }
+    );
+
+    expect(registered).toBe(true);
+    expect(scheduler.has("network-sync")).toBe(true);
+    scheduler.runFrame(makeContext());
+    expect(ran).toEqual(["network-sync"]);
+  });
+
   it("passes a consistent context to each system", () => {
     const scheduler = new SystemScheduler();
     const seen: SystemContext[] = [];

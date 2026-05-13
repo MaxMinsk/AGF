@@ -13,6 +13,8 @@ type PlayerEntity = {
   position: Vec3;
   direction: Vec2;
   lastIntentSequence: number;
+  /** Server-elapsed timestamp of the most recent activity (join or intent). */
+  lastActivity: number;
 };
 
 export type SnapshotEntity = {
@@ -40,7 +42,8 @@ export class ServerWorld {
       id: playerId,
       position: [...SPAWN_POSITION],
       direction: [0, 0],
-      lastIntentSequence: -1
+      lastIntentSequence: -1,
+      lastActivity: this.elapsed
     });
   }
 
@@ -60,6 +63,7 @@ export class ServerWorld {
       player.lastIntentSequence = sequence;
     }
     player.direction = direction;
+    player.lastActivity = this.elapsed;
   }
 
   tick(dt: number): void {
@@ -69,6 +73,30 @@ export class ServerWorld {
       player.position[0] += dx * PLAYER_SPEED * dt;
       player.position[2] += dz * PLAYER_SPEED * dt;
     }
+  }
+
+  /**
+   * Returns ids of players whose last activity is older than `timeoutSeconds`
+   * relative to the current `elapsed`. Activity is bumped on join and on every
+   * `intent.move`.
+   */
+  expiredPlayers(timeoutSeconds: number): string[] {
+    if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+      return [];
+    }
+    const threshold = this.elapsed - timeoutSeconds;
+    const expired: string[] = [];
+    for (const player of this.players.values()) {
+      if (player.lastActivity < threshold) {
+        expired.push(player.id);
+      }
+    }
+    return expired;
+  }
+
+  /** Server-side elapsed seconds since the world started. */
+  elapsedSeconds(): number {
+    return this.elapsed;
   }
 
   snapshot(): Snapshot {

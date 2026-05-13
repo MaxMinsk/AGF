@@ -21,27 +21,27 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 17 - TBD
+## Current Sprint: Sprint 18 - TBD
 
-Sprint 17 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 18 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
 #### Backend follow-ups
 
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
-- `10.9` Server-side player timeout — drop a player whose intent / heartbeat has not arrived in N seconds. Currently only the WS-close path triggers `leave`.
 - `10.10` Authority hand-off for the Beacon drone — when `?networked=1`, hide/remove the local `player.drone` and route the local pickup/hazard systems through the server-owned `player.<playerId>` entity. Needs a small protocol extension for outbound `intent.pickup` / `intent.drop`.
+- `10.11` Multi-client e2e — Playwright test that starts the node-world-server, opens two browser pages with different `playerId`s, and proves each page sees the other player's entity through the snapshot.
 
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.14` Win condition / round summary — when `WorldSignal.health` stays above a threshold for N seconds, emit a `round.complete` snapshot field and let the HUD show a one-shot summary panel.
+- `13.15` Round reset — when `RoundState.phase === "complete"` and a player presses an action key (or after a delay), reset all `Repairable.repaired = false`, `Pickup.consumed = false` and `RoundState.phase = "active"` with `holdProgress = 0`.
 
 #### Engine polish
 
-- `E.5` Profile gating — make `project.json.profiles` actually filter system registration so a future "networked" profile can opt entities out of local movement without app-level branching.
-- `E.6` `engine inspect` for snapshot tail — add an `--tail N` flag that prints the last N component diffs by entity / component, so an agent can verify network HMR without scraping the raw snapshot.
+- `E.7` Inspect snapshot to stable JSON — `engine inspect --save` currently includes `time` and `componentNames` ordering that depend on world insertion order. Normalise the output so the diff between two runs is byte-stable when the world is identical.
+- `E.8` Agent test recipe doc — a one-page doc in `docs/agent/` showing the canonical "edit JSON → engine check → engine inspect --diff → playtest" recipe, with command snippets pinned to actual scripts in `package.json`.
 
 #### Asset polish
 

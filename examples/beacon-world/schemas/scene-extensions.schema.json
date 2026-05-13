@@ -27,6 +27,9 @@
     },
     "WorldSignal": {
       "$ref": "#/definitions/worldSignalComponent"
+    },
+    "RoundState": {
+      "$ref": "#/definitions/roundStateComponent"
     }
   },
   "definitions": {
@@ -172,6 +175,38 @@
           "type": "number",
           "minimum": 0,
           "description": "Time-elapsed value past which the entity becomes vulnerable again."
+        }
+      }
+    },
+    "roundStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "thresholdHealth", "holdSeconds"],
+      "properties": {
+        "phase": {
+          "enum": ["active", "complete"],
+          "description": "Active until the win condition holds for holdSeconds; then locks to complete."
+        },
+        "thresholdHealth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Smoothed WorldSignal.health must stay >= this value to advance holdProgress."
+        },
+        "holdSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds the threshold must be held continuously before phase flips to complete."
+        },
+        "holdProgress": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Runtime field — seconds the threshold has been held continuously so far."
+        },
+        "completedAt": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Runtime field — server-elapsed seconds when the round flipped to complete."
         }
       }
     },

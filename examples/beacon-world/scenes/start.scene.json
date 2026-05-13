@@ -11,6 +11,12 @@
           "health": 0,
           "target": 0,
           "tau": 2
+        },
+        "RoundState": {
+          "phase": "active",
+          "thresholdHealth": 0.85,
+          "holdSeconds": 3,
+          "holdProgress": 0
         }
       }
     },

@@ -65,6 +65,7 @@ let currentScene = selected.scene;
 const requestedServer = params.get("server");
 const requestedPlayerId = params.get("playerId");
 const requestedNetworked = params.get("networked");
+const requestedProfile = params.get("profile");
 const appOptions: Parameters<typeof createApp>[5] = {};
 if (requestedServer !== null && requestedServer.length > 0) {
   appOptions.serverUrl = requestedServer;
@@ -74,6 +75,9 @@ if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
 }
 if (requestedNetworked === "1" || requestedNetworked === "true") {
   appOptions.networked = true;
+}
+if (requestedProfile !== null && requestedProfile.length > 0) {
+  appOptions.activeProfile = requestedProfile;
 }
 
 let app: AppHandle = createApp(

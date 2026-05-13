@@ -12,6 +12,7 @@ import {
 import { createPickupSystem as createBeaconPickupSystem } from "../examples/beacon-world/src/systems/pickup-system";
 import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
 import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
+import { createRoundSystem as createBeaconRoundSystem } from "../examples/beacon-world/src/systems/round-system";
 import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
@@ -20,6 +21,12 @@ import type { WorldSnapshot } from "../engine/runtime/inspect";
 export type ProjectMeta = {
   name: string;
   render?: { background?: string };
+  /**
+   * Profile names this project supports, mirroring `project.json.profiles`.
+   * The runtime picks one active profile (defaults to `profiles[0]`) and gates
+   * system registration on it.
+   */
+  profiles?: ReadonlyArray<string>;
 };
 
 export type AppOptions = {
@@ -34,6 +41,11 @@ export type AppOptions = {
    * snapshot as a separate authoritative entity.
    */
   networked?: boolean;
+  /**
+   * Active profile selected at boot. Must be present in `project.profiles`.
+   * Defaults to `project.profiles[0]` or `"static"`.
+   */
+  activeProfile?: string;
 };
 
 export type AppHandle = {
@@ -85,7 +97,12 @@ export function createApp(
   shell.append(canvas, status);
   root.append(shell);
 
-  const scheduler = new SystemScheduler();
+  const projectProfiles = project.profiles ?? ["static"];
+  const activeProfile =
+    options.activeProfile !== undefined && projectProfiles.includes(options.activeProfile)
+      ? options.activeProfile
+      : projectProfiles[0] ?? "static";
+  const scheduler = new SystemScheduler({ activeProfiles: [activeProfile] });
   let network: WsNetworkAdapterHandle | undefined;
   const networked = options.networked === true && options.serverUrl !== undefined;
   const playerInputSystem = networked
@@ -96,9 +113,10 @@ export function createApp(
   scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
   if (projectId === "beacon-world") {
-    scheduler.register(createBeaconPickupSystem());
-    scheduler.register(createBeaconHazardSystem());
-    scheduler.register(createBeaconWorldSignalSystem());
+    scheduler.register(createBeaconPickupSystem(), { profiles: ["static"] });
+    scheduler.register(createBeaconHazardSystem(), { profiles: ["static"] });
+    scheduler.register(createBeaconWorldSignalSystem(), { profiles: ["static"] });
+    scheduler.register(createBeaconRoundSystem(), { profiles: ["static"] });
   }
 
   const assetRegistry = new AssetRegistry({
