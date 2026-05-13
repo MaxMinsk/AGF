@@ -107,7 +107,10 @@ if (parsedArgs.command === "check") {
     process.exitCode = 2;
   } else {
     const patch = JSON.parse(readFileSync(patchPath, "utf8")) as EnginePatch;
-    const result = applyPatch(parsedArgs.projectDir, patch, { write: parsedArgs.write });
+    const result = applyPatch(parsedArgs.projectDir, patch, {
+      write: parsedArgs.write,
+      validateAfter: true
+    });
     emitResult(result, parsedArgs, () => formatPatchResult(result));
     process.exitCode = result.ok ? 0 : 1;
   }
