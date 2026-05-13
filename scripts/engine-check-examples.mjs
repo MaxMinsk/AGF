@@ -11,9 +11,19 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { platform } from "node:os";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const examplesDir = resolve(repoRoot, "examples");
+// Resolve the local tsx binary directly instead of going through `npx`, which
+// in CI re-installs tsx into its npx cache and that copy fails to resolve
+// `ajv` from the repo's `node_modules/`.
+const tsxBin = resolve(
+  repoRoot,
+  "node_modules",
+  ".bin",
+  platform() === "win32" ? "tsx.cmd" : "tsx"
+);
 
 const candidates = readdirSync(examplesDir)
   .map((name) => ({ name, path: resolve(examplesDir, name) }))
@@ -30,8 +40,8 @@ let failed = 0;
 for (const entry of candidates) {
   console.log(`\n[engine:check:examples] ${entry.name}`);
   const result = spawnSync(
-    "npx",
-    ["tsx", "engine/tools/cli.ts", "check", `examples/${entry.name}`],
+    tsxBin,
+    ["engine/tools/cli.ts", "check", `examples/${entry.name}`],
     { stdio: "inherit", cwd: repoRoot }
   );
   if (result.status !== 0) {
