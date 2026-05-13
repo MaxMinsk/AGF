@@ -64,13 +64,13 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 
 | Epic | Status | Notes |
 |---|---|---|
-| `M1` Versioned project format + migrations | Active | `agfVersion` / `formatVersion` field on project/scene/material; `engine:migrate` v0. Foundational — agent-authored projects need a schema-drift answer once externals exist. |
+| `M1` Versioned project format + migrations | **Done (v0)** | Shipped Sprint 27: `agfFormatVersion` on `project.json` schema + reference projects; `AGF_FORMAT_VERSION_MISSING/_TOO_OLD/_UNSUPPORTED` diagnostics; `engine migrate <projectDir> [--dry-run]` v0 adds the field when missing. Follow-up: extend to scene-extension and material manifests. |
 | `M2` Project bootstrap / plugin boundary | **Done** | Shipped Sprint 22 (`engine/runtime/project-bootstrap.ts` + per-project `bootstrap.ts`) and Sprint 23 (dynamic loaders in `src/main.ts`). Keep here for traceability. |
 | `M3` Prefabs, variants, scene composition | Active | `prefabs/*.prefab.json`, scene instantiation with overrides, inspect expansion. Beacon's duplicate cores / hazards motivate this. |
 | `M4` Save / load + persistence adapter | Active | Backend-agnostic adapter (IndexedDB first, REST later); Beacon-World local persistence slice for repaired beacons / scores / signal across reloads. |
 | `M5` Runtime diagnostics + browser-side error channel | **High priority** | Structured `window.__agf.diagnostics()` event bus. Agents currently have no in-page error contract beyond console; this directly improves the agent loop. |
 | `M6` Deterministic replay / recording | Active | Record (time, inputs, commands, snapshots, diagnostics); replay headlessly; attach AGF recording to failed Playwright tests. |
-| `M7` Performance budgets + renderer metrics | Active | Renderer `info` (draws, triangles, geometries, textures, frame time) exposed on `window.__agf`; per-project `performance-budget.json`; soft/hard thresholds. Extends the bundle-size budget shipped in Sprint 25. |
+| `M7` Performance budgets + renderer metrics | **Done (v0)** | Shipped Sprint 27: per-project `performance-budget.json` + `schemas/performance-budget.schema.json` + `engine doctor` reads the budget and exposes `compareRendererInfo(info, budget)` for soft/hard renderer violations. Renderer `info` already on `window.__agf` from Sprint 26. Follow-up (`E.64`): roll bundle:check into the doctor report. |
 | `M8` Input actions, remapping, touch/gamepad | Active | Project-declared action schema (e.g. `move.x`, `interact`); adapter layer (keyboard / gamepad / touch); inspect API for action state. |
 | `M9` Build / deploy contract for static + connected | Active | `engine build` emits a deploy manifest (project id, profile, asset list, hashed bundles, engine version, backend config placeholders). Less urgent until first deploy target lands. |
 | `M10` Security / trust boundary for agent-authored projects | Active | Doc + CLI warning + network hardening (already partially shipped via protocol-validator, id-collision and size caps). Mostly documentation work. |
@@ -80,9 +80,10 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 **Sequencing the M-list:**
 
 1. ~~Take **M5** + **M11** next~~ — **Done in Sprint 26**. Runtime diagnostics bus, asset/network/HMR emit paths, renderer-info exposure, HMR stress test, adapter create/dispose stress, renderer-import-boundary test.
-2. Take **M1** + **M7** next — versioning is foundational; `M7` extends the budget script already shipped in Sprint 25 with renderer-info from Sprint 26.
-3. **M3** prefabs and **M4** save/load follow once Beacon World is rich enough to motivate the de-duplication / persistence pressure.
-4. **M6**, **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
+2. ~~Take **M1** + **M7** next~~ — **Done in Sprint 27**. Project versioning (`agfFormatVersion` + diagnostics + `engine migrate`), per-project performance budget + schema, `engine doctor` reads the budget.
+3. Take **M6** (record/replay) + **M4** (`engine docs`) next — replay closes the determinism gap that blocks agent-driven regression bisection; docs generation removes the "read the whole schema" tax for agents.
+4. **M3** prefabs and existing **M4** save/load follow once Beacon World is rich enough to motivate the de-duplication / persistence pressure.
+5. **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
 
 ## AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)
 
@@ -90,13 +91,13 @@ Concrete candidates pulled from the "Summer Engine" comparison note. Each one is
 
 | Epic | Status | Notes |
 |---|---|---|
-| `E.52` `engine summarize <projectDir>` | **High priority** | Compact project context summary for agent prompts. Metadata, profiles, component vocabulary, system list, entity/component counts, asset summary, playtest list. JSON + human output. Pairs naturally with the existing `engine inspect`. |
-| `E.53` Template context contract | **High priority** | `template.json` + required `template_context.md` per template. Describes gameplay vocabulary and safe extension points so agents can answer "how do I add a new pickup type?" without scanning everything. Strengthens **M12** (template CLI). |
-| `E.54` `engine asset import` operation | **High priority** | One command turns a generated/downloaded file into a valid AGF runtime asset: copy under `assets/runtime/`, append `asset-sources.json` entry, optionally emit a material manifest, run validation. Closes the loop the existing `AGF_ASSET_RUNTIME_UNDECLARED` diagnostic opens. |
+| `E.52` `engine summarize <projectDir>` | **Done** | Shipped Sprint 27 (`engine/tools/summarize/project-summarize.ts`). Compact project context summary — metadata, components, scene entity-component counts, asset entries, playtests. `--json` + human output. |
+| `E.53` Template context contract | **Done (v0)** | Shipped Sprint 27. `schemas/template.schema.json` + `template.json` and `template_context.md` for both reference projects (`hello-3d`, `beacon-world`). Pairs with future **M12**. |
+| `E.54` `engine asset import` operation | **Done (v0)** | Shipped Sprint 27 (`engine/tools/asset/asset-import.ts`). Copies a source file into `assets/runtime/<subdir>/` and appends an entry to `asset-sources.json`. Follow-up: optional material-manifest emission. |
 | `E.55` Inspector writeback contract | Active | Define a JSON / AGF patch format; expose a dev API that exports pending patches from runtime commands; ship one prototype editor that moves an entity and emits a patch. Lower priority — pairs with a future inspector-overlay epic, agent-first prefers JSON edits. |
-| `E.56` `engine doctor <projectDir>` scorecard | **High priority** | One command consolidates `engine check` + `engine inspect` summary + playtest list + recent runtime diagnostics + optional perf metrics. Does NOT run expensive e2e; prints exact commands. Strong fit now that `M5` diagnostics + `M7` renderer info exist. |
+| `E.56` `engine doctor <projectDir>` scorecard | **Done** | Shipped Sprint 27 (`engine/tools/doctor/project-doctor.ts`). Consolidates `engine check` + summary + perf budget; exits 1 on errors. `compareRendererInfo(info, budget)` exposes soft/hard renderer violations for callers. |
 
-**Sequencing:** Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story. **E.55** waits until there is a real inspector epic to anchor it.
+**Sequencing:** ~~Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story.~~ **E.52 / E.53 / E.54 / E.56 — done in Sprint 27.** **E.55** waits until there is a real inspector epic to anchor it.
 
 ## Parking Lot
 

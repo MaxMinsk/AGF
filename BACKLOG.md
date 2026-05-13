@@ -21,34 +21,36 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 27 - AI-native CLI, versioning, perf budgets
+## Current Sprint: Sprint 28 - TBD
 
-Sprint 27 focus: ship the four AI-native CLI one-liners (`summarize`, `doctor`, `asset import`, template scaffolding) plus M1 (project versioning) and M7 (perf budgets / renderer metrics), with one polish ticket (`__agf.copyDiagnostics()`).
+Sprint 28 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
-### Stories
+### Candidates
 
-#### AI-native one-liners (Notes/ai-game-engine-ideas.md)
+Anchor candidates: continue the M-list — **M2** (deterministic-replay tooling) and **M4** (schema-driven docs generation) per `HIGH_LEVEL_BACKLOG.md` — plus the deferred polish item and a first real C# transport.
 
-- `E.52` `engine summarize <projectDir>` — compact project context summary (metadata, profiles, component vocabulary, system list, entity/component counts, asset summary, playtest list). `--json` + human output. **Implemented.**
-- `E.56` `engine doctor <projectDir>` — scorecard consolidating `engine check` + inspect summary + playtest list + perf budget. Does NOT run expensive e2e. **Implemented.**
-- `E.54` `engine asset import <projectDir> <file>` — copy under `assets/runtime/<subdir>/`, append `asset-sources.json` entry. **Implemented.**
-- `E.53` `template.json` + `template_context.md` — template context contract; reference copies in `hello-3d` and `beacon-world`. **Implemented.**
+#### M-list follow-ups
 
-#### M1 — Project versioning
-
-- `E.57` Add `agfFormatVersion` to `project.json` schema + reference projects. **Implemented.**
-- `E.58` `engine check` reports `AGF_FORMAT_VERSION_MISSING` / `_TOO_OLD` / `_UNSUPPORTED`. **Implemented.**
-- `E.59` `engine migrate <projectDir> [--dry-run]` v0 — emits planned JSON patches; non-dry-run writes them. **Implemented.**
-
-#### M7 — Perf budgets
-
-- `E.60` Per-project `performance-budget.json` with soft/hard thresholds for renderer counters and bundle size; schema under `schemas/performance-budget.schema.json`. **Implemented.**
-- `E.61` `engine doctor` reads the budget and `compareRendererInfo(info, budget)` returns soft/hard violations against live `rendererInfo`. **Implemented.**
+- `M2-a` Record-and-replay v0 — capture every applied `EngineCommand` plus the initial scene to a `.replay.json` artifact, then a CLI `engine replay <file>` that drives the runtime headlessly and diffs the resulting snapshot against an expected one.
+- `M2-b` Deterministic seed for `Math.random` consumers inside ECS systems (Beacon World pickup spawn, hazard pulse) — gated by a profile flag so production stays non-deterministic.
+- `M4` `engine docs` — generate human-readable docs from `schemas/*.schema.json` + per-project `template_context.md`. One JSON-Schema-to-Markdown pass per file plus an index.
 
 #### Engine polish
 
-- `E.62` `window.__agf.copyDiagnostics()` — serialises the diagnostics bus and best-effort copies it to the OS clipboard; returns the JSON either way. **Implemented.**
+- `E.63` Lazy renderer import — convert `engine/runtime/start.ts` to dynamically `import("../render/three-renderer")`; pair with the renderer-import-boundary lock so headless tooling can drop three from the chunk. (Carried over from Sprint 27.)
+- `E.64` `engine doctor` runs the bundle pass — invoke the existing `bundle:check` (or its underlying logic) and fold the result into the doctor report alongside the renderer budget.
 
-### Deferred to Sprint 28
+#### Backend follow-ups
 
-- `E.63` Lazy renderer import — start.ts → dynamic `import("../render/three-renderer")`. Defer until bundle-size budget signals it's needed; Vite already chunk-splits `three`.
+- `10.5+` C# skeleton WebSocket transport — first transport on top of the smoke-only skeleton shipped in Sprint 25.
+- `10.14` Server-authoritative carry — `intent.pickup` / `intent.drop` protocol extension.
+- `10.16` Snapshot delta encoding — server sends only changed components per entity.
+- `10.18` Server-side hazard / pickup state — move pulse timing + core respawns onto the server so two tabs see the same pattern.
+
+#### Beacon World gameplay
+
+- `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
+
+#### Repo hygiene
+
+- `RH.1` Cyrillic-in-repo GitHub Action — already on the pending list per memory `project-pending-cyrillic-check`.
