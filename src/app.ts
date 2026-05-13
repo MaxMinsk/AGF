@@ -72,6 +72,12 @@ export type AppHandle = {
   diagnostics(): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
   /** Drop retained diagnostics. */
   clearDiagnostics(): void;
+  /**
+   * Returns the current diagnostics snapshot serialised as JSON and, if the
+   * Clipboard API is available, copies it to the OS clipboard. Useful for
+   * agents and reviewers grabbing runtime state without opening DevTools.
+   */
+  copyDiagnostics(): Promise<string>;
   /** Three.js renderer resource counters (for HMR leak tests). */
   rendererInfo(): {
     geometries: number;
@@ -223,6 +229,20 @@ export function createApp(
     },
     clearDiagnostics(): void {
       runtime.diagnostics.clear();
+    },
+    async copyDiagnostics(): Promise<string> {
+      const json = JSON.stringify(runtime.diagnostics.snapshot(), null, 2);
+      const clipboard = (globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } })
+        .navigator?.clipboard;
+      if (clipboard?.writeText !== undefined) {
+        try {
+          await clipboard.writeText(json);
+        } catch {
+          // Clipboard access can be denied (focus, permissions). Returning the
+          // string still lets callers paste it manually.
+        }
+      }
+      return json;
     },
     rendererInfo() {
       return runtime.renderer.info();

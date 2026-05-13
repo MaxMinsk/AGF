@@ -1,0 +1,21 @@
+{
+  "agfFormatVersion": 1,
+  "renderer": {
+    "soft": {
+      "geometries": 12,
+      "textures": 16,
+      "programs": 8,
+      "meshes": 12
+    },
+    "hard": {
+      "geometries": 24,
+      "textures": 32,
+      "programs": 16,
+      "meshes": 24
+    }
+  },
+  "bundle": {
+    "softLargestChunkGzipKb": 200,
+    "hardLargestChunkGzipKb": 250
+  }
+}

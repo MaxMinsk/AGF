@@ -50,6 +50,11 @@ declare global {
       /** Drop retained diagnostics. Subscribers stay alive. */
       clearDiagnostics(): void;
       /**
+       * Serialises the diagnostics snapshot to JSON and best-effort copies it
+       * to the OS clipboard. Returns the JSON string either way.
+       */
+      copyDiagnostics(): Promise<string>;
+      /**
        * Snapshot of Three.js renderer resource counters. Useful for HMR
        * leak tests: take a baseline, reload assets N times, assert the
        * counts stay bounded.
@@ -168,6 +173,7 @@ void (async (): Promise<void> => {
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),
       clearDiagnostics: () => app.clearDiagnostics(),
+      copyDiagnostics: () => app.copyDiagnostics(),
       rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
       reloadEvents: []

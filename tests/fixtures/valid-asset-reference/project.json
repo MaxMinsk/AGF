@@ -1,4 +1,5 @@
 {
+  "agfFormatVersion": 1,
   "id": "valid-asset-reference",
   "name": "Valid Asset Reference",
   "startScene": "scenes/start.scene.json",

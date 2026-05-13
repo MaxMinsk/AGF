@@ -1256,5 +1256,63 @@ The sprint goal — fold `M5` (runtime diagnostics) and `M11` (resource lifecycl
 - `13.12` Sound pings still pending.
 - Diagnostics overlay is read-only; a future story can add a "copy as JSON" / "open trace" button for human use.
 
+## Sprint 27 - AI-native CLI + Project Versioning + Perf Budgets
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `E.52` `engine summarize <projectDir>` — new `engine/tools/summarize/project-summarize.ts` walks the project and emits metadata, component vocabulary (project-local + project-extension), scene entity-component counts, declared asset entries and playtest list. Human + `--json` output, wired through `engine/tools/cli.ts` as `engine summarize` and `npm run engine:summarize`.
+- `E.56` `engine doctor <projectDir>` — new `engine/tools/doctor/project-doctor.ts` consolidates `checkProject`, `summarizeProject` and optional `performance-budget.json` read. `compareRendererInfo(info, budget)` returns soft/hard violations against any caller-supplied `rendererInfo` (live or captured). Exits 1 on errors, 0 otherwise. Wired as `engine doctor` + `npm run engine:doctor`.
+- `E.54` `engine asset import <projectDir> <sourceFile> --id <id>` — new `engine/tools/asset/asset-import.ts` copies the source file into `assets/runtime/<subdir>/` (auto-detect `models`/`materials`/`misc` from extension) and appends an entry to `_sources/asset-sources.json`. Optional `--kind`/`--license`/`--notes`/`--subdir` flags. Wired as `engine asset import` + `npm run engine:asset`.
+- `E.53` Template contract — new `schemas/template.schema.json` plus per-project `template.json` and `template_context.md` for `hello-3d` and `beacon-world`. Defines `templateId`, `name`, `summary`, `gameplayVocabulary`, `extensionPoints`, `templateContextFile`.
+- `E.57` `agfFormatVersion` added to `schemas/project.schema.json` (optional integer ≥ 1) and the two reference projects' `project.json`. Format-version helpers under `engine/tools/check/format-version.ts` (`CURRENT_FORMAT_VERSION = 1`, `MIN_SUPPORTED_FORMAT_VERSION = 1`, `readFormatVersion`).
+- `E.58` `engine check` emits `AGF_FORMAT_VERSION_MISSING` (warning) when the field is absent, `AGF_FORMAT_VERSION_UNSUPPORTED` (error) when the file declares a version newer than `CURRENT`, and `AGF_FORMAT_VERSION_TOO_OLD` (warning) when older than `MIN_SUPPORTED`. New fixture `tests/fixtures/format-version-future/` plus two project-check unit tests.
+- `E.59` `engine migrate <projectDir> [--dry-run]` v0 — new `engine/tools/migrate/project-migrate.ts` plans JSON patches (currently: add missing `agfFormatVersion`) and applies them by rewriting `project.json` with `agfFormatVersion` first. Three new unit tests using a tests/tmp sandbox.
+- `E.60` Per-project `performance-budget.json` — new `schemas/performance-budget.schema.json` (renderer soft/hard for `geometries`/`textures`/`programs`/`drawCalls`/`triangles`/`meshes`; bundle soft/hard `largestChunkGzipKb`). Reference budgets shipped for `hello-3d` (renderer soft 4/hard 8) and `beacon-world` (renderer soft 12/16/8/12, hard 24/32/16/24).
+- `E.61` `engine doctor` reads the budget when present, prints renderer + bundle thresholds, and exposes `compareRendererInfo(info, budget)` so callers can flag observed renderer state against soft/hard ceilings.
+- `E.62` `window.__agf.copyDiagnostics()` — `AppHandle.copyDiagnostics()` serialises `runtime.diagnostics.snapshot()` to JSON, best-effort writes it to the OS clipboard via `navigator.clipboard.writeText`, and always returns the JSON string for paste fallback.
+
+### Deliverables
+
+- `engine/tools/summarize/project-summarize.ts`
+- `engine/tools/doctor/project-doctor.ts`
+- `engine/tools/asset/asset-import.ts`
+- `engine/tools/migrate/project-migrate.ts`
+- `engine/tools/check/format-version.ts`
+- `engine/tools/check/project-check.ts` (`validateFormatVersion`)
+- `engine/tools/check/diagnostic-codes.ts` (3 new codes)
+- `engine/tools/cli.ts` (summarize/doctor/migrate/asset dispatchers + `--id/--kind/--license/--notes/--subdir/--dry-run` flags)
+- `schemas/template.schema.json`, `schemas/performance-budget.schema.json`, `schemas/project.schema.json`
+- `examples/hello-3d/{template.json,template_context.md,performance-budget.json}`
+- `examples/beacon-world/{template.json,template_context.md,performance-budget.json}`
+- `src/app.ts`, `src/main.ts` (`AppHandle.copyDiagnostics`, `window.__agf.copyDiagnostics`)
+- `tests/fixtures/format-version-future/` (new project + scene + asset-sources fixtures)
+- `tests/unit/migrate.test.ts`
+- `tests/unit/project-check.test.ts`, `tests/unit/diagnostic-codes.test.ts` (updated)
+- `package.json` — `engine:summarize`, `engine:doctor`, `engine:migrate`, `engine:asset` scripts
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, **214 Vitest tests across 32 files**, vite build OK (three chunk 144 kB gzip, well under the 250 kB bundle budget), all **15 Playwright e2e tests** green (18.6 s).
+- Manual: `npm run engine:doctor -- examples/beacon-world` reports status OK, 10 declared assets, 3 playtests, prints renderer soft/hard plus bundle 200 / 250 KB.
+
+### Goal Recap
+
+Sprint 27 turned the M-list and AI-native ideas into agent-runnable commands:
+
+- An agent dropped into a fresh checkout can now type `engine summarize`, `engine doctor`, `engine migrate` and `engine asset import` and get structured project context, a health scorecard, version migrations and an asset onboarding path.
+- Project files now declare `agfFormatVersion`, so future format changes can fail fast with `AGF_FORMAT_VERSION_UNSUPPORTED` rather than misbehaving silently.
+- Performance budgets are explicit per project — the renderer / bundle ceilings the doctor enforces now live next to the project, not in CI scripts.
+- `window.__agf.copyDiagnostics()` removes one of the last "open DevTools to grab state" workflows from the agent path.
+
+### Follow-Ups
+
+- `E.63` Lazy renderer import — defer to Sprint 28; bundle budget is healthy.
+- `E.61` follow-up: have `engine doctor` actually run `vite build --report` and compare bundle output against the budget (currently the budget is read but bundle comparison still requires `npm run bundle:check`).
+- `10.5+` C# skeleton transport (WebSocket) still pending.
+- `10.14` Server-authoritative carry, `10.16` Snapshot delta encoding, `10.18` Server-side hazard / pickup state still pending.
+- `13.12` Sound pings still pending.
+
 
 

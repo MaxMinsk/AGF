@@ -21,7 +21,10 @@ describe("DIAGNOSTIC_CODES", () => {
       "AGF_SCHEMA_UNKNOWN_COMPONENT",
       "AGF_SCHEMA_UNKNOWN_PROPERTY",
       "AGF_SCHEMA_REQUIRED_PROPERTY",
-      "AGF_SCHEMA_VALIDATION_FAILED"
+      "AGF_SCHEMA_VALIDATION_FAILED",
+      "AGF_FORMAT_VERSION_MISSING",
+      "AGF_FORMAT_VERSION_TOO_OLD",
+      "AGF_FORMAT_VERSION_UNSUPPORTED"
     ];
     expect([...ALL_DIAGNOSTIC_CODES].sort()).toEqual([...expected].sort());
     for (const code of expected) {

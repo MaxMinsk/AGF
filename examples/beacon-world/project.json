@@ -1,4 +1,5 @@
 {
+  "agfFormatVersion": 1,
   "id": "beacon-world",
   "name": "Beacon World",
   "startScene": "scenes/start.scene.json",

@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/template.schema.json",
+  "title": "AGF Template Descriptor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["templateId", "name", "summary", "extensionPoints"],
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Stable id used by `engine new` when cloning this template."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-sentence pitch — what kind of game this template starts from."
+    },
+    "gameplayVocabulary": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Short list of domain terms the project uses (e.g. `core`, `beacon`, `hazard`). Helps agents map agent-author requests to project entities."
+    },
+    "extensionPoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "summary"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 },
+          "files": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Files an agent typically edits when working at this extension point."
+          }
+        }
+      },
+      "description": "Safe places to extend: where to add components, systems, materials, playtests. Each entry tells an agent which file(s) to open."
+    },
+    "templateContextFile": {
+      "type": "string",
+      "minLength": 1,
+      "default": "template_context.md",
+      "description": "Path (relative to project root) to a free-form Markdown brief. Defaults to template_context.md."
+    }
+  }
+}

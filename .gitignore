@@ -5,6 +5,7 @@ build/
 coverage/
 test-results/
 playwright-report/
+tests/tmp/
 
 # .NET build output
 **/bin/

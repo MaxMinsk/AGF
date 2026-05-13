@@ -14,6 +14,29 @@ describe("project check", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("warns when project.json omits agfFormatVersion", () => {
+    // Use the missing-start-scene fixture which lacks the version field.
+    const result = checkProject(resolve(fixturesRoot, "missing-start-scene"));
+    const versions = result.diagnostics.filter(
+      (d) => d.code === "AGF_FORMAT_VERSION_MISSING"
+    );
+    expect(versions).toHaveLength(1);
+    expect(versions[0]).toMatchObject({
+      severity: "warning",
+      path: "$.agfFormatVersion"
+    });
+  });
+
+  it("errors with AGF_FORMAT_VERSION_UNSUPPORTED when project.json declares a future version", () => {
+    const result = checkProject(resolve(fixturesRoot, "format-version-future"));
+    expect(result.ok).toBe(false);
+    const unsupported = result.diagnostics.filter(
+      (d) => d.code === "AGF_FORMAT_VERSION_UNSUPPORTED"
+    );
+    expect(unsupported).toHaveLength(1);
+    expect(unsupported[0]).toMatchObject({ severity: "error", path: "$.agfFormatVersion" });
+  });
+
   it("warns when an asset-sources runtimeFiles entry references a file that does not exist", () => {
     const result = checkProject(resolve(fixturesRoot, "declared-but-missing"));
 

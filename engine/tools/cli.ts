@@ -17,6 +17,10 @@ import {
   tailSnapshotDiff,
   type SnapshotDiffResult
 } from "./inspect/snapshot-diff";
+import { formatSummary, summarizeProject } from "./summarize/project-summarize";
+import { applyMigration, formatPlan, planMigration } from "./migrate/project-migrate";
+import { formatDoctor, runDoctor } from "./doctor/project-doctor";
+import { importAsset } from "./asset/asset-import";
 
 type ParsedArgs = {
   command: string | undefined;
@@ -31,6 +35,12 @@ type ParsedArgs = {
   componentsOnly: boolean;
   watch: boolean;
   onChange: string | undefined;
+  dryRun: boolean;
+  assetId: string | undefined;
+  assetKind: string | undefined;
+  assetLicense: string | undefined;
+  assetNotes: string | undefined;
+  assetSubdir: string | undefined;
   positional: string[];
 };
 
@@ -60,6 +70,53 @@ if (parsedArgs.command === "check") {
     runInspectWatch(parsedArgs);
   } else {
     process.exitCode = runInspectOnce(parsedArgs);
+  }
+} else if (parsedArgs.command === "summarize") {
+  const summary = summarizeProject(parsedArgs.projectDir);
+  emitResult(summary, parsedArgs, () => formatSummary(summary));
+  process.exitCode = 0;
+} else if (parsedArgs.command === "migrate") {
+  const plan = planMigration(parsedArgs.projectDir);
+  emitResult(plan, parsedArgs, () => formatPlan(plan));
+  if (!parsedArgs.dryRun) {
+    applyMigration(plan);
+    if (plan.patches.length > 0) {
+      console.error(`Applied ${plan.patches.length} patch(es) to ${plan.projectDir}/project.json`);
+    }
+  }
+  process.exitCode = 0;
+} else if (parsedArgs.command === "doctor") {
+  const report = runDoctor(parsedArgs.projectDir);
+  emitResult(report, parsedArgs, () => formatDoctor(report));
+  process.exitCode = report.ok ? 0 : 1;
+} else if (parsedArgs.command === "asset") {
+  const positional = parsedArgs.positional;
+  const sub = positional[1];
+  const sourceFile = positional[2];
+  if (sub !== "import" || sourceFile === undefined || parsedArgs.assetId === undefined) {
+    console.error(
+      "Usage: engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]"
+    );
+    process.exitCode = 2;
+  } else {
+    const importOptions: Parameters<typeof importAsset>[0] = {
+      projectDir: parsedArgs.projectDir,
+      sourceFile,
+      id: parsedArgs.assetId
+    };
+    if (parsedArgs.assetKind !== undefined) importOptions.kind = parsedArgs.assetKind;
+    if (parsedArgs.assetLicense !== undefined) importOptions.license = parsedArgs.assetLicense;
+    if (parsedArgs.assetNotes !== undefined) importOptions.notes = parsedArgs.assetNotes;
+    if (parsedArgs.assetSubdir !== undefined) importOptions.subdir = parsedArgs.assetSubdir;
+    const result = importAsset(importOptions);
+    emitResult(result, parsedArgs, () =>
+      [
+        `Imported ${result.runtimeRef}`,
+        `  copied to: ${result.runtimePath}`,
+        `  registered in: ${result.sourcesPath}`
+      ].join("\n")
+    );
+    process.exitCode = 0;
   }
 } else {
   printUsage();
@@ -205,6 +262,12 @@ function parseArgs(args: string[]): ParsedArgs {
     componentsOnly: false,
     watch: false,
     onChange: undefined,
+    dryRun: false,
+    assetId: undefined,
+    assetKind: undefined,
+    assetLicense: undefined,
+    assetNotes: undefined,
+    assetSubdir: undefined,
     positional: []
   };
 
@@ -295,6 +358,45 @@ function parseArgs(args: string[]): ParsedArgs {
       }
       continue;
     }
+    if (current === "--dry-run") {
+      result.dryRun = true;
+      continue;
+    }
+    if (current === "--id") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.assetId = value;
+      }
+      continue;
+    }
+    if (current === "--kind") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.assetKind = value;
+      }
+      continue;
+    }
+    if (current === "--license") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.assetLicense = value;
+      }
+      continue;
+    }
+    if (current === "--notes") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.assetNotes = value;
+      }
+      continue;
+    }
+    if (current === "--subdir") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.assetSubdir = value;
+      }
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -315,7 +417,11 @@ function printUsage(): void {
       "Usage:",
       "  engine check <projectDir> [--json] [--save <path>]",
       "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--watch] [--on-change <cmd>] [--json] [--save <path>]",
-      "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]"
+      "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]",
+      "  engine summarize <projectDir> [--json] [--save <path>]",
+      "  engine doctor <projectDir> [--json] [--save <path>]",
+      "  engine migrate <projectDir> [--dry-run] [--json] [--save <path>]",
+      "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]"
     ].join("\n")
   );
 }

@@ -21,31 +21,24 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 27 - TBD
+## Current Sprint: Sprint 28 - TBD
 
-Sprint 27 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 28 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
-Anchor candidates: **E.52** (project summary), **E.56** (engine doctor scorecard), **E.54** (asset import), plus **M1** (project versioning) and **M7** (perf budgets / renderer metrics) per the M-list and AI-native sequencing in `HIGH_LEVEL_BACKLOG.md`.
+Anchor candidates: continue the M-list — **M2** (deterministic-replay tooling) and **M4** (schema-driven docs generation) per `HIGH_LEVEL_BACKLOG.md` — plus the deferred polish item and a first real C# transport.
 
-#### AI-native one-liners (Notes/ai-game-engine-ideas.md)
+#### M-list follow-ups
 
-- `E.52` `engine summarize <projectDir>` — compact project context summary (metadata, profiles, component vocabulary, system list, entity/component counts, asset summary, playtest list). `--json` + human output.
-- `E.56` `engine doctor <projectDir>` — scorecard consolidating `engine check` + inspect summary + playtest list + recent runtime diagnostics + renderer info. Does NOT run expensive e2e.
-- `E.54` `engine asset import <projectDir> <file>` — copy under `assets/runtime/`, append `asset-sources.json` entry, optionally emit a material manifest, run validation.
-- `E.53` `template.json` + `template_context.md` — template context contract; add to `hello-3d` and Beacon World as the reference templates.
+- `M2-a` Record-and-replay v0 — capture every applied `EngineCommand` plus the initial scene to a `.replay.json` artifact, then a CLI `engine replay <file>` that drives the runtime headlessly and diffs the resulting snapshot against an expected one.
+- `M2-b` Deterministic seed for `Math.random` consumers inside ECS systems (Beacon World pickup spawn, hazard pulse) — gated by a profile flag so production stays non-deterministic.
+- `M4` `engine docs` — generate human-readable docs from `schemas/*.schema.json` + per-project `template_context.md`. One JSON-Schema-to-Markdown pass per file plus an index.
 
-#### M1 — Project versioning
+#### Engine polish
 
-- `E.57` Add `agfFormatVersion` to `project.json`, scene extensions and material manifests.
-- `E.58` `engine check` reports `AGF_FORMAT_VERSION_UNSUPPORTED` when the field is missing / older than supported.
-- `E.59` `engine migrate <projectDir> [--dry-run]` v0 — emits planned JSON patches; non-dry-run writes them.
-
-#### M7 — Perf budgets
-
-- `E.60` Per-project `performance-budget.json` with soft/hard thresholds for renderer counters and bundle size.
-- `E.61` `engine doctor` (or a dedicated `engine perf`) compares live `rendererInfo` against the project budget and fails on hard violations.
+- `E.63` Lazy renderer import — convert `engine/runtime/start.ts` to dynamically `import("../render/three-renderer")`; pair with the renderer-import-boundary lock so headless tooling can drop three from the chunk. (Carried over from Sprint 27.)
+- `E.64` `engine doctor` runs the bundle pass — invoke the existing `bundle:check` (or its underlying logic) and fold the result into the doctor report alongside the renderer budget.
 
 #### Backend follow-ups
 
@@ -58,7 +51,6 @@ Anchor candidates: **E.52** (project summary), **E.56** (engine doctor scorecard
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
 
-#### Engine polish
+#### Repo hygiene
 
-- `E.62` Diagnostics overlay "copy as JSON" — add a single button (or `__agf.copyDiagnostics()`) so an agent / human can paste the full structured bus state in one move.
-- `E.63` Lazy renderer import — convert `engine/runtime/start.ts` to dynamically import `engine/render/three-renderer.ts`; pairs with the already-locked import boundary.
+- `RH.1` Cyrillic-in-repo GitHub Action — already on the pending list per memory `project-pending-cyrillic-check`.

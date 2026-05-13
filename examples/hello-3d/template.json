@@ -1,0 +1,19 @@
+{
+  "templateId": "hello-3d",
+  "name": "Hello 3D",
+  "summary": "Minimum viable AGF project: one camera, one spinning cube. Use it to anchor renderer regression tests and as the seed for `engine new`.",
+  "gameplayVocabulary": ["cube", "camera", "spin"],
+  "extensionPoints": [
+    {
+      "id": "add-entity",
+      "summary": "Add a new entity to the scene with whichever built-in components you want.",
+      "files": ["examples/hello-3d/scenes/start.scene.json"]
+    },
+    {
+      "id": "add-component-type",
+      "summary": "Project-local components go through scene-extensions; hello-3d does not yet have any.",
+      "files": ["examples/hello-3d/schemas/", "examples/hello-3d/bootstrap.ts"]
+    }
+  ],
+  "templateContextFile": "template_context.md"
+}
