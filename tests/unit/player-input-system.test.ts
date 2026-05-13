@@ -12,7 +12,7 @@ function step(dt: number, world: World, pressed: Set<string>): void {
     frameCount: 0,
     fixedStepCount: 0
   };
-  system.fixedUpdate?.({ time, world });
+  system.frameUpdate?.({ time, world });
   system.dispose();
 }
 

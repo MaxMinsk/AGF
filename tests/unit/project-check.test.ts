@@ -89,6 +89,26 @@ describe("project check", () => {
     );
   });
 
+  it("validates Networked and Presence components", () => {
+    const result = checkProject(resolve(fixturesRoot, "invalid-network-component"));
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "AGF_SCHEMA_VALIDATION_FAILED",
+          file: "scenes/start.scene.json",
+          path: "$.entities[0].components.Networked.authority"
+        }),
+        expect.objectContaining({
+          code: "AGF_SCHEMA_VALIDATION_FAILED",
+          file: "scenes/start.scene.json",
+          path: "$.entities[0].components.Presence.playerId"
+        })
+      ])
+    );
+  });
+
   it("validates material manifests under assetRoot/runtime/materials", () => {
     const result = checkProject(resolve(fixturesRoot, "invalid-material"));
 

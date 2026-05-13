@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/protocol.schema.json",
+  "title": "AGF Protocol Message v0",
+  "description": "Discriminated union of client/server messages exchanged with a persistent-world backend. Backend implementations (C#/.NET, Node, anything else) MUST treat this schema as the source of truth.",
+  "type": "object",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "world.snapshot" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entities"],
+          "properties": {
+            "elapsed": { "type": "number", "minimum": 0 },
+            "entities": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/snapshotEntity" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "player.join" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["playerId"],
+          "properties": {
+            "playerId": { "$ref": "#/definitions/playerId" },
+            "displayName": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "player.leave" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["playerId"],
+          "properties": {
+            "playerId": { "$ref": "#/definitions/playerId" },
+            "reason": {
+              "enum": ["disconnect", "timeout", "kicked"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "intent.move" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["playerId", "direction"],
+          "properties": {
+            "playerId": { "$ref": "#/definitions/playerId" },
+            "direction": { "$ref": "#/definitions/vec2" }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic per-connection message number for ordering and replay."
+    },
+    "playerId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "vec2": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "snapshotEntity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "components"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$"
+        },
+        "components": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

@@ -55,6 +55,12 @@
         },
         "PlayerControlled": {
           "speed": 3.5
+        },
+        "Presence": {
+          "playerId": "local"
+        },
+        "Networked": {
+          "authority": "client"
         }
       }
     },
@@ -76,6 +82,9 @@
         "Spin": {
           "axis": "y",
           "speed": 25
+        },
+        "Networked": {
+          "authority": "server"
         }
       }
     },
@@ -97,6 +106,9 @@
         "Spin": {
           "axis": "y",
           "speed": -25
+        },
+        "Networked": {
+          "authority": "server"
         }
       }
     }

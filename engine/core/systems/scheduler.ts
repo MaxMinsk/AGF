@@ -46,4 +46,12 @@ export class SystemScheduler {
       }
     }
   }
+
+  runFrame(context: SystemContext): void {
+    for (const system of this.order) {
+      if (system.frameUpdate !== undefined) {
+        system.frameUpdate(context);
+      }
+    }
+  }
 }

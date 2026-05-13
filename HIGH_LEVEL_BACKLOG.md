@@ -42,10 +42,10 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Runtime asset loading | Archived | Asset registry, loader contracts and material binding shipped in Sprint 2; first real `.glb` import (hand-rolled cube) landed in Sprint 3. |
 | Hot reload | Archived | Scene diff and Vite HMR for scene JSON shipped in Sprint 2. Asset (material/shader) hot reload remains a Sprint 5+ candidate. |
 | Playtest runner | Archived | Runtime inspect API + scripted robot playtest shipped in Sprint 2. |
-| Persistent world backend contracts | Active | Sprint 5 candidate per the stakeholder note; protocol schema, reference-backend boundary and network components. |
+| Persistent world backend contracts | Archived | Protocol schema v0, node-world-server skeleton and Networked/Presence components shipped in Sprint 5. First real transport (WebSocket / SignalR) is a follow-up. |
 | Repo hygiene CI | Archived | Cyrillic-in-repo check shipped in Sprint 2. |
 | Template policy | Active | Maintained examples as templates, not one-shot generated archives. |
-| Reference backend implementations | Later | C#/.NET first, Node.js-compatible architecture by contract. Aligned with the deferred backend contracts epic. |
+| Reference backend implementations | Active | Node skeleton landed in Sprint 5 (no transport yet). C#/.NET mirror under `examples/backends/dotnet-world-server/` is still pending. |
 | Beacon World sample | Active | Scaffold + scene + drone movement shipped through Sprint 4; pickups, carry/deposit and hazards remain. |
 | Rapier physics | Later | 3D first, 2D later. |
 | Inspector overlay | Active | Sprint 5+ candidate — in-page entity/component overlay, toggle hotkey TBD (not F12, not F2). |

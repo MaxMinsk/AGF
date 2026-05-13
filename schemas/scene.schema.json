@@ -49,6 +49,12 @@
             },
             "PlayerControlled": {
               "$ref": "#/definitions/playerControlledComponent"
+            },
+            "Networked": {
+              "$ref": "#/definitions/networkedComponent"
+            },
+            "Presence": {
+              "$ref": "#/definitions/presenceComponent"
             }
           }
         }
@@ -160,6 +166,33 @@
         "speed": {
           "type": "number",
           "exclusiveMinimum": 0
+        }
+      }
+    },
+    "networkedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority"],
+      "properties": {
+        "authority": {
+          "enum": ["server", "client"]
+        },
+        "channel": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "presenceComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId"],
+      "properties": {
+        "playerId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "minLength": 1,
+          "maxLength": 64
         }
       }
     }

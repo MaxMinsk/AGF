@@ -50,7 +50,7 @@ export function createPlayerInputSystem(options: PlayerInputSystemOptions = {}):
 
   return {
     name: "player-input",
-    fixedUpdate({ time, world }: SystemContext): void {
+    frameUpdate({ time, world }: SystemContext): void {
       const entities = world.query(["PlayerControlled", "Transform"]);
       if (entities.length === 0) {
         return;
