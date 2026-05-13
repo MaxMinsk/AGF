@@ -383,6 +383,65 @@ describe("WsNetworkAdapter ↔ node-world-server", () => {
     }
   });
 
+  it("can be created and disposed N times without leaking reconnect timers or server-owned entity ids", async () => {
+    type Listener = (event: { data: string }) => void;
+    class FakeSocket {
+      static created = 0;
+      readyState = 1;
+      messageListeners: Listener[] = [];
+      openListeners: Array<() => void> = [];
+      closed = false;
+      constructor(public url: string) {
+        FakeSocket.created += 1;
+        setTimeout(() => {
+          for (const handler of this.openListeners) {
+            handler();
+          }
+        }, 0);
+      }
+      addEventListener(type: string, handler: () => void): void {
+        if (type === "open") {
+          this.openListeners.push(handler);
+        } else if (type === "message") {
+          this.messageListeners.push(handler as Listener);
+        }
+      }
+      send(): void {}
+      close(): void {
+        this.closed = true;
+      }
+      emit(payload: unknown): void {
+        const event = { data: JSON.stringify(payload) };
+        for (const listener of this.messageListeners) {
+          listener(event);
+        }
+      }
+    }
+
+    const factory = function (url: string) {
+      return new FakeSocket(url);
+    } as unknown as typeof globalThis.WebSocket;
+
+    const N = 50;
+    const clientWorld = new World();
+
+    for (let i = 0; i < N; i += 1) {
+      const adapter = startWsNetworkAdapter({
+        url: "ws://fake",
+        playerId: `stress${i}`,
+        applyCommands: (commands) => applyAll(clientWorld, commands),
+        knownEntityIds: () => clientWorld.entityIds(),
+        log: () => undefined,
+        WebSocketCtor: factory
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      adapter.dispose();
+    }
+
+    expect(FakeSocket.created).toBe(N);
+    expect(clientWorld.entityIds()).toEqual([]);
+  });
+
   it("dispose() removes server-owned entities without touching local ones", async () => {
     const serverWorld = new ServerWorld();
     const transport = await startWsTransport({

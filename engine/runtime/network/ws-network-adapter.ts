@@ -13,6 +13,7 @@
 //   * dispose() closes the socket and removes the server-owned entities.
 
 import type { EngineCommand } from "../../core/commands/types";
+import type { DiagnosticsBus } from "../diagnostics/diagnostics-bus";
 import { createProtocolValidator, type ProtocolValidator } from "./protocol-validator";
 
 type SnapshotComponents = Record<string, unknown>;
@@ -104,6 +105,8 @@ export type WsNetworkAdapterOptions = {
   validateInbound?: boolean;
   /** Override the validator factory. Used by tests. */
   validatorFactory?: () => ProtocolValidator;
+  /** When set, the adapter forwards problems to the runtime diagnostics bus. */
+  diagnostics?: DiagnosticsBus;
 };
 
 export type WsNetworkAdapterHandle = {
@@ -163,6 +166,21 @@ const DEFAULT_RECONNECT: Required<WsReconnectOptions> = {
 
 export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetworkAdapterHandle {
   const log = options.log ?? ((line: string) => console.log(line));
+  const diagnostics = options.diagnostics;
+  const emitDiag = (
+    severity: "warning" | "error" | "info",
+    code: string,
+    message: string,
+    details?: Record<string, unknown>
+  ): void => {
+    diagnostics?.emit({
+      severity,
+      code,
+      source: "ws-adapter",
+      message,
+      ...(details !== undefined ? { details } : {})
+    });
+  };
   const WebSocketCtor = options.WebSocketCtor ?? WebSocket;
   const setTimeoutFn = options.setTimeoutFn ?? ((handler, delay) => setTimeout(handler, delay));
   const clearTimeoutFn =
@@ -218,12 +236,19 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         parsed = JSON.parse(typeof event.data === "string" ? event.data : String(event.data));
       } catch {
         log("[ws-adapter] dropping non-JSON frame");
+        emitDiag("warning", "AGF_RUNTIME_WS_NON_JSON", "dropping non-JSON frame");
         return;
       }
       if (validateProtocol !== undefined) {
         const validation = validateProtocol(parsed);
         if (validation !== true) {
           log(`[ws-adapter] dropping invalid frame: ${validation}`);
+          emitDiag(
+            "warning",
+            "AGF_RUNTIME_WS_INVALID_FRAME",
+            `dropping invalid frame: ${validation}`,
+            { reason: validation }
+          );
           return;
         }
       }
@@ -238,6 +263,12 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       ) {
         log(
           `[ws-adapter] snapshot gap: expected sequence ${lastSequence + 1}, got ${message.sequence}; resyncing`
+        );
+        emitDiag(
+          "warning",
+          "AGF_RUNTIME_WS_SNAPSHOT_GAP",
+          `snapshot gap: expected sequence ${lastSequence + 1}, got ${message.sequence}; resyncing`,
+          { expected: lastSequence + 1, received: message.sequence }
         );
         flushServerOwnedEntities();
         gapCount += 1;
@@ -358,6 +389,12 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         // backend is visible without spamming the console.
         log(
           `[ws-adapter] dropping snapshot entity "${entity.id}" — id already owned by the local world`
+        );
+        emitDiag(
+          "error",
+          "AGF_RUNTIME_WS_ID_COLLISION",
+          `dropping snapshot entity "${entity.id}" — id already owned by the local world`,
+          { entityId: entity.id }
         );
         continue;
       }

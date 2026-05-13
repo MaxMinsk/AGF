@@ -79,10 +79,24 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 
 **Sequencing the M-list:**
 
-1. Take **M5** + **M11** next — both are pure-engine, ship soon, directly improve the agent loop and the HMR-heavy dev session that AGF is built around.
-2. Take **M1** + **M7** in the sprint after — versioning is foundational and `M7` extends the budget script already shipped in Sprint 25.
+1. ~~Take **M5** + **M11** next~~ — **Done in Sprint 26**. Runtime diagnostics bus, asset/network/HMR emit paths, renderer-info exposure, HMR stress test, adapter create/dispose stress, renderer-import-boundary test.
+2. Take **M1** + **M7** next — versioning is foundational; `M7` extends the budget script already shipped in Sprint 25 with renderer-info from Sprint 26.
 3. **M3** prefabs and **M4** save/load follow once Beacon World is rich enough to motivate the de-duplication / persistence pressure.
 4. **M6**, **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
+
+## AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)
+
+Concrete candidates pulled from the "Summer Engine" comparison note. Each one is an epic; promote to `BACKLOG.md` when scoped into stories. The strong fits below pair with the M-list above — flagged inline.
+
+| Epic | Status | Notes |
+|---|---|---|
+| `E.52` `engine summarize <projectDir>` | **High priority** | Compact project context summary for agent prompts. Metadata, profiles, component vocabulary, system list, entity/component counts, asset summary, playtest list. JSON + human output. Pairs naturally with the existing `engine inspect`. |
+| `E.53` Template context contract | **High priority** | `template.json` + required `template_context.md` per template. Describes gameplay vocabulary and safe extension points so agents can answer "how do I add a new pickup type?" without scanning everything. Strengthens **M12** (template CLI). |
+| `E.54` `engine asset import` operation | **High priority** | One command turns a generated/downloaded file into a valid AGF runtime asset: copy under `assets/runtime/`, append `asset-sources.json` entry, optionally emit a material manifest, run validation. Closes the loop the existing `AGF_ASSET_RUNTIME_UNDECLARED` diagnostic opens. |
+| `E.55` Inspector writeback contract | Active | Define a JSON / AGF patch format; expose a dev API that exports pending patches from runtime commands; ship one prototype editor that moves an entity and emits a patch. Lower priority — pairs with a future inspector-overlay epic, agent-first prefers JSON edits. |
+| `E.56` `engine doctor <projectDir>` scorecard | **High priority** | One command consolidates `engine check` + `engine inspect` summary + playtest list + recent runtime diagnostics + optional perf metrics. Does NOT run expensive e2e; prints exact commands. Strong fit now that `M5` diagnostics + `M7` renderer info exist. |
+
+**Sequencing:** Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story. **E.55** waits until there is a real inspector epic to anchor it.
 
 ## Parking Lot
 

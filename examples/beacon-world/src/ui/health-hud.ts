@@ -93,6 +93,8 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
 
   let lastKey = "";
   let lastScoreByPlayer = new Map<string, number>();
+  const pulseExpiresAt = new Map<string, number>();
+  const PULSE_DURATION_MS = 600;
 
   const refresh = (): void => {
     const snapshot = runtime.snapshot();
@@ -153,7 +155,14 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
 
     renderCells(hpCells, health);
     renderSignal(signalValue, signalBar, repairedCount, repairableTotal, signalPct);
-    renderScoreboard(scoreboard, scoreByPlayer, lastScoreByPlayer);
+    const nowMs = Date.now();
+    for (const [playerId, count] of scoreByPlayer) {
+      const previous = lastScoreByPlayer.get(playerId) ?? 0;
+      if (count > previous) {
+        pulseExpiresAt.set(playerId, nowMs + PULSE_DURATION_MS);
+      }
+    }
+    renderScoreboard(scoreboard, scoreByPlayer, pulseExpiresAt, nowMs);
     lastScoreByPlayer = new Map(scoreByPlayer);
     status.textContent = invulnerableActive ? "INVULN" : "";
     status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
@@ -174,7 +183,8 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
 function renderScoreboard(
   target: HTMLElement,
   scores: Map<string, number>,
-  previousScores: Map<string, number>
+  pulseExpiresAt: Map<string, number>,
+  nowMs: number
 ): void {
   target.replaceChildren();
   if (scores.size === 0) {
@@ -193,8 +203,7 @@ function renderScoreboard(
     return aId.localeCompare(bId);
   });
   for (const [playerId, count] of sorted) {
-    const previous = previousScores.get(playerId) ?? 0;
-    const pulsed = count > previous;
+    const pulsed = (pulseExpiresAt.get(playerId) ?? 0) > nowMs;
     const row = document.createElement("div");
     row.setAttribute("data-testid", `hud-score-${playerId}`);
     row.style.cssText = `display:flex; justify-content:space-between; gap:8px; transition: color 600ms ease-out;${

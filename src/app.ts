@@ -16,6 +16,8 @@ import type {
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
+import { createDiagnosticsBus } from "../engine/runtime/diagnostics/diagnostics-bus";
+import { mountDiagnosticsOverlay, type DiagnosticsOverlayHandle } from "../engine/runtime/diagnostics/diagnostics-overlay";
 
 export type ProjectMeta = {
   name: string;
@@ -66,6 +68,19 @@ export type AppHandle = {
    * round concept).
    */
   resetRound(): number;
+  /** Snapshot of the runtime diagnostics bus. */
+  diagnostics(): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
+  /** Drop retained diagnostics. */
+  clearDiagnostics(): void;
+  /** Three.js renderer resource counters (for HMR leak tests). */
+  rendererInfo(): {
+    geometries: number;
+    textures: number;
+    programs: number;
+    drawCalls: number;
+    triangles: number;
+    meshes: number;
+  };
   dispose(): void;
 };
 
@@ -128,6 +143,7 @@ export function createApp(
   root.append(shell);
 
   const scheduler = new SystemScheduler({ activeProfiles: [activeProfile] });
+  const diagnostics = createDiagnosticsBus();
   let network: WsNetworkAdapterHandle | undefined;
   const playerInputSystem = networked
     ? createPlayerInputSystem({
@@ -146,10 +162,11 @@ export function createApp(
 
   const assetRegistry = new AssetRegistry({
     baseUrl: new URL(`examples/${projectId}/assets/`, window.location.href).href,
-    loaders: [createMaterialLoader(), createGlbLoader()]
+    loaders: [createMaterialLoader(), createGlbLoader()],
+    diagnostics
   });
 
-  const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler, assetRegistry };
+  const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler, assetRegistry, diagnostics };
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;
@@ -168,10 +185,16 @@ export function createApp(
     networked
   });
 
+  let diagnosticsOverlay: DiagnosticsOverlayHandle | undefined;
+  if (import.meta.env.DEV) {
+    diagnosticsOverlay = mountDiagnosticsOverlay(shell, diagnostics);
+  }
+
   if (options.serverUrl !== undefined) {
     network = startWsNetworkAdapter({
       url: options.serverUrl,
       playerId,
+      diagnostics,
       applyCommands: (commands) => runtime.applyCommands(commands),
       knownEntityIds: () => runtime.snapshot().entities.map((entity) => entity.id),
       reconnect: true
@@ -195,7 +218,17 @@ export function createApp(
     resetRound(): number {
       return bootstrap?.resetRound?.(runtime) ?? 0;
     },
+    diagnostics() {
+      return runtime.diagnostics.snapshot();
+    },
+    clearDiagnostics(): void {
+      runtime.diagnostics.clear();
+    },
+    rendererInfo() {
+      return runtime.renderer.info();
+    },
     dispose(): void {
+      diagnosticsOverlay?.dispose();
       projectUi?.dispose();
       network?.dispose();
       runtime.stop();

@@ -8,6 +8,7 @@ import type { SystemScheduler } from "../core/systems/scheduler";
 import { ThreeRenderer } from "../render/three-renderer";
 import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
+import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 
 export type FixedUpdateFn = (time: TimeContext, world: World) => void;
@@ -29,12 +30,15 @@ export type RuntimeOptions = {
   devOverlayParent?: HTMLElement;
   /** Optional asset registry used by the renderer to resolve material/glb references. */
   assetRegistry?: AssetRegistry;
+  /** Optional diagnostics bus shared across runtime systems. */
+  diagnostics?: DiagnosticsBus;
 };
 
 export type RuntimeHandle = {
   readonly world: World;
   readonly renderer: ThreeRenderer;
   readonly time: Readonly<TimeContext>;
+  readonly diagnostics: DiagnosticsBus;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
   /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
@@ -47,6 +51,7 @@ const METRICS_WINDOW_SECONDS = 0.5;
 
 export function startRuntime(options: RuntimeOptions): RuntimeHandle {
   const world = World.fromScene(options.scene);
+  const diagnostics = options.diagnostics ?? createDiagnosticsBus();
   const renderer = new ThreeRenderer(world, options.canvas, options.background, options.assetRegistry);
 
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
@@ -159,6 +164,7 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
     world,
     renderer,
     time,
+    diagnostics,
     invalidateAsset(ref: string): void {
       options.assetRegistry?.invalidate(ref);
       renderer.forgetAssetBinding(ref);
