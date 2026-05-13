@@ -22,7 +22,15 @@ type SnapshotEntity = {
 };
 
 type ProtocolMessage =
-  | { kind: "world.snapshot"; sequence?: number; payload: { elapsed?: number; entities: SnapshotEntity[] } }
+  | {
+      kind: "world.snapshot";
+      sequence?: number;
+      payload: {
+        elapsed?: number;
+        entities: SnapshotEntity[];
+        lastAcked?: Record<string, number>;
+      };
+    }
   | { kind: "player.join"; payload: { playerId: string; displayName?: string } }
   | { kind: "player.leave"; payload: { playerId: string; reason?: string } }
   | { kind: "intent.move"; sequence?: number; payload: { playerId: string; direction: [number, number] } };
@@ -87,6 +95,18 @@ export type WsNetworkAdapterHandle = {
   /** Number of snapshot-sequence gaps detected so far (each triggers a resync). */
   snapshotGapCount(): number;
   /**
+   * Last `intent.move` sequence the server reports it has applied for the
+   * given playerId, or `undefined` if no ack has been observed yet. Used by
+   * the reconciliation system to know how far behind the server is on input.
+   */
+  lastAckedFor(playerId: string): number | undefined;
+  /**
+   * Highest outbound intent sequence number sent so far, or `-1` when no
+   * intent has been sent. Combined with `lastAckedFor` this gives the count
+   * of un-acked inputs.
+   */
+  highestOutboundSequence(): number;
+  /**
    * Returns a stable reference to the per-entity snapshot sample buffer.
    * Callers should treat it as read-only. Samples are appended in receive
    * order and trimmed to `snapshotBufferSize`. Used by the project-local
@@ -121,7 +141,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
 
   const serverOwnedIds = new Set<string>();
   const snapshotBuffer = new Map<string, SnapshotSample[]>();
+  const lastAckedBy = new Map<string, number>();
   let outboundSequence = 0;
+  let highestSent = -1;
   let lastSequence: number | undefined;
   let disposed = false;
   let attempts = 0;
@@ -170,6 +192,16 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         gapCount += 1;
       }
       lastSequence = message.sequence;
+      if (message.payload.lastAcked !== undefined) {
+        for (const [pid, seq] of Object.entries(message.payload.lastAcked)) {
+          if (typeof seq === "number" && Number.isFinite(seq)) {
+            const previous = lastAckedBy.get(pid);
+            if (previous === undefined || seq > previous) {
+              lastAckedBy.set(pid, seq);
+            }
+          }
+        }
+      }
       applySnapshot(message.payload.entities);
     });
 
@@ -231,6 +263,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     }
     serverOwnedIds.clear();
     snapshotBuffer.clear();
+    lastAckedBy.clear();
     options.applyCommands(commands);
   }
 
@@ -306,6 +339,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         sequence: outboundSequence,
         payload: { playerId: options.playerId, direction: [direction[0], direction[1]] }
       });
+      highestSent = outboundSequence;
       outboundSequence += 1;
     },
     lastSnapshotSequence(): number | undefined {
@@ -322,6 +356,12 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     },
     snapshotGapCount(): number {
       return gapCount;
+    },
+    lastAckedFor(playerId: string): number | undefined {
+      return lastAckedBy.get(playerId);
+    },
+    highestOutboundSequence(): number {
+      return highestSent;
     },
     getSnapshotBuffer(): ReadonlyMap<string, ReadonlyArray<SnapshotSample>> {
       return snapshotBuffer;
