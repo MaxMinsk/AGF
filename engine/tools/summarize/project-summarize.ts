@@ -36,6 +36,7 @@ export type ProjectSummary = {
     runtimeFiles: number;
   };
   playtests: string[];
+  prefabs: string[];
 };
 
 const BUILT_IN_COMPONENT_NAMES = [
@@ -122,6 +123,17 @@ export function summarizeProject(projectDirInput: string): ProjectSummary {
     playtests.sort();
   }
 
+  const prefabsDir = resolve(projectDir, "prefabs");
+  const prefabs: string[] = [];
+  if (existsSync(prefabsDir) && statSync(prefabsDir).isDirectory()) {
+    for (const entry of readdirSync(prefabsDir)) {
+      if (entry.endsWith(".prefab.json")) {
+        prefabs.push(entry);
+      }
+    }
+    prefabs.sort();
+  }
+
   return {
     projectDir: basename(projectDir),
     project,
@@ -140,7 +152,8 @@ export function summarizeProject(projectDirInput: string): ProjectSummary {
       declaredEntries,
       runtimeFiles
     },
-    playtests
+    playtests,
+    prefabs
   };
 }
 
@@ -177,6 +190,16 @@ export function formatSummary(summary: ProjectSummary): string {
   } else {
     lines.push(`Playtests (${summary.playtests.length}):`);
     for (const file of summary.playtests) {
+      lines.push(`  - ${file}`);
+    }
+  }
+
+  lines.push("");
+  if (summary.prefabs.length === 0) {
+    lines.push("Prefabs: (none)");
+  } else {
+    lines.push(`Prefabs (${summary.prefabs.length}):`);
+    for (const file of summary.prefabs) {
       lines.push(`  - ${file}`);
     }
   }

@@ -23,6 +23,8 @@ import { formatDoctor, runDoctor } from "./doctor/project-doctor";
 import { importAsset } from "./asset/asset-import";
 import { formatReplay, replay } from "./replay/project-replay";
 import { formatDocsResult, generateDocs } from "./docs/project-docs";
+import { applyPatch, formatPatchResult, type EnginePatch } from "./patch/project-patch";
+import { readFileSync } from "node:fs";
 
 type ParsedArgs = {
   command: string | undefined;
@@ -44,6 +46,8 @@ type ParsedArgs = {
   assetNotes: string | undefined;
   assetSubdir: string | undefined;
   expectPath: string | undefined;
+  write: boolean;
+  build: boolean;
   positional: string[];
 };
 
@@ -89,13 +93,24 @@ if (parsedArgs.command === "check") {
   }
   process.exitCode = 0;
 } else if (parsedArgs.command === "doctor") {
-  const report = runDoctor(parsedArgs.projectDir);
+  const report = runDoctor(parsedArgs.projectDir, undefined, { build: parsedArgs.build });
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
 } else if (parsedArgs.command === "docs") {
   const result = generateDocs({ projectDir: parsedArgs.projectDir });
   emitResult(result, parsedArgs, () => formatDocsResult(result));
   process.exitCode = 0;
+} else if (parsedArgs.command === "patch") {
+  const patchPath = parsedArgs.positional[2];
+  if (patchPath === undefined) {
+    console.error("Usage: engine patch <projectDir> <patch.json> [--check|--write] [--json] [--save <path>]");
+    process.exitCode = 2;
+  } else {
+    const patch = JSON.parse(readFileSync(patchPath, "utf8")) as EnginePatch;
+    const result = applyPatch(parsedArgs.projectDir, patch, { write: parsedArgs.write });
+    emitResult(result, parsedArgs, () => formatPatchResult(result));
+    process.exitCode = result.ok ? 0 : 1;
+  }
 } else if (parsedArgs.command === "replay") {
   const positional = parsedArgs.positional;
   const recordingPath = positional[1] ?? positional[0];
@@ -287,6 +302,8 @@ function parseArgs(args: string[]): ParsedArgs {
     assetNotes: undefined,
     assetSubdir: undefined,
     expectPath: undefined,
+    write: false,
+    build: false,
     positional: []
   };
 
@@ -423,6 +440,19 @@ function parseArgs(args: string[]): ParsedArgs {
       }
       continue;
     }
+    if (current === "--write") {
+      result.write = true;
+      continue;
+    }
+    if (current === "--check") {
+      // explicit dry-run; --write is the only flag that triggers mutation
+      result.write = false;
+      continue;
+    }
+    if (current === "--build") {
+      result.build = true;
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -445,11 +475,12 @@ function printUsage(): void {
       "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--watch] [--on-change <cmd>] [--json] [--save <path>]",
       "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]",
       "  engine summarize <projectDir> [--json] [--save <path>]",
-      "  engine doctor <projectDir> [--json] [--save <path>]",
+      "  engine doctor <projectDir> [--build] [--json] [--save <path>]",
       "  engine migrate <projectDir> [--dry-run] [--json] [--save <path>]",
       "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]",
       "  engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]",
-      "  engine docs <projectDir> [--json] [--save <path>]"
+      "  engine docs <projectDir> [--json] [--save <path>]",
+      "  engine patch <projectDir> <patch.json> [--check|--write] [--json] [--save <path>]"
     ].join("\n")
   );
 }

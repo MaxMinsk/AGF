@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "invalid-prefab",
+  "name": "Invalid Prefab Fixture",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#000000"
+  },
+  "profiles": ["static"]
+}

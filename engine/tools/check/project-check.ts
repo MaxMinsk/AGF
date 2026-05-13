@@ -8,7 +8,7 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string
 
 type JsonObject = { [key: string]: JsonValue };
 
-type StaticSchemaKey = "project" | "assetSources" | "material" | "playtest";
+type StaticSchemaKey = "project" | "assetSources" | "material" | "playtest" | "prefab";
 
 type StaticSchemas = Record<StaticSchemaKey, ValidateFunction>;
 
@@ -55,7 +55,8 @@ const staticSchemaPaths: Record<StaticSchemaKey, string> = {
   project: "schemas/project.schema.json",
   assetSources: "schemas/asset-sources.schema.json",
   material: "schemas/material.schema.json",
-  playtest: "schemas/playtest.schema.json"
+  playtest: "schemas/playtest.schema.json",
+  prefab: "schemas/prefab.schema.json"
 };
 const baseSceneSchemaPath = "schemas/scene.schema.json";
 
@@ -100,8 +101,45 @@ export function checkProject(projectDirInput: string): CheckResult {
   }
 
   validatePlaytestScenarios(projectDir, diagnostics);
+  validatePrefabFiles(projectDir, diagnostics);
 
   return result(projectDir, diagnostics);
+}
+
+function validatePrefabFiles(projectDir: string, diagnostics: Diagnostic[]): void {
+  const prefabsDir = resolve(projectDir, "prefabs");
+  if (!isDirectory(prefabsDir)) {
+    return;
+  }
+  const validate = getStaticSchemas().prefab;
+  for (const entry of readdirSyncSafe(prefabsDir)) {
+    if (!entry.endsWith(".prefab.json")) continue;
+    const filePath = resolve(prefabsDir, entry);
+    const parsed = readJson(filePath, projectDir);
+    if (!parsed.ok) {
+      diagnostics.push(parsed.diagnostic);
+      continue;
+    }
+    if (!validate(parsed.data)) {
+      for (const error of validate.errors ?? []) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_PREFAB_INVALID",
+          file: toProjectRelativeFile(filePath, projectDir),
+          path: error.instancePath === "" ? "$" : `$${error.instancePath}`,
+          message: `Prefab schema violation: ${error.message ?? "invalid"} ${JSON.stringify(error.params)}`
+        });
+      }
+    }
+  }
+}
+
+function readdirSyncSafe(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 export function formatDiagnostics(resultToFormat: CheckResult): string {
@@ -556,7 +594,8 @@ function getStaticSchemas(): StaticSchemas {
     project: ajv.compile(readSchema(staticSchemaPaths.project)),
     assetSources: ajv.compile(readSchema(staticSchemaPaths.assetSources)),
     material: ajv.compile(readSchema(staticSchemaPaths.material)),
-    playtest: ajv.compile(readSchema(staticSchemaPaths.playtest))
+    playtest: ajv.compile(readSchema(staticSchemaPaths.playtest)),
+    prefab: ajv.compile(readSchema(staticSchemaPaths.prefab))
   };
   return staticSchemasCache;
 }

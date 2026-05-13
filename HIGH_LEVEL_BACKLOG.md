@@ -57,6 +57,7 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Benchmark-style reports | Later | Build/runtime/scene/playtest/visual/protocol health summary. |
 | Workspace/package split | Later | Consider workspaces only after boundaries become painful. |
 | Procedural Character Generator | Later | Standalone tool inside the engine. Node-graph UI; emits a rigged + Mixamo-animatable mesh (human, robot, dog, spider, …) for use as a runtime asset. Tracked in its own backlog: `docs/proposals/procedural-character-generator.md`. Take it on once Beacon World gameplay v0 is stable; staffing it earlier blocks game progress. |
+| `examples/feature-lab/` sandbox | Later (after M16+M4+M18+M19) | A tiny non-game sandbox under `examples/feature-lab/` whose only job is to lock the engine vertical: one parent-child rig (M16), one `Pickable` entity (M18), one `Tween` (M19), one `ParticleEmitter` preset (M19), one `Persisted` block (M4), one repeated-entity instancing group (M17). Playtest robot asserts each feature is wired. Not a game, just a regression target — keeps Beacon World focused on multiplayer gameplay and stops AGF samples from cloning idler/garden patterns from other engines' demos. |
 
 ## Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)
 
@@ -67,8 +68,8 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 | `M1` Versioned project format + migrations | **Done (v0)** | Shipped Sprint 27: `agfFormatVersion` on `project.json` schema + reference projects; `AGF_FORMAT_VERSION_MISSING/_TOO_OLD/_UNSUPPORTED` diagnostics; `engine migrate <projectDir> [--dry-run]` v0 adds the field when missing. Follow-up: extend to scene-extension and material manifests. |
 | `M2` Project bootstrap / plugin boundary | **Done** | Shipped Sprint 22 (`engine/runtime/project-bootstrap.ts` + per-project `bootstrap.ts`) and Sprint 23 (dynamic loaders in `src/main.ts`). Keep here for traceability. |
 | `M2b` Deterministic record/replay tooling | **Done (v0)** | Shipped Sprint 28: `engine/runtime/recording/recorder.ts` + `engine replay <file> [--expect ...]` + two unit tests. Follow-up: profile-flag-gated seeded RNG helper for Beacon's hazard pulse / pickup respawn so replays survive RNG drift. |
-| `M3` Prefabs, variants, scene composition | Active | `prefabs/*.prefab.json`, scene instantiation with overrides, inspect expansion. Beacon's duplicate cores / hazards motivate this. |
-| `M4` Save / load + persistence adapter | Active | Backend-agnostic adapter (IndexedDB first, REST later); Beacon-World local persistence slice for repaired beacons / scores / signal across reloads. |
+| `M3` Prefabs, variants, scene composition | Active (schema-only shipped) | Sprint 29 landed `schemas/prefab.schema.json` + `AGF_PREFAB_INVALID` validation in `engine check` + `engine summarize` reports prefab count. Scene-level `instances` expansion (`M3-b`) and Beacon adoption (`M3-c`) still pending. |
+| `M4` Save / load + persistence adapter | Active — spec sharpened | Backend-agnostic adapter (IndexedDB first, REST later); per-project + per-profile/slot save namespace; format version; explicit component allowlist (`Persisted` marker or `project.json#persistence.components`); migration support; no accidental persistence of server-authoritative state. Public API: `runtime.save()` / `runtime.load()` / `runtime.clearSave()`. See `Notes/linkedin_web_engine_part3_analysis.md` for the v0 vertical slice. |
 | `M4-docs` Schema-driven docs generation | **Done (v0)** | Shipped Sprint 28: `engine docs <projectDir>` renders Markdown from every `schemas/*.schema.json` + the project's `template_context.md` into `docs/generated/<projectId>/`. Regenerable; gitignored. |
 | `M5` Runtime diagnostics + browser-side error channel | **High priority** | Structured `window.__agf.diagnostics()` event bus. Agents currently have no in-page error contract beyond console; this directly improves the agent loop. |
 | `M6` Deterministic replay / recording | Active | Record (time, inputs, commands, snapshots, diagnostics); replay headlessly; attach AGF recording to failed Playwright tests. |
@@ -78,6 +79,11 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 | `M10` Security / trust boundary for agent-authored projects | Active | Doc + CLI warning + network hardening (already partially shipped via protocol-validator, id-collision and size caps). Mostly documentation work. |
 | `M11` Resource lifecycle + leak tests | **High priority** | HMR-heavy workflow means leaks build up silently. Renderer lifecycle audit (geometries / materials / textures count), HMR stress test, network adapter create/dispose loop. |
 | `M12` Template / project creation CLI | Active | `engine new -- <name> --template hello-3d`. Less urgent while only two examples exist; gains value once a third sample is added. |
+| `M15` Engine dev server | **High priority — investigate first** | The "Node CLI + browser runtime" split does not cover live-process debugging: when the user has the game running in their tab, there is no programmatic surface an agent can reach without going through DevTools or clipboard. Needs a DEV-only dev server (likely a Vite plugin) exposing HTTP + WS endpoints under `/__agf/*` driven by a page-side bootstrap. **No human-paste flows.** Detailed design in `docs/research/engine-dev-server-investigation.md` (to be written). |
+| `M16` Transform hierarchy | **High priority** | `Transform.parent` in the scene schema with missing-parent / cycle / self-reference diagnostics; pure resolver returning local + world transforms; commands handle cascade delete; prefab expansion preserves parent links; inspect / summarize report the tree. Hierarchy is hard to retrofit once project files grow — bumping `agfFormatVersion` (Sprint 27 infra) covers the format change. Source: `Notes/linkedin_web_engine_part3_analysis.md`. |
+| `M17` Renderer batching / instancing | Active | Real draw-call reduction once M16 lands. Staged: (1) `InstancedMesh` for identical mesh+material entities, (2) static geometry merge for scenery, (3) LOD / culling / atlasing later. Picking must map `instanceId` back to entity id; `engine doctor` reports batch candidates; renderer never exposes `Object3D` to gameplay. |
+| `M18` Picking / raycast interaction | High-medium | Runtime `pick({ screen, include, maxDistance })` API + `Pickable` component. Renderer returns AGF entity ids (never `Object3D`); instanced meshes resolve `instanceId → entityId`; Playwright pick helper for tests. Pairs with `M17` and a future inspector overlay. |
+| `M19` Game-feel polish (tween + particles) | Medium | Data-driven `Tween` component (target path, from, to, duration, ease, loop, persist policy) with deterministic easing for replay; `ParticleEmitter` with named presets (no general VFX graph yet), per-project particle budget enforced by `engine doctor`. Source: `Notes/linkedin_web_engine_part3_analysis.md`. |
 
 **Sequencing the M-list:**
 
@@ -85,7 +91,9 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 2. ~~Take **M1** + **M7** next~~ — **Done in Sprint 27**. Project versioning (`agfFormatVersion` + diagnostics + `engine migrate`), per-project performance budget + schema, `engine doctor` reads the budget.
 3. ~~Take **M2b** (record/replay) + **M4-docs** (`engine docs`) next~~ — **Done in Sprint 28**. Recorder + `engine replay` (v0), schema-to-Markdown generator, lazy renderer, bundle-in-doctor, CI typecheck job, Beacon sound pings.
 4. Take **M2b-seed** (deterministic RNG) + **M3** (prefabs) next — closes the record/replay determinism gap and reduces Beacon's repeated-content tax.
-5. Existing **M4** save/load, **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
+5. Take **M15** (engine dev server investigation) and **M16** (transform hierarchy) next — M15 because the agent loop needs live-process access; M16 because hierarchy is the deepest schema-level gap and is painful to retrofit once project files grow. Both should run in parallel: M15 is an investigation story, M16 starts with a small schema + diagnostics slice.
+6. Then **M4** save/load v0 (sharpened spec inline above), **M18** picking, **M19** tween/particles, **M17** renderer instancing. The `examples/feature-lab/` sandbox (see Roadmap Epics) becomes the proof project after these land.
+7. Existing **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
 
 ## AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)
 
@@ -100,6 +108,36 @@ Concrete candidates pulled from the "Summer Engine" comparison note. Each one is
 | `E.56` `engine doctor <projectDir>` scorecard | **Done** | Shipped Sprint 27 (`engine/tools/doctor/project-doctor.ts`). Consolidates `engine check` + summary + perf budget; exits 1 on errors. `compareRendererInfo(info, budget)` exposes soft/hard renderer violations for callers. |
 
 **Sequencing:** ~~Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story.~~ **E.52 / E.53 / E.54 / E.56 — done in Sprint 27.** **E.55** waits until there is a real inspector epic to anchor it.
+
+## M15 — Engine dev server (investigation story)
+
+AGF's current split — Node-side CLI tools that read the filesystem + browser runtime — does not cover **live-process** workflows. When the user is running the game in their tab and describes a bug, there is no agent-reachable surface: the only options today are DevTools manipulation or human-mediated clipboard / file paste. Both are wrong for an agent-first engine.
+
+Likely shape (to be confirmed by investigation): a **DEV-only Vite plugin** that adds HTTP + WebSocket endpoints under `/__agf/*`, paired with a tiny page-side bootstrap that opens a WS on mount. An agent then reaches the running game by HTTP — no human in the loop.
+
+### Story
+
+- `E.80` **Engine dev server — investigation.** Produce `docs/research/engine-dev-server-investigation.md` covering:
+  - The exact use cases an agent needs against a running tab (state pull, command injection, recording capture, event streaming, asset hot reload triggered by the agent, an HTTP "Playwright-light" alternative).
+  - Architecture options compared on agent ergonomics + dev-server overhead: Vite plugin with `configureServer` + WS bridge vs. a standalone Node sidecar vs. extending an existing dev tool. Pick one.
+  - Endpoint surface (`/__agf/snapshot`, `/__agf/bug-report`, `/__agf/recording/{start,stop}`, `/__agf/commands`, `/__agf/events` SSE, etc.) with request/response schemas.
+  - Security stance (localhost-only, no auth in DEV, plugin excluded from production builds, M10 coverage for prod).
+  - How HMR, recorder (Sprint 28), diagnostics bus (Sprint 26), and renderer-info (Sprint 26) connect to the bridge.
+  - First-implementation sprint plan: a sequenced list of stories sized for one sprint each.
+
+**Explicit non-goals at investigation stage:** no Ctrl-C / Ctrl-V flows, no "download as file" affordances, no "Copy bug report" buttons. If a story implies human-mediated state transfer, it is the wrong story for an agent-first engine.
+
+The user has a running game and describes a bug. There is no agent-readable bridge from that live tab back to me today. AGF is **agent-first** — the answer is NOT "open DevTools, copy / paste / download" but a programmatic bridge so an agent can pull state directly from the running dev tab.
+
+| Story | Notes |
+|---|---|
+| `E.80` `window.__agf.bugReport()` | Single call bundles `snapshot()` + `diagnostics()` + `rendererInfo()` + project id + active profile + networking config into one JSON. **Pure data producer** — no clipboard, no download, just returns the JSON string. Other consumers (bridge endpoint, page-side overlay) wrap it. |
+| `E.81` Recorder on `window.__agf` | Expose `__agf.startRecording()` / `__agf.stopRecording()`. `RuntimeHandle.startRecording` exists since Sprint 28 — this just plumbs it through the AppHandle and onto the DEV global. **No file download** — the dev-server bridge (`E.82`) ships recordings over HTTP. |
+| `E.82` Vite dev-server agent bridge | New Vite plugin + WebSocket loop. Browser opens a WS to `/__agf/ws` on mount; dev server exposes `GET /__agf/bug-report`, `GET /__agf/snapshot`, `GET /__agf/diagnostics`, `POST /__agf/recording/start`, `POST /__agf/recording/stop` (returns the Recording JSON), `POST /__agf/commands` (forwards EngineCommands to the page). The agent runs `curl http://localhost:5173/__agf/bug-report` — no human interaction. |
+| `E.83` `engine inspect --state-from <snapshot.json>` | Ingests a pre-captured `WorldSnapshot` (e.g. the `snapshot` field of a bug-report JSON, or a recording's `finalSnapshot`) and runs the existing inspect filters against it. Pairs with `E.82` so an agent can pipe `curl /__agf/bug-report | jq .snapshot > /tmp/s.json && engine inspect --state-from /tmp/s.json`. |
+| `E.84` `AgentBugReport` schema | `schemas/bug-report.schema.json` defining `{ agfFormatVersion, projectId, capturedAt, profile, snapshot, diagnostics, rendererInfo, recordingSummary?, description? }`. `engine check` validates bug-report files; agents can rely on a typed shape. |
+
+Sequencing: **the bridge (`E.82`) is the load-bearing story** — it converts every other `window.__agf.*` surface from "human-typed in DevTools" into "agent HTTP GET". Ship `E.80` + `E.81` + `E.84` first as primitives, then `E.82` to expose them, then `E.83` to consume snapshots offline. **Explicitly skip:** anchor-tag downloads, clipboard-only flows, "Copy bug report" buttons. These are human-in-the-loop affordances; AGF agents reach the page directly.
 
 ## From `Notes/kenji_engine_analysis.md` (most ideas already match AGF's direction)
 

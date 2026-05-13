@@ -15,6 +15,7 @@
     "engine:asset": "tsx engine/tools/cli.ts asset",
     "engine:replay": "tsx engine/tools/cli.ts replay",
     "engine:docs": "tsx engine/tools/cli.ts docs",
+    "engine:patch": "tsx engine/tools/cli.ts patch",
     "backend:node": "tsx examples/backends/node-world-server/src/index.ts",
     "backend:node:serve": "tsx examples/backends/node-world-server/src/index.ts --serve",
     "backend:dotnet": "dotnet run --project examples/backends/dotnet-world-server/GameServer.csproj",

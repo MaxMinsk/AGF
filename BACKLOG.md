@@ -21,32 +21,43 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 29 — TBD
+## Current Sprint: Sprint 30 — TBD
 
-Sprint 29 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 30 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
-Anchor candidates: continue the M-list — **M2-b** (deterministic seed) closes the record/replay determinism gap, **M3** (prefabs) reduces Beacon's duplicate cores / hazards, and the backend epic **10.5+** has been pending since Sprint 25.
+Two parallel anchor candidates this sprint:
 
-#### M-list follow-ups
+1. **`E.80` engine dev server investigation** (M15) — write the design doc that sequences the live-process bridge.
+2. **`M16-a / M16-b` transform hierarchy schema + resolver** — open the composition path. New per `Notes/linkedin_web_engine_part3_analysis.md`.
 
-- `M2-b` Deterministic RNG — profile-flag-gated seeded RNG helper consumed by Beacon hazard pulse + pickup respawn so `engine replay` survives RNG drift.
-- `M3-a` Prefab schema v0 — `prefabs/*.prefab.json` + `prefab.schema.json` + `prefab.instantiate` command. Beacon's repeated cores / hazards motivate it.
-- `M3-b` Scene `instances: [{ prefab, overrides }]` syntax with schema validation + expansion in `scene.load`.
-- `E.69` `engine doctor` follow-up — if `dist/` is missing, optionally invoke `vite build` (gated by `--build` flag) so a fresh checkout can be scored end-to-end.
+#### M15 — Engine dev server
 
-#### Backend follow-ups
+- `E.80` Engine dev server investigation — design doc (use cases, architecture options, endpoint surface, security stance, sequenced implementation plan).
 
-- `10.5+` C# skeleton WebSocket transport — real transport on top of the smoke skeleton shipped in Sprint 25.
-- `10.14` Server-authoritative carry — `intent.pickup` / `intent.drop` protocol extension.
-- `10.16` Snapshot delta encoding — server sends only changed components per entity.
-- `10.18` Server-side hazard / pickup state — move pulse timing + core respawns onto the server.
+#### M16 — Transform hierarchy
 
-#### Parking-lot promotions
+- `M16-a` Add optional `Transform.parent` to `scenes/*.scene.json` schema + `agfFormatVersion` bump in `engine/tools/check/format-version.ts`. Diagnostics: `AGF_TRANSFORM_PARENT_MISSING`, `AGF_TRANSFORM_PARENT_CYCLE`, `AGF_TRANSFORM_PARENT_SELF`.
+- `M16-b` Pure transform-hierarchy resolver — `engine/core/transform/resolve.ts` returns `{ local, world }` per entity given the world's `Transform` components. Unit tests on flat, single-parent, deep chain, and cycle-detection paths.
+- `M16-c` (stretch) Renderer consumes derived world transforms via the resolver, preserving the renderer-import-boundary (renderer never reads ECS components directly past the resolver).
+- `M16-d` (stretch) `engine inspect` prints `parent` + derived `worldPosition` per entity.
 
-- `M13` Project-file patch contract — design a JSON / AGF-command patch format + `engine patch --check`/`--write` flow. Pairs with `E.55`.
+#### M3 — Prefab follow-ups
 
-#### Beacon World polish
+- `M3-b` Scene `instances: [{ prefab, overrides }]` + `expandScenePrefabs` pure function. Schema landed in Sprint 29; engine integration follows.
+- `M3-c` Beacon World adopts prefabs for repeated cores / hazards.
 
-- `13.13` Audio asset path — replace the procedural Web Audio beeps with short licensed `.ogg` clips once the audio loader exists.
+#### M4 — Persistence v0 (sharpened in Sprint 29)
+
+- `M4-a` IndexedDB adapter behind a single `engine/runtime/persistence/local-store.ts` interface; per-project + per-profile save namespace; format version.
+- `M4-b` `runtime.save()` / `runtime.load()` / `runtime.clearSave()` API + an explicit component allowlist via `project.json#persistence.components` OR a `Persisted` marker component.
+- `M4-c` Beacon World local-save proof: repaired beacons + scoreboard survive reload.
+
+#### Engine polish
+
+- `M13-c` `engine patch` post-apply schema validation — re-run relevant `engine check` validators against the in-memory result so the agent knows whether the patch would leave the project well-formed.
+
+#### CI / dev-loop
+
+- `CI fix` — get PRs #31 and #32 green; npm 11.11 on the runner crashes during `npm ci` even with `--no-audit --no-fund`. Need a deeper look: try `npm install --omit=optional`, or pin npm via `setup-node`'s `package-manager` cache, or fall back to `pnpm`/`yarn` for CI.
