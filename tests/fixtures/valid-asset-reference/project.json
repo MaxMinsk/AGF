@@ -1,0 +1,11 @@
+{
+  "id": "valid-asset-reference",
+  "name": "Valid Asset Reference",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}

@@ -35,6 +35,7 @@ Completed sprint details move to `BACKLOG_ARCHIVE.md`. Broad roadmap epics live 
 
 ```bash
 npm run engine:check -- examples/hello-3d
+npm run engine:inspect -- examples/hello-3d
 npm run typecheck
 npm run test
 npm run preflight

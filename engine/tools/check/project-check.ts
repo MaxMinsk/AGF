@@ -1,6 +1,6 @@
 import Ajv, { type AnySchema, type ErrorObject, type ValidateFunction } from "ajv";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -39,6 +39,7 @@ export type CheckResult = {
 };
 
 const componentNames = ["Camera", "MeshRenderer", "Name", "Transform"] as const;
+const primitiveMeshes = new Set(["box", "sphere", "plane"]);
 
 const schemaPaths: Record<SchemaKey, string> = {
   project: "schemas/project.schema.json",
@@ -74,7 +75,7 @@ export function checkProject(projectDirInput: string): CheckResult {
   const startSceneValue = projectJson.data["startScene"];
   const startScene = typeof startSceneValue === "string" ? startSceneValue : undefined;
   if (startScene !== undefined) {
-    validateStartScene(projectDir, startScene, diagnostics);
+    validateStartScene(projectDir, startScene, assetRoot, diagnostics);
   }
 
   return result(projectDir, diagnostics);
@@ -93,7 +94,12 @@ export function formatDiagnostics(resultToFormat: CheckResult): string {
     .join("\n\n");
 }
 
-function validateStartScene(projectDir: string, startScene: string, diagnostics: Diagnostic[]): void {
+function validateStartScene(
+  projectDir: string,
+  startScene: string,
+  assetRoot: string | undefined,
+  diagnostics: Diagnostic[]
+): void {
   const scenePath = resolve(projectDir, startScene);
   if (!existsSync(scenePath)) {
     diagnostics.push({
@@ -115,11 +121,15 @@ function validateStartScene(projectDir: string, startScene: string, diagnostics:
 
   diagnostics.push(...validateWithSchema("scene", sceneJson.data, scenePath, projectDir));
   diagnostics.push(...detectDuplicateEntityIds(sceneJson.data, scenePath, projectDir));
+
+  if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
+    diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
+  }
 }
 
 function validateAssetRoot(projectDir: string, assetRoot: string, diagnostics: Diagnostic[]): void {
   const assetRootPath = resolve(projectDir, assetRoot);
-  if (!existsSync(assetRootPath) || !statSync(assetRootPath).isDirectory()) {
+  if (!isDirectory(assetRootPath)) {
     diagnostics.push({
       severity: "error",
       code: "AGF_PROJECT_ASSET_ROOT_MISSING",
@@ -151,6 +161,109 @@ function validateAssetRoot(projectDir: string, assetRoot: string, diagnostics: D
   }
 
   diagnostics.push(...validateWithSchema("assetSources", sourceMetadataJson.data, sourceMetadataPath, projectDir));
+}
+
+function validateSceneAssetReferences(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string,
+  assetRoot: string
+): Diagnostic[] {
+  if (!isJsonObject(sceneData) || !Array.isArray(sceneData["entities"])) {
+    return [];
+  }
+
+  const diagnostics: Diagnostic[] = [];
+  const entities = sceneData["entities"];
+
+  entities.forEach((entity, entityIndex) => {
+    if (!isJsonObject(entity)) {
+      return;
+    }
+
+    const components = entity["components"];
+    if (!isJsonObject(components)) {
+      return;
+    }
+
+    const meshRenderer = components["MeshRenderer"];
+    if (!isJsonObject(meshRenderer)) {
+      return;
+    }
+
+    const mesh = meshRenderer["mesh"];
+    if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+      diagnostics.push(
+        ...validateAssetReference({
+          projectDir,
+          assetRoot,
+          scenePath,
+          jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.mesh`,
+          reference: mesh,
+          referenceKind: "mesh"
+        })
+      );
+    }
+
+    const material = meshRenderer["material"];
+    if (typeof material === "string") {
+      diagnostics.push(
+        ...validateAssetReference({
+          projectDir,
+          assetRoot,
+          scenePath,
+          jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
+          reference: material,
+          referenceKind: "material"
+        })
+      );
+    }
+  });
+
+  return diagnostics;
+}
+
+function validateAssetReference(input: {
+  projectDir: string;
+  assetRoot: string;
+  scenePath: string;
+  jsonPath: string;
+  reference: string;
+  referenceKind: "material" | "mesh";
+}): Diagnostic[] {
+  const assetRootPath = resolve(input.projectDir, input.assetRoot);
+  const assetPath = resolve(assetRootPath, input.reference);
+
+  if (isAbsolute(input.reference) || !isPathInside(assetRootPath, assetPath)) {
+    return [
+      {
+        severity: "error",
+        code: "AGF_ASSET_REFERENCE_INVALID",
+        file: toProjectRelativeFile(input.scenePath, input.projectDir),
+        path: input.jsonPath,
+        message: `Asset reference "${input.reference}" must be relative to assetRoot and stay inside assetRoot.`,
+        suggestion: "Use a project asset path such as runtime/models/example.glb or runtime/materials/example.material.json."
+      }
+    ];
+  }
+
+  if (existsSync(assetPath) && !statSync(assetPath).isDirectory()) {
+    return [];
+  }
+
+  return [
+    {
+      severity: "error",
+      code: "AGF_ASSET_REFERENCE_MISSING",
+      file: toProjectRelativeFile(input.scenePath, input.projectDir),
+      path: input.jsonPath,
+      message: `${capitalize(input.referenceKind)} asset "${input.reference}" does not exist under assetRoot "${input.assetRoot}".`,
+      suggestion:
+        input.referenceKind === "mesh"
+          ? "Add the runtime mesh file, update the reference, or use a primitive mesh: box, sphere, plane."
+          : "Add the material file under assetRoot or remove the material reference until materials are implemented."
+    }
+  ];
 }
 
 function detectDuplicateEntityIds(sceneData: JsonValue, scenePath: string, projectDir: string): Diagnostic[] {
@@ -347,6 +460,19 @@ function toProjectRelativeFile(filePath: string, projectDir: string): string {
   return relativePath === "" ? "." : relativePath.split(sep).join("/");
 }
 
+function isDirectory(path: string): boolean {
+  return existsSync(path) && statSync(path).isDirectory();
+}
+
+function isPathInside(rootPath: string, childPath: string): boolean {
+  const relativePath = relative(rootPath, childPath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function result(projectDir: string, diagnostics: Diagnostic[]): CheckResult {
   return {
     ok: diagnostics.every((diagnostic) => diagnostic.severity !== "error"),
@@ -355,6 +481,6 @@ function result(projectDir: string, diagnostics: Diagnostic[]): CheckResult {
   };
 }
 
-function isJsonObject(value: JsonValue): value is JsonObject {
+function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

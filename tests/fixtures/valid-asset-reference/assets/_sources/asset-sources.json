@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "valid-asset-reference.crate",
+      "kind": "model",
+      "runtimeFiles": ["runtime/models/crate.glb", "runtime/materials/crate.material.json"],
+      "license": "Project-owned",
+      "source": {
+        "type": "original",
+        "notes": "Tiny placeholder files used only for validation tests."
+      }
+    }
+  ]
+}

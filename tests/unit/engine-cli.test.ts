@@ -32,6 +32,38 @@ describe("engine CLI", () => {
     expect(payload.ok).toBe(false);
     expect(payload.diagnostics.some((diagnostic) => diagnostic.code === "AGF_SCHEMA_UNKNOWN_PROPERTY")).toBe(true);
   });
+
+  it("prints inspect JSON for a valid project", async () => {
+    const result = await runCli(["inspect", resolve(fixturesRoot, "valid-project"), "--json"]);
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean;
+      scene?: { entityCount: number; entities: Array<{ id: string; componentNames: string[] }> };
+    };
+
+    expect(result.code).toBe(0);
+    expect(payload.ok).toBe(true);
+    expect(payload.scene?.entityCount).toBe(2);
+    expect(payload.scene?.entities[0]).toEqual(
+      expect.objectContaining({
+        id: "camera.main",
+        componentNames: ["Camera", "Transform"]
+      })
+    );
+  });
+
+  it("prints a stable inspect summary", async () => {
+    const result = await runCli(["inspect", resolve(fixturesRoot, "valid-project")]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout.trim()).toMatchInlineSnapshot(`
+      "Project: Valid Project (valid-project)
+      Start scene: scenes/start.scene.json
+      Scene: start
+      Entities: 2
+      - camera.main: Camera, Transform
+      - cube: MeshRenderer, Name, Transform"
+    `);
+  });
 });
 
 function runCli(args: string[]): Promise<CliResult> {

@@ -1,0 +1,19 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "prop.crate",
+      "components": {
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "mesh": "runtime/models/crate.glb",
+          "material": "runtime/materials/crate.material.json"
+        }
+      }
+    }
+  ]
+}

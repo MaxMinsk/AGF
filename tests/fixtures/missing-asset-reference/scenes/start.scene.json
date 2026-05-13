@@ -1,0 +1,19 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "prop.missing",
+      "components": {
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "mesh": "runtime/models/missing.glb",
+          "material": "runtime/materials/missing.material.json"
+        }
+      }
+    }
+  ]
+}
