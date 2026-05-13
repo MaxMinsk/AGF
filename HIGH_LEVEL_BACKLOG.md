@@ -78,6 +78,7 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 | `M10` Security / trust boundary for agent-authored projects | Active | Doc + CLI warning + network hardening (already partially shipped via protocol-validator, id-collision and size caps). Mostly documentation work. |
 | `M11` Resource lifecycle + leak tests | **High priority** | HMR-heavy workflow means leaks build up silently. Renderer lifecycle audit (geometries / materials / textures count), HMR stress test, network adapter create/dispose loop. |
 | `M12` Template / project creation CLI | Active | `engine new -- <name> --template hello-3d`. Less urgent while only two examples exist; gains value once a third sample is added. |
+| `M14` Live-process debug bridge | **High priority** | The user has the game running in their tab and describes a bug — today there is no single command to share that state with an agent. Surface bundle: one-shot `__agf.bugReport()` JSON, browser-side recorder access on `window.__agf`, `engine inspect --state-from <file>` mode, diagnostics-overlay "Copy bug report" button, typed `AgentBugReport` schema. See stories `E.80–E.84` below. |
 
 **Sequencing the M-list:**
 
@@ -100,6 +101,20 @@ Concrete candidates pulled from the "Summer Engine" comparison note. Each one is
 | `E.56` `engine doctor <projectDir>` scorecard | **Done** | Shipped Sprint 27 (`engine/tools/doctor/project-doctor.ts`). Consolidates `engine check` + summary + perf budget; exits 1 on errors. `compareRendererInfo(info, budget)` exposes soft/hard renderer violations for callers. |
 
 **Sequencing:** ~~Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story.~~ **E.52 / E.53 / E.54 / E.56 — done in Sprint 27.** **E.55** waits until there is a real inspector epic to anchor it.
+
+## M14 — Live-process debug bridge (new epic, 2026-05-13)
+
+The user has a running game and describes a bug. There is no agent-readable bridge from that live tab back to me today; the workflow degrades to "open DevTools, copy snapshots manually". These stories close that gap.
+
+| Story | Notes |
+|---|---|
+| `E.80` `window.__agf.bugReport()` | Single call bundles `snapshot()` + `diagnostics()` + `rendererInfo()` + `reloadEvents` + project id + active profile + active networking config into one JSON; copies to clipboard and returns the same JSON string. Mirrors `copyDiagnostics()` (Sprint 27) but for the full state. |
+| `E.81` Recorder on `window.__agf` | Expose `__agf.startRecording()` / `__agf.stopRecording()` / `__agf.downloadRecording(filename?)`. Today `RuntimeHandle.startRecording` exists (Sprint 28) but is not reachable from DevTools. Use case: user reproduces the bug, calls `__agf.downloadRecording('bug.replay.json')`, drops the file into the chat, I run `engine replay`. |
+| `E.82` `engine inspect --state-from <snapshot.json>` | New mode that ingests a pre-captured `WorldSnapshot` (e.g. the `snapshot` field of a bug-report JSON) and runs the existing inspect filters against it without needing the project on disk. Pairs with `E.80` and the existing `inspect --diff` flow. |
+| `E.83` Diagnostics-overlay "Copy bug report" button | Adds a tiny button to `engine/runtime/diagnostics/diagnostics-overlay.ts` that calls `__agf.bugReport()` so the user does not need DevTools at all. Stays behind the existing DEV-only mount. |
+| `E.84` `AgentBugReport` schema | `schemas/bug-report.schema.json` defining `{ agfFormatVersion, projectId, capturedAt, profile, snapshot, diagnostics, rendererInfo, recordingSummary?, description? }`. `engine check` validates pasted bug-report files; agents can rely on a typed shape. |
+
+Sequencing: ship `E.80` + `E.81` + `E.84` as one Sprint-30 vertical slice (the user can copy/share state). `E.82` and `E.83` follow once the basic shape is locked in. **Skip a remote bridge for v0** — clipboard + file paste is enough; an HTTP/MCP bridge can come later if and when the clipboard flow proves too slow.
 
 ## From `Notes/kenji_engine_analysis.md` (most ideas already match AGF's direction)
 
