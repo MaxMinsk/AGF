@@ -83,6 +83,33 @@ describe("node-world-server WebSocket transport", () => {
     }
   }, 5000);
 
+  it("drops a player whose intent.move has not arrived within playerTimeoutSeconds", async () => {
+    const world = new ServerWorld();
+    const log: string[] = [];
+    const transport = await startWsTransport({
+      port: pickFreePort(),
+      world,
+      validate: createValidate(),
+      tickHz: 120,
+      playerTimeoutSeconds: 0.2,
+      log: (line) => log.push(line)
+    });
+    try {
+      const client = new WebSocket(`ws://127.0.0.1:${transport.port}`);
+      await new Promise<void>((resolve) => client.once("open", () => resolve()));
+
+      client.send(JSON.stringify({ kind: "player.join", payload: { playerId: "idle" } }));
+      await waitFor(() => world.playerCount() === 1);
+
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      expect(world.playerCount()).toBe(0);
+      expect(log.some((line) => line.includes("timeout playerId=idle"))).toBe(true);
+      client.close();
+    } finally {
+      await transport.close();
+    }
+  }, 5000);
+
   it("drops a frame that fails AJV validation without crashing", async () => {
     const world = new ServerWorld();
     const log: string[] = [];

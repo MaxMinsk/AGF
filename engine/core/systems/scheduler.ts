@@ -1,15 +1,51 @@
 import type { System, SystemContext } from "./types";
 
+export type SystemRegistrationOptions = {
+  /**
+   * Active-profile filter. The system registers only if at least one profile
+   * in this list is also in the scheduler's active set. Omit to always
+   * register.
+   */
+  profiles?: ReadonlyArray<string>;
+};
+
+export type SystemSchedulerOptions = {
+  /** Profile names that systems can opt into. Defaults to an empty set. */
+  activeProfiles?: ReadonlyArray<string>;
+};
+
 export class SystemScheduler {
   private readonly order: System[] = [];
   private readonly index = new Map<string, number>();
+  private readonly activeProfiles: ReadonlySet<string>;
 
-  register(system: System): void {
+  constructor(options: SystemSchedulerOptions = {}) {
+    this.activeProfiles = new Set(options.activeProfiles ?? []);
+  }
+
+  /**
+   * Register a system. With `options.profiles` set, registration is skipped
+   * unless at least one of those profiles is in the active set; the call still
+   * succeeds quietly so callers don't have to branch.
+   */
+  register(system: System, options: SystemRegistrationOptions = {}): boolean {
+    if (options.profiles !== undefined) {
+      const matchesAny = options.profiles.some((profile) => this.activeProfiles.has(profile));
+      if (!matchesAny) {
+        return false;
+      }
+    }
     if (this.index.has(system.name)) {
       throw new Error(`System "${system.name}" is already registered.`);
     }
     this.index.set(system.name, this.order.length);
     this.order.push(system);
+    return true;
+  }
+
+  /** Returns the active-profile set (test/diagnostics helper). */
+  getActiveProfiles(): ReadonlySet<string> {
+    return this.activeProfiles;
   }
 
   unregister(name: string): void {

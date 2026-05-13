@@ -4,6 +4,12 @@ type HealthComponent = { current: number; max: number };
 type InvulnerableComponent = { until: number };
 type RepairableComponent = { accepts: string; repaired?: boolean };
 type WorldSignalComponent = { health?: number; target?: number };
+type RoundStateComponent = {
+  phase: "active" | "complete";
+  holdProgress?: number;
+  holdSeconds: number;
+  completedAt?: number;
+};
 
 const REFRESH_MS = 100;
 
@@ -66,7 +72,18 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
   status.setAttribute("data-testid", "hud-status");
   status.style.cssText = "font-variant-numeric: tabular-nums; min-height: 14px;";
 
-  root.append(hpLine, signalLine, status);
+  const summary = document.createElement("div");
+  summary.setAttribute("data-testid", "hud-round-summary");
+  summary.style.cssText = [
+    "margin-top: 4px",
+    "font-weight: 600",
+    "letter-spacing: 0.05em",
+    "color: rgba(74, 240, 168, 0.92)",
+    "min-height: 14px",
+    "display: none"
+  ].join(";");
+
+  root.append(hpLine, signalLine, status, summary);
   parent.append(root);
 
   let lastKey = "";
@@ -85,6 +102,7 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
     let repairedCount = 0;
     let repairableTotal = 0;
     let signalHealth: number | undefined;
+    let round: RoundStateComponent | undefined;
     for (const entity of snapshot.entities) {
       const repairable = entity.components["Repairable"] as RepairableComponent | undefined;
       if (repairable !== undefined) {
@@ -97,10 +115,18 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
       if (worldSignal !== undefined && typeof worldSignal.health === "number") {
         signalHealth = worldSignal.health;
       }
+      const roundState = entity.components["RoundState"] as RoundStateComponent | undefined;
+      if (roundState !== undefined) {
+        round = roundState;
+      }
     }
 
     const signalPct = signalHealth !== undefined ? Math.round(signalHealth * 100) : undefined;
-    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}|${signalPct ?? "-"}`;
+    const roundKey =
+      round === undefined
+        ? "-"
+        : `${round.phase}|${Math.round((round.holdProgress ?? 0) * 10)}/${Math.round(round.holdSeconds * 10)}`;
+    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}|${signalPct ?? "-"}|${roundKey}`;
     if (key === lastKey) {
       return;
     }
@@ -110,6 +136,7 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
     renderSignal(signalValue, signalBar, repairedCount, repairableTotal, signalPct);
     status.textContent = invulnerableActive ? "INVULN" : "";
     status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
+    renderRound(summary, round);
   };
 
   refresh();
@@ -121,6 +148,29 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
       root.remove();
     }
   };
+}
+
+function renderRound(target: HTMLElement, round: RoundStateComponent | undefined): void {
+  if (round === undefined) {
+    target.style.display = "none";
+    target.textContent = "";
+    return;
+  }
+  if (round.phase === "complete") {
+    target.style.display = "block";
+    target.textContent = "ROUND COMPLETE";
+    return;
+  }
+  if ((round.holdProgress ?? 0) > 0) {
+    target.style.display = "block";
+    target.style.color = "rgba(234, 244, 255, 0.6)";
+    const progress = (round.holdProgress ?? 0).toFixed(1);
+    const total = round.holdSeconds.toFixed(1);
+    target.textContent = `HOLD ${progress}/${total}s`;
+    return;
+  }
+  target.style.display = "none";
+  target.textContent = "";
 }
 
 function renderSignal(

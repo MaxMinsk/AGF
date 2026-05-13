@@ -29,6 +29,11 @@ export type TransportOptions = {
    * broadcasts the resulting snapshot to every connected client.
    */
   tickHz?: number;
+  /**
+   * Drop a player whose last activity is older than this many seconds. Default
+   * is 30 s. Pass 0 or a non-finite number to disable.
+   */
+  playerTimeoutSeconds?: number;
 };
 
 export type TransportHandle = {
@@ -41,6 +46,7 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
   const tickHz = options.tickHz ?? 20;
   const tickIntervalMs = 1000 / tickHz;
   const dt = 1 / tickHz;
+  const playerTimeoutSeconds = options.playerTimeoutSeconds ?? 30;
   const { world, validate } = options;
 
   const wss = new WebSocketServer({ port: options.port });
@@ -53,6 +59,7 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
   let outboundSequence = 0;
   const clients = new Set<WebSocket>();
   const clientPlayer = new WeakMap<WebSocket, string>();
+  const playerSocket = new Map<string, WebSocket>();
 
   wss.on("connection", (socket) => {
     clients.add(socket);
@@ -75,6 +82,7 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
         case "player.join": {
           const { playerId } = message.payload;
           clientPlayer.set(socket, playerId);
+          playerSocket.set(playerId, socket);
           world.join(playerId);
           log(`[node-world-server] join playerId=${playerId} (total=${world.playerCount()})`);
           break;
@@ -82,6 +90,7 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
         case "player.leave": {
           const { playerId } = message.payload;
           world.leave(playerId);
+          playerSocket.delete(playerId);
           log(`[node-world-server] leave playerId=${playerId} (total=${world.playerCount()})`);
           break;
         }
@@ -98,6 +107,9 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
       const playerId = clientPlayer.get(socket);
       if (playerId !== undefined) {
         world.leave(playerId);
+        if (playerSocket.get(playerId) === socket) {
+          playerSocket.delete(playerId);
+        }
       }
       clients.delete(socket);
       log("[node-world-server] client disconnected");
@@ -110,6 +122,20 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
 
   const tickId = setInterval(() => {
     world.tick(dt);
+
+    const expired = world.expiredPlayers(playerTimeoutSeconds);
+    for (const playerId of expired) {
+      world.leave(playerId);
+      log(`[node-world-server] timeout playerId=${playerId} (idle > ${playerTimeoutSeconds}s)`);
+      const socket = playerSocket.get(playerId);
+      if (socket !== undefined) {
+        playerSocket.delete(playerId);
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close(1000, "idle timeout");
+        }
+      }
+    }
+
     if (clients.size === 0) {
       return;
     }

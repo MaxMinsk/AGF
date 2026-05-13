@@ -10,6 +10,7 @@ import {
   diffSnapshots,
   formatDiff,
   readInspectSnapshot,
+  tailSnapshotDiff,
   type SnapshotDiffResult
 } from "./inspect/snapshot-diff";
 
@@ -21,6 +22,7 @@ type ParsedArgs = {
   entityIds: string[];
   diffPaths: [string, string] | undefined;
   savePath: string | undefined;
+  tail: number | undefined;
   positional: string[];
 };
 
@@ -36,13 +38,14 @@ if (parsedArgs.command === "check") {
     const previous = readInspectSnapshot(previousPath);
     const next = readInspectSnapshot(nextPath);
     const changes = diffSnapshots(previous, next);
-    const result: SnapshotDiffResult = {
+    const full: SnapshotDiffResult = {
       ok: true,
       previousPath,
       nextPath,
       changeCount: changes.length,
       changes
     };
+    const result = tailSnapshotDiff(full, { tail: parsedArgs.tail });
     emitResult(result, parsedArgs, () => formatDiff(result));
     process.exitCode = 0;
   } else {
@@ -86,6 +89,7 @@ function parseArgs(args: string[]): ParsedArgs {
     entityIds: [],
     diffPaths: undefined,
     savePath: undefined,
+    tail: undefined,
     positional: []
   };
 
@@ -139,6 +143,16 @@ function parseArgs(args: string[]): ParsedArgs {
       }
       continue;
     }
+    if (current === "--tail") {
+      const value = args[++index];
+      if (value !== undefined) {
+        const parsed = Number.parseInt(value, 10);
+        if (Number.isFinite(parsed) && parsed >= 0) {
+          result.tail = parsed;
+        }
+      }
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -159,7 +173,7 @@ function printUsage(): void {
       "Usage:",
       "  engine check <projectDir> [--json] [--save <path>]",
       "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--json] [--save <path>]",
-      "  engine inspect --diff <previous.json> <next.json> [--json] [--save <path>]"
+      "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]"
     ].join("\n")
   );
 }

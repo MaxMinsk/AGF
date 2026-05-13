@@ -41,9 +41,33 @@ export type SnapshotDiffResult = {
   ok: boolean;
   previousPath: string;
   nextPath: string;
+  /** Total number of changes between the two snapshots. Not affected by `--tail`. */
   changeCount: number;
+  /** `changes.length` may be smaller than `changeCount` when truncated by `--tail`. */
   changes: SnapshotDiffEntry[];
+  /** Number of changes hidden by `--tail`. Zero or undefined when not truncated. */
+  truncated?: number;
 };
+
+export type TailOptions = {
+  tail?: number | undefined;
+};
+
+export function tailSnapshotDiff(
+  result: SnapshotDiffResult,
+  options: TailOptions = {}
+): SnapshotDiffResult {
+  const tail = options.tail;
+  if (tail === undefined || tail >= result.changes.length || tail < 0) {
+    return result;
+  }
+  const kept = tail === 0 ? [] : result.changes.slice(-tail);
+  return {
+    ...result,
+    changes: kept,
+    truncated: result.changes.length - kept.length
+  };
+}
 
 export function readInspectSnapshot(filePath: string): InspectResult {
   const absolute = resolve(filePath);
@@ -116,13 +140,15 @@ export function diffSnapshots(previous: InspectResult, next: InspectResult): Sna
 }
 
 export function formatDiff(diff: SnapshotDiffResult): string {
-  if (diff.changes.length === 0) {
+  if (diff.changes.length === 0 && diff.changeCount === 0) {
     return `No changes between ${diff.previousPath} and ${diff.nextPath}.`;
   }
 
   const lines = [
     `Diff: ${diff.previousPath} -> ${diff.nextPath}`,
-    `Changes: ${diff.changeCount}`
+    diff.truncated !== undefined && diff.truncated > 0
+      ? `Changes: ${diff.changeCount} (showing last ${diff.changes.length}, ${diff.truncated} hidden by --tail)`
+      : `Changes: ${diff.changeCount}`
   ];
   for (const change of diff.changes) {
     switch (change.kind) {
