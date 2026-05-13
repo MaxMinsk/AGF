@@ -1,0 +1,8 @@
+{
+  "id": "cube-hero",
+  "shader": "standard",
+  "color": "#48d1ff",
+  "roughness": 0.35,
+  "metalness": 0.55,
+  "emissive": "#0a1a30"
+}

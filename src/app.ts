@@ -1,5 +1,12 @@
 import { startRuntime, type RuntimeHandle, type RuntimeOptions } from "../engine/runtime/start";
+import { SystemScheduler } from "../engine/core/systems/scheduler";
+import { createSpinSystem } from "../engine/core/systems/spin-system";
+import { AssetRegistry } from "../engine/runtime/asset-registry";
+import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
+import { createGlbLoader } from "../engine/render/glb-loader";
+import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
+import type { WorldSnapshot } from "../engine/runtime/inspect";
 
 export type ProjectMeta = {
   name: string;
@@ -8,6 +15,8 @@ export type ProjectMeta = {
 
 export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
+  applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+  snapshot(): WorldSnapshot;
   dispose(): void;
 };
 
@@ -26,13 +35,21 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
   status.setAttribute("aria-label", "Engine status");
   status.innerHTML = `
     <h1 class="status-title">${project.name}</h1>
-    <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS.</p>
+    <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS. Edit the scene file to hot-reload.</p>
   `;
 
   shell.append(canvas, status);
   root.append(shell);
 
-  const runtimeOptions: RuntimeOptions = { canvas, scene };
+  const scheduler = new SystemScheduler();
+  scheduler.register(createSpinSystem());
+
+  const assetRegistry = new AssetRegistry({
+    baseUrl: new URL("examples/hello-3d/assets/", window.location.href).href,
+    loaders: [createMaterialLoader(), createGlbLoader()]
+  });
+
+  const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler, assetRegistry };
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;
@@ -46,6 +63,12 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
 
   return {
     canvas,
+    applyCommands(commands): void {
+      runtime.applyCommands(commands);
+    },
+    snapshot(): WorldSnapshot {
+      return runtime.snapshot();
+    },
     dispose(): void {
       runtime.stop();
       root.textContent = "";

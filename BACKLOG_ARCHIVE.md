@@ -107,3 +107,63 @@ Status: Completed and archived.
 - `WebGLRenderer` runs with `preserveDrawingBuffer: true` so e2e pixel readback works. Revisit if a perf budget appears.
 - Cyrillic-character CI check is parked in `HIGH_LEVEL_BACKLOG.md` parking lot as a Sprint 2 candidate.
 
+## Sprint 2 - Agent Loop And Asset Runtime
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `6.1` `SystemScheduler` v0 in `engine/core/systems/`: registration-ordered, duplicate-name guard, missing-hook skip, wired into `startRuntime` via the `scheduler` option.
+- `6.2` `Spin` component + `createSpinSystem()`; hero cube now rotates 45°/s around Y, driven by the scheduler.
+- `7.1` `diffScenes(prev, next): EngineCommand[]` + new `component.remove` command; key-sorted JSON comparison so JSON-key reordering is a no-op.
+- `7.2` `runtime.applyCommands()` exposed on the handle; Vite HMR for `start.scene.json` diffs the scene and patches the live world.
+- `8.1` `schemas/material.schema.json` + `engine check` validates `<assetRoot>/runtime/materials/*.material.json`; valid/invalid fixtures cover the contract.
+- `8.2` `schemas/shader.schema.json` (draft) + `docs/research/spikes/shader-manifest.md` capturing the proposed runtime flow and out-of-scope list.
+- `8.3` `AssetRegistry` with loader plugins, caching and retry-on-failure; `MaterialLoader` fetches and parses `.material.json` via `fetch`.
+- `8.4` `engine/render/glb-loader.ts` wraps Three.js `GLTFLoader`; matcher unit-tested. Real `.glb` for `hello-3d` is a Sprint 3 follow-up (no art pipeline yet).
+- `8.5` `docs/agent/asset-authoring-checklist.md` — folder layout, per-asset steps, manifests, anti-patterns and diagnostic codes.
+- `9.1` `snapshotWorld(world, time)` pure function; `runtime.snapshot()` + `window.__agf = { snapshot, applyCommands }` in DEV builds only.
+- `9.2` Playwright robot playtest drives the runtime through `window.__agf`: observes `SpinSystem` advancing rotation, then pushes a `component.set` to freeze the spin and asserts the change.
+- `12.1` `.github/workflows/repo-hygiene.yml` fails CI on Cyrillic characters in tracked files; legacy Russian research notes moved into `Notes/`.
+
+### Deliverables
+
+- `engine/core/systems/` (scheduler + spin)
+- `engine/core/commands/scene-diff.ts`, `component.remove` in the commands union
+- `engine/render/glb-loader.ts`, material wiring in `engine/render/three-renderer.ts`
+- `engine/runtime/asset-registry.ts`, `engine/runtime/asset-loaders/material-loader.ts`, `engine/runtime/inspect.ts`
+- `schemas/{material,shader}.schema.json`
+- `examples/hello-3d/assets/runtime/materials/cube-hero.material.json` (visible hero-cube material)
+- `tests/unit/{system-scheduler,spin-system,scene-diff,inspect,asset-registry}.test.ts`
+- `tests/e2e/agent-loop.spec.ts`
+- `tests/fixtures/invalid-material/`
+- `.github/workflows/repo-hygiene.yml`
+- `docs/agent/asset-authoring-checklist.md`, `docs/research/spikes/shader-manifest.md`
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 66 Vitest tests across 11 files, vite build OK, 2 Playwright e2e (nonblank Three.js canvas + robot agent-loop).
+- `npm run engine:check -- examples/hello-3d` green with the new material reference.
+- Screenshot artifact shows the hero cube rendered with metallic cyan + emissive from the loaded material manifest.
+
+### Demo Criteria
+
+7 of 8 met:
+
+- Agent edits scene JSON and dev runtime applies a patch — met.
+- Movable entity with system logic and unit tests — met.
+- `engine inspect` and runtime inspect API expose world snapshots — met.
+- Material and shader manifests exist — met.
+- Asset registry loads at least one runtime asset path — met.
+- Robot playtest can drive the scene and save metrics — met.
+- CI fails on Cyrillic characters — met.
+- Backend contracts isolated under `examples/backends/` — deferred to Sprint ~5 by stakeholder decision; solo-client features take priority first.
+
+### Follow-Ups
+
+- Author a minimal `.glb` for `hello-3d` so the GLB loader has an end-to-end smoke (Sprint 3 candidate).
+- Wire production asset serving: dev relies on Vite's default file serving; build needs an explicit `public/` or copy step before non-bundled assets can ship.
+- Asset hot reload: a `*.material.json` edit currently does not retrigger the renderer because the registry caches the first resolved value. Material HMR is a natural extension of Story 7.2.
+- Consider a non-DEV path for `window.__agf` (or a query-flagged opt-in) once a production debugging story is needed.
+- Epic 10 (Backend contracts) parked for Sprint ~5.
+

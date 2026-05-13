@@ -88,4 +88,29 @@ describe("project check", () => {
       ])
     );
   });
+
+  it("validates material manifests under assetRoot/runtime/materials", () => {
+    const result = checkProject(resolve(fixturesRoot, "invalid-material"));
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "AGF_SCHEMA_UNKNOWN_PROPERTY",
+          file: "assets/runtime/materials/broken.material.json",
+          path: "$.extra"
+        }),
+        expect.objectContaining({
+          code: "AGF_SCHEMA_VALIDATION_FAILED",
+          file: "assets/runtime/materials/broken.material.json",
+          path: "$.shader"
+        }),
+        expect.objectContaining({
+          code: "AGF_SCHEMA_VALIDATION_FAILED",
+          file: "assets/runtime/materials/broken.material.json",
+          path: "$.color"
+        })
+      ])
+    );
+  });
 });

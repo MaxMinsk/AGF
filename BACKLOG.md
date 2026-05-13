@@ -21,75 +21,22 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 2 - Agent Loop And Asset Runtime
+## Current Sprint: Sprint 3 - TBD
 
-Goal: make the scene editable by agents, add the first gameplay systems, prototype JSON hot reload, add material/shader manifests, add runtime asset loading, and scaffold backend-agnostic persistent-world contracts.
+Sprint 3 focus will be picked at the start of the sprint from the candidate list below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
 
-Stories below are listed at the epic level. Each story must be expanded with tasks, acceptance criteria and verification at the moment it is picked up.
+### Candidates
 
-### Epic 6: Gameplay Systems v0
+- `13.1` Beacon World project scaffold — new nested project under `examples/beacon-world/`, minimal `project.json` + scene, sample-game direction in `SAMPLE_GAME_IDEAS.md` as reference.
+- `13.2` Beacon World first scene — primitive avatar + two beacons, uses the existing renderer / scheduler / asset registry without engine changes.
+- `14.1` Minimal `.glb` for `hello-3d` — closes the Story 8.4 follow-up so the GLB loader path has an end-to-end smoke test.
+- `14.2` Production asset serving — fix the `dist/` build so material/glb references resolve in `npm run build`, not just `npm run dev`.
+- `15.1` In-page inspector overlay — toggle hotkey (not F12, not F2 if that conflicts with the browser), tree of entities + components, read-only first.
+- `16.1` Material file hot reload — make `*.material.json` edits flow through the asset registry and rebind on the renderer side without a page reload.
+- `17.1` Scene editor command palette — drop-in DOM panel that runs the existing `applyCommands` API with autocomplete on entity ids and component names.
 
-Stories:
-
-- `6.1`: System scheduler.
-- `6.2`: Sample movement system.
-
-### Epic 7: Scene Patches And Hot Reload
-
-Stories:
-
-- `7.1`: Scene diff to commands.
-- `7.2`: JSON scene hot reload in dev.
-
-### Epic 8: Material And Shader v0
-
-Stories:
-
-- `8.1`: Material manifest.
-- `8.2`: Shader manifest spike.
-
-### Epic 8.5: Runtime Asset Loading v0
-
-Stories:
-
-- `8.3`: Asset registry and loader contracts.
-- `8.4`: First GLB import path.
-- `8.5`: Asset authoring checklist for Beacon World.
-
-### Epic 9: Agent Playtest Loop
-
-Stories:
-
-- `9.1`: Runtime inspect API.
-- `9.2`: Robot smoke playtest.
-
-### Epic 10: Backend-Agnostic Persistent World Seam
-
-Stories:
-
-- `10.1`: Protocol schema v0.
-- `10.2`: Reference backend skeleton boundary.
-- `10.3`: Network/world components in schema.
-
-### Epic 12: Repo Hygiene
-
-Stories:
-
-- `12.1`: GitHub Action that fails CI on Cyrillic characters in tracked repo files; excludes `Notes/`, `References/`, `node_modules/`, binary assets.
-
-## Sprint 2 Demo
-
-Sprint 2 is done when:
-
-- An agent can edit scene JSON and dev runtime applies a patch.
-- There is a movable entity with system logic and unit tests.
-- `engine inspect` and runtime inspect API expose world snapshots.
-- Material and shader manifests exist.
-- Asset registry can load at least one runtime asset path.
-- Robot playtest can drive the scene and save screenshot/metrics.
-- Backend contracts exist, and any reference server code is isolated under `examples/backends/`.
-- CI fails on Cyrillic characters in tracked repo files.
+Epic 10 (Backend contracts) is deferred to ~Sprint 5 by stakeholder decision.
 
 ## Next Sprint: TBD
 
-The next sprint will be detailed when Sprint 2 reaches close. Candidates come from `HIGH_LEVEL_BACKLOG.md` (material/shader v1, asset pipeline polish, Beacon World scaffold, inspector overlay, physics v0).
+Will be detailed when Sprint 3 reaches close.

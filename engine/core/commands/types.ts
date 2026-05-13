@@ -23,6 +23,12 @@ export type ComponentSetCommand = {
   data: ComponentData;
 };
 
+export type ComponentRemoveCommand = {
+  kind: "component.remove";
+  entityId: EntityId;
+  component: ComponentName;
+};
+
 export type SceneLoadCommand = {
   kind: "scene.load";
   scene: SceneInput;
@@ -32,6 +38,7 @@ export type EngineCommand =
   | EntityCreateCommand
   | EntityDeleteCommand
   | ComponentSetCommand
+  | ComponentRemoveCommand
   | SceneLoadCommand;
 
 export type CommandLogEntry = {

@@ -1,3 +1,7 @@
 {
-  "id": "crate"
+  "id": "crate",
+  "shader": "standard",
+  "color": "#a07650",
+  "roughness": 0.85,
+  "metalness": 0.0
 }

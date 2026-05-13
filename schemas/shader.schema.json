@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/shader.schema.json",
+  "title": "AGF Shader Manifest (spike)",
+  "description": "Draft shape for a shader manifest. Not yet consumed by the runtime — see docs/research/spikes/shader-manifest.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "kind": {
+      "enum": ["vertex-fragment", "compute"],
+      "description": "v0 only plans `vertex-fragment`; `compute` is reserved."
+    },
+    "vertexSource": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to the .vert.glsl file, relative to assetRoot."
+    },
+    "fragmentSource": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to the .frag.glsl file, relative to assetRoot."
+    },
+    "uniforms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "type": {
+            "enum": ["float", "vec2", "vec3", "vec4", "mat3", "mat4", "sampler2D"]
+          },
+          "default": {}
+        }
+      },
+      "uniqueItems": true
+    },
+    "fallbackMaterial": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Material id to fall back to when the shader fails to compile."
+    }
+  }
+}

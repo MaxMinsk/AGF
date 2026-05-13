@@ -38,17 +38,17 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Three.js renderer | Archived | v0 covers primitive meshes (`box`, `sphere`, `plane`) — Sprint 1. GLB still to come. |
 | Agent CLI | Archived | `engine check` and `engine inspect` v0 shipped in Sprint 1. |
 | Agent reliability infrastructure | Archived | Preflight script, debug protocol, template policy and quality axes docs exist. |
-| Material and shader system | Active | Manifest-driven materials and shader fallback path. |
-| Runtime asset loading | Active | Asset registry, loader contracts, first GLB import. |
-| Hot reload | Active | Scene diff to command patches. |
-| Playtest runner | Active | Runtime inspect API, robot policies, screenshots and metrics. |
-| Persistent world backend contracts | Active | Backend-agnostic protocol schemas and world contracts. |
-| Repo hygiene CI | Active | Cyrillic-in-repo check; future English-only enforcement. |
+| Material and shader system | Archived | Material manifest v0 + shader spike shipped in Sprint 2; runtime shader compile is a later epic. |
+| Runtime asset loading | Archived | Asset registry, loader contracts and material binding shipped in Sprint 2; first real `.glb` import is a Sprint 3 follow-up. |
+| Hot reload | Archived | Scene diff and Vite HMR for scene JSON shipped in Sprint 2. Asset (material/shader) hot reload remains a Sprint 3 candidate. |
+| Playtest runner | Archived | Runtime inspect API + scripted robot playtest shipped in Sprint 2. |
+| Persistent world backend contracts | Deferred | Parked for Sprint ~5 by stakeholder decision; solo-client features take priority first. |
+| Repo hygiene CI | Archived | Cyrillic-in-repo check shipped in Sprint 2. |
 | Template policy | Active | Maintained examples as templates, not one-shot generated archives. |
-| Reference backend implementations | Later | C#/.NET first, Node.js-compatible architecture by contract. |
-| Beacon World sample | Later | Main dogfood example under `examples/beacon-world/`. |
+| Reference backend implementations | Later | C#/.NET first, Node.js-compatible architecture by contract. Aligned with the deferred backend contracts epic. |
+| Beacon World sample | Active | Sprint 3 candidate — project scaffold and first scene. |
 | Rapier physics | Later | 3D first, 2D later. |
-| Inspector overlay | Later | F2 entity/component inspector. |
+| Inspector overlay | Active | Sprint 3 candidate — in-page entity/component overlay, toggle hotkey TBD (not F12, not F2). |
 | 2D renderer layer | Later | Orthographic/sprite path after 3D vertical slice. |
 | Audio | Later | Positional audio and UI/music buses. |
 | Production asset pipeline | Later | Texture compression, LODs, automated Blender/Meshy tooling. |

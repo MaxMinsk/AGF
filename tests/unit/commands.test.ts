@@ -112,4 +112,19 @@ describe("CommandQueue", () => {
 
     expect(world.hasEntity("hero")).toBe(true);
   });
+
+  it("removes a single component without touching the entity", () => {
+    const world = new World();
+    world.addEntity("hero");
+    world.setComponent("hero", "Transform", { position: [0, 0, 0] });
+    world.setComponent("hero", "MeshRenderer", { mesh: "box" });
+    const queue = new CommandQueue();
+    queue.enqueue({ kind: "component.remove", entityId: "hero", component: "MeshRenderer" });
+
+    queue.drainInto(world);
+
+    expect(world.hasEntity("hero")).toBe(true);
+    expect(world.getComponent("hero", "MeshRenderer")).toBeUndefined();
+    expect(world.getComponent("hero", "Transform")).toEqual({ position: [0, 0, 0] });
+  });
 });

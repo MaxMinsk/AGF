@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "invalid-material.broken",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/materials/broken.material.json"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Fixture: the material file is intentionally invalid for engine check tests."
+      }
+    }
+  ]
+}
