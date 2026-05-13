@@ -4,6 +4,7 @@ import { checkProject, formatDiagnostics } from "./check/project-check";
 import {
   formatInspection,
   inspectProject,
+  NOISY_METADATA_COMPONENTS,
   tailInspectResult,
   toStableInspectResult,
   type InspectOptions
@@ -25,6 +26,8 @@ type ParsedArgs = {
   diffPaths: [string, string] | undefined;
   savePath: string | undefined;
   tail: number | undefined;
+  excludeComponents: string[];
+  componentsOnly: boolean;
   positional: string[];
 };
 
@@ -57,6 +60,15 @@ if (parsedArgs.command === "check") {
     }
     if (parsedArgs.entityIds.length > 0) {
       options.entityIds = parsedArgs.entityIds;
+    }
+    const exclude = new Set<string>(parsedArgs.excludeComponents);
+    if (parsedArgs.componentsOnly) {
+      for (const name of NOISY_METADATA_COMPONENTS) {
+        exclude.add(name);
+      }
+    }
+    if (exclude.size > 0) {
+      options.excludeComponents = [...exclude];
     }
     const result = inspectProject(parsedArgs.projectDir, options);
     const trimmed = tailInspectResult(result, parsedArgs.tail);
@@ -94,6 +106,8 @@ function parseArgs(args: string[]): ParsedArgs {
     diffPaths: undefined,
     savePath: undefined,
     tail: undefined,
+    excludeComponents: [],
+    componentsOnly: false,
     positional: []
   };
 
@@ -157,6 +171,22 @@ function parseArgs(args: string[]): ParsedArgs {
       }
       continue;
     }
+    if (current === "--exclude-component") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        for (const piece of value.split(",")) {
+          const trimmed = piece.trim();
+          if (trimmed.length > 0) {
+            result.excludeComponents.push(trimmed);
+          }
+        }
+      }
+      continue;
+    }
+    if (current === "--components-only") {
+      result.componentsOnly = true;
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -176,7 +206,7 @@ function printUsage(): void {
     [
       "Usage:",
       "  engine check <projectDir> [--json] [--save <path>]",
-      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--json] [--save <path>]",
+      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--json] [--save <path>]",
       "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]"
     ].join("\n")
   );

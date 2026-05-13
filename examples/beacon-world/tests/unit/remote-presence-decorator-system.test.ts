@@ -28,7 +28,7 @@ function addServerPlayer(world: World, playerId: string): void {
 }
 
 describe("RemotePresenceDecoratorSystem", () => {
-  it("attaches a MeshRenderer and a default scale to a remote server-authority player", () => {
+  it("attaches a MeshRenderer (palette-picked material) and a default scale to a remote server-authority player", () => {
     const world = new World();
     addServerPlayer(world, "bravo");
     step(world, "alpha");
@@ -38,8 +38,8 @@ describe("RemotePresenceDecoratorSystem", () => {
       "MeshRenderer"
     );
     expect(renderer?.mesh).toBe("runtime/models/drone.glb");
-    expect(renderer?.material).toBe("runtime/materials/drone.material.json");
-    expect(renderer?.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(renderer?.material).toMatch(/runtime\/materials\/drone-(orange|cyan|violet|amber)\.material\.json/);
+    expect(renderer?.color).toBeUndefined();
 
     const transform = world.getComponent<{ scale?: ReadonlyArray<number> }>(
       "player.bravo",
@@ -81,22 +81,22 @@ describe("RemotePresenceDecoratorSystem", () => {
     expect(world.getComponent("player.local", "MeshRenderer")).toBeUndefined();
   });
 
-  it("assigns stable, palette-bound colors for the same player id", () => {
+  it("assigns stable, palette-bound materials for the same player id", () => {
     const worldA = new World();
     addServerPlayer(worldA, "bravo");
     step(worldA, "alpha");
-    const colorA = (
-      worldA.getComponent<{ color?: string }>("player.bravo", "MeshRenderer") ?? {}
-    ).color;
+    const materialA = (
+      worldA.getComponent<{ material?: string }>("player.bravo", "MeshRenderer") ?? {}
+    ).material;
 
     const worldB = new World();
     addServerPlayer(worldB, "bravo");
     step(worldB, "alpha");
-    const colorB = (
-      worldB.getComponent<{ color?: string }>("player.bravo", "MeshRenderer") ?? {}
-    ).color;
+    const materialB = (
+      worldB.getComponent<{ material?: string }>("player.bravo", "MeshRenderer") ?? {}
+    ).material;
 
-    expect(colorA).toBeDefined();
-    expect(colorA).toBe(colorB);
+    expect(materialA).toBeDefined();
+    expect(materialA).toBe(materialB);
   });
 });

@@ -898,3 +898,53 @@ The sprint goal — make the networked profile actually drive the local visible 
 - `10.5` C#/.NET reference skeleton still pending.
 - `13.12` Sound pings still pending.
 
+## Sprint 20 - Snapshot Interpolation + Inspect --components-only + Drone Palette + Auto-Reset
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `10.13.5` Snapshot interpolation buffer — `WsNetworkAdapter` now timestamps every inbound `world.snapshot` and records `{ receivedAtSeconds, position }` per entity in a bounded ring buffer (default 10 samples, configurable via `snapshotBufferSize`). The new `getSnapshotBuffer()` handle returns a read-only view of that buffer. A project-local `remote-presence-interpolator-system.ts` reads the buffer each frame and writes `Transform.position` at `now - renderDelaySeconds` (default 100 ms) by lerping between the two samples that bracket the render time. When the render time runs past the newest sample, the system extrapolates linearly using the last segment's velocity for up to `extrapolationLimitSeconds` (default 200 ms), then holds the last known position. The local player is skipped — `network-drone-sync` already handles prediction + reconciliation there. Five unit tests cover the lerp path, the bounded extrapolation, the hold-after-cap, the skip-local, and the empty-buffer no-op. Buffer entries are cleared on disconnect and on entity.delete so reconnect / server restart starts clean.
+- `E.11` `engine inspect --components-only` and `--exclude-component` — new `excludeComponents` field on `InspectOptions` drops listed component names from every emitted entity. New `NOISY_METADATA_COMPONENTS` constant lists the canonical noise (`Name`, `Networked`, `Presence`); `--components-only` flag in the CLI is an alias for excluding all of them. `--exclude-component N1,N2,...` adds custom names. Pairs naturally with `--tail` to keep the agent's context window small.
+- `14.7` Drone material variant family — four new project-owned material manifests under `examples/beacon-world/assets/runtime/materials/`: `drone-orange`, `drone-cyan`, `drone-violet`, `drone-amber`. `asset-sources.json` declares them as `beacon-world.drone-material-palette`. The remote-presence decorator now picks a palette entry indexed by a stable hash of the remote player's id (and no longer attaches a `color` field, which the standalone material already encodes).
+- `13.17` Auto-reset on completion — `RoundState` gains an optional `autoResetSeconds`. New `round-auto-reset-system.ts` watches the singleton `world.signal.RoundState`; when phase is complete and `elapsed - completedAt >= autoResetSeconds`, it calls `resetBeaconRound(world)`. `round-reset.ts` carries `autoResetSeconds` across the reset boundary. Beacon's scene declares `autoResetSeconds: 5`. Four unit tests cover the active no-op, the wait-then-reset, the missing-field no-op, and the preservation of `autoResetSeconds` across resets.
+
+### Deliverables
+
+- `engine/runtime/network/ws-network-adapter.ts` (timestamped sample buffer, `getSnapshotBuffer`, `SnapshotSample`)
+- `engine/tools/inspect/project-inspect.ts` (`excludeComponents`, `NOISY_METADATA_COMPONENTS`, `applyExclude`)
+- `engine/tools/cli.ts` (`--components-only`, `--exclude-component`)
+- `examples/beacon-world/src/systems/remote-presence-interpolator-system.ts`
+- `examples/beacon-world/src/systems/remote-presence-decorator-system.ts` (palette-driven material)
+- `examples/beacon-world/src/systems/round-auto-reset-system.ts`
+- `examples/beacon-world/src/round-reset.ts` (autoResetSeconds preservation)
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`RoundState.autoResetSeconds`)
+- `examples/beacon-world/scenes/start.scene.json` (`autoResetSeconds: 5`)
+- `examples/beacon-world/assets/runtime/materials/drone-{orange,cyan,violet,amber}.material.json`
+- `examples/beacon-world/assets/_sources/asset-sources.json` (palette entry)
+- `src/app.ts` (registers the interpolator and auto-reset systems)
+- Tests: `examples/beacon-world/tests/unit/remote-presence-interpolator-system.test.ts`, `examples/beacon-world/tests/unit/round-auto-reset-system.test.ts`, `tests/unit/project-inspect-stable.test.ts` (+ exclude/NOISY_METADATA cases)
+
+### Verification
+
+- `engine check examples/hello-3d` and `examples/beacon-world`: green.
+- Sprint-close `npm run preflight`: typecheck clean, 172 Vitest tests across 26 files, vite build OK, 11 Playwright e2e tests.
+
+### Goal Recap
+
+The sprint goal — push the networked profile toward production-quality netcode and tighten the agent's inspect knobs — was met:
+
+- Remote players now smooth across jittery networks: the adapter buffers timestamped server samples, the interpolator renders 100 ms behind real-time, and bounded extrapolation handles short packet gaps gracefully.
+- `engine inspect --components-only` (and the lower-level `--exclude-component`) trims `Name` / `Networked` / `Presence` from every output so an agent comparing diffs against a large scene gets only the gameplay components that actually change.
+- Networked players now wear distinct material variants, hashed from their `playerId`, so two browser tabs visually distinguish each other without any per-client config.
+- Beacon World now closes its gameplay loop on its own: hold the threshold for `holdSeconds`, see `ROUND COMPLETE`, wait `autoResetSeconds`, and the world re-arms automatically — useful both for HMR demos and for keeping an idle browser session productive.
+
+### Follow-Ups
+
+- `10.5` C#/.NET reference skeleton still pending.
+- `10.15` Server-acked input sequences for precise reconciliation still pending.
+- `13.12` Sound pings still pending.
+- Local-player reconciliation could itself become rollback-style once `10.15` lands: keep recent unacked intents, replay them on each server snapshot rather than blending toward the server position.
+
+
+

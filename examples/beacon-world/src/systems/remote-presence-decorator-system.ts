@@ -10,7 +10,12 @@ type TransformComponent = {
   scale?: ReadonlyArray<number>;
 };
 
-const REMOTE_PALETTE = ["#ff9a4a", "#4ad7ff", "#c97aff", "#ffd34a", "#84ff8e", "#ff6c8a"];
+const REMOTE_MATERIAL_PALETTE: ReadonlyArray<string> = [
+  "runtime/materials/drone-orange.material.json",
+  "runtime/materials/drone-cyan.material.json",
+  "runtime/materials/drone-violet.material.json",
+  "runtime/materials/drone-amber.material.json"
+];
 
 const REMOTE_SCALE: [number, number, number] = [0.7, 0.7, 0.7];
 
@@ -21,9 +26,19 @@ export type RemotePresenceDecoratorOptions = {
    * network-drone-sync mirror).
    */
   localPlayerId: string;
-  /** Mesh / material refs to use for remote players. */
+  /** Mesh ref for remote players. */
   mesh: string;
+  /**
+   * Fallback material when no palette entry resolves. Kept for parity with the
+   * local drone's material so a missing palette does not break rendering.
+   */
   material: string;
+  /**
+   * Material refs to cycle through, indexed by a stable hash of the remote
+   * player's id. Defaults to the four-colour palette under
+   * `runtime/materials/drone-*.material.json`.
+   */
+  materialPalette?: ReadonlyArray<string>;
 };
 
 /**
@@ -38,6 +53,7 @@ export type RemotePresenceDecoratorOptions = {
 export function createRemotePresenceDecoratorSystem(
   options: RemotePresenceDecoratorOptions
 ): System {
+  const palette = options.materialPalette ?? REMOTE_MATERIAL_PALETTE;
   let cachedWorld: World | undefined;
   let networkedQuery: QueryHandle | undefined;
   return {
@@ -59,10 +75,10 @@ export function createRemotePresenceDecoratorSystem(
 
         const renderer = world.getComponent<MeshRendererComponent>(id, "MeshRenderer");
         if (renderer === undefined) {
+          const paletteMaterial = pickPaletteMaterial(presence.playerId, palette) ?? options.material;
           world.setComponent(id, "MeshRenderer", {
             mesh: options.mesh,
-            material: options.material,
-            color: colorForPlayer(presence.playerId)
+            material: paletteMaterial
           });
         }
 
@@ -78,10 +94,13 @@ export function createRemotePresenceDecoratorSystem(
   };
 }
 
-function colorForPlayer(playerId: string): string {
+function pickPaletteMaterial(playerId: string, palette: ReadonlyArray<string>): string | undefined {
+  if (palette.length === 0) {
+    return undefined;
+  }
   let hash = 0;
   for (let i = 0; i < playerId.length; i += 1) {
     hash = (hash * 31 + playerId.charCodeAt(i)) >>> 0;
   }
-  return REMOTE_PALETTE[hash % REMOTE_PALETTE.length]!;
+  return palette[hash % palette.length];
 }

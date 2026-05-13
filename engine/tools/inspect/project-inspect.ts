@@ -38,7 +38,16 @@ export type InspectOptions = {
   components?: ReadonlyArray<string>;
   /** Entity id must be in this list to be included. */
   entityIds?: ReadonlyArray<string>;
+  /**
+   * Drop these component names from every emitted entity. The names still
+   * appear in the AGF schema; only the inspect output is trimmed. Useful with
+   * `--tail` to fit large scenes into an agent's context window.
+   */
+  excludeComponents?: ReadonlyArray<string>;
 };
+
+/** Components that carry no per-frame state and are usually safe to drop from a diff. */
+export const NOISY_METADATA_COMPONENTS: ReadonlyArray<string> = ["Name", "Networked", "Presence"];
 
 export type InspectFilterSummary = {
   components: ReadonlyArray<string>;
@@ -60,7 +69,7 @@ export function inspectProject(projectDirInput: string, options: InspectOptions 
   const sceneData = readJsonObject(resolve(checkResult.projectDir, startScene));
   const allEntities = normalizeEntities(sceneData);
   const filter = normaliseFilter(options);
-  const entities = applyFilter(allEntities, filter);
+  const entities = applyExclude(applyFilter(allEntities, filter), options.excludeComponents ?? []);
 
   const result: InspectResult = {
     ok: true,
@@ -201,6 +210,32 @@ function normaliseFilter(options: InspectOptions): InspectFilterSummary {
   const components = (options.components ?? []).filter((value) => value.length > 0);
   const entityIds = (options.entityIds ?? []).filter((value) => value.length > 0);
   return { components, entityIds };
+}
+
+function applyExclude(entities: InspectEntity[], excluded: ReadonlyArray<string>): InspectEntity[] {
+  if (excluded.length === 0) {
+    return entities;
+  }
+  const drop = new Set(excluded);
+  return entities.map((entity) => {
+    let mutatedComponents: JsonObject | undefined;
+    for (const name of entity.componentNames) {
+      if (drop.has(name)) {
+        if (mutatedComponents === undefined) {
+          mutatedComponents = { ...entity.components };
+        }
+        delete mutatedComponents[name];
+      }
+    }
+    if (mutatedComponents === undefined) {
+      return entity;
+    }
+    return {
+      ...entity,
+      componentNames: entity.componentNames.filter((name) => !drop.has(name)),
+      components: mutatedComponents
+    };
+  });
 }
 
 function applyFilter(entities: InspectEntity[], filter: InspectFilterSummary): InspectEntity[] {

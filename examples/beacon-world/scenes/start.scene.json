@@ -16,7 +16,8 @@
           "phase": "active",
           "thresholdHealth": 0.85,
           "holdSeconds": 3,
-          "holdProgress": 0
+          "holdProgress": 0,
+          "autoResetSeconds": 5
         }
       }
     },
