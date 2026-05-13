@@ -30,7 +30,7 @@ describe("engine CLI", () => {
 
     expect(result.code).toBe(1);
     expect(payload.ok).toBe(false);
-    expect(payload.diagnostics.some((diagnostic) => diagnostic.code === "AGF_SCHEMA_UNKNOWN_PROPERTY")).toBe(true);
+    expect(payload.diagnostics.some((diagnostic) => diagnostic.code === "AGF_SCHEMA_UNKNOWN_COMPONENT")).toBe(true);
   });
 
   it("prints inspect JSON for a valid project", async () => {

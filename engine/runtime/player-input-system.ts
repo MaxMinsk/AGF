@@ -15,6 +15,13 @@ export type PlayerInputSystemOptions = {
   eventTarget?: EventTarget;
   /** Override the active set of pressed keys (test helper). */
   pressedKeys?: ReadonlySet<string>;
+  /**
+   * When set, the system stops applying local `Transform` updates and instead
+   * forwards the normalised direction vector to this callback every frame the
+   * player is moving. Used by the networked Beacon profile so the server's
+   * `player.<id>` entity is the authoritative position for the drone.
+   */
+  onIntent?: (direction: readonly [number, number]) => void;
 };
 
 export type PlayerInputSystemHandle = System & {
@@ -51,10 +58,6 @@ export function createPlayerInputSystem(options: PlayerInputSystemOptions = {}):
   return {
     name: "player-input",
     frameUpdate({ time, world }: SystemContext): void {
-      const entities = world.query(["PlayerControlled", "Transform"]);
-      if (entities.length === 0) {
-        return;
-      }
       const dx = (anyPressed(pressed, MOVE_RIGHT) ? 1 : 0) - (anyPressed(pressed, MOVE_LEFT) ? 1 : 0);
       const dz = (anyPressed(pressed, MOVE_BACK) ? 1 : 0) - (anyPressed(pressed, MOVE_FORWARD) ? 1 : 0);
       if (dx === 0 && dz === 0) {
@@ -63,6 +66,16 @@ export function createPlayerInputSystem(options: PlayerInputSystemOptions = {}):
       const length = Math.hypot(dx, dz);
       const nx = dx / length;
       const nz = dz / length;
+
+      if (options.onIntent !== undefined) {
+        options.onIntent([nx, nz]);
+        return;
+      }
+
+      const entities = world.query(["PlayerControlled", "Transform"]);
+      if (entities.length === 0) {
+        return;
+      }
 
       for (const entityId of entities) {
         const player = world.getComponent<PlayerControlledComponent>(entityId, "PlayerControlled");

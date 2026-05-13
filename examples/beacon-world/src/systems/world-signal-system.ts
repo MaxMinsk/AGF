@@ -1,5 +1,5 @@
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
-import type { World } from "../../../../engine/core/ecs/world";
+import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 
 type RepairableComponent = { accepts: string; repaired?: boolean };
 type WorldSignalComponent = { health?: number; target?: number; tau?: number };
@@ -14,16 +14,22 @@ const SIGNAL_ENTITY_ID = "world.signal";
  * snapshot path.
  */
 export function createWorldSignalSystem(): System {
+  let cachedWorld: World | undefined;
+  let repairableQuery: QueryHandle | undefined;
   return {
     name: "world-signal",
     frameUpdate({ time, world }: SystemContext): void {
+      if (world !== cachedWorld) {
+        repairableQuery = world.createQuery(["Repairable"]);
+        cachedWorld = world;
+      }
       if (!world.hasEntity(SIGNAL_ENTITY_ID)) {
         return;
       }
       const signal =
         world.getComponent<WorldSignalComponent>(SIGNAL_ENTITY_ID, "WorldSignal") ?? {};
 
-      const target = currentRepairedRatio(world);
+      const target = currentRepairedRatio(world, repairableQuery!);
       const tau = signal.tau ?? DEFAULT_TAU;
       const previous = signal.health ?? 0;
       const dt = Math.max(time.dt, 0);
@@ -40,8 +46,8 @@ export function createWorldSignalSystem(): System {
   };
 }
 
-function currentRepairedRatio(world: World): number {
-  const beacons = world.query(["Repairable"]);
+function currentRepairedRatio(world: World, query: QueryHandle): number {
+  const beacons = query.run();
   if (beacons.length === 0) {
     return 0;
   }

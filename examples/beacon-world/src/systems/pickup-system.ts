@@ -1,6 +1,14 @@
 import type { EntityId } from "../../../../engine/core/ecs/types";
-import type { World } from "../../../../engine/core/ecs/world";
+import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+
+type PickupQueries = {
+  carriers: QueryHandle;
+  carryingPickups: QueryHandle;
+  repairablesWithTransform: QueryHandle;
+  pickupsAll: QueryHandle;
+  repairablesAll: QueryHandle;
+};
 
 type Vec3 = ReadonlyArray<number>;
 
@@ -53,14 +61,27 @@ export type PickupSystemOptions = {
 export function createPickupSystem(options: PickupSystemOptions = {}): System {
   const pickupRadius = options.pickupRadius ?? DEFAULT_PICKUP_RADIUS;
   const depositRadius = options.depositRadius ?? DEFAULT_DEPOSIT_RADIUS;
+  let cachedWorld: World | undefined;
+  let queries: PickupQueries | undefined;
 
   return {
     name: "pickup",
     frameUpdate({ time, world }: SystemContext): void {
-      tickPickupRespawns(world, time.dt);
-      tickBeaconDecays(world, time.dt);
+      if (world !== cachedWorld) {
+        queries = {
+          carriers: world.createQuery(["Carrier", "Transform"]),
+          carryingPickups: world.createQuery(["Pickup", "Transform"]),
+          repairablesWithTransform: world.createQuery(["Repairable", "Transform"]),
+          pickupsAll: world.createQuery(["Pickup"]),
+          repairablesAll: world.createQuery(["Repairable"])
+        };
+        cachedWorld = world;
+      }
+      const q = queries!;
+      tickPickupRespawns(world, time.dt, q);
+      tickBeaconDecays(world, time.dt, q);
 
-      const carriers = world.query(["Carrier", "Transform"]);
+      const carriers = q.carriers.run();
       for (const carrierId of carriers) {
         const carrier = world.getComponent<CarrierComponent>(carrierId, "Carrier");
         const transform = world.getComponent<TransformComponent>(carrierId, "Transform");
@@ -70,17 +91,23 @@ export function createPickupSystem(options: PickupSystemOptions = {}): System {
         const position = transform.position ?? [0, 0, 0];
 
         if (carrier.carrying === undefined) {
-          tryPickup(world, carrierId, position, pickupRadius);
+          tryPickup(world, carrierId, position, pickupRadius, q);
         } else {
-          handleCarry(world, carrierId, carrier.carrying, position, depositRadius);
+          handleCarry(world, carrierId, carrier.carrying, position, depositRadius, q);
         }
       }
     }
   };
 }
 
-function tryPickup(world: World, carrierId: EntityId, position: Vec3, radius: number): void {
-  const pickups = world.query(["Pickup", "Transform"]);
+function tryPickup(
+  world: World,
+  carrierId: EntityId,
+  position: Vec3,
+  radius: number,
+  q: PickupQueries
+): void {
+  const pickups = q.carryingPickups.run();
   let closestId: EntityId | undefined;
   let closestDist = Infinity;
   for (const pickupId of pickups) {
@@ -108,7 +135,8 @@ function handleCarry(
   carrierId: EntityId,
   carriedId: EntityId,
   carrierPosition: Vec3,
-  depositRadius: number
+  depositRadius: number,
+  q: PickupQueries
 ): void {
   if (!world.hasEntity(carriedId)) {
     world.setComponent(carrierId, "Carrier", {});
@@ -133,7 +161,7 @@ function handleCarry(
     });
   }
 
-  const repairables = world.query(["Repairable", "Transform"]);
+  const repairables = q.repairablesWithTransform.run();
   for (const beaconId of repairables) {
     const repair = world.getComponent<RepairableComponent>(beaconId, "Repairable");
     if (repair === undefined || repair.repaired === true) {
@@ -204,11 +232,11 @@ function despawnOrRemove(world: World, pickupId: EntityId, pickup: PickupCompone
   }
 }
 
-function tickPickupRespawns(world: World, dt: number): void {
+function tickPickupRespawns(world: World, dt: number, q: PickupQueries): void {
   if (dt <= 0) {
     return;
   }
-  const pickups = world.query(["Pickup"]);
+  const pickups = q.pickupsAll.run();
   for (const pickupId of pickups) {
     const pickup = world.getComponent<PickupComponent>(pickupId, "Pickup");
     if (pickup === undefined || pickup.consumed !== true) {
@@ -239,11 +267,11 @@ function tickPickupRespawns(world: World, dt: number): void {
   }
 }
 
-function tickBeaconDecays(world: World, dt: number): void {
+function tickBeaconDecays(world: World, dt: number, q: PickupQueries): void {
   if (dt <= 0) {
     return;
   }
-  const beacons = world.query(["Repairable"]);
+  const beacons = q.repairablesAll.run();
   for (const beaconId of beacons) {
     const repair = world.getComponent<RepairableComponent>(beaconId, "Repairable");
     if (repair === undefined || repair.repaired !== true || repair.decayIn === undefined) {

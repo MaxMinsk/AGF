@@ -544,6 +544,9 @@ function ajvErrorToDiagnostic(
 
 function codeForAjvError(error: ErrorObject): string {
   if (error.keyword === "additionalProperties") {
+    if (isComponentSlotPath(error.instancePath)) {
+      return "AGF_SCHEMA_UNKNOWN_COMPONENT";
+    }
     return "AGF_SCHEMA_UNKNOWN_PROPERTY";
   }
 
@@ -556,6 +559,9 @@ function codeForAjvError(error: ErrorObject): string {
 
 function messageForAjvError(error: ErrorObject, propertyText: string | undefined): string {
   if (error.keyword === "additionalProperties" && propertyText !== undefined) {
+    if (isComponentSlotPath(error.instancePath)) {
+      return `Unknown component "${propertyText}".`;
+    }
     return `Unknown property "${propertyText}".`;
   }
 
@@ -571,8 +577,17 @@ function suggestionForAjvError(
   path: string,
   knownComponentNames: ReadonlyArray<string>
 ): string | undefined {
-  if (error.keyword === "additionalProperties" && path.includes(".components.")) {
-    return `Use one of these components: ${knownComponentNames.join(", ")}.`;
+  if (error.keyword === "additionalProperties" && isComponentSlotPath(error.instancePath)) {
+    const unknown =
+      typeof error.params["additionalProperty"] === "string"
+        ? error.params["additionalProperty"]
+        : undefined;
+    const nearest = unknown === undefined ? undefined : findNearestName(unknown, knownComponentNames);
+    const known = `Known components: ${knownComponentNames.join(", ")}.`;
+    if (nearest !== undefined) {
+      return `Did you mean "${nearest}"? Add the component under <projectDir>/schemas/scene-extensions.schema.json if it is project-specific. ${known}`;
+    }
+    return `Add the component under <projectDir>/schemas/scene-extensions.schema.json if it is project-specific. ${known}`;
   }
 
   if (error.keyword === "additionalProperties") {
@@ -588,6 +603,63 @@ function suggestionForAjvError(
   }
 
   return "Compare this file with examples/hello-3d for the smallest valid shape.";
+}
+
+function isComponentSlotPath(instancePath: string): boolean {
+  return /\/entities\/\d+\/components$/.test(instancePath);
+}
+
+function findNearestName(input: string, candidates: ReadonlyArray<string>): string | undefined {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+  const lowerInput = input.toLowerCase();
+  let bestName: string | undefined;
+  let bestDistance = Infinity;
+  for (const candidate of candidates) {
+    const distance = levenshtein(lowerInput, candidate.toLowerCase());
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestName = candidate;
+    }
+  }
+  if (bestName === undefined) {
+    return undefined;
+  }
+  const threshold = Math.max(2, Math.ceil(input.length / 3));
+  return bestDistance <= threshold ? bestName : undefined;
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) {
+    return 0;
+  }
+  if (a.length === 0) {
+    return b.length;
+  }
+  if (b.length === 0) {
+    return a.length;
+  }
+  const previousRow = new Array<number>(b.length + 1);
+  const currentRow = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j += 1) {
+    previousRow[j] = j;
+  }
+  for (let i = 1; i <= a.length; i += 1) {
+    currentRow[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      currentRow[j] = Math.min(
+        (currentRow[j - 1] ?? 0) + 1,
+        (previousRow[j] ?? 0) + 1,
+        (previousRow[j - 1] ?? 0) + cost
+      );
+    }
+    for (let j = 0; j <= b.length; j += 1) {
+      previousRow[j] = currentRow[j] ?? 0;
+    }
+  }
+  return currentRow[b.length] ?? 0;
 }
 
 function jsonPointerToPath(pointer: string, appendedProperty: string | undefined): string {

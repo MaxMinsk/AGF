@@ -21,17 +21,17 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 16 - TBD
+## Current Sprint: Sprint 17 - TBD
 
-Sprint 16 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 17 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
 #### Backend follow-ups
 
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
-- `10.7` Networked Beacon drone — opt-in profile where the local drone's input is translated into outbound `intent.move` and the server's `player.<id>` entity replaces the locally-owned drone. Needs auth/handoff logic and a Playwright e2e that proves keyboard input crosses the wire.
-- `10.8` Connection lifecycle hardening — reconnect / backoff in the client adapter, server-side player timeout when a snapshot tick has not seen activity in N seconds.
+- `10.9` Server-side player timeout — drop a player whose intent / heartbeat has not arrived in N seconds. Currently only the WS-close path triggers `leave`.
+- `10.10` Authority hand-off for the Beacon drone — when `?networked=1`, hide/remove the local `player.drone` and route the local pickup/hazard systems through the server-owned `player.<playerId>` entity. Needs a small protocol extension for outbound `intent.pickup` / `intent.drop`.
 
 #### Beacon World gameplay
 
@@ -40,8 +40,8 @@ Sprint 16 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 #### Engine polish
 
-- `E.3` Adopt cached query handles in built-in systems — convert `spin`, `pickup`, `hazard`, `world-signal` from `world.query(...)` to per-system `world.createQuery(...).run()` and prove the snapshot output is unchanged.
-- `E.4` Schema-driven diagnostics — surface a friendly error when a scene references a component absent from both the base schema and the project's scene-extensions.
+- `E.5` Profile gating — make `project.json.profiles` actually filter system registration so a future "networked" profile can opt entities out of local movement without app-level branching.
+- `E.6` `engine inspect` for snapshot tail — add an `--tail N` flag that prints the last N component diffs by entity / component, so an agent can verify network HMR without scraping the raw snapshot.
 
 #### Asset polish
 
