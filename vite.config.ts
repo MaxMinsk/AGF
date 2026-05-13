@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import { cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
@@ -33,8 +33,40 @@ function copyExampleAssets(): Plugin {
   };
 }
 
+/**
+ * Dev-only plugin: when an asset under `examples/<projectId>/assets/` changes,
+ * push a custom HMR event so the client can drop the AssetRegistry cache and
+ * re-apply the asset without a full page reload.
+ */
+function assetHotReload(): Plugin {
+  return {
+    name: "agf-asset-hot-reload",
+    apply: "serve",
+    configureServer(server) {
+      const matchAssetPath = /^examples\/([^/]+)\/assets\/(.*)$/;
+      server.watcher.on("change", (changedPath) => {
+        const relPath = relative(repoRoot, changedPath).split("\\").join("/");
+        const match = matchAssetPath.exec(relPath);
+        if (match === null) {
+          return;
+        }
+        const projectId = match[1];
+        const ref = match[2];
+        if (projectId === undefined || ref === undefined) {
+          return;
+        }
+        server.ws.send({
+          type: "custom",
+          event: "agf:asset-changed",
+          data: { projectId, ref }
+        });
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [copyExampleAssets()],
+  plugins: [copyExampleAssets(), assetHotReload()],
   server: {
     host: "127.0.0.1",
     port: 5173,

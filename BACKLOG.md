@@ -21,32 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 7 - TBD
+## Current Sprint: Sprint 8 - TBD
 
-Sprint 7 focus is picked at sprint start. Candidate pool below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
+Sprint 8 focus is picked at sprint start. Candidate pool below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts. Agent-first priority from `CLAUDE.md` applies — prefer schema/diagnostics/inspect/HMR work over visual GUI tooling.
 
 ### Candidates
 
-#### Authoring tools
+#### Agent loop enrichment
 
-- `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
-- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
-- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
-
-#### Beacon World gameplay (Epic 13 continuation)
-
-- `13.6` Beacon decay + core respawn — repaired beacons drift back to unrepaired after a timeout; deposited cores respawn on a cycle.
-- `13.7` Hazards v0 — a moving hazard zone with pulse cycle; touching it costs the carried core.
+- `9.3` Scripted playtest scenarios — JSON/TS format for multi-step robot runs (e.g. "pick up, deposit, wait for respawn, repeat") so the agent can describe scenarios without hand-rolling a Playwright spec each time.
+- `9.4` Engine inspect filters — sub-commands or flags on `engine inspect` so an agent can ask narrow questions (e.g. `--component Pickup`, `--query 'Carrier,Transform'`).
+- `9.5` Snapshot diff / replay — `engine inspect --diff <before> <after>` and a command-log → world replay path for postmortem.
 
 #### Asset polish
 
 - `14.3` Real authored `.glb` for the Beacon World drone and beacons.
+- `16.2` Asset HMR for GLB files — same plumbing as `16.1`, exercised end-to-end against a real model edit.
+
+#### Beacon World gameplay (Epic 13 continuation)
+
+- `13.7` Hazards v0 — a moving hazard zone with pulse cycle; touching it costs the carried core.
 
 #### Backend follow-ups
 
-- `10.4` WebSocket transport for `node-world-server`.
-- `10.5` C#/.NET reference skeleton.
+- `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
+- `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 7 reaches close.
+Will be detailed when Sprint 8 reaches close.

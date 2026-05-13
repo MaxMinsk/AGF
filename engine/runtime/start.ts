@@ -37,6 +37,8 @@ export type RuntimeHandle = {
   readonly time: Readonly<TimeContext>;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
+  /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
+  invalidateAsset(ref: string): void;
   stop(): void;
 };
 
@@ -157,6 +159,10 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
     world,
     renderer,
     time,
+    invalidateAsset(ref: string): void {
+      options.assetRegistry?.invalidate(ref);
+      renderer.forgetAssetBinding(ref);
+    },
     applyCommands(commands: ReadonlyArray<EngineCommand>): void {
       for (const command of commands) {
         applyCommand(world, command);

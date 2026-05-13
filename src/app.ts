@@ -19,6 +19,7 @@ export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
+  reloadAsset(ref: string): void;
   dispose(): void;
 };
 
@@ -92,6 +93,9 @@ export function createApp(
     },
     snapshot(): WorldSnapshot {
       return runtime.snapshot();
+    },
+    reloadAsset(ref): void {
+      runtime.invalidateAsset(ref);
     },
     dispose(): void {
       runtime.stop();

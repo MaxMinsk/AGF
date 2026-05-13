@@ -36,6 +36,11 @@ export class AssetRegistry {
     return this.cache.has(ref);
   }
 
+  /** Drop a cached load so the next get(ref) re-fetches. Used by HMR. */
+  invalidate(ref: AssetRef): boolean {
+    return this.cache.delete(ref);
+  }
+
   urlFor(ref: AssetRef): string {
     return new URL(ref, this.baseUrl).href;
   }

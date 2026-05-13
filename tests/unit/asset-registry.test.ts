@@ -71,6 +71,32 @@ describe("AssetRegistry", () => {
     expect(registry.loaderNames()).toEqual(["material"]);
   });
 
+  it("invalidate(ref) drops the cached promise so the next get re-fetches", async () => {
+    let loadCount = 0;
+    const loader: AssetLoader<{ count: number }> = {
+      name: "counting",
+      matches: () => true,
+      async load() {
+        loadCount += 1;
+        return { count: loadCount };
+      }
+    };
+    const registry = new AssetRegistry({ baseUrl: "http://example.test/assets/" });
+    registry.register(loader);
+
+    const first = await registry.get<{ count: number }>("a");
+    expect(first.count).toBe(1);
+
+    expect(registry.invalidate("a")).toBe(true);
+    expect(registry.has("a")).toBe(false);
+
+    const second = await registry.get<{ count: number }>("a");
+    expect(second.count).toBe(2);
+    expect(loadCount).toBe(2);
+
+    expect(registry.invalidate("missing")).toBe(false);
+  });
+
   it("urlFor resolves refs against the baseUrl", () => {
     const registry = new AssetRegistry({ baseUrl: "http://example.test/assets/" });
 
