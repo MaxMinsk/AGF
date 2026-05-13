@@ -465,3 +465,42 @@ The sprint goal — "Asset Polish" — was met:
 - The GLB HMR test relies on a console-message contract (`hot-reloaded asset <ref>`). If the runtime log format changes, the test silently waits for nothing until timeout. Consider adding a structured HMR API surface (e.g. `window.__agf.lastReloadedAsset`) when the second consumer of the signal appears.
 - Sprint 9 was small (two stories). Asset polish proceeds in lockstep with Beacon World gameplay; `13.7` hazards remain the next gameplay step.
 
+## Sprint 10 - Beacon World Hazards
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `13.7` Hazards v0 — new `Hazard` component (`minRadius`, `maxRadius`, `period`) in the Beacon World scene-extensions schema. `examples/beacon-world/src/systems/hazard-system.ts` pulses `Transform.scale` along a sine cycle and drops any Carrier inside the current radius into the existing consumed-pickup respawn flow. `src/app.ts` registers the system only for beacon-world. Scene gains `hazard.center` between the drone and the west cluster. 4 unit tests + 1 playtest scenario (`hazard-drop.playtest.json`) cover the behaviour.
+- Procedural Character Generator proposal updated: JSON is the primary surface, any UI is secondary and may not become a side-channel. Stories TBD list reordered.
+
+### Deliverables
+
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`Hazard`)
+- `examples/beacon-world/src/systems/hazard-system.ts`
+- `examples/beacon-world/scenes/start.scene.json` (`hazard.center`)
+- `examples/beacon-world/tests/unit/hazard-system.test.ts`
+- `examples/beacon-world/playtests/hazard-drop.playtest.json`
+- `src/app.ts` (system registration)
+- `docs/proposals/procedural-character-generator.md` (JSON-first reframe)
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 105 Vitest tests across 16 files, vite build OK, 9 Playwright e2e tests (added hazard-drop scenario).
+- `engine check examples/beacon-world` green.
+
+### Goal Recap
+
+The sprint goal — "Beacon World Hazards" — was met:
+
+- A pulsing hazard now sits between the drone and one of the cores; the carrier loses its core if it enters the radius.
+- All hazard logic is project-local; the engine learns nothing new.
+- The data-driven playtest format scales — second scenario runs alongside the first automatically.
+
+### Follow-Ups
+
+- Hazard punishment is binary (lose the core or don't); a `13.8` "damage state" story would let hazards do something richer.
+- Multiple hazards in the same scene work but were not exercised. Add a second hazard when level design starts.
+- The hazard visual is just a scaled sphere with inline colour. Replacing it with an authored `.glb` would go through Sprint 9's path; deliberately skipped to keep this sprint short.
+- `despawnOrRemove` is implemented twice — once in pickup-system, once in hazard-system. Lift into a shared module under `examples/beacon-world/src/systems/lib/` when a third caller appears.
+

@@ -6,6 +6,7 @@ import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-l
 import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
 import { createPickupSystem as createBeaconPickupSystem } from "../examples/beacon-world/src/systems/pickup-system";
+import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
@@ -67,6 +68,7 @@ export function createApp(
   scheduler.register(createSpinSystem());
   if (projectId === "beacon-world") {
     scheduler.register(createBeaconPickupSystem());
+    scheduler.register(createBeaconHazardSystem());
   }
 
   const assetRegistry = new AssetRegistry({

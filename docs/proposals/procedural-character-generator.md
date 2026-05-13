@@ -12,13 +12,17 @@ The output is an asset that flows through the existing `AssetRegistry` and `GLBL
 
 - AGF is agent-first, and characters are a recurring asset class. A reproducible generator turns "find or commission art" into "describe + tweak + export". An agent can build a Beacon World salvage drone, a hostile spider, an NPC merchant from the same graph.
 - Mixamo gives us free animations as long as the rig matches. By emitting a Mixamo-friendly skeleton, the tool sidesteps animation authoring entirely at v0.
-- A node-graph editor is the only non-agent-first part. Agents will drive the same graph through JSON. The DOM UI is the human escape hatch, not the primary interface.
+
+## JSON Is The Primary Surface — UI Is Secondary
+
+Per the agent-first rule in `CLAUDE.md`, a character is **defined by JSON**. The agent reads, writes and diffs that JSON directly; that is the supported authoring path. The graph file is the source of truth, validated by a JSON Schema, runnable through a single function. No human interaction is required to produce a character.
+
+A DOM/node-graph UI is a nice-to-have human convenience that visualises the same JSON. It is not a Sprint-1 deliverable, and it must never become a side-channel: anything the UI can do has to be expressible by editing the JSON. If a UI design ever conflicts with that constraint, the UI loses.
 
 ## Shape
 
 ```
 projects/character-generator/        # nested project inside this repo
-  ui/                                # node-graph editor (DOM + minimal canvas)
   graph/
     nodes/                           # node implementations (skeleton, limbs, surfaces…)
     types.ts                         # graph schema + serialisable JSON
@@ -28,9 +32,10 @@ projects/character-generator/        # nested project inside this repo
     glb-export.ts                    # packs the result into a GLB
   presets/                           # bundled species (humanoid, biped-robot, quadruped, hexaped)
   schemas/character-graph.schema.json
+  ui/                                # OPTIONAL human read-only view; not required for v0
 ```
 
-A character graph is JSON. The tool consumes the JSON and emits a `.glb`. An agent can write/edit the JSON directly without touching the UI.
+A character graph is JSON. The tool consumes the JSON and emits a `.glb`. An agent writes/edits the JSON directly and runs a CLI (e.g. `npm run character:build path/to/graph.json`) to emit the model — no UI involved.
 
 ## v0 Scope
 
@@ -39,7 +44,7 @@ A character graph is JSON. The tool consumes the JSON and emits a `.glb`. An age
 - Simple parametric mesh extrusion — no detailed surface art, just blocky volumes that fit the rig.
 - Mixamo-style joint names so the output retargets cleanly.
 - GLB export through `@gltf-transform/core` (new devDep) or a hand-rolled writer in the same style as `scripts/build-cube-glb.mjs`.
-- Node-graph UI with about half a dozen node kinds. Drag-and-drop is not required at v0; a JSON-first editor with a graph preview is acceptable.
+- A CLI builder + JSON Schema for the graph. No UI required for v0; a future read-only HTML preview is a nice-to-have, not a deliverable.
 
 ## Out Of v0
 
@@ -60,4 +65,4 @@ This effort gets its own detailed backlog so it doesn't compete with engine spri
 
 ## Stories (TBD)
 
-Empty for now. When we promote this to active work, expand stories under headings such as Graph format, Preset humanoid, GLB export, Mixamo retargeting check.
+Empty for now. When we promote this to active work, expand stories under headings such as Graph format JSON Schema, CLI builder (`npm run character:build`), Preset humanoid, GLB export, Mixamo retargeting check, and (last) optional read-only preview UI.

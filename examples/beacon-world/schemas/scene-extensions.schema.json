@@ -12,6 +12,9 @@
     },
     "Repairable": {
       "$ref": "#/definitions/repairableComponent"
+    },
+    "Hazard": {
+      "$ref": "#/definitions/hazardComponent"
     }
   },
   "definitions": {
@@ -87,6 +90,28 @@
           "type": "string",
           "minLength": 1,
           "description": "Runtime field — material ref stashed at repair time so decay can restore it."
+        }
+      }
+    },
+    "hazardComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minRadius", "maxRadius", "period"],
+      "properties": {
+        "minRadius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Smallest danger radius reached during the pulse cycle, world units (XZ plane)."
+        },
+        "maxRadius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Largest danger radius reached during the pulse cycle, world units (XZ plane)."
+        },
+        "period": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Full pulse cycle length in seconds."
         }
       }
     }
