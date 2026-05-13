@@ -194,9 +194,28 @@ Stories:
 
 ### Epic 12: Repo Hygiene
 
-Stories:
+**Story 12.1: Cyrillic Characters CI Check**
 
-- `12.1`: GitHub Action that fails CI on Cyrillic characters in tracked repo files; excludes `Notes/`, `References/`, `node_modules/`, binary assets.
+Status: Implemented.
+
+Tasks:
+
+- Add `.github/workflows/repo-hygiene.yml` that runs `rg -l '\p{Cyrillic}'` against the checked-out tree.
+- Rely on ripgrep's default `.gitignore` and binary-file handling so `Notes/`, `References/`, `node_modules/` and `dist/` are skipped automatically.
+- Emit `::error file=...::` annotations for any matching file so GitHub UI points directly at the offending file.
+- Move legacy tracked research notes (`AGENT_WEB_GAME_ENGINE_ANALYSIS.md`, `WEB_GAME_ENGINE_COMPARISON.md`) into the gitignored `Notes/` folder so the workflow's first run on main stays green.
+- Document the check in `AGENTS.md` under a new "CI Hygiene" section.
+
+Acceptance criteria:
+
+- On push to `main` and on any PR, the workflow runs and passes against the current tree.
+- Introducing any Cyrillic character into a tracked file fails the check with a clear error annotation pointing at the file.
+- Notes/ and References/ are not scanned because they are gitignored.
+
+Verification:
+
+- Local: `rg -l '\p{Cyrillic}'` from the repo root returns no matches.
+- CI: the workflow appears as a required-passing check on the next PR.
 
 ## Sprint 2 Demo
 

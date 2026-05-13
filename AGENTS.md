@@ -50,3 +50,7 @@ Use the smallest relevant check:
 - Browser/runtime change: Playwright smoke test and screenshot.
 - Backend change: `dotnet build` or server tests.
 - Meaningful implementation task: `npm run preflight` once available.
+
+## CI Hygiene
+
+- `.github/workflows/repo-hygiene.yml` fails the build when any tracked file contains Cyrillic characters. Personal notes live in the gitignored `Notes/` folder and may use any language.
