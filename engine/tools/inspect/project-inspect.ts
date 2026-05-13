@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { checkProject, formatDiagnostics, type CheckResult, type Diagnostic } from "../check/project-check";
+import { resolveHierarchy, type TransformInput, type Vec3 } from "../../core/transform/resolve";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -11,6 +12,10 @@ export type InspectEntity = {
   order: number;
   componentNames: string[];
   components: JsonObject;
+  /** Set when this entity's Transform declares a parent. */
+  parent?: string;
+  /** Derived world position from the M16 hierarchy resolver (degrees → radians applied internally). */
+  worldPosition?: readonly [number, number, number];
 };
 
 export type InspectResult = {
@@ -68,6 +73,7 @@ export function inspectProject(projectDirInput: string, options: InspectOptions 
   const startScene = readRequiredString(projectData, "startScene");
   const sceneData = readJsonObject(resolve(checkResult.projectDir, startScene));
   const allEntities = normalizeEntities(sceneData);
+  decorateWithHierarchy(allEntities);
   const filter = normaliseFilter(options);
   const entities = applyExclude(applyFilter(allEntities, filter), options.excludeComponents ?? []);
 
@@ -196,7 +202,11 @@ export function formatInspection(result: InspectResult): string {
 
   for (const entity of result.scene.entities) {
     const componentText = entity.componentNames.length === 0 ? "no components" : entity.componentNames.join(", ");
-    lines.push(`- ${entity.id}: ${componentText}`);
+    const parentSuffix = entity.parent !== undefined ? `  (parent: ${entity.parent})` : "";
+    const posSuffix = entity.worldPosition !== undefined
+      ? `  worldPosition=[${entity.worldPosition.map((v) => v.toFixed(3)).join(", ")}]`
+      : "";
+    lines.push(`- ${entity.id}: ${componentText}${parentSuffix}${posSuffix}`);
   }
 
   if (result.diagnostics.length > 0) {
@@ -253,6 +263,66 @@ function applyFilter(entities: InspectEntity[], filter: InspectFilterSummary): I
     }
     return true;
   });
+}
+
+function decorateWithHierarchy(entities: InspectEntity[]): void {
+  const inputs: TransformInput[] = [];
+  const hasAnyParent = entities.some((entity) => {
+    const transform = entity.components["Transform"];
+    return isJsonObject(transform) && typeof transform["parent"] === "string";
+  });
+
+  for (const entity of entities) {
+    const transform = entity.components["Transform"];
+    if (!isJsonObject(transform)) {
+      continue;
+    }
+    const entry: TransformInput = { id: entity.id };
+    const parent = transform["parent"];
+    if (typeof parent === "string") {
+      entry.parent = parent;
+      entity.parent = parent;
+    }
+    const pos = transform["position"];
+    if (Array.isArray(pos)) {
+      entry.position = toVec3Numeric(pos);
+    }
+    const rot = transform["rotation"];
+    if (Array.isArray(rot)) {
+      const r = toVec3Numeric(rot);
+      // Scene rotations are degrees; resolver math is in radians.
+      entry.rotation = [r[0] * Math.PI / 180, r[1] * Math.PI / 180, r[2] * Math.PI / 180];
+    }
+    const sc = transform["scale"];
+    if (Array.isArray(sc)) {
+      entry.scale = toVec3Numeric(sc);
+    }
+    inputs.push(entry);
+  }
+
+  if (inputs.length === 0 || !hasAnyParent) {
+    return; // No hierarchy worth resolving — keep output minimal.
+  }
+
+  try {
+    const resolved = resolveHierarchy(inputs);
+    for (const entity of entities) {
+      const r = resolved.get(entity.id);
+      if (r !== undefined) {
+        entity.worldPosition = r.world.position;
+      }
+    }
+  } catch {
+    // engine check catches hierarchy errors; inspect stays graceful.
+  }
+}
+
+function toVec3Numeric(value: ReadonlyArray<JsonValue>): Vec3 {
+  return [
+    typeof value[0] === "number" ? value[0] : 0,
+    typeof value[1] === "number" ? value[1] : 0,
+    typeof value[2] === "number" ? value[2] : 0
+  ];
 }
 
 function normalizeEntities(sceneData: JsonObject): InspectEntity[] {
