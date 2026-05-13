@@ -56,6 +56,7 @@
         "PlayerControlled": {
           "speed": 3.5
         },
+        "Carrier": {},
         "Presence": {
           "playerId": "local"
         },
@@ -83,6 +84,11 @@
           "axis": "y",
           "speed": 25
         },
+        "Repairable": {
+          "accepts": "energy-core",
+          "repaired": false,
+          "repairedColor": "#4af0a8"
+        },
         "Networked": {
           "authority": "server"
         }
@@ -106,6 +112,57 @@
         "Spin": {
           "axis": "y",
           "speed": -25
+        },
+        "Repairable": {
+          "accepts": "energy-core",
+          "repaired": false,
+          "repairedColor": "#4af0a8"
+        },
+        "Networked": {
+          "authority": "server"
+        }
+      }
+    },
+    {
+      "id": "core.north",
+      "components": {
+        "Name": {
+          "label": "Energy Core (north)"
+        },
+        "Transform": {
+          "position": [-1.5, 0.4, -2.5],
+          "rotation": [0, 0, 0],
+          "scale": [0.4, 0.4, 0.4]
+        },
+        "MeshRenderer": {
+          "mesh": "sphere",
+          "color": "#4af0a8"
+        },
+        "Pickup": {
+          "kind": "energy-core"
+        },
+        "Networked": {
+          "authority": "server"
+        }
+      }
+    },
+    {
+      "id": "core.south",
+      "components": {
+        "Name": {
+          "label": "Energy Core (south)"
+        },
+        "Transform": {
+          "position": [1.5, 0.4, 2.5],
+          "rotation": [0, 0, 0],
+          "scale": [0.4, 0.4, 0.4]
+        },
+        "MeshRenderer": {
+          "mesh": "sphere",
+          "color": "#4af0a8"
+        },
+        "Pickup": {
+          "kind": "energy-core"
         },
         "Networked": {
           "authority": "server"

@@ -21,32 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 6 - TBD
+## Current Sprint: Sprint 7 - TBD
 
-Sprint 6 focus is picked at sprint start. The candidate list below is the natural pool to draw from. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
+Sprint 7 focus is picked at sprint start. Candidate pool below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
 
 ### Candidates
 
+#### Authoring tools
+
+- `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
+- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
+- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
+
 #### Beacon World gameplay (Epic 13 continuation)
 
-- `13.4` Pickup component + spawner — energy core entity, lifetime, world-spawn system.
-- `13.5` Carry / deposit interaction — drone picks up a core on proximity, drops it on a beacon, beacon switches to a "repaired" material.
+- `13.6` Beacon decay + core respawn — repaired beacons drift back to unrepaired after a timeout; deposited cores respawn on a cycle.
+- `13.7` Hazards v0 — a moving hazard zone with pulse cycle; touching it costs the carried core.
 
 #### Asset polish
 
-- `14.3` Real authored `.glb` for the Beacon World drone and beacons — replace primitives once an art pipeline appears.
-- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
+- `14.3` Real authored `.glb` for the Beacon World drone and beacons.
 
-#### Inspector and authoring tools
+#### Backend follow-ups
 
-- `15.1` In-page inspector overlay — read-only entity/component tree, toggle hotkey TBD (not F12, not F2).
-- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
-
-#### Backend follow-ups (when ready)
-
-- `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
-- `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton, validating the same schema.
+- `10.4` WebSocket transport for `node-world-server`.
+- `10.5` C#/.NET reference skeleton.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 6 reaches close.
+Will be detailed when Sprint 7 reaches close.
