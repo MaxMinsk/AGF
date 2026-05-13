@@ -157,7 +157,7 @@ void (async (): Promise<void> => {
     bootstrap: loaded.bootstrap
   };
 
-  let app: AppHandle = createApp(
+  let app: AppHandle = await createApp(
     root,
     loaded.project,
     currentScene,
@@ -191,14 +191,16 @@ void (async (): Promise<void> => {
         return;
       }
       app.dispose();
-      app = nextCreateApp(
-        root,
-        loaded.project,
-        currentScene,
-        selectedId,
-        availableProjectIds,
-        appOptions
-      );
+      void (async (): Promise<void> => {
+        app = await nextCreateApp(
+          root,
+          loaded.project,
+          currentScene,
+          selectedId,
+          availableProjectIds,
+          appOptions
+        );
+      })();
     });
 
     const applySceneUpdate = (module: unknown): void => {

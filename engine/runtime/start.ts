@@ -5,7 +5,7 @@ import { World } from "../core/ecs/world";
 import { advanceFixedStep } from "../core/loop/fixed-step";
 import type { TimeContext } from "../core/loop/types";
 import type { SystemScheduler } from "../core/systems/scheduler";
-import { ThreeRenderer } from "../render/three-renderer";
+import type { ThreeRenderer } from "../render/three-renderer";
 import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
@@ -58,9 +58,10 @@ export type RuntimeHandle = {
 const DEFAULT_FIXED_DT = 1 / 60;
 const METRICS_WINDOW_SECONDS = 0.5;
 
-export function startRuntime(options: RuntimeOptions): RuntimeHandle {
+export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHandle> {
   const world = World.fromScene(options.scene);
   const diagnostics = options.diagnostics ?? createDiagnosticsBus();
+  const { ThreeRenderer } = await import("../render/three-renderer");
   const renderer = new ThreeRenderer(world, options.canvas, options.background, options.assetRegistry);
 
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;

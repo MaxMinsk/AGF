@@ -90,14 +90,14 @@ export type AppHandle = {
   dispose(): void;
 };
 
-export function createApp(
+export async function createApp(
   root: HTMLElement,
   project: ProjectMeta,
   scene: SceneInput,
   projectId: string,
   availableProjectIds: ReadonlyArray<string> = [projectId],
   options: AppOptions = {}
-): AppHandle {
+): Promise<AppHandle> {
   root.textContent = "";
 
   const shell = document.createElement("main");
@@ -182,7 +182,7 @@ export function createApp(
     runtimeOptions.devOverlayParent = shell;
   }
 
-  const runtime: RuntimeHandle = startRuntime(runtimeOptions);
+  const runtime: RuntimeHandle = await startRuntime(runtimeOptions);
 
   const projectUi: ProjectUiHandle | undefined = bootstrap?.attachUi?.({
     shell,
