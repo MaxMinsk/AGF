@@ -210,6 +210,8 @@ Verification:
 
 **Story 4.1: Three.js Render Adapter**
 
+Status: Implemented.
+
 Tasks:
 
 - Create canvas bootstrap.
