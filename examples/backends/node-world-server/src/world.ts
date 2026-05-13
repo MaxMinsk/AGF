@@ -27,7 +27,8 @@ export type Snapshot = {
   entities: SnapshotEntity[];
 };
 
-const PLAYER_SPEED = 3;
+/** Must match `PlayerControlled.speed` in the canonical Beacon scene so the client's prediction does not drift against the server. */
+const PLAYER_SPEED = 3.5;
 const SPAWN_POSITION: Vec3 = [0, 0.4, 0];
 
 export class ServerWorld {

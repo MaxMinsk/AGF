@@ -70,6 +70,8 @@ export type WsNetworkAdapterHandle = {
   readyState(): number;
   /** Number of automatic reconnects attempted so far. */
   reconnectCount(): number;
+  /** Number of snapshot-sequence gaps detected so far (each triggers a resync). */
+  snapshotGapCount(): number;
   dispose(): void;
 };
 
@@ -97,6 +99,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
   let attempts = 0;
   let reconnectAttempts = 0;
   let pendingReconnect: unknown;
+  let gapCount = 0;
   let socket: WebSocket = openSocket();
 
   function openSocket(): WebSocket {
@@ -127,6 +130,17 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       if (message.kind !== "world.snapshot") {
         return;
       }
+      if (
+        message.sequence !== undefined &&
+        lastSequence !== undefined &&
+        message.sequence !== lastSequence + 1
+      ) {
+        log(
+          `[ws-adapter] snapshot gap: expected sequence ${lastSequence + 1}, got ${message.sequence}; resyncing`
+        );
+        flushServerOwnedEntities();
+        gapCount += 1;
+      }
       lastSequence = message.sequence;
       applySnapshot(message.payload.entities);
     });
@@ -137,6 +151,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       }
       log("[ws-adapter] connection closed");
       flushServerOwnedEntities();
+      lastSequence = undefined;
       if (reconnectConfig !== undefined && reconnectAttempts < reconnectConfig.maxAttempts) {
         scheduleReconnect();
       }
@@ -254,6 +269,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     },
     reconnectCount(): number {
       return Math.max(0, attempts - 1);
+    },
+    snapshotGapCount(): number {
+      return gapCount;
     },
     dispose(): void {
       disposed = true;

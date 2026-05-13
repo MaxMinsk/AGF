@@ -38,6 +38,9 @@ export function createPlayerInputSystem(options: PlayerInputSystemOptions = {}):
   const ownsListeners = options.pressedKeys === undefined;
   const pressed = options.pressedKeys ?? new Set<string>();
   const eventTarget = options.eventTarget ?? (typeof window !== "undefined" ? window : undefined);
+  let lastIntentNx = 0;
+  let lastIntentNz = 0;
+  let lastIntentSent = false;
 
   const handleKeyDown = (event: Event): void => {
     if (event instanceof KeyboardEvent) {
@@ -60,15 +63,28 @@ export function createPlayerInputSystem(options: PlayerInputSystemOptions = {}):
     frameUpdate({ time, world }: SystemContext): void {
       const dx = (anyPressed(pressed, MOVE_RIGHT) ? 1 : 0) - (anyPressed(pressed, MOVE_LEFT) ? 1 : 0);
       const dz = (anyPressed(pressed, MOVE_BACK) ? 1 : 0) - (anyPressed(pressed, MOVE_FORWARD) ? 1 : 0);
-      if (dx === 0 && dz === 0) {
-        return;
+
+      let nx = 0;
+      let nz = 0;
+      if (dx !== 0 || dz !== 0) {
+        const length = Math.hypot(dx, dz);
+        nx = dx / length;
+        nz = dz / length;
       }
-      const length = Math.hypot(dx, dz);
-      const nx = dx / length;
-      const nz = dz / length;
 
       if (options.onIntent !== undefined) {
-        options.onIntent([nx, nz]);
+        const changed = nx !== lastIntentNx || nz !== lastIntentNz;
+        if (changed || (!lastIntentSent && (nx !== 0 || nz !== 0))) {
+          options.onIntent([nx, nz]);
+          lastIntentNx = nx;
+          lastIntentNz = nz;
+          lastIntentSent = true;
+        }
+        // Fall through: also apply local prediction so the player sees instant
+        // motion. The server's snapshot will reconcile any drift.
+      }
+
+      if (nx === 0 && nz === 0) {
         return;
       }
 

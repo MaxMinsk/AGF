@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inspectProject, toStableInspectResult } from "../../engine/tools/inspect/project-inspect";
+import {
+  formatInspection,
+  inspectProject,
+  tailInspectResult,
+  toStableInspectResult
+} from "../../engine/tools/inspect/project-inspect";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const fixturesRoot = resolve(repositoryRoot, "tests/fixtures");
@@ -32,5 +37,37 @@ describe("toStableInspectResult", () => {
     expect(stable.filter?.components).toEqual(["Camera"]);
     expect(stable.project?.id).toBe("valid-project");
     expect(stable.scene).toBeDefined();
+  });
+});
+
+describe("tailInspectResult", () => {
+  it("returns the same result when tail is undefined", () => {
+    const result = inspectProject(resolve(fixturesRoot, "valid-project"));
+    const tailed = tailInspectResult(result, undefined);
+    expect(tailed).toBe(result);
+  });
+
+  it("keeps only the last N entities and preserves matchedEntityCount", () => {
+    const result = inspectProject(resolve(fixturesRoot, "valid-project"));
+    expect(result.scene!.entities.length).toBeGreaterThan(1);
+    const tailed = tailInspectResult(result, 1);
+    expect(tailed.scene!.entities).toHaveLength(1);
+    expect(tailed.scene!.entities[0]!.id).toBe(result.scene!.entities.at(-1)!.id);
+    expect(tailed.scene!.matchedEntityCount).toBe(result.scene!.matchedEntityCount);
+  });
+
+  it("treats tail 0 as keep nothing but keeps the match count", () => {
+    const result = inspectProject(resolve(fixturesRoot, "valid-project"));
+    const tailed = tailInspectResult(result, 0);
+    expect(tailed.scene!.entities).toEqual([]);
+    expect(tailed.scene!.matchedEntityCount).toBe(result.scene!.matchedEntityCount);
+  });
+
+  it("formatInspection annotates the truncated count", () => {
+    const result = inspectProject(resolve(fixturesRoot, "valid-project"));
+    const tailed = tailInspectResult(result, 1);
+    const formatted = formatInspection(tailed);
+    const hidden = result.scene!.matchedEntityCount - 1;
+    expect(formatted).toContain(`Showing last 1 of ${result.scene!.matchedEntityCount} (${hidden} hidden by --tail).`);
   });
 });

@@ -158,7 +158,16 @@ function renderRound(target: HTMLElement, round: RoundStateComponent | undefined
   }
   if (round.phase === "complete") {
     target.style.display = "block";
-    target.textContent = "ROUND COMPLETE";
+    target.style.color = "rgba(74, 240, 168, 0.92)";
+    target.replaceChildren();
+    const title = document.createElement("div");
+    title.textContent = "ROUND COMPLETE";
+    title.setAttribute("data-testid", "hud-round-complete");
+    const hint = document.createElement("div");
+    hint.textContent = "Press R to restart";
+    hint.setAttribute("data-testid", "hud-round-restart-hint");
+    hint.style.cssText = "font-weight: 400; opacity: 0.8; letter-spacing: 0.02em; margin-top: 2px;";
+    target.append(title, hint);
     return;
   }
   if ((round.holdProgress ?? 0) > 0) {
