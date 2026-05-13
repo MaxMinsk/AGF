@@ -60,6 +60,21 @@
         "type": "procedural",
         "notes": "Salvage drone material: brushed metal with a cool ambient sheen."
       }
+    },
+    {
+      "id": "beacon-world.drone-material-palette",
+      "kind": "procedural",
+      "runtimeFiles": [
+        "runtime/materials/drone-orange.material.json",
+        "runtime/materials/drone-cyan.material.json",
+        "runtime/materials/drone-violet.material.json",
+        "runtime/materials/drone-amber.material.json"
+      ],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Drone material palette used by the remote-presence decorator to colour different networked players. Hashes playerId -> palette index."
+      }
     }
   ]
 }

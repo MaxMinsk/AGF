@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   formatInspection,
   inspectProject,
+  NOISY_METADATA_COMPONENTS,
   tailInspectResult,
   toStableInspectResult
 } from "../../engine/tools/inspect/project-inspect";
@@ -61,6 +62,22 @@ describe("tailInspectResult", () => {
     const tailed = tailInspectResult(result, 0);
     expect(tailed.scene!.entities).toEqual([]);
     expect(tailed.scene!.matchedEntityCount).toBe(result.scene!.matchedEntityCount);
+  });
+
+  it("drops excluded components from every entity output", () => {
+    const result = inspectProject(resolve(fixturesRoot, "valid-project"), {
+      excludeComponents: ["Name"]
+    });
+    for (const entity of result.scene!.entities) {
+      expect(entity.componentNames).not.toContain("Name");
+      expect(Object.keys(entity.components)).not.toContain("Name");
+    }
+  });
+
+  it("NOISY_METADATA_COMPONENTS lists the canonical metadata names dropped by --components-only", () => {
+    expect(NOISY_METADATA_COMPONENTS).toContain("Name");
+    expect(NOISY_METADATA_COMPONENTS).toContain("Networked");
+    expect(NOISY_METADATA_COMPONENTS).toContain("Presence");
   });
 
   it("formatInspection annotates the truncated count", () => {

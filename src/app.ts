@@ -13,8 +13,10 @@ import { createPickupSystem as createBeaconPickupSystem } from "../examples/beac
 import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
 import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
 import { createRoundSystem as createBeaconRoundSystem } from "../examples/beacon-world/src/systems/round-system";
+import { createRoundAutoResetSystem as createBeaconRoundAutoResetSystem } from "../examples/beacon-world/src/systems/round-auto-reset-system";
 import { createNetworkDroneSyncSystem as createBeaconNetworkDroneSyncSystem } from "../examples/beacon-world/src/systems/network-drone-sync-system";
 import { createRemotePresenceDecoratorSystem as createBeaconRemotePresenceDecoratorSystem } from "../examples/beacon-world/src/systems/remote-presence-decorator-system";
+import { createRemotePresenceInterpolatorSystem as createBeaconRemotePresenceInterpolatorSystem } from "../examples/beacon-world/src/systems/remote-presence-interpolator-system";
 import { resetBeaconRound } from "../examples/beacon-world/src/round-reset";
 import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
@@ -131,6 +133,7 @@ export function createApp(
     scheduler.register(createBeaconHazardSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createBeaconWorldSignalSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createBeaconRoundSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(createBeaconRoundAutoResetSystem(), { profiles: ["static", "connected"] });
     if (networked) {
       scheduler.register(createBeaconNetworkDroneSyncSystem({ playerId }), {
         profiles: ["connected"]
@@ -140,6 +143,16 @@ export function createApp(
           localPlayerId: playerId,
           mesh: "runtime/models/drone.glb",
           material: "runtime/materials/drone.material.json"
+        }),
+        { profiles: ["connected"] }
+      );
+      const interpolatorClock = (): number =>
+        typeof performance !== "undefined" ? performance.now() / 1000 : Date.now() / 1000;
+      scheduler.register(
+        createBeaconRemotePresenceInterpolatorSystem({
+          localPlayerId: playerId,
+          getSnapshotBuffer: () => network?.getSnapshotBuffer() ?? new Map(),
+          nowSeconds: interpolatorClock
         }),
         { profiles: ["connected"] }
       );

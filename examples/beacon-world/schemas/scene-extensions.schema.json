@@ -207,6 +207,11 @@
           "type": "number",
           "minimum": 0,
           "description": "Runtime field — server-elapsed seconds when the round flipped to complete."
+        },
+        "autoResetSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "If set, the round automatically resets this many seconds after completedAt. Omit to require a manual KeyR / __agf.resetRound() reset."
         }
       }
     },

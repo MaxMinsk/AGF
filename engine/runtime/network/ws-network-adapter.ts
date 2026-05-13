@@ -36,6 +36,13 @@ export type WsReconnectOptions = {
   maxAttempts?: number;
 };
 
+/** One sample in the snapshot interpolation buffer. */
+export type SnapshotSample = {
+  /** Receive time in seconds, monotonic. */
+  receivedAtSeconds: number;
+  position: readonly [number, number, number];
+};
+
 export type WsNetworkAdapterOptions = {
   url: string;
   playerId: string;
@@ -50,6 +57,13 @@ export type WsNetworkAdapterOptions = {
   knownEntityIds?: () => ReadonlyArray<string>;
   log?: (line: string) => void;
   WebSocketCtor?: typeof WebSocket;
+  /**
+   * Monotonic clock used to timestamp each inbound `world.snapshot`. Returns
+   * seconds. Defaults to `performance.now() / 1000`. Tests can pass a fake.
+   */
+  nowSeconds?: () => number;
+  /** How many recent samples to retain per server-owned entity. Default 10. */
+  snapshotBufferSize?: number;
   /**
    * When set, the adapter will automatically reconnect after an unexpected
    * close. `dispose()` always cancels reconnection. Pass `true` to use the
@@ -72,6 +86,14 @@ export type WsNetworkAdapterHandle = {
   reconnectCount(): number;
   /** Number of snapshot-sequence gaps detected so far (each triggers a resync). */
   snapshotGapCount(): number;
+  /**
+   * Returns a stable reference to the per-entity snapshot sample buffer.
+   * Callers should treat it as read-only. Samples are appended in receive
+   * order and trimmed to `snapshotBufferSize`. Used by the project-local
+   * interpolation system to render remote players smoothly on jittery
+   * networks.
+   */
+  getSnapshotBuffer(): ReadonlyMap<string, ReadonlyArray<SnapshotSample>>;
   dispose(): void;
 };
 
@@ -91,8 +113,14 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     options.clearTimeoutFn ??
     ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   const reconnectConfig = resolveReconnectConfig(options.reconnect);
+  const nowSeconds =
+    options.nowSeconds ??
+    ((): number =>
+      typeof performance !== "undefined" ? performance.now() / 1000 : Date.now() / 1000);
+  const bufferSize = Math.max(2, options.snapshotBufferSize ?? 10);
 
   const serverOwnedIds = new Set<string>();
+  const snapshotBuffer = new Map<string, SnapshotSample[]>();
   let outboundSequence = 0;
   let lastSequence: number | undefined;
   let disposed = false;
@@ -202,7 +230,20 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       commands.push({ kind: "entity.delete", entityId: id });
     }
     serverOwnedIds.clear();
+    snapshotBuffer.clear();
     options.applyCommands(commands);
+  }
+
+  function recordSampleFor(entityId: string, position: readonly [number, number, number]): void {
+    let buffer = snapshotBuffer.get(entityId);
+    if (buffer === undefined) {
+      buffer = [];
+      snapshotBuffer.set(entityId, buffer);
+    }
+    buffer.push({ receivedAtSeconds: nowSeconds(), position });
+    if (buffer.length > bufferSize) {
+      buffer.splice(0, buffer.length - bufferSize);
+    }
   }
 
   function applySnapshot(entities: SnapshotEntity[]): void {
@@ -231,12 +272,21 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         }
       }
       serverOwnedIds.add(entity.id);
+
+      const transform = entity.components["Transform"] as
+        | { position?: ReadonlyArray<number> }
+        | undefined;
+      const pos = transform?.position;
+      if (pos !== undefined && pos.length >= 3) {
+        recordSampleFor(entity.id, [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0]);
+      }
     }
 
     for (const id of serverOwnedIds) {
       if (!inboundIds.has(id)) {
         commands.push({ kind: "entity.delete", entityId: id });
         serverOwnedIds.delete(id);
+        snapshotBuffer.delete(id);
       }
     }
 
@@ -272,6 +322,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     },
     snapshotGapCount(): number {
       return gapCount;
+    },
+    getSnapshotBuffer(): ReadonlyMap<string, ReadonlyArray<SnapshotSample>> {
+      return snapshotBuffer;
     },
     dispose(): void {
       disposed = true;
