@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/examples/beacon-world/schemas/scene-extensions.schema.json",
+  "title": "Beacon World Scene Extensions",
+  "description": "Project-local component types that extend the base scene schema for Beacon World only. The engine recognises this file because it sits at <projectDir>/schemas/scene-extensions.schema.json.",
+  "components": {
+    "Pickup": {
+      "$ref": "#/definitions/pickupComponent"
+    },
+    "Carrier": {
+      "$ref": "#/definitions/carrierComponent"
+    },
+    "Repairable": {
+      "$ref": "#/definitions/repairableComponent"
+    }
+  },
+  "definitions": {
+    "pickupComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "carrierComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "carrying": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "repairableComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accepts"],
+      "properties": {
+        "accepts": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repaired": {
+          "type": "boolean"
+        },
+        "repairedColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { AssetRegistry } from "../engine/runtime/asset-registry";
 import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
 import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
+import { createPickupSystem as createBeaconPickupSystem } from "../examples/beacon-world/src/systems/pickup-system";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
@@ -63,6 +64,9 @@ export function createApp(
   const playerInputSystem = createPlayerInputSystem();
   scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
+  if (projectId === "beacon-world") {
+    scheduler.register(createBeaconPickupSystem());
+  }
 
   const assetRegistry = new AssetRegistry({
     baseUrl: new URL(`examples/${projectId}/assets/`, window.location.href).href,

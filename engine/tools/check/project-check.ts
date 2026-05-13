@@ -7,9 +7,9 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string
 
 type JsonObject = { [key: string]: JsonValue };
 
-type SchemaKey = "project" | "scene" | "assetSources" | "material";
+type StaticSchemaKey = "project" | "assetSources" | "material";
 
-type CompiledSchemas = Record<SchemaKey, ValidateFunction>;
+type StaticSchemas = Record<StaticSchemaKey, ValidateFunction>;
 
 type ReadJsonResult =
   | {
@@ -38,7 +38,7 @@ export type CheckResult = {
   diagnostics: Diagnostic[];
 };
 
-const componentNames = [
+const builtInComponentNames = [
   "Camera",
   "MeshRenderer",
   "Name",
@@ -50,14 +50,21 @@ const componentNames = [
 ] as const;
 const primitiveMeshes = new Set(["box", "sphere", "plane"]);
 
-const schemaPaths: Record<SchemaKey, string> = {
+const staticSchemaPaths: Record<StaticSchemaKey, string> = {
   project: "schemas/project.schema.json",
-  scene: "schemas/scene.schema.json",
   assetSources: "schemas/asset-sources.schema.json",
   material: "schemas/material.schema.json"
 };
+const baseSceneSchemaPath = "schemas/scene.schema.json";
 
-let compiledSchemas: CompiledSchemas | undefined;
+let staticSchemasCache: StaticSchemas | undefined;
+
+type SceneSchemaForProject = {
+  validate: ValidateFunction;
+  componentNames: ReadonlyArray<string>;
+};
+
+const sceneSchemaCache = new Map<string, SceneSchemaForProject>();
 
 export function checkProject(projectDirInput: string): CheckResult {
   const projectDir = resolve(projectDirInput);
@@ -69,8 +76,7 @@ export function checkProject(projectDirInput: string): CheckResult {
     return result(projectDir, [projectJson.diagnostic]);
   }
 
-  const projectSchemaDiagnostics = validateWithSchema("project", projectJson.data, projectPath, projectDir);
-  diagnostics.push(...projectSchemaDiagnostics);
+  diagnostics.push(...validateStaticSchema("project", projectJson.data, projectPath, projectDir));
 
   if (!isJsonObject(projectJson.data)) {
     return result(projectDir, diagnostics);
@@ -130,7 +136,8 @@ function validateStartScene(
     return;
   }
 
-  diagnostics.push(...validateWithSchema("scene", sceneJson.data, scenePath, projectDir));
+  const sceneSchema = getSceneSchemaForProject(projectDir);
+  diagnostics.push(...runValidator(sceneSchema.validate, sceneJson.data, scenePath, projectDir, sceneSchema.componentNames));
   diagnostics.push(...detectDuplicateEntityIds(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
@@ -158,7 +165,7 @@ function validateMaterialFiles(projectDir: string, assetRoot: string, diagnostic
       diagnostics.push(json.diagnostic);
       continue;
     }
-    diagnostics.push(...validateWithSchema("material", json.data, materialPath, projectDir));
+    diagnostics.push(...validateStaticSchema("material", json.data, materialPath, projectDir));
   }
 }
 
@@ -195,7 +202,7 @@ function validateAssetRoot(projectDir: string, assetRoot: string, diagnostics: D
     return;
   }
 
-  diagnostics.push(...validateWithSchema("assetSources", sourceMetadataJson.data, sourceMetadataPath, projectDir));
+  diagnostics.push(...validateStaticSchema("assetSources", sourceMetadataJson.data, sourceMetadataPath, projectDir));
 }
 
 function validateSceneAssetReferences(
@@ -335,35 +342,111 @@ function detectDuplicateEntityIds(sceneData: JsonValue, scenePath: string, proje
   return diagnostics;
 }
 
-function validateWithSchema(
-  schemaKey: SchemaKey,
+function validateStaticSchema(
+  schemaKey: StaticSchemaKey,
   data: JsonValue,
   filePath: string,
   projectDir: string
 ): Diagnostic[] {
-  const validate = getCompiledSchemas()[schemaKey];
+  const validate = getStaticSchemas()[schemaKey];
+  return runValidator(validate, data, filePath, projectDir, builtInComponentNames);
+}
+
+function runValidator(
+  validate: ValidateFunction,
+  data: JsonValue,
+  filePath: string,
+  projectDir: string,
+  knownComponentNames: ReadonlyArray<string>
+): Diagnostic[] {
   const valid = validate(data);
   if (valid) {
     return [];
   }
-
-  return (validate.errors ?? []).map((error) => ajvErrorToDiagnostic(error, filePath, projectDir));
+  return (validate.errors ?? []).map((error) =>
+    ajvErrorToDiagnostic(error, filePath, projectDir, knownComponentNames)
+  );
 }
 
-function getCompiledSchemas(): CompiledSchemas {
-  if (compiledSchemas !== undefined) {
-    return compiledSchemas;
+function getStaticSchemas(): StaticSchemas {
+  if (staticSchemasCache !== undefined) {
+    return staticSchemasCache;
+  }
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  staticSchemasCache = {
+    project: ajv.compile(readSchema(staticSchemaPaths.project)),
+    assetSources: ajv.compile(readSchema(staticSchemaPaths.assetSources)),
+    material: ajv.compile(readSchema(staticSchemaPaths.material))
+  };
+  return staticSchemasCache;
+}
+
+function getSceneSchemaForProject(projectDir: string): SceneSchemaForProject {
+  const cached = sceneSchemaCache.get(projectDir);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const baseSchema = readSchema(baseSceneSchemaPath) as JsonObject;
+  const extensionPath = resolve(projectDir, "schemas/scene-extensions.schema.json");
+
+  let mergedSchema: JsonObject = baseSchema;
+  let extraComponentNames: string[] = [];
+
+  if (existsSync(extensionPath)) {
+    const extensions = JSON.parse(readFileSync(extensionPath, "utf8")) as JsonValue;
+    if (isJsonObject(extensions)) {
+      mergedSchema = mergeSceneExtensions(baseSchema, extensions);
+      const extComponents = extensions["components"];
+      if (isJsonObject(extComponents)) {
+        extraComponentNames = Object.keys(extComponents);
+      }
+    }
   }
 
   const ajv = new Ajv({ allErrors: true, strict: false });
-  compiledSchemas = {
-    project: ajv.compile(readSchema(schemaPaths.project)),
-    scene: ajv.compile(readSchema(schemaPaths.scene)),
-    assetSources: ajv.compile(readSchema(schemaPaths.assetSources)),
-    material: ajv.compile(readSchema(schemaPaths.material))
+  const compiled: SceneSchemaForProject = {
+    validate: ajv.compile(mergedSchema),
+    componentNames: [...builtInComponentNames, ...extraComponentNames].sort()
   };
+  sceneSchemaCache.set(projectDir, compiled);
+  return compiled;
+}
 
-  return compiledSchemas;
+function mergeSceneExtensions(base: JsonObject, extensions: JsonObject): JsonObject {
+  const merged = JSON.parse(JSON.stringify(base)) as JsonObject;
+  const baseDefinitions = merged["definitions"];
+  if (!isJsonObject(baseDefinitions)) {
+    return merged;
+  }
+
+  const extComponents = extensions["components"];
+  if (isJsonObject(extComponents)) {
+    const entityDef = baseDefinitions["entity"];
+    if (isJsonObject(entityDef)) {
+      const entityProperties = entityDef["properties"];
+      if (isJsonObject(entityProperties)) {
+        const componentsDef = entityProperties["components"];
+        if (isJsonObject(componentsDef)) {
+          const componentsProperties = componentsDef["properties"];
+          if (isJsonObject(componentsProperties)) {
+            for (const [name, schema] of Object.entries(extComponents)) {
+              componentsProperties[name] = schema;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const extDefinitions = extensions["definitions"];
+  if (isJsonObject(extDefinitions)) {
+    for (const [name, schema] of Object.entries(extDefinitions)) {
+      baseDefinitions[name] = schema;
+    }
+  }
+
+  return merged;
 }
 
 function readSchema(schemaPath: string): AnySchema {
@@ -408,13 +491,18 @@ function readJson(filePath: string, projectDir: string): ReadJsonResult {
   }
 }
 
-function ajvErrorToDiagnostic(error: ErrorObject, filePath: string, projectDir: string): Diagnostic {
+function ajvErrorToDiagnostic(
+  error: ErrorObject,
+  filePath: string,
+  projectDir: string,
+  knownComponentNames: ReadonlyArray<string>
+): Diagnostic {
   const additionalProperty =
     typeof error.params["additionalProperty"] === "string" ? error.params["additionalProperty"] : undefined;
   const missingProperty = typeof error.params["missingProperty"] === "string" ? error.params["missingProperty"] : undefined;
   const path = jsonPointerToPath(error.instancePath, additionalProperty ?? missingProperty);
   const propertyText = additionalProperty ?? missingProperty;
-  const suggestion = suggestionForAjvError(error, path);
+  const suggestion = suggestionForAjvError(error, path, knownComponentNames);
 
   return {
     severity: "error",
@@ -450,9 +538,13 @@ function messageForAjvError(error: ErrorObject, propertyText: string | undefined
   return error.message ?? "Schema validation failed.";
 }
 
-function suggestionForAjvError(error: ErrorObject, path: string): string | undefined {
+function suggestionForAjvError(
+  error: ErrorObject,
+  path: string,
+  knownComponentNames: ReadonlyArray<string>
+): string | undefined {
   if (error.keyword === "additionalProperties" && path.includes(".components.")) {
-    return `Use one of these components: ${componentNames.join(", ")}.`;
+    return `Use one of these components: ${knownComponentNames.join(", ")}.`;
   }
 
   if (error.keyword === "additionalProperties") {
