@@ -21,27 +21,28 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 15 - TBD
+## Current Sprint: Sprint 16 - TBD
 
-Sprint 15 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 16 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
 #### Backend follow-ups
 
-- `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
-- `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror.
-- `10.6` Client network adapter — connect the browser runtime to the Node skeleton over WebSocket, applying inbound `world.snapshot` through `applyCommands`.
+- `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
+- `10.7` Networked Beacon drone — opt-in profile where the local drone's input is translated into outbound `intent.move` and the server's `player.<id>` entity replaces the locally-owned drone. Needs auth/handoff logic and a Playwright e2e that proves keyboard input crosses the wire.
+- `10.8` Connection lifecycle hardening — reconnect / backoff in the client adapter, server-side player timeout when a snapshot tick has not seen activity in N seconds.
 
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.13` Scoring / world health — derive a smoothed `WorldHealth` (e.g. EMA of repaired-beacon ratio) and expose it as a snapshot-level field so a future scoring system / win condition can consume it directly.
-
-#### Asset polish
-
-- `14.7` Drone material variant — pull `examples/beacon-world/assets/runtime/materials/drone.material.json` into a small palette family so player-vs-other-presence visualisation has a place to land.
+- `13.14` Win condition / round summary — when `WorldSignal.health` stays above a threshold for N seconds, emit a `round.complete` snapshot field and let the HUD show a one-shot summary panel.
 
 #### Engine polish
 
-- `E.2` Cached query handles — once smallest-pivot is in, the next win is caching the chosen pivot per system so the heuristic isn't recomputed every frame. Optional.
+- `E.3` Adopt cached query handles in built-in systems — convert `spin`, `pickup`, `hazard`, `world-signal` from `world.query(...)` to per-system `world.createQuery(...).run()` and prove the snapshot output is unchanged.
+- `E.4` Schema-driven diagnostics — surface a friendly error when a scene references a component absent from both the base schema and the project's scene-extensions.
+
+#### Asset polish
+
+- `14.7` Drone material variant family — small palette of drone materials so a future networked profile can colour different players differently.

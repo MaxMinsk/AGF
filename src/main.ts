@@ -62,7 +62,24 @@ if (!root) {
 
 let currentScene = selected.scene;
 
-let app: AppHandle = createApp(root, selected.project, currentScene, selected.id, availableProjectIds);
+const requestedServer = params.get("server");
+const requestedPlayerId = params.get("playerId");
+const appOptions: Parameters<typeof createApp>[5] = {};
+if (requestedServer !== null && requestedServer.length > 0) {
+  appOptions.serverUrl = requestedServer;
+}
+if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
+  appOptions.playerId = requestedPlayerId;
+}
+
+let app: AppHandle = createApp(
+  root,
+  selected.project,
+  currentScene,
+  selected.id,
+  availableProjectIds,
+  appOptions
+);
 
 if (import.meta.env.DEV) {
   window.__agf = {
@@ -83,7 +100,14 @@ if (import.meta.hot) {
       return;
     }
     app.dispose();
-    app = nextCreateApp(root, selected.project, currentScene, selected.id, availableProjectIds);
+    app = nextCreateApp(
+      root,
+      selected.project,
+      currentScene,
+      selected.id,
+      availableProjectIds,
+      appOptions
+    );
   });
 
   const applySceneUpdate = (module: unknown): void => {

@@ -3,6 +3,7 @@ import type { RuntimeHandle } from "../../../../engine/runtime/start";
 type HealthComponent = { current: number; max: number };
 type InvulnerableComponent = { until: number };
 type RepairableComponent = { accepts: string; repaired?: boolean };
+type WorldSignalComponent = { health?: number; target?: number };
 
 const REFRESH_MS = 100;
 
@@ -83,25 +84,30 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
 
     let repairedCount = 0;
     let repairableTotal = 0;
+    let signalHealth: number | undefined;
     for (const entity of snapshot.entities) {
       const repairable = entity.components["Repairable"] as RepairableComponent | undefined;
-      if (repairable === undefined) {
-        continue;
+      if (repairable !== undefined) {
+        repairableTotal += 1;
+        if (repairable.repaired === true) {
+          repairedCount += 1;
+        }
       }
-      repairableTotal += 1;
-      if (repairable.repaired === true) {
-        repairedCount += 1;
+      const worldSignal = entity.components["WorldSignal"] as WorldSignalComponent | undefined;
+      if (worldSignal !== undefined && typeof worldSignal.health === "number") {
+        signalHealth = worldSignal.health;
       }
     }
 
-    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}`;
+    const signalPct = signalHealth !== undefined ? Math.round(signalHealth * 100) : undefined;
+    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}|${signalPct ?? "-"}`;
     if (key === lastKey) {
       return;
     }
     lastKey = key;
 
     renderCells(hpCells, health);
-    renderSignal(signalValue, signalBar, repairedCount, repairableTotal);
+    renderSignal(signalValue, signalBar, repairedCount, repairableTotal, signalPct);
     status.textContent = invulnerableActive ? "INVULN" : "";
     status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
   };
@@ -121,9 +127,15 @@ function renderSignal(
   valueEl: HTMLElement,
   barEl: HTMLElement,
   repaired: number,
-  total: number
+  total: number,
+  smoothedPct: number | undefined
 ): void {
-  valueEl.textContent = total > 0 ? `${repaired}/${total}` : "—";
+  if (total > 0) {
+    const ratioText = `${repaired}/${total}`;
+    valueEl.textContent = smoothedPct !== undefined ? `${ratioText} (${smoothedPct}%)` : ratioText;
+  } else {
+    valueEl.textContent = "—";
+  }
   valueEl.style.color = repaired === total && total > 0
     ? "rgba(74, 240, 168, 0.92)"
     : "rgba(234, 244, 255, 0.92)";

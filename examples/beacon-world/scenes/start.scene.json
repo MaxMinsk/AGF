@@ -2,6 +2,19 @@
   "id": "start",
   "entities": [
     {
+      "id": "world.signal",
+      "components": {
+        "Name": {
+          "label": "World Signal"
+        },
+        "WorldSignal": {
+          "health": 0,
+          "target": 0,
+          "tau": 2
+        }
+      }
+    },
+    {
       "id": "camera.main",
       "components": {
         "Name": {

@@ -5,9 +5,16 @@ import type {
   SceneInput
 } from "./types";
 
+export type QueryHandle = {
+  readonly components: ReadonlyArray<ComponentName>;
+  run(): EntityId[];
+};
+
 export class World {
   private readonly entities = new Set<EntityId>();
   private readonly stores = new Map<ComponentName, Map<EntityId, ComponentData>>();
+  /** Incremented on every structural change so cached queries can detect staleness cheaply. */
+  private revision = 0;
 
   static fromScene(scene: SceneInput): World {
     const world = new World();
@@ -25,6 +32,7 @@ export class World {
       throw new Error(`Entity "${id}" already exists.`);
     }
     this.entities.add(id);
+    this.revision += 1;
   }
 
   removeEntity(id: EntityId): void {
@@ -34,6 +42,7 @@ export class World {
     for (const store of this.stores.values()) {
       store.delete(id);
     }
+    this.revision += 1;
   }
 
   hasEntity(id: EntityId): boolean {
@@ -53,11 +62,18 @@ export class World {
       throw new Error(`Cannot set component "${name}" on missing entity "${id}".`);
     }
     let store = this.stores.get(name);
+    let structural = false;
     if (store === undefined) {
       store = new Map();
       this.stores.set(name, store);
+      structural = true;
+    } else if (!store.has(id)) {
+      structural = true;
     }
     store.set(id, data);
+    if (structural) {
+      this.revision += 1;
+    }
   }
 
   getComponent<T = ComponentData>(id: EntityId, name: ComponentName): T | undefined {
@@ -73,7 +89,43 @@ export class World {
   }
 
   removeComponent(id: EntityId, name: ComponentName): void {
-    this.stores.get(name)?.delete(id);
+    const store = this.stores.get(name);
+    if (store === undefined) {
+      return;
+    }
+    if (store.delete(id)) {
+      this.revision += 1;
+    }
+  }
+
+  /**
+   * Snapshot of the structural-revision counter. Bumped on entity add/remove
+   * and on component add/remove (NOT on data overwrites). Cached query handles
+   * use this to decide when to invalidate their memoised result.
+   */
+  getRevision(): number {
+    return this.revision;
+  }
+
+  /**
+   * Returns a stable handle that memoises its result between structural
+   * changes. Component-data overwrites do NOT invalidate the cache because
+   * they cannot change which entities match the filter.
+   */
+  createQuery(componentNames: ReadonlyArray<ComponentName>): QueryHandle {
+    const components = [...componentNames];
+    let cachedRevision = -1;
+    let cached: EntityId[] = [];
+    return {
+      components,
+      run: (): EntityId[] => {
+        if (this.revision !== cachedRevision) {
+          cached = this.query(components);
+          cachedRevision = this.revision;
+        }
+        return cached;
+      }
+    };
   }
 
   componentNames(): ComponentName[] {

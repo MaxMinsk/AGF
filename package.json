@@ -9,6 +9,7 @@
     "engine:check": "tsx engine/tools/cli.ts check",
     "engine:inspect": "tsx engine/tools/cli.ts inspect",
     "backend:node": "tsx examples/backends/node-world-server/src/index.ts",
+    "backend:node:serve": "tsx examples/backends/node-world-server/src/index.ts --serve",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,10 +23,12 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.7.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "ws": "^8.20.1"
   },
   "dependencies": {
     "@types/three": "^0.184.1",

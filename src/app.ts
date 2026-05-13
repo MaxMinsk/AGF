@@ -5,8 +5,13 @@ import { AssetRegistry } from "../engine/runtime/asset-registry";
 import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
 import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
+import {
+  startWsNetworkAdapter,
+  type WsNetworkAdapterHandle
+} from "../engine/runtime/network/ws-network-adapter";
 import { createPickupSystem as createBeaconPickupSystem } from "../examples/beacon-world/src/systems/pickup-system";
 import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
+import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
 import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
@@ -17,11 +22,20 @@ export type ProjectMeta = {
   render?: { background?: string };
 };
 
+export type AppOptions = {
+  /** WebSocket URL of a node-world-server style backend, e.g. `ws://localhost:8787`. */
+  serverUrl?: string;
+  /** Player id used in the outbound `player.join`. Defaults to a stable random id. */
+  playerId?: string;
+};
+
 export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
   reloadAsset(ref: string): void;
+  /** Active WS adapter, if `?server=` was provided. Useful for tests. */
+  readonly network: WsNetworkAdapterHandle | undefined;
   dispose(): void;
 };
 
@@ -30,7 +44,8 @@ export function createApp(
   project: ProjectMeta,
   scene: SceneInput,
   projectId: string,
-  availableProjectIds: ReadonlyArray<string> = [projectId]
+  availableProjectIds: ReadonlyArray<string> = [projectId],
+  options: AppOptions = {}
 ): AppHandle {
   root.textContent = "";
 
@@ -70,6 +85,7 @@ export function createApp(
   if (projectId === "beacon-world") {
     scheduler.register(createBeaconPickupSystem());
     scheduler.register(createBeaconHazardSystem());
+    scheduler.register(createBeaconWorldSignalSystem());
   }
 
   const assetRegistry = new AssetRegistry({
@@ -94,6 +110,17 @@ export function createApp(
     healthHud = createBeaconHealthHud(shell, runtime);
   }
 
+  let network: WsNetworkAdapterHandle | undefined;
+  if (options.serverUrl !== undefined) {
+    const playerId = options.playerId ?? randomPlayerId();
+    network = startWsNetworkAdapter({
+      url: options.serverUrl,
+      playerId,
+      applyCommands: (commands) => runtime.applyCommands(commands),
+      knownEntityIds: () => runtime.snapshot().entities.map((entity) => entity.id)
+    });
+  }
+
   return {
     canvas,
     applyCommands(commands): void {
@@ -105,13 +132,22 @@ export function createApp(
     reloadAsset(ref): void {
       runtime.invalidateAsset(ref);
     },
+    get network(): WsNetworkAdapterHandle | undefined {
+      return network;
+    },
     dispose(): void {
+      network?.dispose();
       healthHud?.dispose();
       runtime.stop();
       playerInputSystem.dispose();
       root.textContent = "";
     }
   };
+}
+
+function randomPlayerId(): string {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `client-${suffix}`;
 }
 
 function escapeText(value: string): string {
