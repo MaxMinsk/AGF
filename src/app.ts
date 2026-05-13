@@ -37,6 +37,11 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
   if (background !== undefined) {
     runtimeOptions.background = background;
   }
+  if (import.meta.env.DEV) {
+    runtimeOptions.devOverlay = true;
+    runtimeOptions.devOverlayParent = shell;
+  }
+
   const runtime: RuntimeHandle = startRuntime(runtimeOptions);
 
   return {

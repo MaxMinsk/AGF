@@ -233,6 +233,8 @@ Verification:
 
 **Story 4.2: Fixed Update Loop**
 
+Status: Implemented.
+
 Tasks:
 
 - Create runtime loop.
