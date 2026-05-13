@@ -42,21 +42,7 @@ jobs:
         with:
           node-version: "24"
       - name: Install dependencies
-        run: |
-          node --version
-          npm --version
-          # Both npm 11.11 (default) and npm 10.9.2 (pinned) crash with
-          # "Exit handler never called!" after ~71s on this runner. Enable
-          # --loglevel=verbose so the failing tarball / resolver step is
-          # visible in the logs.
-          npm ci --no-audit --no-fund --loglevel=verbose
-      - name: Upload npm debug log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-debug-${{ github.job }}
-          path: ~/.npm/_logs/
-          retention-days: 3
+        run: npm ci --no-audit --no-fund
       - name: engine:check examples
         run: npm run engine:check:examples
       - name: typecheck
@@ -73,17 +59,7 @@ jobs:
         with:
           node-version: "24"
       - name: Install dependencies
-        run: |
-          node --version
-          npm --version
-          npm ci --no-audit --no-fund --loglevel=verbose
-      - name: Upload npm debug log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-debug-${{ github.job }}
-          path: ~/.npm/_logs/
-          retention-days: 3
+        run: npm ci --no-audit --no-fund
       - name: Build
         run: npm run build
       - name: Bundle size check
