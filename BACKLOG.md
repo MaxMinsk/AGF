@@ -21,19 +21,54 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 4 - TBD
+## Current Sprint: Sprint 4 - Browser Polish And Gameplay v0
 
-Sprint 4 focus will be picked at the start of the sprint from the candidate list below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
+Goal: unblock viewing Beacon World in the browser, make `npm run build` ship runtime assets correctly, and add the first gameplay loop to Beacon World.
 
-### Candidates
+### Epic 18: Project Switcher
 
-- `14.2` Production asset serving — fix `dist/` build so material/glb references resolve in `npm run build`, not just `npm run dev`.
+**Story 18.1: URL-Driven Project Switcher**
+
+Status: Implemented.
+
+Tasks:
+
+- Statically import `project.json` and `start.scene.json` for both `hello-3d` and `beacon-world` in `src/main.ts`.
+- Read `?project=<id>` from the URL; default to `hello-3d`; fall back to the default on unknown ids.
+- Thread `projectId` into `createApp` so the asset registry's `baseUrl` resolves to `examples/<projectId>/assets/`.
+- Render the selected project name and a small `?project=<id>` switcher chip in the status panel; tag elements with `data-testid` for e2e.
+- Keep scene HMR working for the active project (one `import.meta.hot.accept` per project, static paths so Vite tracks them).
+
+Acceptance criteria:
+
+- Visiting `/` loads `hello-3d`.
+- Visiting `/?project=beacon-world` loads Beacon World — drone + two beacons appear in the snapshot.
+- Editing the active project's `start.scene.json` still triggers the existing scene HMR diff.
+- Existing e2e tests still pass; two new e2e tests confirm the switcher.
+
+Verification:
+
+- `npm run typecheck`
+- `npm run test:e2e` — canvas smoke + agent loop + project-switcher pair (4 tests).
+
+### Epic 14: Asset Pipeline Polish
+
+**Story 14.2: Production Asset Serving** (next)
+
+Tasks/acceptance/verification expanded when picked up.
+
+### Epic 13: Beacon World Sample Game
+
+**Story 13.3: Beacon World Gameplay v0** (next)
+
+Tasks/acceptance/verification expanded when picked up.
+
+### Sprint 4 Candidates Not Picked Yet
+
 - `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
-- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry and rebind on the renderer side without a page reload.
-- `17.1` Scene editor command palette — DOM panel that runs the existing `applyCommands` API with autocomplete on entity ids and component names.
-- `18.1` Project switcher — pick the loaded project via URL query (`?project=beacon-world`) so Beacon World can be previewed without swapping imports.
-- `13.3` Beacon World gameplay v0 — pickup component + first interaction system, beacon repair toggle, a small handful of new commands.
-- `14.3` Real `.glb` for Beacon World drone/beacon — replace the primitive sphere/box with an authored model once an art pipeline appears.
+- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
+- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity ids and component names.
+- `14.3` Real `.glb` for Beacon World drone/beacons — replace the primitive sphere/box with an authored model.
 
 Epic 10 (Backend contracts) is deferred to ~Sprint 5 by stakeholder decision.
 

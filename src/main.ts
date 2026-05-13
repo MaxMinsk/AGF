@@ -1,6 +1,10 @@
 import "./styles.css";
-import projectData from "../examples/hello-3d/project.json";
-import sceneData from "../examples/hello-3d/scenes/start.scene.json";
+
+import helloProjectData from "../examples/hello-3d/project.json";
+import helloSceneData from "../examples/hello-3d/scenes/start.scene.json";
+import beaconProjectData from "../examples/beacon-world/project.json";
+import beaconSceneData from "../examples/beacon-world/scenes/start.scene.json";
+
 import { createApp, type AppHandle, type ProjectMeta } from "./app";
 import { diffScenes } from "../engine/core/commands/scene-diff";
 import type { EngineCommand } from "../engine/core/commands/types";
@@ -16,16 +20,45 @@ declare global {
   }
 }
 
+type ProjectOption = {
+  id: string;
+  project: ProjectMeta;
+  scene: SceneInput;
+};
+
+const projectOptions: Record<string, ProjectOption> = {
+  "hello-3d": {
+    id: "hello-3d",
+    project: helloProjectData as ProjectMeta,
+    scene: helloSceneData as unknown as SceneInput
+  },
+  "beacon-world": {
+    id: "beacon-world",
+    project: beaconProjectData as ProjectMeta,
+    scene: beaconSceneData as unknown as SceneInput
+  }
+};
+
+const availableProjectIds = Object.keys(projectOptions);
+const defaultProjectId = "hello-3d";
+
+const params = new URLSearchParams(window.location.search);
+const requested = params.get("project");
+const selectedId =
+  requested !== null && Object.prototype.hasOwnProperty.call(projectOptions, requested)
+    ? requested
+    : defaultProjectId;
+const selected = projectOptions[selectedId] ?? projectOptions[defaultProjectId]!;
+
 const root = document.querySelector<HTMLElement>("#app");
 
 if (!root) {
   throw new Error("Missing #app root element.");
 }
 
-const project = projectData as ProjectMeta;
-let currentScene = sceneData as unknown as SceneInput;
+let currentScene = selected.scene;
 
-let app: AppHandle = createApp(root, project, currentScene);
+let app: AppHandle = createApp(root, selected.project, currentScene, selected.id, availableProjectIds);
 
 if (import.meta.env.DEV) {
   window.__agf = {
@@ -45,10 +78,10 @@ if (import.meta.hot) {
       return;
     }
     app.dispose();
-    app = nextCreateApp(root, project, currentScene);
+    app = nextCreateApp(root, selected.project, currentScene, selected.id, availableProjectIds);
   });
 
-  import.meta.hot.accept("../examples/hello-3d/scenes/start.scene.json", (module) => {
+  const applySceneUpdate = (module: unknown): void => {
     if (module === undefined) {
       return;
     }
@@ -60,5 +93,11 @@ if (import.meta.hot) {
     app.applyCommands(commands);
     currentScene = nextScene;
     console.info(`[agf] applied ${commands.length} command(s) from scene hot reload`);
-  });
+  };
+
+  if (selected.id === "hello-3d") {
+    import.meta.hot.accept("../examples/hello-3d/scenes/start.scene.json", applySceneUpdate);
+  } else if (selected.id === "beacon-world") {
+    import.meta.hot.accept("../examples/beacon-world/scenes/start.scene.json", applySceneUpdate);
+  }
 }
