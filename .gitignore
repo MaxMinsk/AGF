@@ -6,6 +6,10 @@ coverage/
 test-results/
 playwright-report/
 
+# .NET build output
+**/bin/
+**/obj/
+
 # Local environment and secrets
 .env
 .env.*

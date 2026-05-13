@@ -92,6 +92,7 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
   parent.append(root);
 
   let lastKey = "";
+  let lastScoreByPlayer = new Map<string, number>();
 
   const refresh = (): void => {
     const snapshot = runtime.snapshot();
@@ -152,7 +153,8 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
 
     renderCells(hpCells, health);
     renderSignal(signalValue, signalBar, repairedCount, repairableTotal, signalPct);
-    renderScoreboard(scoreboard, scoreByPlayer);
+    renderScoreboard(scoreboard, scoreByPlayer, lastScoreByPlayer);
+    lastScoreByPlayer = new Map(scoreByPlayer);
     status.textContent = invulnerableActive ? "INVULN" : "";
     status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
     renderRound(summary, round);
@@ -169,7 +171,11 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
   };
 }
 
-function renderScoreboard(target: HTMLElement, scores: Map<string, number>): void {
+function renderScoreboard(
+  target: HTMLElement,
+  scores: Map<string, number>,
+  previousScores: Map<string, number>
+): void {
   target.replaceChildren();
   if (scores.size === 0) {
     target.style.display = "none";
@@ -187,9 +193,16 @@ function renderScoreboard(target: HTMLElement, scores: Map<string, number>): voi
     return aId.localeCompare(bId);
   });
   for (const [playerId, count] of sorted) {
+    const previous = previousScores.get(playerId) ?? 0;
+    const pulsed = count > previous;
     const row = document.createElement("div");
     row.setAttribute("data-testid", `hud-score-${playerId}`);
-    row.style.cssText = "display:flex; justify-content:space-between; gap:8px;";
+    row.style.cssText = `display:flex; justify-content:space-between; gap:8px; transition: color 600ms ease-out;${
+      pulsed ? " color: rgba(74, 240, 168, 1);" : ""
+    }`;
+    if (pulsed) {
+      row.setAttribute("data-pulse", "true");
+    }
     const label = document.createElement("span");
     label.textContent = playerId;
     label.style.cssText = "overflow:hidden; text-overflow:ellipsis; max-width:88px;";

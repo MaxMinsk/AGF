@@ -1,6 +1,7 @@
 import type { EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import { pickDroneMaterialFor } from "../drone-palette";
 
 type PickupQueries = {
   carriers: QueryHandle;
@@ -28,6 +29,8 @@ type PickupComponent = {
   respawnAfter?: number;
   consumed?: boolean;
   respawnIn?: number;
+  originalColor?: string;
+  originalMaterial?: string;
 };
 
 type RepairableComponent = {
@@ -130,7 +133,62 @@ function tryPickup(
   }
   if (closestId !== undefined) {
     world.setComponent(carrierId, "Carrier", { carrying: closestId });
+    applyCarryTint(world, carrierId, closestId);
   }
+}
+
+function applyCarryTint(world: World, carrierId: EntityId, pickupId: EntityId): void {
+  const presence = world.getComponent<PresenceComponent>(carrierId, "Presence");
+  const ownerId = presence?.playerId;
+  if (ownerId === undefined) {
+    return;
+  }
+  const palette = pickDroneMaterialFor(ownerId);
+  if (palette === undefined) {
+    return;
+  }
+  const pickup = world.getComponent<PickupComponent>(pickupId, "Pickup");
+  const renderer = world.getComponent<MeshRendererComponent>(pickupId, "MeshRenderer");
+  if (pickup === undefined || renderer === undefined) {
+    return;
+  }
+  if (pickup.originalColor !== undefined || pickup.originalMaterial !== undefined) {
+    // Already tinted — keep the original stash so the eventual restore picks
+    // up the visual the core had before the FIRST carrier touched it.
+    world.setComponent(pickupId, "MeshRenderer", { mesh: renderer.mesh, material: palette });
+    return;
+  }
+  const stash: PickupComponent = { ...pickup };
+  if (renderer.color !== undefined) {
+    stash.originalColor = renderer.color;
+  }
+  if (renderer.material !== undefined) {
+    stash.originalMaterial = renderer.material;
+  }
+  world.setComponent(pickupId, "Pickup", stash);
+  world.setComponent(pickupId, "MeshRenderer", { mesh: renderer.mesh, material: palette });
+}
+
+function clearCarryTint(world: World, pickupId: EntityId): void {
+  const pickup = world.getComponent<PickupComponent>(pickupId, "Pickup");
+  const renderer = world.getComponent<MeshRendererComponent>(pickupId, "MeshRenderer");
+  if (pickup === undefined || renderer === undefined) {
+    return;
+  }
+  if (pickup.originalColor === undefined && pickup.originalMaterial === undefined) {
+    return;
+  }
+  const restored: MeshRendererComponent = { mesh: renderer.mesh };
+  if (pickup.originalMaterial !== undefined) {
+    restored.material = pickup.originalMaterial;
+  } else if (pickup.originalColor !== undefined) {
+    restored.color = pickup.originalColor;
+  }
+  const cleared: PickupComponent = { ...pickup };
+  delete cleared.originalColor;
+  delete cleared.originalMaterial;
+  world.setComponent(pickupId, "Pickup", cleared);
+  world.setComponent(pickupId, "MeshRenderer", restored);
 }
 
 function handleCarry(
@@ -217,7 +275,10 @@ function handleCarry(
       incrementScoreFor(world, ownerPlayerId);
     }
 
-    despawnOrRemove(world, carriedId, pickup);
+    clearCarryTint(world, carriedId);
+    const cleanedPickup =
+      world.getComponent<PickupComponent>(carriedId, "Pickup") ?? pickup;
+    despawnOrRemove(world, carriedId, cleanedPickup);
     world.setComponent(carrierId, "Carrier", {});
     return;
   }
@@ -268,6 +329,22 @@ function tickPickupRespawns(world: World, dt: number, q: PickupQueries): void {
     const respawned: PickupComponent = { ...pickup };
     delete respawned.consumed;
     delete respawned.respawnIn;
+    // Restore carry-tint visuals if the despawn path skipped them (e.g. hazard
+    // drop). idempotent: no-op when no stash is present.
+    if (respawned.originalColor !== undefined || respawned.originalMaterial !== undefined) {
+      const renderer = world.getComponent<MeshRendererComponent>(pickupId, "MeshRenderer");
+      if (renderer !== undefined) {
+        const restored: MeshRendererComponent = { mesh: renderer.mesh };
+        if (respawned.originalMaterial !== undefined) {
+          restored.material = respawned.originalMaterial;
+        } else if (respawned.originalColor !== undefined) {
+          restored.color = respawned.originalColor;
+        }
+        world.setComponent(pickupId, "MeshRenderer", restored);
+      }
+      delete respawned.originalColor;
+      delete respawned.originalMaterial;
+    }
     world.setComponent(pickupId, "Pickup", respawned);
 
     if (pickup.originalPosition !== undefined) {

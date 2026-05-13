@@ -92,6 +92,115 @@ describe("PickupSystem", () => {
     expect(renderer?.material).toBeUndefined();
   });
 
+  it("restores the green original color on respawn even when the core is parked while still tinted (hazard-drop path)", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Presence", { playerId: "alpha" });
+    world.setComponent("core", "Pickup", {
+      kind: "energy-core",
+      originalPosition: [0.5, 0, 0],
+      respawnAfter: 0.5
+    });
+
+    step(world); // pick up — palette tint
+    const tinted = world.getComponent<{ material?: string; color?: string }>(
+      "core",
+      "MeshRenderer"
+    );
+    expect(tinted?.material).toMatch(/drone-(orange|cyan|violet|amber)/);
+
+    // Simulate hazard.dropCarried: park the core underground while STILL
+    // tinted, preserving Pickup.originalColor like the real hazard-system
+    // path does.
+    const pickup = world.getComponent<{
+      kind: string;
+      originalColor?: string;
+      originalPosition?: ReadonlyArray<number>;
+      respawnAfter?: number;
+    }>("core", "Pickup");
+    expect(pickup?.originalColor).toBe("#4af0a8");
+    world.setComponent("core", "Pickup", {
+      ...pickup!,
+      consumed: true,
+      respawnIn: pickup!.respawnAfter
+    });
+    world.setComponent("core", "Transform", { position: [0.5, -100, 0] });
+    world.setComponent("drone", "Carrier", {}); // carrier dropped it
+
+    // Move drone far away so it doesn't immediately re-acquire on respawn.
+    world.setComponent("drone", "Transform", { position: [50, 0, 50] });
+
+    // Tick respawn timer past expiry — single step with dt above respawnAfter.
+    step(world, 0.6);
+
+    const restoredPickup = world.getComponent<{
+      consumed?: boolean;
+      originalColor?: string;
+      originalMaterial?: string;
+    }>("core", "Pickup");
+    expect(restoredPickup?.consumed).toBeUndefined();
+    expect(restoredPickup?.originalColor).toBeUndefined();
+    expect(restoredPickup?.originalMaterial).toBeUndefined();
+
+    const renderer = world.getComponent<{ material?: string; color?: string }>(
+      "core",
+      "MeshRenderer"
+    );
+    expect(renderer?.color).toBe("#4af0a8");
+    expect(renderer?.material).toBeUndefined();
+  });
+
+  it("tints a carried core with the carrier's palette material, stashes the original, and restores on respawn", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Presence", { playerId: "alpha" });
+    world.setComponent("core", "Pickup", {
+      kind: "energy-core",
+      originalPosition: [0.5, 0, 0],
+      respawnAfter: 0.5
+    });
+
+    step(world); // pick up — tint applies
+    const tinted = world.getComponent<{ material?: string; color?: string }>(
+      "core",
+      "MeshRenderer"
+    );
+    expect(tinted?.material).toMatch(/runtime\/materials\/drone-(orange|cyan|violet|amber)\.material\.json/);
+    expect(tinted?.color).toBeUndefined();
+
+    const pickupDuringCarry = world.getComponent<{ originalColor?: string }>("core", "Pickup");
+    expect(pickupDuringCarry?.originalColor).toBe("#4af0a8");
+
+    // deposit
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world);
+
+    const pickupAfterDeposit = world.getComponent<{
+      consumed?: boolean;
+      originalColor?: string;
+      originalMaterial?: string;
+    }>("core", "Pickup");
+    expect(pickupAfterDeposit?.consumed).toBe(true);
+    expect(pickupAfterDeposit?.originalColor).toBeUndefined();
+    expect(pickupAfterDeposit?.originalMaterial).toBeUndefined();
+
+    const rendererAfterDeposit = world.getComponent<{ material?: string; color?: string }>(
+      "core",
+      "MeshRenderer"
+    );
+    expect(rendererAfterDeposit?.color).toBe("#4af0a8");
+    expect(rendererAfterDeposit?.material).toBeUndefined();
+  });
+
+  it("does not tint when the carrier has no Presence (single-player path)", () => {
+    const world = buildWorld();
+    step(world); // pick up — no Presence, no tint
+    const renderer = world.getComponent<{ material?: string; color?: string }>(
+      "core",
+      "MeshRenderer"
+    );
+    expect(renderer?.material).toBeUndefined();
+    expect(renderer?.color).toBe("#4af0a8");
+  });
+
   it("increments RoundState.scores by playerId on every successful repair", () => {
     const world = buildWorld();
     world.setComponent("drone", "Presence", { playerId: "alpha" });

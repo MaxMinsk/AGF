@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "declared-but-missing.ghost",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/models/never-existed.glb"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Declared in metadata but the file is intentionally missing for the engine-check test."
+      }
+    }
+  ]
+}

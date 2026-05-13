@@ -58,6 +58,32 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Workspace/package split | Later | Consider workspaces only after boundaries become painful. |
 | Procedural Character Generator | Later | Standalone tool inside the engine. Node-graph UI; emits a rigged + Mixamo-animatable mesh (human, robot, dog, spider, …) for use as a runtime asset. Tracked in its own backlog: `docs/proposals/procedural-character-generator.md`. Take it on once Beacon World gameplay v0 is stable; staffing it earlier blocks game progress. |
 
+## Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)
+
+These are engine/product capabilities that look must-have for AGF's stated goal but are not yet tracked as concrete sprint work. Each one is an epic; concrete stories enter `BACKLOG.md` when promoted.
+
+| Epic | Status | Notes |
+|---|---|---|
+| `M1` Versioned project format + migrations | Active | `agfVersion` / `formatVersion` field on project/scene/material; `engine:migrate` v0. Foundational — agent-authored projects need a schema-drift answer once externals exist. |
+| `M2` Project bootstrap / plugin boundary | **Done** | Shipped Sprint 22 (`engine/runtime/project-bootstrap.ts` + per-project `bootstrap.ts`) and Sprint 23 (dynamic loaders in `src/main.ts`). Keep here for traceability. |
+| `M3` Prefabs, variants, scene composition | Active | `prefabs/*.prefab.json`, scene instantiation with overrides, inspect expansion. Beacon's duplicate cores / hazards motivate this. |
+| `M4` Save / load + persistence adapter | Active | Backend-agnostic adapter (IndexedDB first, REST later); Beacon-World local persistence slice for repaired beacons / scores / signal across reloads. |
+| `M5` Runtime diagnostics + browser-side error channel | **High priority** | Structured `window.__agf.diagnostics()` event bus. Agents currently have no in-page error contract beyond console; this directly improves the agent loop. |
+| `M6` Deterministic replay / recording | Active | Record (time, inputs, commands, snapshots, diagnostics); replay headlessly; attach AGF recording to failed Playwright tests. |
+| `M7` Performance budgets + renderer metrics | Active | Renderer `info` (draws, triangles, geometries, textures, frame time) exposed on `window.__agf`; per-project `performance-budget.json`; soft/hard thresholds. Extends the bundle-size budget shipped in Sprint 25. |
+| `M8` Input actions, remapping, touch/gamepad | Active | Project-declared action schema (e.g. `move.x`, `interact`); adapter layer (keyboard / gamepad / touch); inspect API for action state. |
+| `M9` Build / deploy contract for static + connected | Active | `engine build` emits a deploy manifest (project id, profile, asset list, hashed bundles, engine version, backend config placeholders). Less urgent until first deploy target lands. |
+| `M10` Security / trust boundary for agent-authored projects | Active | Doc + CLI warning + network hardening (already partially shipped via protocol-validator, id-collision and size caps). Mostly documentation work. |
+| `M11` Resource lifecycle + leak tests | **High priority** | HMR-heavy workflow means leaks build up silently. Renderer lifecycle audit (geometries / materials / textures count), HMR stress test, network adapter create/dispose loop. |
+| `M12` Template / project creation CLI | Active | `engine new -- <name> --template hello-3d`. Less urgent while only two examples exist; gains value once a third sample is added. |
+
+**Sequencing the M-list:**
+
+1. Take **M5** + **M11** next — both are pure-engine, ship soon, directly improve the agent loop and the HMR-heavy dev session that AGF is built around.
+2. Take **M1** + **M7** in the sprint after — versioning is foundational and `M7` extends the budget script already shipped in Sprint 25.
+3. **M3** prefabs and **M4** save/load follow once Beacon World is rich enough to motivate the de-duplication / persistence pressure.
+4. **M6**, **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
+
 ## Parking Lot
 
 - WebGPU backend exploration.

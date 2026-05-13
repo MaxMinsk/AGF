@@ -11,12 +11,14 @@
     "engine:inspect": "tsx engine/tools/cli.ts inspect",
     "backend:node": "tsx examples/backends/node-world-server/src/index.ts",
     "backend:node:serve": "tsx examples/backends/node-world-server/src/index.ts --serve",
+    "backend:dotnet": "dotnet run --project examples/backends/dotnet-world-server/GameServer.csproj",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "playtest:watch": "node scripts/watch-playtests.mjs",
-    "preflight": "npm run engine:check:examples && npm run typecheck && npm run test && npm run build && npm run test:e2e"
+    "bundle:check": "node scripts/check-bundle-size.mjs",
+    "preflight": "npm run engine:check:examples && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
   },
   "engines": {
     "node": ">=20.19.0"

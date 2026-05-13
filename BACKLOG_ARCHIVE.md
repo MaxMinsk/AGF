@@ -1141,5 +1141,63 @@ The sprint goal — close the visible-polish gap that multiplayer left open and 
 - `13.12` Sound pings still pending.
 - `E.16` Dynamic renderer import (lazy `engine/render/`) still pending — main bundle is dominated by Three.js + AJV.
 
+## Sprint 25 - Diagnostic Codes + Bundle Budget + Carry Tint + Lazy Three + C# Skeleton
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `E.17` Inspect stream schema doc — new `docs/agent/inspect-stream.md` documents the NDJSON wire contract of `engine inspect --watch --json`: one `InspectResult` per line, status logs on stderr, no terminator, debounced at ~120 ms. Includes a `jq` recipe.
+- `14.13` Typed diagnostic codes — new `engine/tools/check/diagnostic-codes.ts` exports `DIAGNOSTIC_CODES` const-as-enum + `DiagnosticCode` type + `ALL_DIAGNOSTIC_CODES` array. Future CI / agent tooling can import and pattern-match. Unit test locks the full set.
+- `E.18` Bundle-size budget — new `scripts/check-bundle-size.mjs` walks `dist/assets/*.js`, gzips, asserts the **largest** chunk stays under 250 KB gzipped. Wired into `preflight` between `build` and `test:e2e` via new `npm run bundle:check`.
+- `13.23` HUD pulse on score change — scoreboard rows that incremented since the last refresh paint themselves green for ~600 ms via a CSS `color` transition. `data-pulse="true"` attribute lets future e2e check.
+- `13.21` Core palette while carried — `Pickup` schema gains optional `originalColor` / `originalMaterial` runtime fields. `pickup-system` swaps the carried core's `MeshRenderer.material` to a palette entry hashed off the carrier's `Presence.playerId` (`pickDroneMaterialFor`), stashes the original on `Pickup`. Deposit clears the stash and restores. Hazard-drop path leaves the stash in place — `tickPickupRespawns` restores on respawn. Three unit cases cover the multiplayer tint, the single-player no-tint path, and the hazard-drop → respawn restore path.
+- `E.20.5` Asset-source runtime missing — `engine check` now scans the reverse direction too: every `asset-sources.json` `runtimeFiles` entry must exist on disk, otherwise emits `AGF_ASSET_SOURCE_RUNTIME_MISSING` (warning). New fixture `declared-but-missing/` + unit test.
+- `E.16` lite — Three.js + AJV split into dedicated chunks — `vite.config.ts` adds a `manualChunks` function that lifts `three` (149 KB gzipped) and `ajv` (33 KB gzipped) into their own cached chunks. Main `index-*.js` drops from 191 KB gzipped to **9.27 KB gzipped**.
+- `10.5` C#/.NET reference skeleton — new `examples/backends/dotnet-world-server/` with `GameServer.csproj` (net9.0, console exe) + `Program.cs` that mirrors the Node smoke path: locate the repo's `schemas/protocol.schema.json`, parse a `player.join` / `player.leave` / `intent.move` / `world.snapshot` sample with `System.Text.Json`, exit non-zero on any parse failure. `npm run backend:dotnet` script. `.gitignore` excludes `bin/` / `obj/`.
+
+### Deliverables
+
+- `docs/agent/inspect-stream.md`
+- `engine/tools/check/diagnostic-codes.ts`
+- `tests/unit/diagnostic-codes.test.ts`
+- `scripts/check-bundle-size.mjs`
+- `package.json` (`bundle:check`, `backend:dotnet`, `preflight` chain)
+- `examples/beacon-world/src/ui/health-hud.ts` (score pulse, `data-pulse`)
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`Pickup.originalColor` / `originalMaterial`)
+- `examples/beacon-world/src/systems/pickup-system.ts` (`applyCarryTint` / `clearCarryTint` / respawn-restore)
+- `engine/tools/check/project-check.ts` (reverse-direction asset diagnostic)
+- `tests/fixtures/declared-but-missing/`
+- `vite.config.ts` (`manualChunks` function for `three` + `ajv`)
+- `examples/backends/dotnet-world-server/` (`GameServer.csproj`, `Program.cs`, `README.md`)
+- `.gitignore` (`**/bin/`, `**/obj/`)
+- `HIGH_LEVEL_BACKLOG.md` (M1–M12 from codex review M-section folded in)
+
+### Verification
+
+- `engine check` green on every `examples/*/project.json`.
+- Sprint-close `npm run preflight`: typecheck clean, 198 Vitest tests across 29 files, vite build OK with per-library chunks visible, `bundle:check` reports largest chunk under the 250 KB gzipped budget, 12 Playwright e2e tests.
+- Manual: `npm run backend:dotnet` parses all four samples cleanly.
+- Manual: `npm run engine:inspect -- examples/beacon-world --watch --json --tail 1` continues to emit one JSON line per refresh.
+
+### Goal Recap
+
+The sprint goal — double sprint size (8–10 stories) and pay down a wider polish backlog while the netcode work cools off — was met:
+
+- The inspect stream is now a documented wire contract; external agent tooling can rely on the line shape.
+- Diagnostic codes are a typed enum; CI matchers stop using string-literal substrings.
+- Bundle-size has a guardrail in `preflight`; routine deps cannot creep past it silently.
+- Cores visually advertise the player carrying them; the palette is shared between local and remote drones (Sprint 24) and now pickups too.
+- `engine check` catches the reverse asset-mismatch — declared-but-missing — in addition to the existing undeclared-but-present check.
+- Three.js + AJV are split into their own cached chunks; the application chunk is now small enough to be irrelevant to load time.
+- A C#/.NET reference backend skeleton anchors ADR-0007's promise that the protocol contract is backend-agnostic.
+
+### Follow-Ups
+
+- `10.18` Server-side hazard / pickup state still pending; would make hazards / cores consistent across browser tabs.
+- `13.12` Sound pings still pending.
+- C# skeleton runs schema-existence + parse-only smoke; replacing that with a real `Json.Schema` validator parity-with-AJV is a future story.
+- Per the `Notes/codex_review_1.md` M-section landed in `HIGH_LEVEL_BACKLOG.md`: **M5 runtime diagnostics bus** and **M11 resource lifecycle / leak tests** are the next two engine priorities.
+
 
 

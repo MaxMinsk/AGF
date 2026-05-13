@@ -1,0 +1,11 @@
+{
+  "id": "declared-but-missing",
+  "name": "Declared But Missing Fixture",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}
