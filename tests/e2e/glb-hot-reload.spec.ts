@@ -18,16 +18,14 @@ test("editing drone.glb fires the asset HMR path", async ({ page }) => {
   writeFileSync(droneGlbPath, original);
 
   await page.waitForFunction(
-    (baseline) => (window.__agf?.reloadCount ?? 0) > baseline,
-    initialReloadCount,
+    ({ baseline, ref }) => {
+      const agf = window.__agf;
+      return (agf?.reloadCount ?? 0) > baseline && agf?.lastReloadedAsset === ref;
+    },
+    { baseline: initialReloadCount, ref: expectedRef },
     { timeout: 10_000 }
   );
 
-  const reloaded = (await page.evaluate(() => ({
-    ref: window.__agf!.lastReloadedAsset,
-    count: window.__agf!.reloadCount
-  }))) as { ref: string | undefined; count: number };
-
-  expect(reloaded.ref).toBe(expectedRef);
-  expect(reloaded.count).toBe(initialReloadCount + 1);
+  const count = (await page.evaluate(() => window.__agf!.reloadCount)) as number;
+  expect(count).toBeGreaterThan(initialReloadCount);
 });

@@ -68,6 +68,59 @@ describe("NetworkDroneSyncSystem", () => {
     expect(transform?.position).toEqual([0, 0.4, 0]);
   });
 
+  it("does NOT snap when there are un-acked inputs, even if drift exceeds the threshold", () => {
+    const world = buildWorld("alpha");
+    world.setComponent("player.alpha", "Transform", { position: [10, 0.4, 0] });
+
+    const system = createNetworkDroneSyncSystem({
+      playerId: "alpha",
+      snapThresholdUnits: 1.5,
+      reconcileRate: 1,
+      getUnackedInputCount: () => 3
+    });
+    const time: TimeContext = {
+      elapsed: 0,
+      dt: 1 / 60,
+      fixedDt: 1 / 60,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+    system.frameUpdate?.({ time, world });
+
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(
+      "player.drone",
+      "Transform"
+    );
+    expect(transform?.position[0]).toBeGreaterThan(0);
+    expect(transform?.position[0]).toBeLessThan(1);
+  });
+
+  it("snaps when there are no un-acked inputs and drift exceeds the threshold", () => {
+    const world = buildWorld("alpha");
+    world.setComponent("player.alpha", "Transform", { position: [10, 0.4, 0] });
+
+    const system = createNetworkDroneSyncSystem({
+      playerId: "alpha",
+      snapThresholdUnits: 1.5,
+      reconcileRate: 1,
+      getUnackedInputCount: () => 0
+    });
+    const time: TimeContext = {
+      elapsed: 0,
+      dt: 1 / 60,
+      fixedDt: 1 / 60,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+    system.frameUpdate?.({ time, world });
+
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(
+      "player.drone",
+      "Transform"
+    );
+    expect(transform?.position).toEqual([10, 0.4, 0]);
+  });
+
   it("is a no-op when the local drone is absent", () => {
     const world = new World();
     world.addEntity("player.alpha");

@@ -32,6 +32,14 @@ export type NetworkDroneSyncOptions = {
    * which converges roughly halfway every ~60 ms.
    */
   reconcileRate?: number;
+  /**
+   * Returns the number of `intent.move` messages the client has sent that the
+   * server has not yet acknowledged. While this is > 0, the reconciliation
+   * stays in lerp-only mode and never snaps, so the local prediction is not
+   * yanked back by a stale snapshot. Optional — without it the system falls
+   * back to plain threshold + lerp.
+   */
+  getUnackedInputCount?: () => number;
 };
 
 /**
@@ -95,10 +103,11 @@ export function createNetworkDroneSyncSystem(options: NetworkDroneSyncOptions): 
 
         const driftXZ = Math.hypot(sx - lx, sz - lz);
 
+        const unacked = options.getUnackedInputCount?.() ?? 0;
         let nx: number;
         let ny: number;
         let nz: number;
-        if (driftXZ >= snapThreshold) {
+        if (driftXZ >= snapThreshold && unacked === 0) {
           nx = sx;
           ny = sy;
           nz = sz;

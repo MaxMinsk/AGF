@@ -10,6 +10,7 @@ type RepairableComponent = {
   decayIn?: number;
   originalMaterial?: string;
   originalColor?: string;
+  lastRepairedBy?: string;
 };
 
 type MeshRendererComponent = {
@@ -77,6 +78,7 @@ export function resetBeaconRound(world: World): number {
       delete reset.decayIn;
       delete reset.originalMaterial;
       delete reset.originalColor;
+      delete reset.lastRepairedBy;
       world.setComponent(beaconId, "Repairable", reset);
       mutations += 1;
     }
