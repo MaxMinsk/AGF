@@ -92,6 +92,78 @@ describe("PickupSystem", () => {
     expect(renderer?.material).toBeUndefined();
   });
 
+  it("swaps the beacon material when Repairable.repairedMaterial is set, then restores the original material on decay", () => {
+    const world = buildWorld();
+    world.setComponent("beacon", "Repairable", {
+      accepts: "energy-core",
+      repaired: false,
+      repairedMaterial: "runtime/materials/beacon-repaired.material.json",
+      decayAfter: 0.5
+    });
+
+    step(world); // pick up
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world); // deposit
+
+    const repaired = world.getComponent<{
+      mesh: string;
+      material?: string;
+      color?: string;
+    }>("beacon", "MeshRenderer");
+    expect(repaired?.material).toBe("runtime/materials/beacon-repaired.material.json");
+    expect(repaired?.color).toBeUndefined();
+    const repairState = world.getComponent<{ originalMaterial?: string }>("beacon", "Repairable");
+    expect(repairState?.originalMaterial).toBe("runtime/materials/beacon.material.json");
+
+    world.setComponent("drone", "Transform", { position: [20, 0, 20] });
+    step(world, 0.6);
+
+    const decayed = world.getComponent<{
+      mesh: string;
+      material?: string;
+      color?: string;
+    }>("beacon", "MeshRenderer");
+    expect(decayed?.material).toBe("runtime/materials/beacon.material.json");
+    expect(decayed?.color).toBeUndefined();
+  });
+
+  it("restores the inline color on decay when the beacon was repaired from a color-only renderer", () => {
+    const world = new World();
+    world.addEntity("drone");
+    world.setComponent("drone", "Transform", { position: [0, 0, 0] });
+    world.setComponent("drone", "Carrier", {});
+
+    world.addEntity("core");
+    world.setComponent("core", "Transform", { position: [0.5, 0, 0] });
+    world.setComponent("core", "Pickup", { kind: "energy-core" });
+    world.setComponent("core", "MeshRenderer", { mesh: "sphere", color: "#ffffff" });
+
+    world.addEntity("beacon");
+    world.setComponent("beacon", "Transform", { position: [3, 0, 0] });
+    world.setComponent("beacon", "Repairable", {
+      accepts: "energy-core",
+      repaired: false,
+      repairedMaterial: "runtime/materials/beacon-repaired.material.json",
+      decayAfter: 0.5
+    });
+    world.setComponent("beacon", "MeshRenderer", { mesh: "box", color: "#445566" });
+
+    step(world); // pick up
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world); // deposit
+
+    world.setComponent("drone", "Transform", { position: [20, 0, 20] });
+    step(world, 0.6);
+
+    const restored = world.getComponent<{
+      mesh: string;
+      material?: string;
+      color?: string;
+    }>("beacon", "MeshRenderer");
+    expect(restored?.color).toBe("#445566");
+    expect(restored?.material).toBeUndefined();
+  });
+
   it("does not deposit on a beacon whose accepts does not match the pickup kind", () => {
     const world = buildWorld();
     world.setComponent("beacon", "Repairable", {

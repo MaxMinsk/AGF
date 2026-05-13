@@ -83,7 +83,18 @@
         },
         "repairedColor": {
           "type": "string",
-          "pattern": "^#[0-9a-fA-F]{6}$"
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Legacy fallback colour used if repairedMaterial is omitted."
+        },
+        "repairedMaterial": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Material ref to swap to when the beacon is repaired. Decay restores the original material ref."
+        },
+        "originalColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Runtime field — colour stashed at repair time so decay can restore it when no original material was set."
         },
         "decayAfter": {
           "type": "number",

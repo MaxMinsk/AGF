@@ -2,6 +2,7 @@ import type { RuntimeHandle } from "../../../../engine/runtime/start";
 
 type HealthComponent = { current: number; max: number };
 type InvulnerableComponent = { until: number };
+type RepairableComponent = { accepts: string; repaired?: boolean };
 
 const REFRESH_MS = 100;
 
@@ -48,11 +49,23 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
   hpCells.style.cssText = "display:flex; gap:4px;";
   hpLine.append(hpLabel, hpCells);
 
+  const signalLine = document.createElement("div");
+  signalLine.style.cssText = "display:flex; align-items:center; gap:8px;";
+  const signalLabel = document.createElement("strong");
+  signalLabel.textContent = "SIG";
+  const signalValue = document.createElement("span");
+  signalValue.setAttribute("data-testid", "hud-world-signal");
+  signalValue.style.cssText = "font-variant-numeric: tabular-nums;";
+  const signalBar = document.createElement("span");
+  signalBar.setAttribute("data-testid", "hud-world-signal-bar");
+  signalBar.style.cssText = "display:flex; gap:4px;";
+  signalLine.append(signalLabel, signalValue, signalBar);
+
   const status = document.createElement("div");
   status.setAttribute("data-testid", "hud-status");
   status.style.cssText = "font-variant-numeric: tabular-nums; min-height: 14px;";
 
-  root.append(hpLine, status);
+  root.append(hpLine, signalLine, status);
   parent.append(root);
 
   let lastKey = "";
@@ -68,13 +81,27 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
     const now = snapshot.time.elapsed;
     const invulnerableActive = invulnerable !== undefined && invulnerable.until > now;
 
-    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}`;
+    let repairedCount = 0;
+    let repairableTotal = 0;
+    for (const entity of snapshot.entities) {
+      const repairable = entity.components["Repairable"] as RepairableComponent | undefined;
+      if (repairable === undefined) {
+        continue;
+      }
+      repairableTotal += 1;
+      if (repairable.repaired === true) {
+        repairedCount += 1;
+      }
+    }
+
+    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}`;
     if (key === lastKey) {
       return;
     }
     lastKey = key;
 
     renderCells(hpCells, health);
+    renderSignal(signalValue, signalBar, repairedCount, repairableTotal);
     status.textContent = invulnerableActive ? "INVULN" : "";
     status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
   };
@@ -88,6 +115,33 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
       root.remove();
     }
   };
+}
+
+function renderSignal(
+  valueEl: HTMLElement,
+  barEl: HTMLElement,
+  repaired: number,
+  total: number
+): void {
+  valueEl.textContent = total > 0 ? `${repaired}/${total}` : "—";
+  valueEl.style.color = repaired === total && total > 0
+    ? "rgba(74, 240, 168, 0.92)"
+    : "rgba(234, 244, 255, 0.92)";
+
+  barEl.replaceChildren();
+  for (let index = 0; index < total; index += 1) {
+    const cell = document.createElement("span");
+    const filled = index < repaired;
+    cell.style.cssText = [
+      "display: inline-block",
+      "width: 10px",
+      "height: 10px",
+      "border-radius: 2px",
+      `background: ${filled ? "rgba(74, 240, 168, 0.92)" : "rgba(255, 255, 255, 0.18)"}`,
+      `border: 1px solid ${filled ? "rgba(74, 240, 168, 1)" : "rgba(255, 255, 255, 0.32)"}`
+    ].join(";");
+    barEl.append(cell);
+  }
 }
 
 function renderCells(container: HTMLElement, health: HealthComponent | undefined): void {

@@ -59,6 +59,29 @@ describe("World", () => {
     expect(world.query(["Camera"])).toEqual([]);
   });
 
+  it("picks the smallest component store as the pivot for multi-component queries", () => {
+    const world = new World();
+    for (let index = 0; index < 100; index += 1) {
+      const id = `entity${index}`;
+      world.addEntity(id);
+      world.setComponent(id, "Transform", {});
+      if (index < 3) {
+        world.setComponent(id, "Hazard", {});
+      }
+    }
+
+    const matches = world.query(["Transform", "Hazard"]).sort();
+    expect(matches).toEqual(["entity0", "entity1", "entity2"]);
+  });
+
+  it("short-circuits when any requested component has no store", () => {
+    const world = new World();
+    world.addEntity("a");
+    world.setComponent("a", "Transform", {});
+
+    expect(world.query(["Transform", "Missing"])).toEqual([]);
+  });
+
   it("returns all entities for an empty query", () => {
     const world = new World();
     world.addEntity("a");

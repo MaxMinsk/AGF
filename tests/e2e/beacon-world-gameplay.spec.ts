@@ -66,8 +66,8 @@ test("drone picks up an energy core and repairs a beacon", async ({ page }, test
   expect(beaconRepair.repaired).toBe(true);
   expect(beaconRepair.originalMaterial).toBe("runtime/materials/beacon.material.json");
   const renderer = beacon!.components["MeshRenderer"] as { color?: string; material?: string };
-  expect(renderer.color).toBe("#4af0a8");
-  expect(renderer.material).toBeUndefined();
+  expect(renderer.material).toBe("runtime/materials/beacon-repaired.material.json");
+  expect(renderer.color).toBeUndefined();
 
   await testInfo.attach("post-repair-snapshot", {
     body: JSON.stringify(afterDeposit, null, 2),
