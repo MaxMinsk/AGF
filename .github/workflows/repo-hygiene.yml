@@ -43,7 +43,14 @@ jobs:
           node-version: "24"
           cache: "npm"
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: |
+          node --version
+          npm --version
+          # Skip postinstall scripts and run them separately so a hanging
+          # postinstall surfaces in the logs instead of hiding behind
+          # "Exit handler never called!".
+          npm ci --no-audit --no-fund --ignore-scripts
+          npm rebuild
       - name: engine:check examples
         run: npm run engine:check:examples
       - name: typecheck
@@ -61,7 +68,14 @@ jobs:
           node-version: "24"
           cache: "npm"
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: |
+          node --version
+          npm --version
+          # Skip postinstall scripts and run them separately so a hanging
+          # postinstall surfaces in the logs instead of hiding behind
+          # "Exit handler never called!".
+          npm ci --no-audit --no-fund --ignore-scripts
+          npm rebuild
       - name: Build
         run: npm run build
       - name: Bundle size check
