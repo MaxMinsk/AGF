@@ -50,7 +50,7 @@
           "scale": [1, 1, 1]
         },
         "MeshRenderer": {
-          "mesh": "box",
+          "mesh": "runtime/models/cube.glb",
           "material": "runtime/materials/cube-hero.material.json",
           "color": "#f7c948"
         },

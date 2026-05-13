@@ -19,6 +19,7 @@ import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
 import type { AssetRegistry } from "../runtime/asset-registry";
 import type { MaterialManifest } from "../runtime/asset-loaders/material-loader";
+import type { GlbAsset } from "./glb-loader";
 
 type Vec3 = ReadonlyArray<number>;
 
@@ -51,6 +52,7 @@ export class ThreeRenderer {
   private readonly scene: Scene;
   private readonly meshes = new Map<EntityId, Mesh>();
   private readonly appliedMaterials = new Map<EntityId, string>();
+  private readonly appliedGeometries = new Map<EntityId, string>();
   private readonly assetRegistry: AssetRegistry | undefined;
   private camera: PerspectiveCamera | undefined;
   private cameraEntityId: EntityId | undefined;
@@ -156,6 +158,7 @@ export class ThreeRenderer {
         disposeMaterial(mesh.material);
         this.meshes.delete(id);
         this.appliedMaterials.delete(id);
+        this.appliedGeometries.delete(id);
       }
     }
 
@@ -167,7 +170,9 @@ export class ThreeRenderer {
 
       let mesh = this.meshes.get(id);
       if (mesh === undefined) {
-        const geometry = createPrimitiveGeometry(meshComponent.mesh);
+        const geometry = isExternalMeshRef(meshComponent.mesh)
+          ? createPlaceholderGeometry()
+          : createPrimitiveGeometry(meshComponent.mesh);
         if (geometry === undefined) {
           continue;
         }
@@ -181,6 +186,12 @@ export class ThreeRenderer {
         mesh.material.color.set(meshComponent.color ?? DEFAULT_COLOR);
       }
 
+      if (isExternalMeshRef(meshComponent.mesh)) {
+        this.maybeLoadGeometry(id, mesh, meshComponent.mesh);
+      } else if (this.appliedGeometries.has(id)) {
+        this.appliedGeometries.delete(id);
+      }
+
       if (meshComponent.material !== undefined) {
         this.maybeApplyMaterial(id, mesh, meshComponent.material);
       } else if (this.appliedMaterials.has(id)) {
@@ -189,6 +200,37 @@ export class ThreeRenderer {
 
       applyTransform(mesh, this.world.getComponent<TransformComponent>(id, "Transform"));
     }
+  }
+
+  private maybeLoadGeometry(entityId: EntityId, mesh: Mesh, meshRef: string): void {
+    if (this.assetRegistry === undefined) {
+      return;
+    }
+    if (this.appliedGeometries.get(entityId) === meshRef) {
+      return;
+    }
+    this.appliedGeometries.set(entityId, meshRef);
+
+    this.assetRegistry.get<GlbAsset>(meshRef).then(
+      (asset) => {
+        if (this.appliedGeometries.get(entityId) !== meshRef) {
+          return;
+        }
+        const sourceMesh = findFirstMesh(asset.scene);
+        if (sourceMesh === undefined) {
+          console.warn(`[agf] glb "${meshRef}" contains no Mesh; skipping.`);
+          return;
+        }
+        mesh.geometry.dispose();
+        mesh.geometry = sourceMesh.geometry.clone();
+      },
+      (error: unknown) => {
+        console.error(`[agf] mesh load failed for "${entityId}" → "${meshRef}":`, error);
+        if (this.appliedGeometries.get(entityId) === meshRef) {
+          this.appliedGeometries.delete(entityId);
+        }
+      }
+    );
   }
 
   private maybeApplyMaterial(entityId: EntityId, mesh: Mesh, materialRef: string): void {
@@ -274,6 +316,26 @@ function createPrimitiveGeometry(name: string): BufferGeometry | undefined {
     default:
       return undefined;
   }
+}
+
+function createPlaceholderGeometry(): BufferGeometry {
+  // Near-zero box keeps the mesh in the scene graph without flashing a visible
+  // placeholder while the real geometry loads asynchronously.
+  return new BoxGeometry(0.0001, 0.0001, 0.0001);
+}
+
+function isExternalMeshRef(ref: string): boolean {
+  return ref.endsWith(".glb") || ref.endsWith(".gltf");
+}
+
+function findFirstMesh(root: Object3D): Mesh | undefined {
+  let found: Mesh | undefined;
+  root.traverse((object) => {
+    if (found === undefined && (object as Mesh).isMesh === true) {
+      found = object as Mesh;
+    }
+  });
+  return found;
 }
 
 function disposeMaterial(material: Material | Material[]): void {
