@@ -1,3 +1,5 @@
+import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { checkProject, formatDiagnostics } from "./check/project-check";
 import {
   formatInspection,
@@ -18,6 +20,7 @@ type ParsedArgs = {
   components: string[];
   entityIds: string[];
   diffPaths: [string, string] | undefined;
+  savePath: string | undefined;
   positional: string[];
 };
 
@@ -25,13 +28,7 @@ const parsedArgs = parseArgs(process.argv.slice(2));
 
 if (parsedArgs.command === "check") {
   const result = checkProject(parsedArgs.projectDir);
-
-  if (parsedArgs.json) {
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    console.log(formatDiagnostics(result));
-  }
-
+  emitResult(result, parsedArgs, () => formatDiagnostics(result));
   process.exitCode = result.ok ? 0 : 1;
 } else if (parsedArgs.command === "inspect") {
   if (parsedArgs.diffPaths !== undefined) {
@@ -46,11 +43,7 @@ if (parsedArgs.command === "check") {
       changeCount: changes.length,
       changes
     };
-    if (parsedArgs.json) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      console.log(formatDiff(result));
-    }
+    emitResult(result, parsedArgs, () => formatDiff(result));
     process.exitCode = 0;
   } else {
     const options: InspectOptions = {};
@@ -61,18 +54,27 @@ if (parsedArgs.command === "check") {
       options.entityIds = parsedArgs.entityIds;
     }
     const result = inspectProject(parsedArgs.projectDir, options);
-
-    if (parsedArgs.json) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      console.log(formatInspection(result));
-    }
-
+    emitResult(result, parsedArgs, () => formatInspection(result));
     process.exitCode = result.ok ? 0 : 1;
   }
 } else {
   printUsage();
   process.exitCode = 2;
+}
+
+function emitResult(payload: unknown, args: ParsedArgs, formatHuman: () => string): void {
+  if (args.savePath !== undefined) {
+    const absolute = resolve(args.savePath);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, JSON.stringify(payload, null, 2));
+    console.error(`Saved snapshot to ${absolute}`);
+    return;
+  }
+  if (args.json) {
+    console.log(JSON.stringify(payload, null, 2));
+  } else {
+    console.log(formatHuman());
+  }
 }
 
 function parseArgs(args: string[]): ParsedArgs {
@@ -83,6 +85,7 @@ function parseArgs(args: string[]): ParsedArgs {
     components: [],
     entityIds: [],
     diffPaths: undefined,
+    savePath: undefined,
     positional: []
   };
 
@@ -129,6 +132,13 @@ function parseArgs(args: string[]): ParsedArgs {
       }
       continue;
     }
+    if (current === "--save") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.savePath = value;
+      }
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -147,9 +157,9 @@ function printUsage(): void {
   console.error(
     [
       "Usage:",
-      "  engine check <projectDir> [--json]",
-      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--json]",
-      "  engine inspect --diff <previous.json> <next.json> [--json]"
+      "  engine check <projectDir> [--json] [--save <path>]",
+      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--json] [--save <path>]",
+      "  engine inspect --diff <previous.json> <next.json> [--json] [--save <path>]"
     ].join("\n")
   );
 }

@@ -16,6 +16,10 @@ declare global {
     __agf?: {
       snapshot(): WorldSnapshot;
       applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+      /** Last asset ref the dev-time HMR pipeline reloaded into the running scene. Undefined until the first reload. */
+      lastReloadedAsset?: string;
+      /** Monotonic counter that increments every time `lastReloadedAsset` is updated. Useful for tests that need to wait for "another" reload. */
+      reloadCount: number;
     };
   }
 }
@@ -63,7 +67,8 @@ let app: AppHandle = createApp(root, selected.project, currentScene, selected.id
 if (import.meta.env.DEV) {
   window.__agf = {
     snapshot: () => app.snapshot(),
-    applyCommands: (commands) => app.applyCommands(commands)
+    applyCommands: (commands) => app.applyCommands(commands),
+    reloadCount: 0
   };
 }
 
@@ -114,6 +119,10 @@ if (import.meta.hot) {
       return;
     }
     app.reloadAsset(ref);
+    if (window.__agf !== undefined) {
+      window.__agf.lastReloadedAsset = ref;
+      window.__agf.reloadCount += 1;
+    }
     console.info(`[agf] hot-reloaded asset ${ref}`);
   });
 }

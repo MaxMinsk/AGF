@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 11 - TBD
+## Current Sprint: Sprint 12 - TBD
 
-Sprint 11 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies.
+Sprint 12 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies.
 
 ### Candidates
 
@@ -37,17 +37,14 @@ Sprint 11 focus is picked at sprint start. Candidate pool below. Agent-first pri
 - `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror.
 
-#### Agent loop polish
-
-- `9.6` `engine inspect --save <path>` shortcut so diff workflow doesn't require shell redirection.
-- `9.7` Playtest scenario hot reload — edits to `.playtest.json` rerun the affected test on save.
-- `9.8` Deep-equal `match` in `expectComponent` for nested keys.
-- `9.9` Structured HMR signal on `window.__agf` (e.g. `lastReloadedAsset`) so tests don't depend on a console-string contract.
-
 #### Asset polish
 
 - `14.4` Real authored `.glb` for the hazard pulse — replace the inline-coloured sphere with a procedurally generated mesh; same script pattern as 14.3.
 
+#### Agent docs
+
+- `D.1` Document `playtest:watch`, `--save`, structured `window.__agf` signal in `docs/agent/` so the new agent-loop polish is discoverable.
+
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 11 reaches close.
+Will be detailed when Sprint 12 reaches close.

@@ -12,14 +12,22 @@ test("editing drone.glb fires the asset HMR path", async ({ page }) => {
   await page.waitForFunction(() => Boolean(window.__agf));
 
   const expectedRef = "runtime/models/drone.glb";
-  const hmrConsoleEvent = page.waitForEvent("console", {
-    predicate: (message) => message.text().includes(`hot-reloaded asset ${expectedRef}`),
-    timeout: 10_000
-  });
+  const initialReloadCount = (await page.evaluate(() => window.__agf!.reloadCount)) as number;
 
   const original = readFileSync(droneGlbPath);
   writeFileSync(droneGlbPath, original);
 
-  const message = await hmrConsoleEvent;
-  expect(message.text()).toContain(expectedRef);
+  await page.waitForFunction(
+    (baseline) => (window.__agf?.reloadCount ?? 0) > baseline,
+    initialReloadCount,
+    { timeout: 10_000 }
+  );
+
+  const reloaded = (await page.evaluate(() => ({
+    ref: window.__agf!.lastReloadedAsset,
+    count: window.__agf!.reloadCount
+  }))) as { ref: string | undefined; count: number };
+
+  expect(reloaded.ref).toBe(expectedRef);
+  expect(reloaded.count).toBe(initialReloadCount + 1);
 });
