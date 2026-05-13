@@ -10,6 +10,7 @@ import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
+import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
 
 export type FixedUpdateFn = (time: TimeContext, world: World) => void;
 
@@ -43,6 +44,14 @@ export type RuntimeHandle = {
   snapshot(): WorldSnapshot;
   /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
   invalidateAsset(ref: string): void;
+  /**
+   * Start capturing every applied command (and the current scene) so the
+   * resulting `.replay.json` can drive a headless `engine replay` run.
+   * Returns the active recorder so the caller can flush it at any time.
+   */
+  startRecording(projectId?: string): RecorderHandle;
+  /** Finalise the active recording with a final snapshot. */
+  stopRecording(): Recording | undefined;
   stop(): void;
 };
 
@@ -160,6 +169,8 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
   applyCanvasSize();
   frameRequestId = window.requestAnimationFrame(tick);
 
+  let recorder: RecorderHandle | undefined;
+
   return {
     world,
     renderer,
@@ -173,9 +184,27 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
       for (const command of commands) {
         applyCommand(world, command);
       }
+      recorder?.captureMany(commands);
     },
     snapshot(): WorldSnapshot {
       return snapshotWorld(world, time);
+    },
+    startRecording(projectId?: string): RecorderHandle {
+      const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };
+      if (projectId !== undefined) {
+        recorderOptions.projectId = projectId;
+      }
+      recorder = createRecorder(recorderOptions);
+      return recorder;
+    },
+    stopRecording(): Recording | undefined {
+      if (recorder === undefined) {
+        return undefined;
+      }
+      recorder.setFinalSnapshot(snapshotWorld(world, time));
+      const out = recorder.toRecording();
+      recorder = undefined;
+      return out;
     },
     stop(): void {
       stopped = true;
