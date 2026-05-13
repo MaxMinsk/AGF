@@ -84,6 +84,35 @@ describe("SystemScheduler", () => {
     expect(scheduler.systemNames()).toEqual(["only"]);
   });
 
+  it("runs frame-update hooks in registration order", () => {
+    const scheduler = new SystemScheduler();
+    const log: string[] = [];
+
+    scheduler.register({
+      name: "input",
+      frameUpdate(): void {
+        log.push("input");
+      }
+    });
+    scheduler.register({
+      name: "spin",
+      fixedUpdate(): void {
+        log.push("spin-fixed");
+      }
+    });
+    scheduler.register({
+      name: "camera",
+      frameUpdate(): void {
+        log.push("camera");
+      }
+    });
+
+    scheduler.runFixedStep(makeContext());
+    scheduler.runFrame(makeContext());
+
+    expect(log).toEqual(["spin-fixed", "input", "camera"]);
+  });
+
   it("passes a consistent context to each system", () => {
     const scheduler = new SystemScheduler();
     const seen: SystemContext[] = [];

@@ -126,6 +126,10 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
     time.dt = frameDt;
     time.frameCount += 1;
 
+    if (scheduler !== undefined) {
+      scheduler.runFrame({ time, world });
+    }
+
     renderer.render();
 
     framesInWindow += 1;
