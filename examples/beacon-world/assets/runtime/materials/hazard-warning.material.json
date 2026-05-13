@@ -1,0 +1,8 @@
+{
+  "id": "hazard-warning",
+  "shader": "standard",
+  "color": "#ff5544",
+  "roughness": 0.55,
+  "metalness": 0.1,
+  "emissive": "#5a0a08"
+}

@@ -65,6 +65,19 @@
       }
     },
     {
+      "id": "beacon-world.hazard-materials",
+      "kind": "procedural",
+      "runtimeFiles": [
+        "runtime/materials/hazard-warning.material.json",
+        "runtime/materials/hazard-amber.material.json"
+      ],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Hand-tuned hazard materials: warning = red emissive (west route), amber = warm-amber emissive (east route). Replaces the inline MeshRenderer.color so HMR can live-tweak hazard appearance."
+      }
+    },
+    {
       "id": "beacon-world.beacon-repaired-palette",
       "kind": "procedural",
       "runtimeFiles": [

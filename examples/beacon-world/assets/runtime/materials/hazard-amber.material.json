@@ -1,0 +1,8 @@
+{
+  "id": "hazard-amber",
+  "shader": "standard",
+  "color": "#ffb74a",
+  "roughness": 0.55,
+  "metalness": 0.1,
+  "emissive": "#5a3008"
+}

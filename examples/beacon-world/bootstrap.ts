@@ -7,6 +7,7 @@ import { createNetworkDroneSyncSystem } from "./src/systems/network-drone-sync-s
 import { createRemotePresenceDecoratorSystem } from "./src/systems/remote-presence-decorator-system";
 import { createRemotePresenceInterpolatorSystem } from "./src/systems/remote-presence-interpolator-system";
 import { resetBeaconRound } from "./src/round-reset";
+import { pickDroneMaterialFor } from "./src/drone-palette";
 import { createHealthHud, type HealthHudHandle } from "./src/ui/health-hud";
 import type {
   ProjectBootstrap,
@@ -96,7 +97,10 @@ export const beaconWorldBootstrap: ProjectBootstrap = {
     );
   },
 
-  attachUi({ shell, runtime }: ProjectUiContext): ProjectUiHandle {
+  attachUi({ shell, runtime, playerId, networked }: ProjectUiContext): ProjectUiHandle {
+    if (networked) {
+      tintLocalDrone(runtime, playerId);
+    }
     const healthHud: HealthHudHandle = createHealthHud(shell, runtime);
     const keyboardHandler = (event: KeyboardEvent): void => {
       if (event.code !== "KeyR" || event.repeat) {
@@ -142,3 +146,24 @@ export const beaconWorldBootstrap: ProjectBootstrap = {
     </details>`;
   }
 };
+
+type MeshRendererComponent = { mesh: string; material?: string; color?: string };
+
+function tintLocalDrone(runtime: RuntimeHandle, playerId: string): void {
+  const droneId = "player.drone";
+  if (!runtime.world.hasEntity(droneId)) {
+    return;
+  }
+  const renderer = runtime.world.getComponent<MeshRendererComponent>(droneId, "MeshRenderer");
+  if (renderer === undefined) {
+    return;
+  }
+  const material = pickDroneMaterialFor(playerId);
+  if (material === undefined || renderer.material === material) {
+    return;
+  }
+  runtime.world.setComponent(droneId, "MeshRenderer", {
+    ...renderer,
+    material
+  });
+}

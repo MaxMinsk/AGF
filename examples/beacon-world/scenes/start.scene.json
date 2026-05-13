@@ -215,7 +215,7 @@
         },
         "MeshRenderer": {
           "mesh": "runtime/models/hazard.glb",
-          "color": "#ff5544"
+          "material": "runtime/materials/hazard-warning.material.json"
         },
         "Hazard": {
           "minRadius": 0.7,
@@ -242,7 +242,7 @@
         },
         "MeshRenderer": {
           "mesh": "runtime/models/hazard.glb",
-          "color": "#ffb74a"
+          "material": "runtime/materials/hazard-amber.material.json"
         },
         "Hazard": {
           "minRadius": 0.6,

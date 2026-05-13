@@ -178,7 +178,14 @@ function emitResult(payload: unknown, args: ParsedArgs, formatHuman: () => strin
     return;
   }
   if (args.json) {
-    console.log(JSON.stringify(payload, null, 2));
+    // Under --watch + --json, emit a single line per refresh so consumers can
+    // parse the stream with line-delimited JSON parsers (NDJSON / JSON Lines).
+    // Without --watch, keep the pretty-printed shape that one-shot callers
+    // already rely on.
+    const serialised = args.watch
+      ? JSON.stringify(payload)
+      : JSON.stringify(payload, null, 2);
+    console.log(serialised);
   } else {
     console.log(formatHuman());
   }
