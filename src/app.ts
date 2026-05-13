@@ -14,6 +14,7 @@ import { createHazardSystem as createBeaconHazardSystem } from "../examples/beac
 import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
 import { createRoundSystem as createBeaconRoundSystem } from "../examples/beacon-world/src/systems/round-system";
 import { createNetworkDroneSyncSystem as createBeaconNetworkDroneSyncSystem } from "../examples/beacon-world/src/systems/network-drone-sync-system";
+import { createRemotePresenceDecoratorSystem as createBeaconRemotePresenceDecoratorSystem } from "../examples/beacon-world/src/systems/remote-presence-decorator-system";
 import { resetBeaconRound } from "../examples/beacon-world/src/round-reset";
 import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
@@ -134,6 +135,14 @@ export function createApp(
       scheduler.register(createBeaconNetworkDroneSyncSystem({ playerId }), {
         profiles: ["connected"]
       });
+      scheduler.register(
+        createBeaconRemotePresenceDecoratorSystem({
+          localPlayerId: playerId,
+          mesh: "runtime/models/drone.glb",
+          material: "runtime/materials/drone.material.json"
+        }),
+        { profiles: ["connected"] }
+      );
     }
   }
 

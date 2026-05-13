@@ -30,8 +30,9 @@ Sprint 20 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 #### Backend follow-ups
 
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
-- `10.13` Remote-player visibility — project-local decorator that attaches a default `MeshRenderer` (and small colour palette per id) to server-owned `player.<id>` entities, so two browser clients can actually see each other.
+- `10.13.5` Snapshot interpolation buffer — store last N (~3) inbound `world.snapshot` entries per server-owned entity with timestamps; a project-local interpolation system reads the buffer and writes Transform.position at `now - renderDelayMs` (e.g. 100 ms) by lerping between the two nearest samples. Falls back to last-known velocity extrapolation if the buffer is empty. Pairs with `10.10` so remote players stay smooth even when packets jitter on unstable networks.
 - `10.14` Server-authoritative carry — extend the protocol with `intent.pickup` / `intent.drop` so a future story can sync pickups across clients.
+- `10.15` Server-acked input sequences — client tags each `intent.move` with a per-connection sequence number; server echoes the last applied sequence in its snapshot; the sync system uses this to do precise reconciliation (replay un-acked inputs) instead of the current threshold/lerp blend.
 
 #### Beacon World gameplay
 

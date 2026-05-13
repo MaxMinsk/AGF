@@ -848,16 +848,27 @@ Status: Completed and archived.
 
 ### Completed Work
 
-- `10.10` Authority hand-off for the Beacon drone — new project-local `examples/beacon-world/src/systems/network-drone-sync-system.ts`. The system queries `["Presence", "Networked", "Transform"]` and, when it finds an entity `player.<options.playerId>` with `Networked.authority === "server"`, mirrors its `Transform.position` onto the local `player.drone`. `rotation` and `scale` on the local drone are preserved so existing pickup / hazard / health systems keep operating on the familiar entity. `beacon-world/project.json` declares both `"static"` and `"connected"` profiles. `src/app.ts` auto-selects `"connected"` when `?networked=1&server=...` is on and registers the sync system there. `playerId` is hoisted once at app boot so the network adapter and the sync system always agree. Four new unit tests cover the mirror, wrong-player-id, client-authority and missing-local-drone paths. The existing multi-client e2e gained an extra assertion that alpha's `player.drone.Transform.position[0]` moves while bravo's stays at zero — proving authority hand-off across the wire.
+- `10.10` Authority hand-off + client prediction + reconciliation — project-local `network-drone-sync-system.ts` reconciles the local `player.drone` with the server-owned `player.<options.playerId>`. `beacon-world/project.json` declares `"static"` and `"connected"` profiles; `src/app.ts` auto-selects `"connected"` when `?networked=1&server=...` is on, hoists `playerId` once so the adapter and sync system agree.
+  - Client-side prediction: `PlayerInputSystem` in networked mode now also moves the local drone immediately on input (in addition to emitting `intent.move`), so the player sees instant motion.
+  - Server reconciliation: the sync system measures XZ drift between the local drone and the server snapshot. When drift exceeds `snapThresholdUnits` (default 1.5 — set by teleports / respawns), it snaps. Below the threshold it exponentially lerps at `reconcileRate` (default 12 / s) so prediction errors melt away smoothly.
+  - Server constants updated: tick defaults to 30 Hz (down from 60 — clients no longer need raw frame rate because of prediction) and `PLAYER_SPEED` lifted to 3.5 to match `PlayerControlled.speed`, so prediction stays in lockstep with the authoritative integration.
+  - Input release: `PlayerInputSystem` now emits a final `[0, 0]` intent the frame the keys are released, so the server stops driving the player when the client lets go.
+  - Four unit tests cover the mirror, wrong-id, client-authority and missing-local-drone paths; two new `PlayerInputSystem` cases prove the `[0, 0]` release intent and the deduped emission. The multi-client e2e gained an extra assertion that alpha's `player.drone.Transform.position[0]` moves while bravo's stays at zero — proving authority hand-off across the wire.
 - `10.12` Resync on snapshot gap — `WsNetworkAdapter` now compares each inbound `world.snapshot.sequence` against the previous one. When the sequence number jumps (server restart, dropped frames, out-of-order delivery) it logs `snapshot gap: expected N, got M; resyncing`, flushes every server-owned entity via `entity.delete` and lets the next snapshot re-create them. A new `snapshotGapCount()` field on the handle exposes the counter. `lastSequence` is also reset on the close path so a reconnect always starts fresh. New unit test drives the path with a fake `WebSocket` and proves: out-of-sequence snapshot drops the orphaned `player.echo`; the next in-sequence snapshot restores it.
 - `13.16` HUD restart affordance — `health-hud.ts` now splits the `ROUND COMPLETE` line into a title + dimmer `Press R to restart` hint. Each line carries its own `data-testid` (`hud-round-complete`, `hud-round-restart-hint`) so e2e can assert on them independently. Active only when `RoundState.phase === "complete"`.
 - `E.9` `engine inspect --tail N` for plain inspect — new `tailInspectResult(result, tail)` truncates `scene.entities` to the last N while preserving `matchedEntityCount`. `formatInspection` annotates the human output: `Showing last N of M (K hidden by --tail).`. `cli.ts` threads `--tail` through both the diff path (already supported) and the plain inspect path. Four new tests cover undefined / N / 0 / format-string.
 - `13.X` Multiplayer discoverability hint — when the project is Beacon World and the user is not currently networked, the status panel renders a collapsible `Play multiplayer` block with the `backend:node:serve` command and two pre-built links (`Open as alpha` / `Open as bravo`). When already networked, the panel shows the connected URL + player id so two-tab setups are self-explanatory without reading docs.
+- `10.13` Remote-player visibility — new project-local `remote-presence-decorator-system.ts` watches `Presence + Networked` entities and, for everything that is server-authority and NOT the local player, attaches a `MeshRenderer` (drone.glb + drone.material with a per-player palette color via stable hash) and a `Transform.scale` of `[0.7, 0.7, 0.7]` when missing. Idempotent: only writes when fields are absent, so the renderer's GLB cache is not invalidated each frame. Five unit tests cover the decorate, skip-local, no-overwrite, ignore-client-authority and stable-color paths.
 
 ### Deliverables
 
-- `examples/beacon-world/src/systems/network-drone-sync-system.ts`
+- `examples/beacon-world/src/systems/network-drone-sync-system.ts` (snap threshold + lerp reconciliation)
+- `examples/beacon-world/src/systems/remote-presence-decorator-system.ts`
 - `examples/beacon-world/tests/unit/network-drone-sync-system.test.ts`
+- `examples/beacon-world/tests/unit/remote-presence-decorator-system.test.ts`
+- `engine/runtime/player-input-system.ts` (local prediction in networked mode, `[0, 0]` release intent, dedupe)
+- `examples/backends/node-world-server/src/world.ts` (`PLAYER_SPEED = 3.5`)
+- `examples/backends/node-world-server/src/transport-ws.ts` (default `tickHz = 30`)
 - `examples/beacon-world/project.json` (`profiles: ["static", "connected"]`)
 - `examples/beacon-world/src/ui/health-hud.ts` (`hud-round-complete` + `hud-round-restart-hint`)
 - `engine/runtime/network/ws-network-adapter.ts` (gap detection, `snapshotGapCount`)
@@ -883,7 +894,7 @@ The sprint goal — make the networked profile actually drive the local visible 
 
 ### Follow-Ups
 
-- Remote-player visibility: server-owned `player.<other>` entities still arrive without a `MeshRenderer`, so other players are invisible in the world even when authority hand-off works for the local drone. A future story can add a project-local "remote presence" decorator that attaches a default mesh + colour.
+- Remote players are visible but their `Transform.position` is overwritten every server tick with no smoothing — at 30 Hz that's perceivable as a 30 ms cadence jitter on unstable networks. Sprint 20 candidate `10.13.5` will add an interpolation buffer (render past server time, store last N snapshots with timestamps) for production-grade smoothness.
 - `10.5` C#/.NET reference skeleton still pending.
 - `13.12` Sound pings still pending.
 

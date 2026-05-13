@@ -86,7 +86,7 @@ describe("PlayerInputSystem", () => {
     expect(x).toBeCloseTo(1.0, 5);
   });
 
-  it("with onIntent set, forwards the normalised direction and leaves Transform untouched", () => {
+  it("with onIntent set, forwards the normalised direction AND applies local prediction so the player feels instant", () => {
     const world = makeWorld(5);
     const intents: Array<readonly [number, number]> = [];
     const pressed = new Set<string>(["KeyD", "KeyW"]);
@@ -108,7 +108,9 @@ describe("PlayerInputSystem", () => {
     const [nx, nz] = intents[0]!;
     expect(nx).toBeCloseTo(1 / Math.SQRT2, 5);
     expect(nz).toBeCloseTo(-1 / Math.SQRT2, 5);
-    expect(transformPosition(world)).toEqual([0, 0, 0]);
+    const [x, , z] = transformPosition(world);
+    expect(x).toBeCloseTo(5 / Math.SQRT2, 5);
+    expect(z).toBeCloseTo(-5 / Math.SQRT2, 5);
   });
 
   it("with onIntent set, fires nothing when no movement keys are pressed", () => {
@@ -128,5 +130,34 @@ describe("PlayerInputSystem", () => {
     system.dispose();
 
     expect(intents).toEqual([]);
+  });
+
+  it("with onIntent set, emits a [0,0] intent the frame the keys are released so the server can stop", () => {
+    const intents: Array<readonly [number, number]> = [];
+    const pressed = new Set<string>(["KeyD"]);
+    const world = makeWorld();
+    const system = createPlayerInputSystem({
+      pressedKeys: pressed,
+      onIntent: (direction) => intents.push([direction[0], direction[1]])
+    });
+    const time: TimeContext = {
+      elapsed: 0,
+      dt: 1 / 60,
+      fixedDt: 1 / 60,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+
+    system.frameUpdate?.({ time, world });
+    system.frameUpdate?.({ time, world });
+    pressed.delete("KeyD");
+    system.frameUpdate?.({ time, world });
+    system.frameUpdate?.({ time, world });
+    system.dispose();
+
+    expect(intents).toEqual([
+      [1, 0],
+      [0, 0]
+    ]);
   });
 });

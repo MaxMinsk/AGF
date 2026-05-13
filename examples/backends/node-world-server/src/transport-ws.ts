@@ -26,7 +26,10 @@ export type TransportOptions = {
   log?: (line: string) => void;
   /**
    * Snapshot tick rate in Hz. Server ticks {@link tickHz} times per second and
-   * broadcasts the resulting snapshot to every connected client.
+   * broadcasts the resulting snapshot to every connected client. Defaults to
+   * 30 — the client uses input prediction so it does not need a full 60 Hz
+   * stream just to feel responsive; remote players are smoothed against the
+   * incoming snapshots.
    */
   tickHz?: number;
   /**
@@ -43,7 +46,7 @@ export type TransportHandle = {
 
 export async function startWsTransport(options: TransportOptions): Promise<TransportHandle> {
   const log = options.log ?? ((line: string) => console.log(line));
-  const tickHz = options.tickHz ?? 20;
+  const tickHz = options.tickHz ?? 30;
   const tickIntervalMs = 1000 / tickHz;
   const dt = 1 / tickHz;
   const playerTimeoutSeconds = options.playerTimeoutSeconds ?? 30;
