@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 13 - TBD
+## Current Sprint: Sprint 14 - TBD
 
-Sprint 13 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies.
+Sprint 14 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -31,19 +31,18 @@ Sprint 13 focus is picked at sprint start. Candidate pool below. Agent-first pri
 
 - `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror.
+- `10.6` Client network adapter — connect the browser runtime to the Node skeleton over WebSocket, applying inbound `world.snapshot` through `applyCommands`.
+
+#### Beacon World gameplay
+
+- `13.11` World signal / score state — repaired beacons contribute to a running `WorldSignal` value; HUD displays it next to Health.
+- `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
 
 #### Asset polish
 
-- `14.4` Real authored `.glb` for the hazard pulse — replace the inline-coloured sphere with a procedurally generated mesh; same script pattern as 14.3.
+- `14.5` Authored `.glb` for energy cores — replace the primitive sphere with a faceted procedural shape; same script pattern.
+- `14.6` Procedural material variants — generate a small family of material manifests with shared schema (e.g. `beacon-repaired.material.json`) so beacon repair can swap materials cleanly instead of dropping the ref.
 
-#### Agent docs
+#### Engine polish
 
-- `D.1` Document `playtest:watch`, `--save`, structured `window.__agf` signal in `docs/agent/` so the recent agent-loop polish is discoverable.
-
-#### Beacon World gameplay continuation
-
-- `13.10` UI overlay for `Health` — minimal HUD that reads `Health` and `Invulnerable` from `window.__agf.snapshot()` and renders a small indicator. Still agent-first (the data is the source of truth); the overlay just makes the demo readable for a human glance.
-
-## Next Sprint: TBD
-
-Will be detailed when Sprint 13 reaches close.
+- `E.1` Tighter component query helpers — replace ad-hoc `world.query(["A", "B"])` patterns with a tiny cached query so scenes with more entities don't pay a full scan per system per frame.
