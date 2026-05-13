@@ -21,22 +21,22 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 3 - TBD
+## Current Sprint: Sprint 4 - TBD
 
-Sprint 3 focus will be picked at the start of the sprint from the candidate list below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
+Sprint 4 focus will be picked at the start of the sprint from the candidate list below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
 
 ### Candidates
 
-- `13.1` Beacon World project scaffold — new nested project under `examples/beacon-world/`, minimal `project.json` + scene, sample-game direction in `SAMPLE_GAME_IDEAS.md` as reference.
-- `13.2` Beacon World first scene — primitive avatar + two beacons, uses the existing renderer / scheduler / asset registry without engine changes.
-- `14.1` Minimal `.glb` for `hello-3d` — closes the Story 8.4 follow-up so the GLB loader path has an end-to-end smoke test.
-- `14.2` Production asset serving — fix the `dist/` build so material/glb references resolve in `npm run build`, not just `npm run dev`.
-- `15.1` In-page inspector overlay — toggle hotkey (not F12, not F2 if that conflicts with the browser), tree of entities + components, read-only first.
-- `16.1` Material file hot reload — make `*.material.json` edits flow through the asset registry and rebind on the renderer side without a page reload.
-- `17.1` Scene editor command palette — drop-in DOM panel that runs the existing `applyCommands` API with autocomplete on entity ids and component names.
+- `14.2` Production asset serving — fix `dist/` build so material/glb references resolve in `npm run build`, not just `npm run dev`.
+- `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
+- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry and rebind on the renderer side without a page reload.
+- `17.1` Scene editor command palette — DOM panel that runs the existing `applyCommands` API with autocomplete on entity ids and component names.
+- `18.1` Project switcher — pick the loaded project via URL query (`?project=beacon-world`) so Beacon World can be previewed without swapping imports.
+- `13.3` Beacon World gameplay v0 — pickup component + first interaction system, beacon repair toggle, a small handful of new commands.
+- `14.3` Real `.glb` for Beacon World drone/beacon — replace the primitive sphere/box with an authored model once an art pipeline appears.
 
 Epic 10 (Backend contracts) is deferred to ~Sprint 5 by stakeholder decision.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 3 reaches close.
+Will be detailed when Sprint 4 reaches close.

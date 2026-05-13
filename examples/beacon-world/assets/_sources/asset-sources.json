@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "beacon-world.procedural-primitives",
+      "kind": "procedural",
+      "runtimeFiles": [],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Drone, beacons and ground use renderer-provided primitive meshes."
+      }
+    },
+    {
+      "id": "beacon-world.beacon-material",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/materials/beacon.material.json"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Hand-tuned beacon material: warm emissive glow."
+      }
+    },
+    {
+      "id": "beacon-world.drone-material",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/materials/drone.material.json"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Salvage drone material: brushed metal with a cool ambient sheen."
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "beacon-world",
+  "name": "Beacon World",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0a1118"
+  },
+  "profiles": ["static"]
+}

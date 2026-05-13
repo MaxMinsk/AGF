@@ -1,0 +1,8 @@
+{
+  "id": "beacon",
+  "shader": "standard",
+  "color": "#f7c948",
+  "roughness": 0.4,
+  "metalness": 0.2,
+  "emissive": "#7a4a08"
+}
