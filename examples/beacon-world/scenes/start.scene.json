@@ -52,6 +52,9 @@
         "MeshRenderer": {
           "mesh": "sphere",
           "material": "runtime/materials/drone.material.json"
+        },
+        "PlayerControlled": {
+          "speed": 3.5
         }
       }
     },

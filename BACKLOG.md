@@ -77,9 +77,31 @@ Verification:
 
 ### Epic 13: Beacon World Sample Game
 
-**Story 13.3: Beacon World Gameplay v0** (next)
+**Story 13.3: Beacon World Gameplay v0**
 
-Tasks/acceptance/verification expanded when picked up.
+Status: Implemented.
+
+Tasks:
+
+- Add a `PlayerControlled` component to `schemas/scene.schema.json` (`speed: number > 0`).
+- Update `engine check` componentNames so unknown-component diagnostics suggest the new name.
+- Implement `engine/runtime/player-input-system.ts`: opt-in `window` keydown/keyup listeners populate a `Set<string>` of pressed key codes; each fixed step the system walks entities with `PlayerControlled + Transform`, normalises diagonal input and updates `Transform.position` in the XZ plane. The system supports WASD and arrow keys and exposes `dispose()`.
+- Attach `PlayerControlled` to `player.drone` in `examples/beacon-world/scenes/start.scene.json` (`speed: 3.5`).
+- Register the input system in `src/app.ts` for every project; dispose it when the app tears down.
+
+Acceptance criteria:
+
+- Loading `?project=beacon-world` and pressing W/A/S/D (or arrows) moves the drone in the expected XZ direction.
+- Diagonal input produces speed equal to `speed`, not `speed × √2` (normalisation works).
+- Projects without `PlayerControlled` entities are unaffected.
+- A unit test suite covers no-input, single axis, diagonal, missing components and arrow-key fallback.
+- A new Playwright test asserts that `KeyD` moves Beacon World's drone along +X.
+
+Verification:
+
+- `npm run engine:check -- examples/beacon-world`
+- `npm test` — 12 files / 72 tests including 6 for the input system
+- `npm run test:e2e` — 5 tests pass
 
 ### Sprint 4 Candidates Not Picked Yet
 

@@ -46,6 +46,9 @@
             },
             "Spin": {
               "$ref": "#/definitions/spinComponent"
+            },
+            "PlayerControlled": {
+              "$ref": "#/definitions/playerControlledComponent"
             }
           }
         }
@@ -146,6 +149,17 @@
         },
         "speed": {
           "type": "number"
+        }
+      }
+    },
+    "playerControlledComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["speed"],
+      "properties": {
+        "speed": {
+          "type": "number",
+          "exclusiveMinimum": 0
         }
       }
     }

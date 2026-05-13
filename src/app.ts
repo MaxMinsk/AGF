@@ -3,6 +3,7 @@ import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
 import { AssetRegistry } from "../engine/runtime/asset-registry";
 import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
+import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
@@ -59,6 +60,8 @@ export function createApp(
   root.append(shell);
 
   const scheduler = new SystemScheduler();
+  const playerInputSystem = createPlayerInputSystem();
+  scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
 
   const assetRegistry = new AssetRegistry({
@@ -88,6 +91,7 @@ export function createApp(
     },
     dispose(): void {
       runtime.stop();
+      playerInputSystem.dispose();
       root.textContent = "";
     }
   };
