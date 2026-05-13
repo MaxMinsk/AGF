@@ -23,6 +23,27 @@
         "kind": {
           "type": "string",
           "minLength": 1
+        },
+        "originalPosition": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "World position the pickup respawns at, if respawnAfter is set."
+        },
+        "respawnAfter": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds the pickup stays consumed after deposit before respawning at originalPosition."
+        },
+        "consumed": {
+          "type": "boolean",
+          "description": "Runtime flag — true while the pickup is hidden waiting to respawn."
+        },
+        "respawnIn": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Runtime countdown towards respawn, seconds."
         }
       }
     },
@@ -51,6 +72,21 @@
         "repairedColor": {
           "type": "string",
           "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "decayAfter": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds the beacon stays repaired before decaying back."
+        },
+        "decayIn": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Runtime countdown towards decay, seconds."
+        },
+        "originalMaterial": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Runtime field — material ref stashed at repair time so decay can restore it."
         }
       }
     }

@@ -46,10 +46,25 @@ test("drone picks up an energy core and repairs a beacon", async ({ page }, test
   const droneAfter = afterDeposit.entities.find((entity) => entity.id === "player.drone");
   expect((droneAfter!.components["Carrier"] as { carrying?: string }).carrying).toBeUndefined();
 
-  expect(afterDeposit.entities.find((entity) => entity.id === "core.north")).toBeUndefined();
+  // After Sprint 7, cores with a respawnAfter survive but get marked consumed
+  // and parked underground until the respawn timer fires.
+  const coreAfter = afterDeposit.entities.find((entity) => entity.id === "core.north");
+  expect(coreAfter).toBeDefined();
+  const corePickup = coreAfter!.components["Pickup"] as {
+    consumed?: boolean;
+    respawnIn?: number;
+  };
+  expect(corePickup.consumed).toBe(true);
+  expect(typeof corePickup.respawnIn).toBe("number");
 
   const beacon = afterDeposit.entities.find((entity) => entity.id === "beacon.west");
-  expect((beacon!.components["Repairable"] as { repaired?: boolean }).repaired).toBe(true);
+  const beaconRepair = beacon!.components["Repairable"] as {
+    repaired?: boolean;
+    decayIn?: number;
+    originalMaterial?: string;
+  };
+  expect(beaconRepair.repaired).toBe(true);
+  expect(beaconRepair.originalMaterial).toBe("runtime/materials/beacon.material.json");
   const renderer = beacon!.components["MeshRenderer"] as { color?: string; material?: string };
   expect(renderer.color).toBe("#4af0a8");
   expect(renderer.material).toBeUndefined();

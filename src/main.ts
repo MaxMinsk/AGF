@@ -100,4 +100,20 @@ if (import.meta.hot) {
   } else if (selected.id === "beacon-world") {
     import.meta.hot.accept("../examples/beacon-world/scenes/start.scene.json", applySceneUpdate);
   }
+
+  import.meta.hot.on("agf:asset-changed", (payload: unknown) => {
+    if (typeof payload !== "object" || payload === null) {
+      return;
+    }
+    const projectId = (payload as { projectId?: unknown }).projectId;
+    const ref = (payload as { ref?: unknown }).ref;
+    if (typeof projectId !== "string" || typeof ref !== "string") {
+      return;
+    }
+    if (projectId !== selected.id) {
+      return;
+    }
+    app.reloadAsset(ref);
+    console.info(`[agf] hot-reloaded asset ${ref}`);
+  });
 }

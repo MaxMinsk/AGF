@@ -87,7 +87,8 @@
         "Repairable": {
           "accepts": "energy-core",
           "repaired": false,
-          "repairedColor": "#4af0a8"
+          "repairedColor": "#4af0a8",
+          "decayAfter": 6
         },
         "Networked": {
           "authority": "server"
@@ -116,7 +117,8 @@
         "Repairable": {
           "accepts": "energy-core",
           "repaired": false,
-          "repairedColor": "#4af0a8"
+          "repairedColor": "#4af0a8",
+          "decayAfter": 6
         },
         "Networked": {
           "authority": "server"
@@ -139,7 +141,9 @@
           "color": "#4af0a8"
         },
         "Pickup": {
-          "kind": "energy-core"
+          "kind": "energy-core",
+          "originalPosition": [-1.5, 0.4, -2.5],
+          "respawnAfter": 4
         },
         "Networked": {
           "authority": "server"
@@ -162,7 +166,9 @@
           "color": "#4af0a8"
         },
         "Pickup": {
-          "kind": "energy-core"
+          "kind": "energy-core",
+          "originalPosition": [1.5, 0.4, 2.5],
+          "respawnAfter": 4
         },
         "Networked": {
           "authority": "server"

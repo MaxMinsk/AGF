@@ -98,6 +98,23 @@ export class ThreeRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
+  /**
+   * Forget the cached binding for an asset reference so the renderer re-fetches
+   * and re-applies it on the next refreshMeshes. Used by asset HMR.
+   */
+  forgetAssetBinding(ref: string): void {
+    for (const [entityId, currentRef] of this.appliedMaterials) {
+      if (currentRef === ref) {
+        this.appliedMaterials.delete(entityId);
+      }
+    }
+    for (const [entityId, currentRef] of this.appliedGeometries) {
+      if (currentRef === ref) {
+        this.appliedGeometries.delete(entityId);
+      }
+    }
+  }
+
   dispose(): void {
     for (const mesh of this.meshes.values()) {
       this.scene.remove(mesh);
