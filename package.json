@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "engine:check": "tsx engine/tools/cli.ts check",
+    "engine:check:examples": "node scripts/engine-check-examples.mjs",
     "engine:inspect": "tsx engine/tools/cli.ts inspect",
     "backend:node": "tsx examples/backends/node-world-server/src/index.ts",
     "backend:node:serve": "tsx examples/backends/node-world-server/src/index.ts --serve",
@@ -15,7 +16,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "playtest:watch": "node scripts/watch-playtests.mjs",
-    "preflight": "npm run engine:check -- examples/hello-3d && npm run typecheck && npm run test && npm run build && npm run test:e2e"
+    "preflight": "npm run engine:check:examples && npm run typecheck && npm run test && npm run build && npm run test:e2e"
   },
   "engines": {
     "node": ">=20.19.0"

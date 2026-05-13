@@ -7,6 +7,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
 const materialsDir = resolve(repoRoot, "examples/beacon-world/assets/runtime/materials");
 
+test.describe.configure({ mode: "serial" });
+
 test("every material under examples/beacon-world fires the agf:asset-changed HMR path", async ({ page }) => {
   await page.goto("/?project=beacon-world");
   await page.waitForFunction(() => Boolean(window.__agf));
@@ -17,26 +19,23 @@ test("every material under examples/beacon-world fires the agf:asset-changed HMR
   for (const filename of materials) {
     const filePath = resolve(materialsDir, filename);
     const expectedRef = `runtime/materials/${filename}`;
-    const before = (await page.evaluate(() => window.__agf!.reloadCount)) as number;
+    const baseline = (await page.evaluate(() => window.__agf!.reloadEvents.length)) as number;
 
     const original = readFileSync(filePath);
     writeFileSync(filePath, original);
 
     await page.waitForFunction(
-      ({ baseline, ref }) => {
-        const agf = window.__agf;
-        return (agf?.reloadCount ?? 0) > baseline && agf?.lastReloadedAsset === ref;
+      ({ baseline: from, ref }) => {
+        const events = window.__agf?.reloadEvents ?? [];
+        for (let index = from; index < events.length; index += 1) {
+          if (events[index]?.ref === ref) {
+            return true;
+          }
+        }
+        return false;
       },
-      { baseline: before, ref: expectedRef },
+      { baseline, ref: expectedRef },
       { timeout: 10_000 }
     );
-
-    const after = (await page.evaluate(() => ({
-      ref: window.__agf!.lastReloadedAsset,
-      count: window.__agf!.reloadCount
-    }))) as { ref: string | undefined; count: number };
-
-    expect(after.ref).toBe(expectedRef);
-    expect(after.count).toBeGreaterThan(before);
   }
 });
