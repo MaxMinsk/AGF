@@ -50,7 +50,7 @@
           "scale": [0.7, 0.7, 0.7]
         },
         "MeshRenderer": {
-          "mesh": "sphere",
+          "mesh": "runtime/models/drone.glb",
           "material": "runtime/materials/drone.material.json"
         },
         "PlayerControlled": {
@@ -77,7 +77,7 @@
           "scale": [0.6, 2.5, 0.6]
         },
         "MeshRenderer": {
-          "mesh": "box",
+          "mesh": "runtime/models/beacon.glb",
           "material": "runtime/materials/beacon.material.json"
         },
         "Spin": {
@@ -107,7 +107,7 @@
           "scale": [0.6, 2.5, 0.6]
         },
         "MeshRenderer": {
-          "mesh": "box",
+          "mesh": "runtime/models/beacon.glb",
           "material": "runtime/materials/beacon.material.json"
         },
         "Spin": {

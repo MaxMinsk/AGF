@@ -8,7 +8,27 @@
       "license": "Project-owned",
       "source": {
         "type": "procedural",
-        "notes": "Drone, beacons and ground use renderer-provided primitive meshes."
+        "notes": "Ground and energy cores use renderer-provided primitive meshes (box, sphere)."
+      }
+    },
+    {
+      "id": "beacon-world.drone-mesh",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/models/drone.glb"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Salvage drone shell: octahedron emitted by scripts/build-drone-glb.mjs."
+      }
+    },
+    {
+      "id": "beacon-world.beacon-mesh",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/models/beacon.glb"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Beacon pillar: hexagonal prism emitted by scripts/build-beacon-glb.mjs."
       }
     },
     {

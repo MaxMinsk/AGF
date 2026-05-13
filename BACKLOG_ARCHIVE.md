@@ -428,3 +428,40 @@ The sprint goal — "Agent Loop Tools" — was met:
 - Hot-reload of `playtest.json` files isn't wired — editing a scenario in dev currently needs a manual `npm run test:e2e` invocation.
 - Procedural Character Generator is parked; pick it up after Beacon World gameplay v0 stabilises.
 
+## Sprint 9 - Asset Polish
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `14.3` Real authored `.glb` for Beacon World drone and beacons — `scripts/lib/write-glb.mjs` factors the GLB writer out of `scripts/build-cube-glb.mjs` so future procedural meshes reuse it. `scripts/build-drone-glb.mjs` emits an octahedron with face-aligned flat normals (1524 bytes) for the salvage drone; `scripts/build-beacon-glb.mjs` emits a hexagonal prism (1992 bytes) for the beacons. Scene swaps `mesh: "sphere"` → `mesh: "runtime/models/drone.glb"` on the drone and `mesh: "box"` → `mesh: "runtime/models/beacon.glb"` on both beacons. `asset-sources.json` gains entries for both models.
+- `16.2` Asset HMR for GLB — confirmed end-to-end on the new drone model. The Sprint 7 plumbing already covered GLB (`forgetAssetBinding` clears both materials and geometries, `AssetRegistry.invalidate` drops the cached load). New Playwright spec `tests/e2e/glb-hot-reload.spec.ts` listens for the `[agf] hot-reloaded asset runtime/models/drone.glb` console message and triggers it by rewriting the file with its own bytes.
+
+### Deliverables
+
+- `scripts/lib/write-glb.mjs` (new helper)
+- `scripts/build-drone-glb.mjs`, `scripts/build-beacon-glb.mjs` (new generators)
+- `examples/beacon-world/assets/runtime/models/{drone,beacon}.glb` (new binaries, regeneratable from the scripts)
+- `examples/beacon-world/scenes/start.scene.json` (mesh refs)
+- `examples/beacon-world/assets/_sources/asset-sources.json` (entries for both meshes)
+- `tests/e2e/glb-hot-reload.spec.ts` (new e2e for HMR path)
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 101 Vitest tests across 15 files, vite build OK, 8 Playwright e2e tests (added GLB hot-reload test).
+- `engine check examples/beacon-world` green with the new mesh refs.
+- Manual: `?project=beacon-world` shows a faceted octahedron drone and faceted hex-prism beacons; HMR test confirms the asset reload path fires when the GLB file changes on disk.
+
+### Goal Recap
+
+The sprint goal — "Asset Polish" — was met:
+
+- Beacon World's drone and beacons are sourced from real `.glb` files generated and reviewable through the procedural scripts, not from renderer primitives.
+- The asset HMR plumbing is verified for GLBs end-to-end; an agent editing a model on disk gets the reload event without a page reload.
+
+### Follow-Ups
+
+- The GLB meshes are still procedurally generated; an authored model from Blender / Meshy goes through the same path but needs an art workflow.
+- The GLB HMR test relies on a console-message contract (`hot-reloaded asset <ref>`). If the runtime log format changes, the test silently waits for nothing until timeout. Consider adding a structured HMR API surface (e.g. `window.__agf.lastReloadedAsset`) when the second consumer of the signal appears.
+- Sprint 9 was small (two stories). Asset polish proceeds in lockstep with Beacon World gameplay; `13.7` hazards remain the next gameplay step.
+
