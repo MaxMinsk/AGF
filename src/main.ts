@@ -64,12 +64,16 @@ let currentScene = selected.scene;
 
 const requestedServer = params.get("server");
 const requestedPlayerId = params.get("playerId");
+const requestedNetworked = params.get("networked");
 const appOptions: Parameters<typeof createApp>[5] = {};
 if (requestedServer !== null && requestedServer.length > 0) {
   appOptions.serverUrl = requestedServer;
 }
 if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
   appOptions.playerId = requestedPlayerId;
+}
+if (requestedNetworked === "1" || requestedNetworked === "true") {
+  appOptions.networked = true;
 }
 
 let app: AppHandle = createApp(

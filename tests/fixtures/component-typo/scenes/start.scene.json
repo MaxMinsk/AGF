@@ -1,0 +1,19 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "cube",
+      "components": {
+        "Trnasform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#f7c948"
+        }
+      }
+    }
+  ]
+}

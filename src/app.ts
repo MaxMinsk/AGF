@@ -27,6 +27,13 @@ export type AppOptions = {
   serverUrl?: string;
   /** Player id used in the outbound `player.join`. Defaults to a stable random id. */
   playerId?: string;
+  /**
+   * When true AND `serverUrl` is set, the local PlayerControlled drone stops
+   * moving locally; PlayerInputSystem forwards normalised directions through
+   * `intent.move`. The server's `player.<playerId>` entity appears in the
+   * snapshot as a separate authoritative entity.
+   */
+  networked?: boolean;
 };
 
 export type AppHandle = {
@@ -79,7 +86,13 @@ export function createApp(
   root.append(shell);
 
   const scheduler = new SystemScheduler();
-  const playerInputSystem = createPlayerInputSystem();
+  let network: WsNetworkAdapterHandle | undefined;
+  const networked = options.networked === true && options.serverUrl !== undefined;
+  const playerInputSystem = networked
+    ? createPlayerInputSystem({
+        onIntent: (direction) => network?.sendIntent(direction)
+      })
+    : createPlayerInputSystem();
   scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
   if (projectId === "beacon-world") {
@@ -110,14 +123,14 @@ export function createApp(
     healthHud = createBeaconHealthHud(shell, runtime);
   }
 
-  let network: WsNetworkAdapterHandle | undefined;
   if (options.serverUrl !== undefined) {
     const playerId = options.playerId ?? randomPlayerId();
     network = startWsNetworkAdapter({
       url: options.serverUrl,
       playerId,
       applyCommands: (commands) => runtime.applyCommands(commands),
-      knownEntityIds: () => runtime.snapshot().entities.map((entity) => entity.id)
+      knownEntityIds: () => runtime.snapshot().entities.map((entity) => entity.id),
+      reconnect: true
     });
   }
 

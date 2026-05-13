@@ -88,6 +88,54 @@ describe("WsNetworkAdapter ↔ node-world-server", () => {
     }
   }, 5000);
 
+  it("reconnects on unexpected close and rejoins the server with the same playerId", async () => {
+    const port = pickFreePort();
+    const validate = createValidate();
+    const world1 = new ServerWorld();
+    let transport = await startWsTransport({
+      port,
+      world: world1,
+      validate,
+      tickHz: 60,
+      log: () => undefined
+    });
+
+    const clientWorld = new World();
+    const logLines: string[] = [];
+    const adapter = startWsNetworkAdapter({
+      url: `ws://127.0.0.1:${port}`,
+      playerId: "gamma",
+      applyCommands: (commands) => applyAll(clientWorld, commands),
+      knownEntityIds: () => clientWorld.entityIds(),
+      reconnect: { initialDelayMs: 30, maxDelayMs: 100 },
+      log: (line) => logLines.push(line),
+      WebSocketCtor: WebSocket as unknown as typeof globalThis.WebSocket
+    });
+
+    try {
+      await waitFor(() => clientWorld.hasEntity("player.gamma"));
+      const initialCount = adapter.reconnectCount();
+
+      await transport.close();
+      await waitFor(() => !clientWorld.hasEntity("player.gamma"));
+
+      const world2 = new ServerWorld();
+      transport = await startWsTransport({
+        port,
+        world: world2,
+        validate,
+        tickHz: 60,
+        log: () => undefined
+      });
+
+      await waitFor(() => clientWorld.hasEntity("player.gamma"), 4000);
+      expect(adapter.reconnectCount()).toBeGreaterThan(initialCount);
+    } finally {
+      adapter.dispose();
+      await transport.close();
+    }
+  }, 8000);
+
   it("dispose() removes server-owned entities without touching local ones", async () => {
     const serverWorld = new ServerWorld();
     const transport = await startWsTransport({

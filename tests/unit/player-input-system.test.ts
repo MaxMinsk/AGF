@@ -85,4 +85,48 @@ describe("PlayerInputSystem", () => {
     const [x] = transformPosition(world);
     expect(x).toBeCloseTo(1.0, 5);
   });
+
+  it("with onIntent set, forwards the normalised direction and leaves Transform untouched", () => {
+    const world = makeWorld(5);
+    const intents: Array<readonly [number, number]> = [];
+    const pressed = new Set<string>(["KeyD", "KeyW"]);
+    const system = createPlayerInputSystem({
+      pressedKeys: pressed,
+      onIntent: (direction) => intents.push(direction)
+    });
+    const time: TimeContext = {
+      elapsed: 0,
+      dt: 1,
+      fixedDt: 1,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+    system.frameUpdate?.({ time, world });
+    system.dispose();
+
+    expect(intents).toHaveLength(1);
+    const [nx, nz] = intents[0]!;
+    expect(nx).toBeCloseTo(1 / Math.SQRT2, 5);
+    expect(nz).toBeCloseTo(-1 / Math.SQRT2, 5);
+    expect(transformPosition(world)).toEqual([0, 0, 0]);
+  });
+
+  it("with onIntent set, fires nothing when no movement keys are pressed", () => {
+    const intents: Array<readonly [number, number]> = [];
+    const system = createPlayerInputSystem({
+      pressedKeys: new Set<string>(),
+      onIntent: (direction) => intents.push(direction)
+    });
+    const time: TimeContext = {
+      elapsed: 0,
+      dt: 1,
+      fixedDt: 1,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+    system.frameUpdate?.({ time, world: makeWorld() });
+    system.dispose();
+
+    expect(intents).toEqual([]);
+  });
 });

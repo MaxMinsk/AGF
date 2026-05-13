@@ -1,5 +1,5 @@
 import type { EntityId } from "../../../../engine/core/ecs/types";
-import type { World } from "../../../../engine/core/ecs/world";
+import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 
 type Vec3 = ReadonlyArray<number>;
@@ -57,14 +57,22 @@ const DEFAULT_INVULNERABILITY_SECONDS = 1;
  * `Respawnable.position` and `Health.current` is restored to `max`.
  */
 export function createHazardSystem(): System {
+  let cachedWorld: World | undefined;
+  let hazardQuery: QueryHandle | undefined;
+  let candidateQuery: QueryHandle | undefined;
   return {
     name: "hazard",
     frameUpdate({ time, world }: SystemContext): void {
-      const hazards = world.query(["Hazard", "Transform"]);
+      if (world !== cachedWorld) {
+        hazardQuery = world.createQuery(["Hazard", "Transform"]);
+        candidateQuery = world.createQuery(["Transform"]);
+        cachedWorld = world;
+      }
+      const hazards = hazardQuery!.run();
       if (hazards.length === 0) {
         return;
       }
-      const candidates = world.query(["Transform"]);
+      const candidates = candidateQuery!.run();
 
       for (const hazardId of hazards) {
         const hazard = world.getComponent<HazardComponent>(hazardId, "Hazard");

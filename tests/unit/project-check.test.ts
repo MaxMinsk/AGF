@@ -26,21 +26,35 @@ describe("project check", () => {
     const codes = result.diagnostics.map((diagnostic) => diagnostic.code);
 
     expect(result.ok).toBe(false);
-    expect(codes).toContain("AGF_SCHEMA_UNKNOWN_PROPERTY");
+    expect(codes).toContain("AGF_SCHEMA_UNKNOWN_COMPONENT");
     expect(codes).toContain("AGF_SCENE_DUPLICATE_ENTITY_ID");
+    const componentDiagnostic = result.diagnostics.find(
+      (diagnostic) => diagnostic.code === "AGF_SCHEMA_UNKNOWN_COMPONENT"
+    );
+    expect(componentDiagnostic).toMatchObject({
+      file: "scenes/start.scene.json",
+      path: "$.entities[0].components.Rotator",
+      message: expect.stringContaining('Unknown component "Rotator"'),
+      suggestion: expect.stringContaining("Camera")
+    });
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          file: "scenes/start.scene.json",
-          path: "$.entities[0].components.Rotator",
-          suggestion: expect.stringContaining("Camera")
-        }),
         expect.objectContaining({
           file: "scenes/start.scene.json",
           path: "$.entities[1].id"
         })
       ])
     );
+  });
+
+  it("suggests the nearest known component when the unknown name is a near-match typo", () => {
+    const result = checkProject(resolve(fixturesRoot, "component-typo"));
+    const diagnostic = result.diagnostics.find(
+      (entry) => entry.code === "AGF_SCHEMA_UNKNOWN_COMPONENT"
+    );
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.message).toBe('Unknown component "Trnasform".');
+    expect(diagnostic!.suggestion).toMatch(/Did you mean "Transform"/);
   });
 
   it("reports a missing start scene at the project field", () => {

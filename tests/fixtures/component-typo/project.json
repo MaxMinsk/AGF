@@ -1,0 +1,10 @@
+{
+  "id": "component-typo",
+  "name": "Component Typo Fixture",
+  "startScene": "scenes/start.scene.json",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}

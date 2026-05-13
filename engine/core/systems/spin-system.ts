@@ -1,4 +1,5 @@
 import type { System, SystemContext } from "./types";
+import type { QueryHandle, World } from "../ecs/world";
 
 type Axis = "x" | "y" | "z";
 
@@ -17,10 +18,16 @@ type TransformComponent = {
 const AXIS_INDEX: Readonly<Record<Axis, 0 | 1 | 2>> = { x: 0, y: 1, z: 2 };
 
 export function createSpinSystem(name = "spin"): System {
+  let cachedWorld: World | undefined;
+  let spinningQuery: QueryHandle | undefined;
   return {
     name,
     fixedUpdate({ time, world }: SystemContext): void {
-      const entities = world.query(["Spin", "Transform"]);
+      if (world !== cachedWorld) {
+        spinningQuery = world.createQuery(["Spin", "Transform"]);
+        cachedWorld = world;
+      }
+      const entities = spinningQuery!.run();
       for (const entityId of entities) {
         const spin = world.getComponent<SpinComponent>(entityId, "Spin");
         const transform = world.getComponent<TransformComponent>(entityId, "Transform");
