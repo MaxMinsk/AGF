@@ -16,6 +16,13 @@ declare global {
     __agf?: {
       snapshot(): WorldSnapshot;
       applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+      /**
+       * Project-local action. For Beacon World, re-arms all beacons, respawns
+       * all consumed pickups and resets `RoundState` to active. Returns the
+       * number of mutations applied. Equivalent to pressing `KeyR` in the
+       * browser. For non-Beacon projects, returns 0.
+       */
+      resetRound(): number;
       /** Last asset ref the dev-time HMR pipeline reloaded into the running scene. Undefined until the first reload. */
       lastReloadedAsset?: string;
       /** Monotonic counter that increments every time `lastReloadedAsset` is updated. Useful for tests that need to wait for "another" reload. */
@@ -93,6 +100,7 @@ if (import.meta.env.DEV) {
   window.__agf = {
     snapshot: () => app.snapshot(),
     applyCommands: (commands) => app.applyCommands(commands),
+    resetRound: () => app.resetRound(),
     reloadCount: 0
   };
 }

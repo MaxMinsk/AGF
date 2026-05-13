@@ -44,6 +44,7 @@ Current subagents:
 ## Reliability Docs
 
 - `docs/agent/iteration-loop.md`: fast feedback flow — `engine inspect` filters, `--save`, `--diff`, `window.__agf`, `playtest-runner` and `npm run playtest:watch`.
+- `docs/agent/test-recipe.md`: canonical verification recipe — edit → `engine check` → `engine inspect --diff` → unit + playtest + e2e, with command snippets pinned to scripts in `package.json`.
 - `docs/agent/debug-protocol.md`: debugging loop and artifact expectations.
 - `docs/agent/template-policy.md`: when examples become templates.
 - `docs/QUALITY_AXES.md`: build/runtime/scene/playability/visual/protocol health.
