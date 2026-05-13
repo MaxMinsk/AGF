@@ -135,6 +135,30 @@ test("two browser clients see each other's server-owned entities", async ({ brow
       })) as { components: Record<string, { position: [number, number, number] }> };
       expect(alphaOnBravo.components["Transform"]?.position[0]).toBeGreaterThan(0.1);
 
+      // Authority hand-off: alpha's local player.drone mirrors player.alpha (server-owned).
+      await alpha.waitForFunction(
+        () => {
+          const snapshot = window.__agf!.snapshot() as Snapshot;
+          const drone = snapshot.entities.find((entity) => entity.id === "player.drone");
+          if (drone === undefined) {
+            return false;
+          }
+          const transform = drone.components["Transform"] as
+            | { position: [number, number, number] }
+            | undefined;
+          return transform !== undefined && transform.position[0] > 0.1;
+        },
+        undefined,
+        { timeout: 5000 }
+      );
+
+      // bravo's local drone should NOT have moved — only alpha pressed keys.
+      const bravoDrone = (await bravo.evaluate(() => {
+        const snapshot = window.__agf!.snapshot() as Snapshot;
+        return snapshot.entities.find((entity) => entity.id === "player.drone");
+      })) as { components: Record<string, { position: [number, number, number] }> };
+      expect(bravoDrone.components["Transform"]?.position[0]).toBeCloseTo(0, 2);
+
       await testInfo.attach("alpha-snapshot", {
         body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
         contentType: "application/json"

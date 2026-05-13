@@ -13,6 +13,7 @@ import { createPickupSystem as createBeaconPickupSystem } from "../examples/beac
 import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
 import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
 import { createRoundSystem as createBeaconRoundSystem } from "../examples/beacon-world/src/systems/round-system";
+import { createNetworkDroneSyncSystem as createBeaconNetworkDroneSyncSystem } from "../examples/beacon-world/src/systems/network-drone-sync-system";
 import { resetBeaconRound } from "../examples/beacon-world/src/round-reset";
 import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
@@ -99,19 +100,24 @@ export function createApp(
     <h1 class="status-title" data-testid="project-name">${escapeText(project.name)}</h1>
     <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS. Edit the scene file to hot-reload.</p>
     <p class="status-copy">Project: <code data-testid="project-id">${escapeText(projectId)}</code> · ${switcherLinks}</p>
+    ${renderConnectivityHint(projectId, options)}
   `;
 
   shell.append(canvas, status);
   root.append(shell);
 
   const projectProfiles = project.profiles ?? ["static"];
-  const activeProfile =
+  const networked = options.networked === true && options.serverUrl !== undefined;
+  const requestedProfile =
     options.activeProfile !== undefined && projectProfiles.includes(options.activeProfile)
       ? options.activeProfile
-      : projectProfiles[0] ?? "static";
+      : undefined;
+  const activeProfile =
+    requestedProfile ??
+    (networked && projectProfiles.includes("connected") ? "connected" : projectProfiles[0] ?? "static");
   const scheduler = new SystemScheduler({ activeProfiles: [activeProfile] });
   let network: WsNetworkAdapterHandle | undefined;
-  const networked = options.networked === true && options.serverUrl !== undefined;
+  const playerId = options.playerId ?? (networked ? randomPlayerId() : "local");
   const playerInputSystem = networked
     ? createPlayerInputSystem({
         onIntent: (direction) => network?.sendIntent(direction)
@@ -120,10 +126,15 @@ export function createApp(
   scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
   if (projectId === "beacon-world") {
-    scheduler.register(createBeaconPickupSystem(), { profiles: ["static"] });
-    scheduler.register(createBeaconHazardSystem(), { profiles: ["static"] });
-    scheduler.register(createBeaconWorldSignalSystem(), { profiles: ["static"] });
-    scheduler.register(createBeaconRoundSystem(), { profiles: ["static"] });
+    scheduler.register(createBeaconPickupSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(createBeaconHazardSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(createBeaconWorldSignalSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(createBeaconRoundSystem(), { profiles: ["static", "connected"] });
+    if (networked) {
+      scheduler.register(createBeaconNetworkDroneSyncSystem({ playerId }), {
+        profiles: ["connected"]
+      });
+    }
   }
 
   const assetRegistry = new AssetRegistry({
@@ -160,7 +171,6 @@ export function createApp(
   }
 
   if (options.serverUrl !== undefined) {
-    const playerId = options.playerId ?? randomPlayerId();
     network = startWsNetworkAdapter({
       url: options.serverUrl,
       playerId,
@@ -201,6 +211,30 @@ export function createApp(
       root.textContent = "";
     }
   };
+}
+
+function renderConnectivityHint(projectId: string, options: AppOptions): string {
+  if (projectId !== "beacon-world") {
+    return "";
+  }
+  if (options.serverUrl !== undefined && options.networked === true) {
+    const safeUrl = escapeText(options.serverUrl);
+    return `<p class="status-copy" data-testid="multiplayer-status">Multiplayer: connected to <code>${safeUrl}</code> as <code>${escapeText(options.playerId ?? "client")}</code>. Open this URL in another tab with a different <code>playerId</code> to share the world.</p>`;
+  }
+  const port = 8787;
+  const base = "?project=beacon-world&server=" + encodeURIComponent(`ws://localhost:${port}`) + "&networked=1";
+  const alphaUrl = `${base}&playerId=alpha`;
+  const bravoUrl = `${base}&playerId=bravo`;
+  return `<details class="status-copy" data-testid="multiplayer-hint" style="margin-top:8px;">
+    <summary><strong>Play multiplayer</strong> — by default this tab is a local-only world.</summary>
+    <p style="margin:6px 0 4px;">In a separate terminal:</p>
+    <pre style="margin:0 0 6px; padding:6px 8px; background:rgba(255,255,255,0.05); border-radius:4px; font-size:11px;">npm run backend:node:serve</pre>
+    <p style="margin:0 0 4px;">Then open two tabs (one per playerId):</p>
+    <ul style="margin:0 0 0 1em; padding:0; font-size:11px;">
+      <li><a href="${alphaUrl}" data-testid="multiplayer-link-alpha">Open as alpha</a></li>
+      <li><a href="${bravoUrl}" data-testid="multiplayer-link-bravo">Open as bravo</a></li>
+    </ul>
+  </details>`;
 }
 
 function randomPlayerId(): string {

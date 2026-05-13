@@ -4,6 +4,7 @@ import { checkProject, formatDiagnostics } from "./check/project-check";
 import {
   formatInspection,
   inspectProject,
+  tailInspectResult,
   toStableInspectResult,
   type InspectOptions
 } from "./inspect/project-inspect";
@@ -58,8 +59,9 @@ if (parsedArgs.command === "check") {
       options.entityIds = parsedArgs.entityIds;
     }
     const result = inspectProject(parsedArgs.projectDir, options);
-    const persisted = parsedArgs.savePath !== undefined ? toStableInspectResult(result) : result;
-    emitResult(persisted, parsedArgs, () => formatInspection(result));
+    const trimmed = tailInspectResult(result, parsedArgs.tail);
+    const persisted = parsedArgs.savePath !== undefined ? toStableInspectResult(trimmed) : trimmed;
+    emitResult(persisted, parsedArgs, () => formatInspection(trimmed));
     process.exitCode = result.ok ? 0 : 1;
   }
 } else {
@@ -174,7 +176,7 @@ function printUsage(): void {
     [
       "Usage:",
       "  engine check <projectDir> [--json] [--save <path>]",
-      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--json] [--save <path>]",
+      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--json] [--save <path>]",
       "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]"
     ].join("\n")
   );

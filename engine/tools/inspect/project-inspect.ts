@@ -102,6 +102,30 @@ export function inspectProject(projectDirInput: string, options: InspectOptions 
  * Component values themselves are already sorted alphabetically by
  * `inspectProject`, so no further work is needed there.
  */
+/**
+ * Returns a copy of {@link result} with the entity list truncated to the last
+ * {@link tail} entities. `matchedEntityCount` reflects the total before
+ * truncation; `entities.length` is what's actually returned. Useful for agents
+ * limiting their context window when scenes grow.
+ */
+export function tailInspectResult(result: InspectResult, tail: number | undefined): InspectResult {
+  if (tail === undefined || result.scene === undefined) {
+    return result;
+  }
+  if (tail < 0 || tail >= result.scene.entities.length) {
+    return result;
+  }
+  const kept = tail === 0 ? [] : result.scene.entities.slice(-tail);
+  return {
+    ...result,
+    scene: {
+      ...result.scene,
+      entities: kept,
+      matchedEntityCount: result.scene.matchedEntityCount
+    }
+  };
+}
+
 export function toStableInspectResult(result: InspectResult): InspectResult {
   const stable: InspectResult = {
     ok: result.ok,
@@ -153,6 +177,12 @@ export function formatInspection(result: InspectResult): string {
     lines.push(`Entities: ${result.scene.matchedEntityCount} / ${result.scene.entityCount}`);
   } else {
     lines.push(`Entities: ${result.scene.entityCount}`);
+  }
+
+  const shown = result.scene.entities.length;
+  if (shown < result.scene.matchedEntityCount) {
+    const hidden = result.scene.matchedEntityCount - shown;
+    lines.push(`Showing last ${shown} of ${result.scene.matchedEntityCount} (${hidden} hidden by --tail).`);
   }
 
   for (const entity of result.scene.entities) {

@@ -136,6 +136,113 @@ describe("WsNetworkAdapter ↔ node-world-server", () => {
     }
   }, 8000);
 
+  it("detects a sequence gap, resyncs by deleting server-owned entities and rebuilds from the next snapshot", async () => {
+    type Listener = (event: { data: string }) => void;
+    class FakeSocket {
+      readyState = 1;
+      messageListeners: Listener[] = [];
+      openListeners: Array<() => void> = [];
+      constructor(public url: string) {
+        setTimeout(() => {
+          for (const handler of this.openListeners) {
+            handler();
+          }
+        }, 0);
+      }
+      addEventListener(type: string, handler: () => void): void {
+        if (type === "open") {
+          this.openListeners.push(handler);
+        } else if (type === "message") {
+          this.messageListeners.push(handler as Listener);
+        }
+      }
+      send(): void {}
+      close(): void {}
+      emit(payload: unknown): void {
+        const event = { data: JSON.stringify(payload) };
+        for (const listener of this.messageListeners) {
+          listener(event);
+        }
+      }
+    }
+
+    const sockets: FakeSocket[] = [];
+    const factory = function (url: string) {
+      const socket = new FakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    } as unknown as typeof globalThis.WebSocket;
+
+    const clientWorld = new World();
+    const logLines: string[] = [];
+    const adapter = startWsNetworkAdapter({
+      url: "ws://fake",
+      playerId: "delta",
+      applyCommands: (commands) => applyAll(clientWorld, commands),
+      knownEntityIds: () => clientWorld.entityIds(),
+      log: (line) => logLines.push(line),
+      WebSocketCtor: factory
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const socket = sockets[0]!;
+
+      socket.emit({
+        kind: "world.snapshot",
+        sequence: 0,
+        payload: {
+          entities: [
+            { id: "player.delta", components: { Transform: { position: [0, 0, 0] } } },
+            { id: "player.echo", components: { Transform: { position: [1, 0, 0] } } }
+          ]
+        }
+      });
+      socket.emit({
+        kind: "world.snapshot",
+        sequence: 1,
+        payload: {
+          entities: [
+            { id: "player.delta", components: { Transform: { position: [0, 0, 0] } } },
+            { id: "player.echo", components: { Transform: { position: [1.1, 0, 0] } } }
+          ]
+        }
+      });
+
+      expect(clientWorld.hasEntity("player.echo")).toBe(true);
+      expect(adapter.snapshotGapCount()).toBe(0);
+
+      socket.emit({
+        kind: "world.snapshot",
+        sequence: 5,
+        payload: {
+          entities: [
+            { id: "player.delta", components: { Transform: { position: [0, 0, 0] } } }
+          ]
+        }
+      });
+
+      expect(adapter.snapshotGapCount()).toBe(1);
+      expect(clientWorld.hasEntity("player.echo")).toBe(false);
+      expect(clientWorld.hasEntity("player.delta")).toBe(true);
+      expect(logLines.some((line) => line.includes("snapshot gap"))).toBe(true);
+
+      socket.emit({
+        kind: "world.snapshot",
+        sequence: 6,
+        payload: {
+          entities: [
+            { id: "player.delta", components: { Transform: { position: [0, 0, 0] } } },
+            { id: "player.echo", components: { Transform: { position: [2, 0, 0] } } }
+          ]
+        }
+      });
+      expect(clientWorld.hasEntity("player.echo")).toBe(true);
+      expect(adapter.snapshotGapCount()).toBe(1);
+    } finally {
+      adapter.dispose();
+    }
+  });
+
   it("dispose() removes server-owned entities without touching local ones", async () => {
     const serverWorld = new ServerWorld();
     const transport = await startWsTransport({

@@ -7,5 +7,5 @@
     "mode": "webgl",
     "background": "#0a1118"
   },
-  "profiles": ["static"]
+  "profiles": ["static", "connected"]
 }

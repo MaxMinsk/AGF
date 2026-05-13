@@ -21,29 +21,29 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 19 - TBD
+## Current Sprint: Sprint 20 - TBD
 
-Sprint 19 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 20 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
 #### Backend follow-ups
 
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
-- `10.10` Authority hand-off for the Beacon drone — when `?networked=1`, hide/remove the local `player.drone` and route the local pickup/hazard systems through the server-owned `player.<playerId>` entity. Needs a small protocol extension for outbound `intent.pickup` / `intent.drop`.
-- `10.12` Resync on snapshot gap — when the client adapter observes a missing sequence between two `world.snapshot` messages, drop all server-owned entities and let the next snapshot rebuild them so a missed delete cannot ghost forever.
+- `10.13` Remote-player visibility — project-local decorator that attaches a default `MeshRenderer` (and small colour palette per id) to server-owned `player.<id>` entities, so two browser clients can actually see each other.
+- `10.14` Server-authoritative carry — extend the protocol with `intent.pickup` / `intent.drop` so a future story can sync pickups across clients.
 
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.16` HUD restart affordance — when `RoundState.phase === "complete"`, the HUD shows "Press R to restart" under `ROUND COMPLETE`.
+- `13.17` Auto-reset on completion — when `RoundState.phase === "complete"` for N seconds without any input, reset the round automatically. Keeps an idle browser useful for HMR demos.
 
 #### Engine polish
 
-- `E.9` `engine inspect --tail N` for component-data subset — current `--tail` only applies to `--diff`. Add it to plain inspect so an agent can ask for "the last N entities by id" without filters.
+- `E.11` `engine inspect --components-only` — flag that prints just the component values per entity (drops `Name`/`Networked`/etc. that the agent doesn't need for diff). Useful with `--tail` to fit large scenes in context.
 - `E.10` Smaller `applyCommand` boundary — split the implementation so it never imports from a system file, only from `ecs/`. Then add a Vitest case that imports `applyCommand` in isolation and proves the worst-case command set runs on a fresh `World` in under N microseconds.
 
 #### Asset polish
 
-- `14.7` Drone material variant family — small palette of drone materials so a future networked profile can colour different players differently.
+- `14.7` Drone material variant family — small palette of drone materials so a future networked profile can colour different players differently. Pairs naturally with `10.13`.
 - `14.8` Material HMR audit — confirm that editing every material under `examples/beacon-world/assets/runtime/materials/` lives-reloads via the existing `agf:asset-changed` path, including the new `beacon-repaired.material.json`.
