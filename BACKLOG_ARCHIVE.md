@@ -1314,5 +1314,62 @@ Sprint 27 turned the M-list and AI-native ideas into agent-runnable commands:
 - `10.14` Server-authoritative carry, `10.16` Snapshot delta encoding, `10.18` Server-side hazard / pickup state still pending.
 - `13.12` Sound pings still pending.
 
+## Sprint 28 — Record/Replay v0, schema docs, lazy renderer, bundle doctor, Cyrillic CI, sound pings
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `E.65` Recorder core — new `engine/runtime/recording/recorder.ts` captures the initial scene + every applied `EngineCommand` with monotonic index + elapsed-seconds timestamp + optional `finalSnapshot`. `RuntimeHandle.startRecording()` / `stopRecording()` plumbs it through `applyCommands`.
+- `E.66` `engine replay <file>` — new `engine/tools/replay/project-replay.ts` drives a headless `World` through a recorded command stream, emits the resulting snapshot, and supports `--expect <snapshot.json>` (otherwise compares against the recording's `finalSnapshot`). Drift produces exit code 1.
+- `E.67` Record-replay unit tests — two cases in `tests/unit/record-replay.test.ts` lock the deterministic round-trip and the drift path.
+- `E.63` Lazy renderer import — `startRuntime` now `await import("../render/three-renderer")`. `createApp` + the bootstrap in `src/main.ts` become async; the build splits a tiny `three-renderer-*.js` chunk separate from the main `three` chunk (4.8 KB / 1.7 KB gzip).
+- `E.64` Bundle pass in `engine doctor` — doctor reads `dist/assets`, gzip-measures the largest JS chunk and folds soft/hard bundle violations into `DoctorReport.bundle`. A hard violation flips `report.ok` to false.
+- `E.68` `engine docs <projectDir>` — new `engine/tools/docs/project-docs.ts` walks `schemas/*.schema.json`, renders a Markdown table per schema, copies the project's `template_context.md`, writes an `index.md`. Output is gitignored (`docs/generated/`) and regenerable via `npm run engine:docs`.
+- `RH.1`/`RH.2` Cyrillic CI was already shipped (`.github/workflows/repo-hygiene.yml`). Added a sibling `typecheck-and-unit` job that runs `engine:check:examples` + `typecheck` + `vitest run` on every push and PR.
+- `13.12` Beacon World sound pings — new `examples/beacon-world/src/audio/sound-pings.ts` emits three procedural beeps (`pickup`, `deposit`, `damage`) via Web Audio. `PickupSystem` and `HazardSystem` now expose typed `onEvent` callbacks; the Beacon bootstrap wires both into a shared `SoundPings` instance and disposes the `AudioContext` on teardown. Headless-safe (no `AudioContext` ⇒ silent no-op), with two unit tests.
+
+### Deliverables
+
+- `engine/runtime/recording/recorder.ts`
+- `engine/runtime/start.ts` (`RuntimeHandle.startRecording`/`stopRecording`, lazy renderer import)
+- `engine/tools/replay/project-replay.ts`
+- `engine/tools/docs/project-docs.ts`
+- `engine/tools/cli.ts` (`replay` + `docs` dispatchers + `--expect` flag)
+- `engine/tools/doctor/project-doctor.ts` (bundle measurement + `BundleStat` + `--ok` gating on hard violation)
+- `examples/beacon-world/src/audio/sound-pings.ts`
+- `examples/beacon-world/src/systems/pickup-system.ts` (`PickupEvent`, `onEvent`)
+- `examples/beacon-world/src/systems/hazard-system.ts` (`HazardEvent`, `HazardSystemOptions`, `onEvent`)
+- `examples/beacon-world/bootstrap.ts` (audio wiring + dispose)
+- `.github/workflows/repo-hygiene.yml` (new `typecheck-and-unit` job)
+- `src/app.ts`, `src/main.ts` (async `createApp` + bootstrap)
+- `package.json` (`engine:asset`, `engine:replay`, `engine:docs` scripts)
+- `.gitignore` (`tests/tmp/`, `docs/generated/`)
+- `tests/unit/record-replay.test.ts`, `tests/unit/sound-pings.test.ts`
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, **218 Vitest tests across 34 files**, vite build OK (lazy renderer split adds a dedicated 4.8 KB / 1.7 KB gzip chunk; `three` still 144 KB gzipped under the 250 KB hard budget), `bundle:check` green, all **15 Playwright e2e tests** green.
+- Manual: `npm run engine:docs -- examples/hello-3d` renders 9 schemas + the project's template context into `docs/generated/hello-3d/`.
+- Manual: `npm run engine:doctor -- examples/beacon-world` now also reports the measured largest chunk (`three-*.js` at 144 KB, level `none`).
+
+### Goal Recap
+
+Sprint 28 cleared the remaining "regression / docs / polish" gaps from the M-list:
+
+- Record/replay is the foundation for headless deterministic regression bisection — every applied command now has a wire-format artifact that `engine replay` can re-execute and diff.
+- The lazy renderer + bundle-doctor pair makes the `three` chunk's size a first-class metric of the doctor scorecard.
+- `engine docs` turns the existing schemas into agent-ready Markdown without the agent having to load each `.schema.json`.
+- CI now enforces typecheck + unit tests + project validation on every PR — previously only the Cyrillic check ran in CI; everything else lived in local preflight.
+- Beacon World finally has audio feedback on the three core gameplay moments (pickup / deposit / damage); zero asset shipping cost because the cues are procedural Web Audio beeps.
+
+### Follow-Ups
+
+- M2-b deterministic seed for `Math.random` consumers (Beacon hazard pulse, pickup respawn) — still pending; needs a profile-flag-gated rng helper.
+- `10.5+` C# skeleton WebSocket transport still pending.
+- `10.14` Server-authoritative carry, `10.16` Snapshot delta encoding, `10.18` Server-side hazard / pickup state still pending.
+- `M13` Project-file patch contract (parking-lot) — design + first slice.
+- `E.64` follow-up — invoke `vite build` from `engine doctor` if `dist/` is missing, so the doctor can run from a clean checkout.
+
 
 

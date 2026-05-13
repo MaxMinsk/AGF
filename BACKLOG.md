@@ -21,37 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 28 — Record/Replay v0, schema docs, lazy renderer, bundle doctor, Cyrillic CI, sound pings
+## Current Sprint: Sprint 29 — TBD
 
-Sprint 28 focus: ship **M2** record/replay v0 (foundational for deterministic regression bisection), **M4** schema-driven docs gen, the two deferred polish items (lazy renderer, bundle-in-doctor), the long-pending Cyrillic CI check and Beacon World audio.
+Sprint 29 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
-### Stories
+### Candidates
 
-#### M2 — Record / Replay v0
+Anchor candidates: continue the M-list — **M2-b** (deterministic seed) closes the record/replay determinism gap, **M3** (prefabs) reduces Beacon's duplicate cores / hazards, and the backend epic **10.5+** has been pending since Sprint 25.
 
-- `E.65` Recorder core — new `engine/runtime/recording/recorder.ts` captures the initial scene + every applied `EngineCommand` with timestamps. Optional ring-buffered or unbounded mode. Wires through `RuntimeHandle`.
-- `E.66` `engine replay <file>` CLI — drives a headless `World` (no renderer) by replaying the captured commands and emits a final snapshot; supports `--expect <snapshot.json>` to fail on drift.
-- `E.67` Record-replay unit test — record a deterministic command sequence on `hello-3d`, replay, diff the resulting snapshot — locks the contract.
+#### M-list follow-ups
 
-#### M4 — Schema docs
+- `M2-b` Deterministic RNG — profile-flag-gated seeded RNG helper consumed by Beacon hazard pulse + pickup respawn so `engine replay` survives RNG drift.
+- `M3-a` Prefab schema v0 — `prefabs/*.prefab.json` + `prefab.schema.json` + `prefab.instantiate` command. Beacon's repeated cores / hazards motivate it.
+- `M3-b` Scene `instances: [{ prefab, overrides }]` syntax with schema validation + expansion in `scene.load`.
+- `E.69` `engine doctor` follow-up — if `dist/` is missing, optionally invoke `vite build` (gated by `--build` flag) so a fresh checkout can be scored end-to-end.
 
-- `E.68` `engine docs <projectDir>` v0 — render Markdown from `schemas/*.schema.json` and the project's `template_context.md` into `docs/generated/<projectId>/`. Includes one `index.md` per project.
+#### Backend follow-ups
 
-#### Engine polish
+- `10.5+` C# skeleton WebSocket transport — real transport on top of the smoke skeleton shipped in Sprint 25.
+- `10.14` Server-authoritative carry — `intent.pickup` / `intent.drop` protocol extension.
+- `10.16` Snapshot delta encoding — server sends only changed components per entity.
+- `10.18` Server-side hazard / pickup state — move pulse timing + core respawns onto the server.
 
-- `E.63` Lazy renderer import — convert `engine/runtime/start.ts` to dynamically `import("../render/three-renderer")`; pair with the renderer-import-boundary lock so headless tooling can drop three from the chunk. (Carried over from Sprint 27.)
-- `E.64` `engine doctor` bundle pass — re-use the existing `scripts/check-bundle-size.mjs` logic (or invoke it) and fold the largest-chunk gzipped size + bundle soft/hard violations into the doctor report.
+#### Parking-lot promotions
 
-#### Repo hygiene
+- `M13` Project-file patch contract — design a JSON / AGF-command patch format + `engine patch --check`/`--write` flow. Pairs with `E.55`.
 
-- `RH.1` Cyrillic-in-repo GitHub Action — `.github/workflows/cyrillic-check.yml` greps tracked files for Cyrillic characters and fails CI. Outstanding since Sprint 2.
+#### Beacon World polish
 
-#### Beacon World gameplay
-
-- `13.12` Sound pings — first audio cue on pickup / deposit / hazard damage in Beacon World. Use the Web Audio API; project-local audio under `examples/beacon-world/assets/runtime/audio/` (or short procedural beeps).
-
-### Carried to Sprint 29
-
-- `10.5+` C# skeleton WebSocket transport — real transport on top of the smoke skeleton.
-- `10.14` Server-authoritative carry, `10.16` Snapshot delta encoding, `10.18` Server-side hazard / pickup state.
-- `M13` Project-file patch contract (parking-lot, per kenji takeaways).
+- `13.13` Audio asset path — replace the procedural Web Audio beeps with short licensed `.ogg` clips once the audio loader exists.
