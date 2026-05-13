@@ -43,6 +43,9 @@
             },
             "MeshRenderer": {
               "$ref": "#/definitions/meshRendererComponent"
+            },
+            "Spin": {
+              "$ref": "#/definitions/spinComponent"
             }
           }
         }
@@ -132,6 +135,19 @@
       },
       "minItems": 3,
       "maxItems": 3
+    },
+    "spinComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "speed"],
+      "properties": {
+        "axis": {
+          "enum": ["x", "y", "z"]
+        },
+        "speed": {
+          "type": "number"
+        }
+      }
     }
   }
 }

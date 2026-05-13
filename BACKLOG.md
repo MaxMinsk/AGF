@@ -52,9 +52,30 @@ Verification:
 
 - Vitest suite for the scheduler (registration, run order, missing hook, duplicate guard, unregister re-index).
 
-**Story 6.2: Sample Movement System** (planned)
+**Story 6.2: Sample Movement System**
 
-Tasks/acceptance/verification will be expanded when picked up.
+Status: Implemented.
+
+Tasks:
+
+- Add a `Spin` component to `schemas/scene.schema.json` (`axis`: `x`/`y`/`z`, `speed`: degrees per second).
+- Implement `createSpinSystem()` that rotates entities with `Spin` + `Transform` on every fixed step.
+- Register the spin system in `src/app.ts` via the runtime scheduler.
+- Attach `Spin` to `cube.hero` in `examples/hello-3d/scenes/start.scene.json`.
+- Add `Spin` to the diagnostic component name suggestions in `engine check`.
+
+Acceptance criteria:
+
+- `cube.hero` visibly rotates in the browser.
+- The system is deterministic for a fixed `dt` and works without a browser in unit tests.
+- `engine check examples/hello-3d` still reports OK with the extended scene.
+- Unknown-component diagnostics now suggest `Spin` alongside the original four.
+
+Verification:
+
+- Vitest suite for the spin system (axis selection, missing rotation, ignored entities).
+- `npm run engine:check -- examples/hello-3d`
+- Playwright smoke test (continues to render a nonblank canvas).
 
 ### Epic 7: Scene Patches And Hot Reload
 

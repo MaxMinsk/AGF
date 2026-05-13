@@ -1,4 +1,6 @@
 import { startRuntime, type RuntimeHandle, type RuntimeOptions } from "../engine/runtime/start";
+import { SystemScheduler } from "../engine/core/systems/scheduler";
+import { createSpinSystem } from "../engine/core/systems/spin-system";
 import type { SceneInput } from "../engine/core/ecs/types";
 
 export type ProjectMeta = {
@@ -32,7 +34,10 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
   shell.append(canvas, status);
   root.append(shell);
 
-  const runtimeOptions: RuntimeOptions = { canvas, scene };
+  const scheduler = new SystemScheduler();
+  scheduler.register(createSpinSystem());
+
+  const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler };
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;

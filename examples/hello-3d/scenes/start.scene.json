@@ -52,6 +52,10 @@
         "MeshRenderer": {
           "mesh": "box",
           "color": "#f7c948"
+        },
+        "Spin": {
+          "axis": "y",
+          "speed": 45
         }
       }
     }
