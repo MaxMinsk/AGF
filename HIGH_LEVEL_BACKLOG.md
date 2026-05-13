@@ -30,20 +30,21 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 | Epic | Status | Notes |
 | --- | --- | --- |
 | Sprint 0 docs and rules | Archived | Baseline docs, ADRs, Claude setup and research notes exist. |
-| Toolchain and tests | Active | Vite, TypeScript, Vitest, Playwright. |
-| Scene/project schemas | Active | JSON source of truth and diagnostics. |
-| Asset organization | Active | Source metadata, runtime folder layout, asset validation. |
-| ECS core | Active | Simple Map-backed world first. |
-| Command pipeline | Active | Observable mutations for hot reload, playtests and networking. |
-| Three.js renderer | Active | Primitive meshes first, GLB later. |
-| Material and shader system | Next | Manifest-driven materials and shader fallback path. |
-| Runtime asset loading | Next | Asset registry, loader contracts, first GLB import. |
-| Agent CLI | Active | `engine check`, `engine inspect`. |
-| Hot reload | Next | Scene diff to command patches. |
-| Playtest runner | Next | Runtime inspect API, robot policies, screenshots and metrics. |
-| Agent reliability infrastructure | Next | Preflight, debug protocol, known failures and quality axes. |
-| Template policy | Next | Maintained examples as templates, not one-shot generated archives. |
-| Persistent world backend contracts | Next | Backend-agnostic protocol schemas and world contracts. |
+| Toolchain and tests | Archived | Vite, TypeScript, Vitest, Playwright — wired in Sprint 1. |
+| Scene/project schemas | Archived | JSON source of truth and diagnostics — shipped in Sprint 1. |
+| Asset organization | Archived | Source metadata, runtime folder layout, asset reference validation — Sprint 1. |
+| ECS core | Archived | Pragmatic Map-backed world shipped in Sprint 1. |
+| Command pipeline | Archived | v0 with `entity.create`/`entity.delete`/`component.set`/`scene.load` — Sprint 1. |
+| Three.js renderer | Archived | v0 covers primitive meshes (`box`, `sphere`, `plane`) — Sprint 1. GLB still to come. |
+| Agent CLI | Archived | `engine check` and `engine inspect` v0 shipped in Sprint 1. |
+| Agent reliability infrastructure | Archived | Preflight script, debug protocol, template policy and quality axes docs exist. |
+| Material and shader system | Active | Manifest-driven materials and shader fallback path. |
+| Runtime asset loading | Active | Asset registry, loader contracts, first GLB import. |
+| Hot reload | Active | Scene diff to command patches. |
+| Playtest runner | Active | Runtime inspect API, robot policies, screenshots and metrics. |
+| Persistent world backend contracts | Active | Backend-agnostic protocol schemas and world contracts. |
+| Repo hygiene CI | Active | Cyrillic-in-repo check; future English-only enforcement. |
+| Template policy | Active | Maintained examples as templates, not one-shot generated archives. |
 | Reference backend implementations | Later | C#/.NET first, Node.js-compatible architecture by contract. |
 | Beacon World sample | Later | Main dogfood example under `examples/beacon-world/`. |
 | Rapier physics | Later | 3D first, 2D later. |
@@ -68,7 +69,7 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 - Sandbox/container strategy for untrusted generated projects.
 - Docs split into `docs/users` and `docs/developers` when documentation grows.
 - Optional visual review using screenshots after deterministic checks pass.
-- GitHub Action that fails CI on Cyrillic characters in tracked repo files. Excludes `Notes/`, `References/`, `node_modules/`, binary assets. Sprint 2 candidate.
+- (Promoted to Sprint 2 Epic 12: Cyrillic-in-repo CI check.)
 
 ## Promotion Rule
 

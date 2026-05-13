@@ -64,3 +64,31 @@ body {
   line-height: 1.4;
 }
 
+.engine-dev-overlay {
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  display: flex;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(150, 212, 255, 0.28);
+  background: rgba(4, 10, 16, 0.58);
+  backdrop-filter: blur(12px);
+  color: rgba(234, 244, 255, 0.82);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.engine-dev-overlay .metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.engine-dev-overlay strong {
+  color: #eaf4ff;
+  font-weight: 700;
+}
+

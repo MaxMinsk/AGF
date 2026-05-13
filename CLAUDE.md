@@ -15,8 +15,10 @@ This folder is the public repository root for the engine. Example games are nest
 
 ## Working Mode
 
-- Each backlog story is implemented on its own feature branch (`feature/<story-id-or-slug>`) and shipped via `gh pr create`. Do not push directly to `main`.
+- A sprint runs on a single long-lived branch named `sprint/<N>-<slug>` cut from `main`. Stories are atomic commits inside that branch — no nested PRs, no waiting for review during the sprint.
 - When a story is marked `Implemented` in `BACKLOG.md`, commit the change without waiting for an explicit "commit it" instruction. Use the smallest relevant verification (typecheck / unit / `engine check`) before committing.
+- One PR `sprint/<N>-... → main` is opened (or updated) at sprint close, alongside `/archive-sprint`. That is the single review hand-off per sprint.
+- Exception: if a single change needs to merge before the sprint closes (hotfix, urgent doc), cherry-pick it onto a focused `feature/<slug>` branch and open a small PR.
 - Run `npm run preflight` only at sprint close, not on every story.
 - Default to making the reasonable call and continuing; flag the decisions in the end-of-turn summary so they can be redirected.
 
