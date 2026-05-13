@@ -11,19 +11,21 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { platform } from "node:os";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const examplesDir = resolve(repoRoot, "examples");
-// Resolve the local tsx binary directly instead of going through `npx`, which
-// in CI re-installs tsx into its npx cache and that copy fails to resolve
-// `ajv` from the repo's `node_modules/`.
-const tsxBin = resolve(
-  repoRoot,
-  "node_modules",
-  ".bin",
-  platform() === "win32" ? "tsx.cmd" : "tsx"
-);
+// Run tsx via `node node_modules/tsx/dist/cli.mjs` rather than through `npx`
+// or the `node_modules/.bin/tsx` symlink: npx re-installs tsx into its cache
+// (where it cannot resolve `ajv` from the repo's node_modules), and spawning
+// the `.bin` symlink directly silently fails on some Linux CI configurations.
+// Invoking node with the cli.mjs path is the most portable option.
+const tsxCliPath = resolve(repoRoot, "node_modules", "tsx", "dist", "cli.mjs");
+if (!existsSync(tsxCliPath)) {
+  console.error(
+    `[engine:check:examples] tsx CLI not found at ${tsxCliPath}. Run \`npm ci\` first.`
+  );
+  process.exit(1);
+}
 
 const candidates = readdirSync(examplesDir)
   .map((name) => ({ name, path: resolve(examplesDir, name) }))
@@ -40,11 +42,21 @@ let failed = 0;
 for (const entry of candidates) {
   console.log(`\n[engine:check:examples] ${entry.name}`);
   const result = spawnSync(
-    tsxBin,
-    ["engine/tools/cli.ts", "check", `examples/${entry.name}`],
+    process.execPath,
+    [tsxCliPath, "engine/tools/cli.ts", "check", `examples/${entry.name}`],
     { stdio: "inherit", cwd: repoRoot }
   );
+  if (result.error !== undefined) {
+    console.error(
+      `[engine:check:examples] failed to start: ${result.error.message ?? result.error}`
+    );
+    failed += 1;
+    continue;
+  }
   if (result.status !== 0) {
+    console.error(
+      `[engine:check:examples] ${entry.name} exited with code ${result.status ?? "(signal)"}.`
+    );
     failed += 1;
   }
 }
