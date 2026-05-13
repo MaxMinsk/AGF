@@ -1,0 +1,36 @@
+// Stable wire contract for `engine check` / `engine inspect --json` diagnostic
+// codes. External tooling (CI matchers, agent runners, dashboards) can import
+// this module and pattern-match on a typed value instead of bare strings.
+//
+// Add new codes here when introducing a new check; never repurpose an
+// existing value.
+
+export const DIAGNOSTIC_CODES = {
+  // File-system / parsing
+  AGF_FILE_MISSING: "AGF_FILE_MISSING",
+  AGF_JSON_PARSE_FAILED: "AGF_JSON_PARSE_FAILED",
+
+  // Project manifest
+  AGF_PROJECT_START_SCENE_MISSING: "AGF_PROJECT_START_SCENE_MISSING",
+  AGF_PROJECT_ASSET_ROOT_MISSING: "AGF_PROJECT_ASSET_ROOT_MISSING",
+
+  // Asset metadata
+  AGF_ASSET_SOURCES_MISSING: "AGF_ASSET_SOURCES_MISSING",
+  AGF_ASSET_RUNTIME_UNDECLARED: "AGF_ASSET_RUNTIME_UNDECLARED",
+  AGF_ASSET_SOURCE_RUNTIME_MISSING: "AGF_ASSET_SOURCE_RUNTIME_MISSING",
+  AGF_ASSET_REFERENCE_INVALID: "AGF_ASSET_REFERENCE_INVALID",
+  AGF_ASSET_REFERENCE_MISSING: "AGF_ASSET_REFERENCE_MISSING",
+
+  // Scene shape
+  AGF_SCENE_DUPLICATE_ENTITY_ID: "AGF_SCENE_DUPLICATE_ENTITY_ID",
+
+  // Schema validation
+  AGF_SCHEMA_UNKNOWN_COMPONENT: "AGF_SCHEMA_UNKNOWN_COMPONENT",
+  AGF_SCHEMA_UNKNOWN_PROPERTY: "AGF_SCHEMA_UNKNOWN_PROPERTY",
+  AGF_SCHEMA_REQUIRED_PROPERTY: "AGF_SCHEMA_REQUIRED_PROPERTY",
+  AGF_SCHEMA_VALIDATION_FAILED: "AGF_SCHEMA_VALIDATION_FAILED"
+} as const;
+
+export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[keyof typeof DIAGNOSTIC_CODES];
+
+export const ALL_DIAGNOSTIC_CODES: ReadonlyArray<DiagnosticCode> = Object.values(DIAGNOSTIC_CODES);

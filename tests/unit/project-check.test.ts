@@ -14,6 +14,22 @@ describe("project check", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("warns when an asset-sources runtimeFiles entry references a file that does not exist", () => {
+    const result = checkProject(resolve(fixturesRoot, "declared-but-missing"));
+
+    expect(result.ok).toBe(true);
+    const missing = result.diagnostics.filter(
+      (diagnostic) => diagnostic.code === "AGF_ASSET_SOURCE_RUNTIME_MISSING"
+    );
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toMatchObject({
+      severity: "warning",
+      file: "assets/_sources/asset-sources.json",
+      path: "$.assets[0].runtimeFiles",
+      message: expect.stringContaining("runtime/models/never-existed.glb")
+    });
+  });
+
   it("warns about runtime assets that are not declared in asset-sources.json", () => {
     const result = checkProject(resolve(fixturesRoot, "undeclared-runtime-asset"));
 

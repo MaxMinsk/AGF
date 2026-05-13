@@ -62,6 +62,16 @@
           "type": "number",
           "minimum": 0,
           "description": "Runtime countdown towards respawn, seconds."
+        },
+        "originalColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Runtime field — colour stashed when a Carrier picks the item up so it can be restored on deposit / respawn."
+        },
+        "originalMaterial": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Runtime field — material ref stashed when a Carrier picks the item up so it can be restored on deposit / respawn."
         }
       }
     },

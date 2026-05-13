@@ -67,6 +67,23 @@ function assetHotReload(): Plugin {
 
 export default defineConfig({
   plugins: [copyExampleAssets(), assetHotReload()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy dependencies into dedicated chunks so the main app
+        // bundle stays small and the big libraries cache independently.
+        manualChunks(id: string): string | undefined {
+          if (id.includes("/node_modules/three/")) {
+            return "three";
+          }
+          if (id.includes("/node_modules/ajv/") || id.includes("/node_modules/ajv-")) {
+            return "ajv";
+          }
+          return undefined;
+        }
+      }
+    }
+  },
   server: {
     host: "127.0.0.1",
     port: 5173,

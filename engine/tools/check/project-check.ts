@@ -248,32 +248,51 @@ function detectUndeclaredRuntimeAssets(
   sourceMetadata: JsonValue
 ): Diagnostic[] {
   const declared = new Set<string>();
+  const declaredEntries: Array<{ index: number; ref: string }> = [];
   if (isJsonObject(sourceMetadata) && Array.isArray(sourceMetadata["assets"])) {
-    for (const asset of sourceMetadata["assets"]) {
+    sourceMetadata["assets"].forEach((asset, assetIndex) => {
       if (!isJsonObject(asset)) {
-        continue;
+        return;
       }
       const runtimeFiles = asset["runtimeFiles"];
       if (!Array.isArray(runtimeFiles)) {
-        continue;
+        return;
       }
       for (const file of runtimeFiles) {
         if (typeof file === "string" && file.length > 0) {
-          declared.add(file.split("\\").join("/"));
+          const normalised = file.split("\\").join("/");
+          declared.add(normalised);
+          declaredEntries.push({ index: assetIndex, ref: normalised });
         }
       }
+    });
+  }
+
+  const diagnostics: Diagnostic[] = [];
+
+  // Reverse direction: every declared file must exist on disk.
+  for (const entry of declaredEntries) {
+    const onDisk = resolve(assetRootPath, entry.ref);
+    if (!existsSync(onDisk) || statSync(onDisk).isDirectory()) {
+      diagnostics.push({
+        severity: "warning",
+        code: "AGF_ASSET_SOURCE_RUNTIME_MISSING",
+        file: toProjectRelativeFile(sourceMetadataPath, projectDir),
+        path: `$.assets[${entry.index}].runtimeFiles`,
+        message: `Declared runtime asset "${entry.ref}" does not exist on disk under assetRoot.`,
+        suggestion: "Drop the runtimeFiles entry or restore the file (e.g. re-run the generator script that originally emitted it)."
+      });
     }
   }
 
   const runtimeRoot = resolve(assetRootPath, "runtime");
   if (!isDirectory(runtimeRoot)) {
-    return [];
+    return diagnostics;
   }
 
   const found: string[] = [];
   walkRuntimeFiles(runtimeRoot, "runtime", found);
 
-  const diagnostics: Diagnostic[] = [];
   for (const ref of found) {
     if (!declared.has(ref)) {
       diagnostics.push({
