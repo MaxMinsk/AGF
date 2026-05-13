@@ -26,6 +26,8 @@ Current commands:
 - `/review-agent`: review recent changes against agent-first rules.
 - `/sample-game`: work on the Beacon World sample direction.
 - `/asset-pipeline`: work on asset source, import, metadata, loading or optimization tasks.
+- `/adr-new`: draft a new ADR in `docs/adr/` with the standard template.
+- `/archive-sprint`: close a sprint by moving its detailed stories to `BACKLOG_ARCHIVE.md`.
 
 ## Subagents
 

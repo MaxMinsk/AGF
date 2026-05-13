@@ -68,6 +68,7 @@ Build AgentsGameFramework (AGF), a lightweight agent-first web game framework:
 - Sandbox/container strategy for untrusted generated projects.
 - Docs split into `docs/users` and `docs/developers` when documentation grows.
 - Optional visual review using screenshots after deterministic checks pass.
+- GitHub Action that fails CI on Cyrillic characters in tracked repo files. Excludes `Notes/`, `References/`, `node_modules/`, binary assets. Sprint 2 candidate.
 
 ## Promotion Rule
 

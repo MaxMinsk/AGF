@@ -2,7 +2,43 @@
 
 This folder is the public repository root for the engine. Example games are nested projects under `examples/` and should not redefine the repository root.
 
-Target structure after Sprint 1 and Sprint 2:
+## Current Layout
+
+What actually exists right now, mid-Sprint 1:
+
+```text
+.
+  engine/
+    core/
+      ecs/                  // Story 3.1
+      commands/             // Story 3.2
+      math.ts
+    tools/
+      check/
+      inspect/
+      cli.ts
+  examples/
+    hello-3d/
+  schemas/
+  src/                      // Vite bootstrap, will stay thin (see below)
+  tests/
+    unit/
+    e2e/
+    fixtures/
+  docs/
+    adr/
+    agent/
+    research/
+```
+
+Notes:
+
+- `src/` is the Vite entrypoint. It will stay small: only DOM mount + `runtime.start()`. Renderer, runtime, input, hot reload live under `engine/`, not under `src/`.
+- `engine/runtime/`, `engine/render/`, `engine/physics/`, `engine/testkit/` and `examples/beacon-world/` are planned but not yet created.
+
+## Target Layout
+
+After Sprint 1 and Sprint 2:
 
 ```text
 .
@@ -18,6 +54,7 @@ Target structure after Sprint 1 and Sprint 2:
     beacon-world/
     backends/
   schemas/
+  src/                      // unchanged: thin Vite entry only
   tests/
   docs/
     adr/
