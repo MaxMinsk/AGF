@@ -49,15 +49,60 @@ Verification:
 - `npm run engine:check -- examples/beacon-world`
 - `npm run engine:inspect -- examples/beacon-world`
 
-**Story 13.2: Beacon World First Scene** (next)
+**Story 13.2: Beacon World First Scene**
 
-Tasks/acceptance/verification expanded when picked up.
+Status: Implemented.
+
+Tasks:
+
+- Populate `examples/beacon-world/scenes/start.scene.json` with a salvage drone (sphere) and two beacons (vertical boxes) flanking the drone, plus the existing camera + ground.
+- Add `examples/beacon-world/assets/runtime/materials/{beacon,drone}.material.json` PBR manifests; beacon is warm emissive yellow, drone is cool metallic.
+- Reference the materials from the scene through `MeshRenderer.material`.
+- Attach `Spin` to both beacons (counter-rotating ±25°/s) so the scene reads as alive when wired to a runtime.
+- Update `_sources/asset-sources.json` with entries for both materials.
+
+Acceptance criteria:
+
+- `engine check examples/beacon-world` returns OK.
+- `engine inspect examples/beacon-world` lists 5 entities: camera, ground, drone, two beacons; both beacons have a `Spin` component.
+- The scene composes from primitives + materials only — no new engine code required.
+- Material files validate against the material schema.
+
+Verification:
+
+- `npm run engine:check -- examples/beacon-world`
+- `npm run engine:inspect -- examples/beacon-world`
+
+Follow-up:
+
+- Visual preview is gated on a project switcher (Sprint 4 candidate) or a manual `src/main.ts` import swap.
 
 ### Epic 14: Asset Pipeline Polish
 
-**Story 14.1: Minimal GLB For hello-3d** (next)
+**Story 14.1: Minimal GLB For hello-3d**
 
-Tasks/acceptance/verification expanded when picked up.
+Status: Implemented.
+
+Tasks:
+
+- Author `scripts/build-cube-glb.mjs` — pure Node script that writes a valid binary glTF 2.0 cube (24 face-aligned vertices, 36 indices, default PBR material) using only `node:fs` and `Buffer` arithmetic. No npm dep.
+- Run the script once; commit `examples/hello-3d/assets/runtime/models/cube.glb`.
+- Update `ThreeRenderer` to recognise `.glb`/`.gltf` refs in `MeshRenderer.mesh`, create a near-zero placeholder geometry, load through the existing `AssetRegistry` + `GlbLoader`, and swap in the first mesh's geometry once it resolves.
+- Update `examples/hello-3d/scenes/start.scene.json` so `cube.hero.MeshRenderer.mesh` points to `runtime/models/cube.glb`.
+- Add an `asset-sources.json` entry for the generated cube.
+
+Acceptance criteria:
+
+- `engine check examples/hello-3d` returns OK with the new mesh reference.
+- Playwright smoke + agent-loop tests still pass.
+- The hero cube is sourced from the GLB; material binding from Story 8.3 still controls colour/roughness/metalness/emissive.
+- The renderer still works without an `assetRegistry` option — `.glb` refs stay as the placeholder.
+
+Verification:
+
+- `npm run engine:check -- examples/hello-3d`
+- `npm run test:e2e`
+- Screenshot `hello-3d-canvas.png` confirms the cube renders at the expected size with cyan-metallic shading.
 
 ### Deferred
 
