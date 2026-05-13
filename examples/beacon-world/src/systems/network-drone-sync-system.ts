@@ -17,13 +17,19 @@ const LOCAL_DRONE_ID = "player.drone";
 const DEFAULT_SNAP_THRESHOLD = 1.5;
 const DEFAULT_RECONCILE_RATE = 12;
 
+export type UnackedIntentForReplay = {
+  sequence: number;
+  direction: readonly [number, number];
+  sentAtSeconds: number;
+};
+
 export type NetworkDroneSyncOptions = {
   /** Player id whose server-owned entity should drive the local drone. */
   playerId: string;
   /**
    * If the local drone has drifted more than this many world units away from
-   * the server position (XZ plane), snap to the server. Used to recover from
-   * teleports and respawns. Defaults to 1.5.
+   * the predicted position (XZ plane), snap to the prediction. Used to
+   * recover from teleports and respawns. Defaults to 1.5.
    */
   snapThresholdUnits?: number;
   /**
@@ -40,20 +46,36 @@ export type NetworkDroneSyncOptions = {
    * back to plain threshold + lerp.
    */
   getUnackedInputCount?: () => number;
+  /**
+   * Returns the list of un-acked `intent.move` records (sorted by sequence),
+   * each with the wall-clock time it was sent. When provided alongside
+   * `nowSeconds` and `playerSpeed`, the system runs rollback-replay: the
+   * server's authoritative position is advanced by each un-acked intent over
+   * its actual duration, then the local drone is reconciled toward that
+   * predicted position. Without this hook the system falls back to plain
+   * server-position reconciliation.
+   */
+  getUnackedIntents?: () => ReadonlyArray<UnackedIntentForReplay>;
+  /** Monotonic clock used as the upper bound for the latest replay segment. */
+  nowSeconds?: () => number;
+  /** Movement speed used during replay. Must match the server's player speed. */
+  playerSpeed?: number;
 };
 
 /**
  * Frame-phase system used by the `"connected"` Beacon profile. Reconciles the
  * local `player.drone` with the server-owned `player.<playerId>`:
  *
- *  * the PlayerInputSystem also predicts movement locally, so the drone feels
- *    instant on input;
- *  * when the server snapshot disagrees with the prediction by less than
- *    `snapThresholdUnits`, this system smoothly lerps the local drone toward
- *    the server position at `reconcileRate` per second;
- *  * when the drift is larger (server-side teleport, respawn, dropped frames),
- *    it snaps the drone to the server position immediately so the player does
- *    not phase through walls / cores on big corrections.
+ *  * `PlayerInputSystem` predicts movement locally so the drone feels instant
+ *    on input;
+ *  * when `getUnackedIntents` + `nowSeconds` + `playerSpeed` are provided,
+ *    each un-acked intent is replayed over its real duration on top of the
+ *    authoritative server position — the reconciliation target then matches
+ *    where prediction would put the drone given the server's truth;
+ *  * when drift to the target is below `snapThresholdUnits`, the local drone
+ *    smoothly lerps at `reconcileRate` per second; above the threshold (and
+ *    only when no inputs are un-acked) it snaps, so big corrections do not
+ *    leave the player phasing through walls or cores.
  *
  * Local rotation and scale are preserved.
  */
@@ -94,29 +116,34 @@ export function createNetworkDroneSyncSystem(options: NetworkDroneSyncOptions): 
           continue;
         }
 
-        const sx = serverTransform.position[0] ?? 0;
+        const sx0 = serverTransform.position[0] ?? 0;
         const sy = serverTransform.position[1] ?? 0;
-        const sz = serverTransform.position[2] ?? 0;
+        const sz0 = serverTransform.position[2] ?? 0;
+
+        const target = replayUnackedIntents(sx0, sz0, options);
+        const tx = target[0];
+        const tz = target[1];
+
         const lx = localTransform.position?.[0] ?? 0;
         const ly = localTransform.position?.[1] ?? 0;
         const lz = localTransform.position?.[2] ?? 0;
 
-        const driftXZ = Math.hypot(sx - lx, sz - lz);
+        const driftXZ = Math.hypot(tx - lx, tz - lz);
 
         const unacked = options.getUnackedInputCount?.() ?? 0;
         let nx: number;
         let ny: number;
         let nz: number;
         if (driftXZ >= snapThreshold && unacked === 0) {
-          nx = sx;
+          nx = tx;
           ny = sy;
-          nz = sz;
+          nz = tz;
         } else {
           const dt = Math.max(time.dt, 0);
           const blend = 1 - Math.exp(-reconcileRate * dt);
-          nx = lx + (sx - lx) * blend;
+          nx = lx + (tx - lx) * blend;
           ny = ly + (sy - ly) * blend;
-          nz = lz + (sz - lz) * blend;
+          nz = lz + (tz - lz) * blend;
         }
 
         world.setComponent(LOCAL_DRONE_ID, "Transform", {
@@ -127,4 +154,36 @@ export function createNetworkDroneSyncSystem(options: NetworkDroneSyncOptions): 
       }
     }
   };
+}
+
+function replayUnackedIntents(
+  sx: number,
+  sz: number,
+  options: NetworkDroneSyncOptions
+): [number, number] {
+  const getIntents = options.getUnackedIntents;
+  const nowSeconds = options.nowSeconds;
+  const speed = options.playerSpeed;
+  if (getIntents === undefined || nowSeconds === undefined || speed === undefined || speed <= 0) {
+    return [sx, sz];
+  }
+  const intents = getIntents();
+  if (intents.length === 0) {
+    return [sx, sz];
+  }
+  const now = nowSeconds();
+  let x = sx;
+  let z = sz;
+  for (let i = 0; i < intents.length; i += 1) {
+    const intent = intents[i]!;
+    const next = intents[i + 1];
+    const end = next !== undefined ? next.sentAtSeconds : now;
+    const dt = Math.max(0, end - intent.sentAtSeconds);
+    if (dt === 0) {
+      continue;
+    }
+    x += intent.direction[0] * speed * dt;
+    z += intent.direction[1] * speed * dt;
+  }
+  return [x, z];
 }

@@ -2,11 +2,14 @@ import "./styles.css";
 
 import helloProjectData from "../examples/hello-3d/project.json";
 import helloSceneData from "../examples/hello-3d/scenes/start.scene.json";
+import { hello3DBootstrap } from "../examples/hello-3d/bootstrap";
 import beaconProjectData from "../examples/beacon-world/project.json";
 import beaconSceneData from "../examples/beacon-world/scenes/start.scene.json";
+import { beaconWorldBootstrap } from "../examples/beacon-world/bootstrap";
 
 import { createApp, type AppHandle, type ProjectMeta } from "./app";
 import { diffScenes } from "../engine/core/commands/scene-diff";
+import type { ProjectBootstrap } from "../engine/runtime/project-bootstrap";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
@@ -42,18 +45,21 @@ type ProjectOption = {
   id: string;
   project: ProjectMeta;
   scene: SceneInput;
+  bootstrap: ProjectBootstrap;
 };
 
 const projectOptions: Record<string, ProjectOption> = {
   "hello-3d": {
     id: "hello-3d",
     project: helloProjectData as ProjectMeta,
-    scene: helloSceneData as unknown as SceneInput
+    scene: helloSceneData as unknown as SceneInput,
+    bootstrap: hello3DBootstrap
   },
   "beacon-world": {
     id: "beacon-world",
     project: beaconProjectData as ProjectMeta,
-    scene: beaconSceneData as unknown as SceneInput
+    scene: beaconSceneData as unknown as SceneInput,
+    bootstrap: beaconWorldBootstrap
   }
 };
 
@@ -80,7 +86,9 @@ const requestedServer = params.get("server");
 const requestedPlayerId = params.get("playerId");
 const requestedNetworked = params.get("networked");
 const requestedProfile = params.get("profile");
-const appOptions: Parameters<typeof createApp>[5] = {};
+const appOptions: Parameters<typeof createApp>[5] = {
+  bootstrap: selected.bootstrap
+};
 if (requestedServer !== null && requestedServer.length > 0) {
   appOptions.serverUrl = requestedServer;
 }

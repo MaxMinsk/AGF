@@ -9,16 +9,10 @@ import {
   startWsNetworkAdapter,
   type WsNetworkAdapterHandle
 } from "../engine/runtime/network/ws-network-adapter";
-import { createPickupSystem as createBeaconPickupSystem } from "../examples/beacon-world/src/systems/pickup-system";
-import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
-import { createWorldSignalSystem as createBeaconWorldSignalSystem } from "../examples/beacon-world/src/systems/world-signal-system";
-import { createRoundSystem as createBeaconRoundSystem } from "../examples/beacon-world/src/systems/round-system";
-import { createRoundAutoResetSystem as createBeaconRoundAutoResetSystem } from "../examples/beacon-world/src/systems/round-auto-reset-system";
-import { createNetworkDroneSyncSystem as createBeaconNetworkDroneSyncSystem } from "../examples/beacon-world/src/systems/network-drone-sync-system";
-import { createRemotePresenceDecoratorSystem as createBeaconRemotePresenceDecoratorSystem } from "../examples/beacon-world/src/systems/remote-presence-decorator-system";
-import { createRemotePresenceInterpolatorSystem as createBeaconRemotePresenceInterpolatorSystem } from "../examples/beacon-world/src/systems/remote-presence-interpolator-system";
-import { resetBeaconRound } from "../examples/beacon-world/src/round-reset";
-import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
+import type {
+  ProjectBootstrap,
+  ProjectUiHandle
+} from "../engine/runtime/project-bootstrap";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
@@ -51,6 +45,12 @@ export type AppOptions = {
    * Defaults to `project.profiles[0]` or `"static"`.
    */
   activeProfile?: string;
+  /**
+   * Project-specific bootstrap that registers systems, mounts UI, handles
+   * restart, etc. Each example project ships its own bootstrap; the root app
+   * does not import from `examples/`.
+   */
+  bootstrap?: ProjectBootstrap;
 };
 
 export type AppHandle = {
@@ -61,9 +61,9 @@ export type AppHandle = {
   /** Active WS adapter, if `?server=` was provided. Useful for tests. */
   readonly network: WsNetworkAdapterHandle | undefined;
   /**
-   * Project-local action. For Beacon World, re-arms all beacons, respawns
-   * all consumed pickups and resets `RoundState` to `"active"`. Returns
-   * the number of mutations applied. For other projects, returns 0.
+   * Delegates to the active bootstrap's `resetRound`, if it implements one.
+   * Returns the number of mutations applied (`0` for projects without a
+   * round concept).
    */
   resetRound(): number;
   dispose(): void;
@@ -99,18 +99,9 @@ export function createApp(
     )
     .join(" · ");
 
-  status.innerHTML = `
-    <h1 class="status-title" data-testid="project-name">${escapeText(project.name)}</h1>
-    <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS. Edit the scene file to hot-reload.</p>
-    <p class="status-copy">Project: <code data-testid="project-id">${escapeText(projectId)}</code> · ${switcherLinks}</p>
-    ${renderConnectivityHint(projectId, options)}
-  `;
-
-  shell.append(canvas, status);
-  root.append(shell);
-
   const projectProfiles = project.profiles ?? ["static"];
   const networked = options.networked === true && options.serverUrl !== undefined;
+  const playerId = options.playerId ?? (networked ? randomPlayerId() : "local");
   const requestedProfile =
     options.activeProfile !== undefined && projectProfiles.includes(options.activeProfile)
       ? options.activeProfile
@@ -118,9 +109,26 @@ export function createApp(
   const activeProfile =
     requestedProfile ??
     (networked && projectProfiles.includes("connected") ? "connected" : projectProfiles[0] ?? "static");
+
+  const bootstrap = options.bootstrap;
+  const connectivityHint = bootstrap?.renderConnectivityHint?.({
+    serverUrl: options.serverUrl,
+    playerId: options.playerId,
+    networked
+  }) ?? "";
+
+  status.innerHTML = `
+    <h1 class="status-title" data-testid="project-name">${escapeText(project.name)}</h1>
+    <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS. Edit the scene file to hot-reload.</p>
+    <p class="status-copy">Project: <code data-testid="project-id">${escapeText(projectId)}</code> · ${switcherLinks}</p>
+    ${connectivityHint}
+  `;
+
+  shell.append(canvas, status);
+  root.append(shell);
+
   const scheduler = new SystemScheduler({ activeProfiles: [activeProfile] });
   let network: WsNetworkAdapterHandle | undefined;
-  const playerId = options.playerId ?? (networked ? randomPlayerId() : "local");
   const playerInputSystem = networked
     ? createPlayerInputSystem({
         onIntent: (direction) => network?.sendIntent(direction)
@@ -128,53 +136,13 @@ export function createApp(
     : createPlayerInputSystem();
   scheduler.register(playerInputSystem);
   scheduler.register(createSpinSystem());
-  if (projectId === "beacon-world") {
-    scheduler.register(createBeaconPickupSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createBeaconHazardSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createBeaconWorldSignalSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createBeaconRoundSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createBeaconRoundAutoResetSystem(), { profiles: ["static", "connected"] });
-    if (networked) {
-      scheduler.register(
-        createBeaconNetworkDroneSyncSystem({
-          playerId,
-          getUnackedInputCount: (): number => {
-            if (network === undefined) {
-              return 0;
-            }
-            const acked = network.lastAckedFor(playerId);
-            const highest = network.highestOutboundSequence();
-            if (highest < 0) {
-              return 0;
-            }
-            if (acked === undefined) {
-              return highest + 1;
-            }
-            return Math.max(0, highest - acked);
-          }
-        }),
-        { profiles: ["connected"] }
-      );
-      scheduler.register(
-        createBeaconRemotePresenceDecoratorSystem({
-          localPlayerId: playerId,
-          mesh: "runtime/models/drone.glb",
-          material: "runtime/materials/drone.material.json"
-        }),
-        { profiles: ["connected"] }
-      );
-      const interpolatorClock = (): number =>
-        typeof performance !== "undefined" ? performance.now() / 1000 : Date.now() / 1000;
-      scheduler.register(
-        createBeaconRemotePresenceInterpolatorSystem({
-          localPlayerId: playerId,
-          getSnapshotBuffer: () => network?.getSnapshotBuffer() ?? new Map(),
-          nowSeconds: interpolatorClock
-        }),
-        { profiles: ["connected"] }
-      );
-    }
-  }
+
+  bootstrap?.registerSystems({
+    scheduler,
+    playerId,
+    networked,
+    getNetwork: () => network
+  });
 
   const assetRegistry = new AssetRegistry({
     baseUrl: new URL(`examples/${projectId}/assets/`, window.location.href).href,
@@ -193,21 +161,12 @@ export function createApp(
 
   const runtime: RuntimeHandle = startRuntime(runtimeOptions);
 
-  let healthHud: HealthHudHandle | undefined;
-  let keyboardResetHandler: ((event: KeyboardEvent) => void) | undefined;
-  if (projectId === "beacon-world") {
-    healthHud = createBeaconHealthHud(shell, runtime);
-    keyboardResetHandler = (event: KeyboardEvent): void => {
-      if (event.code !== "KeyR" || event.repeat) {
-        return;
-      }
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      resetBeaconRound(runtime.world);
-    };
-    window.addEventListener("keydown", keyboardResetHandler);
-  }
+  const projectUi: ProjectUiHandle | undefined = bootstrap?.attachUi?.({
+    shell,
+    runtime,
+    playerId,
+    networked
+  });
 
   if (options.serverUrl !== undefined) {
     network = startWsNetworkAdapter({
@@ -234,46 +193,16 @@ export function createApp(
       return network;
     },
     resetRound(): number {
-      if (projectId !== "beacon-world") {
-        return 0;
-      }
-      return resetBeaconRound(runtime.world);
+      return bootstrap?.resetRound?.(runtime) ?? 0;
     },
     dispose(): void {
-      if (keyboardResetHandler !== undefined) {
-        window.removeEventListener("keydown", keyboardResetHandler);
-      }
+      projectUi?.dispose();
       network?.dispose();
-      healthHud?.dispose();
       runtime.stop();
       playerInputSystem.dispose();
       root.textContent = "";
     }
   };
-}
-
-function renderConnectivityHint(projectId: string, options: AppOptions): string {
-  if (projectId !== "beacon-world") {
-    return "";
-  }
-  if (options.serverUrl !== undefined && options.networked === true) {
-    const safeUrl = escapeText(options.serverUrl);
-    return `<p class="status-copy" data-testid="multiplayer-status">Multiplayer: connected to <code>${safeUrl}</code> as <code>${escapeText(options.playerId ?? "client")}</code>. Open this URL in another tab with a different <code>playerId</code> to share the world.</p>`;
-  }
-  const port = 8787;
-  const base = "?project=beacon-world&server=" + encodeURIComponent(`ws://localhost:${port}`) + "&networked=1";
-  const alphaUrl = `${base}&playerId=alpha`;
-  const bravoUrl = `${base}&playerId=bravo`;
-  return `<details class="status-copy" data-testid="multiplayer-hint" style="margin-top:8px;">
-    <summary><strong>Play multiplayer</strong> — by default this tab is a local-only world.</summary>
-    <p style="margin:6px 0 4px;">In a separate terminal:</p>
-    <pre style="margin:0 0 6px; padding:6px 8px; background:rgba(255,255,255,0.05); border-radius:4px; font-size:11px;">npm run backend:node:serve</pre>
-    <p style="margin:0 0 4px;">Then open two tabs (one per playerId):</p>
-    <ul style="margin:0 0 0 1em; padding:0; font-size:11px;">
-      <li><a href="${alphaUrl}" data-testid="multiplayer-link-alpha">Open as alpha</a></li>
-      <li><a href="${bravoUrl}" data-testid="multiplayer-link-bravo">Open as bravo</a></li>
-    </ul>
-  </details>`;
 }
 
 function randomPlayerId(): string {

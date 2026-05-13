@@ -52,6 +52,18 @@ export type SnapshotSample = {
   position: readonly [number, number, number];
 };
 
+/**
+ * One client-side intent record retained until the server acknowledges it via
+ * `world.snapshot.payload.lastAcked`. Used by the reconciliation system to
+ * replay un-acked intents on top of the server position (rollback-replay).
+ */
+export type UnackedIntent = {
+  sequence: number;
+  direction: readonly [number, number];
+  /** Client-side wall-clock timestamp (seconds) when the intent was sent. */
+  sentAtSeconds: number;
+};
+
 export type WsNetworkAdapterOptions = {
   url: string;
   playerId: string;
@@ -124,6 +136,13 @@ export type WsNetworkAdapterHandle = {
    * networks.
    */
   getSnapshotBuffer(): ReadonlyMap<string, ReadonlyArray<SnapshotSample>>;
+  /**
+   * Returns the list of own-player `intent.move` records the server has not
+   * yet acknowledged, sorted by sequence. Used by the reconciliation system
+   * to replay these intents on top of the authoritative server position so
+   * the local drone matches the prediction once the snapshot lands.
+   */
+  getUnackedIntents(): ReadonlyArray<UnackedIntent>;
   dispose(): void;
 };
 
@@ -156,6 +175,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
   const serverOwnedIds = new Set<string>();
   const snapshotBuffer = new Map<string, SnapshotSample[]>();
   const lastAckedBy = new Map<string, number>();
+  const unackedIntents = new Map<number, UnackedIntent>();
   let outboundSequence = 0;
   let highestSent = -1;
   let lastSequence: number | undefined;
@@ -224,6 +244,14 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
             }
           }
         }
+        const ackedForOwn = lastAckedBy.get(options.playerId);
+        if (ackedForOwn !== undefined) {
+          for (const seq of unackedIntents.keys()) {
+            if (seq <= ackedForOwn) {
+              unackedIntents.delete(seq);
+            }
+          }
+        }
       }
       applySnapshot(message.payload.entities);
     });
@@ -287,6 +315,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     serverOwnedIds.clear();
     snapshotBuffer.clear();
     lastAckedBy.clear();
+    unackedIntents.clear();
     options.applyCommands(commands);
   }
 
@@ -372,6 +401,11 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         sequence: outboundSequence,
         payload: { playerId: options.playerId, direction: [direction[0], direction[1]] }
       });
+      unackedIntents.set(outboundSequence, {
+        sequence: outboundSequence,
+        direction: [direction[0], direction[1]],
+        sentAtSeconds: nowSeconds()
+      });
       highestSent = outboundSequence;
       outboundSequence += 1;
     },
@@ -398,6 +432,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     },
     getSnapshotBuffer(): ReadonlyMap<string, ReadonlyArray<SnapshotSample>> {
       return snapshotBuffer;
+    },
+    getUnackedIntents(): ReadonlyArray<UnackedIntent> {
+      return [...unackedIntents.values()].sort((a, b) => a.sequence - b.sequence);
     },
     dispose(): void {
       disposed = true;
