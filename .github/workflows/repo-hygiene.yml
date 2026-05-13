@@ -43,11 +43,13 @@ jobs:
           node-version: "24"
       - name: Install dependencies
         run: |
+          # npm 11.11 (bundled with Node 24.14) crashes during `npm ci` on
+          # the GitHub Actions runner with "Exit handler never called!"
+          # regardless of audit/fund/cache flags. Pin to the last npm 10 LTS
+          # which installs the same lockfile cleanly.
+          npm install -g npm@10.9.2
           node --version
           npm --version
-          # Avoid the setup-node `cache: npm` directive — its restored
-          # `.npm/_cacache/` has been crashing `npm ci` with "Exit handler
-          # never called!" on Node 24 / npm 11.11.
           npm ci --no-audit --no-fund
       - name: engine:check examples
         run: npm run engine:check:examples
@@ -66,11 +68,13 @@ jobs:
           node-version: "24"
       - name: Install dependencies
         run: |
+          # npm 11.11 (bundled with Node 24.14) crashes during `npm ci` on
+          # the GitHub Actions runner with "Exit handler never called!"
+          # regardless of audit/fund/cache flags. Pin to the last npm 10 LTS
+          # which installs the same lockfile cleanly.
+          npm install -g npm@10.9.2
           node --version
           npm --version
-          # Avoid the setup-node `cache: npm` directive — its restored
-          # `.npm/_cacache/` has been crashing `npm ci` with "Exit handler
-          # never called!" on Node 24 / npm 11.11.
           npm ci --no-audit --no-fund
       - name: Build
         run: npm run build
