@@ -1,0 +1,51 @@
+{
+  "$schema": "https://agentsgameframework.dev/schemas/playtest.schema.json",
+  "id": "pickup-cycle",
+  "name": "Drone picks up a core and repairs a beacon",
+  "project": "beacon-world",
+  "description": "Teleport the drone next to core.north, confirm pickup, teleport next to beacon.west, confirm repair (Repairable.repaired === true and the carried entity is parked as consumed).",
+  "steps": [
+    {
+      "kind": "applyCommands",
+      "commands": [
+        {
+          "kind": "component.set",
+          "entityId": "player.drone",
+          "component": "Transform",
+          "data": { "position": [-1.5, 0.4, -2.5], "rotation": [0, 0, 0], "scale": [0.7, 0.7, 0.7] }
+        }
+      ]
+    },
+    { "kind": "wait", "seconds": 0.15 },
+    {
+      "kind": "expectComponent",
+      "entityId": "player.drone",
+      "component": "Carrier",
+      "match": { "carrying": "core.north" }
+    },
+    {
+      "kind": "applyCommands",
+      "commands": [
+        {
+          "kind": "component.set",
+          "entityId": "player.drone",
+          "component": "Transform",
+          "data": { "position": [-3.5, 0.4, 0], "rotation": [0, 0, 0], "scale": [0.7, 0.7, 0.7] }
+        }
+      ]
+    },
+    { "kind": "wait", "seconds": 0.15 },
+    {
+      "kind": "expectComponent",
+      "entityId": "beacon.west",
+      "component": "Repairable",
+      "match": { "repaired": true }
+    },
+    {
+      "kind": "expectComponent",
+      "entityId": "core.north",
+      "component": "Pickup",
+      "match": { "consumed": true }
+    }
+  ]
+}

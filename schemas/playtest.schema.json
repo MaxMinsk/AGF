@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/playtest.schema.json",
+  "title": "AGF Playtest Scenario v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "project", "steps"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project id (the URL ?project=<id>) the scenario runs against."
+    },
+    "description": {
+      "type": "string"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/step" }
+    }
+  },
+  "definitions": {
+    "step": {
+      "oneOf": [
+        { "$ref": "#/definitions/waitStep" },
+        { "$ref": "#/definitions/applyCommandsStep" },
+        { "$ref": "#/definitions/expectComponentStep" },
+        { "$ref": "#/definitions/expectEntityMissingStep" }
+      ]
+    },
+    "waitStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "seconds"],
+      "properties": {
+        "kind": { "const": "wait" },
+        "seconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "applyCommandsStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "commands"],
+      "properties": {
+        "kind": { "const": "applyCommands" },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "expectComponentStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "entityId", "component", "match"],
+      "properties": {
+        "kind": { "const": "expectComponent" },
+        "entityId": { "type": "string", "minLength": 1 },
+        "component": { "type": "string", "minLength": 1 },
+        "match": {
+          "type": "object",
+          "description": "Partial deep match against the component data. Each top-level key must equal the corresponding value in the live component."
+        }
+      }
+    },
+    "expectEntityMissingStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "entityId"],
+      "properties": {
+        "kind": { "const": "expectEntityMissing" },
+        "entityId": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

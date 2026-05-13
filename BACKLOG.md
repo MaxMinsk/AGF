@@ -21,17 +21,11 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 8 - TBD
+## Current Sprint: Sprint 9 - TBD
 
-Sprint 8 focus is picked at sprint start. Candidate pool below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts. Agent-first priority from `CLAUDE.md` applies — prefer schema/diagnostics/inspect/HMR work over visual GUI tooling.
+Sprint 9 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies — prefer schema/diagnostics/inspect/HMR work over visual GUI tooling.
 
 ### Candidates
-
-#### Agent loop enrichment
-
-- `9.3` Scripted playtest scenarios — JSON/TS format for multi-step robot runs (e.g. "pick up, deposit, wait for respawn, repeat") so the agent can describe scenarios without hand-rolling a Playwright spec each time.
-- `9.4` Engine inspect filters — sub-commands or flags on `engine inspect` so an agent can ask narrow questions (e.g. `--component Pickup`, `--query 'Carrier,Transform'`).
-- `9.5` Snapshot diff / replay — `engine inspect --diff <before> <after>` and a command-log → world replay path for postmortem.
 
 #### Asset polish
 
@@ -47,6 +41,12 @@ Sprint 8 focus is picked at sprint start. Candidate pool below. Stories must be 
 - `10.4` WebSocket transport for `node-world-server` — first real round-trip of protocol messages.
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror.
 
+#### Agent loop polish
+
+- `9.6` `engine inspect --save <path>` shortcut so diff workflow doesn't require shell redirection.
+- `9.7` Playtest scenario hot reload — edits to `.playtest.json` rerun the affected test on save.
+- `9.8` Deep-equal `match` in `expectComponent` for nested keys.
+
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 8 reaches close.
+Will be detailed when Sprint 9 reaches close.
