@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, watch as fsWatch } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { checkProject, formatDiagnostics } from "./check/project-check";
 import {
@@ -28,6 +28,7 @@ type ParsedArgs = {
   tail: number | undefined;
   excludeComponents: string[];
   componentsOnly: boolean;
+  watch: boolean;
   positional: string[];
 };
 
@@ -53,32 +54,99 @@ if (parsedArgs.command === "check") {
     const result = tailSnapshotDiff(full, { tail: parsedArgs.tail });
     emitResult(result, parsedArgs, () => formatDiff(result));
     process.exitCode = 0;
+  } else if (parsedArgs.watch) {
+    runInspectWatch(parsedArgs);
   } else {
-    const options: InspectOptions = {};
-    if (parsedArgs.components.length > 0) {
-      options.components = parsedArgs.components;
-    }
-    if (parsedArgs.entityIds.length > 0) {
-      options.entityIds = parsedArgs.entityIds;
-    }
-    const exclude = new Set<string>(parsedArgs.excludeComponents);
-    if (parsedArgs.componentsOnly) {
-      for (const name of NOISY_METADATA_COMPONENTS) {
-        exclude.add(name);
-      }
-    }
-    if (exclude.size > 0) {
-      options.excludeComponents = [...exclude];
-    }
-    const result = inspectProject(parsedArgs.projectDir, options);
-    const trimmed = tailInspectResult(result, parsedArgs.tail);
-    const persisted = parsedArgs.savePath !== undefined ? toStableInspectResult(trimmed) : trimmed;
-    emitResult(persisted, parsedArgs, () => formatInspection(trimmed));
-    process.exitCode = result.ok ? 0 : 1;
+    process.exitCode = runInspectOnce(parsedArgs);
   }
 } else {
   printUsage();
   process.exitCode = 2;
+}
+
+function buildInspectOptions(args: ParsedArgs): InspectOptions {
+  const options: InspectOptions = {};
+  if (args.components.length > 0) {
+    options.components = args.components;
+  }
+  if (args.entityIds.length > 0) {
+    options.entityIds = args.entityIds;
+  }
+  const exclude = new Set<string>(args.excludeComponents);
+  if (args.componentsOnly) {
+    for (const name of NOISY_METADATA_COMPONENTS) {
+      exclude.add(name);
+    }
+  }
+  if (exclude.size > 0) {
+    options.excludeComponents = [...exclude];
+  }
+  return options;
+}
+
+function runInspectOnce(args: ParsedArgs): number {
+  const options = buildInspectOptions(args);
+  const result = inspectProject(args.projectDir, options);
+  const trimmed = tailInspectResult(result, args.tail);
+  const persisted = args.savePath !== undefined ? toStableInspectResult(trimmed) : trimmed;
+  emitResult(persisted, args, () => formatInspection(trimmed));
+  return result.ok ? 0 : 1;
+}
+
+function runInspectWatch(args: ParsedArgs): void {
+  const projectDir = resolve(args.projectDir);
+  console.error(`[engine inspect --watch] watching ${projectDir} (Ctrl-C to stop)`);
+
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  let runningSerial = 0;
+
+  const trigger = (label: string): void => {
+    if (pending !== undefined) {
+      clearTimeout(pending);
+    }
+    pending = setTimeout(() => {
+      pending = undefined;
+      runningSerial += 1;
+      const tag = new Date().toISOString().replace("T", " ").replace("Z", "");
+      console.error(`[engine inspect --watch] ${tag} (#${runningSerial}, ${label})`);
+      try {
+        runInspectOnce(args);
+      } catch (error) {
+        console.error(`[engine inspect --watch] failed: ${(error as Error).message ?? error}`);
+      }
+    }, 120);
+  };
+
+  trigger("initial");
+
+  let watcher: ReturnType<typeof fsWatch> | undefined;
+  try {
+    watcher = fsWatch(projectDir, { recursive: true }, (_eventType, filename) => {
+      if (typeof filename !== "string") {
+        return;
+      }
+      if (filename.endsWith(".json")) {
+        trigger(filename);
+      }
+    });
+  } catch (error) {
+    console.error(
+      `[engine inspect --watch] could not start watcher: ${(error as Error).message ?? error}`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const shutdown = (): void => {
+    if (pending !== undefined) {
+      clearTimeout(pending);
+      pending = undefined;
+    }
+    watcher?.close();
+    process.exit(0);
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
 function emitResult(payload: unknown, args: ParsedArgs, formatHuman: () => string): void {
@@ -108,6 +176,7 @@ function parseArgs(args: string[]): ParsedArgs {
     tail: undefined,
     excludeComponents: [],
     componentsOnly: false,
+    watch: false,
     positional: []
   };
 
@@ -187,6 +256,10 @@ function parseArgs(args: string[]): ParsedArgs {
       result.componentsOnly = true;
       continue;
     }
+    if (current === "--watch") {
+      result.watch = true;
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -206,7 +279,7 @@ function printUsage(): void {
     [
       "Usage:",
       "  engine check <projectDir> [--json] [--save <path>]",
-      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--json] [--save <path>]",
+      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--watch] [--json] [--save <path>]",
       "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]"
     ].join("\n")
   );

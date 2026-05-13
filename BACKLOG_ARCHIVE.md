@@ -946,5 +946,54 @@ The sprint goal — push the networked profile toward production-quality netcode
 - `13.12` Sound pings still pending.
 - Local-player reconciliation could itself become rollback-style once `10.15` lands: keep recent unacked intents, replay them on each server snapshot rather than blending toward the server position.
 
+## Sprint 21 - Acked Inputs + Inspect Watch + Scoreboard + Material HMR Audit
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `10.15` Server-acked input sequences — `schemas/protocol.schema.json` gains optional `world.snapshot.payload.lastAcked` keyed by playerId. `ServerWorld.snapshot()` populates it from each player's `lastIntentSequence`. `WsNetworkAdapter` parses the field into a per-playerId map and exposes `lastAckedFor(playerId)` and `highestOutboundSequence()`. `network-drone-sync-system` accepts an optional `getUnackedInputCount` callback and, while it returns > 0, stays in lerp-only mode (no snap), so the local prediction is not yanked back by a stale snapshot. `src/app.ts` wires the callback to the adapter handle. Two new unit tests cover the unacked-no-snap and acked-snap paths.
+- `E.12` `engine inspect --watch` — new long-running CLI mode. `engine inspect <project> --watch [--save ...]` re-runs the inspect pipeline on every `.json` change under `<project>` (debounced 120 ms), supporting all existing flags (`--components-only`, `--tail`, `--query`, etc.). Watch uses Node's recursive `fs.watch`; SIGINT/SIGTERM stops cleanly. Tagged with timestamp + filename for each re-run so an agent can correlate to its own writes.
+- `13.18` Scoreboard — `Repairable` schema gains optional `lastRepairedBy: string`. `pickup-system` writes the carrier's `Presence.playerId` into it on every successful repair; decay and round-reset both clear it. HUD adds a `SCORE` panel that aggregates `Repairable.repaired === true` entities by `lastRepairedBy` and renders one row per player, sorted by count desc then id. Hidden when no scores. Three new unit tests cover the write, the no-Presence case, and the clear-on-decay path.
+- `14.8` Material HMR audit — new `tests/e2e/material-hmr-audit.spec.ts` walks every file under `examples/beacon-world/assets/runtime/materials/`, touches it, and asserts that `window.__agf.lastReloadedAsset` matches the expected ref and `reloadCount` increments. Catches accidental regressions to the `agf:asset-changed` plugin path. Updated `glb-hot-reload.spec.ts` to wait on `lastReloadedAsset` directly rather than re-reading after the fact, eliminating a race with the new audit when both run in parallel.
+
+### Deliverables
+
+- `schemas/protocol.schema.json` (`lastAcked` on `world.snapshot`)
+- `examples/backends/node-world-server/src/world.ts` (`Snapshot.lastAcked`)
+- `engine/runtime/network/ws-network-adapter.ts` (`lastAckedFor`, `highestOutboundSequence`, ack tracking on disconnect)
+- `examples/beacon-world/src/systems/network-drone-sync-system.ts` (`getUnackedInputCount`, lerp-only while unacked)
+- `src/app.ts` (wires `getUnackedInputCount` to the adapter handle)
+- `engine/tools/cli.ts` (`--watch` mode, refactored inspect path)
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`Repairable.lastRepairedBy`)
+- `examples/beacon-world/src/systems/pickup-system.ts` (writes `lastRepairedBy` on repair, clears on decay)
+- `examples/beacon-world/src/round-reset.ts` (clears `lastRepairedBy` on reset)
+- `examples/beacon-world/src/ui/health-hud.ts` (`SCORE` scoreboard panel)
+- `tests/e2e/material-hmr-audit.spec.ts`
+- `tests/e2e/glb-hot-reload.spec.ts` (race-free wait)
+- Tests: `examples/beacon-world/tests/unit/network-drone-sync-system.test.ts` (+2 ack paths), `examples/beacon-world/tests/unit/pickup-system.test.ts` (+3 lastRepairedBy paths), `tests/unit/node-world-server.test.ts` (polling instead of fixed sleep)
+
+### Verification
+
+- `engine check examples/hello-3d` and `examples/beacon-world`: green.
+- Sprint-close `npm run preflight`: typecheck clean, 177 Vitest tests across 26 files, vite build OK, 12 Playwright e2e tests (including the new HMR audit and the strengthened multi-client round-trip).
+- Manual: `npm run engine:inspect -- examples/beacon-world --watch --components-only --tail 3` boots, re-renders on touch, exits on SIGINT.
+
+### Goal Recap
+
+The sprint goal — close the netcode trilogy and tighten the agent's inspect loop — was met:
+
+- The server now tells the client which input it last applied; the client's reconciliation skips the snap branch while there are un-acked inputs, so high-latency play does not feel like rubber-banding. This is the foundation for full rollback-replay in a future story.
+- `engine inspect --watch` removes the manual re-run between edits, so the canonical agent loop is effectively single-command: open the watch in one terminal, edit the JSON in another.
+- The Beacon HUD now surfaces a per-player repair count derived from `Repairable.lastRepairedBy`, giving multi-tab play a tangible scoreboard with zero additional state.
+- The HMR audit guarantees that every material under `assets/runtime/materials/` keeps the live-reload contract intact when the palette grows.
+
+### Follow-Ups
+
+- `10.5` C#/.NET reference skeleton still pending.
+- `10.15.5` Rollback-replay reconciliation — once we have per-input timestamps in the client buffer, network-drone-sync can replay un-acked intents on top of the server position instead of just refusing to snap. Adds true precision but requires tracking direction-change timestamps client-side.
+- `13.12` Sound pings still pending.
+- Scoreboard does not yet survive round resets (counts wipe along with `lastRepairedBy`). A future story can persist a `RoundState.scores` cumulative total separate from per-beacon ownership.
+
 
 

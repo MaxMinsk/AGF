@@ -21,6 +21,13 @@
             "entities": {
               "type": "array",
               "items": { "$ref": "#/definitions/snapshotEntity" }
+            },
+            "lastAcked": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/sequence"
+              },
+              "description": "Per-playerId: the most recent inbound intent.move sequence the server has applied. Lets the client drop replayed inputs older than the ack and stop accumulating reconciliation error."
             }
           }
         }

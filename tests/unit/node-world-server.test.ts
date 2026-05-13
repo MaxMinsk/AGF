@@ -101,7 +101,7 @@ describe("node-world-server WebSocket transport", () => {
       client.send(JSON.stringify({ kind: "player.join", payload: { playerId: "idle" } }));
       await waitFor(() => world.playerCount() === 1);
 
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      await waitFor(() => world.playerCount() === 0, 3000);
       expect(world.playerCount()).toBe(0);
       expect(log.some((line) => line.includes("timeout playerId=idle"))).toBe(true);
       client.close();

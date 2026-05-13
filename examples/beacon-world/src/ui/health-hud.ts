@@ -2,7 +2,7 @@ import type { RuntimeHandle } from "../../../../engine/runtime/start";
 
 type HealthComponent = { current: number; max: number };
 type InvulnerableComponent = { until: number };
-type RepairableComponent = { accepts: string; repaired?: boolean };
+type RepairableComponent = { accepts: string; repaired?: boolean; lastRepairedBy?: string };
 type WorldSignalComponent = { health?: number; target?: number };
 type RoundStateComponent = {
   phase: "active" | "complete";
@@ -68,6 +68,10 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
   signalBar.style.cssText = "display:flex; gap:4px;";
   signalLine.append(signalLabel, signalValue, signalBar);
 
+  const scoreboard = document.createElement("div");
+  scoreboard.setAttribute("data-testid", "hud-scoreboard");
+  scoreboard.style.cssText = "display:none; flex-direction:column; gap:2px; font-size:11px; opacity:0.92;";
+
   const status = document.createElement("div");
   status.setAttribute("data-testid", "hud-status");
   status.style.cssText = "font-variant-numeric: tabular-nums; min-height: 14px;";
@@ -83,7 +87,7 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
     "display: none"
   ].join(";");
 
-  root.append(hpLine, signalLine, status, summary);
+  root.append(hpLine, signalLine, scoreboard, status, summary);
   parent.append(root);
 
   let lastKey = "";
@@ -103,12 +107,17 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
     let repairableTotal = 0;
     let signalHealth: number | undefined;
     let round: RoundStateComponent | undefined;
+    const scoreByPlayer = new Map<string, number>();
     for (const entity of snapshot.entities) {
       const repairable = entity.components["Repairable"] as RepairableComponent | undefined;
       if (repairable !== undefined) {
         repairableTotal += 1;
         if (repairable.repaired === true) {
           repairedCount += 1;
+          const owner = repairable.lastRepairedBy;
+          if (owner !== undefined && owner.length > 0) {
+            scoreByPlayer.set(owner, (scoreByPlayer.get(owner) ?? 0) + 1);
+          }
         }
       }
       const worldSignal = entity.components["WorldSignal"] as WorldSignalComponent | undefined;
@@ -126,7 +135,11 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
       round === undefined
         ? "-"
         : `${round.phase}|${Math.round((round.holdProgress ?? 0) * 10)}/${Math.round(round.holdSeconds * 10)}`;
-    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}|${signalPct ?? "-"}|${roundKey}`;
+    const scoreKey = [...scoreByPlayer.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, count]) => `${id}:${count}`)
+      .join(",");
+    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}|${repairedCount}/${repairableTotal}|${signalPct ?? "-"}|${roundKey}|${scoreKey}`;
     if (key === lastKey) {
       return;
     }
@@ -134,6 +147,7 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
 
     renderCells(hpCells, health);
     renderSignal(signalValue, signalBar, repairedCount, repairableTotal, signalPct);
+    renderScoreboard(scoreboard, scoreByPlayer);
     status.textContent = invulnerableActive ? "INVULN" : "";
     status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
     renderRound(summary, round);
@@ -148,6 +162,38 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
       root.remove();
     }
   };
+}
+
+function renderScoreboard(target: HTMLElement, scores: Map<string, number>): void {
+  target.replaceChildren();
+  if (scores.size === 0) {
+    target.style.display = "none";
+    return;
+  }
+  target.style.display = "flex";
+  const heading = document.createElement("div");
+  heading.textContent = "SCORE";
+  heading.style.cssText = "font-weight:600; letter-spacing:0.05em; opacity:0.75;";
+  target.append(heading);
+  const sorted = [...scores.entries()].sort(([aId, aCount], [bId, bCount]) => {
+    if (bCount !== aCount) {
+      return bCount - aCount;
+    }
+    return aId.localeCompare(bId);
+  });
+  for (const [playerId, count] of sorted) {
+    const row = document.createElement("div");
+    row.setAttribute("data-testid", `hud-score-${playerId}`);
+    row.style.cssText = "display:flex; justify-content:space-between; gap:8px;";
+    const label = document.createElement("span");
+    label.textContent = playerId;
+    label.style.cssText = "overflow:hidden; text-overflow:ellipsis; max-width:88px;";
+    const value = document.createElement("span");
+    value.textContent = String(count);
+    value.style.cssText = "font-variant-numeric: tabular-nums; font-weight:600;";
+    row.append(label, value);
+    target.append(row);
+  }
 }
 
 function renderRound(target: HTMLElement, round: RoundStateComponent | undefined): void {

@@ -25,6 +25,7 @@ export type SnapshotEntity = {
 export type Snapshot = {
   elapsed: number;
   entities: SnapshotEntity[];
+  lastAcked: Record<string, number>;
 };
 
 /** Must match `PlayerControlled.speed` in the canonical Beacon scene so the client's prediction does not drift against the server. */
@@ -102,6 +103,7 @@ export class ServerWorld {
 
   snapshot(): Snapshot {
     const entities: SnapshotEntity[] = [];
+    const lastAcked: Record<string, number> = {};
     for (const player of this.players.values()) {
       entities.push({
         id: `player.${player.id}`,
@@ -111,8 +113,11 @@ export class ServerWorld {
           Networked: { authority: "server" }
         }
       });
+      if (player.lastIntentSequence >= 0) {
+        lastAcked[player.id] = player.lastIntentSequence;
+      }
     }
-    return { elapsed: this.elapsed, entities };
+    return { elapsed: this.elapsed, entities, lastAcked };
   }
 
   playerCount(): number {
