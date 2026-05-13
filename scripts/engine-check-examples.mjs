@@ -14,6 +14,18 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const examplesDir = resolve(repoRoot, "examples");
+// Run tsx via `node node_modules/tsx/dist/cli.mjs` rather than through `npx`
+// or the `node_modules/.bin/tsx` symlink: npx re-installs tsx into its cache
+// (where it cannot resolve `ajv` from the repo's node_modules), and spawning
+// the `.bin` symlink directly silently fails on some Linux CI configurations.
+// Invoking node with the cli.mjs path is the most portable option.
+const tsxCliPath = resolve(repoRoot, "node_modules", "tsx", "dist", "cli.mjs");
+if (!existsSync(tsxCliPath)) {
+  console.error(
+    `[engine:check:examples] tsx CLI not found at ${tsxCliPath}. Run \`npm ci\` first.`
+  );
+  process.exit(1);
+}
 
 const candidates = readdirSync(examplesDir)
   .map((name) => ({ name, path: resolve(examplesDir, name) }))
@@ -30,11 +42,21 @@ let failed = 0;
 for (const entry of candidates) {
   console.log(`\n[engine:check:examples] ${entry.name}`);
   const result = spawnSync(
-    "npx",
-    ["tsx", "engine/tools/cli.ts", "check", `examples/${entry.name}`],
+    process.execPath,
+    [tsxCliPath, "engine/tools/cli.ts", "check", `examples/${entry.name}`],
     { stdio: "inherit", cwd: repoRoot }
   );
+  if (result.error !== undefined) {
+    console.error(
+      `[engine:check:examples] failed to start: ${result.error.message ?? result.error}`
+    );
+    failed += 1;
+    continue;
+  }
   if (result.status !== 0) {
+    console.error(
+      `[engine:check:examples] ${entry.name} exited with code ${result.status ?? "(signal)"}.`
+    );
     failed += 1;
   }
 }
