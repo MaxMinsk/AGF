@@ -22,6 +22,7 @@ import { applyMigration, formatPlan, planMigration } from "./migrate/project-mig
 import { formatDoctor, runDoctor } from "./doctor/project-doctor";
 import { importAsset } from "./asset/asset-import";
 import { formatReplay, replay } from "./replay/project-replay";
+import { formatDocsResult, generateDocs } from "./docs/project-docs";
 
 type ParsedArgs = {
   command: string | undefined;
@@ -91,6 +92,10 @@ if (parsedArgs.command === "check") {
   const report = runDoctor(parsedArgs.projectDir);
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
+} else if (parsedArgs.command === "docs") {
+  const result = generateDocs({ projectDir: parsedArgs.projectDir });
+  emitResult(result, parsedArgs, () => formatDocsResult(result));
+  process.exitCode = 0;
 } else if (parsedArgs.command === "replay") {
   const positional = parsedArgs.positional;
   const recordingPath = positional[1] ?? positional[0];
@@ -443,7 +448,8 @@ function printUsage(): void {
       "  engine doctor <projectDir> [--json] [--save <path>]",
       "  engine migrate <projectDir> [--dry-run] [--json] [--save <path>]",
       "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]",
-      "  engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]"
+      "  engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]",
+      "  engine docs <projectDir> [--json] [--save <path>]"
     ].join("\n")
   );
 }
