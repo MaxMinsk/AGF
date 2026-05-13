@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AssetRegistry, type AssetLoader } from "../../engine/runtime/asset-registry";
+import { createDiagnosticsBus } from "../../engine/runtime/diagnostics/diagnostics-bus";
 
 function jsonLoader(name: string, payload: unknown): AssetLoader<unknown> {
   return {
@@ -115,6 +116,47 @@ describe("GlbLoader matcher", () => {
     expect(loader.matches("runtime/models/box.gltf")).toBe(true);
     expect(loader.matches("runtime/models/box.obj")).toBe(false);
     expect(loader.matches("runtime/materials/x.material.json")).toBe(false);
+  });
+});
+
+describe("AssetRegistry diagnostics integration", () => {
+  it("emits AGF_RUNTIME_ASSET_NO_LOADER when nothing matches the ref", async () => {
+    const diagnostics = createDiagnosticsBus({ nowSeconds: () => 0 });
+    const registry = new AssetRegistry({ baseUrl: "http://test/", diagnostics });
+
+    await expect(registry.get("missing/handler.unknown")).rejects.toThrow(
+      /No asset loader matches/
+    );
+
+    const items = diagnostics.snapshot();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      severity: "error",
+      code: "AGF_RUNTIME_ASSET_NO_LOADER",
+      assetRef: "missing/handler.unknown"
+    });
+  });
+
+  it("emits AGF_RUNTIME_ASSET_LOAD_FAILED when the matched loader rejects", async () => {
+    const diagnostics = createDiagnosticsBus({ nowSeconds: () => 0 });
+    const loader: AssetLoader = {
+      name: "broken",
+      matches: () => true,
+      load: vi.fn().mockRejectedValue(new Error("boom"))
+    };
+    const registry = new AssetRegistry({
+      baseUrl: "http://test/",
+      loaders: [loader],
+      diagnostics
+    });
+
+    await expect(registry.get("broken/asset.json")).rejects.toThrow(/boom/);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const items = diagnostics.snapshot();
+    const failure = items.find((d) => d.code === "AGF_RUNTIME_ASSET_LOAD_FAILED");
+    expect(failure).toBeDefined();
+    expect(failure?.details).toMatchObject({ loader: "broken", reason: "boom" });
   });
 });
 

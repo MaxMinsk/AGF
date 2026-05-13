@@ -1,3 +1,5 @@
+import type { DiagnosticsBus } from "./diagnostics/diagnostics-bus";
+
 export type AssetRef = string;
 
 export type AssetLoader<T = unknown> = {
@@ -10,15 +12,22 @@ export type AssetRegistryOptions = {
   /** Base URL used to resolve relative `ref` values into fetchable URLs. */
   baseUrl: string;
   loaders?: ReadonlyArray<AssetLoader>;
+  /**
+   * Optional diagnostics bus. When set, the registry emits
+   * `AGF_RUNTIME_ASSET_NO_LOADER` and `AGF_RUNTIME_ASSET_LOAD_FAILED` events.
+   */
+  diagnostics?: DiagnosticsBus;
 };
 
 export class AssetRegistry {
   private readonly baseUrl: string;
   private readonly loaders: AssetLoader[] = [];
   private readonly cache = new Map<AssetRef, Promise<unknown>>();
+  private readonly diagnostics: DiagnosticsBus | undefined;
 
   constructor(options: AssetRegistryOptions) {
     this.baseUrl = options.baseUrl;
+    this.diagnostics = options.diagnostics;
     if (options.loaders !== undefined) {
       this.loaders.push(...options.loaders);
     }
@@ -53,6 +62,13 @@ export class AssetRegistry {
 
     const loader = this.loaders.find((candidate) => candidate.matches(ref));
     if (loader === undefined) {
+      this.diagnostics?.emit({
+        severity: "error",
+        code: "AGF_RUNTIME_ASSET_NO_LOADER",
+        source: "asset-registry",
+        message: `No asset loader matches reference "${ref}".`,
+        assetRef: ref
+      });
       return Promise.reject(new Error(`No asset loader matches reference "${ref}".`));
     }
 
@@ -60,10 +76,19 @@ export class AssetRegistry {
     this.cache.set(ref, promise);
 
     // Drop failed loads from the cache so callers can retry after the issue is fixed.
-    promise.catch(() => {
+    promise.catch((error: unknown) => {
       if (this.cache.get(ref) === promise) {
         this.cache.delete(ref);
       }
+      const reason = error instanceof Error ? error.message : String(error);
+      this.diagnostics?.emit({
+        severity: "error",
+        code: "AGF_RUNTIME_ASSET_LOAD_FAILED",
+        source: "asset-registry",
+        message: `Failed to load asset "${ref}": ${reason}`,
+        assetRef: ref,
+        details: { loader: loader.name, reason }
+      });
     });
 
     return promise as Promise<T>;

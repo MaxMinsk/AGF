@@ -99,6 +99,32 @@ export class ThreeRenderer {
   }
 
   /**
+   * Snapshot of Three.js WebGL resource counters plus the mesh count.
+   * Exposed via `window.__agf.rendererInfo()` for agent / e2e assertions
+   * that resource counts stay bounded across HMR cycles.
+   */
+  info(): {
+    geometries: number;
+    textures: number;
+    programs: number;
+    drawCalls: number;
+    triangles: number;
+    meshes: number;
+  } {
+    const memory = this.renderer.info.memory;
+    const renderStats = this.renderer.info.render;
+    const programs = this.renderer.info.programs?.length ?? 0;
+    return {
+      geometries: memory.geometries ?? 0,
+      textures: memory.textures ?? 0,
+      programs,
+      drawCalls: renderStats.calls ?? 0,
+      triangles: renderStats.triangles ?? 0,
+      meshes: this.meshes.size
+    };
+  }
+
+  /**
    * Forget the cached binding for an asset reference so the renderer re-fetches
    * and re-applies it on the next refreshMeshes. Used by asset HMR.
    */

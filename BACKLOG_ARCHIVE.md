@@ -1199,5 +1199,62 @@ The sprint goal — double sprint size (8–10 stories) and pay down a wider pol
 - C# skeleton runs schema-existence + parse-only smoke; replacing that with a real `Json.Schema` validator parity-with-AJV is a future story.
 - Per the `Notes/codex_review_1.md` M-section landed in `HIGH_LEVEL_BACKLOG.md`: **M5 runtime diagnostics bus** and **M11 resource lifecycle / leak tests** are the next two engine priorities.
 
+## Sprint 26 - Runtime Diagnostics Bus + Resource Lifecycle Tests + Renderer Boundary
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `E.22` `RuntimeDiagnosticsBus` core — new `engine/runtime/diagnostics/diagnostics-bus.ts` with typed `RuntimeDiagnostic` (`severity`, `code`, `source`, `message`, optional `entityId`/`component`/`assetRef`/`details`), bounded ring buffer (default 200), monotonic ids, subscriber pattern with listener isolation. 7 unit tests.
+- `E.23` `AssetRegistry` emits diagnostics — `AGF_RUNTIME_ASSET_NO_LOADER` on missing matcher, `AGF_RUNTIME_ASSET_LOAD_FAILED` with `details: { loader, reason }` on rejection. Two new integration tests.
+- `E.24` `WsNetworkAdapter` emits diagnostics — non-JSON frame, invalid frame, snapshot-gap resync, id collision all route to the bus alongside the existing log lines.
+- `E.25` HUD diagnostics overlay v0 — `engine/runtime/diagnostics/diagnostics-overlay.ts` mounts a DEV-only compact panel that shows the last 8 warnings/errors (info filtered out). Subscribes to the bus, hides when empty.
+- `E.26` `window.__agf.rendererInfo()` — `ThreeRenderer.info()` returns `{ geometries, textures, programs, drawCalls, triangles, meshes }` straight from Three's `info` object plus the local mesh map. Plumbed through `AppHandle.rendererInfo` and the DEV `__agf` global.
+- `E.27` HMR reload stress test — new `tests/e2e/hmr-stress.spec.ts` touches `drone.material.json` 30 times in a row and asserts the renderer's geometry / texture / program / mesh counts stay within +4 of the baseline. Catches HMR-introduced leaks before they accumulate.
+- `E.28` Adapter create/dispose stress — new vitest case creates and disposes the WS adapter 50 times against a fake socket and asserts no local entities leak (server-owned ids are removed by `dispose`). 50 socket constructions, zero residual entities.
+- `13.24` Score-pulse e2e — new `tests/e2e/score-pulse.spec.ts` seeds Presence on the local drone, drives one pickup → deposit cycle, asserts the `hud-score-alpha` row paints `data-pulse="true"`. HUD now tracks a 600 ms expiry timer per playerId so the pulse stays observable across Playwright's polling window.
+- `14.16` Hazard material HMR lock — new `tests/e2e/hazard-material-hmr.spec.ts` touches both `hazard-warning.material.json` and `hazard-amber.material.json` and asserts both fire `agf:asset-changed`. Explicit lock alongside the existing material audit.
+- `E.21` Renderer import boundary — new `tests/unit/renderer-import-boundary.test.ts` walks `engine/**/*.ts`, asserts that no file outside `engine/render/` imports the `three` package. Locks the boundary for future headless tooling.
+
+### Deliverables
+
+- `engine/runtime/diagnostics/diagnostics-bus.ts`
+- `engine/runtime/diagnostics/diagnostics-overlay.ts`
+- `engine/runtime/asset-registry.ts` (diagnostic emit)
+- `engine/runtime/network/ws-network-adapter.ts` (diagnostic emit)
+- `engine/render/three-renderer.ts` (`info()` snapshot)
+- `engine/runtime/start.ts` (`RuntimeHandle.diagnostics`)
+- `src/app.ts`, `src/main.ts` (`AppHandle.diagnostics` / `clearDiagnostics` / `rendererInfo`; `window.__agf` extensions)
+- `examples/beacon-world/src/ui/health-hud.ts` (600 ms pulse expiry timer)
+- `tests/unit/diagnostics-bus.test.ts`
+- `tests/unit/asset-registry.test.ts` (+2 diagnostics integration cases)
+- `tests/unit/ws-network-adapter.test.ts` (+1 create/dispose stress)
+- `tests/unit/renderer-import-boundary.test.ts`
+- `tests/e2e/hmr-stress.spec.ts`
+- `tests/e2e/score-pulse.spec.ts`
+- `tests/e2e/hazard-material-hmr.spec.ts`
+
+### Verification
+
+- `engine check` green on every `examples/*/project.json`.
+- Sprint-close `npm run preflight`: typecheck clean, **209 Vitest tests across 31 files**, vite build OK with the manualChunks split still intact, `bundle:check` under the 250 KB budget, **15 Playwright e2e tests** (three new — HMR stress, score pulse, hazard material HMR).
+- Manual: `window.__agf.diagnostics()` returns the bus snapshot; `window.__agf.rendererInfo()` returns the WebGL counters.
+
+### Goal Recap
+
+The sprint goal — fold `M5` (runtime diagnostics) and `M11` (resource lifecycle / leak tests) from the codex M-list into the running runtime, plus the renderer-boundary lock — was met:
+
+- Agents now have a structured runtime error channel. Asset and network problems land on a typed bus that the dev overlay reads and that tests can assert against.
+- Renderer info is queryable; HMR can't silently leak resources because the stress test will catch it. The 30-touch test asserts a tight +4 envelope.
+- The "only engine/render/ may import three" contract is now under unit-test, so future headless tooling won't accidentally drag Three into a CLI bundle.
+- HUD score pulse stays visible long enough for an external observer (Playwright, agent polling) to catch it.
+
+### Follow-Ups
+
+- `10.5+` C# skeleton transport (WebSocket) still pending.
+- `10.14` Server-authoritative carry, `10.16` Snapshot delta encoding, `10.18` Server-side hazard / pickup state still pending.
+- `13.12` Sound pings still pending.
+- Diagnostics overlay is read-only; a future story can add a "copy as JSON" / "open trace" button for human use.
+
 
 

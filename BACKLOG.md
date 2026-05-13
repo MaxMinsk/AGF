@@ -21,42 +21,44 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 26 - TBD
+## Current Sprint: Sprint 27 - TBD
 
-Sprint 26 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 27 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
-Anchor candidates per the M-list sequencing in `HIGH_LEVEL_BACKLOG.md`: **M5** + **M11** are the next two engine-priority epics — break them up into the stories below.
+Anchor candidates: **E.52** (project summary), **E.56** (engine doctor scorecard), **E.54** (asset import), plus **M1** (project versioning) and **M7** (perf budgets / renderer metrics) per the M-list and AI-native sequencing in `HIGH_LEVEL_BACKLOG.md`.
 
-#### M5 — Runtime diagnostics bus
+#### AI-native one-liners (Notes/ai-game-engine-ideas.md)
 
-- `E.22` `RuntimeDiagnosticsBus` core — typed event with `severity`, `code`, `source`, `message`, optional `entityId`/`component`/`assetRef`. Exposed via `window.__agf.diagnostics()`.
-- `E.23` Asset-load failure emits a diagnostic — `AssetRegistry` push when a fetch / parse fails.
-- `E.24` Network adapter emits diagnostics — invalid frame, id collision, gap resync, ack regression each map to a `code` value.
-- `E.25` HUD diagnostics overlay v0 — DEV-only compact panel for last N warnings/errors.
+- `E.52` `engine summarize <projectDir>` — compact project context summary (metadata, profiles, component vocabulary, system list, entity/component counts, asset summary, playtest list). `--json` + human output.
+- `E.56` `engine doctor <projectDir>` — scorecard consolidating `engine check` + inspect summary + playtest list + recent runtime diagnostics + renderer info. Does NOT run expensive e2e.
+- `E.54` `engine asset import <projectDir> <file>` — copy under `assets/runtime/`, append `asset-sources.json` entry, optionally emit a material manifest, run validation.
+- `E.53` `template.json` + `template_context.md` — template context contract; add to `hello-3d` and Beacon World as the reference templates.
 
-#### M11 — Resource lifecycle / leak tests
+#### M1 — Project versioning
 
-- `E.26` Renderer info exposure — `window.__agf.rendererInfo()` returns `{ geometries, materials, textures, programs, drawCalls, triangles }`.
-- `E.27` HMR reload stress test — Playwright e2e touches the same material 50× and asserts renderer info stays bounded.
-- `E.28` Network adapter create/dispose stress test — Vitest spins up/down the adapter N times and asserts no lingering reconnect timers / server-owned entities.
+- `E.57` Add `agfFormatVersion` to `project.json`, scene extensions and material manifests.
+- `E.58` `engine check` reports `AGF_FORMAT_VERSION_UNSUPPORTED` when the field is missing / older than supported.
+- `E.59` `engine migrate <projectDir> [--dry-run]` v0 — emits planned JSON patches; non-dry-run writes them.
 
-#### Backend follow-ups (lighter side dishes)
+#### M7 — Perf budgets
 
-- `10.14` Server-authoritative carry — extend the protocol with `intent.pickup` / `intent.drop` so a future story can sync pickups across clients.
-- `10.16` Snapshot delta encoding — server sends only changed components per entity instead of the full state every tick.
-- `10.18` Server-side hazard / pickup state — move hazard pulses and core respawns onto the server-side world.
+- `E.60` Per-project `performance-budget.json` with soft/hard thresholds for renderer counters and bundle size.
+- `E.61` `engine doctor` (or a dedicated `engine perf`) compares live `rendererInfo` against the project budget and fails on hard violations.
 
-#### Engine polish
+#### Backend follow-ups
 
-- `E.21` Lazy renderer module split — make `engine/render/three-renderer.ts` import its Three.js dependency on first use rather than at module load, so future headless tooling can import `startRuntime` without the renderer.
+- `10.5+` C# skeleton WebSocket transport — first transport on top of the smoke-only skeleton shipped in Sprint 25.
+- `10.14` Server-authoritative carry — `intent.pickup` / `intent.drop` protocol extension.
+- `10.16` Snapshot delta encoding — server sends only changed components per entity.
+- `10.18` Server-side hazard / pickup state — move pulse timing + core respawns onto the server so two tabs see the same pattern.
 
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.24` Score-pulse e2e — assert `data-pulse="true"` appears on the scoreboard row whose `lastRepairedBy` ticked this refresh.
 
-#### Asset polish
+#### Engine polish
 
-- `14.16` Hazard material HMR audit lock — explicit e2e that asserts both new `hazard-warning` / `hazard-amber` materials fire `agf:asset-changed`.
+- `E.62` Diagnostics overlay "copy as JSON" — add a single button (or `__agf.copyDiagnostics()`) so an agent / human can paste the full structured bus state in one move.
+- `E.63` Lazy renderer import — convert `engine/runtime/start.ts` to dynamically import `engine/render/three-renderer.ts`; pairs with the already-locked import boundary.

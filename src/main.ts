@@ -30,6 +30,38 @@ declare global {
        * HMR events fire in parallel.
        */
       reloadEvents: Array<{ ref: string; count: number }>;
+      /**
+       * Snapshot of the runtime diagnostics bus. Each entry has `severity`,
+       * `code`, `source`, `message` and optional context fields. Tests can
+       * assert no warnings/errors after startup; agents can read live state.
+       */
+      diagnostics(): ReadonlyArray<{
+        readonly id: number;
+        readonly emittedAtSeconds: number;
+        readonly severity: "info" | "warning" | "error";
+        readonly code: string;
+        readonly source: string;
+        readonly message: string;
+        readonly entityId?: string;
+        readonly component?: string;
+        readonly assetRef?: string;
+        readonly details?: Record<string, unknown>;
+      }>;
+      /** Drop retained diagnostics. Subscribers stay alive. */
+      clearDiagnostics(): void;
+      /**
+       * Snapshot of Three.js renderer resource counters. Useful for HMR
+       * leak tests: take a baseline, reload assets N times, assert the
+       * counts stay bounded.
+       */
+      rendererInfo(): {
+        readonly geometries: number;
+        readonly textures: number;
+        readonly programs: number;
+        readonly drawCalls: number;
+        readonly triangles: number;
+        readonly meshes: number;
+      };
     };
   }
 }
@@ -134,6 +166,9 @@ void (async (): Promise<void> => {
       snapshot: () => app.snapshot(),
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
+      diagnostics: () => app.diagnostics(),
+      clearDiagnostics: () => app.clearDiagnostics(),
+      rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
       reloadEvents: []
     };
