@@ -1,0 +1,8 @@
+{
+  "id": "beacon-repaired-cyan",
+  "shader": "standard",
+  "color": "#4ad7ff",
+  "roughness": 0.3,
+  "metalness": 0.5,
+  "emissive": "#0a4a6a"
+}

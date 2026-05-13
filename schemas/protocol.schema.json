@@ -28,6 +28,11 @@
                 "$ref": "#/definitions/sequence"
               },
               "description": "Per-playerId: the most recent inbound intent.move sequence the server has applied. Lets the client drop replayed inputs older than the ack and stop accumulating reconciliation error."
+            },
+            "playerSpeed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "The integration speed the server uses when applying intent.move. The client's rollback-replay reconciliation reads this so it does not have to hard-code a value."
             }
           }
         }

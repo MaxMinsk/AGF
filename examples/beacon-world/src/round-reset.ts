@@ -40,6 +40,7 @@ type RoundStateComponent = {
   holdProgress?: number;
   completedAt?: number;
   autoResetSeconds?: number;
+  scores?: Record<string, number>;
 };
 
 const ROUND_ENTITY_ID = "world.signal";
@@ -127,6 +128,9 @@ export function resetBeaconRound(world: World): number {
       };
       if (round.autoResetSeconds !== undefined) {
         next.autoResetSeconds = round.autoResetSeconds;
+      }
+      if (round.scores !== undefined) {
+        next.scores = { ...round.scores };
       }
       world.setComponent(ROUND_ENTITY_ID, "RoundState", next);
       mutations += 1;

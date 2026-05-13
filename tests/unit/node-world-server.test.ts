@@ -77,6 +77,9 @@ describe("node-world-server WebSocket transport", () => {
       expect(transform.position[0]).toBeGreaterThan(0);
       expect(transform.position[2]).toBe(0);
 
+      const payload = last.payload as { playerSpeed?: number };
+      expect(payload.playerSpeed).toBeCloseTo(3.5, 5);
+
       client.close();
     } finally {
       await transport.close();

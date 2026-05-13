@@ -30,6 +30,7 @@ type ProtocolMessage =
         elapsed?: number;
         entities: SnapshotEntity[];
         lastAcked?: Record<string, number>;
+        playerSpeed?: number;
       };
     }
   | { kind: "player.join"; payload: { playerId: string; displayName?: string } }
@@ -123,6 +124,12 @@ export type WsNetworkAdapterHandle = {
    */
   lastAckedFor(playerId: string): number | undefined;
   /**
+   * Last `playerSpeed` value broadcast by the server, or `undefined` until
+   * the first snapshot arrives. Lets the rollback-replay reconciliation use
+   * the same speed the server is integrating with.
+   */
+  lastServerPlayerSpeed(): number | undefined;
+  /**
    * Highest outbound intent sequence number sent so far, or `-1` when no
    * intent has been sent. Combined with `lastAckedFor` this gives the count
    * of un-acked inputs.
@@ -178,6 +185,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
   const unackedIntents = new Map<number, UnackedIntent>();
   let outboundSequence = 0;
   let highestSent = -1;
+  let lastServerPlayerSpeed: number | undefined;
   let lastSequence: number | undefined;
   let disposed = false;
   let attempts = 0;
@@ -235,6 +243,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         gapCount += 1;
       }
       lastSequence = message.sequence;
+      if (typeof message.payload.playerSpeed === "number" && message.payload.playerSpeed > 0) {
+        lastServerPlayerSpeed = message.payload.playerSpeed;
+      }
       if (message.payload.lastAcked !== undefined) {
         for (const [pid, seq] of Object.entries(message.payload.lastAcked)) {
           if (typeof seq === "number" && Number.isFinite(seq)) {
@@ -316,6 +327,7 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     snapshotBuffer.clear();
     lastAckedBy.clear();
     unackedIntents.clear();
+    lastServerPlayerSpeed = undefined;
     options.applyCommands(commands);
   }
 
@@ -426,6 +438,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
     },
     lastAckedFor(playerId: string): number | undefined {
       return lastAckedBy.get(playerId);
+    },
+    lastServerPlayerSpeed(): number | undefined {
+      return lastServerPlayerSpeed;
     },
     highestOutboundSequence(): number {
       return highestSent;

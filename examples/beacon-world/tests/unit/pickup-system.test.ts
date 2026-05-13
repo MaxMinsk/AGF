@@ -92,6 +92,28 @@ describe("PickupSystem", () => {
     expect(renderer?.material).toBeUndefined();
   });
 
+  it("increments RoundState.scores by playerId on every successful repair", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Presence", { playerId: "alpha" });
+    world.addEntity("world.signal");
+    world.setComponent("world.signal", "RoundState", {
+      phase: "active",
+      thresholdHealth: 0.85,
+      holdSeconds: 3,
+      holdProgress: 0
+    });
+
+    step(world); // pick up
+    world.setComponent("drone", "Transform", { position: [3, 0, 0] });
+    step(world); // deposit (alpha repairs west beacon)
+
+    const round = world.getComponent<{ scores?: Record<string, number> }>(
+      "world.signal",
+      "RoundState"
+    );
+    expect(round?.scores).toEqual({ alpha: 1 });
+  });
+
   it("records the carrier's Presence.playerId as Repairable.lastRepairedBy on repair", () => {
     const world = buildWorld();
     world.setComponent("drone", "Presence", { playerId: "alpha" });

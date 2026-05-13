@@ -26,6 +26,11 @@ export type Snapshot = {
   elapsed: number;
   entities: SnapshotEntity[];
   lastAcked: Record<string, number>;
+  /**
+   * The integration speed the server is using when applying `intent.move`.
+   * Broadcast so the client's rollback-replay does not have to hard-code it.
+   */
+  playerSpeed: number;
 };
 
 /** Must match `PlayerControlled.speed` in the canonical Beacon scene so the client's prediction does not drift against the server. */
@@ -117,7 +122,7 @@ export class ServerWorld {
         lastAcked[player.id] = player.lastIntentSequence;
       }
     }
-    return { elapsed: this.elapsed, entities, lastAcked };
+    return { elapsed: this.elapsed, entities, lastAcked, playerSpeed: PLAYER_SPEED };
   }
 
   playerCount(): number {

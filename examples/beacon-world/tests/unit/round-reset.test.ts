@@ -93,6 +93,26 @@ describe("resetBeaconRound", () => {
     expect(transform?.position).toEqual([-1.5, 0.4, -2.5]);
   });
 
+  it("preserves RoundState.scores across the reset", () => {
+    const world = buildScene();
+    world.setComponent("world.signal", "RoundState", {
+      phase: "complete",
+      thresholdHealth: 0.85,
+      holdSeconds: 3,
+      holdProgress: 3,
+      completedAt: 12.5,
+      scores: { alpha: 4, bravo: 2 }
+    });
+
+    resetBeaconRound(world);
+
+    const round = world.getComponent<{ scores?: Record<string, number> }>(
+      "world.signal",
+      "RoundState"
+    );
+    expect(round?.scores).toEqual({ alpha: 4, bravo: 2 });
+  });
+
   it("flips RoundState back to active with holdProgress 0 and clears completedAt", () => {
     const world = buildScene();
     resetBeaconRound(world);
