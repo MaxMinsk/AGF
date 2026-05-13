@@ -1,0 +1,42 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": {
+          "label": "Main Camera"
+        },
+        "Transform": {
+          "position": [0, 4, 9],
+          "rotation": [-22, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Camera": {
+          "kind": "perspective",
+          "active": true,
+          "fov": 55,
+          "near": 0.1,
+          "far": 200
+        }
+      }
+    },
+    {
+      "id": "ground",
+      "components": {
+        "Name": {
+          "label": "Ground Plate"
+        },
+        "Transform": {
+          "position": [0, -0.55, 0],
+          "rotation": [0, 0, 0],
+          "scale": [20, 0.1, 20]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#16242e"
+        }
+      }
+    }
+  ]
+}

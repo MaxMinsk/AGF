@@ -21,21 +21,54 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 3 - TBD
+## Current Sprint: Sprint 3 - Sample Game Kickoff And GLB Smoke
 
-Sprint 3 focus will be picked at the start of the sprint from the candidate list below. Stories must be expanded with tasks, acceptance criteria and verification before implementation starts.
+Goal: bring up the Beacon World sample as a nested project, populate its first scene with a readable solo-first composition, and close the Sprint 2 follow-up by routing a real `.glb` through the asset registry into the renderer.
 
-### Candidates
+### Epic 13: Beacon World Sample Game
 
-- `13.1` Beacon World project scaffold — new nested project under `examples/beacon-world/`, minimal `project.json` + scene, sample-game direction in `SAMPLE_GAME_IDEAS.md` as reference.
-- `13.2` Beacon World first scene — primitive avatar + two beacons, uses the existing renderer / scheduler / asset registry without engine changes.
-- `14.1` Minimal `.glb` for `hello-3d` — closes the Story 8.4 follow-up so the GLB loader path has an end-to-end smoke test.
-- `14.2` Production asset serving — fix the `dist/` build so material/glb references resolve in `npm run build`, not just `npm run dev`.
-- `15.1` In-page inspector overlay — toggle hotkey (not F12, not F2 if that conflicts with the browser), tree of entities + components, read-only first.
-- `16.1` Material file hot reload — make `*.material.json` edits flow through the asset registry and rebind on the renderer side without a page reload.
-- `17.1` Scene editor command palette — drop-in DOM panel that runs the existing `applyCommands` API with autocomplete on entity ids and component names.
+**Story 13.1: Beacon World Project Scaffold**
 
-Epic 10 (Backend contracts) is deferred to ~Sprint 5 by stakeholder decision.
+Status: Implemented.
+
+Tasks:
+
+- Create `examples/beacon-world/project.json` with `id`, `name`, `startScene`, `assetRoot`, `render` and `profiles`.
+- Create `examples/beacon-world/scenes/start.scene.json` with a camera + ground plate so the scene is valid.
+- Create `examples/beacon-world/assets/{source,runtime,_sources}/` with an `asset-sources.json` and `.gitkeep` files for empty folders.
+- No new engine code — scaffold only.
+
+Acceptance criteria:
+
+- `npm run engine:check -- examples/beacon-world` returns OK.
+- `npm run engine:inspect -- examples/beacon-world` prints the camera and ground entities.
+- The project follows the layout in `docs/agent/asset-authoring-checklist.md`.
+
+Verification:
+
+- `npm run engine:check -- examples/beacon-world`
+- `npm run engine:inspect -- examples/beacon-world`
+
+**Story 13.2: Beacon World First Scene** (next)
+
+Tasks/acceptance/verification expanded when picked up.
+
+### Epic 14: Asset Pipeline Polish
+
+**Story 14.1: Minimal GLB For hello-3d** (next)
+
+Tasks/acceptance/verification expanded when picked up.
+
+### Deferred
+
+- Epic 10 (Backend contracts) — deferred to ~Sprint 5 by stakeholder decision.
+
+### Sprint 3 Candidates Not Picked Yet
+
+- `14.2` Production asset serving — fix `dist/` build so material/glb references resolve in `npm run build`.
+- `15.1` In-page inspector overlay — toggle hotkey TBD (not F12, not F2), entity/component tree, read-only first.
+- `16.1` Material file hot reload — `*.material.json` edits flow through the asset registry without a page reload.
+- `17.1` Scene editor command palette — DOM panel that runs `applyCommands` with autocomplete on entity/component names.
 
 ## Next Sprint: TBD
 
