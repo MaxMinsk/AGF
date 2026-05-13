@@ -108,4 +108,86 @@ describe("HazardSystem", () => {
     const carrier = world.getComponent<{ carrying?: string }>("drone", "Carrier");
     expect(carrier?.carrying).toBeUndefined();
   });
+
+  it("decrements Health and grants invulnerability when the hazard hits an entity with Health", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Transform", { position: [0, 0.4, 0] });
+    world.setComponent("drone", "Health", { current: 3, max: 3 });
+    world.setComponent("drone", "Respawnable", { position: [10, 0.4, 10] });
+    world.setComponent("hazard", "Hazard", {
+      minRadius: 0.5,
+      maxRadius: 1.5,
+      period: 2,
+      damage: 1,
+      invulnerabilitySeconds: 1
+    });
+
+    step(world, 0);
+
+    const health = world.getComponent<{ current: number; max: number }>("drone", "Health");
+    expect(health?.current).toBe(2);
+    const invulnerable = world.getComponent<{ until: number }>("drone", "Invulnerable");
+    expect(invulnerable?.until).toBeCloseTo(1, 5);
+  });
+
+  it("does not damage the entity again while still invulnerable", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Transform", { position: [0, 0.4, 0] });
+    world.setComponent("drone", "Health", { current: 3, max: 3 });
+    world.setComponent("drone", "Respawnable", { position: [10, 0.4, 10] });
+    world.setComponent("hazard", "Hazard", {
+      minRadius: 0.5,
+      maxRadius: 1.5,
+      period: 2,
+      damage: 1,
+      invulnerabilitySeconds: 1
+    });
+
+    step(world, 0); // health 3 -> 2, invulnerable until 1.0
+    step(world, 0.5); // still invulnerable, no change
+
+    const health = world.getComponent<{ current: number; max: number }>("drone", "Health");
+    expect(health?.current).toBe(2);
+  });
+
+  it("damages again once invulnerability expires", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Transform", { position: [0, 0.4, 0] });
+    world.setComponent("drone", "Health", { current: 3, max: 3 });
+    world.setComponent("drone", "Respawnable", { position: [10, 0.4, 10] });
+    world.setComponent("hazard", "Hazard", {
+      minRadius: 0.5,
+      maxRadius: 1.5,
+      period: 2,
+      damage: 1,
+      invulnerabilitySeconds: 1
+    });
+
+    step(world, 0); // hit, invulnerable until 1.0
+    step(world, 1.1); // past 1.0 -> new hit
+
+    const health = world.getComponent<{ current: number; max: number }>("drone", "Health");
+    expect(health?.current).toBe(1);
+  });
+
+  it("respawns the entity at Respawnable.position and restores Health when current hits 0", () => {
+    const world = buildWorld();
+    world.setComponent("drone", "Transform", { position: [0, 0.4, 0] });
+    world.setComponent("drone", "Health", { current: 1, max: 3 });
+    world.setComponent("drone", "Respawnable", { position: [10, 0.4, 10] });
+    world.setComponent("hazard", "Hazard", {
+      minRadius: 0.5,
+      maxRadius: 1.5,
+      period: 2,
+      damage: 1,
+      invulnerabilitySeconds: 1
+    });
+
+    step(world, 0);
+
+    const health = world.getComponent<{ current: number; max: number }>("drone", "Health");
+    expect(health).toEqual({ current: 3, max: 3 });
+    const transform = world.getComponent<{ position: [number, number, number] }>("drone", "Transform");
+    expect(transform?.position).toEqual([10, 0.4, 10]);
+  });
 });

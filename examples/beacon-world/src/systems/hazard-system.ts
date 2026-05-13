@@ -14,6 +14,8 @@ type HazardComponent = {
   minRadius: number;
   maxRadius: number;
   period: number;
+  damage?: number;
+  invulnerabilitySeconds?: number;
 };
 
 type CarrierComponent = {
@@ -28,13 +30,31 @@ type PickupComponent = {
   respawnIn?: number;
 };
 
+type HealthComponent = {
+  current: number;
+  max: number;
+};
+
+type InvulnerableComponent = {
+  until: number;
+};
+
+type RespawnableComponent = {
+  position: Vec3;
+};
+
 const CONSUMED_PARK_Y = -100;
+const DEFAULT_DAMAGE = 1;
+const DEFAULT_INVULNERABILITY_SECONDS = 1;
 
 /**
- * Hazard pulses its danger radius between minRadius and maxRadius across the
- * declared period. Any Carrier whose Transform is inside the current radius on
- * the XZ plane loses its carried pickup — the pickup is parked underground and
- * scheduled for respawn (the same flow pickup-system uses on deposit).
+ * Hazards pulse a danger radius and damage any Carrier inside it. The Carrier
+ * also drops whatever it is currently carrying. After a hit the Carrier gets a
+ * short invulnerability window so a single approach doesn't cascade into
+ * multiple hits.
+ *
+ * When `Health.current` reaches zero, the entity is respawned at its
+ * `Respawnable.position` and `Health.current` is restored to `max`.
  */
 export function createHazardSystem(): System {
   return {
@@ -44,7 +64,7 @@ export function createHazardSystem(): System {
       if (hazards.length === 0) {
         return;
       }
-      const carriers = world.query(["Carrier", "Transform"]);
+      const candidates = world.query(["Transform"]);
 
       for (const hazardId of hazards) {
         const hazard = world.getComponent<HazardComponent>(hazardId, "Hazard");
@@ -60,32 +80,63 @@ export function createHazardSystem(): System {
         });
 
         const hazardPos = hazardTransform.position ?? [0, 0, 0];
-        for (const carrierId of carriers) {
-          const carrier = world.getComponent<CarrierComponent>(carrierId, "Carrier");
-          if (carrier === undefined || carrier.carrying === undefined) {
+
+        for (const entityId of candidates) {
+          if (entityId === hazardId) {
             continue;
           }
-          const carrierTransform = world.getComponent<TransformComponent>(carrierId, "Transform");
-          if (carrierTransform === undefined) {
+          const entityTransform = world.getComponent<TransformComponent>(entityId, "Transform");
+          if (entityTransform === undefined) {
             continue;
           }
-          if (distanceXZ(carrierTransform.position ?? [0, 0, 0], hazardPos) >= radius) {
+          if (distanceXZ(entityTransform.position ?? [0, 0, 0], hazardPos) >= radius) {
             continue;
           }
-          dropCarried(world, carrierId, carrier.carrying);
+
+          const invulnerable = world.getComponent<InvulnerableComponent>(entityId, "Invulnerable");
+          if (invulnerable !== undefined && invulnerable.until > time.elapsed) {
+            continue;
+          }
+
+          handleHit(world, entityId, hazard, time.elapsed);
         }
       }
     }
   };
 }
 
-function pulseRadius(elapsed: number, hazard: HazardComponent): number {
-  const phase = ((elapsed % hazard.period) / hazard.period) * 2 * Math.PI;
-  const norm = 0.5 + 0.5 * Math.sin(phase);
-  return hazard.minRadius + (hazard.maxRadius - hazard.minRadius) * norm;
+function handleHit(
+  world: World,
+  entityId: EntityId,
+  hazard: HazardComponent,
+  elapsed: number
+): void {
+  const damage = hazard.damage ?? DEFAULT_DAMAGE;
+  const invulnerabilitySeconds = hazard.invulnerabilitySeconds ?? DEFAULT_INVULNERABILITY_SECONDS;
+
+  const health = world.getComponent<HealthComponent>(entityId, "Health");
+  let nextHealth = health;
+  if (health !== undefined) {
+    const nextCurrent = Math.max(0, health.current - damage);
+    nextHealth = { ...health, current: nextCurrent };
+    world.setComponent(entityId, "Health", nextHealth);
+  }
+
+  dropCarried(world, entityId);
+
+  if (nextHealth !== undefined && nextHealth.current === 0) {
+    respawnEntity(world, entityId, nextHealth);
+  }
+
+  world.setComponent(entityId, "Invulnerable", { until: elapsed + invulnerabilitySeconds });
 }
 
-function dropCarried(world: World, carrierId: EntityId, carriedId: EntityId): void {
+function dropCarried(world: World, carrierId: EntityId): void {
+  const carrier = world.getComponent<CarrierComponent>(carrierId, "Carrier");
+  if (carrier === undefined || carrier.carrying === undefined) {
+    return;
+  }
+  const carriedId = carrier.carrying;
   if (!world.hasEntity(carriedId)) {
     world.setComponent(carrierId, "Carrier", {});
     return;
@@ -118,6 +169,33 @@ function dropCarried(world: World, carrierId: EntityId, carriedId: EntityId): vo
   }
 
   world.setComponent(carrierId, "Carrier", {});
+}
+
+function respawnEntity(world: World, entityId: EntityId, health: HealthComponent): void {
+  world.setComponent(entityId, "Health", { current: health.max, max: health.max });
+  const respawnable = world.getComponent<RespawnableComponent>(entityId, "Respawnable");
+  if (respawnable === undefined) {
+    return;
+  }
+  const transform = world.getComponent<TransformComponent>(entityId, "Transform");
+  if (transform === undefined) {
+    world.setComponent(entityId, "Transform", { position: [...respawnable.position] });
+  } else {
+    world.setComponent(entityId, "Transform", {
+      ...transform,
+      position: [
+        respawnable.position[0] ?? 0,
+        respawnable.position[1] ?? 0,
+        respawnable.position[2] ?? 0
+      ]
+    });
+  }
+}
+
+function pulseRadius(elapsed: number, hazard: HazardComponent): number {
+  const phase = ((elapsed % hazard.period) / hazard.period) * 2 * Math.PI;
+  const norm = 0.5 + 0.5 * Math.sin(phase);
+  return hazard.minRadius + (hazard.maxRadius - hazard.minRadius) * norm;
 }
 
 function distanceXZ(a: Vec3, b: Vec3): number {

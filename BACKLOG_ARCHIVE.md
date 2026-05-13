@@ -544,3 +544,41 @@ The sprint goal — "Agent Loop Polish" — was met:
 - `engine check --save` is wired but unused; surface in CI docs once diagnostics archiving lands.
 - The Sprint 11 surface is undocumented for agents. A small `docs/agent/` page (`D.1` in Sprint 12 candidates) covers it.
 
+## Sprint 12 - Beacon World Damage + Multi-Hazard
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `13.8` Damage / lives state for the drone — three new project-local components in the Beacon World scene-extensions schema: `Health { current, max }`, `Invulnerable { until }` and `Respawnable { position }`. `Hazard` gains optional `damage` (default 1) and `invulnerabilitySeconds` (default 1). The hazard-system now iterates over every entity with a `Transform`, applies damage if the entity has `Health`, drops the carried pickup, sets `Invulnerable` and respawns to `Respawnable.position` when `Health.current` hits zero. Invulnerable entities are skipped until `until` is in the past.
+- `13.9` Multi-hazard placement + tuning — second hazard `hazard.east` placed near the east beacon/core route, faster radius (0.6→1.3) and longer period (4.5s) so the two pulses give the player a real route decision. Both hazards renamed (`Hazard Pulse (west route)` / `Hazard Pulse (east route)`).
+- New playtest scenario `hazard-damage.playtest.json` reproduces a single hit and asserts `Health.current` drops from 3 to 2 and `Invulnerable` is set.
+
+### Deliverables
+
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`Health`, `Invulnerable`, `Respawnable`; `Hazard.damage`, `Hazard.invulnerabilitySeconds`)
+- `examples/beacon-world/src/systems/hazard-system.ts` (damage, invulnerability, respawn)
+- `examples/beacon-world/scenes/start.scene.json` (`Health`/`Respawnable` on drone, `hazard.east` entity, tuning)
+- `examples/beacon-world/tests/unit/hazard-system.test.ts` (+4 cases)
+- `examples/beacon-world/playtests/hazard-damage.playtest.json`
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 109 Vitest tests across 16 files, vite build OK, 10 Playwright e2e tests (added `hazard-damage` scenario).
+- `engine check examples/beacon-world` green; `engine inspect` lists 9 entities (drone now carries `Health`, `Respawnable` alongside `Carrier`/`Networked`/`Presence`).
+
+### Goal Recap
+
+The sprint goal — "Beacon World Damage + Multi-Hazard" — was met:
+
+- Hazards damage the carrier instead of only dropping the carried core.
+- Carrier survives three hits; the fourth respawns at the drone's `Respawnable.position` with full health.
+- Two hazards in different positions, different periods and different radii now exercise the multi-hazard path; the system handles them in the same query without code change.
+
+### Follow-Ups
+
+- No visual feedback for invulnerability (drone colour blink, hazard ring opacity change). Skipped per agent-first priority.
+- `Respawnable.position` is hard-coded in scene data; a future story could derive it from a scene-level "spawn point" entity.
+- Death currently teleports — no animation, no audio. Both later.
+- The hazard logic still iterates every entity with a `Transform` per frame; fine at 9 entities, will need a tighter query when scenes grow.
+

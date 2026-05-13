@@ -21,16 +21,11 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 12 - TBD
+## Current Sprint: Sprint 13 - TBD
 
-Sprint 12 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies.
+Sprint 13 focus is picked at sprint start. Candidate pool below. Agent-first priority from `CLAUDE.md` applies.
 
 ### Candidates
-
-#### Beacon World gameplay (Epic 13 continuation)
-
-- `13.8` Damage / lives state for the drone — hazards do something richer than only dropping the carried core.
-- `13.9` Second hazard placement + tuning pass — exercise multiple `Hazard` entities in the same scene.
 
 #### Backend follow-ups
 
@@ -43,8 +38,12 @@ Sprint 12 focus is picked at sprint start. Candidate pool below. Agent-first pri
 
 #### Agent docs
 
-- `D.1` Document `playtest:watch`, `--save`, structured `window.__agf` signal in `docs/agent/` so the new agent-loop polish is discoverable.
+- `D.1` Document `playtest:watch`, `--save`, structured `window.__agf` signal in `docs/agent/` so the recent agent-loop polish is discoverable.
+
+#### Beacon World gameplay continuation
+
+- `13.10` UI overlay for `Health` — minimal HUD that reads `Health` and `Invulnerable` from `window.__agf.snapshot()` and renders a small indicator. Still agent-first (the data is the source of truth); the overlay just makes the demo readable for a human glance.
 
 ## Next Sprint: TBD
 
-Will be detailed when Sprint 12 reaches close.
+Will be detailed when Sprint 13 reaches close.
