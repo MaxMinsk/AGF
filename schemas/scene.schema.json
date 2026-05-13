@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/scene.schema.json",
+  "title": "AGF Scene",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "entities"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/entity"
+      }
+    }
+  },
+  "definitions": {
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "components"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$"
+        },
+        "components": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "Name": {
+              "$ref": "#/definitions/nameComponent"
+            },
+            "Transform": {
+              "$ref": "#/definitions/transformComponent"
+            },
+            "Camera": {
+              "$ref": "#/definitions/cameraComponent"
+            },
+            "MeshRenderer": {
+              "$ref": "#/definitions/meshRendererComponent"
+            }
+          }
+        }
+      }
+    },
+    "nameComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "transformComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "$ref": "#/definitions/vec3"
+        },
+        "rotation": {
+          "$ref": "#/definitions/vec3"
+        },
+        "scale": {
+          "$ref": "#/definitions/vec3"
+        }
+      }
+    },
+    "cameraComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["perspective", "orthographic"]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "fov": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "near": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "far": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "meshRendererComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mesh"],
+      "properties": {
+        "mesh": {
+          "anyOf": [
+            {
+              "enum": ["box", "sphere", "plane"]
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "material": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      }
+    },
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/asset-sources.schema.json",
+  "title": "AGF Asset Source Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "assets"],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/assetSource"
+      }
+    }
+  },
+  "definitions": {
+    "assetSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "license", "source"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$"
+        },
+        "kind": {
+          "enum": ["model", "texture", "audio", "material", "shader", "procedural", "other"]
+        },
+        "runtimeFiles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "enum": ["generated", "cc0", "licensed", "original", "procedural"]
+            },
+            "tool": {
+              "type": "string",
+              "minLength": 1
+            },
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "promptFile": {
+              "type": "string",
+              "minLength": 1
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

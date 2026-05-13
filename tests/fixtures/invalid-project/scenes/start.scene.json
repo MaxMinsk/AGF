@@ -1,0 +1,32 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "cube",
+      "components": {
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Rotator": {
+          "speed": 90
+        }
+      }
+    },
+    {
+      "id": "cube",
+      "components": {
+        "Transform": {
+          "position": [1, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#f7c948"
+        }
+      }
+    }
+  ]
+}

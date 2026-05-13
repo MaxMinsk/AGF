@@ -1,0 +1,11 @@
+{
+  "id": "missing-start-scene",
+  "name": "Missing Start Scene",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "hello-3d",
+  "name": "Hello 3D",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#09131d"
+  },
+  "profiles": ["static"]
+}

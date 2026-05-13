@@ -1,0 +1,13 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Camera": {
+          "kind": "perspective"
+        }
+      }
+    }
+  ]
+}

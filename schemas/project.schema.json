@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/project.schema.json",
+  "title": "AGF Project Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "startScene", "assetRoot", "render", "profiles"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startScene": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assetRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "enum": ["webgl"]
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "enum": ["static", "connected", "authoritative"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

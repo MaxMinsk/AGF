@@ -1,0 +1,59 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": {
+          "label": "Main Camera"
+        },
+        "Transform": {
+          "position": [0, 2.5, 6],
+          "rotation": [-15, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Camera": {
+          "kind": "perspective",
+          "active": true,
+          "fov": 60,
+          "near": 0.1,
+          "far": 100
+        }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Name": {
+          "label": "Floor"
+        },
+        "Transform": {
+          "position": [0, -0.55, 0],
+          "rotation": [0, 0, 0],
+          "scale": [6, 0.1, 6]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#1f6f8b"
+        }
+      }
+    },
+    {
+      "id": "cube.hero",
+      "components": {
+        "Name": {
+          "label": "Hero Cube"
+        },
+        "Transform": {
+          "position": [0, 0.25, 0],
+          "rotation": [0, 25, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#f7c948"
+        }
+      }
+    }
+  ]
+}
