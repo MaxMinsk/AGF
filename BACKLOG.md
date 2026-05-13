@@ -53,9 +53,27 @@ Verification:
 
 ### Epic 14: Asset Pipeline Polish
 
-**Story 14.2: Production Asset Serving** (next)
+**Story 14.2: Production Asset Serving**
 
-Tasks/acceptance/verification expanded when picked up.
+Status: Implemented.
+
+Tasks:
+
+- Add a small `agf-copy-example-assets` Vite plugin in `vite.config.ts` that copies `examples/<projectId>/assets/` into `dist/examples/<projectId>/assets/` on `closeBundle`.
+- Skip `.gitkeep` markers; otherwise copy the tree as-is so `*.material.json`, `*.glb` and any future runtime files ship with the build.
+- Keep the plugin source-only (no new npm dep).
+- Track the list of known example projects in one place inside `vite.config.ts`; keep in sync with the project switcher.
+
+Acceptance criteria:
+
+- After `npm run build`, `dist/examples/hello-3d/assets/runtime/materials/cube-hero.material.json` exists.
+- After `npm run build`, `dist/examples/hello-3d/assets/runtime/models/cube.glb` is 1524 bytes (matches the source).
+- After `npm run build`, `dist/examples/beacon-world/assets/runtime/materials/beacon.material.json` exists.
+- `vite preview` serves all of the above with `200 OK`.
+
+Verification:
+
+- `npm run build` + `curl -sf http://127.0.0.1:4173/examples/<projectId>/assets/runtime/...` returns the expected JSON / GLB bytes.
 
 ### Epic 13: Beacon World Sample Game
 
