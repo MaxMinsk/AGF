@@ -1,5 +1,6 @@
 import { createPickupSystem } from "./src/systems/pickup-system";
 import { createHazardSystem } from "./src/systems/hazard-system";
+import { createSoundPings, type SoundPings } from "./src/audio/sound-pings";
 import { createWorldSignalSystem } from "./src/systems/world-signal-system";
 import { createRoundSystem } from "./src/systems/round-system";
 import { createRoundAutoResetSystem } from "./src/systems/round-auto-reset-system";
@@ -37,10 +38,33 @@ function escapeText(value: string): string {
   });
 }
 
+let sharedSoundPings: SoundPings | undefined;
+function soundPings(): SoundPings {
+  if (sharedSoundPings === undefined) {
+    sharedSoundPings = createSoundPings();
+  }
+  return sharedSoundPings;
+}
+
 export const beaconWorldBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler, playerId, networked, getNetwork }: ProjectBootstrapContext): void {
-    scheduler.register(createPickupSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createHazardSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(
+      createPickupSystem({
+        onEvent: (event) => {
+          if (event.kind === "pickup") soundPings().play("pickup");
+          else if (event.kind === "deposit") soundPings().play("deposit");
+        }
+      }),
+      { profiles: ["static", "connected"] }
+    );
+    scheduler.register(
+      createHazardSystem({
+        onEvent: (event) => {
+          if (event.kind === "damage") soundPings().play("damage");
+        }
+      }),
+      { profiles: ["static", "connected"] }
+    );
     scheduler.register(createWorldSignalSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createRoundSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createRoundAutoResetSystem(), { profiles: ["static", "connected"] });
@@ -116,6 +140,8 @@ export const beaconWorldBootstrap: ProjectBootstrap = {
       dispose(): void {
         window.removeEventListener("keydown", keyboardHandler);
         healthHud.dispose();
+        sharedSoundPings?.dispose();
+        sharedSoundPings = undefined;
       }
     };
   },
