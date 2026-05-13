@@ -14,6 +14,13 @@ describe("project check", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("accepts external mesh and material references when files exist", () => {
+    const result = checkProject(resolve(fixturesRoot, "valid-asset-reference"));
+
+    expect(result.ok).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
   it("reports unknown components and duplicate entity ids", () => {
     const result = checkProject(resolve(fixturesRoot, "invalid-project"));
     const codes = result.diagnostics.map((diagnostic) => diagnostic.code);
@@ -59,6 +66,26 @@ describe("project check", () => {
         file: "assets/_sources/asset-sources.json",
         path: "$.assets[0].license"
       })
+    );
+  });
+
+  it("reports missing external mesh and material references", () => {
+    const result = checkProject(resolve(fixturesRoot, "missing-asset-reference"));
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "AGF_ASSET_REFERENCE_MISSING",
+          file: "scenes/start.scene.json",
+          path: "$.entities[0].components.MeshRenderer.mesh"
+        }),
+        expect.objectContaining({
+          code: "AGF_ASSET_REFERENCE_MISSING",
+          file: "scenes/start.scene.json",
+          path: "$.entities[0].components.MeshRenderer.material"
+        })
+      ])
     );
   });
 });

@@ -14,7 +14,8 @@ npm run test
 npm run test:e2e
 npm run preflight
 npm run engine:check -- examples/hello-3d
-npm run engine:inspect examples/hello-3d -- --json
+npm run engine:inspect -- examples/hello-3d
+npm run engine:inspect -- examples/hello-3d --json
 npm run playtest examples/hello-3d
 dotnet build examples/backends/dotnet-world-server/GameServer.csproj
 ```
@@ -30,7 +31,7 @@ Before a code task is considered done:
 - `engine check` passes for changed project files.
 - Diagnostics are actionable for an agent.
 - Generated files are not edited by hand.
-- `npm run preflight` passes for meaningful implementation tasks once the command is available.
+- `npm run preflight` passes for meaningful implementation tasks.
 
 ## Local Workflow
 
@@ -45,11 +46,15 @@ For failures, follow `docs/agent/debug-protocol.md`. For "does it work?" discuss
 
 ## Project Validation
 
+`npm run preflight` validates `examples/hello-3d`, runs typecheck, runs unit tests, builds the static site and runs the browser smoke test.
+
 Use `engine check` before launching or editing a project deeply:
 
 ```bash
 npm run engine:check -- examples/hello-3d
 npm run engine:check -- examples/hello-3d --json
+npm run engine:inspect -- examples/hello-3d
+npm run engine:inspect -- examples/hello-3d --json
 ```
 
 Diagnostics are designed for agents and include `severity`, `code`, `file`, `path`, `message` and optional `suggestion`.

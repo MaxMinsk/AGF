@@ -6,12 +6,19 @@ This folder is the public repository root for the engine. Example games are nest
 
 ## Non-Negotiable Rules
 
-- Use English for all repository documentation, code comments, identifiers, diagnostics, commit messages and user-facing in-app text unless localization is the task.
+- Use English for all repository content: code, comments, identifiers, docs, commit messages, PR text, diagnostics, fixtures. Conversational replies follow the user's language; only what lands in the repo is locked to English.
 - Keep gameplay state in ECS data and commands, not in renderer objects or hidden globals.
 - Do not import Three.js, DOM APIs, Vite or Playwright from `engine/core`.
 - Do not edit generated files by hand.
 - Treat JSON Schema project data as runtime input: validate before trusting it.
 - Prefer small patches with verification over broad refactors.
+
+## Working Mode
+
+- Each backlog story is implemented on its own feature branch (`feature/<story-id-or-slug>`) and shipped via `gh pr create`. Do not push directly to `main`.
+- When a story is marked `Implemented` in `BACKLOG.md`, commit the change without waiting for an explicit "commit it" instruction. Use the smallest relevant verification (typecheck / unit / `engine check`) before committing.
+- Run `npm run preflight` only at sprint close, not on every story.
+- Default to making the reasonable call and continuing; flag the decisions in the end-of-turn summary so they can be redirected.
 
 ## Current Project Phase
 
@@ -40,6 +47,7 @@ Sprint 0 is archived. Sprint 1 is active: project/scene validation, the first re
 - Backend: backend-agnostic protocol/world contracts. C#/.NET is only a reference implementation path, not an engine dependency.
 - Sample game direction: `Beacon World`, a solo-first persistent shared world.
 - Assets: Meshy + Blender + CC0 libraries + procedural materials first; source metadata and runtime assets must be tracked separately.
+- Preflight validates `examples/hello-3d` before typecheck, unit tests, production build and browser smoke tests.
 
 ## Expected Workflow
 
@@ -62,7 +70,8 @@ npm run test
 npm run test:e2e
 npm run preflight
 npm run engine:check -- examples/hello-3d
-npm run engine:inspect examples/hello-3d -- --json
+npm run engine:inspect -- examples/hello-3d
+npm run engine:inspect -- examples/hello-3d --json
 npm run playtest examples/hello-3d
 dotnet build examples/backends/dotnet-world-server/GameServer.csproj
 ```

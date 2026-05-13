@@ -1,4 +1,5 @@
 import { checkProject, formatDiagnostics } from "./check/project-check";
+import { formatInspection, inspectProject } from "./inspect/project-inspect";
 
 type ParsedArgs = {
   command: string | undefined;
@@ -8,10 +9,7 @@ type ParsedArgs = {
 
 const parsedArgs = parseArgs(process.argv.slice(2));
 
-if (parsedArgs.command !== "check") {
-  printUsage();
-  process.exitCode = 2;
-} else {
+if (parsedArgs.command === "check") {
   const result = checkProject(parsedArgs.projectDir);
 
   if (parsedArgs.json) {
@@ -21,6 +19,19 @@ if (parsedArgs.command !== "check") {
   }
 
   process.exitCode = result.ok ? 0 : 1;
+} else if (parsedArgs.command === "inspect") {
+  const result = inspectProject(parsedArgs.projectDir);
+
+  if (parsedArgs.json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log(formatInspection(result));
+  }
+
+  process.exitCode = result.ok ? 0 : 1;
+} else {
+  printUsage();
+  process.exitCode = 2;
 }
 
 function parseArgs(args: string[]): ParsedArgs {
@@ -37,5 +48,5 @@ function parseArgs(args: string[]): ParsedArgs {
 }
 
 function printUsage(): void {
-  console.error("Usage: engine check <projectDir> [--json]");
+  console.error("Usage: engine <check|inspect> <projectDir> [--json]");
 }
