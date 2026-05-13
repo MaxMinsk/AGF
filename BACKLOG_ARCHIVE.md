@@ -295,3 +295,45 @@ The sprint goal — "Backend Contracts" — was met:
 - `Networked.channel` is declared in the schema but not consumed anywhere. Decide how the runtime maps `channel` to network adapters when the first real transport lands.
 - `frameUpdate` is now a public API surface but is used by exactly one system. Document the fixed-vs-frame split in `docs/agent/` or `docs/ARCHITECTURE.md` once the third system on either phase appears.
 
+## Sprint 6 - Beacon World Gameplay Loop
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `13.4` Pickup entities — `Pickup` component lives in `examples/beacon-world/schemas/scene-extensions.schema.json`. Two energy cores (`core.north`, `core.south`) added to the scene as emissive-green sphere pickups with `Networked { server }`.
+- `13.5` Carry / deposit interaction — `Carrier` on the drone, `Repairable` on both beacons (`accepts: "energy-core"`, `repairedColor: "#4af0a8"`). `examples/beacon-world/src/systems/pickup-system.ts` runs on the frame phase: picks up the nearest in-range pickup, makes it follow the drone, deposits on a matching unrepaired beacon (drops the material ref so the inline repaired color shows immediately, removes the carried entity, clears `Carrier.carrying`). Registered in `src/app.ts` only when `projectId === "beacon-world"`. 6 unit tests + 1 Playwright e2e that teleports the drone and asserts the full loop.
+- `F.1` Architectural fix — `Pickup`/`Carrier`/`Repairable` were mistakenly added to the root `schemas/scene.schema.json` and `engine/tools/check/project-check.ts` componentNames in the first pass. Refactored so `engine check` deep-merges `<projectDir>/schemas/scene-extensions.schema.json` with the base scene schema before validation, compiles per-project and computes the suggestion list as `[...builtIn, ...extension]`. `pickup-system.ts` moved to `examples/beacon-world/src/systems/`. `tsconfig.json` + `vitest.config.ts` now include `examples/*/src` and `examples/*/tests`. ADR-0008 captures the rule.
+
+### Deliverables
+
+- `examples/beacon-world/schemas/scene-extensions.schema.json`
+- `examples/beacon-world/src/systems/pickup-system.ts`
+- `examples/beacon-world/tests/unit/pickup-system.test.ts`
+- `examples/beacon-world/scenes/start.scene.json` updates (cores + `Carrier`/`Repairable`)
+- `engine/tools/check/project-check.ts` (scene-extensions merge, per-project compile)
+- `src/app.ts` (conditional registration of project systems)
+- `tsconfig.json`, `vitest.config.ts` (include `examples/*/src`, `examples/*/tests`)
+- `tests/e2e/beacon-world-gameplay.spec.ts`
+- `docs/adr/0008-project-scene-extensions.md`
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 90 Vitest tests across 14 files, vite build OK, 6 Playwright e2e tests (canvas + agent loop + switcher × 2 + KeyD movement + gameplay loop).
+- `npm run engine:check -- examples/beacon-world` and `... hello-3d` both green.
+- Manual: at `?project=beacon-world`, the drone visibly picks up a core and turns the closest beacon green.
+
+### Goal Recap
+
+The sprint goal — "Beacon World Gameplay Loop" — was met:
+
+- The first interactive gameplay loop (pick up + deposit + visible state change) works end-to-end.
+- The architectural mistake of leaking project-specific components into the engine is fixed and documented.
+
+### Follow-Ups
+
+- Beacon World has no respawn / decay / hazards yet — `world keeps changing` from the sample-game pitch needs a `13.6` follow-up.
+- A real material swap on repair (rather than dropping the ref and using inline color) needs the renderer to clean up roughness/metalness/emissive when a material ref disappears. Today the old values persist on the `MeshStandardMaterial` instance.
+- The Beacon World scene now has 7 entities. The current scheduler walks all of them every frame; performance is still fine, but a Query helper that caches per-archetype lookups will become useful when scenes get larger.
+- The C#/.NET reference skeleton from the Sprint 5 follow-up list is still unstaffed.
+
