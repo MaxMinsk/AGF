@@ -1,3 +1,5 @@
+import { applyCommand } from "../core/commands/command-queue";
+import type { EngineCommand } from "../core/commands/types";
 import type { SceneInput } from "../core/ecs/types";
 import { World } from "../core/ecs/world";
 import { advanceFixedStep } from "../core/loop/fixed-step";
@@ -29,6 +31,7 @@ export type RuntimeHandle = {
   readonly world: World;
   readonly renderer: ThreeRenderer;
   readonly time: Readonly<TimeContext>;
+  applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   stop(): void;
 };
 
@@ -145,6 +148,11 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
     world,
     renderer,
     time,
+    applyCommands(commands: ReadonlyArray<EngineCommand>): void {
+      for (const command of commands) {
+        applyCommand(world, command);
+      }
+    },
     stop(): void {
       stopped = true;
       window.cancelAnimationFrame(frameRequestId);

@@ -1,6 +1,7 @@
 import { startRuntime, type RuntimeHandle, type RuntimeOptions } from "../engine/runtime/start";
 import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
+import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 
 export type ProjectMeta = {
@@ -10,6 +11,7 @@ export type ProjectMeta = {
 
 export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
+  applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   dispose(): void;
 };
 
@@ -28,7 +30,7 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
   status.setAttribute("aria-label", "Engine status");
   status.innerHTML = `
     <h1 class="status-title">${project.name}</h1>
-    <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS.</p>
+    <p class="status-copy">Three.js renderer running. Scene is loaded from JSON through the pragmatic ECS. Edit the scene file to hot-reload.</p>
   `;
 
   shell.append(canvas, status);
@@ -51,6 +53,9 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
 
   return {
     canvas,
+    applyCommands(commands): void {
+      runtime.applyCommands(commands);
+    },
     dispose(): void {
       runtime.stop();
       root.textContent = "";

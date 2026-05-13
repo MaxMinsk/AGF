@@ -53,6 +53,10 @@ export function applyCommand(world: World, command: EngineCommand): void {
       world.setComponent(command.entityId, command.component, command.data);
       return;
     }
+    case "component.remove": {
+      world.removeComponent(command.entityId, command.component);
+      return;
+    }
     case "scene.load": {
       for (const entityId of world.entityIds()) {
         world.removeEntity(entityId);

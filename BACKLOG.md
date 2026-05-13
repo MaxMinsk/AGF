@@ -79,10 +79,49 @@ Verification:
 
 ### Epic 7: Scene Patches And Hot Reload
 
-Stories:
+**Story 7.1: Scene Diff To Commands**
 
-- `7.1`: Scene diff to commands.
-- `7.2`: JSON scene hot reload in dev.
+Status: Implemented.
+
+Tasks:
+
+- Add `component.remove` to `EngineCommand` and `applyCommand`.
+- Implement `diffScenes(prev, next): EngineCommand[]` in `engine/core/commands/scene-diff.ts`.
+- Compare component data by stable JSON, ignoring object key order.
+- Emit deletes before creates; emit component-removes before component-sets on surviving entities.
+
+Acceptance criteria:
+
+- Identical scenes produce no commands.
+- Added/removed/changed entities and components produce the minimal command stream.
+- Re-ordering JSON keys is a no-op.
+- Applying the commands to a `World` built from `prev` yields a `World` equivalent to one built from `next`.
+
+Verification:
+
+- Vitest suite covers add/delete entity, component change, component remove, component add and the round-trip apply-to-world case.
+
+**Story 7.2: JSON Scene Hot Reload In Dev**
+
+Status: Implemented.
+
+Tasks:
+
+- Expose `runtime.applyCommands(commands)` on `RuntimeHandle`.
+- Pass it through `AppHandle.applyCommands`.
+- In `src/main.ts`, accept Vite HMR for `examples/hello-3d/scenes/start.scene.json`; on update, call `diffScenes(currentScene, nextScene)` and `app.applyCommands(...)`.
+- Replace the held scene reference so subsequent edits diff against the latest state.
+
+Acceptance criteria:
+
+- Editing `start.scene.json` in dev updates the running browser without a full page reload.
+- Editing a component value (color, Spin speed) is reflected on the next render frame.
+- Adding or removing a primitive entity in the JSON is reflected without restarting the runtime.
+
+Verification:
+
+- Manual: change `cube.hero` color or `Spin.speed` in dev — change visible immediately.
+- Continued green Playwright smoke test (full reload path is unaffected).
 
 ### Epic 8: Material And Shader v0
 
