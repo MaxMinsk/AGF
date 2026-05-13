@@ -5,6 +5,7 @@
 // the agent needs that, prints the canonical commands.
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { checkProject, type Diagnostic } from "../check/project-check";
@@ -47,8 +48,18 @@ export type DoctorReport = {
   recommendations: string[];
 };
 
-export function runDoctor(projectDirInput: string, repoRoot?: string): DoctorReport {
+export type DoctorOptions = {
+  /** When true, `runDoctor` invokes `npm run build` if `dist/` is missing. */
+  build?: boolean;
+};
+
+export function runDoctor(
+  projectDirInput: string,
+  repoRoot?: string,
+  options: DoctorOptions = {}
+): DoctorReport {
   const projectDir = resolve(projectDirInput);
+  const root = resolve(repoRoot ?? process.cwd());
   const check = checkProject(projectDir);
   const summary = summarizeProject(projectDir);
   const budgetPath = resolve(projectDir, "performance-budget.json");
@@ -57,7 +68,16 @@ export function runDoctor(projectDirInput: string, repoRoot?: string): DoctorRep
     budget = JSON.parse(readFileSync(budgetPath, "utf8")) as PerformanceBudget;
   }
 
-  const bundle = measureBundle(repoRoot ?? process.cwd(), budget);
+  const distDir = resolve(root, "dist/assets");
+  if (options.build === true && !existsSync(distDir)) {
+    console.error(`[engine doctor] dist/ missing — running \`npm run build\` first...`);
+    const buildResult = spawnSync("npm", ["run", "build"], { cwd: root, stdio: "inherit" });
+    if (buildResult.status !== 0) {
+      console.error(`[engine doctor] \`npm run build\` failed (exit ${buildResult.status}).`);
+    }
+  }
+
+  const bundle = measureBundle(root, budget);
 
   const recommendations: string[] = [];
   const errorCount = check.diagnostics.filter((d) => d.severity === "error").length;

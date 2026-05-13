@@ -47,6 +47,7 @@ type ParsedArgs = {
   assetSubdir: string | undefined;
   expectPath: string | undefined;
   write: boolean;
+  build: boolean;
   positional: string[];
 };
 
@@ -92,7 +93,7 @@ if (parsedArgs.command === "check") {
   }
   process.exitCode = 0;
 } else if (parsedArgs.command === "doctor") {
-  const report = runDoctor(parsedArgs.projectDir);
+  const report = runDoctor(parsedArgs.projectDir, undefined, { build: parsedArgs.build });
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
 } else if (parsedArgs.command === "docs") {
@@ -302,6 +303,7 @@ function parseArgs(args: string[]): ParsedArgs {
     assetSubdir: undefined,
     expectPath: undefined,
     write: false,
+    build: false,
     positional: []
   };
 
@@ -447,6 +449,10 @@ function parseArgs(args: string[]): ParsedArgs {
       result.write = false;
       continue;
     }
+    if (current === "--build") {
+      result.build = true;
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -469,7 +475,7 @@ function printUsage(): void {
       "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--watch] [--on-change <cmd>] [--json] [--save <path>]",
       "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]",
       "  engine summarize <projectDir> [--json] [--save <path>]",
-      "  engine doctor <projectDir> [--json] [--save <path>]",
+      "  engine doctor <projectDir> [--build] [--json] [--save <path>]",
       "  engine migrate <projectDir> [--dry-run] [--json] [--save <path>]",
       "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]",
       "  engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]",
