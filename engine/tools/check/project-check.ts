@@ -230,6 +230,79 @@ function validateAssetRoot(projectDir: string, assetRoot: string, diagnostics: D
   }
 
   diagnostics.push(...validateStaticSchema("assetSources", sourceMetadataJson.data, sourceMetadataPath, projectDir));
+
+  diagnostics.push(
+    ...detectUndeclaredRuntimeAssets(
+      projectDir,
+      assetRootPath,
+      sourceMetadataPath,
+      sourceMetadataJson.data
+    )
+  );
+}
+
+function detectUndeclaredRuntimeAssets(
+  projectDir: string,
+  assetRootPath: string,
+  sourceMetadataPath: string,
+  sourceMetadata: JsonValue
+): Diagnostic[] {
+  const declared = new Set<string>();
+  if (isJsonObject(sourceMetadata) && Array.isArray(sourceMetadata["assets"])) {
+    for (const asset of sourceMetadata["assets"]) {
+      if (!isJsonObject(asset)) {
+        continue;
+      }
+      const runtimeFiles = asset["runtimeFiles"];
+      if (!Array.isArray(runtimeFiles)) {
+        continue;
+      }
+      for (const file of runtimeFiles) {
+        if (typeof file === "string" && file.length > 0) {
+          declared.add(file.split("\\").join("/"));
+        }
+      }
+    }
+  }
+
+  const runtimeRoot = resolve(assetRootPath, "runtime");
+  if (!isDirectory(runtimeRoot)) {
+    return [];
+  }
+
+  const found: string[] = [];
+  walkRuntimeFiles(runtimeRoot, "runtime", found);
+
+  const diagnostics: Diagnostic[] = [];
+  for (const ref of found) {
+    if (!declared.has(ref)) {
+      diagnostics.push({
+        severity: "warning",
+        code: "AGF_ASSET_RUNTIME_UNDECLARED",
+        file: toProjectRelativeFile(sourceMetadataPath, projectDir),
+        path: "$.assets",
+        message: `Runtime asset "${ref}" is not declared in asset-sources.json.`,
+        suggestion: "Add an entry under `assets[]` describing where this file came from (or remove the file if it is no longer used)."
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function walkRuntimeFiles(dir: string, prefix: string, out: string[]): void {
+  for (const entry of readdirSync(dir)) {
+    if (entry.startsWith(".")) {
+      continue;
+    }
+    const full = resolve(dir, entry);
+    const stat = statSync(full);
+    const relative = `${prefix}/${entry}`;
+    if (stat.isDirectory()) {
+      walkRuntimeFiles(full, relative, out);
+    } else if (stat.isFile()) {
+      out.push(relative);
+    }
+  }
 }
 
 function validateSceneAssetReferences(

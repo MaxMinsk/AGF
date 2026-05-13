@@ -42,13 +42,26 @@
       }
     },
     {
-      "id": "beacon-world.beacon-material",
+      "id": "beacon-world.core-mesh",
       "kind": "procedural",
-      "runtimeFiles": ["runtime/materials/beacon.material.json"],
+      "runtimeFiles": ["runtime/models/core.glb"],
       "license": "Project-owned",
       "source": {
         "type": "procedural",
-        "notes": "Hand-tuned beacon material: warm emissive glow."
+        "notes": "Energy core crystal: pentagonal bipyramid emitted by scripts/build-core-glb.mjs."
+      }
+    },
+    {
+      "id": "beacon-world.beacon-material",
+      "kind": "procedural",
+      "runtimeFiles": [
+        "runtime/materials/beacon.material.json",
+        "runtime/materials/beacon-repaired.material.json"
+      ],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Hand-tuned beacon materials: base = warm emissive glow, repaired = cooler teal/cyan emissive used while RoundState holds."
       }
     },
     {

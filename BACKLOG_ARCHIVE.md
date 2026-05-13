@@ -995,5 +995,53 @@ The sprint goal — close the netcode trilogy and tighten the agent's inspect lo
 - `13.12` Sound pings still pending.
 - Scoreboard does not yet survive round resets (counts wipe along with `lastRepairedBy`). A future story can persist a `RoundState.scores` cumulative total separate from per-beacon ownership.
 
+## Sprint 22 - Rollback-Replay + ApplyCommand Perf + Asset Diagnostics + Bootstrap Registry
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `10.15.5` Rollback-replay reconciliation — `WsNetworkAdapter` now retains each outbound `intent.move` in an `unackedIntents` map with the wall-clock `sentAtSeconds`; entries with `sequence <= lastAckedFor(playerId)` are pruned on every snapshot. New `getUnackedIntents()` returns the sorted list. `network-drone-sync-system` accepts `getUnackedIntents` + `nowSeconds` + `playerSpeed`; when all three are set, it computes the **predicted position** = server position + per-intent replay (each intent applies `direction * speed * duration` over its real `[sentAt, nextIntent.sentAt ?? now]` span) and reconciles the local drone toward the prediction instead of toward the bare server position. The snap branch still requires zero un-acked intents. Two new unit tests cover the single-intent replay and the multi-segment integration paths.
+- `E.10` `applyCommand` perf boundary — `applyCommand` already only depends on `ecs/` + `commands/types`. New `engine/core/commands/apply.ts` re-exports it so external callers can import the applicator in isolation, never pulling in `CommandQueue` or anything that imports systems. New `tests/unit/apply-command-perf.test.ts` asserts a 400-command worst-case batch (create / set / remove / delete × 100) on a fresh `World` runs in under 50 ms and that `apply.ts` exports only `applyCommand`.
+- `14.10` Asset diagnostics — `engine check` now walks `assets/runtime/` recursively (excluding dotfiles) and emits a `AGF_ASSET_RUNTIME_UNDECLARED` warning for any file that is not listed under an `asset-sources.json` entry's `runtimeFiles`. The new diagnostic immediately caught two real omissions in `examples/beacon-world/assets/_sources/asset-sources.json` (the `core.glb` and `beacon-repaired.material.json` entries) — both fixed in this sprint. New fixture `tests/fixtures/undeclared-runtime-asset/` and unit test cover the warning shape.
+- Project bootstrap registry (P3 from `codex_review_1.md`) — new `engine/runtime/project-bootstrap.ts` defines `ProjectBootstrap` with `registerSystems` / `attachUi` / `resetRound` / `renderConnectivityHint`. `examples/hello-3d/bootstrap.ts` and `examples/beacon-world/bootstrap.ts` implement it; the Beacon bootstrap carries everything that used to live in `src/app.ts`'s `if (projectId === "beacon-world")` branches — system registrations, HUD mount, `KeyR` handler, multiplayer hint. `src/app.ts` no longer imports from `examples/`; `src/main.ts` selects the bootstrap by project id and passes it through `AppOptions.bootstrap`.
+
+### Deliverables
+
+- `engine/core/commands/apply.ts`
+- `engine/runtime/network/ws-network-adapter.ts` (`UnackedIntent`, `getUnackedIntents`, prune on ack)
+- `engine/runtime/project-bootstrap.ts`
+- `engine/tools/check/project-check.ts` (`AGF_ASSET_RUNTIME_UNDECLARED` + walker)
+- `examples/beacon-world/bootstrap.ts`
+- `examples/beacon-world/src/systems/network-drone-sync-system.ts` (replay path, `getUnackedIntents` / `nowSeconds` / `playerSpeed` options)
+- `examples/beacon-world/assets/_sources/asset-sources.json` (`core.glb`, `beacon-repaired.material.json` declarations)
+- `examples/hello-3d/bootstrap.ts`
+- `src/app.ts` (bootstrap pass-through, no example imports)
+- `src/main.ts` (bootstrap registry)
+- `tests/fixtures/undeclared-runtime-asset/` (new)
+- Tests: `tests/unit/apply-command-perf.test.ts` (2 cases), `tests/unit/project-check.test.ts` (+1 undeclared-asset case), `examples/beacon-world/tests/unit/network-drone-sync-system.test.ts` (+2 replay cases)
+
+### Verification
+
+- `npm run engine:check:examples`: every example project green (post-asset-declaration fixes).
+- Sprint-close `npm run preflight`: typecheck clean, 184 Vitest tests across 27 files, vite build OK, 12 Playwright e2e tests.
+
+### Goal Recap
+
+The sprint goal — finish the modern-netcode story and pay down the architecture debt flagged by the review — was met:
+
+- The reconciliation pipeline now lerps toward the **predicted** position (server + un-acked intent replay), not the raw server position. With matching client/server speeds and a stable clock, the steady-state drift is bounded by `now - lastIntent.sentAt`.
+- `applyCommand` has a clean import boundary and a perf budget that is asserted in unit tests; future churn cannot silently regress it.
+- `engine check` will now flag any runtime asset that an agent forgets to declare in `asset-sources.json`. The audit immediately caught real omissions on `main`.
+- `src/app.ts` and the engine no longer import anything from `examples/`; adding a third sample project is a one-line registry entry in `src/main.ts` plus a `bootstrap.ts` file under the example directory.
+
+### Follow-Ups
+
+- `10.5` C#/.NET reference skeleton still pending.
+- `13.12` Sound pings still pending.
+- `13.19` Persistent scoreboard still pending.
+- Bootstrap registry could become a dynamic-import map once more samples land so the root bundle stops shipping every example's systems. Today's eager imports keep the contract simple at the cost of bundle size growth (still flagged by P3 in `codex_review_1.md`).
+- Replay assumes client/server speeds match exactly. A future story can broadcast the server's effective `PLAYER_SPEED` so the client does not have to hard-code it.
+
 
 

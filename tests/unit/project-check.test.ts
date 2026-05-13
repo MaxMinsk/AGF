@@ -14,6 +14,22 @@ describe("project check", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("warns about runtime assets that are not declared in asset-sources.json", () => {
+    const result = checkProject(resolve(fixturesRoot, "undeclared-runtime-asset"));
+
+    expect(result.ok).toBe(true);
+    const undeclared = result.diagnostics.filter(
+      (diagnostic) => diagnostic.code === "AGF_ASSET_RUNTIME_UNDECLARED"
+    );
+    expect(undeclared).toHaveLength(1);
+    expect(undeclared[0]).toMatchObject({
+      severity: "warning",
+      file: "assets/_sources/asset-sources.json",
+      message: expect.stringContaining("runtime/models/orphan.glb"),
+      suggestion: expect.stringContaining("Add an entry")
+    });
+  });
+
   it("accepts external mesh and material references when files exist", () => {
     const result = checkProject(resolve(fixturesRoot, "valid-asset-reference"));
 

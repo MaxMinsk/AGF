@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "undeclared-runtime-asset.procedural-primitives",
+      "kind": "procedural",
+      "runtimeFiles": [],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Placeholder."
+      }
+    }
+  ]
+}

@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 22 - TBD
+## Current Sprint: Sprint 23 - TBD
 
-Sprint 22 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 23 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -31,8 +31,8 @@ Sprint 22 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
 - `10.14` Server-authoritative carry — extend the protocol with `intent.pickup` / `intent.drop` so a future story can sync pickups across clients.
-- `10.15.5` Rollback-replay reconciliation — client buffers each outbound intent with a timestamp; on snapshot, drops intents `<= lastAcked` and replays the rest on top of the server's position so the local drone matches the prediction exactly when the server is caught up. Requires per-frame integration of intents during replay.
 - `10.16` Snapshot delta encoding — server sends only changed components per entity instead of the full state every tick; client merges deltas onto its last known full snapshot.
+- `10.17` Server-broadcast player speed — server emits its effective `PLAYER_SPEED` in `world.snapshot.payload` (or in `player.join` ack) so the client's rollback-replay does not have to hard-code it.
 
 #### Beacon World gameplay
 
@@ -41,10 +41,10 @@ Sprint 22 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 #### Engine polish
 
-- `E.10` Smaller `applyCommand` boundary — split the implementation so it never imports from a system file, only from `ecs/`. Add a Vitest case that imports `applyCommand` in isolation and proves the worst-case command set runs on a fresh `World` in under N microseconds.
 - `E.13` `engine inspect --watch --on-change <cmd>` — extend watch mode to run an external command after each re-run, so agents can chain `engine inspect --watch` with a custom validator / formatter.
+- `E.14` Dynamic bootstrap imports — make `src/main.ts` lazy-import each example's `bootstrap.ts` so the production bundle only ships the active project's systems. Pairs with the chunk-size warning flagged by `codex_review_1.md` P3.
 
 #### Asset polish
 
 - `14.9` Beacon material variant family — palette of beacon materials so a future story can colour beacons per repair state / per owning player; pairs naturally with the scoreboard.
-- `14.10` Asset diagnostics — `engine check` warns when `runtime/` contains files with no matching `asset-sources.json` entry, so an agent dropping a new mesh remembers to declare its origin.
+- `14.11` Hazard material variants — paired with `14.9` so the existing `hazard.center` / `hazard.east` differ visually beyond the inline `MeshRenderer.color`.

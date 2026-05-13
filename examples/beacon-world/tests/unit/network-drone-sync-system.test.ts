@@ -121,6 +121,76 @@ describe("NetworkDroneSyncSystem", () => {
     expect(transform?.position).toEqual([10, 0.4, 0]);
   });
 
+  it("replays unacked intents on top of the server position when prediction hooks are provided", () => {
+    const world = buildWorld("alpha");
+    world.setComponent("player.alpha", "Transform", { position: [0, 0.4, 0] });
+
+    const now = 10;
+    const system = createNetworkDroneSyncSystem({
+      playerId: "alpha",
+      snapThresholdUnits: 1.5,
+      reconcileRate: 100,
+      playerSpeed: 3.5,
+      nowSeconds: () => now,
+      getUnackedInputCount: () => 1,
+      getUnackedIntents: () => [
+        { sequence: 0, direction: [1, 0], sentAtSeconds: 9 }
+      ]
+    });
+    const time: TimeContext = {
+      elapsed: 10,
+      dt: 1 / 60,
+      fixedDt: 1 / 60,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+
+    for (let i = 0; i < 30; i += 1) {
+      system.frameUpdate?.({ time, world });
+    }
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(
+      "player.drone",
+      "Transform"
+    );
+    expect(transform?.position[0]).toBeGreaterThan(3.2);
+    expect(transform?.position[0]).toBeLessThan(3.6);
+  });
+
+  it("integrates multiple unacked intents using each segment's actual duration", () => {
+    const world = buildWorld("alpha");
+    world.setComponent("player.alpha", "Transform", { position: [0, 0.4, 0] });
+
+    const system = createNetworkDroneSyncSystem({
+      playerId: "alpha",
+      snapThresholdUnits: 99,
+      reconcileRate: 100,
+      playerSpeed: 2,
+      nowSeconds: () => 12,
+      getUnackedInputCount: () => 2,
+      getUnackedIntents: () => [
+        { sequence: 0, direction: [1, 0], sentAtSeconds: 10 },
+        { sequence: 1, direction: [0, 1], sentAtSeconds: 11 }
+      ]
+    });
+    const time: TimeContext = {
+      elapsed: 12,
+      dt: 1 / 60,
+      fixedDt: 1 / 60,
+      frameCount: 0,
+      fixedStepCount: 0
+    };
+
+    for (let i = 0; i < 60; i += 1) {
+      system.frameUpdate?.({ time, world });
+    }
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(
+      "player.drone",
+      "Transform"
+    );
+    expect(transform?.position[0]).toBeCloseTo(2, 0);
+    expect(transform?.position[2]).toBeCloseTo(2, 0);
+  });
+
   it("is a no-op when the local drone is absent", () => {
     const world = new World();
     world.addEntity("player.alpha");
