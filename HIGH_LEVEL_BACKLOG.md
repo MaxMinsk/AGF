@@ -99,6 +99,18 @@ Concrete candidates pulled from the "Summer Engine" comparison note. Each one is
 
 **Sequencing:** ~~Take **E.52** + **E.56** first — they unify the existing surfaces (`engine check`, `engine inspect`, the new diagnostics bus, renderer info, playtests) into agent-friendly one-liners. **E.54** ships next because it closes the asset-import gap the Sprint 22 reverse-diagnostic exposed. **E.53** rides alongside **M12** (template CLI) since both touch the templates story.~~ **E.52 / E.53 / E.54 / E.56 — done in Sprint 27.** **E.55** waits until there is a real inspector epic to anchor it.
 
+## From `Notes/kenji_engine_analysis.md` (most ideas already match AGF's direction)
+
+Kenji's review is mostly confirmation that AGF's current stance is right (CLI-first, schema-strict, no live runtime mutation, no Bun-only, no terminal renderer). The few genuinely new takeaways worth tracking:
+
+| Idea | AGF entry | Status |
+|---|---|---|
+| Patch-based agent writes (validate → diff → apply) | `M13` Project-file patch contract — design a JSON / AGF-command patch shape; `engine patch <projectDir> <patch>` with `--check` and `--write`. Pairs with `E.55` inspector writeback. | New parking-lot entry below. |
+| Global developer preferences (browser, editor, screenshot dir, dev port) | Optional `~/.agf/config.json` — explicitly NOT for project-critical behavior. Quick local-quality-of-life win, low priority. | New parking-lot entry below. |
+| Single-shot `engine screenshot <projectDir> --out <file>` | Standalone screenshot command for agent review without spinning up a full playtest. | New parking-lot entry below. |
+| Tiny fast-regression 2D sample (Pong-class) | Blocked on a 2D rendering path. Park until 2D exists. | Existing parking-lot "PixiJS adapter for advanced 2D" already covers the prerequisite. |
+| Confirmed value of `M8` (input actions) and `M12` (template CLI) | Already on the M-list above. | No change. |
+
 ## Parking Lot
 
 - WebGPU backend exploration.
@@ -112,6 +124,10 @@ Concrete candidates pulled from the "Summer Engine" comparison note. Each one is
 - Sandbox/container strategy for untrusted generated projects.
 - Docs split into `docs/users` and `docs/developers` when documentation grows.
 - Optional visual review using screenshots after deterministic checks pass.
+- `M13` Project-file patch contract — JSON/AGF-command patch shape + `engine patch --check`/`--write`. Pairs with `E.55`.
+- Global developer preferences (`~/.agf/config.json`) — optional, local-only, never affects reproducibility.
+- `engine screenshot <projectDir> --out <file>` — single-shot canvas capture without the full playtest wrapper.
+- Tiny 2D regression sample (Pong-class) — blocked on a 2D rendering path; revisit once 2D lands.
 - (Promoted to Sprint 2 Epic 12: Cyrillic-in-repo CI check.)
 
 ## Promotion Rule
