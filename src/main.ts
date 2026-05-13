@@ -54,6 +54,10 @@ declare global {
        * to the OS clipboard. Returns the JSON string either way.
        */
       copyDiagnostics(): Promise<string>;
+      /** Persistence v0 — requires project.persistence.components on the project. */
+      save(): Promise<unknown>;
+      load(): Promise<unknown>;
+      clearSave(): Promise<void>;
       /**
        * Snapshot of Three.js renderer resource counters. Useful for HMR
        * leak tests: take a baseline, reload assets N times, assert the
@@ -174,6 +178,9 @@ void (async (): Promise<void> => {
       diagnostics: () => app.diagnostics(),
       clearDiagnostics: () => app.clearDiagnostics(),
       copyDiagnostics: () => app.copyDiagnostics(),
+      save: () => app.save(),
+      load: () => app.load(),
+      clearSave: () => app.clearSave(),
       rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
       reloadEvents: []
