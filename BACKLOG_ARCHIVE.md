@@ -504,3 +504,43 @@ The sprint goal — "Beacon World Hazards" — was met:
 - The hazard visual is just a scaled sphere with inline colour. Replacing it with an authored `.glb` would go through Sprint 9's path; deliberately skipped to keep this sprint short.
 - `despawnOrRemove` is implemented twice — once in pickup-system, once in hazard-system. Lift into a shared module under `examples/beacon-world/src/systems/lib/` when a third caller appears.
 
+## Sprint 11 - Agent Loop Polish
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `9.6` `engine inspect --save <path>` — both `check`, `inspect` and `--diff` now write the JSON payload to a file (parent dirs created). Stdout stays clean; stderr logs only the destination.
+- `9.9` Structured HMR signal on `window.__agf` — DEV builds expose `lastReloadedAsset?: string` and a monotonic `reloadCount`. `glb-hot-reload.spec.ts` no longer depends on the console log format.
+- `9.8` Deep-equal `match` in `expectComponent` — playtest runner now uses `expect(component).toMatchObject(step.match)`. Nested matchers work without changing the scenario schema.
+- `9.7` Playtest scenario hot reload — `scripts/watch-playtests.mjs` + `npm run playtest:watch`. Watches `examples/*/playtests/*.playtest.json`; on change spawns `npx playwright test ... --grep <scenario.id>`. Reuses an already-running `npm run dev`.
+
+### Deliverables
+
+- `engine/tools/cli.ts` (`--save <path>`)
+- `src/main.ts` (`window.__agf.lastReloadedAsset`, `reloadCount`)
+- `tests/e2e/glb-hot-reload.spec.ts` (structured signal)
+- `tests/e2e/playtest-runner.spec.ts` (deep-equal match)
+- `scripts/watch-playtests.mjs`
+- `package.json` (`playtest:watch`)
+
+### Verification
+
+- Sprint-close `npm run preflight`: typecheck clean, 105 Vitest tests across 16 files, vite build OK, 9 Playwright e2e tests.
+- `engine inspect examples/beacon-world --component Pickup --save /tmp/agf-snapshot.json` writes the file with no stdout pollution.
+
+### Goal Recap
+
+The sprint goal — "Agent Loop Polish" — was met:
+
+- Snapshot capture is one CLI call.
+- The asset HMR contract is structured data on `window.__agf`, not a log string.
+- Playtest scenarios accept full nested matchers.
+- A focused watcher gives the agent fast feedback while iterating on a `.playtest.json`.
+
+### Follow-Ups
+
+- `playtest:watch` spawns a fresh Playwright per change; add debounce when rapid edits prove costly.
+- `engine check --save` is wired but unused; surface in CI docs once diagnostics archiving lands.
+- The Sprint 11 surface is undocumented for agents. A small `docs/agent/` page (`D.1` in Sprint 12 candidates) covers it.
+

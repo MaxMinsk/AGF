@@ -95,12 +95,10 @@ for (const { filePath, scenario } of scenarios) {
             componentValue,
             `${label}: entity "${step.entityId}" should have component "${step.component}"`
           ).toBeDefined();
-          for (const [key, expected] of Object.entries(step.match)) {
-            expect(
-              componentValue![key],
-              `${label}: ${step.entityId}.${step.component}.${key}`
-            ).toEqual(expected);
-          }
+          expect(
+            componentValue,
+            `${label}: ${step.entityId}.${step.component} should match ${JSON.stringify(step.match)}`
+          ).toMatchObject(step.match);
           break;
         }
         case "expectEntityMissing": {
