@@ -1,0 +1,10 @@
+{
+  "id": "invalid-network-component",
+  "name": "Invalid Network Component",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl"
+  },
+  "profiles": ["static"]
+}
