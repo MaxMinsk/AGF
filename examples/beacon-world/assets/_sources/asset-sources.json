@@ -65,6 +65,21 @@
       }
     },
     {
+      "id": "beacon-world.beacon-repaired-palette",
+      "kind": "procedural",
+      "runtimeFiles": [
+        "runtime/materials/beacon-repaired-orange.material.json",
+        "runtime/materials/beacon-repaired-cyan.material.json",
+        "runtime/materials/beacon-repaired-violet.material.json",
+        "runtime/materials/beacon-repaired-amber.material.json"
+      ],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Beacon repaired material palette indexed by Repairable.lastRepairedBy playerId — gives each player a recognisable colour on the maps they have repaired."
+      }
+    },
+    {
       "id": "beacon-world.drone-material",
       "kind": "procedural",
       "runtimeFiles": ["runtime/materials/drone.material.json"],

@@ -1043,5 +1043,57 @@ The sprint goal — finish the modern-netcode story and pay down the architectur
 - Bootstrap registry could become a dynamic-import map once more samples land so the root bundle stops shipping every example's systems. Today's eager imports keep the contract simple at the cost of bundle size growth (still flagged by P3 in `codex_review_1.md`).
 - Replay assumes client/server speeds match exactly. A future story can broadcast the server's effective `PLAYER_SPEED` so the client does not have to hard-code it.
 
+## Sprint 23 - Server Speed Broadcast + Dynamic Bootstraps + Persistent Scores + Beacon Palette + Inspect On-Change
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `10.17` Server-broadcast player speed — `world.snapshot.payload.playerSpeed` added to `schemas/protocol.schema.json`. `ServerWorld.snapshot()` populates it from the server-side `PLAYER_SPEED` constant. `WsNetworkAdapter` parses the field and exposes `lastServerPlayerSpeed()`. `network-drone-sync-system` gains `getPlayerSpeed?: () => number | undefined`; when set it dynamically picks the server's value during replay, falling back to `playerSpeed` for the first frame before the first snapshot. Beacon's bootstrap wires the callback to the adapter handle. Unit test asserts the snapshot payload carries `playerSpeed: 3.5`.
+- `E.14` Dynamic bootstrap imports — `src/main.ts` no longer eagerly imports each example's `project.json` / `scenes/start.scene.json` / `bootstrap.ts`. Instead, a per-project loader map runs `import("../examples/<id>/...")` only for the selected project. The Vite production build now emits a per-project `bootstrap-*.js` chunk (~21 KB for `beacon-world`, ~0.05 KB for `hello-3d`) plus a per-project `start.scene-*.js` chunk; the root bundle does not include any code for non-active projects.
+- `13.19` Persistent scoreboard — `RoundState.scores: Record<playerId, number>` added to the project schema. `pickup-system` increments `scores[playerId]` on every successful repair (in addition to writing `Repairable.lastRepairedBy`). `round-reset` preserves the `scores` field across a reset, so the cumulative total survives `KeyR` / `__agf.resetRound()` / `autoResetSeconds` while the per-beacon ownership clears. HUD now reads scores from `RoundState.scores` instead of re-tallying `Repairable.lastRepairedBy` each frame.
+- `14.9` Beacon material variant family — four new manifests under `examples/beacon-world/assets/runtime/materials/`: `beacon-repaired-orange.material.json`, `beacon-repaired-cyan`, `beacon-repaired-violet`, `beacon-repaired-amber`. `asset-sources.json` declares them as `beacon-world.beacon-repaired-palette`. `pickup-system` picks one by stable hash of the carrier's `Presence.playerId` on repair — each player now leaves a recognisable colour on the beacons they have fixed. Falls back to `Repairable.repairedMaterial` when the carrier has no Presence (single-player path stays unchanged).
+- `E.13` `engine inspect --watch --on-change <cmd>` — new CLI flag. After every debounced re-run of inspect, watch shells out to `<cmd>` via `child_process.spawn` (with `shell: true`, inherited stdio), so agents can chain a custom validator / formatter without writing a wrapper. Errors and non-zero exits are logged but do not stop the watcher.
+
+### Deliverables
+
+- `schemas/protocol.schema.json` (`world.snapshot.payload.playerSpeed`)
+- `examples/backends/node-world-server/src/world.ts` (`Snapshot.playerSpeed`)
+- `engine/runtime/network/ws-network-adapter.ts` (`lastServerPlayerSpeed`)
+- `examples/beacon-world/src/systems/network-drone-sync-system.ts` (`getPlayerSpeed`)
+- `examples/beacon-world/bootstrap.ts` (uses adapter's broadcast speed)
+- `src/main.ts` (dynamic project loaders, per-project chunks)
+- `examples/beacon-world/schemas/scene-extensions.schema.json` (`RoundState.scores`)
+- `examples/beacon-world/src/systems/pickup-system.ts` (score increment + palette pick)
+- `examples/beacon-world/src/round-reset.ts` (preserve scores)
+- `examples/beacon-world/src/ui/health-hud.ts` (read RoundState.scores)
+- `examples/beacon-world/assets/runtime/materials/beacon-repaired-{orange,cyan,violet,amber}.material.json`
+- `examples/beacon-world/assets/_sources/asset-sources.json` (beacon palette entry)
+- `engine/tools/cli.ts` (`--on-change` flag + `runOnChange`)
+- Tests: `tests/unit/node-world-server.test.ts` (playerSpeed assertion), `examples/beacon-world/tests/unit/pickup-system.test.ts` (+1 score increment), `examples/beacon-world/tests/unit/round-reset.test.ts` (+1 scores-preserved)
+
+### Verification
+
+- `engine check` green on every `examples/*/project.json`.
+- Sprint-close `npm run preflight`: typecheck clean, 186 Vitest tests across 27 files, vite build OK (with per-project chunk split visible in the output), 12 Playwright e2e tests.
+- Manual: `npm run engine:inspect -- examples/beacon-world --watch --on-change "echo refreshed"` boots, prints `refreshed` after every debounced re-run, exits cleanly on SIGINT.
+
+### Goal Recap
+
+The sprint goal — finish the netcode polish from PR #24's follow-ups and pay down a chunk of the architecture debt — was met:
+
+- The client's rollback-replay no longer hard-codes the integration speed; it reads what the server is using, so future server-side speed tweaks propagate automatically.
+- The production bundle now ships only the active project's code; the per-project chunk sizes are visible in the build output, which makes future bundle drift trivial to spot.
+- The scoreboard now survives across rounds and HUD-driven resets — a multi-tab session no longer wipes the score on every `ROUND COMPLETE`.
+- Beacons visually advertise which player repaired them last via the new four-colour palette, hashed off `playerId`.
+- `engine inspect --watch --on-change` closes the agent's edit loop: scene change → inspect refresh → external validator, all in one terminal.
+
+### Follow-Ups
+
+- `10.5` C#/.NET reference skeleton still pending.
+- `13.12` Sound pings still pending.
+- Three.js + AJV are still the dominant weight in the main bundle (~700 KB pre-gzip). A future story can lazy-import the renderer too once the contract there is stable.
+- Beacon palette currently only affects the *repaired* material; a future story could colour pickups (`core.glb`) or the carry effect by the same playerId hash for stronger ownership reads.
+
 
 

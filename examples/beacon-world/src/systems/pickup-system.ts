@@ -181,6 +181,9 @@ function handleCarry(
       continue;
     }
 
+    const carrierPresence = world.getComponent<PresenceComponent>(carrierId, "Presence");
+    const ownerPlayerId = carrierPresence?.playerId;
+
     const renderer = world.getComponent<MeshRendererComponent>(beaconId, "MeshRenderer");
     const repairedRepair: RepairableComponent = { ...repair, repaired: true };
     if (renderer !== undefined) {
@@ -191,7 +194,11 @@ function handleCarry(
         repairedRepair.originalColor = renderer.color;
       }
       const repaired: MeshRendererComponent = { mesh: renderer.mesh };
-      if (repair.repairedMaterial !== undefined) {
+      const paletteMaterial =
+        ownerPlayerId !== undefined ? pickBeaconRepairedMaterial(ownerPlayerId) : undefined;
+      if (paletteMaterial !== undefined) {
+        repaired.material = paletteMaterial;
+      } else if (repair.repairedMaterial !== undefined) {
         repaired.material = repair.repairedMaterial;
       } else {
         repaired.color = repair.repairedColor ?? DEFAULT_REPAIRED_COLOR;
@@ -201,11 +208,14 @@ function handleCarry(
     if (repair.decayAfter !== undefined) {
       repairedRepair.decayIn = repair.decayAfter;
     }
-    const carrierPresence = world.getComponent<PresenceComponent>(carrierId, "Presence");
-    if (carrierPresence?.playerId !== undefined) {
-      repairedRepair.lastRepairedBy = carrierPresence.playerId;
+    if (ownerPlayerId !== undefined) {
+      repairedRepair.lastRepairedBy = ownerPlayerId;
     }
     world.setComponent(beaconId, "Repairable", repairedRepair);
+
+    if (ownerPlayerId !== undefined) {
+      incrementScoreFor(world, ownerPlayerId);
+    }
 
     despawnOrRemove(world, carriedId, pickup);
     world.setComponent(carrierId, "Carrier", {});
@@ -310,6 +320,47 @@ function tickBeaconDecays(world: World, dt: number, q: PickupQueries): void {
     delete decayed.lastRepairedBy;
     world.setComponent(beaconId, "Repairable", decayed);
   }
+}
+
+type RoundStateForScoring = {
+  scores?: Record<string, number>;
+  [key: string]: unknown;
+};
+
+const WORLD_SIGNAL_ENTITY_ID = "world.signal";
+
+function incrementScoreFor(world: World, playerId: string): void {
+  if (!world.hasEntity(WORLD_SIGNAL_ENTITY_ID)) {
+    return;
+  }
+  const round = world.getComponent<RoundStateForScoring>(WORLD_SIGNAL_ENTITY_ID, "RoundState");
+  if (round === undefined) {
+    return;
+  }
+  const nextScores: Record<string, number> = { ...(round.scores ?? {}) };
+  nextScores[playerId] = (nextScores[playerId] ?? 0) + 1;
+  world.setComponent(WORLD_SIGNAL_ENTITY_ID, "RoundState", {
+    ...round,
+    scores: nextScores
+  });
+}
+
+const BEACON_REPAIRED_PALETTE: ReadonlyArray<string> = [
+  "runtime/materials/beacon-repaired-orange.material.json",
+  "runtime/materials/beacon-repaired-cyan.material.json",
+  "runtime/materials/beacon-repaired-violet.material.json",
+  "runtime/materials/beacon-repaired-amber.material.json"
+];
+
+function pickBeaconRepairedMaterial(playerId: string): string | undefined {
+  if (playerId.length === 0) {
+    return undefined;
+  }
+  let hash = 0;
+  for (let i = 0; i < playerId.length; i += 1) {
+    hash = (hash * 31 + playerId.charCodeAt(i)) >>> 0;
+  }
+  return BEACON_REPAIRED_PALETTE[hash % BEACON_REPAIRED_PALETTE.length];
 }
 
 function distanceXZ(a: Vec3, b: Vec3): number {

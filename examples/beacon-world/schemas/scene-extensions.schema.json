@@ -212,6 +212,11 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "If set, the round automatically resets this many seconds after completedAt. Omit to require a manual KeyR / __agf.resetRound() reset."
+        },
+        "scores": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0 },
+          "description": "Runtime field — cumulative repair count per playerId across rounds. Per-beacon ownership lives on Repairable.lastRepairedBy and resets per round."
         }
       }
     },

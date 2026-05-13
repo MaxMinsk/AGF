@@ -58,8 +58,18 @@ export type NetworkDroneSyncOptions = {
   getUnackedIntents?: () => ReadonlyArray<UnackedIntentForReplay>;
   /** Monotonic clock used as the upper bound for the latest replay segment. */
   nowSeconds?: () => number;
-  /** Movement speed used during replay. Must match the server's player speed. */
+  /**
+   * Fallback movement speed used during replay if `getPlayerSpeed` is not
+   * provided or returns undefined. Must match the server's player speed for
+   * the prediction to converge.
+   */
   playerSpeed?: number;
+  /**
+   * Optional dynamic speed source — usually the WS adapter's
+   * `lastServerPlayerSpeed()`. When provided, replay uses the latest value
+   * the server broadcast so the client does not have to hard-code it.
+   */
+  getPlayerSpeed?: () => number | undefined;
 };
 
 /**
@@ -163,7 +173,7 @@ function replayUnackedIntents(
 ): [number, number] {
   const getIntents = options.getUnackedIntents;
   const nowSeconds = options.nowSeconds;
-  const speed = options.playerSpeed;
+  const speed = options.getPlayerSpeed?.() ?? options.playerSpeed;
   if (getIntents === undefined || nowSeconds === undefined || speed === undefined || speed <= 0) {
     return [sx, sz];
   }

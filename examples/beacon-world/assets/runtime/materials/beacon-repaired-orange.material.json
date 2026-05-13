@@ -1,0 +1,8 @@
+{
+  "id": "beacon-repaired-orange",
+  "shader": "standard",
+  "color": "#ff9a4a",
+  "roughness": 0.3,
+  "metalness": 0.5,
+  "emissive": "#5a2a08"
+}

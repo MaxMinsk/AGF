@@ -9,6 +9,7 @@ type RoundStateComponent = {
   holdProgress?: number;
   holdSeconds: number;
   completedAt?: number;
+  scores?: Record<string, number>;
 };
 
 const REFRESH_MS = 100;
@@ -107,17 +108,12 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
     let repairableTotal = 0;
     let signalHealth: number | undefined;
     let round: RoundStateComponent | undefined;
-    const scoreByPlayer = new Map<string, number>();
     for (const entity of snapshot.entities) {
       const repairable = entity.components["Repairable"] as RepairableComponent | undefined;
       if (repairable !== undefined) {
         repairableTotal += 1;
         if (repairable.repaired === true) {
           repairedCount += 1;
-          const owner = repairable.lastRepairedBy;
-          if (owner !== undefined && owner.length > 0) {
-            scoreByPlayer.set(owner, (scoreByPlayer.get(owner) ?? 0) + 1);
-          }
         }
       }
       const worldSignal = entity.components["WorldSignal"] as WorldSignalComponent | undefined;
@@ -127,6 +123,15 @@ export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): He
       const roundState = entity.components["RoundState"] as RoundStateComponent | undefined;
       if (roundState !== undefined) {
         round = roundState;
+      }
+    }
+
+    const scoreByPlayer = new Map<string, number>();
+    if (round?.scores !== undefined) {
+      for (const [playerId, count] of Object.entries(round.scores)) {
+        if (typeof count === "number" && count > 0) {
+          scoreByPlayer.set(playerId, count);
+        }
       }
     }
 

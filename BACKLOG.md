@@ -21,9 +21,9 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 23 - TBD
+## Current Sprint: Sprint 24 - TBD
 
-Sprint 23 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
+Sprint 24 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 4–6 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -32,19 +32,19 @@ Sprint 23 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 - `10.5` C#/.NET reference skeleton — `examples/backends/dotnet-world-server/` mirror of the Node skeleton.
 - `10.14` Server-authoritative carry — extend the protocol with `intent.pickup` / `intent.drop` so a future story can sync pickups across clients.
 - `10.16` Snapshot delta encoding — server sends only changed components per entity instead of the full state every tick; client merges deltas onto its last known full snapshot.
-- `10.17` Server-broadcast player speed — server emits its effective `PLAYER_SPEED` in `world.snapshot.payload` (or in `player.join` ack) so the client's rollback-replay does not have to hard-code it.
+- `10.18` Server-side hazard / pickup state — move hazard pulses and core respawns onto the server-side world so two browser tabs see the same hazard pattern and pickups disappear consistently across clients.
 
 #### Beacon World gameplay
 
 - `13.12` Sound pings — first audio cue on pickup / deposit / damage so the loop has feedback beyond visuals.
-- `13.19` Persistent scoreboard — `RoundState.scores: Record<playerId, number>` accumulates across rounds, with the per-beacon `lastRepairedBy` still owning the current round.
+- `13.20` Player-colour drone variants — apply the per-player palette to the local `player.drone` too, not just the remote ones, so an `?playerId=alpha` tab visually agrees with how `?playerId=bravo` sees it.
 
 #### Engine polish
 
-- `E.13` `engine inspect --watch --on-change <cmd>` — extend watch mode to run an external command after each re-run, so agents can chain `engine inspect --watch` with a custom validator / formatter.
-- `E.14` Dynamic bootstrap imports — make `src/main.ts` lazy-import each example's `bootstrap.ts` so the production bundle only ships the active project's systems. Pairs with the chunk-size warning flagged by `codex_review_1.md` P3.
+- `E.15` `engine inspect --json --watch` machine-readable stream — make watch mode emit one JSON object per refresh on stdout (line-delimited) so agents can `tail -f` and parse without re-running.
+- `E.16` Dynamic renderer import — split `engine/render/` into a lazy chunk; only the active project loads Three.js. Pairs with the bundle-size follow-up from `codex_review_1.md` P3.
 
 #### Asset polish
 
-- `14.9` Beacon material variant family — palette of beacon materials so a future story can colour beacons per repair state / per owning player; pairs naturally with the scoreboard.
 - `14.11` Hazard material variants — paired with `14.9` so the existing `hazard.center` / `hazard.east` differ visually beyond the inline `MeshRenderer.color`.
+- `14.12` Asset diagnostics on `engine inspect` — propagate the `AGF_ASSET_RUNTIME_UNDECLARED` warning into the inspect output too so an agent watching `--watch` notices the moment they drop a new file under `runtime/`.

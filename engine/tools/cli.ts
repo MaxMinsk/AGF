@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { writeFileSync, mkdirSync, watch as fsWatch } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { checkProject, formatDiagnostics } from "./check/project-check";
@@ -29,6 +30,7 @@ type ParsedArgs = {
   excludeComponents: string[];
   componentsOnly: boolean;
   watch: boolean;
+  onChange: string | undefined;
   positional: string[];
 };
 
@@ -93,6 +95,21 @@ function runInspectOnce(args: ParsedArgs): number {
   return result.ok ? 0 : 1;
 }
 
+function runOnChange(command: string): void {
+  console.error(`[engine inspect --watch] on-change: ${command}`);
+  const child = spawn(command, [], { shell: true, stdio: "inherit" });
+  child.on("error", (error) => {
+    console.error(`[engine inspect --watch] on-change failed to start: ${error.message ?? error}`);
+  });
+  child.on("exit", (code, signal) => {
+    if (code !== 0 && code !== null) {
+      console.error(`[engine inspect --watch] on-change exited with code ${code}`);
+    } else if (signal !== null) {
+      console.error(`[engine inspect --watch] on-change killed by signal ${signal}`);
+    }
+  });
+}
+
 function runInspectWatch(args: ParsedArgs): void {
   const projectDir = resolve(args.projectDir);
   console.error(`[engine inspect --watch] watching ${projectDir} (Ctrl-C to stop)`);
@@ -113,6 +130,9 @@ function runInspectWatch(args: ParsedArgs): void {
         runInspectOnce(args);
       } catch (error) {
         console.error(`[engine inspect --watch] failed: ${(error as Error).message ?? error}`);
+      }
+      if (args.onChange !== undefined && args.onChange.length > 0) {
+        runOnChange(args.onChange);
       }
     }, 120);
   };
@@ -177,6 +197,7 @@ function parseArgs(args: string[]): ParsedArgs {
     excludeComponents: [],
     componentsOnly: false,
     watch: false,
+    onChange: undefined,
     positional: []
   };
 
@@ -260,6 +281,13 @@ function parseArgs(args: string[]): ParsedArgs {
       result.watch = true;
       continue;
     }
+    if (current === "--on-change") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.onChange = value;
+      }
+      continue;
+    }
     if (current.startsWith("--")) {
       continue;
     }
@@ -279,7 +307,7 @@ function printUsage(): void {
     [
       "Usage:",
       "  engine check <projectDir> [--json] [--save <path>]",
-      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--watch] [--json] [--save <path>]",
+      "  engine inspect <projectDir> [--component <Name>] [--query A,B] [--entity <id>] [--tail N] [--exclude-component N1,N2] [--components-only] [--watch] [--on-change <cmd>] [--json] [--save <path>]",
       "  engine inspect --diff <previous.json> <next.json> [--tail N] [--json] [--save <path>]"
     ].join("\n")
   );

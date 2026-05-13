@@ -1,12 +1,5 @@
 import "./styles.css";
 
-import helloProjectData from "../examples/hello-3d/project.json";
-import helloSceneData from "../examples/hello-3d/scenes/start.scene.json";
-import { hello3DBootstrap } from "../examples/hello-3d/bootstrap";
-import beaconProjectData from "../examples/beacon-world/project.json";
-import beaconSceneData from "../examples/beacon-world/scenes/start.scene.json";
-import { beaconWorldBootstrap } from "../examples/beacon-world/bootstrap";
-
 import { createApp, type AppHandle, type ProjectMeta } from "./app";
 import { diffScenes } from "../engine/core/commands/scene-diff";
 import type { ProjectBootstrap } from "../engine/runtime/project-bootstrap";
@@ -41,38 +34,53 @@ declare global {
   }
 }
 
-type ProjectOption = {
-  id: string;
+type LoadedProject = {
   project: ProjectMeta;
   scene: SceneInput;
   bootstrap: ProjectBootstrap;
 };
 
-const projectOptions: Record<string, ProjectOption> = {
-  "hello-3d": {
-    id: "hello-3d",
-    project: helloProjectData as ProjectMeta,
-    scene: helloSceneData as unknown as SceneInput,
-    bootstrap: hello3DBootstrap
+/**
+ * Registry of dynamic-import loaders, one per example project. Vite splits
+ * each project into its own chunk so the production bundle only ships the
+ * active project's systems / bootstrap / data.
+ */
+const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
+  "hello-3d": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/hello-3d/project.json"),
+      import("../examples/hello-3d/scenes/start.scene.json"),
+      import("../examples/hello-3d/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.hello3DBootstrap
+    };
   },
-  "beacon-world": {
-    id: "beacon-world",
-    project: beaconProjectData as ProjectMeta,
-    scene: beaconSceneData as unknown as SceneInput,
-    bootstrap: beaconWorldBootstrap
+  "beacon-world": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/beacon-world/project.json"),
+      import("../examples/beacon-world/scenes/start.scene.json"),
+      import("../examples/beacon-world/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.beaconWorldBootstrap
+    };
   }
 };
 
-const availableProjectIds = Object.keys(projectOptions);
+const availableProjectIds = Object.keys(projectLoaders);
 const defaultProjectId = "hello-3d";
 
 const params = new URLSearchParams(window.location.search);
 const requested = params.get("project");
 const selectedId =
-  requested !== null && Object.prototype.hasOwnProperty.call(projectOptions, requested)
+  requested !== null && Object.prototype.hasOwnProperty.call(projectLoaders, requested)
     ? requested
     : defaultProjectId;
-const selected = projectOptions[selectedId] ?? projectOptions[defaultProjectId]!;
 
 const root = document.querySelector<HTMLElement>("#app");
 
@@ -80,106 +88,117 @@ if (!root) {
   throw new Error("Missing #app root element.");
 }
 
-let currentScene = selected.scene;
-
 const requestedServer = params.get("server");
 const requestedPlayerId = params.get("playerId");
 const requestedNetworked = params.get("networked");
 const requestedProfile = params.get("profile");
-const appOptions: Parameters<typeof createApp>[5] = {
-  bootstrap: selected.bootstrap
-};
+
+const baseAppOptions: Parameters<typeof createApp>[5] = {};
 if (requestedServer !== null && requestedServer.length > 0) {
-  appOptions.serverUrl = requestedServer;
+  baseAppOptions.serverUrl = requestedServer;
 }
 if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
-  appOptions.playerId = requestedPlayerId;
+  baseAppOptions.playerId = requestedPlayerId;
 }
 if (requestedNetworked === "1" || requestedNetworked === "true") {
-  appOptions.networked = true;
+  baseAppOptions.networked = true;
 }
 if (requestedProfile !== null && requestedProfile.length > 0) {
-  appOptions.activeProfile = requestedProfile;
+  baseAppOptions.activeProfile = requestedProfile;
 }
 
-let app: AppHandle = createApp(
-  root,
-  selected.project,
-  currentScene,
-  selected.id,
-  availableProjectIds,
-  appOptions
-);
+void (async (): Promise<void> => {
+  const loader = projectLoaders[selectedId] ?? projectLoaders[defaultProjectId];
+  if (loader === undefined) {
+    throw new Error(`No loader registered for project "${selectedId}".`);
+  }
+  const loaded = await loader();
 
-if (import.meta.env.DEV) {
-  window.__agf = {
-    snapshot: () => app.snapshot(),
-    applyCommands: (commands) => app.applyCommands(commands),
-    resetRound: () => app.resetRound(),
-    reloadCount: 0,
-    reloadEvents: []
-  };
-}
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    app.dispose();
-  });
-
-  import.meta.hot.accept("./app", (module) => {
-    const nextCreateApp = module?.["createApp"];
-    if (typeof nextCreateApp !== "function") {
-      return;
-    }
-    app.dispose();
-    app = nextCreateApp(
-      root,
-      selected.project,
-      currentScene,
-      selected.id,
-      availableProjectIds,
-      appOptions
-    );
-  });
-
-  const applySceneUpdate = (module: unknown): void => {
-    if (module === undefined) {
-      return;
-    }
-    const nextScene = ((module as { default?: SceneInput }).default ?? (module as unknown as SceneInput));
-    const commands = diffScenes(currentScene, nextScene);
-    if (commands.length === 0) {
-      return;
-    }
-    app.applyCommands(commands);
-    currentScene = nextScene;
-    console.info(`[agf] applied ${commands.length} command(s) from scene hot reload`);
+  let currentScene = loaded.scene;
+  const appOptions: Parameters<typeof createApp>[5] = {
+    ...baseAppOptions,
+    bootstrap: loaded.bootstrap
   };
 
-  if (selected.id === "hello-3d") {
-    import.meta.hot.accept("../examples/hello-3d/scenes/start.scene.json", applySceneUpdate);
-  } else if (selected.id === "beacon-world") {
-    import.meta.hot.accept("../examples/beacon-world/scenes/start.scene.json", applySceneUpdate);
+  let app: AppHandle = createApp(
+    root,
+    loaded.project,
+    currentScene,
+    selectedId,
+    availableProjectIds,
+    appOptions
+  );
+
+  if (import.meta.env.DEV) {
+    window.__agf = {
+      snapshot: () => app.snapshot(),
+      applyCommands: (commands) => app.applyCommands(commands),
+      resetRound: () => app.resetRound(),
+      reloadCount: 0,
+      reloadEvents: []
+    };
   }
 
-  import.meta.hot.on("agf:asset-changed", (payload: unknown) => {
-    if (typeof payload !== "object" || payload === null) {
-      return;
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      app.dispose();
+    });
+
+    import.meta.hot.accept("./app", (module) => {
+      const nextCreateApp = module?.["createApp"];
+      if (typeof nextCreateApp !== "function") {
+        return;
+      }
+      app.dispose();
+      app = nextCreateApp(
+        root,
+        loaded.project,
+        currentScene,
+        selectedId,
+        availableProjectIds,
+        appOptions
+      );
+    });
+
+    const applySceneUpdate = (module: unknown): void => {
+      if (module === undefined) {
+        return;
+      }
+      const nextScene = ((module as { default?: SceneInput }).default ?? (module as unknown as SceneInput));
+      const commands = diffScenes(currentScene, nextScene);
+      if (commands.length === 0) {
+        return;
+      }
+      app.applyCommands(commands);
+      currentScene = nextScene;
+      console.info(`[agf] applied ${commands.length} command(s) from scene hot reload`);
+    };
+
+    if (selectedId === "hello-3d") {
+      import.meta.hot.accept("../examples/hello-3d/scenes/start.scene.json", applySceneUpdate);
+    } else if (selectedId === "beacon-world") {
+      import.meta.hot.accept("../examples/beacon-world/scenes/start.scene.json", applySceneUpdate);
     }
-    const projectId = (payload as { projectId?: unknown }).projectId;
-    const ref = (payload as { ref?: unknown }).ref;
-    if (typeof projectId !== "string" || typeof ref !== "string") {
-      return;
-    }
-    if (projectId !== selected.id) {
-      return;
-    }
-    app.reloadAsset(ref);
-    if (window.__agf !== undefined) {
-      window.__agf.lastReloadedAsset = ref;
-      window.__agf.reloadCount += 1;
-      window.__agf.reloadEvents.push({ ref, count: window.__agf.reloadCount });
-    }
-    console.info(`[agf] hot-reloaded asset ${ref}`);
-  });
-}
+
+    import.meta.hot.on("agf:asset-changed", (payload: unknown) => {
+      if (typeof payload !== "object" || payload === null) {
+        return;
+      }
+      const projectId = (payload as { projectId?: unknown }).projectId;
+      const ref = (payload as { ref?: unknown }).ref;
+      if (typeof projectId !== "string" || typeof ref !== "string") {
+        return;
+      }
+      if (projectId !== selectedId) {
+        return;
+      }
+      app.reloadAsset(ref);
+      if (window.__agf !== undefined) {
+        window.__agf.lastReloadedAsset = ref;
+        window.__agf.reloadCount += 1;
+        window.__agf.reloadEvents.push({ ref, count: window.__agf.reloadCount });
+      }
+      console.info(`[agf] hot-reloaded asset ${ref}`);
+    });
+  }
+})();

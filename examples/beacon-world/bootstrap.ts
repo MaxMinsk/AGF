@@ -47,13 +47,15 @@ export const beaconWorldBootstrap: ProjectBootstrap = {
       return;
     }
 
-    const playerSpeedClient = 3.5;
+    const PLAYER_SPEED_FALLBACK = 3.5;
     const droneSyncClock = (): number =>
       typeof performance !== "undefined" ? performance.now() / 1000 : Date.now() / 1000;
     scheduler.register(
       createNetworkDroneSyncSystem({
         playerId,
-        playerSpeed: playerSpeedClient,
+        playerSpeed: PLAYER_SPEED_FALLBACK,
+        getPlayerSpeed: (): number =>
+          getNetwork()?.lastServerPlayerSpeed() ?? PLAYER_SPEED_FALLBACK,
         nowSeconds: droneSyncClock,
         getUnackedInputCount: (): number => {
           const network = getNetwork();
