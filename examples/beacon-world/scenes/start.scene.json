@@ -37,6 +37,65 @@
           "color": "#16242e"
         }
       }
+    },
+    {
+      "id": "player.drone",
+      "components": {
+        "Name": {
+          "label": "Salvage Drone"
+        },
+        "Transform": {
+          "position": [0, 0.4, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.7, 0.7, 0.7]
+        },
+        "MeshRenderer": {
+          "mesh": "sphere",
+          "material": "runtime/materials/drone.material.json"
+        }
+      }
+    },
+    {
+      "id": "beacon.west",
+      "components": {
+        "Name": {
+          "label": "West Beacon"
+        },
+        "Transform": {
+          "position": [-3.5, 1.0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.6, 2.5, 0.6]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "material": "runtime/materials/beacon.material.json"
+        },
+        "Spin": {
+          "axis": "y",
+          "speed": 25
+        }
+      }
+    },
+    {
+      "id": "beacon.east",
+      "components": {
+        "Name": {
+          "label": "East Beacon"
+        },
+        "Transform": {
+          "position": [3.5, 1.0, 0],
+          "rotation": [0, 30, 0],
+          "scale": [0.6, 2.5, 0.6]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "material": "runtime/materials/beacon.material.json"
+        },
+        "Spin": {
+          "axis": "y",
+          "speed": -25
+        }
+      }
     }
   ]
 }

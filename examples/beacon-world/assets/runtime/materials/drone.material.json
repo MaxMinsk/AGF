@@ -1,0 +1,8 @@
+{
+  "id": "drone",
+  "shader": "standard",
+  "color": "#c8d4e0",
+  "roughness": 0.45,
+  "metalness": 0.7,
+  "emissive": "#1a2030"
+}
