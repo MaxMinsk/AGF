@@ -1,0 +1,114 @@
+import type { RuntimeHandle } from "../../../../engine/runtime/start";
+
+type HealthComponent = { current: number; max: number };
+type InvulnerableComponent = { until: number };
+
+const REFRESH_MS = 100;
+
+export type HealthHudHandle = {
+  dispose(): void;
+};
+
+/**
+ * Beacon-world-only HUD. Reads the live world snapshot every {@link REFRESH_MS}
+ * milliseconds and renders a minimal Health / Invulnerable indicator. The DOM
+ * is the secondary surface — the canonical state lives in the entity's
+ * `Health` and `Invulnerable` components, which a non-browser agent can read
+ * through `window.__agf.snapshot()` without ever seeing this HUD.
+ */
+export function createHealthHud(parent: HTMLElement, runtime: RuntimeHandle): HealthHudHandle {
+  const root = document.createElement("aside");
+  root.setAttribute("data-testid", "beacon-world-hud");
+  root.style.cssText = [
+    "position: absolute",
+    "left: 24px",
+    "bottom: 24px",
+    "display: flex",
+    "flex-direction: column",
+    "gap: 6px",
+    "padding: 10px 12px",
+    "min-width: 140px",
+    "color: rgba(234, 244, 255, 0.92)",
+    "background: rgba(8, 18, 28, 0.65)",
+    "border: 1px solid rgba(150, 212, 255, 0.28)",
+    "border-radius: 4px",
+    "font-family: inherit",
+    "font-size: 12px",
+    "line-height: 1.2",
+    "pointer-events: none",
+    "backdrop-filter: blur(8px)"
+  ].join(";");
+
+  const hpLine = document.createElement("div");
+  hpLine.style.cssText = "display:flex; align-items:center; gap:8px;";
+  const hpLabel = document.createElement("strong");
+  hpLabel.textContent = "HP";
+  const hpCells = document.createElement("span");
+  hpCells.setAttribute("data-testid", "hud-hp");
+  hpCells.style.cssText = "display:flex; gap:4px;";
+  hpLine.append(hpLabel, hpCells);
+
+  const status = document.createElement("div");
+  status.setAttribute("data-testid", "hud-status");
+  status.style.cssText = "font-variant-numeric: tabular-nums; min-height: 14px;";
+
+  root.append(hpLine, status);
+  parent.append(root);
+
+  let lastKey = "";
+
+  const refresh = (): void => {
+    const snapshot = runtime.snapshot();
+    const drone = snapshot.entities.find((entity) => entity.id === "player.drone");
+    if (drone === undefined) {
+      return;
+    }
+    const health = drone.components["Health"] as HealthComponent | undefined;
+    const invulnerable = drone.components["Invulnerable"] as InvulnerableComponent | undefined;
+    const now = snapshot.time.elapsed;
+    const invulnerableActive = invulnerable !== undefined && invulnerable.until > now;
+
+    const key = `${health?.current ?? "-"}/${health?.max ?? "-"}|${invulnerableActive ? "1" : "0"}`;
+    if (key === lastKey) {
+      return;
+    }
+    lastKey = key;
+
+    renderCells(hpCells, health);
+    status.textContent = invulnerableActive ? "INVULN" : "";
+    status.style.color = invulnerableActive ? "rgba(74, 240, 168, 0.92)" : "rgba(234, 244, 255, 0.6)";
+  };
+
+  refresh();
+  const intervalId = window.setInterval(refresh, REFRESH_MS);
+
+  return {
+    dispose(): void {
+      window.clearInterval(intervalId);
+      root.remove();
+    }
+  };
+}
+
+function renderCells(container: HTMLElement, health: HealthComponent | undefined): void {
+  container.replaceChildren();
+  if (health === undefined) {
+    const placeholder = document.createElement("span");
+    placeholder.textContent = "—";
+    container.append(placeholder);
+    return;
+  }
+  for (let index = 0; index < health.max; index += 1) {
+    const cell = document.createElement("span");
+    const filled = index < health.current;
+    cell.style.cssText = [
+      "display: inline-block",
+      "width: 10px",
+      "height: 10px",
+      "border-radius: 2px",
+      `background: ${filled ? "rgba(248, 96, 88, 0.92)" : "rgba(255, 255, 255, 0.18)"}`,
+      `border: 1px solid ${filled ? "rgba(248, 96, 88, 1)" : "rgba(255, 255, 255, 0.32)"}`
+    ].join(";");
+    container.append(cell);
+  }
+}

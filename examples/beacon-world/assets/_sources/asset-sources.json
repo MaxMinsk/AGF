@@ -32,6 +32,16 @@
       }
     },
     {
+      "id": "beacon-world.hazard-mesh",
+      "kind": "procedural",
+      "runtimeFiles": ["runtime/models/hazard.glb"],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "Hazard spike orb: stellated octahedron emitted by scripts/build-hazard-glb.mjs. Both hazard entities share this mesh and differentiate via inline MeshRenderer.color."
+      }
+    },
+    {
       "id": "beacon-world.beacon-material",
       "kind": "procedural",
       "runtimeFiles": ["runtime/materials/beacon.material.json"],

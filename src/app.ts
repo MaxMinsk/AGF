@@ -7,6 +7,7 @@ import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
 import { createPickupSystem as createBeaconPickupSystem } from "../examples/beacon-world/src/systems/pickup-system";
 import { createHazardSystem as createBeaconHazardSystem } from "../examples/beacon-world/src/systems/hazard-system";
+import { createHealthHud as createBeaconHealthHud, type HealthHudHandle } from "../examples/beacon-world/src/ui/health-hud";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
@@ -88,6 +89,11 @@ export function createApp(
 
   const runtime: RuntimeHandle = startRuntime(runtimeOptions);
 
+  let healthHud: HealthHudHandle | undefined;
+  if (projectId === "beacon-world") {
+    healthHud = createBeaconHealthHud(shell, runtime);
+  }
+
   return {
     canvas,
     applyCommands(commands): void {
@@ -100,6 +106,7 @@ export function createApp(
       runtime.invalidateAsset(ref);
     },
     dispose(): void {
+      healthHud?.dispose();
       runtime.stop();
       playerInputSystem.dispose();
       root.textContent = "";
