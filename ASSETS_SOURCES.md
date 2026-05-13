@@ -40,7 +40,7 @@ Use Meshy for:
 - text-to-3D for quick ideation;
 - AI texturing on generated models;
 - PBR texture maps when needed;
-- agent/API/MCP experiments later.
+- agent CLI/API experiments later.
 
 Why Meshy is enough for now:
 
@@ -315,4 +315,3 @@ Before using AI-generated assets commercially:
 - Midjourney plans: https://docs.midjourney.com/hc/en-us/articles/27870484040333-Comparing-Midjourney-Plans
 - Midjourney commercial usage note: https://docs.midjourney.com/hc/en-us/articles/27870375276557-Using-Images-Videos-Commercially
 - Leonardo commercial usage note: https://intercom.help/leonardo-ai/en/articles/8044018-commercial-usage
-

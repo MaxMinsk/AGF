@@ -1,0 +1,12 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Camera": { "kind": "perspective", "active": true },
+        "Transform": { "position": [0, 0, 5] }
+      }
+    }
+  ]
+}

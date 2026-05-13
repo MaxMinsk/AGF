@@ -2,6 +2,7 @@ import Ajv, { type AnySchema, type ErrorObject, type ValidateFunction } from "aj
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CURRENT_FORMAT_VERSION, MIN_SUPPORTED_FORMAT_VERSION } from "./format-version";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -82,6 +83,8 @@ export function checkProject(projectDirInput: string): CheckResult {
   if (!isJsonObject(projectJson.data)) {
     return result(projectDir, diagnostics);
   }
+
+  diagnostics.push(...validateFormatVersion(projectJson.data, projectPath, projectDir));
 
   const assetRootValue = projectJson.data["assetRoot"];
   const assetRoot = typeof assetRootValue === "string" ? assetRootValue : undefined;
@@ -194,6 +197,63 @@ function validateMaterialFiles(projectDir: string, assetRoot: string, diagnostic
     }
     diagnostics.push(...validateStaticSchema("material", json.data, materialPath, projectDir));
   }
+}
+
+function validateFormatVersion(
+  projectData: JsonObject,
+  projectPath: string,
+  projectDir: string
+): Diagnostic[] {
+  const raw = projectData["agfFormatVersion"];
+  if (raw === undefined) {
+    return [
+      {
+        severity: "warning",
+        code: "AGF_FORMAT_VERSION_MISSING",
+        file: toProjectRelativeFile(projectPath, projectDir),
+        path: "$.agfFormatVersion",
+        message: `Project does not declare an "agfFormatVersion" — engine assumes ${CURRENT_FORMAT_VERSION}.`,
+        suggestion: `Add "agfFormatVersion": ${CURRENT_FORMAT_VERSION} to project.json so the migration tooling knows what shape this project follows.`
+      }
+    ];
+  }
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 1) {
+    return [
+      {
+        severity: "error",
+        code: "AGF_SCHEMA_VALIDATION_FAILED",
+        file: toProjectRelativeFile(projectPath, projectDir),
+        path: "$.agfFormatVersion",
+        message: `"agfFormatVersion" must be a positive integer; got ${JSON.stringify(raw)}.`,
+        suggestion: `Use an integer in the supported range [${MIN_SUPPORTED_FORMAT_VERSION}, ${CURRENT_FORMAT_VERSION}].`
+      }
+    ];
+  }
+  if (raw > CURRENT_FORMAT_VERSION) {
+    return [
+      {
+        severity: "error",
+        code: "AGF_FORMAT_VERSION_UNSUPPORTED",
+        file: toProjectRelativeFile(projectPath, projectDir),
+        path: "$.agfFormatVersion",
+        message: `Project declares agfFormatVersion ${raw}, but this engine only supports up to ${CURRENT_FORMAT_VERSION}.`,
+        suggestion: "Upgrade the engine or migrate the project down to a supported version."
+      }
+    ];
+  }
+  if (raw < MIN_SUPPORTED_FORMAT_VERSION) {
+    return [
+      {
+        severity: "warning",
+        code: "AGF_FORMAT_VERSION_TOO_OLD",
+        file: toProjectRelativeFile(projectPath, projectDir),
+        path: "$.agfFormatVersion",
+        message: `Project declares agfFormatVersion ${raw}, older than the engine's minimum (${MIN_SUPPORTED_FORMAT_VERSION}).`,
+        suggestion: "Run `engine migrate <projectDir>` to upgrade the project."
+      }
+    ];
+  }
+  return [];
 }
 
 function validateAssetRoot(projectDir: string, assetRoot: string, diagnostics: Diagnostic[]): void {

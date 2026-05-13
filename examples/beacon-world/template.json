@@ -1,0 +1,53 @@
+{
+  "templateId": "beacon-world",
+  "name": "Beacon World",
+  "summary": "Solo-first persistent salvage world: drone picks up energy cores, repairs beacons, dodges pulsing hazards. Single-player works out of the box; the `connected` profile turns it multiplayer.",
+  "gameplayVocabulary": [
+    "drone",
+    "energy core",
+    "beacon",
+    "repair",
+    "hazard",
+    "round signal"
+  ],
+  "extensionPoints": [
+    {
+      "id": "add-component",
+      "summary": "Add a new project-local component (data shape only).",
+      "files": [
+        "examples/beacon-world/schemas/scene-extensions.schema.json"
+      ]
+    },
+    {
+      "id": "add-system",
+      "summary": "Add a new project-local system that reads / writes those components.",
+      "files": [
+        "examples/beacon-world/src/systems/",
+        "examples/beacon-world/bootstrap.ts"
+      ]
+    },
+    {
+      "id": "add-pickup-kind",
+      "summary": "Add a new pickup kind: declare it on a `Pickup` entity, decide which `Repairable.accepts` matches.",
+      "files": [
+        "examples/beacon-world/scenes/start.scene.json"
+      ]
+    },
+    {
+      "id": "add-material",
+      "summary": "Add a new material variant. Declare in asset-sources, run engine check to validate.",
+      "files": [
+        "examples/beacon-world/assets/runtime/materials/",
+        "examples/beacon-world/assets/_sources/asset-sources.json"
+      ]
+    },
+    {
+      "id": "add-playtest",
+      "summary": "Capture a robot scenario the agent / CI can replay.",
+      "files": [
+        "examples/beacon-world/playtests/"
+      ]
+    }
+  ],
+  "templateContextFile": "template_context.md"
+}

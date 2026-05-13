@@ -6,6 +6,11 @@
   "additionalProperties": false,
   "required": ["id", "name", "startScene", "assetRoot", "render", "profiles"],
   "properties": {
+    "agfFormatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "AGF project format version. Bumped on breaking schema changes; absence is treated as version 1 with a deprecation warning."
+    },
     "id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$"

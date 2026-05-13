@@ -1,7 +1,7 @@
 {
-  "agfFormatVersion": 1,
-  "id": "valid-project",
-  "name": "Valid Project",
+  "agfFormatVersion": 99,
+  "id": "format-version-future",
+  "name": "Format Version Future Fixture",
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {

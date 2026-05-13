@@ -84,7 +84,7 @@ You enter a broken sky ruin as a small salvage drone. The world contains unstabl
 - **Shaders:** glowing cores, beacon repair field, hazard pulse, world instability effect.
 - **Audio:** positional beacon hum, warning pulses, repair complete sound, ambient world loop.
 - **Hot reload:** move hazards/beacons without resetting the world.
-- **Agent bridge:** robot players can enter, collect cores, repair beacons and evaluate world stability.
+- **Agent CLI/playtest tooling:** robot players can enter, collect cores, repair beacons and evaluate world stability through regular engine commands.
 - **Backend:** authoritative world state, presence, interactions, ticks and snapshots.
 
 ### MVP Version
@@ -357,4 +357,3 @@ Important behaviors:
 ## Final Choice
 
 Pick **Beacon World** as the main sample game. Keep **Courier Outpost** as the reduced fallback if the first implementation needs a tighter scope.
-

@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/performance-budget.schema.json",
+  "title": "AGF Performance Budget",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agfFormatVersion", "renderer", "bundle"],
+  "properties": {
+    "agfFormatVersion": { "type": "integer", "minimum": 1 },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "soft": { "$ref": "#/definitions/rendererThresholds" },
+        "hard": { "$ref": "#/definitions/rendererThresholds" }
+      },
+      "description": "Renderer-resource thresholds. `soft` emits a warning, `hard` fails `engine doctor` with exit code 1."
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "softLargestChunkGzipKb": { "type": "number", "exclusiveMinimum": 0 },
+        "hardLargestChunkGzipKb": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  },
+  "definitions": {
+    "rendererThresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "geometries": { "type": "integer", "minimum": 0 },
+        "textures": { "type": "integer", "minimum": 0 },
+        "programs": { "type": "integer", "minimum": 0 },
+        "drawCalls": { "type": "integer", "minimum": 0 },
+        "triangles": { "type": "integer", "minimum": 0 },
+        "meshes": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

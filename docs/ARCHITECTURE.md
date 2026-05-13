@@ -28,7 +28,7 @@ The source of truth is project files:
 - `runtime`: browser bootstrap, loop, input, audio, hot reload and network client adapters.
 - `render`: Three.js adapter, material/shader binding and debug gizmos.
 - `physics`: Rapier adapters, added after the first playable foundation.
-- `tools`: CLI, inspector, agent bridge and playtest runner.
+- `tools`: CLI, inspector, agent-oriented JSON outputs and playtest runner.
 - `examples/backends`: optional reference backend implementations for persistent-world profiles.
 
 ## Dependency Rules
@@ -52,5 +52,7 @@ Backend implementations are outside the engine core. A C#/.NET server may be the
 ```text
 inspect -> edit text files -> engine check -> typecheck/test -> run/playtest -> screenshot/trace -> summarize
 ```
+
+Agent tooling is CLI-first. Commands should produce stable human-readable output and machine-readable `--json` output. Optional adapters such as MCP, HTTP or WebSocket can be added later, but they must stay thin wrappers over the same CLI/shared command implementations instead of becoming separate engine logic.
 
 Every diagnostic should include `file`, `path`, `severity`, `message` and, when possible, `suggestion`.

@@ -1,4 +1,5 @@
 {
+  "agfFormatVersion": 1,
   "id": "hello-3d",
   "name": "Hello 3D",
   "startScene": "scenes/start.scene.json",
