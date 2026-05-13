@@ -3,6 +3,7 @@ import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
+import type { WorldSnapshot } from "../engine/runtime/inspect";
 
 export type ProjectMeta = {
   name: string;
@@ -12,6 +13,7 @@ export type ProjectMeta = {
 export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+  snapshot(): WorldSnapshot;
   dispose(): void;
 };
 
@@ -55,6 +57,9 @@ export function createApp(root: HTMLElement, project: ProjectMeta, scene: SceneI
     canvas,
     applyCommands(commands): void {
       runtime.applyCommands(commands);
+    },
+    snapshot(): WorldSnapshot {
+      return runtime.snapshot();
     },
     dispose(): void {
       runtime.stop();

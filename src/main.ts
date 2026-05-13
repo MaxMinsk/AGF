@@ -3,7 +3,18 @@ import projectData from "../examples/hello-3d/project.json";
 import sceneData from "../examples/hello-3d/scenes/start.scene.json";
 import { createApp, type AppHandle, type ProjectMeta } from "./app";
 import { diffScenes } from "../engine/core/commands/scene-diff";
+import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
+import type { WorldSnapshot } from "../engine/runtime/inspect";
+
+declare global {
+  interface Window {
+    __agf?: {
+      snapshot(): WorldSnapshot;
+      applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+    };
+  }
+}
 
 const root = document.querySelector<HTMLElement>("#app");
 
@@ -15,6 +26,13 @@ const project = projectData as ProjectMeta;
 let currentScene = sceneData as unknown as SceneInput;
 
 let app: AppHandle = createApp(root, project, currentScene);
+
+if (import.meta.env.DEV) {
+  window.__agf = {
+    snapshot: () => app.snapshot(),
+    applyCommands: (commands) => app.applyCommands(commands)
+  };
+}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

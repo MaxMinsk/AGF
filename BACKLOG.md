@@ -140,10 +140,49 @@ Stories:
 
 ### Epic 9: Agent Playtest Loop
 
-Stories:
+**Story 9.1: Runtime Inspect API**
 
-- `9.1`: Runtime inspect API.
-- `9.2`: Robot smoke playtest.
+Status: Implemented.
+
+Tasks:
+
+- Implement `snapshotWorld(world, time): WorldSnapshot` in `engine/runtime/inspect.ts`. Pure function, no DOM.
+- Snapshot includes `entityCount`, `entities[]` (sorted by id, each with id + components map), and a clone of the current `TimeContext`.
+- Expose `runtime.snapshot()` on `RuntimeHandle`; pipe through `AppHandle.snapshot()`.
+- In DEV builds only, mount `window.__agf = { snapshot, applyCommands }`.
+
+Acceptance criteria:
+
+- Snapshot of an empty world is empty.
+- Snapshot lists entities sorted by id for deterministic comparison.
+- Each entity's components map matches what `world.getComponent` returns.
+- Mutating the time argument after the call does not leak into the snapshot.
+- Production builds do not expose `window.__agf`.
+
+Verification:
+
+- Vitest suite for `snapshotWorld` (empty world, ordering, component projection, time isolation).
+
+**Story 9.2: Robot Smoke Playtest**
+
+Status: Implemented.
+
+Tasks:
+
+- Add `tests/e2e/agent-loop.spec.ts` driven entirely through `window.__agf`.
+- Robot policy: wait for the runtime, take a baseline snapshot, wait 500ms, assert that `cube.hero.Transform.rotation[1]` advanced and `time.fixedStepCount` grew.
+- Robot then pushes `applyCommands([{ component.set Spin speed: 0 }])`, waits, takes two further snapshots and asserts the rotation has frozen.
+- Attach the final snapshot as a Playwright artifact for postmortem.
+
+Acceptance criteria:
+
+- The robot test passes deterministically alongside the existing canvas smoke test.
+- The test only touches the runtime through the inspect API — no DOM scraping for state.
+- Failure (e.g. SpinSystem not running) is caught by the rotation deltas, not by visual diffing.
+
+Verification:
+
+- `npm run test:e2e` runs both `app.spec.ts` and `agent-loop.spec.ts`.
 
 ### Epic 10: Backend-Agnostic Persistent World Seam
 

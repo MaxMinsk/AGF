@@ -7,6 +7,7 @@ import type { TimeContext } from "../core/loop/types";
 import type { SystemScheduler } from "../core/systems/scheduler";
 import { ThreeRenderer } from "../render/three-renderer";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
+import { snapshotWorld, type WorldSnapshot } from "./inspect";
 
 export type FixedUpdateFn = (time: TimeContext, world: World) => void;
 
@@ -32,6 +33,7 @@ export type RuntimeHandle = {
   readonly renderer: ThreeRenderer;
   readonly time: Readonly<TimeContext>;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+  snapshot(): WorldSnapshot;
   stop(): void;
 };
 
@@ -152,6 +154,9 @@ export function startRuntime(options: RuntimeOptions): RuntimeHandle {
       for (const command of commands) {
         applyCommand(world, command);
       }
+    },
+    snapshot(): WorldSnapshot {
+      return snapshotWorld(world, time);
     },
     stop(): void {
       stopped = true;
