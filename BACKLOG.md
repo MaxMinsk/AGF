@@ -21,23 +21,18 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 38 — character controller + physics raycast + bench polish (DONE — archive merging)
+## Current Sprint: Sprint 39 — TBD
 
-Sprint 38 wrapped the M24 physics integration around Beacon (drone driven by `CharacterController3D` + collision-resolved motion), added the public physics-query API, and ran a small doctor / decoder / static-shadow polish pass. 7 stories landed; `M24-static-mesh` carries to Sprint 39.
+Sprint 39 focus is picked at sprint start. Natural openers (in priority order based on Sprint 38 close):
 
-### Stories
-
-- `beacon-physics-character` ✅ New `CharacterMovementSystem` (engine/physics/rapier/) runs in fixedUpdate BEFORE `PhysicsSyncSystem` for entities carrying `CharacterController3D` + kinematic `RigidBody3D`. Reads `Transform.position - body.position` as desired delta, optionally adds `gravity * gravityScale * fixedDt` (default scale 0), feeds `computeCharacterMovement(controller, collider, desired)` for collide-and-slide / autostep / snap-to-ground, applies via `setBodyNextKinematicTranslation`, mirrors resolved position back into Transform. Large jumps (>1m) bypass and hard-set. `PhysicsSyncSystem.phase3` skips CC entities; `phase5b` writes the post-step body position back into Transform. `PhysicsBodyRegistry` grows `colliderFor(entityId)`. Beacon's `player.drone` adopts the component (maxSlopeDegrees 45, snapToGroundDistance 0.25, mass 3); `beacon-world-gameplay` + `project-switcher` (`KeyD moves drone along +X`) + `score-pulse` all green.
-- `M24-raycast` ✅ `RapierAdapter.castRay(origin, direction, maxDistance)` wraps Rapier's `castRayAndGetNormal` with `solid: true` and reverse-maps the hit collider through the internal handle table. `AppHandle.physics.raycast(...)` / `window.__agf.physics.raycast(...)` return `{ entityId, distance, point, normal }`. Spike `spikes/physics-rapier-v0/raycast-spike.ts` confirms vertical + horizontal hits + miss semantics.
-- `M21-shadow-static` ✅ `project.json#render.shadows.autoUpdate` (default true). When false, `renderer.shadowMap.autoUpdate` is disabled at startup; `__agf.renderer.invalidateShadowMap()` schedules one re-render. `examples/shadows-bench` opts in — buildings + trees + rocks never move, so the cascade bake stops re-rendering each frame. CSM continues to drive lighting.
-- `M17-material-sharing-doctor` ✅ New `engine/tools/doctor/material-sharing.ts` scans `<projectDir>/assets/{runtime,_sources}/materials/*.material.json`, hashes the salient fields (shader kind + colour + opacity + full PBR / clearcoat / sheen / iridescence / phong) into stable signatures, reports duplicate groups. Hooked into `engine doctor` with a top-level recommendation line. 3 unit tests cover happy path + distinct PBR params + empty projects.
-- `M21-light-budgets` ✅ `RendererMetric` union gains `lights` + `shadowCasters`; `compareRendererInfo` walks them inline with the existing metrics. `schemas/performance-budget.schema.json` adds matching fields so projects can cap active lights + shadow casters and `engine doctor` reports soft/hard violations.
-- `ASSET-decoder-paths` ✅ New `engine/render/asset-decoders/decoders.ts` exposes process-wide singletons for the GLTF compression helpers — `DRACOLoader`, `KTX2Loader` (with `detectSupport(renderer)` re-issued when the renderer instance changes), `MeshoptDecoder`. `createGlbLoader({ renderer?, draco?, ktx2?, meshopt? })` reuses them so multiple asset registries share one Web Worker pool. No project opts in yet — scaffolding lands before M25 ASSET-compression.
-- `M17-batched-mesh-system` ✅ `Batchable.path?: "instanced" | "batched"` (default "instanced") on the scene schema. `BatchingSystem` grows a discriminated `BucketRecord`; the new `BatchedRecord` keys by `(colour + shadow + group)` — mesh-ref intentionally omitted — and uses `acquireBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance` / `setBatchedInstanceTransform` / `setBatchedInstanceGeometry`. Overflow on the 512-instance / 16k-vertex / 32k-index caps emits a one-shot `AGF_BATCH_OVERFLOW` per bucket. E2E probe: 4 mixed-mesh entities → 1 batched bucket, `batchedBucketInstances: 4`, drawCalls 2.
-
-### Carried to Sprint 39
-
-- **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
+1. **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions. Unlocks levels built from real geometry (terrain heightfields, art-pipeline meshes) instead of authored boxes.
+2. **M25 / ASSET-compression** — wire the M24-decoder singletons (DRACO + KTX2 + Meshopt) into `createGlbLoader` for at least one project. Foundation for the ASSET pipeline epic — Beacon's GLBs become Draco-compressed and KTX2-textured.
+3. **M21-mat-textures** — manifest texture maps (base colour / normal / roughness / metalness / emissive / AO) routed through the shared KTX2Loader.
+4. **M21-color** — output color space + tonemap pipeline review. Verify Beacon + shadows-bench under correct sRGB → ACES filmic.
+5. **M21-context-loss** — listen for `webglcontextlost` / `webglcontextrestored`; emit diagnostics + rebuild renderer resources on restore.
+6. **M21-post-pipeline** — schema-driven post-processing chain (`project.json#renderer.post`) with selective Bloom + FXAA + tonemap at end.
+7. **M21-mat-custom** — custom `ShaderMaterial` / `onBeforeCompile` material kind for the manifest.
+8. **RUNTIME-renderer-ready** — async "renderer-ready" signal on `runtime.start()` for tests + dev bridge to await before screenshots / commands.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 

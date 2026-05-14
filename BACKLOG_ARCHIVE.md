@@ -1537,6 +1537,52 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 38 — character controller + physics raycast + bench polish
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `beacon-physics-character` ✅ New `CharacterMovementSystem` in `engine/physics/rapier/` runs in fixedUpdate BEFORE `PhysicsSyncSystem` for entities with `CharacterController3D` + kinematic `RigidBody3D`. Reads `Transform - body` as desired delta, optionally adds `gravity * gravityScale * fixedDt` (default scale 0), feeds `computeCharacterMovement` for collide-and-slide / autostep / snapToGround, applies via `setBodyNextKinematicTranslation`, mirrors resolved position back to Transform. Teleports (>1m delta) bypass and hard-set. `PhysicsSyncSystem.phase3` skips CC entities; `phase5b` writes post-step body position to Transform. `PhysicsBodyRegistry.colliderFor(entityId)` added. Beacon's drone adopts the component (maxSlopeDegrees 45, snapToGroundDistance 0.25, mass 3).
+- `M24-raycast` ✅ `RapierAdapter.castRay(origin, direction, maxDistance)` wraps `castRayAndGetNormal` with `solid: true` and reverse-maps the hit through the internal handle table. `AppHandle.physics.raycast(...)` / `window.__agf.physics.raycast(...)` return `{ entityId, distance, point, normal }`. Spike `spikes/physics-rapier-v0/raycast-spike.ts` verifies vertical + horizontal hits + miss semantics.
+- `M21-shadow-static` ✅ `project.json#render.shadows.autoUpdate` (default true). When false, `renderer.shadowMap.autoUpdate` is disabled at startup; `__agf.renderer.invalidateShadowMap()` schedules one re-render. `examples/shadows-bench` opts in — buildings + trees + rocks never move, cascade bakes once and stops re-rendering each frame.
+- `M17-material-sharing-doctor` ✅ New `engine/tools/doctor/material-sharing.ts` scans `.material.json` manifests under `assets/{runtime,_sources}/materials/`, hashes shader kind + colour + opacity + PBR / clearcoat / sheen / iridescence / phong into stable signatures, reports duplicate groups. Hooked into `engine doctor` with a top-level recommendation. 3 unit tests.
+- `M21-light-budgets` ✅ `RendererMetric` gains `lights` + `shadowCasters`; `compareRendererInfo` walks them. `schemas/performance-budget.schema.json` adds matching fields.
+- `ASSET-decoder-paths` ✅ New `engine/render/asset-decoders/decoders.ts` — process-wide singletons for `DRACOLoader`, `KTX2Loader` (with `detectSupport(renderer)` re-issued on renderer change), `MeshoptDecoder`. `createGlbLoader({ renderer?, draco?, ktx2?, meshopt? })` reuses them. Scaffolding for `M25` ASSET-compression; no project opts in yet.
+- `M17-batched-mesh-system` ✅ `Batchable.path?: "instanced" | "batched"` on scene schema. `BatchingSystem` grows a discriminated `BucketRecord`; the `BatchedRecord` path keys by `(colour + shadow + group)` and uses `acquireBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance` / `setBatchedInstanceTransform` / `setBatchedInstanceGeometry`. Overflow on 512-instance / 16k-vertex / 32k-index caps emits a one-shot `AGF_BATCH_OVERFLOW` per bucket.
+
+### Deliverables
+
+- `engine/physics/rapier/character-movement-system.ts` (new) + `physics-body-registry.ts` (colliderFor) + `physics-sync-system.ts` (phase 3 skip + phase 5b writeback) + `rapier-adapter.ts` (`castRay`)
+- `engine/render/three-render-adapter.ts` — `setShadowMapAutoUpdate` + `invalidateShadowMap`
+- `engine/render/glb-loader.ts` + `engine/render/asset-decoders/decoders.ts` — opt-in compression helpers + singletons
+- `engine/render/systems/batching-system.ts` — discriminated `InstancedRecord | BatchedRecord` + `updateInstanced` + `updateBatched`
+- `engine/tools/doctor/material-sharing.ts` (new) + `project-doctor.ts` integration
+- `src/app.ts` + `src/main.ts` — wire `CharacterMovementSystem` registration, `setShadowMapAutoUpdate`, `__agf.physics.raycast`, `__agf.renderer.invalidateShadowMap`
+- `schemas/project.schema.json` — `render.shadows.autoUpdate`
+- `schemas/scene.schema.json` — `Batchable.path`
+- `schemas/performance-budget.schema.json` — `lights` + `shadowCasters` thresholds
+- `examples/beacon-world/scenes/start.scene.json` — `CharacterController3D` on the drone
+- `examples/shadows-bench/project.json` — `shadows.autoUpdate: false`
+- `spikes/physics-rapier-v0/raycast-spike.ts` (new)
+- `tests/unit/material-sharing-doctor.test.ts` (new) — 3 tests
+- `tests/unit/physics-sync-system.test.ts` — stub adapter gains `castRay`
+
+### Verification
+
+- `npm run preflight` ✅ — full chain green; 378 unit tests + 21 e2e passed, 3 flaky-retried (hmr-stress, multiclient-roundtrip, score-pulse — the usual parallel-worker flake set, deterministic in isolation).
+- `project-switcher.spec` ("KeyD moves the Beacon World drone along +X") ✅ — drone now moves through the character controller instead of direct Transform writes.
+- `beacon-world-gameplay.spec` ✅ — pickup + repair end-to-end through the new pipeline (PhysicsSync phase 5b writeback + sensor-wired pickup-system from S37).
+- Raycast spike: vertical hit on ground (distance 10, upward normal), horizontal hit on offset cube (distance 4.5), miss returns undefined.
+- Batched-bucket probe: 4 mixed-mesh entities (box + sphere variants) → 1 batched bucket, `batchedBucketInstances: 4`, drawCalls 2.
+
+### Follow-Ups
+
+- `M24-static-mesh` — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions. Carries to Sprint 39.
+- Future `gravityScale` schema field on `CharacterController3D` if a project needs to author the value statically instead of via the runtime-only knob.
+
+
+
 ## Sprint 37 — CSM + physics polish + benches
 
 Status: Completed and archived.
