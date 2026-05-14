@@ -50,6 +50,20 @@ declare global {
       /** Drop retained diagnostics. Subscribers stay alive. */
       clearDiagnostics(): void;
       /**
+       * Subscribe to live diagnostic emissions. Used by the dev-bridge SSE
+       * stream to fan diagnostics out to subscribed agents.
+       */
+      subscribeDiagnostics(
+        listener: (diagnostic: {
+          readonly id: number;
+          readonly emittedAtSeconds: number;
+          readonly severity: "info" | "warning" | "error";
+          readonly code: string;
+          readonly source: string;
+          readonly message: string;
+        }) => void
+      ): () => void;
+      /**
        * Serialises the diagnostics snapshot to JSON and best-effort copies it
        * to the OS clipboard. Returns the JSON string either way.
        */
@@ -182,6 +196,7 @@ void (async (): Promise<void> => {
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),
       clearDiagnostics: () => app.clearDiagnostics(),
+      subscribeDiagnostics: (listener) => app.subscribeDiagnostics(listener),
       copyDiagnostics: () => app.copyDiagnostics(),
       save: () => app.save(),
       load: () => app.load(),
@@ -198,7 +213,14 @@ void (async (): Promise<void> => {
     const { mountPageBridge } = await import("../engine/dev/page-bridge");
     const activeProfile =
       requestedProfile ?? (requestedNetworked === "1" ? "connected" : "static");
-    mountPageBridge({ projectId: selectedId, profile: activeProfile });
+    const bridgeOptions: Parameters<typeof mountPageBridge>[0] = {
+      projectId: selectedId,
+      profile: activeProfile
+    };
+    if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
+      bridgeOptions.playerId = requestedPlayerId;
+    }
+    mountPageBridge(bridgeOptions);
   }
 
   if (import.meta.hot) {

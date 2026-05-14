@@ -1,19 +1,16 @@
-// AGF dev-server bridge.
+// AGF dev-server bridge (multi-page).
 //
 // A Vite plugin (`apply: "serve"`) that registers `/__agf/*` HTTP middleware
-// on the dev server, plus a WebSocket at `/__agf/ws` that the page-side
-// bootstrap (engine/dev/page-bridge.ts) connects to. HTTP routes proxy RPC
-// requests to the latest connected page and return its JSON reply.
+// on the dev server, plus a WebSocket at `/__agf/ws` that every page-side
+// bootstrap connects to. HTTP routes proxy RPC requests to a target page and
+// return its JSON reply.
 //
-// Story progression:
-//   - `M15-a` /__agf/health endpoint + 404 envelope.
-//   - `M15-b` WS server + page handshake.
-//   - `M15-c` Pull endpoints: /snapshot, /diagnostics, /renderer-info,
-//             /reload-events.
-//   - `M15-d` /bug-report (composes the above).
-//   - `M15-e` /recording/{start,stop}.
-//   - `M15-f` POST /commands (live edit).
-//   - `M15-g` /events SSE stream.
+// Targeting: routes accept an optional query string to pick a page:
+//   ?page=<socketId>       — exact connection (returned by /__agf/health)
+//   ?playerId=<id>         — first page that sent { playerId } in its hello
+//   ?project=<id>          — first page that sent { projectId } in its hello
+// With no query the bridge uses the most-recently connected page. Returns
+// AGF_BRIDGE_PAGE_NOT_FOUND when the requested page isn't connected.
 //
 // Production builds exclude this plugin entirely (`apply: "serve"`).
 
@@ -29,7 +26,7 @@ export type DevBridgeOptions = {
   rpcTimeoutMs?: number;
 };
 
-export const DEV_BRIDGE_VERSION = "0.1.0-m15-c";
+export const DEV_BRIDGE_VERSION = "0.1.0-m15-multi-page";
 export const DEV_BRIDGE_PATH_PREFIX = "/__agf/";
 export const DEV_BRIDGE_WS_PATH = "/__agf/ws";
 
@@ -47,52 +44,114 @@ type ServerResponseLike = {
   end(payload: string): unknown;
 };
 
+type PageInfo = {
+  projectId?: string;
+  profile?: string;
+  playerId?: string;
+};
+
+type PageEntry = {
+  socketId: string;
+  socket: WsConnection;
+  info: PageInfo;
+  connectedAt: string;
+  pending: Map<number, PendingRpc>;
+  nextRpcId: number;
+  /**
+   * SSE subscribers attached to this page's event stream. First subscriber
+   * arms `events-start` on the page; last leaving fires `events-stop`. The
+   * page forwards events back as `{ kind: "event", payload }` over WS.
+   */
+  sseSubscribers: Set<ServerResponseLike>;
+};
+
 export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
   const version = options.version ?? DEV_BRIDGE_VERSION;
   const rpcTimeoutMs = options.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
 
-  let activeSocket: WsConnection | undefined;
-  let activePageInfo: { projectId: string; profile: string } | undefined;
-  const pending = new Map<number, PendingRpc>();
-  let nextRpcId = 1;
+  const pages = new Map<string, PageEntry>();
+  let nextSocketId = 1;
 
-  const setActiveSocket = (socket: WsConnection | undefined): void => {
-    if (activeSocket !== undefined && activeSocket !== socket) {
-      try {
-        activeSocket.send(JSON.stringify({ kind: "displaced" }));
-      } catch {
-        // Swallow — the previous page is going away anyway.
-      }
-      activeSocket.close();
-    }
-    activeSocket = socket;
-    if (socket === undefined) {
-      activePageInfo = undefined;
-    }
-  };
-
-  const rpc = (kind: string, payload?: unknown): Promise<unknown> =>
+  const rpc = (entry: PageEntry, kind: string, payload?: unknown): Promise<unknown> =>
     new Promise((resolve, reject) => {
-      if (activeSocket === undefined || activeSocket.readyState !== 1 /* OPEN */) {
+      if (entry.socket.readyState !== 1 /* OPEN */) {
         reject({
-          code: "AGF_BRIDGE_PAGE_NOT_CONNECTED",
-          message: `No active page on ${DEV_BRIDGE_WS_PATH} — open http://localhost:5173 in a tab first.`
+          code: "AGF_BRIDGE_PAGE_DISCONNECTED",
+          message: `Page ${entry.socketId} is closed.`
         });
         return;
       }
-      const id = nextRpcId++;
+      const id = entry.nextRpcId++;
       const timer = setTimeout(() => {
-        if (pending.has(id)) {
-          pending.delete(id);
+        if (entry.pending.has(id)) {
+          entry.pending.delete(id);
           reject({
             code: "AGF_BRIDGE_PAGE_TIMEOUT",
-            message: `Page did not reply to ${kind} within ${rpcTimeoutMs}ms.`
+            message: `Page ${entry.socketId} did not reply to ${kind} within ${rpcTimeoutMs}ms.`
           });
         }
       }, rpcTimeoutMs);
-      pending.set(id, { resolve, reject, timer });
-      activeSocket.send(JSON.stringify({ id, kind, payload }));
+      entry.pending.set(id, { resolve, reject, timer });
+      entry.socket.send(JSON.stringify({ id, kind, payload }));
     });
+
+  const findPage = (url: URL): { entry: PageEntry } | { error: { code: string; message: string } } => {
+    if (pages.size === 0) {
+      return {
+        error: {
+          code: "AGF_BRIDGE_PAGE_NOT_CONNECTED",
+          message: `No active page on ${DEV_BRIDGE_WS_PATH} — open http://localhost:5173 in a tab first.`
+        }
+      };
+    }
+    const pageQuery = url.searchParams.get("page");
+    if (pageQuery !== null) {
+      const entry = pages.get(pageQuery);
+      if (entry === undefined) {
+        return {
+          error: {
+            code: "AGF_BRIDGE_PAGE_NOT_FOUND",
+            message: `No page with socketId "${pageQuery}". GET /__agf/health for the list.`
+          }
+        };
+      }
+      return { entry };
+    }
+    const playerQuery = url.searchParams.get("playerId");
+    if (playerQuery !== null) {
+      for (const entry of pages.values()) {
+        if (entry.info.playerId === playerQuery) {
+          return { entry };
+        }
+      }
+      return {
+        error: {
+          code: "AGF_BRIDGE_PAGE_NOT_FOUND",
+          message: `No connected page reported playerId "${playerQuery}".`
+        }
+      };
+    }
+    const projectQuery = url.searchParams.get("project");
+    if (projectQuery !== null) {
+      for (const entry of pages.values()) {
+        if (entry.info.projectId === projectQuery) {
+          return { entry };
+        }
+      }
+      return {
+        error: {
+          code: "AGF_BRIDGE_PAGE_NOT_FOUND",
+          message: `No connected page reported projectId "${projectQuery}".`
+        }
+      };
+    }
+    // Most recently connected page (insertion order tail).
+    let latest: PageEntry | undefined;
+    for (const entry of pages.values()) {
+      latest = entry;
+    }
+    return { entry: latest as PageEntry };
+  };
 
   return {
     name: "agf-dev-bridge",
@@ -101,7 +160,20 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
       const wss = new WebSocketServer({ noServer: true });
 
       wss.on("connection", (socket) => {
-        setActiveSocket(socket);
+        const socketId = `ws-${nextSocketId++}`;
+        const entry: PageEntry = {
+          socketId,
+          socket,
+          info: {},
+          connectedAt: new Date().toISOString(),
+          pending: new Map(),
+          nextRpcId: 1,
+          sseSubscribers: new Set()
+        };
+        pages.set(socketId, entry);
+        // Assigned-id handshake — page can echo it back if it wants to.
+        socket.send(JSON.stringify({ kind: "ready", socketId }));
+
         socket.on("message", (raw) => {
           let msg: { id?: number; kind?: string; ok?: boolean; payload?: unknown; error?: { code: string; message: string } } | undefined;
           try {
@@ -111,34 +183,63 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           }
           if (msg === undefined) return;
           if (msg.kind === "hello" && msg.payload !== undefined) {
-            const info = msg.payload as { projectId?: string; profile?: string };
-            if (typeof info.projectId === "string" && typeof info.profile === "string") {
-              activePageInfo = { projectId: info.projectId, profile: info.profile };
-              server.config.logger.info(
-                `[agf dev-bridge] page connected (project=${info.projectId} profile=${info.profile})`
-              );
+            const info = msg.payload as PageInfo;
+            entry.info = {
+              ...(typeof info.projectId === "string" ? { projectId: info.projectId } : {}),
+              ...(typeof info.profile === "string" ? { profile: info.profile } : {}),
+              ...(typeof info.playerId === "string" ? { playerId: info.playerId } : {})
+            };
+            server.config.logger.info(
+              `[agf dev-bridge] page connected (socketId=${socketId} project=${entry.info.projectId ?? "?"} profile=${entry.info.profile ?? "?"} playerId=${entry.info.playerId ?? "?"})`
+            );
+            return;
+          }
+          if (msg.kind === "event" && msg.payload !== undefined) {
+            // Fan the event to every SSE subscriber attached to THIS page.
+            const frame = `data: ${JSON.stringify(msg.payload)}\n\n`;
+            for (const subscriber of entry.sseSubscribers) {
+              try {
+                (subscriber as ServerResponseLike & { write?: (chunk: string) => unknown }).write?.(frame);
+              } catch {
+                // Subscriber dropped; cleanup happens on close.
+              }
             }
             return;
           }
-          if (typeof msg.id === "number" && pending.has(msg.id)) {
-            const entry = pending.get(msg.id);
-            pending.delete(msg.id);
-            if (entry === undefined) return;
-            clearTimeout(entry.timer);
+          if (typeof msg.id === "number" && entry.pending.has(msg.id)) {
+            const pendingEntry = entry.pending.get(msg.id);
+            entry.pending.delete(msg.id);
+            if (pendingEntry === undefined) return;
+            clearTimeout(pendingEntry.timer);
             if (msg.ok === true) {
-              entry.resolve(msg.payload);
+              pendingEntry.resolve(msg.payload);
             } else {
-              entry.reject(
+              pendingEntry.reject(
                 msg.error ?? { code: "AGF_BRIDGE_PAGE_HANDLER_FAILED", message: "Page returned no payload." }
               );
             }
           }
         });
         socket.on("close", () => {
-          if (socket === activeSocket) {
-            setActiveSocket(undefined);
-            server.config.logger.info("[agf dev-bridge] page disconnected");
+          pages.delete(socketId);
+          for (const pendingEntry of entry.pending.values()) {
+            clearTimeout(pendingEntry.timer);
+            pendingEntry.reject({
+              code: "AGF_BRIDGE_PAGE_DISCONNECTED",
+              message: `Page ${socketId} closed before replying.`
+            });
           }
+          entry.pending.clear();
+          // Close any SSE streams still attached to this page.
+          for (const subscriber of entry.sseSubscribers) {
+            try {
+              (subscriber as ServerResponseLike & { end?: () => unknown }).end?.("");
+            } catch {
+              // ignore
+            }
+          }
+          entry.sseSubscribers.clear();
+          server.config.logger.info(`[agf dev-bridge] page disconnected (socketId=${socketId})`);
         });
       });
 
@@ -154,6 +255,28 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
         }
       );
 
+      const proxyToPage = async (
+        req: { url?: string | undefined },
+        res: ServerResponseLike,
+        kind: string,
+        payload?: unknown
+      ): Promise<void> => {
+        const url = new URL(req.url ?? "", "http://localhost");
+        const found = findPage(url);
+        if ("error" in found) {
+          const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+          respondJson(res, status, { ok: false, error: found.error });
+          return;
+        }
+        try {
+          const result = await rpc(found.entry, kind, payload);
+          respondJson(res, 200, { ok: true, page: found.entry.socketId, payload: result });
+        } catch (error) {
+          const e = error as { code: string; message: string };
+          respondJson(res, 502, { ok: false, error: e });
+        }
+      };
+
       server.middlewares.use(DEV_BRIDGE_PATH_PREFIX, async (req, res, next) => {
         if (req.method !== "GET" && req.method !== "POST") {
           next();
@@ -166,107 +289,123 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           respondJson(res, 200, {
             ok: true,
             version,
-            page: activePageInfo
+            pages: [...pages.values()].map((entry) => ({
+              socketId: entry.socketId,
+              projectId: entry.info.projectId ?? null,
+              profile: entry.info.profile ?? null,
+              playerId: entry.info.playerId ?? null,
+              connectedAt: entry.connectedAt
+            }))
           });
           return;
         }
 
         if (route === "/asset/invalidate" && req.method === "POST") {
-          try {
-            const body = await readJsonBody(req);
-            const ref = (body as { ref?: unknown }).ref;
-            if (typeof ref !== "string" || ref.length === 0) {
-              respondJson(res, 400, {
-                ok: false,
-                error: {
-                  code: "AGF_BRIDGE_INVALID_ASSET_REF",
-                  message: "Body must be JSON with a `ref` string."
-                }
-              });
-              return;
-            }
-            const payload = await rpc("asset-invalidate", { ref });
-            respondJson(res, 200, { ok: true, payload });
-          } catch (error) {
-            const e = error as { code: string; message: string };
-            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
-            respondJson(res, status, { ok: false, error: e });
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
           }
+          const ref = (body as { ref?: unknown }).ref;
+          if (typeof ref !== "string" || ref.length === 0) {
+            respondJson(res, 400, {
+              ok: false,
+              error: { code: "AGF_BRIDGE_INVALID_ASSET_REF", message: "Body must be JSON with a `ref` string." }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "asset-invalidate", { ref });
           return;
         }
 
         if (route === "/commands" && req.method === "POST") {
-          try {
-            const body = await readJsonBody(req);
-            const commands = (body as { commands?: unknown }).commands;
-            if (!Array.isArray(commands)) {
-              respondJson(res, 400, {
-                ok: false,
-                error: {
-                  code: "AGF_BRIDGE_INVALID_COMMANDS",
-                  message: "Body must be JSON with a `commands` array."
-                }
-              });
-              return;
-            }
-            const payload = await rpc("commands", { commands });
-            respondJson(res, 200, { ok: true, payload });
-          } catch (error) {
-            const e = error as { code: string; message: string };
-            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
-            respondJson(res, status, { ok: false, error: e });
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
           }
+          const commands = (body as { commands?: unknown }).commands;
+          if (!Array.isArray(commands)) {
+            respondJson(res, 400, {
+              ok: false,
+              error: { code: "AGF_BRIDGE_INVALID_COMMANDS", message: "Body must be JSON with a `commands` array." }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "commands", { commands });
           return;
         }
 
         if (route === "/recording/start" && req.method === "POST") {
-          try {
-            const payload = await rpc("recording-start");
-            respondJson(res, 200, { ok: true, payload });
-          } catch (error) {
-            const e = error as { code: string; message: string };
-            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
-            respondJson(res, status, { ok: false, error: e });
-          }
+          await proxyToPage(req, res, "recording-start");
+          return;
+        }
+        if (route === "/recording/stop" && req.method === "POST") {
+          await proxyToPage(req, res, "recording-stop");
           return;
         }
 
-        if (route === "/recording/stop" && req.method === "POST") {
-          try {
-            const payload = await rpc("recording-stop");
-            respondJson(res, 200, { ok: true, payload });
-          } catch (error) {
-            const e = error as { code: string; message: string };
-            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
-            respondJson(res, status, { ok: false, error: e });
+        if (route === "/events" && req.method === "GET") {
+          const found = findPage(url);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
           }
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache, no-transform");
+          res.setHeader("Connection", "keep-alive");
+          res.setHeader("X-Accel-Buffering", "no");
+          const writable = res as ServerResponseLike & {
+            write?: (chunk: string) => unknown;
+            flushHeaders?: () => unknown;
+          };
+          writable.write?.(`: agf dev bridge events (page=${found.entry.socketId})\n\n`);
+          writable.flushHeaders?.();
+
+          const wasEmpty = found.entry.sseSubscribers.size === 0;
+          found.entry.sseSubscribers.add(res);
+          if (wasEmpty && found.entry.socket.readyState === 1) {
+            rpc(found.entry, "events-start").catch(() => undefined);
+          }
+
+          const cleanup = (): void => {
+            found.entry.sseSubscribers.delete(res);
+            if (
+              found.entry.sseSubscribers.size === 0 &&
+              found.entry.socket.readyState === 1
+            ) {
+              rpc(found.entry, "events-stop").catch(() => undefined);
+            }
+          };
+          req.on("close", cleanup);
+          req.on("error", cleanup);
           return;
         }
 
         if (route === "/bug-report" && req.method === "GET") {
-          if (activePageInfo === undefined) {
-            respondJson(res, 503, {
-              ok: false,
-              error: {
-                code: "AGF_BRIDGE_PAGE_NOT_CONNECTED",
-                message: `No active page on ${DEV_BRIDGE_WS_PATH} — open http://localhost:5173 in a tab first.`
-              }
-            });
+          const found = findPage(url);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
             return;
           }
           try {
             const [snapshot, diagnostics, rendererInfo, reloadEvents] = await Promise.all([
-              rpc("snapshot"),
-              rpc("diagnostics"),
-              rpc("renderer-info"),
-              rpc("reload-events")
+              rpc(found.entry, "snapshot"),
+              rpc(found.entry, "diagnostics"),
+              rpc(found.entry, "renderer-info"),
+              rpc(found.entry, "reload-events")
             ]);
             respondJson(res, 200, {
               ok: true,
+              page: found.entry.socketId,
               payload: {
                 agfFormatVersion: 1,
-                projectId: activePageInfo.projectId,
-                profile: activePageInfo.profile,
+                projectId: found.entry.info.projectId ?? null,
+                profile: found.entry.info.profile ?? null,
+                playerId: found.entry.info.playerId ?? null,
                 capturedAt: new Date().toISOString(),
                 snapshot,
                 diagnostics,
@@ -275,25 +414,15 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
               }
             });
           } catch (error) {
-            const e = error as { code: string; message: string };
-            respondJson(res, 502, { ok: false, error: e });
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
           }
           return;
         }
 
-        // RPC routes — proxy to the page over WS.
+        // GET pull routes (snapshot / diagnostics / renderer-info / reload-events).
         const rpcKind = mapRouteToRpcKind(req.method, route);
         if (rpcKind !== undefined) {
-          try {
-            const payload = await rpc(rpcKind);
-            respondJson(res, 200, { ok: true, payload });
-          } catch (error) {
-            const e = error as { code: string; message: string };
-            respondJson(res, e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502, {
-              ok: false,
-              error: e
-            });
-          }
+          await proxyToPage(req, res, rpcKind);
           return;
         }
 
@@ -351,6 +480,4 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
-// Re-export type for ServerResponse for consumers — `ServerResponse` from
-// node:http already satisfies `ServerResponseLike`.
 export type { ServerResponse };

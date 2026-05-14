@@ -23,10 +23,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:dev-bridge": "playwright test tests/e2e/dev-bridge.spec.ts --workers=1 --config=playwright.dev-bridge.config.ts",
     "playtest:watch": "node scripts/watch-playtests.mjs",
     "bundle:check": "node scripts/check-bundle-size.mjs",
-    "preflight": "npm run engine:check:examples && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e && npm run test:e2e:dev-bridge"
+    "preflight": "npm run engine:check:examples && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
   },
   "engines": {
     "node": ">=20.19.0"

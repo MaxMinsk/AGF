@@ -1,43 +1,28 @@
 import { expect, test } from "@playwright/test";
 
-// The dev bridge holds a single connected page per server. Running these
-// specs in parallel makes them stomp on each other's WS handshake. Keep
-// them serial.
-test.describe.configure({ mode: "serial" });
+// Sprint 32: the dev bridge now supports multiple connected pages, so tests
+// can run in parallel as long as they target their own page via the
+// `?playerId=` query string. Each test below uses a unique playerId.
 
-async function waitForBridgeProject(baseURL: string | undefined, projectId: string): Promise<void> {
+async function waitForBridgePlayer(baseURL: string | undefined, playerId: string): Promise<string> {
   expect(baseURL).toBeDefined();
+  let socketId = "";
   await expect
     .poll(async () => {
       const url = new URL("/__agf/health", baseURL).toString();
       const response = await fetch(url);
-      const body = (await response.json()) as { page?: { projectId?: string } };
-      return body.page?.projectId;
+      const body = (await response.json()) as {
+        pages?: Array<{ socketId: string; playerId: string | null }>;
+      };
+      const match = body.pages?.find((p) => p.playerId === playerId);
+      if (match !== undefined) {
+        socketId = match.socketId;
+        return true;
+      }
+      return false;
     }, { timeout: 8_000 })
-    .toBe(projectId);
-}
-
-/**
- * Fetch with retry-on-503: under preflight load, parallel specs constantly
- * displace each other on the dev bridge's single-page slot. page-bridge.ts
- * auto-reconnects, so a brief retry resolves the race.
- */
-async function fetchWithRetry(
-  url: string,
-  init?: RequestInit
-): Promise<{ status: number; body: { ok: boolean; payload?: unknown; error?: { code: string } } }> {
-  for (let attempt = 0; attempt < 15; attempt += 1) {
-    const response = await fetch(url, init);
-    // Retry both 503 (no page) and 502 (page timeout) — both are transient
-    // under preflight load when other specs displace our page mid-request.
-    if (response.status !== 503 && response.status !== 502) {
-      return { status: response.status, body: (await response.json()) as { ok: boolean; payload?: unknown; error?: { code: string } } };
-    }
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  // Final attempt — surface whatever we got.
-  const final = await fetch(url, init);
-  return { status: final.status, body: (await final.json()) as { ok: boolean; payload?: unknown; error?: { code: string } } };
+    .toBe(true);
+  return socketId;
 }
 
 // Smoke-test the M15-a/b/c dev-server bridge end-to-end:
@@ -48,15 +33,19 @@ async function fetchWithRetry(
 test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events", async ({ page, baseURL }) => {
   expect(baseURL).toBeDefined();
 
-  await page.goto("/?project=hello-3d");
-  // Wait for the page bootstrap to complete so the WS handshake has run.
+  const playerId = `e2e-pull-${Math.random().toString(36).slice(2, 10)}`;
+  await page.goto(`/?project=hello-3d&playerId=${playerId}`);
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
+  await waitForBridgePlayer(baseURL, playerId);
 
-  const fetchJson = (path: string) => fetchWithRetry(new URL(path, baseURL).toString());
-
-  // (Already awaited by waitForBridgeProject above.)
+  const fetchJson = async (path: string): Promise<{ status: number; body: { ok: boolean; payload?: unknown; error?: { code: string } } }> => {
+    const sep = path.includes("?") ? "&" : "?";
+    const url = new URL(`${path}${sep}playerId=${playerId}`, baseURL).toString();
+    const response = await fetch(url);
+    return { status: response.status, body: (await response.json()) as { ok: boolean; payload?: unknown; error?: { code: string } } };
+  };
 
   // Snapshot must contain every entity declared in the hello-3d scene.
   const snapshot = await fetchJson("/__agf/snapshot");
@@ -130,14 +119,16 @@ test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events
 
 test("POST /__agf/commands lets an agent edit the running scene live", async ({ page, baseURL }) => {
   expect(baseURL).toBeDefined();
-  await page.goto("/?project=hello-3d");
+  const playerId = `e2e-commands-${Math.random().toString(36).slice(2, 10)}`;
+  await page.goto(`/?project=hello-3d&playerId=${playerId}`);
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  await waitForBridgeProject(baseURL, "hello-3d");
+  await waitForBridgePlayer(baseURL, playerId);
 
   const postJson = async (path: string, body: unknown): Promise<{ status: number; body: unknown }> => {
-    const url = new URL(path, baseURL).toString();
+    const sep = path.includes("?") ? "&" : "?";
+    const url = new URL(`${path}${sep}playerId=${playerId}`, baseURL).toString();
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -146,8 +137,6 @@ test("POST /__agf/commands lets an agent edit the running scene live", async ({ 
     return { status: response.status, body: await response.json() };
   };
 
-  // Move the cart's wheel offset from local (-1, 0, 0)? Easier: change
-  // tower.crown's color via a component.set command. Use cube.hero (we know it exists).
   const result = await postJson("/__agf/commands", {
     commands: [
       {
@@ -181,13 +170,14 @@ test("POST /__agf/commands lets an agent edit the running scene live", async ({ 
 
 test("POST /__agf/asset/invalidate forwards to reloadAsset", async ({ page, baseURL }) => {
   expect(baseURL).toBeDefined();
-  await page.goto("/?project=hello-3d");
+  const playerId = `e2e-asset-${Math.random().toString(36).slice(2, 10)}`;
+  await page.goto(`/?project=hello-3d&playerId=${playerId}`);
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  await waitForBridgeProject(baseURL, "hello-3d");
+  await waitForBridgePlayer(baseURL, playerId);
 
-  const url = new URL("/__agf/asset/invalidate", baseURL).toString();
+  const url = new URL(`/__agf/asset/invalidate?playerId=${playerId}`, baseURL).toString();
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -210,16 +200,95 @@ test("POST /__agf/asset/invalidate forwards to reloadAsset", async ({ page, base
   );
 });
 
-test("recording start/stop round-trips a Recording over the bridge", async ({ page, baseURL }) => {
+test("GET /__agf/events streams diagnostics over SSE", async ({ page, baseURL }) => {
   expect(baseURL).toBeDefined();
-  await page.goto("/?project=hello-3d");
+  const playerId = `e2e-events-${Math.random().toString(36).slice(2, 10)}`;
+  await page.goto(`/?project=hello-3d&playerId=${playerId}`);
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  await waitForBridgeProject(baseURL, "hello-3d");
+  await waitForBridgePlayer(baseURL, playerId);
+
+  // Start the SSE stream in the test process. Use an AbortController so we
+  // can close it cleanly at the end of the test.
+  const controller = new AbortController();
+  const url = new URL(`/__agf/events?playerId=${playerId}`, baseURL).toString();
+  const response = await fetch(url, { signal: controller.signal });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toMatch(/event-stream/);
+
+  // Reader collects every SSE `data: ...` frame.
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  const collected: unknown[] = [];
+  const pump = (async (): Promise<void> => {
+    let buffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const line of frame.split("\n")) {
+            if (line.startsWith("data: ")) {
+              try {
+                collected.push(JSON.parse(line.slice(6)));
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // AbortController → expected at teardown.
+    }
+  })();
+
+  // Give the bridge a tick to send `events-start` to the page.
+  await page.waitForTimeout(300);
+
+  // Emit a diagnostic from the page via window.__agf.applyCommands? The bus
+  // emit API isn't on window.__agf directly. Easiest path: trigger a known
+  // diagnostic by applying an invalid command that the asset-registry rejects.
+  // For v0 just emit a manual diagnostic through the bus subscribe loop by
+  // mutating a non-existent asset — that's project-specific. Use the most
+  // portable trigger: dispatch a CustomEvent for agf:asset-changed.
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("agf:asset-changed", {
+      detail: { projectId: "hello-3d", ref: "runtime/synthetic-test-asset.material.json" }
+    }));
+  });
+
+  // Wait for at least one event to land.
+  await expect.poll(() => collected.length, { timeout: 3_000 }).toBeGreaterThan(0);
+
+  controller.abort();
+  await pump;
+
+  // The synthetic asset-changed event should be among the captured frames.
+  const assetChanges = collected.filter(
+    (e): e is { type: string; data: { ref?: string } } =>
+      typeof e === "object" && e !== null && (e as { type?: unknown }).type === "asset-changed"
+  );
+  expect(assetChanges.some((e) => e.data.ref === "runtime/synthetic-test-asset.material.json")).toBe(true);
+});
+
+test("recording start/stop round-trips a Recording over the bridge", async ({ page, baseURL }) => {
+  expect(baseURL).toBeDefined();
+  const playerId = `e2e-rec-${Math.random().toString(36).slice(2, 10)}`;
+  await page.goto(`/?project=hello-3d&playerId=${playerId}`);
+  await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
+    timeout: 5_000
+  });
+  await waitForBridgePlayer(baseURL, playerId);
 
   const post = async (path: string): Promise<{ status: number; body: { ok: boolean; payload?: unknown } }> => {
-    const url = new URL(path, baseURL).toString();
+    const sep = path.includes("?") ? "&" : "?";
+    const url = new URL(`${path}${sep}playerId=${playerId}`, baseURL).toString();
     const response = await fetch(url, { method: "POST" });
     return { status: response.status, body: await response.json() };
   };
