@@ -54,6 +54,20 @@ export type RuntimeOptions = {
   };
 };
 
+/**
+ * Window-averaged per-phase tick timings, in milliseconds. Sampled
+ * once per metrics window (~500 ms today). Useful for agents to spot
+ * "which phase to optimise next" — fixedUpdateMs spike → physics, etc.
+ */
+export type FrameTiming = {
+  fixedUpdateMs: number;
+  frameUpdateMs: number;
+  renderMs: number;
+  totalFrameMs: number;
+  /** Frames the averages were computed over. 0 until the first window closes. */
+  samples: number;
+};
+
 export type RuntimeHandle = {
   readonly world: World;
   readonly renderer: ThreeRenderer;
@@ -61,6 +75,8 @@ export type RuntimeHandle = {
   readonly diagnostics: DiagnosticsBus;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
+  /** Window-averaged per-phase timings — see FrameTiming. */
+  frameTiming(): FrameTiming;
   /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
   invalidateAsset(ref: string): void;
   /**
@@ -180,6 +196,17 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   let metricsWindowStart = 0;
   let framesInWindow = 0;
   let fixedStepsInWindow = 0;
+  let fixedAccumMs = 0;
+  let frameAccumMs = 0;
+  let renderAccumMs = 0;
+  let totalAccumMs = 0;
+  let lastFrameTiming: FrameTiming = {
+    fixedUpdateMs: 0,
+    frameUpdateMs: 0,
+    renderMs: 0,
+    totalFrameMs: 0,
+    samples: 0
+  };
 
   const applyCanvasSize = (): void => {
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -204,9 +231,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
 
     applyCanvasSize();
 
+    const tickStart = performance.now();
+
     const stepResult = advanceFixedStep(accumulator, frameDt, fixedDt, maxFixedStepsPerFrame);
     accumulator = stepResult.accumulator;
 
+    const fixedPhaseStart = performance.now();
     if (stepResult.steps > 0 && (scheduler !== undefined || fixedUpdate !== undefined)) {
       const fixedTime: TimeContext = {
         elapsed: time.elapsed,
@@ -230,6 +260,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     } else {
       time.elapsed += frameDt;
     }
+    const framePhaseStart = performance.now();
+    fixedAccumMs += framePhaseStart - fixedPhaseStart;
 
     time.dt = frameDt;
     time.frameCount += 1;
@@ -238,20 +270,42 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       scheduler.runFrame({ time, world });
     }
 
+    const renderPhaseStart = performance.now();
+    frameAccumMs += renderPhaseStart - framePhaseStart;
+
     renderer.render();
+
+    const tickEnd = performance.now();
+    renderAccumMs += tickEnd - renderPhaseStart;
+    totalAccumMs += tickEnd - tickStart;
 
     framesInWindow += 1;
     fixedStepsInWindow += stepResult.steps;
     const windowElapsed = timestampSeconds - metricsWindowStart;
-    if (overlay !== undefined && windowElapsed >= METRICS_WINDOW_SECONDS) {
-      overlay.update({
-        fps: framesInWindow / windowElapsed,
-        fixedStepsPerSecond: fixedStepsInWindow / windowElapsed,
-        entityCount: world.entityCount(),
-        drawCalls: renderer.info().drawCalls
-      });
+    if (windowElapsed >= METRICS_WINDOW_SECONDS) {
+      const sampleCount = framesInWindow;
+      lastFrameTiming = {
+        fixedUpdateMs: fixedAccumMs / sampleCount,
+        frameUpdateMs: frameAccumMs / sampleCount,
+        renderMs: renderAccumMs / sampleCount,
+        totalFrameMs: totalAccumMs / sampleCount,
+        samples: sampleCount
+      };
+      if (overlay !== undefined) {
+        overlay.update({
+          fps: framesInWindow / windowElapsed,
+          fixedStepsPerSecond: fixedStepsInWindow / windowElapsed,
+          entityCount: world.entityCount(),
+          drawCalls: renderer.info().drawCalls,
+          frameTiming: lastFrameTiming
+        });
+      }
       framesInWindow = 0;
       fixedStepsInWindow = 0;
+      fixedAccumMs = 0;
+      frameAccumMs = 0;
+      renderAccumMs = 0;
+      totalAccumMs = 0;
       metricsWindowStart = timestampSeconds;
     }
 
@@ -285,6 +339,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     },
     snapshot(): WorldSnapshot {
       return snapshotWorld(world, time);
+    },
+    frameTiming(): FrameTiming {
+      return lastFrameTiming;
     },
     startRecording(projectId?: string): RecorderHandle {
       const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };

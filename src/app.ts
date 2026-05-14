@@ -136,6 +136,14 @@ export type AppHandle = {
     batchedBucketInstances: number;
     handleLeak: number;
   };
+  /** M21-frame-timing — window-averaged per-phase tick timings in milliseconds. */
+  frameTiming(): {
+    fixedUpdateMs: number;
+    frameUpdateMs: number;
+    renderMs: number;
+    totalFrameMs: number;
+    samples: number;
+  };
   dispose(): void;
 };
 
@@ -346,6 +354,9 @@ export async function createApp(
     },
     rendererInfo() {
       return runtime.renderer.info();
+    },
+    frameTiming() {
+      return runtime.frameTiming();
     },
     async save() {
       return runtime.save();

@@ -9,6 +9,17 @@ export type DevOverlayMetrics = {
    * of seed count; spikes here mean a system is breaking the bucketer.
    */
   drawCalls?: number;
+  /**
+   * Window-averaged per-phase frame timings in milliseconds. When
+   * present, the overlay renders fixed / frame / render / total cells
+   * so the agent can spot which phase is dominating the budget.
+   */
+  frameTiming?: {
+    fixedUpdateMs: number;
+    frameUpdateMs: number;
+    renderMs: number;
+    totalFrameMs: number;
+  };
 };
 
 export type DevOverlayHandle = {
@@ -45,6 +56,15 @@ function renderMetrics(metrics: DevOverlayMetrics): string {
   if (metrics.drawCalls !== undefined) {
     parts.push(
       `<span class="metric"><strong>${metrics.drawCalls}</strong> draws</span>`
+    );
+  }
+  if (metrics.frameTiming !== undefined) {
+    const t = metrics.frameTiming;
+    parts.push(
+      `<span class="metric"><strong>${t.fixedUpdateMs.toFixed(1)}</strong> fix</span>`,
+      `<span class="metric"><strong>${t.frameUpdateMs.toFixed(1)}</strong> frm</span>`,
+      `<span class="metric"><strong>${t.renderMs.toFixed(1)}</strong> rnd</span>`,
+      `<span class="metric"><strong>${t.totalFrameMs.toFixed(1)}</strong> ms</span>`
     );
   }
   return parts.join("");

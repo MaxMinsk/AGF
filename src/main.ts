@@ -98,6 +98,18 @@ declare global {
         readonly handleLeak: number;
       };
       /**
+       * M21-frame-timing — window-averaged per-phase tick timings in
+       * milliseconds. `samples` is the frame count the window was
+       * averaged over (0 until the first window closes).
+       */
+      frameTiming(): {
+        readonly fixedUpdateMs: number;
+        readonly frameUpdateMs: number;
+        readonly renderMs: number;
+        readonly totalFrameMs: number;
+        readonly samples: number;
+      };
+      /**
        * M23-tuner — agent-spawnable sliders bound to component fields.
        * See `engine/runtime/dev-tuner.ts` and `docs/agent/dev-tuner.md`.
        */
@@ -265,6 +277,7 @@ void (async (): Promise<void> => {
       stopRecording: () => app.stopRecording(),
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
+      frameTiming: () => app.frameTiming(),
       reloadCount: 0,
       reloadEvents: [],
       dev: { tuner }
