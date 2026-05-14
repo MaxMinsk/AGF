@@ -34,7 +34,13 @@ export const RENDER_INTERNAL_COMPONENTS: ReadonlySet<ComponentName> = new Set([
   "RenderMeshHandle",
   "AppliedGeometryRef",
   "AppliedMaterialRef",
-  "ActiveCamera"
+  "ActiveCamera",
+  // M17-bucketer: derived bucket handle, not authored.
+  "BatchedMeshHandle",
+  "RenderLightHandle",
+  // M24-sensors: runtime-only collision state populated by PhysicsSyncSystem.
+  "CurrentContacts3D",
+  "OverlappingTriggers3D"
 ]);
 
 export function snapshotWorld(

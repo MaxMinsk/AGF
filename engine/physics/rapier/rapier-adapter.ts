@@ -51,6 +51,14 @@ export type RapierAdapterInfo = {
   totalSteps: number;
 };
 
+/** M24-sensors: drained per fixed step. handle1/handle2 are AGF ColliderHandle ids; resolve via the registry. */
+export type CollisionEvent = {
+  kind: "collision" | "intersection";
+  handle1: ColliderHandle;
+  handle2: ColliderHandle;
+  started: boolean;
+};
+
 export type RapierAdapter = {
   init(): Promise<void>;
   acquireBody(spec: BodyAcquireSpec): BodyHandle;
@@ -62,6 +70,8 @@ export type RapierAdapter = {
   getBodyRotation(handle: BodyHandle): readonly [number, number, number, number] | undefined;
   /** Advance the world by `dt` seconds. Pass exactly `fixedDt` from the runtime loop. */
   step(dt?: number): void;
+  /** Drain queued collision + intersection events from the most recent step. Pass-through map onto our handles. */
+  drainEvents(): CollisionEvent[];
   setGravity(gravity: readonly [number, number, number]): void;
   info(): RapierAdapterInfo;
   dispose(): void;
@@ -92,11 +102,14 @@ export function createAdapterFromModule(
 
   const world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] });
   world.timestep = fixedDt;
+  const eventQueue = new RAPIER.EventQueue(true);
 
   let nextBodyHandle = 1;
   let nextColliderHandle = 1;
   const bodies = new Map<BodyHandle, RAPIER_TYPES.RigidBody>();
   const colliders = new Map<ColliderHandle, RAPIER_TYPES.Collider>();
+  /** Reverse map from Rapier's internal collider handle (a u32) to ours. */
+  const rapierToHandle = new Map<number, ColliderHandle>();
   /** body → collider handles. Lets `releaseBody` purge children from `colliders`. */
   const bodyColliders = new Map<BodyHandle, Set<ColliderHandle>>();
   /** Reverse — collider → body. Needed for `releaseCollider` to update `bodyColliders`. */
@@ -218,10 +231,14 @@ export function createAdapterFromModule(
       if (spec.friction !== undefined) desc.setFriction(spec.friction);
       if (spec.restitution !== undefined) desc.setRestitution(spec.restitution);
 
+      // M24-sensors: enable active events so EventQueue collects
+      // collision + intersection starts/stops.
+      desc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
       const collider = world.createCollider(desc, body);
       const handle = nextColliderHandle;
       nextColliderHandle += 1;
       colliders.set(handle, collider);
+      rapierToHandle.set(collider.handle, handle);
       colliderBody.set(handle, bodyHandle);
       bodyColliders.get(bodyHandle)?.add(handle);
       return handle;
@@ -229,6 +246,7 @@ export function createAdapterFromModule(
     releaseCollider(handle): void {
       const collider = colliders.get(handle);
       if (collider === undefined) return;
+      rapierToHandle.delete(collider.handle);
       world.removeCollider(collider, true);
       colliders.delete(handle);
       const bid = colliderBody.get(handle);
@@ -261,11 +279,27 @@ export function createAdapterFromModule(
       if (dt !== undefined && dt !== fixedDt) {
         world.timestep = dt;
       }
-      world.step();
+      world.step(eventQueue);
       totalSteps += 1;
       if (dt !== undefined && dt !== fixedDt) {
         world.timestep = fixedDt;
       }
+    },
+    drainEvents(): CollisionEvent[] {
+      const out: CollisionEvent[] = [];
+      eventQueue.drainCollisionEvents((h1, h2, started) => {
+        const a = rapierToHandle.get(h1);
+        const b = rapierToHandle.get(h2);
+        if (a === undefined || b === undefined) return;
+        out.push({ kind: "collision", handle1: a, handle2: b, started });
+      });
+      eventQueue.drainContactForceEvents(() => {
+        // ContactForceEvents — unused for v0; drain to keep the queue tidy.
+      });
+      // Rapier intersection (sensor) events ride the same drainCollisionEvents
+      // callback in current API; v0 collapses them under "collision". Future
+      // M24-sensors story splits sensor pairs via collider.isSensor() probe.
+      return out;
     },
     setGravity(g): void {
       world.gravity = { x: g[0], y: g[1], z: g[2] };

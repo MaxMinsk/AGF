@@ -38,6 +38,9 @@ import type { PhysicsBodyRegistry } from "./physics-body-registry";
 export const RIGID_BODY_3D: ComponentName = "RigidBody3D";
 export const COLLIDER_3D: ComponentName = "Collider3D";
 export const TRANSFORM: ComponentName = "Transform";
+/** M24-sensors: runtime-only components written by PhysicsSyncSystem from Rapier collision events. Hidden from default __agf.snapshot(). Never authored. */
+export const CURRENT_CONTACTS_3D: ComponentName = "CurrentContacts3D";
+export const OVERLAPPING_TRIGGERS_3D: ComponentName = "OverlappingTriggers3D";
 
 type Vec3 = ReadonlyArray<number>;
 
@@ -202,6 +205,30 @@ export function createPhysicsSyncSystem(
     // Phase 4: advance Rapier.
     adapter.step();
 
+    // Phase 4b (M24-sensors): drain collision events into runtime-only
+    // components. We keep a frame-scoped pair set rather than a persistent
+    // contact graph — v0 just exposes "who's currently overlapping who"
+    // through OverlappingTriggers3D / CurrentContacts3D. Gameplay systems
+    // turn that into commands (damage, pickup, etc.) on their own tick.
+    const sensorOverlaps = new Map<EntityId, Set<EntityId>>();
+    const solidContacts = new Map<EntityId, Set<EntityId>>();
+    for (const event of adapter.drainEvents()) {
+      const a = registry.entityForCollider(event.handle1);
+      const b = registry.entityForCollider(event.handle2);
+      if (a === undefined || b === undefined) continue;
+      const aIsSensor = isSensorCollider(world, a);
+      const bIsSensor = isSensorCollider(world, b);
+      const target = aIsSensor || bIsSensor ? sensorOverlaps : solidContacts;
+      if (event.started) {
+        addPair(target, a, b);
+      }
+    }
+    // Drop stale per-frame components on entities that no longer overlap
+    // anything (consumer logic decides when to act on the most recent
+    // started==true event; v0 doesn't model continuous "stay" events).
+    writeContactComponents(world, OVERLAPPING_TRIGGERS_3D, sensorOverlaps);
+    writeContactComponents(world, CURRENT_CONTACTS_3D, solidContacts);
+
     // Phase 5: dynamic Rapier → ECS Transform writeback.
     for (const id of liveBodies) {
       const body = world.getComponent<RigidBody3DComponent>(id, RIGID_BODY_3D);
@@ -235,4 +262,34 @@ export function createPhysicsSyncSystem(
       return registry.size();
     }
   };
+}
+
+function isSensorCollider(world: World, entityId: EntityId): boolean {
+  const collider = world.getComponent<Collider3DComponent>(entityId, COLLIDER_3D);
+  return collider?.sensor === true;
+}
+
+function addPair(target: Map<EntityId, Set<EntityId>>, a: EntityId, b: EntityId): void {
+  let setA = target.get(a);
+  if (setA === undefined) {
+    setA = new Set();
+    target.set(a, setA);
+  }
+  setA.add(b);
+  let setB = target.get(b);
+  if (setB === undefined) {
+    setB = new Set();
+    target.set(b, setB);
+  }
+  setB.add(a);
+}
+
+function writeContactComponents(
+  world: World,
+  component: ComponentName,
+  pairs: Map<EntityId, Set<EntityId>>
+): void {
+  for (const [entityId, partners] of pairs) {
+    world.setComponent(entityId, component, { entities: [...partners] });
+  }
 }

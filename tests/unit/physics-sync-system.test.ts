@@ -54,6 +54,9 @@ function stubAdapter() {
       steps += 1;
       // Simulate "fell 0.1 per step" for dynamic bodies via the test driver.
     },
+    drainEvents() {
+      return [];
+    },
     setGravity(): void {},
     info() {
       return { bodies: positions.size, colliders: 0, fixedDt: 1 / 60, totalSteps: steps };
