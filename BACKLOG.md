@@ -35,7 +35,10 @@ Sprint 33 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 #### M21 — Renderer → ECS systems
 
-- `M21-investigate` Write `docs/research/renderer-ecs-split-investigation.md`. Audit `ThreeRenderer` responsibilities; propose `CameraSyncSystem` / `MeshLifecycleSystem` / `MeshTransformSyncSystem` / `MaterialBindingSystem` / future `BatchingSystem`; preserve renderer-import-boundary; benchmark cost vs current monolithic class.
+- `M21-investigate` ✅ Implemented. `docs/research/renderer-ecs-split-investigation.md` — audit of `ThreeRenderer` (12 responsibilities), proposed 5-system split + `ThreeRenderAdapter`, 5 renderer-internal components, renderer-import-boundary preserved, perf gates (frame-time ≤ baseline × 1.05 at 1k entities), 8-story implementation queue (`M21-a..g` + `M21-boundary-check`).
+- `M21-a` Land `ThreeRenderAdapter` with narrow interface (`acquireMesh` / `releaseMesh` / `setMeshGeometry` / `setMeshMaterial` / `setMeshTransform` / `setActiveCamera` / `draw` / `resize` / `dispose` / `info`). `ThreeRenderer` becomes a deprecation-shim that constructs an adapter + registers the five systems.
+- `M21-b` Introduce `LocalToWorld` component + `TransformResolveSystem`. Renderer reads `LocalToWorld` instead of recomputing inline. Gated on `M22 / ECS-B*` baseline.
+- `M21-c..g` queued (see HIGH_LEVEL_BACKLOG M21 row).
 
 #### M20 — Netcode rework (implementation)
 
