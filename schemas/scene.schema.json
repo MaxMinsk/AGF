@@ -20,6 +20,17 @@
       "type": "array",
       "description": "Optional prefab instances. Each entry expands into a regular entity at scene-load time. The engine validates these against the prefab registry; missing prefabs surface as AGF_SCENE_INSTANCE_PREFAB_MISSING.",
       "items": { "$ref": "#/definitions/instance" }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Image-based-lighting environment (M21-env-generated). When absent, the renderer applies the `generated` RoomEnvironment fallback so MeshStandardMaterial / MeshPhysicalMaterial render with believable PBR out of the box. Set `kind: \"none\"` to opt out (e.g. for a fully unlit project).",
+      "properties": {
+        "kind": {
+          "enum": ["generated", "none"],
+          "default": "generated"
+        }
+      }
     }
   },
   "definitions": {

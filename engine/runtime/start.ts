@@ -92,6 +92,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   const { ThreeRenderer } = await import("../render/three-renderer");
   const renderer = new ThreeRenderer(world, options.canvas, options.background, options.assetRegistry);
 
+  // M21-env-generated: apply image-based-lighting environment for PBR
+  // materials. Default = "generated" (RoomEnvironment + PMREM) so
+  // MeshStandardMaterial renders with believable reflections out of the
+  // box. Scenes can opt out by declaring `environment: { kind: "none" }`.
+  renderer.adapter.setEnvironment(options.scene.environment?.kind ?? "generated");
+
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
   const fixedUpdate = options.fixedUpdate;
   const scheduler = options.scheduler;

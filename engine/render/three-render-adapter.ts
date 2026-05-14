@@ -32,10 +32,13 @@ import {
   type Object3D,
   PCFShadowMap,
   PerspectiveCamera,
+  PMREMGenerator,
   PointLight,
   Scene,
+  type Texture,
   WebGLRenderer
 } from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
@@ -114,6 +117,8 @@ export type AdapterOptions = {
   background?: string;
 };
 
+export type EnvironmentKind = "generated" | "none";
+
 const DEFAULT_COLOR = "#cccccc";
 
 export class ThreeRenderAdapter {
@@ -125,6 +130,9 @@ export class ThreeRenderAdapter {
   private readonly lights = new Map<LightHandle, Light>();
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
+  private pmrem: PMREMGenerator | undefined;
+  private currentEnvironmentTexture: Texture | undefined;
+  private currentEnvironmentKind: EnvironmentKind = "none";
   private activeCameraHandle: CameraHandle | undefined;
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
@@ -180,6 +188,38 @@ export class ThreeRenderAdapter {
 
   hasFallbackLighting(): boolean {
     return this.fallbackAmbient !== undefined || this.fallbackDirectional !== undefined;
+  }
+
+  /**
+   * Apply an image-based-lighting environment that drives PBR reflections +
+   * indirect diffuse on `MeshStandardMaterial` / `MeshPhysicalMaterial`.
+   * `generated` builds Three.js's `RoomEnvironment` via `PMREMGenerator` —
+   * a tiny synthetic studio cube. `none` clears it. Idempotent: re-setting
+   * the same kind is a no-op.
+   */
+  setEnvironment(kind: EnvironmentKind): void {
+    if (kind === this.currentEnvironmentKind) return;
+    if (kind === "none") {
+      this.scene.environment = null;
+      this.currentEnvironmentTexture?.dispose();
+      this.currentEnvironmentTexture = undefined;
+      this.currentEnvironmentKind = "none";
+      return;
+    }
+    if (this.pmrem === undefined) {
+      this.pmrem = new PMREMGenerator(this.device);
+      this.pmrem.compileEquirectangularShader();
+    }
+    this.currentEnvironmentTexture?.dispose();
+    const envScene = new RoomEnvironment();
+    const rt = this.pmrem.fromScene(envScene, 0.04);
+    this.currentEnvironmentTexture = rt.texture;
+    this.scene.environment = rt.texture;
+    this.currentEnvironmentKind = "generated";
+  }
+
+  currentEnvironment(): EnvironmentKind {
+    return this.currentEnvironmentKind;
   }
 
   acquireLight(spec: LightAcquireSpec): LightHandle {
@@ -421,6 +461,10 @@ export class ThreeRenderAdapter {
     }
     this.lights.clear();
     this.disableFallbackLighting();
+    this.currentEnvironmentTexture?.dispose();
+    this.currentEnvironmentTexture = undefined;
+    this.pmrem?.dispose();
+    this.pmrem = undefined;
     this.cameras.clear();
     this.activeCameraHandle = undefined;
     this.device.dispose();
