@@ -1537,6 +1537,53 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 40 — post-pipeline + LOD + asset CLI + shader-material
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M21-post-pipeline` ✅ `project.json#render.post` declares an ordered post-processing chain validated by `oneOf` (`bloom` / `fxaa` v0). Adapter builds an EffectComposer lazily once an active camera exists; always appends an OutputPass for tone-mapping + sRGB conversion. draw() routes through composer.render() when active; resize() forwards setSize. Tried bloom on shadows-bench but it reproduced the S39 "scenes look overlit" feedback — final shadows-bench config opts in to FXAA only.
+- `DEV-server-test-coexist` ✅ Verified `playwright.config.ts`' `reuseExistingServer: true` actually works — running `npx playwright test ...` while `npm run dev` is up does NOT touch the live server (PIDs on 5173 unchanged). The historical disruption was the agent killing 5173 unprompted. Locked the workflow rule into AGENTS.md.
+- `ASSET-gltf-transform-investigate` ✅ Picks devDep + engine-owned CLI (`engine asset optimize`) over raw `npx gltf-transform`. Reasons: encoded policy (Beacon's UASTC normal / ETC1S diffuse / Meshopt geometry mix), reproducible regenerate via `assets/_sources/asset-sources.json`, single verb beside the rest of `engine check / inspect / doctor`. Written up at `docs/research/asset-gltf-transform-investigation.md`.
+- `M17-lod` ✅ New `LOD` component on `MeshRenderer` entities lists `{ maxDistance, mesh, material?, color? }` levels. `LodSelectionSystem` runs in frameUpdate (between CameraSyncSystem + MeshLifecycleSystem), reads the active camera's position, picks the lowest-`maxDistance` level whose threshold the entity is inside, writes the level into MeshRenderer. `fallback: "hide"` removes MeshRenderer + stashes the restore values in a runtime-only `LodHidden` component; the system re-installs it when the entity comes back into range. 5 unit tests.
+- `M21-mat-custom` ✅ Material manifest gains `shader: "custom"` + inline `vertexShader` / `fragmentShader` GLSL + an optional `uniforms` map (`#rrggbb` strings parsed as `Color`; numeric / array values pass through) + `defines` for #ifdef gating. Adapter constructs a Three.js `ShaderMaterial` with sensible defaults so an empty `custom` material still draws.
+- `M21-shadow-algorithm` ✅ `project.json#render.shadows.algorithm: "pcf" | "vsm"` (default `"pcf"`) lets projects swap `WebGLRenderer.shadowMap.type` at startup. PCF stays the default since every existing project was tuned against it; VSM becomes opt-in for projects that want smoother penumbras (with the known light-leak tradeoff).
+- `ASSET-optimize-command` ✅ New `engine asset optimize <projectDir>` walks every GLB/glTF under `<projectDir>/assets/_sources/`, runs `dedup → prune → weld → meshopt` via `@gltf-transform/functions`, emits a 1:1 mirror tree under `assets/runtime/`. Per-asset bytes-in / out / saved% printed; `--json` for the typed report. Drive-by fix: the existing `asset import` sub-command read positional[1] as the sub-name (always the project dir), so it never actually reached the import path — both sub-commands now read positional[0] correctly.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts` — EffectComposer (RenderPass + UnrealBloomPass + FXAAPass + OutputPass), VSM/PCF shadow-algorithm switch, ShaderMaterial "custom" branch, MaterialPatch fields for shader source + uniforms + defines.
+- `engine/render/three-renderer.ts` — forwards `shadowAlgorithm` + `color` into adapter options.
+- `engine/runtime/start.ts` — `shadowAlgorithm` option propagated.
+- `engine/runtime/asset-loaders/material-loader.ts` — `MaterialShader` adds `"custom"`; manifest fields.
+- `engine/render/systems/lod-selection-system.ts` (new) — `LOD` resolution + `LodHidden`.
+- `engine/runtime/inspect.ts` — `LodHidden` added to `RENDER_INTERNAL_COMPONENTS`.
+- `engine/render/systems/material-binding-system.ts` — forwards new MaterialPatch fields.
+- `engine/tools/asset/asset-optimize.ts` (new) — gltf-transform pipeline + `formatAssetOptimizeReport`.
+- `engine/tools/cli.ts` — `engine asset optimize` dispatch + the asset-import positional-index fix.
+- `schemas/project.schema.json` — `render.post` chain + `render.shadows.algorithm`.
+- `schemas/scene.schema.json` — `lodComponent`.
+- `schemas/material.schema.json` — `custom` shader + uniforms + defines + vertexShader/fragmentShader.
+- `docs/research/asset-gltf-transform-investigation.md` (new).
+- `AGENTS.md` — "Do not kill port 5173 between test runs" Hard Rule.
+- `tests/unit/lod-selection-system.test.ts` (new) — 5 cases.
+- `tests/unit/material-manifest-schema.test.ts` — `custom` accept / reject cases.
+
+### Verification
+
+- `npm run preflight` ✅ — 394 unit tests + 22 e2e passed, 2 flaky-retried (hmr-stress, score-pulse). Dev server stayed alive across the entire preflight run (PIDs on 5173 unchanged) — DEV-server-test-coexist verified.
+- `beacon-world-gameplay.spec` ✅.
+- post-pipeline smoke against shadows-bench (composer active + zero console errors) ✅.
+- `engine asset optimize /tmp/beacon-fixture` ran the full pipeline cleanly against `drone.glb` + `core.glb`.
+
+### Follow-Ups
+
+- `M25 / ASSET-compression` — flip `createGlbLoader({ meshopt: true })` for a real project + verify runtime loads optimized GLBs. Foundation in place (S38 decoders + S40 optimize CLI).
+- `ASSET-texture-compress` — add KTX2 / Basis texture compression to the optimize CLI behind a `--textures` flag once `basisu` toolchain is committed to.
+- `RUNTIME-resource-leak-tests` — extend the existing hmr-stress coverage with an adapter-create/destroy cycle (currently covered for materials only).
+- `M21-shadow-pcss` — PCSS chunk-substitution exploration; three.js doesn't ship it in core.
+
 ## Sprint 39 — static-mesh + decoder-paths follow-ups + renderer polish
 
 Status: Completed and archived.
