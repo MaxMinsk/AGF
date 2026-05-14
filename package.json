@@ -26,7 +26,8 @@
     "test:e2e": "playwright test",
     "playtest:watch": "node scripts/watch-playtests.mjs",
     "bundle:check": "node scripts/check-bundle-size.mjs",
-    "preflight": "npm run engine:check:examples && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
+    "imports:check": "node scripts/check-import-boundaries.mjs",
+    "preflight": "npm run engine:check:examples && npm run imports:check && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
   },
   "engines": {
     "node": ">=20.19.0"

@@ -192,9 +192,13 @@ export class ThreeRenderer {
   }
 
   /**
-   * Snapshot of Three.js WebGL resource counters plus the mesh count.
-   * Exposed via `window.__agf.rendererInfo()` for agent / e2e assertions
-   * that resource counts stay bounded across HMR cycles.
+   * Snapshot of Three.js WebGL resource counters plus the mesh count and
+   * the M21-g `handleLeak` invariant — `registry.size() -
+   * count(world.query(["RenderMeshHandle"]))`. Non-zero means the
+   * lifecycle system and the registry disagree about how many handles
+   * should exist; any positive value is a regression on the renderer
+   * pipeline and should fail tests / surface a doctor diagnostic.
+   * Exposed via `window.__agf.rendererInfo()` for agent / e2e assertions.
    */
   info(): {
     geometries: number;
@@ -203,8 +207,11 @@ export class ThreeRenderer {
     drawCalls: number;
     triangles: number;
     meshes: number;
+    handleLeak: number;
   } {
-    return this.adapter.info();
+    const adapter = this.adapter.info();
+    const tracked = this.world.query(["RenderMeshHandle"]).length;
+    return { ...adapter, handleLeak: this.registry.size() - tracked };
   }
 
   /**
