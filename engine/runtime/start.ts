@@ -181,7 +181,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     dt: 0,
     fixedDt,
     frameCount: 0,
-    fixedStepCount: 0
+    fixedStepCount: 0,
+    physicsAlpha: 0
   };
 
   let accumulator = 0;
@@ -243,7 +244,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
         dt: fixedDt,
         fixedDt,
         frameCount: time.frameCount,
-        fixedStepCount: time.fixedStepCount
+        fixedStepCount: time.fixedStepCount,
+        physicsAlpha: 0
       };
       for (let step = 0; step < stepResult.steps; step += 1) {
         fixedTime.elapsed += fixedDt;
@@ -265,6 +267,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
 
     time.dt = frameDt;
     time.frameCount += 1;
+    // M24-interpolation: expose the leftover accumulator fraction so
+    // frame-update systems (PhysicsSyncSystem.frameUpdate) can blend
+    // between the previous and current physics state.
+    time.physicsAlpha = fixedDt > 0 ? Math.min(1, accumulator / fixedDt) : 0;
 
     if (scheduler !== undefined) {
       scheduler.runFrame({ time, world });
