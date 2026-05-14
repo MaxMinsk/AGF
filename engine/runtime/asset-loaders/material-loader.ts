@@ -1,13 +1,29 @@
 import type { AssetLoader } from "../asset-registry";
 
+/** M21-mat-physical: extend the manifest beyond MeshStandardMaterial. */
+export type MaterialShader = "standard" | "physical" | "lambert" | "phong" | "basic";
+
 export type MaterialManifest = {
   id: string;
-  shader: "standard";
+  shader: MaterialShader;
   color: string;
   roughness?: number;
   metalness?: number;
   emissive?: string;
   alphaMode?: "opaque" | "blend";
+  opacity?: number;
+  /** MeshPhysicalMaterial fields. */
+  clearcoat?: number;
+  clearcoatRoughness?: number;
+  ior?: number;
+  transmission?: number;
+  thickness?: number;
+  sheen?: number;
+  sheenColor?: string;
+  iridescence?: number;
+  /** MeshPhongMaterial fields. */
+  shininess?: number;
+  specular?: string;
 };
 
 export function createMaterialLoader(): AssetLoader<MaterialManifest> {

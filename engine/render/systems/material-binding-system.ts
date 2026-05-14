@@ -169,12 +169,25 @@ function reconcileMaterial(
       const live = world.getComponent<AppliedRef>(entityId, APPLIED_MATERIAL_REF);
       if (live?.ref !== materialRef) return;
       if (!deps.adapter.hasMesh(handle)) return;
-      const patch: { color?: string; roughness?: number; metalness?: number; emissive?: string } = {
+      const patch: import("../three-render-adapter").MaterialPatch = {
+        kind: manifest.shader,
         color: manifest.color
       };
       if (manifest.roughness !== undefined) patch.roughness = manifest.roughness;
       if (manifest.metalness !== undefined) patch.metalness = manifest.metalness;
       if (manifest.emissive !== undefined) patch.emissive = manifest.emissive;
+      if (manifest.opacity !== undefined) patch.opacity = manifest.opacity;
+      if (manifest.alphaMode === "blend") patch.transparent = true;
+      if (manifest.clearcoat !== undefined) patch.clearcoat = manifest.clearcoat;
+      if (manifest.clearcoatRoughness !== undefined) patch.clearcoatRoughness = manifest.clearcoatRoughness;
+      if (manifest.ior !== undefined) patch.ior = manifest.ior;
+      if (manifest.transmission !== undefined) patch.transmission = manifest.transmission;
+      if (manifest.thickness !== undefined) patch.thickness = manifest.thickness;
+      if (manifest.sheen !== undefined) patch.sheen = manifest.sheen;
+      if (manifest.sheenColor !== undefined) patch.sheenColor = manifest.sheenColor;
+      if (manifest.iridescence !== undefined) patch.iridescence = manifest.iridescence;
+      if (manifest.shininess !== undefined) patch.shininess = manifest.shininess;
+      if (manifest.specular !== undefined) patch.specular = manifest.specular;
       deps.adapter.setMeshMaterialPatch(handle, patch);
       world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "applied" });
     },

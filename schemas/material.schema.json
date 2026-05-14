@@ -12,8 +12,8 @@
       "description": "Stable kebab-case material id, unique within the project."
     },
     "shader": {
-      "enum": ["standard"],
-      "description": "Shader pipeline. v0 only supports `standard` (Three.js MeshStandardMaterial)."
+      "enum": ["standard", "physical", "lambert", "phong", "basic"],
+      "description": "Shader pipeline. `standard` = MeshStandardMaterial (PBR baseline). `physical` = MeshPhysicalMaterial (adds clearcoat / transmission / sheen / iridescence). `lambert` / `phong` are cheap diffuse / specular paths for stylised projects. `basic` is unlit (UI billboards, particles, debug)."
     },
     "color": {
       "type": "string",
@@ -40,6 +40,67 @@
     "alphaMode": {
       "enum": ["opaque", "blend"],
       "description": "Blend mode. v0 supports opaque and standard alpha blending."
+    },
+    "opacity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Material alpha in [0, 1]. Pair with `alphaMode: blend` for transparency. Defaults to 1."
+    },
+    "clearcoat": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "MeshPhysicalMaterial only. 0..1 thin clearcoat layer intensity (car paint, lacquer)."
+    },
+    "clearcoatRoughness": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "MeshPhysicalMaterial only. Roughness of the clearcoat layer."
+    },
+    "ior": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "MeshPhysicalMaterial only. Index of refraction (~1.45 for glass, ~1.33 for water)."
+    },
+    "transmission": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "MeshPhysicalMaterial only. 0..1 light transmission factor for refractive surfaces."
+    },
+    "thickness": {
+      "type": "number",
+      "minimum": 0,
+      "description": "MeshPhysicalMaterial only. Approximate thickness for transmissive volumes."
+    },
+    "sheen": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "MeshPhysicalMaterial only. 0..1 sheen layer intensity (fabric, velvet)."
+    },
+    "sheenColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "MeshPhysicalMaterial only. Sheen tint."
+    },
+    "iridescence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "MeshPhysicalMaterial only. 0..1 iridescence intensity (soap bubble, oil slick)."
+    },
+    "shininess": {
+      "type": "number",
+      "minimum": 0,
+      "description": "MeshPhongMaterial only. Specular highlight tightness; higher = sharper."
+    },
+    "specular": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "MeshPhongMaterial only. Specular highlight tint."
     }
   }
 }

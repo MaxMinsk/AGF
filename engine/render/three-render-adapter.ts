@@ -29,11 +29,15 @@ import {
   HemisphereLight,
   InstancedMesh,
   type Light,
+  type Material,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
+  MeshPhongMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   type Object3D,
-  Object3D as ThreeObject3D,
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
@@ -125,11 +129,30 @@ export type ResolvedWorld = {
   scale: readonly [number, number, number];
 };
 
+/** M21-mat-physical: the shader kind to drive `setMeshMaterialKind`. */
+export type MaterialKind = "standard" | "physical" | "lambert" | "phong" | "basic";
+
 export type MaterialPatch = {
+  /** When set + different from the mesh's current material class, the adapter swaps the material instance. */
+  kind?: MaterialKind;
   color?: string;
   roughness?: number;
   metalness?: number;
   emissive?: string;
+  opacity?: number;
+  transparent?: boolean;
+  /** MeshPhysicalMaterial fields. */
+  clearcoat?: number;
+  clearcoatRoughness?: number;
+  ior?: number;
+  transmission?: number;
+  thickness?: number;
+  sheen?: number;
+  sheenColor?: string;
+  iridescence?: number;
+  /** MeshPhongMaterial fields. */
+  shininess?: number;
+  specular?: string;
 };
 
 export type CameraParams = {
@@ -563,12 +586,54 @@ export class ThreeRenderAdapter {
   setMeshMaterialPatch(handle: MeshHandle, patch: MaterialPatch): void {
     const mesh = this.meshes.get(handle);
     if (mesh === undefined) return;
-    if (!(mesh.material instanceof MeshStandardMaterial)) return;
-    if (patch.color !== undefined) mesh.material.color.set(patch.color);
-    if (patch.roughness !== undefined) mesh.material.roughness = patch.roughness;
-    if (patch.metalness !== undefined) mesh.material.metalness = patch.metalness;
-    if (patch.emissive !== undefined) mesh.material.emissive.set(patch.emissive);
-    mesh.material.needsUpdate = true;
+
+    if (patch.kind !== undefined && !materialMatchesKind(mesh.material, patch.kind)) {
+      const next = createMaterialForKind(patch.kind, patch);
+      disposeMaterial(mesh.material);
+      mesh.material = next;
+    }
+    const material = mesh.material as
+      | MeshStandardMaterial
+      | MeshPhysicalMaterial
+      | MeshLambertMaterial
+      | MeshPhongMaterial
+      | MeshBasicMaterial;
+
+    if (patch.color !== undefined) material.color.set(patch.color);
+    if (patch.opacity !== undefined) material.opacity = patch.opacity;
+    if (patch.transparent !== undefined) material.transparent = patch.transparent;
+
+    if (
+      material instanceof MeshStandardMaterial ||
+      material instanceof MeshPhysicalMaterial
+    ) {
+      if (patch.roughness !== undefined) material.roughness = patch.roughness;
+      if (patch.metalness !== undefined) material.metalness = patch.metalness;
+      if (patch.emissive !== undefined) material.emissive.set(patch.emissive);
+    }
+
+    if (material instanceof MeshPhysicalMaterial) {
+      if (patch.clearcoat !== undefined) material.clearcoat = patch.clearcoat;
+      if (patch.clearcoatRoughness !== undefined) material.clearcoatRoughness = patch.clearcoatRoughness;
+      if (patch.ior !== undefined) material.ior = patch.ior;
+      if (patch.transmission !== undefined) material.transmission = patch.transmission;
+      if (patch.thickness !== undefined) material.thickness = patch.thickness;
+      if (patch.sheen !== undefined) material.sheen = patch.sheen;
+      if (patch.sheenColor !== undefined) material.sheenColor.set(patch.sheenColor);
+      if (patch.iridescence !== undefined) material.iridescence = patch.iridescence;
+    }
+
+    if (material instanceof MeshPhongMaterial) {
+      if (patch.shininess !== undefined) material.shininess = patch.shininess;
+      if (patch.specular !== undefined) material.specular.set(patch.specular);
+      if (patch.emissive !== undefined) material.emissive.set(patch.emissive);
+    }
+
+    if (material instanceof MeshLambertMaterial && patch.emissive !== undefined) {
+      material.emissive.set(patch.emissive);
+    }
+
+    material.needsUpdate = true;
   }
 
   setMeshTransform(handle: MeshHandle, world: ResolvedWorld): void {
@@ -727,4 +792,39 @@ function disposeMaterial(material: Mesh["material"]): void {
     return;
   }
   material.dispose();
+}
+
+function materialMatchesKind(material: Material | Material[], kind: MaterialKind): boolean {
+  if (Array.isArray(material)) return false;
+  switch (kind) {
+    // MeshPhysicalMaterial extends MeshStandardMaterial; treat them as
+    // separate kinds so `kind: "standard"` never silently keeps a physical
+    // material that the manifest no longer wants.
+    case "standard":
+      return material.type === "MeshStandardMaterial";
+    case "physical":
+      return material.type === "MeshPhysicalMaterial";
+    case "lambert":
+      return material instanceof MeshLambertMaterial;
+    case "phong":
+      return material instanceof MeshPhongMaterial;
+    case "basic":
+      return material instanceof MeshBasicMaterial;
+  }
+}
+
+function createMaterialForKind(kind: MaterialKind, patch: MaterialPatch): Material {
+  const color = patch.color ?? DEFAULT_COLOR;
+  switch (kind) {
+    case "standard":
+      return new MeshStandardMaterial({ color: new Color(color) });
+    case "physical":
+      return new MeshPhysicalMaterial({ color: new Color(color) });
+    case "lambert":
+      return new MeshLambertMaterial({ color: new Color(color) });
+    case "phong":
+      return new MeshPhongMaterial({ color: new Color(color) });
+    case "basic":
+      return new MeshBasicMaterial({ color: new Color(color) });
+  }
 }
