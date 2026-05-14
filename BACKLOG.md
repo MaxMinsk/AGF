@@ -38,7 +38,7 @@ Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-s
 
 #### M22 — ECS perf follow-ups
 
-- `M16-cache-b` Replace the per-frame entity scan in `TransformResolveSystem` with an incremental dirty queue maintained by `World.setComponent` hooks. Target: steady-state path becomes O(dirty) not O(N). Push 10k chain-of-8 toward < 1 ms.
+- `M16-cache-b` ✅ Implemented. `World.consumeDirty(name)` reads + clears an incremental dirty set populated by `setComponent` / `removeComponent` / `removeEntity`. `TransformResolveSystem` maintains its own `inputCache: Map<EntityId, TransformInput>`, seeds once when a new world arrives, then per frame rebuilds inputs ONLY for `world.consumeDirty("Transform")` entries. Drops the per-frame `world.entityIds()` scan + the deg→rad conversion for clean entities. 2 new unit tests confirm dirty-set is consumed + world-swap re-seeds. **Bench: 10k chain-of-8 @ 1%-dirty ≈ 8.1 ms** (~13% narrow win vs M16-cache-a alone). Larger payoff comes from `M16-cache-c` (push the dirty-aware path into the cache layer itself); current bottleneck is the O(N) revision read inside `createHierarchyCache.resolveWorld`.
 - `M22-allocations` Allocation-focused bench for hierarchy resolve + renderer sync (Codex callout). `--expose-gc` + `process.memoryUsage().heapUsed` deltas per case. Adds `npm run bench:ecs:alloc`.
 
 #### Codex-review follow-ups

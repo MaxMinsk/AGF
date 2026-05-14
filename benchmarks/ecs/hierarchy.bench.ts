@@ -55,6 +55,52 @@ export async function runHierarchyBench(): Promise<SuiteResult> {
         cache.resolveWorld(world);
       };
     });
+    suite.bench(`cache-b system-dirty-queue 1%-dirty chain-of-8 @ ${size.toLocaleString("en-US")}`, () => {
+      // M16-cache-b: simulates TransformResolveSystem's hot path —
+      // maintains its own input cache, consumes World.consumeDirty('Transform')
+      // each tick, only rebuilds inputs for dirty entries. World scan
+      // happens once at seed time, then never again.
+      const world = makeWorld({ entities: size, hierarchy: true });
+      const cache = createHierarchyCache();
+      const inputCache = new Map<string, TransformInput>();
+      for (const id of world.entityIds()) {
+        if (!world.hasComponent(id, "Transform")) continue;
+        const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+        if (t === undefined) continue;
+        const entry: TransformInput = { id };
+        if (typeof t["parent"] === "string") entry.parent = t["parent"];
+        const pos = t["position"];
+        if (Array.isArray(pos)) entry.position = [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0];
+        inputCache.set(id, entry);
+      }
+      world.consumeDirty("Transform");
+      cache.resolveWorld(world, [...inputCache.values()]);
+      const mutateCount = Math.max(1, Math.floor(size / 100));
+      let cursor = 0;
+      return () => {
+        for (let i = 0; i < mutateCount; i += 1) {
+          const id = `e${cursor}`;
+          cursor = (cursor + 1) % size;
+          const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+          if (t === undefined) continue;
+          world.setComponent(id, "Transform", { ...t, position: [Math.random(), 0, 0] });
+        }
+        const dirty = world.consumeDirty("Transform");
+        for (const id of dirty) {
+          const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+          if (t === undefined) {
+            inputCache.delete(id);
+            continue;
+          }
+          const entry: TransformInput = { id };
+          if (typeof t["parent"] === "string") entry.parent = t["parent"];
+          const pos = t["position"];
+          if (Array.isArray(pos)) entry.position = [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0];
+          inputCache.set(id, entry);
+        }
+        cache.resolveWorld(world, [...inputCache.values()]);
+      };
+    });
   }
 
   return suite.run();

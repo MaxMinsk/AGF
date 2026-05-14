@@ -24,6 +24,15 @@ export class World {
    * M16-cache uses this for the LocalToWorld resolver cache.
    */
   private readonly componentRevisions = new Map<ComponentName, Map<EntityId, number>>();
+  /**
+   * Incremental dirty queues per component. setComponent / removeComponent /
+   * removeEntity push affected entity ids into the matching set. Consumers
+   * call `consumeDirty(name)` to read + clear in one step. Designed for
+   * frame-update systems that want O(touched) rather than O(N) scans
+   * (M16-cache-b TransformResolveSystem). The dirty set is a derived index,
+   * not authoring state — see CLAUDE.md "one ECS source of truth" rule.
+   */
+  private readonly dirtyByComponent = new Map<ComponentName, Set<EntityId>>();
 
   static fromScene(scene: SceneInput): World {
     const world = new World();
@@ -48,8 +57,8 @@ export class World {
     if (!this.entities.delete(id)) {
       return;
     }
-    for (const store of this.stores.values()) {
-      store.delete(id);
+    for (const [name, store] of this.stores) {
+      if (store.delete(id)) this.markDirty(name, id);
     }
     for (const revisions of this.componentRevisions.values()) {
       revisions.delete(id);
@@ -87,6 +96,7 @@ export class World {
       this.revision += 1;
     }
     this.bumpComponentRevision(id, name);
+    this.markDirty(name, id);
   }
 
   getComponent<T = ComponentData>(id: EntityId, name: ComponentName): T | undefined {
@@ -109,7 +119,35 @@ export class World {
     if (store.delete(id)) {
       this.revision += 1;
       this.componentRevisions.get(name)?.delete(id);
+      this.markDirty(name, id);
     }
+  }
+
+  /**
+   * Read + clear the dirty set for a component. Returns every entity whose
+   * `setComponent(id, name, ...)` or `removeComponent(id, name)` fired since
+   * the previous `consumeDirty(name)` call (or since World construction).
+   * Returns an empty set if nothing changed.
+   */
+  consumeDirty(name: ComponentName): Set<EntityId> {
+    const set = this.dirtyByComponent.get(name);
+    if (set === undefined) return new Set();
+    this.dirtyByComponent.delete(name);
+    return set;
+  }
+
+  /** Number of entries currently in the dirty queue. Useful for diagnostics + bench probes. */
+  dirtySize(name: ComponentName): number {
+    return this.dirtyByComponent.get(name)?.size ?? 0;
+  }
+
+  private markDirty(name: ComponentName, id: EntityId): void {
+    let set = this.dirtyByComponent.get(name);
+    if (set === undefined) {
+      set = new Set();
+      this.dirtyByComponent.set(name, set);
+    }
+    set.add(id);
   }
 
   /**
