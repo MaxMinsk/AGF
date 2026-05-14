@@ -1,0 +1,38 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Bench Camera" },
+        "Transform": { "position": [0, 12, 20], "rotation": [-30, 0, 0] },
+        "Camera": { "kind": "perspective", "active": true, "fov": 60, "near": 0.1, "far": 200 }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Name": { "label": "Ambient" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "ambient", "color": "#ffffff", "intensity": 0.7 }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Name": { "label": "Sun" },
+        "Transform": { "position": [5, 12, 7] },
+        "Light": { "kind": "directional", "color": "#ffe4b3", "intensity": 1.5 }
+      }
+    },
+    {
+      "id": "ground",
+      "components": {
+        "Name": { "label": "Ground" },
+        "Transform": { "position": [0, -0.5, 0], "scale": [40, 0.5, 40] },
+        "MeshRenderer": { "mesh": "box", "color": "#1a232c" },
+        "ShadowFlags": { "cast": false, "receive": true }
+      }
+    }
+  ]
+}

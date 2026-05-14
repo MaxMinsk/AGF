@@ -160,6 +160,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.beaconWorldBootstrap
     };
+  },
+  "batch-bench": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/batch-bench/project.json"),
+      import("../examples/batch-bench/scenes/start.scene.json"),
+      import("../examples/batch-bench/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.batchBenchBootstrap
+    };
   }
 };
 
