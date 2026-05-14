@@ -75,4 +75,36 @@ describe("material manifest (M21-mat-physical + M21-mat-unlit)", () => {
   it("rejects empty texture map paths", () => {
     expect(validate({ id: "bad", shader: "standard", color: "#fff", map: "" })).toBe(false);
   });
+
+  it("accepts a custom ShaderMaterial manifest (M21-mat-custom)", () => {
+    expect(
+      validate({
+        id: "wave",
+        shader: "custom",
+        color: "#4af0a8",
+        vertexShader:
+          "void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        fragmentShader:
+          "uniform vec3 tint; void main() { gl_FragColor = vec4(tint, 1.0); }",
+        uniforms: {
+          tint: "#4af0a8",
+          time: 0,
+          breaks: [10, 25, 60]
+        },
+        defines: { USE_FOG: "1" }
+      })
+    ).toBe(true);
+  });
+
+  it("rejects empty vertexShader source", () => {
+    expect(
+      validate({
+        id: "bad",
+        shader: "custom",
+        color: "#ffffff",
+        vertexShader: "",
+        fragmentShader: "void main() { gl_FragColor = vec4(1.0); }"
+      })
+    ).toBe(false);
+  });
 });

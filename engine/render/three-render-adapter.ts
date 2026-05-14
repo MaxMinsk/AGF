@@ -37,6 +37,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  ShaderMaterial,
   MeshLambertMaterial,
   MeshPhongMaterial,
   MeshPhysicalMaterial,
@@ -165,8 +166,16 @@ export type ResolvedWorld = {
   scale: readonly [number, number, number];
 };
 
-/** M21-mat-physical: the shader kind to drive `setMeshMaterialKind`. */
-export type MaterialKind = "standard" | "physical" | "lambert" | "phong" | "basic";
+/** M21-mat-physical / M21-mat-custom: the shader kind to drive `setMeshMaterialKind`. */
+export type MaterialKind =
+  | "standard"
+  | "physical"
+  | "lambert"
+  | "phong"
+  | "basic"
+  | "custom";
+
+export type ShaderUniformValue = number | string | ReadonlyArray<number>;
 
 export type MaterialPatch = {
   /** When set + different from the mesh's current material class, the adapter swaps the material instance. */
@@ -190,6 +199,18 @@ export type MaterialPatch = {
   /** MeshPhongMaterial fields. */
   shininess?: number;
   specular?: string;
+  /**
+   * M21-mat-custom: source-string fields for `kind: "custom"`. Each
+   * string is GLSL the renderer drops straight into a `ShaderMaterial`.
+   * `uniforms` is a flat name → value map; numeric strings starting
+   * with `#` are parsed as colours, arrays are passed through.
+   * `defines` lets the manifest gate `#ifdef` branches without
+   * recompiling the shader.
+   */
+  vertexShader?: string;
+  fragmentShader?: string;
+  uniforms?: Record<string, ShaderUniformValue>;
+  defines?: Record<string, string>;
   /**
    * M21-mat-textures: texture map URLs. The adapter resolves them
    * through a process-wide cached TextureLoader and applies them to
@@ -1405,6 +1426,8 @@ function materialMatchesKind(material: Material | Material[], kind: MaterialKind
       return material instanceof MeshPhongMaterial;
     case "basic":
       return material instanceof MeshBasicMaterial;
+    case "custom":
+      return material instanceof ShaderMaterial;
   }
 }
 
@@ -1421,5 +1444,50 @@ function createMaterialForKind(kind: MaterialKind, patch: MaterialPatch): Materi
       return new MeshPhongMaterial({ color: new Color(color) });
     case "basic":
       return new MeshBasicMaterial({ color: new Color(color) });
+    case "custom": {
+      const material = new ShaderMaterial({
+        vertexShader: patch.vertexShader ?? DEFAULT_VERTEX_SHADER,
+        fragmentShader: patch.fragmentShader ?? DEFAULT_FRAGMENT_SHADER
+      });
+      applyShaderUniforms(material, patch.uniforms);
+      if (patch.defines !== undefined) {
+        material.defines = { ...patch.defines };
+      }
+      return material;
+    }
+  }
+}
+
+const DEFAULT_VERTEX_SHADER = `
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const DEFAULT_FRAGMENT_SHADER = `
+uniform vec3 color;
+void main() {
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+function applyShaderUniforms(
+  material: ShaderMaterial,
+  uniforms: Record<string, ShaderUniformValue> | undefined
+): void {
+  if (uniforms === undefined) return;
+  for (const [name, raw] of Object.entries(uniforms)) {
+    let value: number | Color | ReadonlyArray<number>;
+    if (typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw)) {
+      value = new Color(raw);
+    } else if (typeof raw === "string") {
+      // Not a colour string and we don't have a texture loader hook
+      // here — skip silently; agents see the unknown uniform in the
+      // shader compile error instead.
+      continue;
+    } else {
+      value = raw;
+    }
+    material.uniforms[name] = { value };
   }
 }
