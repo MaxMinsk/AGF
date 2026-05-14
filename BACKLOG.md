@@ -21,9 +21,22 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 35 — TBD
+## Current Sprint: Sprint 36 — TBD
 
-Sprint 35 focus is picked at sprint start. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 36 focus is picked at sprint start. Natural openers (in priority order based on Sprint 35 close):
+
+1. **M24-sync** — wire RapierAdapter into `start.ts` + Transform ↔ body sync.
+2. **M24-sensors** — collision events + runtime-only `Grounded3D` / `OverlappingTriggers3D`.
+3. **M24-character** — `CharacterController3D` kinematic capsule wrapper.
+4. **Beacon physics adoption** — drone walks on a fixed ground collider, pickup/hazard sensors fire `trigger.enter` events.
+5. **M16-cache-d** — children index → skip topo walk for non-dirty subtrees (chase < 1ms).
+6. **M17-batched-mesh** — `BatchedMesh` path for varied-geometry / shared-material scenery.
+7. **M21-shadow-csm** — outdoor CSM via `three/addons/csm/CSM.js` (needs `csm.setupMaterial` hook on every material — high-touch).
+8. **`examples/batch-bench/`** — stand-alone perf project that stress-tests the bucketer (referenced in HIGH_LEVEL_BACKLOG).
+
+## Sprint 35 — physics + batching + materials + cache polish + utsubo absorbed (DONE — archive merging)
+
+Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
