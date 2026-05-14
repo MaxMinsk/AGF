@@ -21,37 +21,36 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 32 — Finish M15 dev-server + close composition loops (M3-c / M4-reload-e2e / M16-cascade)
+## Current Sprint: Sprint 33 — TBD
 
-Sprint 32 focus: close the remaining M15 surface (SSE events, multi-page, optional CLI), wire `expandScenePrefabs` into the runtime so Beacon can actually adopt prefabs, lock Beacon persistence with a Playwright reload spec, and ship the M16 cascade-delete polish.
+Sprint 33 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
-### Stories
+### Candidates
 
-#### M20 — Netcode rework (new)
+#### M22 — ECS performance & design discipline (start with benchmarks)
 
-- `M20-investigate` Write `docs/research/netcode-rework-investigation.md`. Cover: (1) the three concrete bugs in the current implementation (2× own-drone, 30s idle disconnect, networked vs single-player feel), (2) survey of proven multiplayer netcode patterns (Quake 3 / Valve / GGPO / deterministic lockstep / snapshot interpolation only), (3) tradeoffs against AGF's constraints (browser, agent-readable, schema-driven protocol, supports the Beacon-World "small persistent world" shape), (4) recommendation + sequenced implementation plan with stories sized for one sprint each. Does NOT touch code.
+- `ECS-B1` Add benchmark harness (`benchmarks/ecs/*.bench.ts`, lightweight runner — `tinybench` or zero-dep loop).
+- `ECS-B2` Benchmark current Map query patterns at 100 / 1k / 10k entities (snapshot, hierarchy resolve, single-component query, multi-component query, cached `createQuery`).
+- `ECS-B3` Benchmark batch-bucket collection (anticipating M17). Baseline numbers gate every future ECS storage change.
 
-#### M15 — Engine dev server (finishing slice)
+#### M21 — Renderer → ECS systems
 
-- `M15-g` `GET /__agf/events` SSE stream — pushes runtime diagnostics + HMR `agf:asset-changed` + scheduler-tick markers to subscribed agents.
-- `M15-multi-page` Drop the single-active-page invariant: bridge keeps a Map keyed by socketId, RPC routes target by `?page=` query or the most recent socket. Remove `playwright.dev-bridge.config.ts` workaround.
-- `M15-i` `engine connect <url> <verb>` CLI — thin wrapper around the HTTP surface (`engine connect localhost:5173 bug-report`, `engine connect localhost:5173 commands < commands.json`).
+- `M21-investigate` Write `docs/research/renderer-ecs-split-investigation.md`. Audit `ThreeRenderer` responsibilities; propose `CameraSyncSystem` / `MeshLifecycleSystem` / `MeshTransformSyncSystem` / `MaterialBindingSystem` / future `BatchingSystem`; preserve renderer-import-boundary; benchmark cost vs current monolithic class.
+
+#### M20 — Netcode rework (implementation)
+
+- `M20-a` Protocol: add `player.state` to `schemas/protocol.schema.json` (sequence + position + optional rotation).
+- `M20-b` Scene schema: `Networked.authority = "client-owned"` alongside the existing `"server"`. Beacon's `player.drone` becomes client-owned.
+- `M20-c` Server: `ServerWorld.applyPlayerState` accepts client position, optional `speed * dt` clamp.
 
 #### M3 — Prefab runtime integration
 
-- `M3-c-load` Wire `expandScenePrefabs` into the scene-load path so any project can declare `instances: [...]` alongside `entities` and have them materialise. Beacon-side adoption (`M3-c-beacon`) follows.
+- `M3-c-load` Wire `expandScenePrefabs` into the scene-load path so any project can declare `instances: [...]` alongside `entities` and have them materialise.
 - `M3-c-beacon` Beacon World's repeated cores / hazards become prefab instances.
 
-#### M4 — Persistence proof
+#### Carry-overs / standing items
 
-- `M4-reload-e2e` New Playwright spec navigates Beacon, drives a repair via injected commands, reloads, asserts the repaired beacon's state survives via IndexedDB.
-
-#### M16 — Hierarchy polish
-
-- `M16-cascade` `entity.delete` removes the entity's children (transitively). New diagnostic `AGF_TRANSFORM_ORPHANED` emitted by `engine check` when a scene declares an entity with a parent that gets deleted.
-
-### Carried to Sprint 33
-
-- `M2b-seed` Wire deterministic RNG (still waiting for a system that actually rolls dice).
-- `13.13` Audio asset path — needs an audio loader first.
-- `10.5+` C# WS transport; `10.14` / `10.16` / `10.18` server-authoritative work.
+- `M15-i` `engine connect <url> <verb>` CLI — small convenience wrapper. Skip if not pulled into focus.
+- `M2b-seed` Wire deterministic RNG (still waiting for a system that rolls dice).
+- `13.13` Audio asset path — blocked on an audio loader.
+- `10.5+` C# WS transport.
