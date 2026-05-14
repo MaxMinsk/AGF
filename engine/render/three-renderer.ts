@@ -316,7 +316,14 @@ export class ThreeRenderer {
   }
 
   private refreshMeshes(resolved: Map<EntityId, ResolvedTransform>): void {
-    const renderable = new Set(this.world.query(["MeshRenderer"]));
+    // BatchingSystem (M17) owns the visual for Batchable entities — their
+    // matrix lives in an InstancedMesh slot, not a per-entity Mesh. Skip
+    // them here so the renderer's standalone fallback matches the
+    // MeshLifecycleSystem path and avoids double-acquiring handles.
+    const renderable = new Set<EntityId>();
+    for (const id of this.world.query(["MeshRenderer"])) {
+      if (!this.world.hasComponent(id, "Batchable")) renderable.add(id);
+    }
 
     // Release entities that left the renderable set. When MeshLifecycleSystem
     // (M21-d) is registered, it already does this and the loop here is a
