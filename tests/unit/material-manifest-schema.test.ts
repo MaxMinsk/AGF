@@ -107,4 +107,16 @@ describe("material manifest (M21-mat-physical + M21-mat-unlit)", () => {
       })
     ).toBe(false);
   });
+
+  it("accepts external shader file refs (M21-mat-shader-files)", () => {
+    expect(
+      validate({
+        id: "wave",
+        shader: "custom",
+        color: "#4af0a8",
+        vertexShaderRef: "runtime/shaders/water.vert",
+        fragmentShaderRef: "runtime/shaders/water.frag"
+      })
+    ).toBe(true);
+  });
 });

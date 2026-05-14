@@ -29,8 +29,8 @@
           "castShadow": true,
           "shadow": {
             "mapSize": 2048,
-            "bias": -0.01,
-            "normalBias": 0.4,
+            "bias": -0.0008,
+            "normalBias": 0.1,
             "camera": { "left": -12, "right": 12, "top": 12, "bottom": -12, "near": 6, "far": 32 }
           }
         }

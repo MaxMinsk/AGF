@@ -1537,6 +1537,61 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 41 — ASSET-compression rollout + camera + picking + PCSS
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M25 / ASSET-compression` ✅ `createGlbLoader` defaults `meshopt: true` + `draco: true` (Three.js engages decoders only when the GLB declares the matching extension, so uncompressed projects pay zero cost). Beacon's procedurally-built GLBs stay canonical — the optimize pipeline's dedup pass would destroy build-script flat-shaded normals; documented as a known limit on the optimize CLI (it's for art-authored GLBs, not procedural).
+- `M21-cam-orbit` ✅ New `OrbitCamera { target, distance, pitch, yaw, minDistance?, maxDistance? }` component + `OrbitCameraSystem` (frameUpdate, runs before CameraSyncSystem) resolves the polar coords into Transform.position + rotation. Input-agnostic — gameplay mutates OrbitCamera fields. 5 unit tests.
+- `M17-instance-picking` ✅ `ThreeRenderAdapter.pickAtNdc(x, y)` does Raycaster.setFromCamera + iterates the per-entity Mesh map for the closest hit. MeshHandleRegistry gains `entityForHandle` (with mirror map). RuntimeHandle.pick / AppHandle.pick / `window.__agf.pick({ x, y })` return `{ entityId, point, distance }`. Verified end-to-end against Beacon. Instance-mesh resolution is the natural follow-up.
+- `ASSET-decoder-vendor` ✅ Copied `node_modules/three/examples/jsm/libs/draco/` + `.../basis/` into `public/decoders/{draco,basis}/`. Default DRACO + KTX2 paths flipped from the three.js unpkg CDN to `/decoders/...`. Production / offline builds no longer hit the CDN.
+- `RUNTIME-resource-leak-tests` ✅ Extended `hmr-stress.spec.ts` with a second case that creates + deletes 30 short-lived entities via applyCommands. Asserts `meshes === baseline`, `handleLeak === 0`, and geometries/programs grow by at most a small constant. Catches MeshLifecycleSystem regressions alongside the existing material-HMR coverage.
+- `M21-mat-shader-files` ✅ Material manifest gains `vertexShaderRef` + `fragmentShaderRef` URL fields. MaterialBindingSystem fetches them in parallel, caches per URL, falls back gracefully on 404 / network errors. Inline `vertexShader` / `fragmentShader` still supported; refs take precedence when both are set.
+- `M21-shadow-pcss` ✅ Percentage-closer soft shadows via shader-chunk substitution. New `engine/render/shadow-pcss.ts` ports three's `webgl_shadowmap_pcss.html` recipe. Schema `render.shadows.algorithm` enum gains `"pcss"`. Idempotent + process-wide. Beacon opts in — contact shadows under the drone soften with distance from the receiver. Known limit: CSM uses its own `CSMShader.js` and ignores the patched chunk; PCSS is a no-op on CSM scenes (shadows-bench) until a follow-up patches CSMShader.
+
+### Drive-by fixes
+
+- physics-bench light.sun shadow bias `-0.01 → -0.0008` + normalBias `0.4 → 0.1`. Falling dynamic bodies were losing their contact shadow as they approached the floor; the aggressive bias was pushing the shadow off the receiver.
+
+### Deliverables
+
+- `engine/render/glb-loader.ts` — `meshopt` / `draco` default-on.
+- `engine/render/asset-decoders/decoders.ts` — vendored decoder paths.
+- `engine/render/three-render-adapter.ts` — `pickAtNdc`, `PCSS` branch in `shadowAlgorithmType`, ShaderChunk apply hook.
+- `engine/render/three-renderer.ts` — shadowAlgorithm forwarded into adapter.
+- `engine/render/shadow-pcss.ts` (new).
+- `engine/render/mesh-handle-registry.ts` — `entityForHandle` + mirror map.
+- `engine/render/systems/orbit-camera-system.ts` (new).
+- `engine/render/systems/material-binding-system.ts` — vertex/fragment shader ref fetcher.
+- `engine/runtime/start.ts` — orbit registration, `pick` on RuntimeHandle.
+- `engine/runtime/asset-loaders/material-loader.ts` — `vertexShaderRef`, `fragmentShaderRef`.
+- `schemas/scene.schema.json` — `orbitCameraComponent`.
+- `schemas/material.schema.json` — shader-ref fields.
+- `schemas/project.schema.json` — `pcss` in `shadows.algorithm` enum.
+- `examples/beacon-world/project.json` — `algorithm: "pcss"`.
+- `examples/physics-bench/scenes/start.scene.json` — bias fix.
+- `public/decoders/draco/` + `public/decoders/basis/` (vendored, ~4 MB total on disk; never in JS bundle).
+- `tests/unit/orbit-camera-system.test.ts` (new) — 5 cases.
+- `tests/unit/material-manifest-schema.test.ts` — `+1` shader-ref case.
+- `tests/e2e/hmr-stress.spec.ts` — `+1` entity-leak case.
+
+### Verification
+
+- `npm run preflight` ✅ — 399 unit tests + 23 e2e passed, 2 flaky-retried. Dev server stayed alive throughout.
+- `beacon-world-gameplay.spec` ✅ with `meshopt` decoder default-on + PCSS substitution active.
+- Pick smoke against Beacon centre-of-screen returned the `ground` entity.
+
+### Follow-Ups
+
+- `M21-shadow-pcss-csm` — extend PCSS into `CSMShader.js` so cascade-shadow scenes (`shadows-bench`) also benefit.
+- `ASSET-texture-compress` — KTX2 / Basis textures behind a `--textures` flag on `engine asset optimize`. Needs `basisu` binary + per-channel policy authoring.
+- `M17-instance-picking-buckets` — resolve `instanceId → EntityId` against M17 InstancedMesh / BatchedMesh buckets so Batchable entities are pickable too.
+- `M21-cam-follow` / `M21-cam-cinematic` — camera helpers on top of `M21-cam-orbit`.
+
+
+
 ## Sprint 40 — post-pipeline + LOD + asset CLI + shader-material
 
 Status: Completed and archived.

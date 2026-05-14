@@ -89,6 +89,15 @@ declare global {
        * racing the boot sequence.
        */
       rendererReady: Promise<void>;
+      /**
+       * M17-instance-picking: cast a ray from normalised screen
+       * coords (x, y in [-1, 1], y up). Returns the first picked
+       * entity + hit point/distance, or undefined for empty rays.
+       * Useful for click-to-select, hover overlays, etc.
+       */
+      pick(spec: { x: number; y: number }):
+        | { readonly entityId: string; readonly point: readonly [number, number, number]; readonly distance: number }
+        | undefined;
       rendererInfo(): {
         readonly geometries: number;
         readonly textures: number;
@@ -325,6 +334,7 @@ void (async (): Promise<void> => {
       stopRecording: () => app.stopRecording(),
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererReady: app.rendererReady,
+      pick: (spec) => app.pick(spec),
       rendererInfo: () => app.rendererInfo(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

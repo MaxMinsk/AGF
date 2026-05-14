@@ -70,7 +70,7 @@ export class ThreeRenderer {
       onContextLost?: () => void;
       onContextRestored?: () => void;
       color?: import("./three-render-adapter").ColorPipelineOptions;
-      shadowAlgorithm?: "pcf" | "vsm";
+      shadowAlgorithm?: "pcf" | "vsm" | "pcss";
     }
   ) {
     this.world = world;

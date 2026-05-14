@@ -39,8 +39,13 @@ export type DecoderOptions = {
   ktx2TranscoderPath?: string;
 };
 
-const DEFAULT_DRACO_PATH = "https://unpkg.com/three/examples/jsm/libs/draco/";
-const DEFAULT_KTX2_PATH = "https://unpkg.com/three/examples/jsm/libs/basis/";
+// ASSET-decoder-vendor: vendored copies live under
+// `public/decoders/{draco,basis}/`. Vite (and any static host) serves
+// `public/` at the site root, so the runtime resolves these without
+// touching a CDN. Override via DecoderOptions for offline-only or
+// custom-CDN hosting.
+const DEFAULT_DRACO_PATH = "/decoders/draco/";
+const DEFAULT_KTX2_PATH = "/decoders/basis/";
 
 /**
  * Return the process-wide DRACOLoader. The first call wires

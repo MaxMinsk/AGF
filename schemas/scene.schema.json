@@ -113,6 +113,9 @@
             },
             "CharacterController3D": {
               "$ref": "#/definitions/characterController3DComponent"
+            },
+            "OrbitCamera": {
+              "$ref": "#/definitions/orbitCameraComponent"
             }
           }
         }
@@ -597,6 +600,20 @@
           }
         }
       ]
+    },
+    "orbitCameraComponent": {
+      "description": "M21-cam-orbit: pure-data orbit-camera state. Place on the same entity as `Camera` + `Transform`. OrbitCameraSystem reads `(target, distance, pitch, yaw)` each frame and writes Transform.position + rotation so the camera looks at `target` from the given polar angles. Gameplay systems (mouse drag, follow-target, etc.) mutate these fields via applyCommands; the system stays input-agnostic.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "distance"],
+      "properties": {
+        "target": { "$ref": "#/definitions/vec3", "description": "World-space point the camera looks at." },
+        "distance": { "type": "number", "exclusiveMinimum": 0, "description": "Distance from target to camera." },
+        "pitch": { "type": "number", "default": 30, "description": "Down-from-horizon angle in degrees. 0 = horizontal; positive = looking down." },
+        "yaw": { "type": "number", "default": 0, "description": "Angle around Y axis in degrees." },
+        "minDistance": { "type": "number", "exclusiveMinimum": 0 },
+        "maxDistance": { "type": "number", "exclusiveMinimum": 0 }
+      }
     },
     "lodComponent": {
       "description": "M17-lod: per-entity LOD chain. LodSelectionSystem reads the active camera's world position, picks the lowest-maxDistance level whose threshold the entity is inside, and writes that level's mesh / material onto MeshRenderer. Levels must be sorted by maxDistance ascending. `fallback` decides what happens past the last threshold — `last` keeps the cheapest mesh, `hide` drops the entity from rendering by removing MeshRenderer.",

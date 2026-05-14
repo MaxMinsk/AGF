@@ -21,18 +21,18 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 41 — TBD
+## Current Sprint: Sprint 42 — TBD
 
-Sprint 41 focus is picked at sprint start. Natural openers (in priority order based on Sprint 40 close):
+Sprint 42 focus is picked at sprint start. Natural openers (in priority order based on Sprint 41 close):
 
-1. **M25 / ASSET-compression** — flip `createGlbLoader({ meshopt: true })` on for Beacon, run `engine asset optimize examples/beacon-world`, verify the runtime loads optimized GLBs cleanly.
+1. **M21-shadow-pcss-csm** — extend PCSS into `CSMShader.js` so cascade-shadow scenes (`shadows-bench`) benefit too. Today `applyPcssShadowChunks` only touches the standard `shadowmap_pars_fragment` chunk; CSM has its own.
 2. **ASSET-texture-compress** — KTX2 / Basis texture compression behind a `--textures` flag on `engine asset optimize`. Needs `basisu` toolchain commitment + per-channel policy authoring + `sharp` runtime.
-3. **ASSET-decoder-vendor** — copy `node_modules/three/examples/jsm/libs/{draco,basis}/` into `/public/` at build time + point the runtime decoders at the vendored URLs (offline / production builds).
-4. **M21-mat-shader-files** — load `vertexShader` / `fragmentShader` from external `.vert` / `.frag` text files via the asset registry; today the GLSL lives inline in the manifest JSON.
-5. **M21-shadow-pcss** — PCSS via shader-chunk substitution (Three.js doesn't ship it in core).
-6. **RUNTIME-resource-leak-tests** — extend the existing hmr-stress coverage with an adapter-create/destroy cycle (currently materials only).
-7. **M17-instance-picking** — `Pickable` component + `runtime.pick({...})` that resolves `instanceId → entityId` against the M17 buckets.
-8. **M21-cam-orbit** — declarative orbit camera component (target, distance, pitch, yaw) — useful first camera helper.
+3. **M17-instance-picking-buckets** — resolve `instanceId → EntityId` against M17 InstancedMesh / BatchedMesh buckets so Batchable entities are pickable too.
+4. **M21-cam-follow** — declarative follow-target camera component (target entity, offset, smoothing). Builds on M21-cam-orbit's input-agnostic pattern.
+5. **M21-cam-cinematic** — scripted camera-track playback (sequence of `{ position, target, duration, ease }` waypoints). Useful for intro cinematics + replay tooling.
+6. **M21-env-hdr** — load `.hdr` IBL files via the asset registry (RGBELoader), apply through PMREMGenerator. Replaces the current generated `RoomEnvironment` for projects that want a real sky.
+7. **M21-tsl-investigate** — spike: evaluate Three.js TSL / NodeMaterial for the AGF custom-material manifest path. Output: research doc + a recommendation on whether to defer until WebGPU lands or adopt early.
+8. **M17-static-merge-spike** — static geometry merge with reverse `EntityId` lookup for picking. Opt-in via a `StaticMerge` tag.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 

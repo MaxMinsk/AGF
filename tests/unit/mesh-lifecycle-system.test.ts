@@ -32,6 +32,12 @@ function stubRegistry(): MeshHandleRegistry & { acquired: number[]; released: nu
     handleFor(entityId) {
       return map.get(entityId);
     },
+    entityForHandle(handle) {
+      for (const [id, h] of map) {
+        if (h === handle) return id;
+      }
+      return undefined;
+    },
     entityIds() {
       return map.keys();
     },

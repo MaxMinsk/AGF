@@ -94,9 +94,9 @@
               "description": "M21-shadow-static: when false, `renderer.shadowMap.autoUpdate` is disabled and the map only re-renders on `__agf.renderer.invalidateShadowMap()`. Use for scenes whose shadow casters never move (large outdoor maps, RTS games) — saves a per-frame shadow pass per cascade."
             },
             "algorithm": {
-              "enum": ["pcf", "vsm"],
+              "enum": ["pcf", "vsm", "pcss"],
               "default": "pcf",
-              "description": "M21-shadow-algorithm: shadow-map filtering. `pcf` (default) — 4-tap percentage-closer filter, sharp + universally supported. `vsm` — variance shadow maps, smoother penumbras but light-leaks on concave geometry. Apply per project after testing."
+              "description": "M21-shadow-algorithm: shadow-map filtering. `pcf` (default) — 4-tap percentage-closer filter, sharp + universally supported. `vsm` — variance shadow maps, smoother penumbras but light-leaks on concave geometry. `pcss` — percentage-closer soft shadows via shader-chunk substitution; smoothest penumbras + distance-aware blur. PCSS substitution is process-wide and one-way (toggling back needs a reload)."
             },
             "csm": {
               "type": "object",

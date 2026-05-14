@@ -144,12 +144,22 @@
     "vertexShader": {
       "type": "string",
       "minLength": 1,
-      "description": "M21-mat-custom only. Inline GLSL vertex source for ShaderMaterial. Authoring external files + a text loader is a follow-up — for now the source lives in the manifest as a JSON string."
+      "description": "M21-mat-custom only. Inline GLSL vertex source for ShaderMaterial. Prefer `vertexShaderRef` when the shader lives in an external file."
     },
     "fragmentShader": {
       "type": "string",
       "minLength": 1,
-      "description": "M21-mat-custom only. Inline GLSL fragment source."
+      "description": "M21-mat-custom only. Inline GLSL fragment source. Prefer `fragmentShaderRef` for external files."
+    },
+    "vertexShaderRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "M21-mat-shader-files: relative path to a `.vert` / `.glsl` text file under the project's `assets/` tree. MaterialBindingSystem fetches the file and inlines its contents as `vertexShader` before constructing the ShaderMaterial. Takes precedence over `vertexShader` when both are set."
+    },
+    "fragmentShaderRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "M21-mat-shader-files: relative path to a `.frag` / `.glsl` text file."
     },
     "uniforms": {
       "type": "object",
