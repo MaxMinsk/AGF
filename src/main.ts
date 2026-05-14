@@ -110,12 +110,24 @@ declare global {
         readonly samples: number;
       };
       /**
-       * M24-debug — physics-collider overlay controls. Undefined when
-       * the active project did not opt into `physics.enabled`.
+       * Physics query + debug controls. Undefined when the active
+       * project did not opt into `physics.enabled`.
        */
       physics?: {
         setDebugOverlay(enabled: boolean): void;
         isDebugOverlayEnabled(): boolean;
+        raycast(spec: {
+          origin: ReadonlyArray<number>;
+          direction: ReadonlyArray<number>;
+          maxDistance: number;
+        }):
+          | {
+              readonly entityId: string;
+              readonly distance: number;
+              readonly point: readonly [number, number, number];
+              readonly normal: readonly [number, number, number];
+            }
+          | undefined;
       };
       /**
        * M23-tuner — agent-spawnable sliders bound to component fields.

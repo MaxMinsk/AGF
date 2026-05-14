@@ -164,14 +164,31 @@ export type AppHandle = {
     samples: number;
   };
   /**
-   * M24-debug — physics-collider debug overlay controls. `undefined` when
-   * the active project did not declare `physics.enabled: true`.
+   * Physics query + debug controls. `undefined` when the active project
+   * did not declare `physics.enabled: true`.
    */
   physics?: {
-    /** Toggle the LineSegments overlay produced by Rapier's debugRender. */
+    /** Toggle the LineSegments overlay produced by Rapier's debugRender. (M24-debug) */
     setDebugOverlay(enabled: boolean): void;
     /** Current state of the overlay. */
     isDebugOverlayEnabled(): boolean;
+    /**
+     * M24-raycast: cast a ray and return the first entity hit, with
+     * point + normal + distance. Returns undefined if nothing is hit
+     * within `maxDistance`. `direction` should be unit-length.
+     */
+    raycast(spec: {
+      origin: ReadonlyArray<number>;
+      direction: ReadonlyArray<number>;
+      maxDistance: number;
+    }):
+      | {
+          readonly entityId: string;
+          readonly distance: number;
+          readonly point: readonly [number, number, number];
+          readonly normal: readonly [number, number, number];
+        }
+      | undefined;
   };
   dispose(): void;
 };
@@ -294,6 +311,9 @@ export async function createApp(
   // `startRuntime` ticks. Adapter init is async (WASM); registering after
   // start would race the first fixed step.
   let physicsAdapter: import("../engine/physics/rapier/rapier-adapter").RapierAdapter | undefined;
+  let physicsRegistry:
+    | import("../engine/physics/rapier/physics-body-registry").PhysicsBodyRegistry
+    | undefined;
   const physicsDebugState = { enabled: false };
   if (project.physics?.enabled === true) {
     const { createRapierAdapter } = await import(
@@ -312,7 +332,7 @@ export async function createApp(
         : {}),
       ...(project.physics.fixedDt !== undefined ? { fixedDt: project.physics.fixedDt } : {})
     });
-    const physicsRegistry = createPhysicsBodyRegistry(physicsAdapter);
+    physicsRegistry = createPhysicsBodyRegistry(physicsAdapter);
     // M24-character: CharacterMovementSystem must run BEFORE
     // PhysicsSyncSystem in the fixed-update phase so its
     // setBodyNextKinematicTranslation queues land before adapter.step().
@@ -442,7 +462,7 @@ export async function createApp(
     frameTiming() {
       return runtime.frameTiming();
     },
-    ...(physicsAdapter !== undefined
+    ...(physicsAdapter !== undefined && physicsRegistry !== undefined
       ? {
           physics: {
             setDebugOverlay(enabled: boolean): void {
@@ -450,6 +470,25 @@ export async function createApp(
             },
             isDebugOverlayEnabled(): boolean {
               return physicsDebugState.enabled;
+            },
+            raycast(spec) {
+              const origin = spec.origin;
+              const direction = spec.direction;
+              if (origin.length < 3 || direction.length < 3) return undefined;
+              const hit = physicsAdapter.castRay(
+                [origin[0] ?? 0, origin[1] ?? 0, origin[2] ?? 0],
+                [direction[0] ?? 0, direction[1] ?? 0, direction[2] ?? 0],
+                spec.maxDistance
+              );
+              if (hit === undefined) return undefined;
+              const entityId = physicsRegistry.entityForCollider(hit.collider);
+              if (entityId === undefined) return undefined;
+              return {
+                entityId,
+                distance: hit.distance,
+                point: hit.point,
+                normal: hit.normal
+              };
             }
           }
         }
