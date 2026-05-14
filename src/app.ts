@@ -38,6 +38,14 @@ export type ProjectMeta = {
       exposure?: number;
     };
     /**
+     * M21-post-pipeline: ordered post-processing chain. The adapter
+     * always appends an OutputPass for tonemap + sRGB conversion.
+     */
+    post?: ReadonlyArray<
+      | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
+      | { kind: "fxaa" }
+    >;
+    /**
      * M21-shadow-csm: opt in to cascade shadow maps. When enabled, the
      * adapter constructs a CSM instance against the active camera and
      * routes every renderer-managed material through `setupMaterial`.
@@ -386,6 +394,12 @@ export async function createApp(
   // explicit invalidateShadowMap()).
   if (project.render?.shadows?.autoUpdate === false) {
     runtime.renderer.adapter.setShadowMapAutoUpdate(false);
+  }
+
+  // M21-post-pipeline: opt in to the post-processing chain. Adapter
+  // defers composer construction until an active camera exists.
+  if (project.render?.post !== undefined && project.render.post.length > 0) {
+    runtime.renderer.adapter.setPostPipeline(project.render.post);
   }
 
   // M21-shadow-csm: opt in to cascade shadow maps. Build happens lazily

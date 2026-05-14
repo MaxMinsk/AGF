@@ -7,6 +7,9 @@
   "render": {
     "mode": "webgl",
     "background": "#3a5066",
+    "post": [
+      { "kind": "fxaa" }
+    ],
     "shadows": {
       "autoUpdate": false,
       "csm": {

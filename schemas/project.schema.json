@@ -39,6 +39,33 @@
           "type": "string",
           "pattern": "^#[0-9a-fA-F]{6}$"
         },
+        "post": {
+          "type": "array",
+          "description": "M21-post-pipeline: ordered post-processing chain. Each entry is a single pass. The adapter always appends an OutputPass after the configured chain so tone-mapping + sRGB conversion fire at the end.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "const": "bloom" },
+                  "strength": { "type": "number", "minimum": 0, "default": 0.5 },
+                  "radius": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.4 },
+                  "threshold": { "type": "number", "minimum": 0, "default": 0.85 }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "const": "fxaa" }
+                }
+              }
+            ]
+          }
+        },
         "color": {
           "type": "object",
           "additionalProperties": false,

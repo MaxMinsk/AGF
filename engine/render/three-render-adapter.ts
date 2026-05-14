@@ -60,12 +60,18 @@ import {
   type Texture,
   TextureLoader,
   SRGBColorSpace,
+  Vector2,
   Vector3,
   WebGLRenderer
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
@@ -210,6 +216,16 @@ export type CameraParams = {
 };
 
 /**
+ * M21-post-pipeline — declarative post-processing chain. The adapter
+ * builds an EffectComposer from these entries (always followed by an
+ * `OutputPass` to apply the device's tone-mapping + sRGB conversion)
+ * once an active camera exists. Order is preserved.
+ */
+export type PostPassConfig =
+  | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
+  | { kind: "fxaa" };
+
+/**
  * M21-shadow-csm — config for the Cascade Shadow Maps adapter. The
  * adapter constructs CSM lazily once an active camera exists.
  */
@@ -313,6 +329,11 @@ export class ThreeRenderAdapter {
   private csm: CSM | undefined;
   private csmConfig: CsmConfig | undefined;
   private readonly csmMaterials = new Set<Material>();
+  // M21-post-pipeline: composer + last-applied config. Rebuilt when the
+  // config or active camera changes (mirrors the CSM lazy-build flow).
+  private composer: EffectComposer | undefined;
+  private postConfig: ReadonlyArray<PostPassConfig> | undefined;
+  private composerSize: { width: number; height: number } | undefined;
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
@@ -800,6 +821,10 @@ export class ThreeRenderAdapter {
 
   resize(width: number, height: number): void {
     this.device.setSize(width, height, false);
+    this.composerSize = { width, height };
+    if (this.composer !== undefined) {
+      this.composer.setSize(width, height);
+    }
     const active = this.activeCamera();
     if (active !== undefined) {
       active.aspect = width / Math.max(1, height);
@@ -1001,10 +1026,14 @@ export class ThreeRenderAdapter {
     if (handle !== undefined && !this.cameras.has(handle)) return;
     const previous = this.activeCameraHandle;
     this.activeCameraHandle = handle;
-    // CSM caches the camera reference. Rebuild if it changed (or if
-    // it became defined for the first time after a deferred enable).
+    // CSM + post-composer cache the camera reference. Rebuild if it
+    // changed (or if it became defined for the first time after a
+    // deferred enable).
     if (previous !== handle && this.csmConfig !== undefined) {
       this.rebuildCsm();
+    }
+    if (previous !== handle && this.postConfig !== undefined) {
+      this.rebuildComposer();
     }
   }
 
@@ -1019,7 +1048,11 @@ export class ThreeRenderAdapter {
     if (this.csm !== undefined) {
       this.csm.update();
     }
-    this.device.render(this.scene, camera);
+    if (this.composer !== undefined) {
+      this.composer.render();
+    } else {
+      this.device.render(this.scene, camera);
+    }
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -1038,6 +1071,70 @@ export class ThreeRenderAdapter {
     }
     this.csmConfig = config;
     this.rebuildCsm();
+  }
+
+  // ---- M21-post-pipeline ----
+
+  /**
+   * Configure the post-processing chain. `undefined` (or an empty array)
+   * disables the composer and `draw()` falls back to a direct
+   * `device.render()`. Each pass is built in array order; an `OutputPass`
+   * is always appended so the final blit picks up the renderer's
+   * `toneMapping` + `outputColorSpace` settings.
+   */
+  setPostPipeline(passes: ReadonlyArray<PostPassConfig> | undefined): void {
+    if (passes === undefined || passes.length === 0) {
+      this.disposeComposer();
+      this.postConfig = undefined;
+      return;
+    }
+    this.postConfig = passes;
+    this.rebuildComposer();
+  }
+
+  isPostPipelineActive(): boolean {
+    return this.composer !== undefined;
+  }
+
+  private rebuildComposer(): void {
+    const camera = this.activeCamera();
+    if (this.postConfig === undefined || camera === undefined) {
+      this.disposeComposer();
+      return;
+    }
+    this.disposeComposer();
+    const composer = new EffectComposer(this.device);
+    const size = this.composerSize ?? this.currentDeviceSize();
+    composer.setSize(size.width, size.height);
+    composer.setPixelRatio(this.device.getPixelRatio());
+    composer.addPass(new RenderPass(this.scene, camera));
+    for (const pass of this.postConfig) {
+      if (pass.kind === "bloom") {
+        const bloom = new UnrealBloomPass(
+          new Vector2(size.width, size.height),
+          pass.strength ?? 0.5,
+          pass.radius ?? 0.4,
+          pass.threshold ?? 0.85
+        );
+        composer.addPass(bloom);
+      } else if (pass.kind === "fxaa") {
+        composer.addPass(new FXAAPass());
+      }
+    }
+    composer.addPass(new OutputPass());
+    this.composer = composer;
+  }
+
+  private disposeComposer(): void {
+    if (this.composer === undefined) return;
+    this.composer.dispose();
+    this.composer = undefined;
+  }
+
+  private currentDeviceSize(): { width: number; height: number } {
+    const target = new Vector2();
+    this.device.getSize(target);
+    return { width: Math.max(1, target.x), height: Math.max(1, target.y) };
   }
 
   isCsmEnabled(): boolean {
@@ -1217,6 +1314,7 @@ export class ThreeRenderAdapter {
     for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
     for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
     this.setDebugOverlayEnabled(false);
+    this.disposeComposer();
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;
