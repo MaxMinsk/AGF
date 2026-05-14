@@ -93,13 +93,21 @@ These are engine/product capabilities that look must-have for AGF's stated goal 
 
 **Sequencing the M-list:**
 
-1. ~~Take **M5** + **M11** next~~ — **Done in Sprint 26**. Runtime diagnostics bus, asset/network/HMR emit paths, renderer-info exposure, HMR stress test, adapter create/dispose stress, renderer-import-boundary test.
-2. ~~Take **M1** + **M7** next~~ — **Done in Sprint 27**. Project versioning (`agfFormatVersion` + diagnostics + `engine migrate`), per-project performance budget + schema, `engine doctor` reads the budget.
-3. ~~Take **M2b** (record/replay) + **M4-docs** (`engine docs`) next~~ — **Done in Sprint 28**. Recorder + `engine replay` (v0), schema-to-Markdown generator, lazy renderer, bundle-in-doctor, CI typecheck job, Beacon sound pings.
-4. Take **M2b-seed** (deterministic RNG) + **M3** (prefabs) next — closes the record/replay determinism gap and reduces Beacon's repeated-content tax.
-5. Take **M15** (engine dev server investigation) and **M16** (transform hierarchy) next — M15 because the agent loop needs live-process access; M16 because hierarchy is the deepest schema-level gap and is painful to retrofit once project files grow. Both should run in parallel: M15 is an investigation story, M16 starts with a small schema + diagnostics slice.
-6. Then **M4** save/load v0 (sharpened spec inline above), **M18** picking, **M19** tween/particles, **M17** renderer instancing. The `examples/feature-lab/` sandbox (see Roadmap Epics) becomes the proof project after these land.
-7. Existing **M8**, **M9**, **M10**, **M12** queue behind the above; they are real but not blocking the agent's edit → inspect → run cycle today.
+Steps 1–6 below are kept as historical context — they describe the order in which the early M-list epics were pulled into sprints. All of them have landed; see `BACKLOG_ARCHIVE.md` for the actual sprint that closed each piece.
+
+1. ~~**M5** + **M11**~~ — Done in Sprint 26. Runtime diagnostics bus, asset/network/HMR emit paths, renderer-info exposure, HMR stress test, adapter create/dispose stress, renderer-import-boundary test.
+2. ~~**M1** + **M7**~~ — Done in Sprint 27. Project versioning (`agfFormatVersion` + diagnostics + `engine migrate`), per-project performance budget + schema, `engine doctor` reads the budget.
+3. ~~**M2b** (record/replay) + **M4-docs** (`engine docs`)~~ — Done in Sprint 28. Recorder + `engine replay` (v0), schema-to-Markdown generator, lazy renderer, bundle-in-doctor, CI typecheck job, Beacon sound pings.
+4. ~~**M2b-seed** (deterministic RNG) + **M3** (prefabs)~~ — Done in Sprint 29 (prefab schema + `AGF_PREFAB_INVALID`) and Sprint 30 (scene `instances` + `expandScenePrefabs`). Beacon adoption of prefab instances remains as `M3-c-beacon`.
+5. ~~**M15** (engine dev server) + **M16** (transform hierarchy)~~ — Done in Sprints 30–31. M15 v0 covers `/health`, WS bridge, snapshot / diagnostics / reload-events / `/bug-report` / recording / commands / asset-invalidate. M16 v0 covers `Transform.parent`, hierarchy resolver, `engine inspect` `worldPosition`.
+6. ~~**M4** save/load + **M18** picking + **M19** tween/particles + **M17** renderer instancing~~ — Done across Sprints 30–42. Tween/particles still parking-lot, the rest shipped (`M17-bucketer`, `M17-batched-mesh-system`, `M17-instance-picking-buckets`).
+
+**Outstanding from this list:**
+
+- **M8** input actions / remapping — still open.
+- **M9** `engine build` deploy manifest — still open; unblocked when the first deploy target lands.
+- **M10** trust boundary for agent-authored projects — partially shipped (protocol validator, id collision, size caps); documentation work remains.
+- **M12** `engine new --template <name>` — promoted into Sprint 45 as `AGENT-cli-new`.
 
 ## AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)
 
