@@ -75,4 +75,25 @@ test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events
   const missing = await fetchJson("/__agf/does-not-exist");
   expect(missing.status).toBe(404);
   expect(missing.body.error?.code).toBe("AGF_BRIDGE_ROUTE_UNKNOWN");
+
+  // Bug report bundles snapshot + diagnostics + rendererInfo into one payload.
+  const bug = await fetchJson("/__agf/bug-report");
+  expect(bug.status).toBe(200);
+  expect(bug.body.ok).toBe(true);
+  const report = bug.body.payload as {
+    agfFormatVersion: number;
+    projectId: string;
+    profile: string;
+    capturedAt: string;
+    snapshot: { entities: Array<{ id: string }> };
+    diagnostics: ReadonlyArray<{ severity: string }>;
+    rendererInfo: Record<string, number>;
+    reloadEvents: ReadonlyArray<unknown>;
+  };
+  expect(report.agfFormatVersion).toBe(1);
+  expect(report.projectId).toBe("hello-3d");
+  expect(typeof report.capturedAt).toBe("string");
+  expect(report.snapshot.entities.length).toBeGreaterThan(0);
+  expect(report.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  expect(typeof report.rendererInfo["meshes"]).toBe("number");
 });

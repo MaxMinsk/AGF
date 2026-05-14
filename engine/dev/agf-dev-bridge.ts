@@ -171,6 +171,44 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        if (route === "/bug-report" && req.method === "GET") {
+          if (activePageInfo === undefined) {
+            respondJson(res, 503, {
+              ok: false,
+              error: {
+                code: "AGF_BRIDGE_PAGE_NOT_CONNECTED",
+                message: `No active page on ${DEV_BRIDGE_WS_PATH} — open http://localhost:5173 in a tab first.`
+              }
+            });
+            return;
+          }
+          try {
+            const [snapshot, diagnostics, rendererInfo, reloadEvents] = await Promise.all([
+              rpc("snapshot"),
+              rpc("diagnostics"),
+              rpc("renderer-info"),
+              rpc("reload-events")
+            ]);
+            respondJson(res, 200, {
+              ok: true,
+              payload: {
+                agfFormatVersion: 1,
+                projectId: activePageInfo.projectId,
+                profile: activePageInfo.profile,
+                capturedAt: new Date().toISOString(),
+                snapshot,
+                diagnostics,
+                rendererInfo,
+                reloadEvents
+              }
+            });
+          } catch (error) {
+            const e = error as { code: string; message: string };
+            respondJson(res, 502, { ok: false, error: e });
+          }
+          return;
+        }
+
         // RPC routes — proxy to the page over WS.
         const rpcKind = mapRouteToRpcKind(req.method, route);
         if (rpcKind !== undefined) {
