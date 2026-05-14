@@ -154,6 +154,37 @@ test("POST /__agf/commands lets an agent edit the running scene live", async ({ 
   expect((bad.body as { error: { code: string } }).error.code).toBe("AGF_BRIDGE_INVALID_COMMANDS");
 });
 
+test("POST /__agf/asset/invalidate forwards to reloadAsset", async ({ page, baseURL }) => {
+  expect(baseURL).toBeDefined();
+  await page.goto("/?project=hello-3d");
+  await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
+    timeout: 5_000
+  });
+  await page.waitForTimeout(500);
+
+  const url = new URL("/__agf/asset/invalidate", baseURL).toString();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: "runtime/materials/cube-hero.material.json" })
+  });
+  const body = await response.json() as { ok: boolean; payload: { invalidated: string } };
+  expect(response.status).toBe(200);
+  expect(body.ok).toBe(true);
+  expect(body.payload.invalidated).toBe("runtime/materials/cube-hero.material.json");
+
+  // Malformed body → 400.
+  const bad = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wrong: "key" })
+  });
+  expect(bad.status).toBe(400);
+  expect(((await bad.json()) as { error: { code: string } }).error.code).toBe(
+    "AGF_BRIDGE_INVALID_ASSET_REF"
+  );
+});
+
 test("recording start/stop round-trips a Recording over the bridge", async ({ page, baseURL }) => {
   expect(baseURL).toBeDefined();
   await page.goto("/?project=hello-3d");

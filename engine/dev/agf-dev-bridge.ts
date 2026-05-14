@@ -171,6 +171,30 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        if (route === "/asset/invalidate" && req.method === "POST") {
+          try {
+            const body = await readJsonBody(req);
+            const ref = (body as { ref?: unknown }).ref;
+            if (typeof ref !== "string" || ref.length === 0) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_BRIDGE_INVALID_ASSET_REF",
+                  message: "Body must be JSON with a `ref` string."
+                }
+              });
+              return;
+            }
+            const payload = await rpc("asset-invalidate", { ref });
+            respondJson(res, 200, { ok: true, payload });
+          } catch (error) {
+            const e = error as { code: string; message: string };
+            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
+            respondJson(res, status, { ok: false, error: e });
+          }
+          return;
+        }
+
         if (route === "/commands" && req.method === "POST") {
           try {
             const body = await readJsonBody(req);

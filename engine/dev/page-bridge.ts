@@ -13,6 +13,7 @@ type AgfApi = {
   applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
   startRecording?: () => unknown;
   stopRecording?: () => unknown;
+  reloadAsset?: (ref: string) => unknown;
 };
 
 export type PageBridgeOptions = {
@@ -110,6 +111,16 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "recording-stop":
         payload = api?.stopRecording?.();
         break;
+      case "asset-invalidate": {
+        const ref = (payloadIn as { ref?: string } | undefined)?.ref;
+        if (typeof ref !== "string" || api?.reloadAsset === undefined) {
+          payload = undefined;
+          break;
+        }
+        api.reloadAsset(ref);
+        payload = { invalidated: ref };
+        break;
+      }
       default: {
         socket.send(
           JSON.stringify({

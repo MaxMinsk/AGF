@@ -61,6 +61,8 @@ declare global {
       /** Recording v0 — used by the dev-bridge /__agf/recording/* routes. */
       startRecording(): unknown;
       stopRecording(): unknown;
+      /** Trigger an asset HMR reload from the dev bridge. */
+      reloadAsset(ref: string): void;
       /**
        * Snapshot of Three.js renderer resource counters. Useful for HMR
        * leak tests: take a baseline, reload assets N times, assert the
@@ -186,6 +188,7 @@ void (async (): Promise<void> => {
       clearSave: () => app.clearSave(),
       startRecording: () => app.startRecording(),
       stopRecording: () => app.stopRecording(),
+      reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
       reloadEvents: []
