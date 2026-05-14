@@ -132,6 +132,8 @@ export type AppHandle = {
     shadowCasters: number;
     buckets: number;
     bucketInstances: number;
+    batchedBuckets: number;
+    batchedBucketInstances: number;
     handleLeak: number;
   };
   dispose(): void;

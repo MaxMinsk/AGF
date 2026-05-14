@@ -93,6 +93,8 @@ declare global {
         readonly shadowCasters: number;
         readonly buckets: number;
         readonly bucketInstances: number;
+        readonly batchedBuckets: number;
+        readonly batchedBucketInstances: number;
         readonly handleLeak: number;
       };
       /**

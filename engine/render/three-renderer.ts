@@ -223,6 +223,8 @@ export class ThreeRenderer {
     shadowCasters: number;
     buckets: number;
     bucketInstances: number;
+    batchedBuckets: number;
+    batchedBucketInstances: number;
     handleLeak: number;
   } {
     const adapter = this.adapter.info();

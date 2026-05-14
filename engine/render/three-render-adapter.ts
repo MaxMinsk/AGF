@@ -23,6 +23,7 @@
 
 import {
   AmbientLight,
+  BatchedMesh,
   type BufferGeometry,
   Color,
   DirectionalLight,
@@ -67,6 +68,22 @@ export type BucketAcquireSpec = {
   /** Initial slot count for the InstancedMesh. Grow via `resizeBucket`; can't shrink. */
   capacity: number;
   /** Initial material color (per-bucket; per-instance color via setInstanceColor). */
+  color?: string;
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+};
+
+/** M17-batched-mesh: one BatchedMesh per bucket. Multiple geometries share a material. */
+export type BatchedBucketHandle = number;
+export type BatchedGeometryId = number;
+
+export type BatchedBucketAcquireSpec = {
+  /** Maximum instances the BatchedMesh ring will hold. Grow with resize (not supported in v0). */
+  maxInstances: number;
+  /** Sum of vertex counts across every geometry we'll add. Pad generously. */
+  maxVertices: number;
+  /** Sum of index counts across every geometry we'll add. */
+  maxIndices: number;
   color?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
@@ -176,6 +193,10 @@ export type AdapterInfo = {
   buckets: number;
   /** M17: live instances summed across every bucket (sparse slots NOT counted). */
   bucketInstances: number;
+  /** M17-batched-mesh: live BatchedMesh buckets. */
+  batchedBuckets: number;
+  /** M17-batched-mesh: live instances inside BatchedMesh buckets. */
+  batchedBucketInstances: number;
 };
 
 export type AdapterOptions = {
@@ -195,6 +216,8 @@ export class ThreeRenderAdapter {
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
   private readonly lights = new Map<LightHandle, Light>();
   private readonly buckets = new Map<BucketHandle, BucketEntry>();
+  private readonly batchedBuckets = new Map<BatchedBucketHandle, BatchedBucketEntry>();
+  private nextBatchedBucketHandle = 1;
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
   private pmrem: PMREMGenerator | undefined;
@@ -548,6 +571,89 @@ export class ThreeRenderAdapter {
     return this.buckets.has(handle);
   }
 
+  // ---- M17-batched-mesh: BatchedMesh buckets ----
+
+  acquireBatchedBucket(spec: BatchedBucketAcquireSpec): BatchedBucketHandle {
+    const handle = this.nextBatchedBucketHandle;
+    this.nextBatchedBucketHandle += 1;
+    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    const mesh = new BatchedMesh(spec.maxInstances, spec.maxVertices, spec.maxIndices, material);
+    mesh.frustumCulled = false;
+    mesh.castShadow = spec.castShadow !== false;
+    mesh.receiveShadow = spec.receiveShadow !== false;
+    this.scene.add(mesh);
+    this.batchedBuckets.set(handle, { mesh, liveInstances: new Set() });
+    return handle;
+  }
+
+  releaseBatchedBucket(handle: BatchedBucketHandle): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.mesh);
+    entry.mesh.dispose();
+    disposeMaterial(entry.mesh.material);
+    this.batchedBuckets.delete(handle);
+  }
+
+  addBatchedGeometry(handle: BatchedBucketHandle, geometry: BufferGeometry): BatchedGeometryId | undefined {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined) return undefined;
+    try {
+      return entry.mesh.addGeometry(geometry);
+    } catch {
+      // BatchedMesh throws if it's out of pool space; the caller's bucket
+      // budget needs widening. v0 surfaces this as undefined.
+      return undefined;
+    }
+  }
+
+  addBatchedInstance(handle: BatchedBucketHandle, geometryId: BatchedGeometryId): InstanceIndex | undefined {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined) return undefined;
+    try {
+      const slot = entry.mesh.addInstance(geometryId);
+      entry.liveInstances.add(slot);
+      return slot;
+    } catch {
+      return undefined;
+    }
+  }
+
+  removeBatchedInstance(handle: BatchedBucketHandle, instance: InstanceIndex): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined || !entry.liveInstances.has(instance)) return;
+    entry.mesh.deleteInstance(instance);
+    entry.liveInstances.delete(instance);
+  }
+
+  setBatchedInstanceTransform(
+    handle: BatchedBucketHandle,
+    instance: InstanceIndex,
+    world: ResolvedWorld
+  ): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined || !entry.liveInstances.has(instance)) return;
+    this.scratchPosition.set(world.position[0], world.position[1], world.position[2]);
+    this.scratchScale.set(world.scale[0], world.scale[1], world.scale[2]);
+    eulerToQuaternion(world.rotation, this.scratchQuat);
+    this.scratchMatrix.compose(this.scratchPosition, this.scratchQuat, this.scratchScale);
+    entry.mesh.setMatrixAt(instance, this.scratchMatrix);
+  }
+
+  setBatchedInstanceGeometry(
+    handle: BatchedBucketHandle,
+    instance: InstanceIndex,
+    geometryId: BatchedGeometryId
+  ): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined || !entry.liveInstances.has(instance)) return;
+    entry.mesh.setGeometryIdAt(instance, geometryId);
+  }
+
+  batchedBucketLiveCount(handle: BatchedBucketHandle): number {
+    return this.batchedBuckets.get(handle)?.liveInstances.size ?? 0;
+  }
+
   resize(width: number, height: number): void {
     this.device.setSize(width, height, false);
     const active = this.activeCamera();
@@ -708,6 +814,8 @@ export class ThreeRenderAdapter {
     }
     let bucketInstances = 0;
     for (const entry of this.buckets.values()) bucketInstances += entry.liveSlots.size;
+    let batchedBucketInstances = 0;
+    for (const entry of this.batchedBuckets.values()) batchedBucketInstances += entry.liveInstances.size;
     return {
       geometries: memory.geometries ?? 0,
       textures: memory.textures ?? 0,
@@ -718,7 +826,9 @@ export class ThreeRenderAdapter {
       lights: this.lights.size,
       shadowCasters,
       buckets: this.buckets.size,
-      bucketInstances
+      bucketInstances,
+      batchedBuckets: this.batchedBuckets.size,
+      batchedBucketInstances
     };
   }
 
@@ -735,6 +845,7 @@ export class ThreeRenderAdapter {
     }
     this.lights.clear();
     for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
+    for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;
@@ -767,6 +878,11 @@ type BucketEntry = {
   mesh: InstancedMesh;
   capacity: number;
   liveSlots: Set<InstanceIndex>;
+};
+
+type BatchedBucketEntry = {
+  mesh: BatchedMesh;
+  liveInstances: Set<InstanceIndex>;
 };
 
 /** Fill an existing Quaternion from an Euler XYZ rotation (radians) — XYZ order matches Three.js default. */
