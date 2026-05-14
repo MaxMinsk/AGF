@@ -27,6 +27,10 @@ Sprint 32 focus: close the remaining M15 surface (SSE events, multi-page, option
 
 ### Stories
 
+#### M20 — Netcode rework (new)
+
+- `M20-investigate` Write `docs/research/netcode-rework-investigation.md`. Cover: (1) the three concrete bugs in the current implementation (2× own-drone, 30s idle disconnect, networked vs single-player feel), (2) survey of proven multiplayer netcode patterns (Quake 3 / Valve / GGPO / deterministic lockstep / snapshot interpolation only), (3) tradeoffs against AGF's constraints (browser, agent-readable, schema-driven protocol, supports the Beacon-World "small persistent world" shape), (4) recommendation + sequenced implementation plan with stories sized for one sprint each. Does NOT touch code.
+
 #### M15 — Engine dev server (finishing slice)
 
 - `M15-g` `GET /__agf/events` SSE stream — pushes runtime diagnostics + HMR `agf:asset-changed` + scheduler-tick markers to subscribed agents.
