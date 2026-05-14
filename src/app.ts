@@ -186,6 +186,14 @@ export type AppHandle = {
    * `await` this before taking screenshots / probing rendererInfo.
    */
   readonly rendererReady: Promise<void>;
+  /**
+   * M17-instance-picking: cast a ray from normalised screen coords
+   * (x, y in [-1, 1], y up). Returns the first picked entity, hit
+   * point, and distance — or undefined when nothing was hit.
+   */
+  pick(spec: { x: number; y: number }):
+    | { readonly entityId: string; readonly point: readonly [number, number, number]; readonly distance: number }
+    | undefined;
   /** M21-frame-timing — window-averaged per-phase tick timings in milliseconds. */
   frameTiming(): {
     fixedUpdateMs: number;
@@ -512,6 +520,9 @@ export async function createApp(
     },
     frameTiming() {
       return runtime.frameTiming();
+    },
+    pick(spec) {
+      return runtime.pick(spec);
     },
     renderer: {
       invalidateShadowMap(): void {

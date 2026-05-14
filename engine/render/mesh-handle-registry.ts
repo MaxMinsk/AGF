@@ -16,6 +16,8 @@ export type MeshHandleRegistry = {
   release(entityId: EntityId): void;
   /** Look up the handle for an entity. */
   handleFor(entityId: EntityId): MeshHandle | undefined;
+  /** Reverse lookup — used by M17-instance-picking to map a Three.js Object3D hit back to the AGF entity. */
+  entityForHandle(handle: MeshHandle): EntityId | undefined;
   /** Live snapshot of every entity currently holding a handle. */
   entityIds(): IterableIterator<EntityId>;
   /** Size of the registry, for diagnostics + doctor leak checks. */
@@ -26,6 +28,7 @@ export type MeshHandleRegistry = {
 
 export function createMeshHandleRegistry(adapter: ThreeRenderAdapter): MeshHandleRegistry {
   const entityToHandle = new Map<EntityId, MeshHandle>();
+  const handleToEntity = new Map<MeshHandle, EntityId>();
 
   return {
     acquireFor(entityId, meshRef, color): MeshHandle | undefined {
@@ -39,6 +42,7 @@ export function createMeshHandleRegistry(adapter: ThreeRenderAdapter): MeshHandl
       if (color !== undefined) acquire.color = color;
       const handle = adapter.acquireMesh(acquire);
       entityToHandle.set(entityId, handle);
+      handleToEntity.set(handle, entityId);
       return handle;
     },
     release(entityId): void {
@@ -46,9 +50,13 @@ export function createMeshHandleRegistry(adapter: ThreeRenderAdapter): MeshHandl
       if (handle === undefined) return;
       adapter.releaseMesh(handle);
       entityToHandle.delete(entityId);
+      handleToEntity.delete(handle);
     },
     handleFor(entityId): MeshHandle | undefined {
       return entityToHandle.get(entityId);
+    },
+    entityForHandle(handle): EntityId | undefined {
+      return handleToEntity.get(handle);
     },
     entityIds(): IterableIterator<EntityId> {
       return entityToHandle.keys();
@@ -57,6 +65,7 @@ export function createMeshHandleRegistry(adapter: ThreeRenderAdapter): MeshHandl
       return entityToHandle.size;
     },
     clear(): void {
+      handleToEntity.clear();
       for (const handle of entityToHandle.values()) {
         adapter.releaseMesh(handle);
       }

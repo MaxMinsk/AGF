@@ -91,6 +91,14 @@ export type RuntimeHandle = {
   readonly rendererReady: Promise<void>;
   /** Window-averaged per-phase timings — see FrameTiming. */
   frameTiming(): FrameTiming;
+  /**
+   * M17-instance-picking: cast a ray from normalised screen
+   * coordinates (`{ x: -1..1, y: -1..1 }`, y up) and return the
+   * first picked entity + hit point/distance, or `undefined` if
+   * nothing was hit. Resolves through the mesh-handle registry so
+   * callers always see entity ids, never Three.js objects.
+   */
+  pick(spec: { x: number; y: number }): { entityId: string; point: readonly [number, number, number]; distance: number } | undefined;
   /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
   invalidateAsset(ref: string): void;
   /**
@@ -414,6 +422,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     },
     frameTiming(): FrameTiming {
       return lastFrameTiming;
+    },
+    pick(spec) {
+      const hit = renderer.adapter.pickAtNdc(spec.x, spec.y);
+      if (hit === undefined) return undefined;
+      const entityId = renderer.meshRegistry().entityForHandle(hit.handle);
+      if (entityId === undefined) return undefined;
+      return { entityId, point: hit.point, distance: hit.distance };
     },
     startRecording(projectId?: string): RecorderHandle {
       const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };

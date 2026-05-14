@@ -57,6 +57,7 @@ import {
   PMREMGenerator,
   PointLight,
   Quaternion,
+  Raycaster,
   RectAreaLight,
   Scene,
   SpotLight,
@@ -374,6 +375,8 @@ export class ThreeRenderAdapter {
   private readonly scratchPosition = new Vector3();
   private readonly scratchScale = new Vector3();
   private readonly scratchQuat = new Quaternion();
+  private readonly scratchRaycaster = new Raycaster();
+  private readonly scratchPickNdc = new Vector2();
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -1071,6 +1074,43 @@ export class ThreeRenderAdapter {
   /** Used by the renderer to skip a draw when no camera is bound. */
   hasActiveCamera(): boolean {
     return this.activeCamera() !== undefined;
+  }
+
+  // ---- M17-instance-picking ----
+
+  /**
+   * Cast a ray from screen space (normalised device coords in [-1, 1]
+   * range) through the active camera and return the first MeshHandle
+   * intersection + hit point/distance, or undefined when nothing was
+   * hit. Callers map MeshHandle → EntityId through the mesh-handle
+   * registry. InstancedMesh hits report the bucket's first member;
+   * proper instanceId resolution lands as a follow-up.
+   */
+  pickAtNdc(
+    ndcX: number,
+    ndcY: number
+  ): { handle: MeshHandle; point: readonly [number, number, number]; distance: number } | undefined {
+    const camera = this.activeCamera();
+    if (camera === undefined) return undefined;
+    this.scratchPickNdc.set(ndcX, ndcY);
+    this.scratchRaycaster.setFromCamera(this.scratchPickNdc, camera);
+    // Test against the per-entity mesh map (skip lights / buckets /
+    // overlays). Iterate in insertion order; pick the closest hit.
+    let bestHandle: MeshHandle | undefined;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    let bestPoint: readonly [number, number, number] | undefined;
+    for (const [handle, mesh] of this.meshes) {
+      const intersections = this.scratchRaycaster.intersectObject(mesh, false);
+      const first = intersections[0];
+      if (first === undefined) continue;
+      if (first.distance < bestDistance) {
+        bestDistance = first.distance;
+        bestHandle = handle;
+        bestPoint = [first.point.x, first.point.y, first.point.z];
+      }
+    }
+    if (bestHandle === undefined || bestPoint === undefined) return undefined;
+    return { handle: bestHandle, point: bestPoint, distance: bestDistance };
   }
 
   draw(): void {
