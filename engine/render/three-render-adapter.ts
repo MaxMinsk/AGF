@@ -220,6 +220,14 @@ export type AdapterInfo = {
 export type AdapterOptions = {
   canvas: HTMLCanvasElement;
   background?: string;
+  /**
+   * M21-context-loss: fires when the WebGL context is lost or
+   * restored. Three.js's WebGLRenderer auto-re-uploads GPU resources
+   * on restore; the runtime wires these to the DiagnosticsBus so
+   * agents can react (pause systems, surface a banner, etc.).
+   */
+  onContextLost?: () => void;
+  onContextRestored?: () => void;
 };
 
 export type EnvironmentKind = "generated" | "none";
@@ -229,6 +237,8 @@ const DEFAULT_COLOR = "#cccccc";
 export class ThreeRenderAdapter {
   private readonly canvas: HTMLCanvasElement;
   private readonly device: WebGLRenderer;
+  private contextLostListener: ((event: Event) => void) | undefined;
+  private contextRestoredListener: (() => void) | undefined;
   private readonly scene: Scene;
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
@@ -263,6 +273,27 @@ export class ThreeRenderAdapter {
       antialias: true,
       preserveDrawingBuffer: true
     });
+    // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
+    // Three.js auto-rebuilds GPU resources on restore; the runtime
+    // uses these callbacks to emit diagnostics + optionally pause
+    // gameplay until the context is back.
+    if (options.onContextLost !== undefined) {
+      const onLost = (event: Event): void => {
+        // Without preventDefault the browser does not attempt to
+        // restore the context.
+        event.preventDefault();
+        options.onContextLost?.();
+      };
+      this.canvas.addEventListener("webglcontextlost", onLost);
+      this.contextLostListener = onLost;
+    }
+    if (options.onContextRestored !== undefined) {
+      const onRestored = (): void => {
+        options.onContextRestored?.();
+      };
+      this.canvas.addEventListener("webglcontextrestored", onRestored);
+      this.contextRestoredListener = onRestored;
+    }
     // M21-shadow-basic: enable shadow rendering globally. Per-light + per-mesh
     // opt-in still happens via `setLightCastShadow` / `setMeshCastShadow` etc.
     //
@@ -1066,6 +1097,14 @@ export class ThreeRenderAdapter {
     this.pmrem = undefined;
     this.cameras.clear();
     this.activeCameraHandle = undefined;
+    if (this.contextLostListener !== undefined) {
+      this.canvas.removeEventListener("webglcontextlost", this.contextLostListener);
+      this.contextLostListener = undefined;
+    }
+    if (this.contextRestoredListener !== undefined) {
+      this.canvas.removeEventListener("webglcontextrestored", this.contextRestoredListener);
+      this.contextRestoredListener = undefined;
+    }
     this.device.dispose();
   }
 

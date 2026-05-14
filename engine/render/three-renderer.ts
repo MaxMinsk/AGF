@@ -65,12 +65,27 @@ export class ThreeRenderer {
     world: World,
     canvas: HTMLCanvasElement,
     background?: string,
-    assetRegistry?: AssetRegistry
+    assetRegistry?: AssetRegistry,
+    contextCallbacks?: {
+      onContextLost?: () => void;
+      onContextRestored?: () => void;
+    }
   ) {
     this.world = world;
     this.assetRegistry = assetRegistry;
-    const options: { canvas: HTMLCanvasElement; background?: string } = { canvas };
+    const options: {
+      canvas: HTMLCanvasElement;
+      background?: string;
+      onContextLost?: () => void;
+      onContextRestored?: () => void;
+    } = { canvas };
     if (background !== undefined) options.background = background;
+    if (contextCallbacks?.onContextLost !== undefined) {
+      options.onContextLost = contextCallbacks.onContextLost;
+    }
+    if (contextCallbacks?.onContextRestored !== undefined) {
+      options.onContextRestored = contextCallbacks.onContextRestored;
+    }
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);
     this.lightRegistry = createLightHandleRegistry(this.adapter);

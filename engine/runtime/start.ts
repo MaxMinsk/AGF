@@ -106,7 +106,33 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   const world = World.fromScene(options.scene);
   const diagnostics = options.diagnostics ?? createDiagnosticsBus();
   const { ThreeRenderer } = await import("../render/three-renderer");
-  const renderer = new ThreeRenderer(world, options.canvas, options.background, options.assetRegistry);
+  // M21-context-loss: route WebGL context events into the diagnostics
+  // bus so agents + tests can observe them. Three.js auto-rebuilds GPU
+  // resources on restore, so no further runtime action is needed today.
+  const renderer = new ThreeRenderer(
+    world,
+    options.canvas,
+    options.background,
+    options.assetRegistry,
+    {
+      onContextLost: () => {
+        diagnostics.emit({
+          severity: "warning",
+          code: "AGF_RENDER_CONTEXT_LOST",
+          source: "renderer",
+          message: "WebGL context lost. Renderer paused until the browser restores it; gameplay systems continue running."
+        });
+      },
+      onContextRestored: () => {
+        diagnostics.emit({
+          severity: "info",
+          code: "AGF_RENDER_CONTEXT_RESTORED",
+          source: "renderer",
+          message: "WebGL context restored. Three.js re-uploaded GPU resources; rendering resumes on the next frame."
+        });
+      }
+    }
+  );
 
   // M21-env-generated: apply image-based-lighting environment for PBR
   // materials. Default = "generated" (RoomEnvironment + PMREM) so
