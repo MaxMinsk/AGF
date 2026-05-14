@@ -1537,6 +1537,47 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 42 — follow camera + HDR env + bucket picking + M21 research
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M21-shadow-pcss` doc gap — note explaining the S41 substitution targets the BASIC-shadowmap getShadow variant, not the modern PCF chunk. PCSS is currently a no-op on default-PCF projects. Follow-up `M21-shadow-pcss-modern` carries to Sprint 43.
+- `M21-cam-follow` — new `FollowCamera { target, offset, lookAtOffset?, smoothing? }` component + FollowCameraSystem. Anchors camera to a target entity, computes Euler look-at via Three's -Z convention (`yaw = atan2(-dx, -dz)`, `pitch = atan2(dy, |dxz|)`), supports frame-rate-aware smoothing. 5 unit tests.
+- `M21-env-hdr` — `scene.environment` gains `{ kind: "hdr", url, intensity? }`. Adapter uses RGBELoader + PMREMGenerator to pre-filter; previous environment stays applied until the new texture lands so the scene doesn't flash unlit. `SceneEnvironmentInput` becomes a discriminated union. 4 new schema tests.
+- `M21-tsl-investigate` ✅ Research note at `docs/research/m21-tsl-investigation.md` — verdict: **defer until WebGPU lands**. TSL's node-graph verbosity beats inline GLSL ~10× in JSON LOC; pitch (one source → WebGL + WebGPU) only materialises after `M21-webgpu-spike`. Keep the S40/S41 GLSL paths.
+- `M17-static-merge-spike` ✅ Research note at `docs/research/m17-static-merge-investigation.md` — verdict: **don't ship a static-merge primitive yet**. InstancedMesh (S35) + BatchedMesh (S40) cover every shipped project; static-merge's real target is 10k+ static-prop scenes that AGF doesn't have today. The more valuable follow-up was `M17-instance-picking-buckets` (now shipped).
+- `M17-instance-picking-buckets` — `pickAtNdc` returns a discriminated `PickHit` covering Mesh / InstancedMesh / BatchedMesh slots. RuntimeHandle.pick resolves bucket slots by scanning entities with `BatchedMeshHandle` (O(N) on a click — cold path). Verified: clicking `batch-bench?seed=64`'s centre returns a `bench.<i>` entity instead of falling through.
+
+### Deliverables
+
+- `engine/render/systems/follow-camera-system.ts` (new)
+- `engine/render/three-render-adapter.ts` — `EnvironmentSpec` union, RGBELoader hdr path, discriminated `PickHit` + bucket pick branches.
+- `engine/render/shadow-pcss.ts` — doc gap on BASIC vs PCF scope.
+- `engine/runtime/start.ts` — env-hdr narrow + pick bucket resolution.
+- `engine/core/ecs/types.ts` — `SceneEnvironmentInput` discriminated union.
+- `schemas/scene.schema.json` — `followCameraComponent`, `environment.kind: "hdr"` + allOf+if/then for `url`.
+- `tests/unit/follow-camera-system.test.ts` (new) — 5 cases.
+- `tests/unit/scene-environment-schema.test.ts` — 4 hdr cases.
+- `docs/research/m21-tsl-investigation.md` (new).
+- `docs/research/m17-static-merge-investigation.md` (new).
+
+### Verification
+
+- `npm run preflight` — 408 unit tests pass; e2e mixed (hmr-stress / multiclient flaky under parallel load, deterministic in isolation — verified by re-running just those specs).
+- `beacon-world-gameplay.spec` ✅.
+- Bucket pick smoke against `batch-bench?seed=64` returns a Batchable entity from the bucket.
+
+### Follow-Ups
+
+- `M21-shadow-pcss-modern` — rewrite PCSS substitution against the modern PCF chunk (Vogel disc + sampler2DShadow + `texture(...)`). Today's S41 implementation only hits the BASIC variant.
+- `M21-shadow-pcss-csm` — extend the substitution into `three/addons/csm/CSMShader.js` so cascade-shadow scenes (`shadows-bench`) get PCSS too.
+- `M21-cam-cinematic` — declarative camera-track playback with waypoint interpolation.
+- `M21-webgpu-spike` — anchors the eventual `M21-tsl` decision.
+
+
+
 ## Sprint 41 — ASSET-compression rollout + camera + picking + PCSS
 
 Status: Completed and archived.
