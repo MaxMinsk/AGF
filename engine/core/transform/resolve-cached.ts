@@ -80,6 +80,19 @@ export type HierarchyCache = {
     dirtyIds: ReadonlySet<EntityId>
   ): Map<EntityId, ResolvedTransform>;
   /**
+   * M16-cache-d: O(dirty subtree) entry point. Maintains a persistent
+   * `childrenIndex` so the dirty closure is a BFS over only the affected
+   * subtrees, not a full input scan. Returns ONLY the entities that
+   * actually changed this tick — every non-dirty entity is skipped.
+   * Callers (TransformResolveSystem) must therefore only write
+   * `LocalToWorld` for the returned ids; existing components stay valid.
+   */
+  resolveDirtyDelta(
+    world: World,
+    inputs: ReadonlyArray<TransformInput>,
+    dirtyIds: ReadonlySet<EntityId>
+  ): Map<EntityId, ResolvedTransform>;
+  /**
    * Drop the cache. Use after schema-shape changes or HMR reloads where
    * cached `ResolvedTransform` references would mislead downstream identity
    * checks.
@@ -95,7 +108,37 @@ const TRANSFORM: ComponentName = "Transform";
 
 export function createHierarchyCache(): HierarchyCache {
   const cache = new Map<EntityId, CachedEntry>();
+  // M16-cache-d persistent indexes — updated incrementally so the dirty
+  // closure walk doesn't pay an O(N) input scan every tick.
+  const knownInputs = new Map<EntityId, TransformInput>();
+  const childrenIndex = new Map<EntityId, Set<EntityId>>();
+  const parentOfStored = new Map<EntityId, EntityId | undefined>();
   let lastStats: HierarchyCacheStats = { total: 0, dirty: 0, reused: 0, evicted: 0 };
+
+  const updateChildLink = (id: EntityId, newParent: EntityId | undefined): void => {
+    const oldParent = parentOfStored.get(id);
+    if (oldParent === newParent) return;
+    if (oldParent !== undefined) {
+      childrenIndex.get(oldParent)?.delete(id);
+    }
+    if (newParent !== undefined) {
+      let bucket = childrenIndex.get(newParent);
+      if (bucket === undefined) {
+        bucket = new Set();
+        childrenIndex.set(newParent, bucket);
+      }
+      bucket.add(id);
+    }
+    parentOfStored.set(id, newParent);
+  };
+
+  const evictFromIndexes = (id: EntityId): void => {
+    const oldParent = parentOfStored.get(id);
+    if (oldParent !== undefined) childrenIndex.get(oldParent)?.delete(id);
+    parentOfStored.delete(id);
+    childrenIndex.delete(id);
+    knownInputs.delete(id);
+  };
 
   return {
     resolveWorld(world: World, providedInputs?: ReadonlyArray<TransformInput>): Map<EntityId, ResolvedTransform> {
@@ -384,8 +427,138 @@ export function createHierarchyCache(): HierarchyCache {
       lastStats = { total: inputs.length, dirty: dirty.size, reused, evicted };
       return result;
     },
+    resolveDirtyDelta(
+      world: World,
+      inputs: ReadonlyArray<TransformInput>,
+      dirtyIds: ReadonlySet<EntityId>
+    ): Map<EntityId, ResolvedTransform> {
+      const present = new Set<EntityId>();
+
+      // Sync knownInputs + child index against the current frame's inputs.
+      // Only newly-seen ids or entries whose parent changed touch the
+      // persistent indexes — steady state pays O(dirty) for the diff scan.
+      for (const input of inputs) {
+        present.add(input.id);
+        const known = knownInputs.get(input.id);
+        if (known === undefined) {
+          knownInputs.set(input.id, input);
+          updateChildLink(input.id, input.parent);
+        } else if (known.parent !== input.parent) {
+          knownInputs.set(input.id, input);
+          updateChildLink(input.id, input.parent);
+        } else {
+          knownInputs.set(input.id, input);
+        }
+      }
+
+      // Evict knownInputs that left the present set.
+      let evicted = 0;
+      for (const id of [...knownInputs.keys()]) {
+        if (!present.has(id)) {
+          evictFromIndexes(id);
+          if (cache.delete(id)) evicted += 1;
+        }
+      }
+
+      // Build the dirty closure: seed = dirtyIds + first-sighting ids;
+      // expand via the children index (BFS).
+      const dirty = new Set<EntityId>();
+      const queue: EntityId[] = [];
+      for (const id of dirtyIds) {
+        if (knownInputs.has(id)) {
+          dirty.add(id);
+          queue.push(id);
+        }
+      }
+      for (const input of inputs) {
+        if (!cache.has(input.id) && !dirty.has(input.id)) {
+          dirty.add(input.id);
+          queue.push(input.id);
+        }
+      }
+      while (queue.length > 0) {
+        const id = queue.pop()!;
+        const kids = childrenIndex.get(id);
+        if (kids === undefined) continue;
+        for (const kid of kids) {
+          if (!dirty.has(kid) && knownInputs.has(kid)) {
+            dirty.add(kid);
+            queue.push(kid);
+          }
+        }
+      }
+
+      if (dirty.size === 0) {
+        lastStats = { total: inputs.length, dirty: 0, reused: knownInputs.size, evicted };
+        return new Map();
+      }
+
+      // Topo-sort the dirty subset only. visit() walks parents first so we
+      // can compose world transforms from cached parent results.
+      const order: EntityId[] = [];
+      const visited = new Set<EntityId>();
+      const visit = (id: EntityId): void => {
+        if (visited.has(id)) return;
+        visited.add(id);
+        const parent = parentOfStored.get(id);
+        if (parent !== undefined && dirty.has(parent)) visit(parent);
+        order.push(id);
+      };
+      for (const id of dirty) visit(id);
+
+      const result = new Map<EntityId, ResolvedTransform>();
+      let needsFallback = false;
+      for (const id of order) {
+        const input = knownInputs.get(id);
+        if (input === undefined) continue;
+        const local: LocalTransform = {
+          position: input.position ?? ZERO_VEC,
+          rotation: input.rotation ?? ZERO_VEC,
+          scale: input.scale ?? ONE_VEC
+        };
+        let worldT: WorldTransform = local;
+        if (input.parent !== undefined) {
+          // Prefer the freshly-composed result above; fall back to the
+          // previous frame's cached entry when the parent is clean.
+          const parentResolved = result.get(input.parent) ?? cache.get(input.parent)?.resolved;
+          if (parentResolved === undefined) {
+            needsFallback = true;
+            break;
+          }
+          worldT = composeWorld(parentResolved.world, local);
+        }
+        const resolved: ResolvedTransform = { parent: input.parent, local, world: worldT };
+        result.set(id, resolved);
+        cache.set(id, { transformRevision: 0, resolved });
+      }
+
+      if (needsFallback) {
+        // Safety net: parent slipped outside the dirty closure AND has no
+        // cache entry yet. Fall back to a full resolver pass; cost is one
+        // frame, next tick returns to O(dirty).
+        const fresh = resolveHierarchy(inputs);
+        result.clear();
+        for (const input of inputs) {
+          const resolved = fresh.get(input.id);
+          if (resolved === undefined) continue;
+          if (dirty.has(input.id)) result.set(input.id, resolved);
+          cache.set(input.id, { transformRevision: 0, resolved });
+        }
+      }
+
+      lastStats = {
+        total: inputs.length,
+        dirty: dirty.size,
+        reused: knownInputs.size - dirty.size,
+        evicted
+      };
+      return result;
+    },
     clear(): void {
       cache.clear();
+      knownInputs.clear();
+      childrenIndex.clear();
+      parentOfStored.clear();
       lastStats = { total: 0, dirty: 0, reused: 0, evicted: 0 };
     },
     stats(): HierarchyCacheStats {

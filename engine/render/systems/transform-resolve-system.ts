@@ -136,9 +136,9 @@ export function createTransformResolveSystem(
 
     let resolved;
     try {
-      // M16-cache-c: skip the cache's O(N) per-entity revision read; the
-      // dirty set we just consumed is authoritative.
-      resolved = cache.resolveWithDirty(world, [...inputCache.values()], dirty);
+      // M16-cache-d: cache returns a DELTA — only ids whose transform
+      // changed this tick. Write LocalToWorld for those only.
+      resolved = cache.resolveDirtyDelta(world, [...inputCache.values()], dirty);
     } catch {
       // Renderer-import-boundary: engine check owns hierarchy diagnostics.
       // Mid-edit HMR can produce a transient broken hierarchy; swallow it
