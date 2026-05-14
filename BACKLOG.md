@@ -21,27 +21,18 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 37 — CSM + physics polish + benches (DONE — archive merging)
+## Current Sprint: Sprint 38 — TBD
 
-Sprint 37 shipped Cascade Shadow Maps, finished the physics-runtime ergonomics started in Sprint 36 (interpolation, debug overlay, sensor-wired gameplay), and added two new perf-only projects (`physics-bench`, `shadows-bench`). 8 stories landed; `beacon-physics-character` and `M24-static-mesh` carry to Sprint 38.
+Sprint 38 focus is picked at sprint start. Natural openers (in priority order based on Sprint 37 close):
 
-### Stories
-
-- `examples/physics-bench/` ✅ Implemented. Sibling of `batch-bench`. Camera + ambient + sun + fixed-collider ground + 4 walls; bootstrap seeds N dynamic primitive bodies (box/sphere, default 200) high above the floor that fall, collide, and settle. `?count=N&shape=box|sphere` URL params (count clamped 0..2048). Bodies use CCD to avoid tunnelling at speed. Collider sizes match visual meshes 1:1 (box `size: [1,1,1]` ↔ `BoxGeometry(1,1,1)`, sphere `radius: 0.5` ↔ `SphereGeometry(0.5, …)`). Default seed: drawCalls 17, buckets 12, bucketInstances 200, handleLeak 0, settles to avgY ≈ 0.05.
-- `M21-frame-timing` ✅ Implemented. `start.ts` samples `performance.now()` around each tick phase; once per metrics window (~500 ms) the accumulators flatten into a `FrameTiming` record `{ fixedUpdateMs, frameUpdateMs, renderMs, totalFrameMs, samples }`. Exposed via `RuntimeHandle.frameTiming()` → `AppHandle.frameTiming()` → `__agf.frameTiming()`. Dev overlay renders `fix / frm / rnd / ms` cells next to fps.
-- `M24-debug` ✅ Implemented. `RapierAdapter.getDebugLines()` exposes `world.debugRender()` (Float32Array vertices + RGBA colors). `ThreeRenderAdapter.setDebugOverlayEnabled(boolean)` / `setDebugOverlayData(...)` manage a single transparent `LineSegments` node in the scene (`renderOrder: 999`, `depthTest: false`). `PhysicsDebugSystem` (frame update, registered when `project.physics.enabled`) drives the overlay from a shared `enabled` flag. Surface: `__agf.physics.setDebugOverlay(boolean)` + `?physicsDebug=1` URL param.
-- `M21-shadow-csm` ✅ Implemented. `ThreeRenderAdapter.setCsm(config)` constructs `three/addons/csm/CSM.js` lazily — `rebuildCsm` runs the moment an active camera exists, registering every renderer-managed material through `setupMaterial`. Hooked at acquireMesh / acquireBucket / acquireBatchedBucket / setMeshMaterialPatch. `draw()` calls `csm.update()` before render. Camera-swap triggers full reconstruction. Schema lands on `project.json#render.shadows.csm` with cascades / maxFar / mode / shadowMapSize / shadowBias / lightDirection / lightIntensity.
-- `examples/shadows-bench/` ✅ Implemented. RTS-style showcase for CSM — 80×80 field + procedural "village" (28 buildings, 80 trees, 50 rocks). Deterministic LCG seed so screenshots reproduce. `RtsCameraSystem` (project-local under `src/systems/`) — WASD/arrows pan, mouse wheel + Q/E zoom, tilt authored once in the scene. `?buildings=N&trees=N&rocks=N` URL params. drawCalls 36 at default seed, soft cascade shadows visible under every prop.
-- `M24-interpolation` ✅ Implemented. `TimeContext` gains optional `physicsAlpha` in [0, 1]; runtime tick computes it from the leftover accumulator. `PhysicsSyncSystem` buffers `prev`/`curr` (position + rotation per dynamic body) in fixedUpdate and lerps in a new frameUpdate phase. Linear-degree blend on rotation is correct enough at 60 Hz steps. 120 Hz displays no longer show 60 Hz pulses for dynamic bodies. 7 unit tests cover alpha=0/0.5/1 + state churn.
-- `beacon-physics-sensor-wiring` ✅ Implemented. Pickups (cores) sensor radius 0.5 → 1.2, beacons 0.6 → 1.6, so sensor zones match the gameplay radii. `pickup-system.tryPickup` + `handleCarry` read `OverlappingTriggers3D` on the carrier when present, otherwise fall back to the full query + distance gate. `hazard-system` reads it on the hazard so the inner pulse-radius check walks only entities inside the outer sensor sphere. Both systems handle the physics-disabled case (no overlap data → same behavior as before). `beacon-world-gameplay.spec` green end-to-end.
-- `bundle-check-vendor-budgets` (Sprint 36 carry-over, finalised) ✅ Implemented. `scripts/check-bundle-size.mjs` tracks `rapier-*` / `three-*` chunks under separate vendor budgets so the main-bundle check isn't dominated by lazy-loaded WASM. (Shipped in Sprint 36; bookkeeping note here.)
-
-### Carried to Sprint 38
-
-- **beacon-physics-character** — switch `player.drone` from `PlayerControlled` Transform writes to `CharacterController3D` + a new `CharacterMovementSystem` that consumes input and queries the controller for collision-resolved motion. Requires a project flag so Hello-3D keeps the old path.
-- **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
-- **M17-batched-mesh-system** — wire the BatchedMesh adapter primitives behind `Batchable.path?: "instanced" | "batched"` in `BatchingSystem`. Bucketing for "batched" keys by `material + shadow + group` (mesh varies).
-- **M24-raycast** — `runtime.physics.raycast({...})` returning `EntityId` + hit point/normal/distance; `runtime.physics.overlap({...})` for area queries.
+1. **beacon-physics-character** — switch `player.drone` from `PlayerControlled` Transform writes to a `CharacterController3D` + new `CharacterMovementSystem` that consumes input and queries the kinematic controller for collision-resolved motion. Project flag so static scenes (Hello-3D) keep the old path.
+2. **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
+3. **M17-batched-mesh-system** — wire the BatchedMesh adapter primitives behind a `Batchable.path?: "instanced" | "batched"` selector in `BatchingSystem`. Bucketing for "batched" keys by `material + shadow + group` (mesh varies). Add a `batch-bench` scenario pushing 4 different primitive meshes through one batched bucket.
+4. **M24-raycast** — `runtime.physics.raycast({ origin, direction, maxDistance, mask })` returning `EntityId` + hit point/normal/distance. `runtime.physics.overlap({ shape, position, mask })` for area queries.
+5. **M21-light-budgets** — `performance-budget.json#renderer.maxActiveLights` / `maxShadowCastingLights` / `maxShadowMapSize` + `engine doctor` warnings.
+6. **M21-shadow-static** — `renderer.shadowMap.autoUpdate = false` for declared-static shadow casters with explicit invalidation API; pairs with `shadows-bench` since most buildings + rocks are static.
+7. **M17-material-sharing-doctor** — `engine doctor` check that detects duplicate material signatures + reports which manifests could be merged.
+8. **ASSET-decoder-paths** — single shared `DRACOLoader` + `KTX2Loader` constructed at adapter init; `KTX2Loader.detectSupport(renderer)` once. Foundation for `ASSET-compression`.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 

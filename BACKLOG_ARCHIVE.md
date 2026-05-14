@@ -1537,6 +1537,54 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 37 — CSM + physics polish + benches
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `examples/physics-bench/` ✅ Sibling of `batch-bench`. Camera + ambient + sun + fixed-collider ground + 4 walls; bootstrap seeds N dynamic primitive bodies (box/sphere, default 200) high above the floor that fall, collide, and settle. `?count=N&shape=box|sphere` URL params (count clamped 0..2048). Bodies use CCD to avoid tunnelling at speed. Collider sizes match visual meshes 1:1.
+- `M21-frame-timing` ✅ `start.ts` samples `performance.now()` around each tick phase; once per metrics window (~500 ms) the accumulators flatten into a `FrameTiming` record `{ fixedUpdateMs, frameUpdateMs, renderMs, totalFrameMs, samples }`. Exposed via `RuntimeHandle.frameTiming()` → `AppHandle.frameTiming()` → `__agf.frameTiming()`. Dev overlay renders `fix / frm / rnd / ms` cells next to fps. Overlay also picks up `drawCalls` from `renderer.info()` as a batching-regression signal.
+- `M24-debug` ✅ `RapierAdapter.getDebugLines()` exposes `world.debugRender()` (Float32Array vertices + RGBA colors). `ThreeRenderAdapter.setDebugOverlayEnabled(boolean)` / `setDebugOverlayData(...)` manage a single transparent `LineSegments` node in the scene (`renderOrder: 999`, `depthTest: false`). `PhysicsDebugSystem` (frame update, registered when `project.physics.enabled`) drives the overlay from a shared `enabled` flag. Surface: `__agf.physics.setDebugOverlay(boolean)` + `?physicsDebug=1` URL param.
+- `M21-shadow-csm` ✅ `ThreeRenderAdapter.setCsm(config)` constructs `three/addons/csm/CSM.js` lazily — `rebuildCsm` runs the moment an active camera exists, registering every renderer-managed material through `setupMaterial`. Hooked at acquireMesh / acquireBucket / acquireBatchedBucket / setMeshMaterialPatch. `draw()` calls `csm.update()` before render. Camera-swap triggers full reconstruction. Schema lands on `project.json#render.shadows.csm` with cascades / maxFar / mode / shadowMapSize / shadowBias / lightDirection / lightIntensity.
+- `examples/shadows-bench/` ✅ RTS-style showcase for CSM — 80×80 field + procedural "village" (28 buildings, 80 trees, 50 rocks). Deterministic LCG seed so screenshots reproduce. `RtsCameraSystem` (project-local under `src/systems/`) — WASD/arrows pan, mouse wheel + Q/E zoom, tilt authored once in the scene. `?buildings=N&trees=N&rocks=N` URL params. drawCalls 36 at default seed, soft cascade shadows visible under every prop.
+- `M24-interpolation` ✅ `TimeContext` gains optional `physicsAlpha` in [0, 1]; runtime tick computes it from the leftover accumulator. `PhysicsSyncSystem` buffers `prev`/`curr` (position + rotation per dynamic body) in fixedUpdate and lerps in a new frameUpdate phase. Linear-degree blend on rotation is correct at 60 Hz steps. 120 Hz displays no longer show 60 Hz pulses for dynamic bodies. 7 unit tests cover alpha=0/0.5/1 + state churn.
+- `beacon-physics-sensor-wiring` ✅ Pickups (cores) sensor radius 0.5 → 1.2, beacons 0.6 → 1.6, so sensor zones match the gameplay radii. `pickup-system.tryPickup` + `handleCarry` read `OverlappingTriggers3D` on the carrier when present, otherwise fall back to the full query + distance gate. `hazard-system` reads it on the hazard so the inner pulse-radius check walks only entities inside the outer sensor sphere. Both systems handle the physics-disabled case (no overlap data → same behavior as before).
+
+### Deliverables
+
+- `engine/runtime/start.ts` — per-phase frame timing + `physicsAlpha` plumbing + drawCalls into dev overlay
+- `engine/runtime/dev-overlay.ts` — `drawCalls` + `frameTiming` cells
+- `engine/render/three-render-adapter.ts` — `setCsm` / `setDebugOverlayEnabled` / `setDebugOverlayData` + CSM material registration hooks
+- `engine/render/three-renderer.ts` — calls into adapter's debug + CSM controls
+- `engine/physics/rapier/rapier-adapter.ts` — `getDebugLines()`
+- `engine/physics/rapier/physics-sync-system.ts` — prev/curr buffer + frame interpolation
+- `engine/physics/rapier/physics-debug-system.ts` (new) — drives the line-segments overlay
+- `engine/core/loop/types.ts` — optional `physicsAlpha` on `TimeContext`
+- `src/app.ts` + `src/main.ts` — wires CSM config, debug overlay toggle, frameTiming, URL params
+- `schemas/project.schema.json` — `render.shadows.csm` block
+- `examples/physics-bench/` (new project — `project.json`, `scenes/start.scene.json`, `bootstrap.ts`, `README.md`, `assets/_sources/asset-sources.json`)
+- `examples/shadows-bench/` (new project — `project.json`, `scenes/start.scene.json`, `schemas/scene-extensions.schema.json`, `bootstrap.ts`, `src/systems/rts-camera-system.ts`, `README.md`)
+- `examples/beacon-world/scenes/start.scene.json` — pickup/beacon sensor radii
+- `examples/beacon-world/src/systems/{pickup,hazard}-system.ts` — sensor-driven candidate gates
+- `tests/unit/physics-sync-system.test.ts` — interpolation cases (alpha=0/0.5/1)
+
+### Verification
+
+- `npm run preflight` ✅ — 374 unit tests + 20 e2e passed, 4 flaky-retried (hmr-stress, multiclient-roundtrip, score-pulse, app.spec — all deterministic in isolation). `bundle:check` clean (`rapier-*` and `three-*` vendor chunks under their separate budgets).
+- shadows-bench probe at default seed: drawCalls 36, soft cascade shadows visible across the procedural village.
+- physics-bench probe at default seed: drawCalls 17, buckets 12, bucketInstances 200, handleLeak 0, bodies settle to avgY ≈ 0.05.
+- Beacon-world-gameplay e2e ✅ — drone picks up a core and repairs a beacon end-to-end through the new sensor-wired pickup-system.
+
+### Follow-Ups
+
+- `beacon-physics-character` — switch `player.drone` from `PlayerControlled` Transform writes to a `CharacterController3D` + a new `CharacterMovementSystem` that consumes input and queries the controller for collision-resolved motion.
+- `M24-static-mesh` — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
+- `M17-batched-mesh-system` — wire the BatchedMesh adapter primitives behind `Batchable.path?: "instanced" | "batched"` in `BatchingSystem`. Bucketing for "batched" keys by `material + shadow + group` (mesh varies).
+- `M24-raycast` — `runtime.physics.raycast({...})` returning `EntityId` + hit point/normal/distance; `runtime.physics.overlap({...})` for area queries.
+
+
+
 ## Sprint 36 — physics integration + cache polish + batched-mesh primitives + Beacon physics adoption
 
 Status: Completed and archived.
