@@ -5,6 +5,53 @@
 // this entirely (`import.meta.env.DEV` is statically false in build mode,
 // so Vite drops the call).
 
+// Page-side event-stream state. Only one stream is active per page at a
+// time; the bridge multiplexes SSE subscribers on its side. Capturing in
+// module scope is fine because there is exactly one page-bridge per tab.
+let activeEventUnsubs: Array<() => void> = [];
+let assetReloadHandler: ((event: Event) => void) | undefined;
+
+function emitEvent(socket: WebSocket, type: string, data: unknown): void {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ kind: "event", payload: { type, data } }));
+}
+
+function startEventStream(socket: WebSocket, api: AgfApi): void {
+  stopEventStream();
+
+  if (api.subscribeDiagnostics !== undefined) {
+    const unsub = api.subscribeDiagnostics((diagnostic) => {
+      emitEvent(socket, "diagnostic", diagnostic);
+    });
+    activeEventUnsubs.push(unsub);
+  }
+
+  // HMR asset-changed events arrive as window CustomEvents; the existing
+  // src/main.ts listener also handles them, this is a parallel subscriber.
+  assetReloadHandler = (event: Event): void => {
+    const detail = (event as CustomEvent).detail;
+    emitEvent(socket, "asset-changed", detail);
+  };
+  (globalThis as { addEventListener?: typeof window.addEventListener })
+    .addEventListener?.("agf:asset-changed", assetReloadHandler);
+}
+
+function stopEventStream(): void {
+  for (const unsub of activeEventUnsubs) {
+    try {
+      unsub();
+    } catch {
+      // ignore
+    }
+  }
+  activeEventUnsubs = [];
+  if (assetReloadHandler !== undefined) {
+    (globalThis as { removeEventListener?: typeof window.removeEventListener })
+      .removeEventListener?.("agf:asset-changed", assetReloadHandler);
+    assetReloadHandler = undefined;
+  }
+}
+
 type AgfApi = {
   snapshot?: () => unknown;
   diagnostics?: () => unknown;
@@ -14,6 +61,7 @@ type AgfApi = {
   startRecording?: () => unknown;
   stopRecording?: () => unknown;
   reloadAsset?: (ref: string) => unknown;
+  subscribeDiagnostics?: (listener: (diagnostic: unknown) => void) => () => void;
 };
 
 export type PageBridgeOptions = {
@@ -155,6 +203,20 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         }
         api.reloadAsset(ref);
         payload = { invalidated: ref };
+        break;
+      }
+      case "events-start": {
+        if (api?.subscribeDiagnostics === undefined) {
+          payload = { subscribed: false };
+          break;
+        }
+        startEventStream(socket, api);
+        payload = { subscribed: true };
+        break;
+      }
+      case "events-stop": {
+        stopEventStream();
+        payload = { subscribed: false };
         break;
       }
       default: {

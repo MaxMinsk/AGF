@@ -84,6 +84,15 @@ export type AppHandle = {
   resetRound(): number;
   /** Snapshot of the runtime diagnostics bus. */
   diagnostics(): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
+  /**
+   * Subscribe to live diagnostic emissions. Used by the dev-bridge SSE
+   * stream (`GET /__agf/events`) to fan diagnostics out to subscribed agents.
+   */
+  subscribeDiagnostics(
+    listener: (
+      diagnostic: import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic
+    ) => void
+  ): () => void;
   /** Drop retained diagnostics. */
   clearDiagnostics(): void;
   /**
@@ -269,6 +278,9 @@ export async function createApp(
     },
     diagnostics() {
       return runtime.diagnostics.snapshot();
+    },
+    subscribeDiagnostics(listener) {
+      return runtime.diagnostics.subscribe(listener);
     },
     clearDiagnostics(): void {
       runtime.diagnostics.clear();

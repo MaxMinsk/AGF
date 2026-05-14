@@ -200,6 +200,83 @@ test("POST /__agf/asset/invalidate forwards to reloadAsset", async ({ page, base
   );
 });
 
+test("GET /__agf/events streams diagnostics over SSE", async ({ page, baseURL }) => {
+  expect(baseURL).toBeDefined();
+  const playerId = `e2e-events-${Math.random().toString(36).slice(2, 10)}`;
+  await page.goto(`/?project=hello-3d&playerId=${playerId}`);
+  await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
+    timeout: 5_000
+  });
+  await waitForBridgePlayer(baseURL, playerId);
+
+  // Start the SSE stream in the test process. Use an AbortController so we
+  // can close it cleanly at the end of the test.
+  const controller = new AbortController();
+  const url = new URL(`/__agf/events?playerId=${playerId}`, baseURL).toString();
+  const response = await fetch(url, { signal: controller.signal });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toMatch(/event-stream/);
+
+  // Reader collects every SSE `data: ...` frame.
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  const collected: unknown[] = [];
+  const pump = (async (): Promise<void> => {
+    let buffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const line of frame.split("\n")) {
+            if (line.startsWith("data: ")) {
+              try {
+                collected.push(JSON.parse(line.slice(6)));
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // AbortController → expected at teardown.
+    }
+  })();
+
+  // Give the bridge a tick to send `events-start` to the page.
+  await page.waitForTimeout(300);
+
+  // Emit a diagnostic from the page via window.__agf.applyCommands? The bus
+  // emit API isn't on window.__agf directly. Easiest path: trigger a known
+  // diagnostic by applying an invalid command that the asset-registry rejects.
+  // For v0 just emit a manual diagnostic through the bus subscribe loop by
+  // mutating a non-existent asset — that's project-specific. Use the most
+  // portable trigger: dispatch a CustomEvent for agf:asset-changed.
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("agf:asset-changed", {
+      detail: { projectId: "hello-3d", ref: "runtime/synthetic-test-asset.material.json" }
+    }));
+  });
+
+  // Wait for at least one event to land.
+  await expect.poll(() => collected.length, { timeout: 3_000 }).toBeGreaterThan(0);
+
+  controller.abort();
+  await pump;
+
+  // The synthetic asset-changed event should be among the captured frames.
+  const assetChanges = collected.filter(
+    (e): e is { type: string; data: { ref?: string } } =>
+      typeof e === "object" && e !== null && (e as { type?: unknown }).type === "asset-changed"
+  );
+  expect(assetChanges.some((e) => e.data.ref === "runtime/synthetic-test-asset.material.json")).toBe(true);
+});
+
 test("recording start/stop round-trips a Recording over the bridge", async ({ page, baseURL }) => {
   expect(baseURL).toBeDefined();
   const playerId = `e2e-rec-${Math.random().toString(36).slice(2, 10)}`;

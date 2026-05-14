@@ -57,6 +57,12 @@ type PageEntry = {
   connectedAt: string;
   pending: Map<number, PendingRpc>;
   nextRpcId: number;
+  /**
+   * SSE subscribers attached to this page's event stream. First subscriber
+   * arms `events-start` on the page; last leaving fires `events-stop`. The
+   * page forwards events back as `{ kind: "event", payload }` over WS.
+   */
+  sseSubscribers: Set<ServerResponseLike>;
 };
 
 export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
@@ -161,7 +167,8 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           info: {},
           connectedAt: new Date().toISOString(),
           pending: new Map(),
-          nextRpcId: 1
+          nextRpcId: 1,
+          sseSubscribers: new Set()
         };
         pages.set(socketId, entry);
         // Assigned-id handshake — page can echo it back if it wants to.
@@ -185,6 +192,18 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             server.config.logger.info(
               `[agf dev-bridge] page connected (socketId=${socketId} project=${entry.info.projectId ?? "?"} profile=${entry.info.profile ?? "?"} playerId=${entry.info.playerId ?? "?"})`
             );
+            return;
+          }
+          if (msg.kind === "event" && msg.payload !== undefined) {
+            // Fan the event to every SSE subscriber attached to THIS page.
+            const frame = `data: ${JSON.stringify(msg.payload)}\n\n`;
+            for (const subscriber of entry.sseSubscribers) {
+              try {
+                (subscriber as ServerResponseLike & { write?: (chunk: string) => unknown }).write?.(frame);
+              } catch {
+                // Subscriber dropped; cleanup happens on close.
+              }
+            }
             return;
           }
           if (typeof msg.id === "number" && entry.pending.has(msg.id)) {
@@ -211,6 +230,15 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             });
           }
           entry.pending.clear();
+          // Close any SSE streams still attached to this page.
+          for (const subscriber of entry.sseSubscribers) {
+            try {
+              (subscriber as ServerResponseLike & { end?: () => unknown }).end?.("");
+            } catch {
+              // ignore
+            }
+          }
+          entry.sseSubscribers.clear();
           server.config.logger.info(`[agf dev-bridge] page disconnected (socketId=${socketId})`);
         });
       });
@@ -314,6 +342,45 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
         }
         if (route === "/recording/stop" && req.method === "POST") {
           await proxyToPage(req, res, "recording-stop");
+          return;
+        }
+
+        if (route === "/events" && req.method === "GET") {
+          const found = findPage(url);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache, no-transform");
+          res.setHeader("Connection", "keep-alive");
+          res.setHeader("X-Accel-Buffering", "no");
+          const writable = res as ServerResponseLike & {
+            write?: (chunk: string) => unknown;
+            flushHeaders?: () => unknown;
+          };
+          writable.write?.(`: agf dev bridge events (page=${found.entry.socketId})\n\n`);
+          writable.flushHeaders?.();
+
+          const wasEmpty = found.entry.sseSubscribers.size === 0;
+          found.entry.sseSubscribers.add(res);
+          if (wasEmpty && found.entry.socket.readyState === 1) {
+            rpc(found.entry, "events-start").catch(() => undefined);
+          }
+
+          const cleanup = (): void => {
+            found.entry.sseSubscribers.delete(res);
+            if (
+              found.entry.sseSubscribers.size === 0 &&
+              found.entry.socket.readyState === 1
+            ) {
+              rpc(found.entry, "events-stop").catch(() => undefined);
+            }
+          };
+          req.on("close", cleanup);
+          req.on("error", cleanup);
           return;
         }
 
