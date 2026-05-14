@@ -49,13 +49,14 @@ type MeshRendererComponent = {
  */
 export class ThreeRenderer {
   private readonly world: World;
-  private readonly adapter: ThreeRenderAdapter;
+  readonly adapter: ThreeRenderAdapter;
   private readonly registry: MeshHandleRegistry;
   private readonly appliedMaterials = new Map<EntityId, string>();
   private readonly appliedGeometries = new Map<EntityId, string>();
   private readonly assetRegistry: AssetRegistry | undefined;
   private cameraHandle: CameraHandle | undefined;
   private cameraEntityId: EntityId | undefined;
+  private materialBindingExternal = false;
 
   constructor(
     world: World,
@@ -78,6 +79,15 @@ export class ThreeRenderer {
    */
   meshRegistry(): MeshHandleRegistry {
     return this.registry;
+  }
+
+  /**
+   * Tell the renderer that `MaterialBindingSystem` (M21-e) is registered.
+   * When true, the renderer skips geometry + material asset reconciliation
+   * in `refreshMeshes` — the system has already done it (or is in flight).
+   */
+  setMaterialBindingExternal(value: boolean): void {
+    this.materialBindingExternal = value;
   }
 
   resize(width: number, height: number): void {
@@ -295,23 +305,25 @@ export class ThreeRenderer {
       const handle = this.registry.acquireFor(id, meshComponent.mesh, meshComponent.color);
       if (handle === undefined) continue;
 
-      // Color-only updates for entities that don't carry a material manifest
-      // ref. With a manifest, color comes from manifest.color via
-      // maybeApplyMaterial.
-      if (meshComponent.material === undefined && meshComponent.color !== undefined) {
-        this.adapter.setMeshMaterialPatch(handle, { color: meshComponent.color });
-      }
+      if (!this.materialBindingExternal) {
+        // Color-only updates for entities that don't carry a material manifest
+        // ref. With a manifest, color comes from manifest.color via
+        // maybeApplyMaterial.
+        if (meshComponent.material === undefined && meshComponent.color !== undefined) {
+          this.adapter.setMeshMaterialPatch(handle, { color: meshComponent.color });
+        }
 
-      if (isExternalMeshRef(meshComponent.mesh)) {
-        this.maybeLoadGeometry(id, handle, meshComponent.mesh);
-      } else if (this.appliedGeometries.has(id)) {
-        this.appliedGeometries.delete(id);
-      }
+        if (isExternalMeshRef(meshComponent.mesh)) {
+          this.maybeLoadGeometry(id, handle, meshComponent.mesh);
+        } else if (this.appliedGeometries.has(id)) {
+          this.appliedGeometries.delete(id);
+        }
 
-      if (meshComponent.material !== undefined) {
-        this.maybeApplyMaterial(id, handle, meshComponent.material);
-      } else if (this.appliedMaterials.has(id)) {
-        this.appliedMaterials.delete(id);
+        if (meshComponent.material !== undefined) {
+          this.maybeApplyMaterial(id, handle, meshComponent.material);
+        } else if (this.appliedMaterials.has(id)) {
+          this.appliedMaterials.delete(id);
+        }
       }
 
       const transform = resolved.get(id)?.world;

@@ -102,16 +102,28 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   // Camera. Registration is idempotent: callers that have already added one
   // by name are skipped. Order matters: TransformResolveSystem produces
   // LocalToWorld before CameraSyncSystem (and future M21-d..f) read it.
+  let materialBindingSystem: import("../render/systems/material-binding-system").MaterialBindingSystemHandle | undefined;
   if (scheduler !== undefined) {
     const { createTransformResolveSystem } = await import("../render/systems/transform-resolve-system");
     const { createCameraSyncSystem } = await import("../render/systems/camera-sync-system");
     const { createMeshLifecycleSystem } = await import("../render/systems/mesh-lifecycle-system");
+    const { createMaterialBindingSystem } = await import("../render/systems/material-binding-system");
     const ts = createTransformResolveSystem();
     if (!scheduler.has(ts.name)) scheduler.register(ts);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);
     const mls = createMeshLifecycleSystem(renderer.meshRegistry());
     if (!scheduler.has(mls.name)) scheduler.register(mls);
+    const deps: Parameters<typeof createMaterialBindingSystem>[0] = {
+      adapter: renderer.adapter,
+      registry: renderer.meshRegistry(),
+      assetRegistry: options.assetRegistry
+    };
+    materialBindingSystem = createMaterialBindingSystem(deps);
+    if (!scheduler.has(materialBindingSystem.name)) {
+      scheduler.register(materialBindingSystem);
+      renderer.setMaterialBindingExternal(true);
+    }
   }
 
   const time: TimeContext = {
@@ -224,7 +236,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     diagnostics,
     invalidateAsset(ref: string): void {
       options.assetRegistry?.invalidate(ref);
-      renderer.forgetAssetBinding(ref);
+      if (materialBindingSystem !== undefined) {
+        materialBindingSystem.forgetAssetBinding(world, ref);
+      } else {
+        renderer.forgetAssetBinding(ref);
+      }
     },
     applyCommands(commands: ReadonlyArray<EngineCommand>): void {
       for (const command of commands) {
