@@ -110,6 +110,14 @@ declare global {
         readonly samples: number;
       };
       /**
+       * M24-debug — physics-collider overlay controls. Undefined when
+       * the active project did not opt into `physics.enabled`.
+       */
+      physics?: {
+        setDebugOverlay(enabled: boolean): void;
+        isDebugOverlayEnabled(): boolean;
+      };
+      /**
        * M23-tuner — agent-spawnable sliders bound to component fields.
        * See `engine/runtime/dev-tuner.ts` and `docs/agent/dev-tuner.md`.
        */
@@ -278,10 +286,21 @@ void (async (): Promise<void> => {
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
       frameTiming: () => app.frameTiming(),
+      ...(app.physics !== undefined ? { physics: app.physics } : {}),
       reloadCount: 0,
       reloadEvents: [],
       dev: { tuner }
     };
+    // M24-debug: `?physicsDebug=1` boots the project with the collider
+    // overlay already on. Programmatic toggling via __agf.physics.* keeps
+    // working either way.
+    const requestedPhysicsDebug = params.get("physicsDebug");
+    if (
+      app.physics !== undefined &&
+      (requestedPhysicsDebug === "1" || requestedPhysicsDebug === "true")
+    ) {
+      app.physics.setDebugOverlay(true);
+    }
     // Open the dev-bridge WS so an agent can curl /__agf/* against the dev
     // server without ever touching DevTools. Production builds drop this.
     const { mountPageBridge } = await import("../engine/dev/page-bridge");

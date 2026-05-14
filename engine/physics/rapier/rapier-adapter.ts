@@ -105,6 +105,15 @@ export type RapierAdapter = {
   /** Apply a kinematic translation to a body — used by characters to advance after computeCharacterMovement. */
   setBodyNextKinematicTranslation(handle: BodyHandle, position: readonly [number, number, number]): void;
   setGravity(gravity: readonly [number, number, number]): void;
+  /**
+   * M24-debug: Rapier's debugRender returns a flat `Float32Array` of
+   * line-segment vertices (every 3 floats = one point, every 2
+   * consecutive points = one line) plus a matching `Float32Array` of
+   * per-vertex RGBA colors. Returns undefined when the world isn't
+   * ready yet. The caller is responsible for not retaining the arrays
+   * across frames — they back into Rapier's internal buffers.
+   */
+  getDebugLines(): { vertices: Float32Array; colors: Float32Array } | undefined;
   info(): RapierAdapterInfo;
   dispose(): void;
 };
@@ -337,6 +346,13 @@ export function createAdapterFromModule(
     },
     setGravity(g): void {
       world.gravity = { x: g[0], y: g[1], z: g[2] };
+    },
+    getDebugLines(): { vertices: Float32Array; colors: Float32Array } | undefined {
+      // world.debugRender() returns a DebugRenderBuffers — `vertices` is
+      // a flat XYZ-per-point Float32Array; `colors` is RGBA-per-vertex.
+      // Rapier owns the underlying buffers; do not retain across calls.
+      const buffers = world.debugRender();
+      return { vertices: buffers.vertices, colors: buffers.colors };
     },
     acquireCharacterController(spec = {}): CharacterControllerHandle {
       const handle = nextCharacterHandle;

@@ -24,12 +24,15 @@
 import {
   AmbientLight,
   BatchedMesh,
-  type BufferGeometry,
+  BufferAttribute,
+  BufferGeometry,
   Color,
   DirectionalLight,
   HemisphereLight,
   InstancedMesh,
   type Light,
+  LineBasicMaterial,
+  LineSegments,
   type Material,
   Matrix4,
   Mesh,
@@ -224,6 +227,7 @@ export class ThreeRenderAdapter {
   private currentEnvironmentTexture: Texture | undefined;
   private currentEnvironmentKind: EnvironmentKind = "none";
   private activeCameraHandle: CameraHandle | undefined;
+  private debugOverlay: LineSegments | undefined;
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
@@ -804,6 +808,77 @@ export class ThreeRenderAdapter {
     this.device.render(this.scene, camera);
   }
 
+  // ---- M24-debug: physics collider overlay ----
+
+  /**
+   * Show or hide a single LineSegments node in the scene that visualises
+   * Rapier's `debugRender()` output. The renderer owns the GPU resource;
+   * the physics debug system feeds new vertex/color buffers each frame.
+   * Returns true when the overlay is currently visible after the call.
+   */
+  setDebugOverlayEnabled(enabled: boolean): boolean {
+    if (enabled === (this.debugOverlay !== undefined)) {
+      return this.debugOverlay !== undefined;
+    }
+    if (enabled) {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute("position", new BufferAttribute(new Float32Array(0), 3));
+      geometry.setAttribute("color", new BufferAttribute(new Float32Array(0), 4));
+      const material = new LineBasicMaterial({ vertexColors: true, transparent: true, depthTest: false });
+      const segments = new LineSegments(geometry, material);
+      segments.frustumCulled = false;
+      // Render after everything else so the overlay always sits on top.
+      segments.renderOrder = 999;
+      this.scene.add(segments);
+      this.debugOverlay = segments;
+    } else if (this.debugOverlay !== undefined) {
+      this.scene.remove(this.debugOverlay);
+      this.debugOverlay.geometry.dispose();
+      const material = this.debugOverlay.material;
+      if (Array.isArray(material)) {
+        for (const m of material) m.dispose();
+      } else {
+        material.dispose();
+      }
+      this.debugOverlay = undefined;
+    }
+    return this.debugOverlay !== undefined;
+  }
+
+  isDebugOverlayEnabled(): boolean {
+    return this.debugOverlay !== undefined;
+  }
+
+  /**
+   * Push a fresh set of line-segment vertices + per-vertex RGBA colors
+   * into the debug overlay. Both buffers are flat `Float32Array`s:
+   *   vertices = [x0,y0,z0, x1,y1,z1, ...]
+   *   colors   = [r0,g0,b0,a0, r1,g1,b1,a1, ...]
+   * Caller is `engine/physics/rapier/physics-debug-system`.
+   */
+  setDebugOverlayData(vertices: Float32Array, colors: Float32Array): void {
+    const overlay = this.debugOverlay;
+    if (overlay === undefined) return;
+    const geometry = overlay.geometry;
+    const positionAttr = geometry.getAttribute("position") as BufferAttribute | undefined;
+    const colorAttr = geometry.getAttribute("color") as BufferAttribute | undefined;
+    // Rebuild only when size changes — same Float32Array length lets us
+    // reuse the BufferAttribute and just flip `needsUpdate`.
+    if (positionAttr === undefined || positionAttr.array.length !== vertices.length) {
+      geometry.setAttribute("position", new BufferAttribute(vertices, 3));
+    } else {
+      (positionAttr.array as Float32Array).set(vertices);
+      positionAttr.needsUpdate = true;
+    }
+    if (colorAttr === undefined || colorAttr.array.length !== colors.length) {
+      geometry.setAttribute("color", new BufferAttribute(colors, 4));
+    } else {
+      (colorAttr.array as Float32Array).set(colors);
+      colorAttr.needsUpdate = true;
+    }
+    geometry.setDrawRange(0, vertices.length / 3);
+  }
+
   info(): AdapterInfo {
     const memory = this.device.info.memory;
     const renderStats = this.device.info.render;
@@ -846,6 +921,7 @@ export class ThreeRenderAdapter {
     this.lights.clear();
     for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
     for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
+    this.setDebugOverlayEnabled(false);
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;
