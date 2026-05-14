@@ -33,6 +33,7 @@ Sprint 37 focus is picked at sprint start. Natural openers (in priority order ba
 6. **M24-debug** — Rapier `world.debugRender()` overlay (line segments) toggleable in dev. `engine doctor` reports body/collider counts + dynamic vs static breakdown. HMR leak test ensures body count stays bounded.
 7. **M24-static-mesh** — Fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
 8. **M21-frame-timing** — Per-phase frame timing in dev snapshot (`inputMs` / `fixedUpdateMs` / `physicsMs` / `transformResolveMs` / `renderSyncMs` / `renderMs` / `postMs`). Plumbing on `DiagnosticsBus` + exposed via `__agf.snapshot().frameTiming`.
+9. **`examples/physics-bench/`** — stand-alone perf project, sibling of `batch-bench`. Camera + ambient + sun + fixed ground collider; bootstrap seeds N dynamic boxes high above the ground that fall, collide, and settle. `?count=N&shape=box|sphere|capsule` URL params; `?count=0` keeps an empty baseline. Regression target for physics scaling (rigid-body count vs fixed-step ms, settle time, sleep activation) once `M21-frame-timing` exposes `physicsMs`.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
