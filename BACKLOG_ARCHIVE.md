@@ -1537,6 +1537,64 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 34 — Phase 2 visible delta: lights + shadows + IBL + cache polish + M23 tuner + M24 absorbed
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M21-light-schema` ✅ Polymorphic `Light` + `ShadowFlags` JSON schemas (kind discriminator: directional / point / spot / ambient / hemisphere / rect-area; per-kind constraints via `allOf + if/then`). 11 unit tests covering happy paths + negative cases.
+- `M21-light-directional-point` ✅ `engine/render/light-handle-registry.ts` + `engine/render/systems/light-lifecycle-system.ts`. Adapter grows `acquireLight` / `releaseLight` / `setLightParams` / `setLightTransform` / `setLightCastShadow` for directional / point / ambient kinds. Fallback ambient + directional auto-disabled when first ECS light appears; re-enabled + `AGF_NO_LIGHTS` diagnostic emitted when scene loses every Light. Kind-change triggers release + re-acquire. 8 unit tests.
+- `M21-shadow-basic` ✅ Per-light `castShadow` + per-mesh `ShadowFlags { cast, receive }` (default both true). `MeshTransformSyncSystem` reads `ShadowFlags` per frame; `LightLifecycleSystem` configures `light.shadow.*`. Adapter enables `device.shadowMap` globally with `PCFShadowMap` (PCFSoftShadowMap deprecated in r184). `rendererInfo()` reports `shadowCasters`. Beacon-World adopts a high-noon sun (`light.sun` at `(2, 14, 7)`), ambient + cool fill; Hello-3D similar. Per-mesh `ShadowFlags` on `ground` / `floor` (cast=false).
+- **Beacon point-light halos** ✅ `examples/beacon-world/src/systems/beacon-light-system.ts` — System reads `BeaconLight { beaconId, repairedIntensity, brokenIntensity }` + paired `Light`; writes `Light.intensity` based on linked beacon's `Repairable.repaired`. Beacon scene gets `light.beacon.{west,east}` with castShadow=true. 5 unit tests.
+- **Shadow tuning loop (via M23-tuner)** ✅ Iterated through Playwright screenshot grids → switched to dev-tuner mid-sprint → user dialed in `shadow.bias = -0.015` / `shadow.normalBias = 0.5`. Baked into the scene; tuner panel removed via dev-bridge.
+- `M23-tuner` ✅ `engine/runtime/dev-tuner.ts` — agent-spawnable floating slider panel bound to component-field paths. Surface `__agf.dev.tuner.{add,remove,removeAll,list}`; each drag flows through `applyCommands` (snapshot / HMR / network / replay all "just work"). Panel is DOM, NOT in ECS — `__agf.snapshot()` never sees it. Dev-bridge gets 4 HTTP routes (`/__agf/tuner/{add,remove,remove-all,list}`) so agents can spawn sliders from a shell without DevTools. Agent skill at `docs/agent/dev-tuner.md`. 6 path-helper unit tests + e2e (add → drag → snapshot reflects → remove → panel gone).
+- `M21-env-generated` ✅ `ThreeRenderAdapter.setEnvironment(kind)` builds `RoomEnvironment` via `PMREMGenerator`; idempotent + disposes texture on swap. Scene schema gains top-level optional `environment: { kind: "generated" | "none" }`. Default = generated. PBR materials gain natural reflections out of the box. 5 schema tests.
+- `M16-cache-b` ✅ `World.consumeDirty(name)` reads + clears an incremental dirty set populated by `setComponent` / `removeComponent` / `removeEntity`. `TransformResolveSystem` keeps an internal `inputCache: Map<EntityId, TransformInput>`; seeds once when a new World arrives, then per frame rebuilds inputs only for `world.consumeDirty("Transform")` entries. Drops the per-frame entity scan + deg→rad conversion for clean entities. Bench: 10k chain-of-8 @ 1%-dirty ~8.1 ms (~13% narrow win vs M16-cache-a alone; `M16-cache-c` is the next big lever). 2 unit tests.
+- `M22-allocations` ✅ `benchmarks/ecs/alloc.ts` — standalone bench launched via `node --expose-gc --import tsx` (`npm run bench:ecs:alloc`). Forces GC, measures heap delta per op, reports bytes-per-op + heap delta KB. Findings at 10k: hierarchy resolve ~2.1 MB / op, cached steady-state ~890 KB / op, snapshotWorld ~1.2 MB / op. Baseline JSON at `docs/research/ecs-allocations-baseline.json`. Big numbers point at `M16-cache-c` (Map reuse + matrix scratch pooling).
+- `M17-doctor` ✅ `engine/tools/doctor/batch-candidates.ts` walks every `.scene.json`, groups MeshRenderer entities by `mesh|material|cast:receive` (the exact key M17 bucketer will use), reports top buckets + singleton isolation reasons through `engine doctor`. Beacon-World shows 8 renderable → 6 buckets, 2 draw calls saved. 4 unit tests.
+- `SYS-rule-createquery` ✅ `scripts/check-system-queries.mjs` scans system files for `world.query(` calls; preflight gate (`npm run systems:check`). Cold-path opt-out via `// agf-allow: world.query`. Fixed `CameraSyncSystem` (was calling `world.query()` twice per frame) to use cached `QueryHandle`s. AGENTS.md gains a hard rule + reference to the 18,000× benchmark.
+- **M24 Rapier physics & colliders epic** absorbed from `Notes/colliders_physics_implementation_analysis.md`. `HIGH_LEVEL_BACKLOG.md` row replaces "Rapier physics: Later" with full epic: components (RigidBody3D / Collider3D / PhysicsMaterial3D / CharacterController3D), two-layer collision stack (renderer raycaster + Rapier simulation), hybrid collision output (raw events → runtime-only derived components → gameplay commands), named layers, fixed-step pipeline. 9 stories `M24-investigate..M24-static-mesh` queued in Sprint 35+ carry-over with concrete scopes. M17 / M18 cross-references updated.
+- **Playwright retry config** ✅ Single retry for the load-induced flakes (`hmr-stress` / `multiclient-roundtrip` / `score-pulse` each pass deterministically in isolation but occasionally lose a frame under full-suite GPU contention).
+
+### Deliverables
+
+- `engine/render/light-handle-registry.ts`, `engine/render/systems/light-lifecycle-system.ts`
+- `engine/render/three-render-adapter.ts` (+ env, light, shadow surface)
+- `engine/runtime/dev-tuner.ts` + `engine/dev/page-bridge.ts` (+ tuner WS RPC) + `engine/dev/agf-dev-bridge.ts` (+ 4 HTTP routes) + `docs/agent/dev-tuner.md`
+- `engine/core/ecs/world.ts` — `consumeDirty(name)` + `dirtySize(name)` + `markDirty`
+- `engine/render/systems/transform-resolve-system.ts` — `inputCache` consumes dirty queue
+- `benchmarks/ecs/alloc.ts` + `npm run bench:ecs:alloc` + baseline JSON
+- `engine/tools/doctor/batch-candidates.ts` + `engine doctor` report
+- `scripts/check-system-queries.mjs` + preflight wiring + AGENTS.md hard rule
+- `examples/beacon-world/src/systems/beacon-light-system.ts` + scene updates
+- `examples/hello-3d/scenes/start.scene.json` (added Light entities + ShadowFlags)
+- `schemas/scene.schema.json` (+ Light + ShadowFlags + environment top-level)
+- `engine/core/ecs/types.ts` — `SceneEnvironmentInput`
+- 336 Vitest tests (45 new); 24 Playwright e2e green
+
+### Verification
+
+- `npm run preflight` ✅ end-to-end: imports-check + systems-check + engine-check + typecheck + 336 unit + build + bundle-check + 24 e2e (with 1 retry).
+
+### Goal Recap
+
+Plumbing of Sprint 33 paid off: Beacon-World now LOOKS like a game. Sun + ambient + fill + green halos over beacons (which gate by Repairable state). PBR-correct reflections via IBL. Per-mesh shadow opt-in. Mid-sprint, the dev-tuner pattern emerged out of the shadow-bias iteration loop and became its own shipping feature — agents can now spawn sliders for any numeric component field. The M24 physics analysis arrived end of sprint and got cleanly absorbed into the long-term roadmap without disrupting active work.
+
+### Follow-Ups
+
+- `M16-cache-c` — push dirty-awareness into the resolver cache itself (Map reuse + matrix scratch pool). Target: 10k chain-of-8 < 1 ms.
+- `M21-light-spot-hemisphere-rect` — finish the remaining Light kinds.
+- `M21-shadow-csm` — CSM addon for outdoor scenes (current shadow camera is single-cascade).
+- `M21-shadow-soft` — re-evaluate PCFSoftShadowMap when three.js stabilises soft shadows.
+- `M21-shadow-glb-acne` — investigate per-material `shadowSide` / polygonOffset for low-poly GLB self-shadow polish.
+- `M24-investigate..M24-static-mesh` — Rapier physics implementation (9 stories queued).
+- `M17-bucketer` — start actual batching now that `M17-doctor` shows the savings opportunity.
+- `M21-mat-*` — material types beyond Standard.
+- `M21-post-*` — post-processing.
+
+
+
 ## Sprint 33 — M21 Phase 1 split + M22 / M16 perf foundation + Codex review
 
 Status: Completed and archived.

@@ -21,7 +21,44 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 34 — Phase 2 visible delta: lights + shadows + IBL + cache polish
+## Current Sprint: Sprint 35 — TBD
+
+Sprint 35 focus is picked at sprint start. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+
+### Candidates
+
+Pick from this list at sprint start; carry the rest forward. Sprint 34 closed with the M24 physics analysis absorbed, so M24-investigate is the most natural opener if the user wants to push physics. Otherwise M21-mat-* / M17-bucketer / M16-cache-c are the highest-impact alternatives.
+
+#### M24 — Rapier physics & colliders (just absorbed; ready to start)
+
+- `M24-investigate` Rapier WASM bundling + fixed-step spike under `spikes/physics-rapier-v0/`.
+- `M24-schema` `RigidBody3D` / `Collider3D` / `PhysicsMaterial3D` JSON schemas + diagnostics.
+- `M24-adapter` Rapier adapter under `engine/physics/rapier/` with primitive bodies + lifecycle.
+
+#### M21 Phase 2 — finish material + light family
+
+- `M21-mat-physical` `MeshPhysicalMaterial` (clearcoat / sheen / transmission / iridescence) with manifest schema.
+- `M21-mat-unlit` `MeshBasicMaterial` / `MeshLambertMaterial` / `MeshPhongMaterial` kinds.
+- `M21-light-spot-hemisphere-rect` Remaining Light kinds.
+- `M21-shadow-csm` CSM addon for outdoor scenes.
+
+#### M22 perf follow-ups
+
+- `M16-cache-c` Push dirty-awareness into the cache itself (Map reuse + matrix scratch pool). Target: 10k chain-of-8 < 1 ms.
+
+#### M17 batching
+
+- `M17-bucketer` Now that `M17-doctor` reports candidates, start the actual `Batchable` component + `BatchingSystem` that emits `InstancedMesh` buckets.
+
+#### Carry-overs
+
+- `M3-c-load` + `M3-c-beacon` — wire `expandScenePrefabs` into scene-load + Beacon adopts prefab instances.
+- `M20-a..l` netcode rework (carried from Sprint 32).
+- `M2b-seed`, `13.13` audio, `10.5+` C# WS transport.
+
+### Old Sprint 34 details (kept until archive merges)
+
+## Sprint 34 — Phase 2 visible delta: lights + shadows + IBL + cache polish (DONE — archive merging)
 
 Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-split-investigation.md` §8.9: highest visible delta first. After 12 stories of plumbing in Sprint 33, this sprint is **what the picture looks like** — lights as ECS components, basic shadow maps, a fallback IBL environment so PBR materials don't render flat. Plus M16-cache-b to finish the perf path the bench number called out, and three small Codex-review follow-ups.
 
