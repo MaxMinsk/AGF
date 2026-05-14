@@ -59,6 +59,96 @@
           "speed": 45
         }
       }
+    },
+
+    {
+      "id": "arena.root",
+      "components": {
+        "Name": { "label": "Arena Root (invisible anchor for the hierarchy showcase)" },
+        "Transform": {
+          "position": [-2.4, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "arena.platform",
+      "components": {
+        "Name": { "label": "Arena Platform (child of arena.root)" },
+        "Transform": {
+          "parent": "arena.root",
+          "position": [0, -0.45, 0],
+          "rotation": [0, 0, 0],
+          "scale": [2.4, 0.1, 2.4]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#3b6e8f" }
+      }
+    },
+    {
+      "id": "tower.base",
+      "components": {
+        "Name": { "label": "Tower Base (child of arena.root)" },
+        "Transform": {
+          "parent": "arena.root",
+          "position": [0, 0.3, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.8, 0.8, 0.8]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#9aa6b2" }
+      }
+    },
+    {
+      "id": "tower.crown",
+      "components": {
+        "Name": { "label": "Tower Crown (child of tower.base; rotated 45°y, flattened)" },
+        "Transform": {
+          "parent": "tower.base",
+          "position": [0, 1, 0],
+          "rotation": [0, 45, 0],
+          "scale": [1.6, 0.4, 1.6]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#d97a3f" }
+      }
+    },
+    {
+      "id": "tower.spire",
+      "components": {
+        "Name": { "label": "Tower Spire (grandchild — chain depth 3 from arena.root)" },
+        "Transform": {
+          "parent": "tower.crown",
+          "position": [0, 1.1, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.25, 1.6, 0.25]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#f7c948" }
+      }
+    },
+    {
+      "id": "satellite.disc",
+      "components": {
+        "Name": { "label": "Satellite Disc (child of arena.root; tilted 60°z)" },
+        "Transform": {
+          "parent": "arena.root",
+          "position": [1.6, 0.9, 0],
+          "rotation": [0, 0, 60],
+          "scale": [0.5, 0.08, 0.5]
+        },
+        "MeshRenderer": { "mesh": "sphere", "color": "#88ccff" }
+      }
+    },
+    {
+      "id": "satellite.beacon",
+      "components": {
+        "Name": { "label": "Satellite Beacon (child of satellite.disc; scaled UP inherits parent tilt)" },
+        "Transform": {
+          "parent": "satellite.disc",
+          "position": [0, 1.4, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1.7, 1.7, 1.7]
+        },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffcc66" }
+      }
     }
   ]
 }
