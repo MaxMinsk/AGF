@@ -174,6 +174,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const { createMaterialBindingSystem } = await import("../render/systems/material-binding-system");
     const ts = createTransformResolveSystem();
     if (!scheduler.has(ts.name)) scheduler.register(ts);
+    // M21-cam-orbit: resolve OrbitCamera → Transform BEFORE
+    // CameraSyncSystem so the active camera sees the freshest pose.
+    const { createOrbitCameraSystem } = await import("../render/systems/orbit-camera-system");
+    const orbit = createOrbitCameraSystem();
+    if (!scheduler.has(orbit.name)) scheduler.register(orbit);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);
     // M17-lod: runs AFTER CameraSyncSystem (needs ActiveCamera) and
