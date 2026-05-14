@@ -17,6 +17,12 @@ import {
 } from "three";
 import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
+import {
+  resolveHierarchy,
+  type ResolvedTransform,
+  type TransformInput,
+  type Vec3 as ResolverVec3
+} from "../core/transform/resolve";
 import type { AssetRegistry } from "../runtime/asset-registry";
 import type { MaterialManifest } from "../runtime/asset-loaders/material-loader";
 import type { GlbAsset } from "./glb-loader";
@@ -27,6 +33,7 @@ type TransformComponent = {
   position?: Vec3;
   rotation?: Vec3;
   scale?: Vec3;
+  parent?: EntityId;
 };
 
 type CameraComponent = {
@@ -90,12 +97,62 @@ export class ThreeRenderer {
   }
 
   render(): void {
-    this.refreshCamera();
-    this.refreshMeshes();
+    const resolved = this.buildResolvedTransforms();
+    this.refreshCamera(resolved);
+    this.refreshMeshes(resolved);
     if (this.camera === undefined) {
       return;
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Pull every entity's Transform off the World, convert degrees→radians,
+   * and feed the resolver so children inherit their parent's world frame.
+   * Returns an empty map when no entities carry Transform.
+   */
+  private buildResolvedTransforms(): Map<EntityId, ResolvedTransform> {
+    const inputs: TransformInput[] = [];
+    for (const id of this.world.entityIds()) {
+      if (!this.world.hasComponent(id, "Transform")) {
+        continue;
+      }
+      const t = this.world.getComponent<TransformComponent>(id, "Transform");
+      if (t === undefined) continue;
+      const entry: TransformInput = { id };
+      if (t.parent !== undefined) entry.parent = t.parent;
+      if (t.position !== undefined) entry.position = toVec3(t.position);
+      if (t.rotation !== undefined) {
+        // Scene rotations are degrees; resolver math is in radians.
+        entry.rotation = [
+          MathUtils.degToRad(t.rotation[0] ?? 0),
+          MathUtils.degToRad(t.rotation[1] ?? 0),
+          MathUtils.degToRad(t.rotation[2] ?? 0)
+        ];
+      }
+      if (t.scale !== undefined) entry.scale = toVec3(t.scale);
+      inputs.push(entry);
+    }
+    if (inputs.length === 0) {
+      return new Map();
+    }
+    try {
+      return resolveHierarchy(inputs);
+    } catch {
+      // engine check is the source of truth for hierarchy diagnostics.
+      // Renderer should not crash if a bad parent slips through (e.g. a
+      // mid-edit HMR state). Fall back to identity-per-entity.
+      return new Map(
+        inputs.map((entry) => [
+          entry.id,
+          {
+            parent: undefined,
+            local: identityFor(entry),
+            world: identityFor(entry)
+          }
+        ])
+      );
+    }
   }
 
   /**
@@ -151,7 +208,7 @@ export class ThreeRenderer {
     this.renderer.dispose();
   }
 
-  private refreshCamera(): void {
+  private refreshCamera(resolved: Map<EntityId, ResolvedTransform>): void {
     const cameraEntities = this.world.query(["Camera"]);
     let activeId: EntityId | undefined;
     for (const id of cameraEntities) {
@@ -188,10 +245,10 @@ export class ThreeRenderer {
       this.camera.updateProjectionMatrix();
     }
 
-    applyTransform(this.camera, this.world.getComponent<TransformComponent>(activeId, "Transform"));
+    applyResolvedTransform(this.camera, resolved.get(activeId)?.world);
   }
 
-  private refreshMeshes(): void {
+  private refreshMeshes(resolved: Map<EntityId, ResolvedTransform>): void {
     const renderable = new Set(this.world.query(["MeshRenderer"]));
 
     for (const [id, mesh] of this.meshes) {
@@ -241,7 +298,7 @@ export class ThreeRenderer {
         this.appliedMaterials.delete(id);
       }
 
-      applyTransform(mesh, this.world.getComponent<TransformComponent>(id, "Transform"));
+      applyResolvedTransform(mesh, resolved.get(id)?.world);
     }
   }
 
@@ -321,31 +378,35 @@ export class ThreeRenderer {
   }
 }
 
-function applyTransform(object: Object3D, transform: TransformComponent | undefined): void {
-  if (transform === undefined) {
+/**
+ * Apply a resolver-produced world transform (radians already) to a Three.js
+ * object. Falls back to identity when the entity has no Transform.
+ */
+function applyResolvedTransform(object: Object3D, world: ResolverVec3Holder | undefined): void {
+  if (world === undefined) {
     return;
   }
-  if (transform.position !== undefined) {
-    object.position.set(
-      transform.position[0] ?? 0,
-      transform.position[1] ?? 0,
-      transform.position[2] ?? 0
-    );
-  }
-  if (transform.rotation !== undefined) {
-    object.rotation.set(
-      MathUtils.degToRad(transform.rotation[0] ?? 0),
-      MathUtils.degToRad(transform.rotation[1] ?? 0),
-      MathUtils.degToRad(transform.rotation[2] ?? 0)
-    );
-  }
-  if (transform.scale !== undefined) {
-    object.scale.set(
-      transform.scale[0] ?? 1,
-      transform.scale[1] ?? 1,
-      transform.scale[2] ?? 1
-    );
-  }
+  object.position.set(world.position[0], world.position[1], world.position[2]);
+  object.rotation.set(world.rotation[0], world.rotation[1], world.rotation[2]);
+  object.scale.set(world.scale[0], world.scale[1], world.scale[2]);
+}
+
+type ResolverVec3Holder = {
+  position: ResolverVec3;
+  rotation: ResolverVec3;
+  scale: ResolverVec3;
+};
+
+function toVec3(value: Vec3): ResolverVec3 {
+  return [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0];
+}
+
+function identityFor(entry: TransformInput): ResolverVec3Holder {
+  return {
+    position: entry.position ?? [0, 0, 0],
+    rotation: entry.rotation ?? [0, 0, 0],
+    scale: entry.scale ?? [1, 1, 1]
+  };
 }
 
 function createPrimitiveGeometry(name: string): BufferGeometry | undefined {

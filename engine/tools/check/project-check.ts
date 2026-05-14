@@ -183,6 +183,7 @@ function validateStartScene(
   const sceneSchema = getSceneSchemaForProject(projectDir);
   diagnostics.push(...runValidator(sceneSchema.validate, sceneJson.data, scenePath, projectDir, sceneSchema.componentNames));
   diagnostics.push(...detectDuplicateEntityIds(sceneJson.data, scenePath, projectDir));
+  diagnostics.push(...validateTransformHierarchy(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
@@ -523,6 +524,93 @@ function validateAssetReference(input: {
           : "Add the material file under assetRoot or remove the material reference until materials are implemented."
     }
   ];
+}
+
+function validateTransformHierarchy(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string
+): Diagnostic[] {
+  if (!isJsonObject(sceneData) || !Array.isArray(sceneData["entities"])) {
+    return [];
+  }
+
+  const entities = sceneData["entities"];
+  const parentOf = new Map<string, string>();
+  const entityIds = new Set<string>();
+  const parentSourceIndex = new Map<string, number>();
+  const diagnostics: Diagnostic[] = [];
+
+  entities.forEach((entity, index) => {
+    if (!isJsonObject(entity) || typeof entity["id"] !== "string") {
+      return;
+    }
+    const entityId = entity["id"];
+    entityIds.add(entityId);
+
+    const components = isJsonObject(entity["components"]) ? entity["components"] : undefined;
+    if (components === undefined) {
+      return;
+    }
+    const transform = isJsonObject(components["Transform"]) ? components["Transform"] : undefined;
+    if (transform === undefined) {
+      return;
+    }
+    const parent = transform["parent"];
+    if (typeof parent !== "string") {
+      return;
+    }
+
+    parentSourceIndex.set(entityId, index);
+
+    if (parent === entityId) {
+      diagnostics.push({
+        severity: "error",
+        code: "AGF_TRANSFORM_PARENT_SELF",
+        file: toProjectRelativeFile(scenePath, projectDir),
+        path: `$.entities[${index}].components.Transform.parent`,
+        message: `Entity "${entityId}" lists itself as its Transform.parent.`,
+        suggestion: "Remove the parent field, or set it to the id of a different entity."
+      });
+      return;
+    }
+    parentOf.set(entityId, parent);
+  });
+
+  for (const [child, parent] of parentOf) {
+    const index = parentSourceIndex.get(child);
+    if (!entityIds.has(parent)) {
+      diagnostics.push({
+        severity: "error",
+        code: "AGF_TRANSFORM_PARENT_MISSING",
+        file: toProjectRelativeFile(scenePath, projectDir),
+        path: `$.entities[${index}].components.Transform.parent`,
+        message: `Entity "${child}" references parent "${parent}" which is not present in the scene.`,
+        suggestion: "Add the parent entity, or remove the parent reference."
+      });
+      continue;
+    }
+
+    const seen = new Set<string>([child]);
+    let cursor: string | undefined = parent;
+    while (cursor !== undefined) {
+      if (seen.has(cursor)) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_TRANSFORM_PARENT_CYCLE",
+          file: toProjectRelativeFile(scenePath, projectDir),
+          path: `$.entities[${index}].components.Transform.parent`,
+          message: `Transform.parent chain starting at "${child}" forms a cycle through "${cursor}".`,
+          suggestion: "Break the cycle: at most one entity in a chain may set parent."
+        });
+        break;
+      }
+      seen.add(cursor);
+      cursor = parentOf.get(cursor);
+    }
+  }
+
+  return diagnostics;
 }
 
 function detectDuplicateEntityIds(sceneData: JsonValue, scenePath: string, projectDir: string): Diagnostic[] {

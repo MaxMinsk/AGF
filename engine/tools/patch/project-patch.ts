@@ -17,8 +17,18 @@
 // before mutating the repo. Replaces the "edit-then-hope" loop with a
 // schema-checked, replayable artifact.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
+import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { checkProject, type Diagnostic } from "../check/project-check";
 
 export type PatchOp =
   | { kind: "set"; file: string; path: string; value: unknown }
@@ -42,13 +52,28 @@ export type PatchResult = {
   diagnostics: PatchDiagnostic[];
   /** Per-file resulting JSON (after all ops). Only populated on success. */
   files: Record<string, unknown>;
-  /** True iff no `error`-severity diagnostics. */
+  /** True iff no `error`-severity diagnostics AND post-check passed (when run). */
   ok: boolean;
+  /**
+   * `engine check` diagnostics produced by validating the post-patch project
+   * state. Only populated when the caller asked for a post-check (default
+   * for the `engine patch` CLI). Undefined when validation was skipped.
+   */
+  postCheck?: {
+    ok: boolean;
+    diagnostics: Diagnostic[];
+  };
 };
 
 export type ApplyPatchOptions = {
   /** When true (`--write`), the resulting files are written to disk. */
   write?: boolean;
+  /**
+   * When true (default for the CLI), re-run `engine check` against the
+   * post-patch project state. For dry-runs we copy the project into a tmp
+   * directory, apply the in-memory result, and check there.
+   */
+  validateAfter?: boolean;
 };
 
 export function applyPatch(
@@ -109,19 +134,52 @@ export function applyPatch(
     }
   }
 
-  const ok = diagnostics.every((d) => d.severity !== "error");
-  if (ok && options.write === true) {
+  const opOk = diagnostics.every((d) => d.severity !== "error");
+  if (opOk && options.write === true) {
     for (const [relative, data] of fileCache) {
       writeFileSync(resolve(projectDir, relative), JSON.stringify(data, null, 2) + "\n");
     }
   }
 
-  return {
+  const result: PatchResult = {
     projectDir,
     diagnostics,
     files: Object.fromEntries(fileCache),
-    ok
+    ok: opOk
   };
+
+  if (opOk && options.validateAfter === true) {
+    result.postCheck = runPostCheck(projectDir, fileCache, options.write === true);
+    if (!result.postCheck.ok) {
+      result.ok = false;
+    }
+  }
+
+  return result;
+}
+
+function runPostCheck(
+  projectDir: string,
+  files: Map<string, unknown>,
+  alreadyWritten: boolean
+): { ok: boolean; diagnostics: Diagnostic[] } {
+  if (alreadyWritten) {
+    const check = checkProject(projectDir);
+    return { ok: check.ok, diagnostics: check.diagnostics };
+  }
+  const scratchRoot = mkdtempSync(resolve(tmpdir(), "agf-patch-check-"));
+  try {
+    cpSync(projectDir, scratchRoot, { recursive: true });
+    for (const [relative, data] of files) {
+      const absolute = resolve(scratchRoot, relative);
+      mkdirSync(dirname(absolute), { recursive: true });
+      writeFileSync(absolute, JSON.stringify(data, null, 2) + "\n");
+    }
+    const check = checkProject(scratchRoot);
+    return { ok: check.ok, diagnostics: check.diagnostics };
+  } finally {
+    rmSync(scratchRoot, { recursive: true, force: true });
+  }
 }
 
 export function formatPatchResult(result: PatchResult): string {
@@ -137,6 +195,12 @@ export function formatPatchResult(result: PatchResult): string {
   lines.push("  touched files:");
   for (const name of Object.keys(result.files)) {
     lines.push(`    - ${name}`);
+  }
+  if (result.postCheck !== undefined) {
+    lines.push(`  postCheck: ${result.postCheck.ok ? "OK" : "FAIL"}`);
+    for (const d of result.postCheck.diagnostics) {
+      lines.push(`    ${d.severity.toUpperCase()} ${d.code} ${d.file} ${d.path}`);
+    }
   }
   return lines.join("\n");
 }

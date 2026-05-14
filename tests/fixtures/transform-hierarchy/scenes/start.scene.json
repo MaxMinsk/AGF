@@ -1,0 +1,47 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "cart.root",
+      "components": {
+        "Transform": { "position": [0, 0, 0] }
+      }
+    },
+    {
+      "id": "cart.wheel.left",
+      "components": {
+        "Transform": { "parent": "cart.root", "position": [-1, 0, 0] }
+      }
+    },
+    {
+      "id": "cart.wheel.right",
+      "components": {
+        "Transform": { "parent": "cart.root", "position": [1, 0, 0] }
+      }
+    },
+    {
+      "id": "self.referential",
+      "components": {
+        "Transform": { "parent": "self.referential" }
+      }
+    },
+    {
+      "id": "orphan.child",
+      "components": {
+        "Transform": { "parent": "does.not.exist" }
+      }
+    },
+    {
+      "id": "cycle.a",
+      "components": {
+        "Transform": { "parent": "cycle.b" }
+      }
+    },
+    {
+      "id": "cycle.b",
+      "components": {
+        "Transform": { "parent": "cycle.a" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "with-parent",
+  "entities": [
+    { "id": "cart.root", "components": { "Transform": { "position": [10, 0, 0] } } },
+    { "id": "cart.wheel", "components": { "Transform": { "parent": "cart.root", "position": [0, 0, 1] } } }
+  ]
+}

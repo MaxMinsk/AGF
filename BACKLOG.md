@@ -21,43 +21,36 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 30 — TBD
+## Current Sprint: Sprint 31 — TBD
 
-Sprint 30 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 31 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
-Two parallel anchor candidates this sprint:
+Two anchor threads:
 
-1. **`E.80` engine dev server investigation** (M15) — write the design doc that sequences the live-process bridge.
-2. **`M16-a / M16-b` transform hierarchy schema + resolver** — open the composition path. New per `Notes/linkedin_web_engine_part3_analysis.md`.
+1. **M15 implementation** — start the engine dev-server vertical that the Sprint 30 investigation sequenced. The first slice (M15-a → M15-c → M15-d) gets an agent reaching `/__agf/snapshot`, `/__agf/diagnostics`, `/__agf/renderer-info`, and `/__agf/bug-report` over HTTP without touching DevTools.
+2. **M16 + M4 follow-ups** — `M16-cascade` delete handling, `M4-reload-e2e` Playwright spec, `M3-c` Beacon adopts prefabs.
 
-#### M15 — Engine dev server
+#### M15 — Engine dev server (first vertical)
 
-- `E.80` Engine dev server investigation — design doc (use cases, architecture options, endpoint surface, security stance, sequenced implementation plan).
+- `M15-a` `engine/dev/agf-dev-bridge.ts` Vite plugin scaffold (`apply: "serve"`) + `GET /__agf/health` returning `{ ok: true, version }`. Production-build exclusion test.
+- `M15-b` Page-side bridge (`engine/dev/page-bridge.ts`) opens WS to `/__agf/ws` under `import.meta.env.DEV`; handshake message logs "page connected".
+- `M15-c` Pull endpoints — `GET /__agf/{snapshot,diagnostics,renderer-info,reload-events}` proxy the corresponding `app.*` methods with a 3-second RPC timeout.
+- `M15-d` `GET /__agf/bug-report` + `schemas/bug-report.schema.json`.
 
-#### M16 — Transform hierarchy
+#### Composition + persistence follow-ups
 
-- `M16-a` Add optional `Transform.parent` to `scenes/*.scene.json` schema + `agfFormatVersion` bump in `engine/tools/check/format-version.ts`. Diagnostics: `AGF_TRANSFORM_PARENT_MISSING`, `AGF_TRANSFORM_PARENT_CYCLE`, `AGF_TRANSFORM_PARENT_SELF`.
-- `M16-b` Pure transform-hierarchy resolver — `engine/core/transform/resolve.ts` returns `{ local, world }` per entity given the world's `Transform` components. Unit tests on flat, single-parent, deep chain, and cycle-detection paths.
-- `M16-c` (stretch) Renderer consumes derived world transforms via the resolver, preserving the renderer-import-boundary (renderer never reads ECS components directly past the resolver).
-- `M16-d` (stretch) `engine inspect` prints `parent` + derived `worldPosition` per entity.
+- `M3-c` Beacon World adopts prefabs for repeated cores / hazards, wiring `expandScenePrefabs` into the scene-load path.
+- `M4-reload-e2e` Playwright spec: navigate to Beacon, repair a beacon, reload, assert the repaired state survives via IndexedDB.
+- `M16-cascade` Cascade-delete: removing an entity that has children also removes (or warns about) its children.
 
-#### M3 — Prefab follow-ups
+#### Backend follow-ups
 
-- `M3-b` Scene `instances: [{ prefab, overrides }]` + `expandScenePrefabs` pure function. Schema landed in Sprint 29; engine integration follows.
-- `M3-c` Beacon World adopts prefabs for repeated cores / hazards.
-
-#### M4 — Persistence v0 (sharpened in Sprint 29)
-
-- `M4-a` IndexedDB adapter behind a single `engine/runtime/persistence/local-store.ts` interface; per-project + per-profile save namespace; format version.
-- `M4-b` `runtime.save()` / `runtime.load()` / `runtime.clearSave()` API + an explicit component allowlist via `project.json#persistence.components` OR a `Persisted` marker component.
-- `M4-c` Beacon World local-save proof: repaired beacons + scoreboard survive reload.
+- `10.5+` C# skeleton WebSocket transport.
+- `10.14` Server-authoritative carry; `10.16` snapshot delta; `10.18` server hazard state.
 
 #### Engine polish
 
-- `M13-c` `engine patch` post-apply schema validation — re-run relevant `engine check` validators against the in-memory result so the agent knows whether the patch would leave the project well-formed.
-
-#### CI / dev-loop
-
-- `CI fix` — get PRs #31 and #32 green; npm 11.11 on the runner crashes during `npm ci` even with `--no-audit --no-fund`. Need a deeper look: try `npm install --omit=optional`, or pin npm via `setup-node`'s `package-manager` cache, or fall back to `pnpm`/`yarn` for CI.
+- `M2b-seed` Wire deterministic RNG into the first system that actually rolls dice (still waiting).
+- `13.13` Audio asset path — replace procedural Web Audio beeps once an audio loader exists.

@@ -8,5 +8,8 @@
     "mode": "webgl",
     "background": "#0a1118"
   },
-  "profiles": ["static", "connected"]
+  "profiles": ["static", "connected"],
+  "persistence": {
+    "components": ["Repairable", "WorldSignal", "Scoreboard"]
+  }
 }

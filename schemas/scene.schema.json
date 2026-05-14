@@ -15,9 +15,35 @@
       "items": {
         "$ref": "#/definitions/entity"
       }
+    },
+    "instances": {
+      "type": "array",
+      "description": "Optional prefab instances. Each entry expands into a regular entity at scene-load time. The engine validates these against the prefab registry; missing prefabs surface as AGF_SCENE_INSTANCE_PREFAB_MISSING.",
+      "items": { "$ref": "#/definitions/instance" }
     }
   },
   "definitions": {
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "prefab"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$",
+          "description": "Entity id after expansion; must be unique in the scene."
+        },
+        "prefab": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Id of a prefab declared in this project's prefabs/ directory."
+        },
+        "overrides": {
+          "type": "object",
+          "description": "Component overrides merged on top of the prefab's components at expansion time. Keys are component names."
+        }
+      }
+    },
     "entity": {
       "type": "object",
       "additionalProperties": false,
@@ -83,6 +109,11 @@
         },
         "scale": {
           "$ref": "#/definitions/vec3"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$",
+          "description": "Optional entity id of this transform's parent. When set, position/rotation/scale are interpreted in the parent's local frame; otherwise they are world-frame. Cycle / self-reference / missing-target are validated by engine check."
         }
       }
     },

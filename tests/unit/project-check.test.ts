@@ -94,6 +94,28 @@ describe("project check", () => {
     });
   });
 
+  it("emits AGF_TRANSFORM_PARENT_* diagnostics for bad hierarchies", () => {
+    const result = checkProject(resolve(fixturesRoot, "transform-hierarchy"));
+    const codes = result.diagnostics.map((d) => d.code);
+
+    expect(result.ok).toBe(false);
+    expect(codes).toContain("AGF_TRANSFORM_PARENT_SELF");
+    expect(codes).toContain("AGF_TRANSFORM_PARENT_MISSING");
+    expect(codes.filter((c) => c === "AGF_TRANSFORM_PARENT_CYCLE").length).toBe(2);
+
+    const self = result.diagnostics.find((d) => d.code === "AGF_TRANSFORM_PARENT_SELF");
+    expect(self).toMatchObject({
+      severity: "error",
+      file: "scenes/start.scene.json",
+      message: expect.stringContaining("self.referential")
+    });
+    const missing = result.diagnostics.find((d) => d.code === "AGF_TRANSFORM_PARENT_MISSING");
+    expect(missing).toMatchObject({
+      severity: "error",
+      message: expect.stringContaining("does.not.exist")
+    });
+  });
+
   it("reports unknown components and duplicate entity ids", () => {
     const result = checkProject(resolve(fixturesRoot, "invalid-project"));
     const codes = result.diagnostics.map((diagnostic) => diagnostic.code);

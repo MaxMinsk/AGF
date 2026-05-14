@@ -114,4 +114,34 @@ describe("engine patch v0", () => {
     expect(result.ok).toBe(true);
     expect(result.files["project.json"]).not.toHaveProperty("legacy");
   });
+
+  it("postCheck FAIL: a valid patch that produces an invalid project lands an error", async () => {
+    // Start from a known-good fixture; patch project.json's startScene to a
+    // missing path. The patch ops succeed; engine check rejects the result.
+    const fs = await import("node:fs");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const fixturesRoot = resolve(here, "../fixtures");
+    const valid = resolve(fixturesRoot, "valid-project");
+
+    const dir = resolve(sandboxRoot, "post-check");
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    fs.cpSync(valid, dir, { recursive: true });
+
+    const result = applyPatch(
+      dir,
+      {
+        operations: [
+          { kind: "set", file: "project.json", path: "/startScene", value: "scenes/does-not-exist.scene.json" }
+        ]
+      },
+      { validateAfter: true }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual([]); // op-level: no errors
+    expect(result.postCheck?.ok).toBe(false);
+    const codes = (result.postCheck?.diagnostics ?? []).map((d) => d.code);
+    expect(codes).toContain("AGF_PROJECT_START_SCENE_MISSING");
+  });
 });

@@ -11,6 +11,14 @@ import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
+import type { LocalStore } from "./persistence/local-store";
+import {
+  clearWorldSave,
+  loadWorld,
+  saveWorld,
+  type SaveBlob,
+  type SaveContext
+} from "./persistence/save-load";
 
 export type FixedUpdateFn = (time: TimeContext, world: World) => void;
 
@@ -33,6 +41,17 @@ export type RuntimeOptions = {
   assetRegistry?: AssetRegistry;
   /** Optional diagnostics bus shared across runtime systems. */
   diagnostics?: DiagnosticsBus;
+  /**
+   * Optional persistence config. When set, `RuntimeHandle.save/load/clearSave`
+   * are wired to write through `store` using `context` (projectId + profile +
+   * allowlist). Absent → save/load throw to make the missing wiring loud.
+   */
+  persistence?: {
+    store: LocalStore;
+    context: SaveContext;
+    /** Save slot name. Defaults to "default". */
+    slot?: string;
+  };
 };
 
 export type RuntimeHandle = {
@@ -52,6 +71,15 @@ export type RuntimeHandle = {
   startRecording(projectId?: string): RecorderHandle;
   /** Finalise the active recording with a final snapshot. */
   stopRecording(): Recording | undefined;
+  /**
+   * Persistence v0. Requires `RuntimeOptions.persistence` at construction;
+   * otherwise throws. Save = dump allowlisted components for every entity.
+   * Load = re-apply allowlisted components to entities that already exist.
+   * clearSave = drop the stored blob for this project/profile/slot.
+   */
+  save(): Promise<SaveBlob>;
+  load(): Promise<{ blob: SaveBlob | undefined; restoredEntities: string[] }>;
+  clearSave(): Promise<void>;
   stop(): void;
 };
 
@@ -207,6 +235,20 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       recorder = undefined;
       return out;
     },
+    async save(): Promise<SaveBlob> {
+      const config = requirePersistence(options.persistence);
+      const key = persistenceKey(config);
+      return saveWorld(world, config.store, key, config.context);
+    },
+    async load(): Promise<{ blob: SaveBlob | undefined; restoredEntities: string[] }> {
+      const config = requirePersistence(options.persistence);
+      const key = persistenceKey(config);
+      return loadWorld(world, config.store, key, config.context);
+    },
+    async clearSave(): Promise<void> {
+      const config = requirePersistence(options.persistence);
+      await clearWorldSave(config.store, persistenceKey(config));
+    },
     stop(): void {
       stopped = true;
       window.cancelAnimationFrame(frameRequestId);
@@ -215,4 +257,20 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       renderer.dispose();
     }
   };
+}
+
+function requirePersistence(
+  persistence: RuntimeOptions["persistence"]
+): NonNullable<RuntimeOptions["persistence"]> {
+  if (persistence === undefined) {
+    throw new Error(
+      "RuntimeHandle.save/load/clearSave requires RuntimeOptions.persistence — pass a store + context at startRuntime()."
+    );
+  }
+  return persistence;
+}
+
+function persistenceKey(config: NonNullable<RuntimeOptions["persistence"]>): string {
+  const slot = config.slot ?? "default";
+  return `agf/${config.context.projectId}/${config.context.profile}/${slot}`;
 }

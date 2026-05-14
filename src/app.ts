@@ -18,6 +18,12 @@ import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
 import { createDiagnosticsBus } from "../engine/runtime/diagnostics/diagnostics-bus";
 import { mountDiagnosticsOverlay, type DiagnosticsOverlayHandle } from "../engine/runtime/diagnostics/diagnostics-overlay";
+import {
+  createIndexedDbStore,
+  createMemoryStore,
+  type LocalStore
+} from "../engine/runtime/persistence/local-store";
+import type { SaveBlob } from "../engine/runtime/persistence/save-load";
 
 export type ProjectMeta = {
   name: string;
@@ -28,6 +34,14 @@ export type ProjectMeta = {
    * system registration on it.
    */
   profiles?: ReadonlyArray<string>;
+  /**
+   * Optional persistence config. When present, the app constructs an
+   * IndexedDB-backed store (or memory fallback) and wires runtime.save/load.
+   */
+  persistence?: {
+    components: ReadonlyArray<string>;
+    slot?: string;
+  };
 };
 
 export type AppOptions = {
@@ -78,6 +92,10 @@ export type AppHandle = {
    * agents and reviewers grabbing runtime state without opening DevTools.
    */
   copyDiagnostics(): Promise<string>;
+  /** Persistence v0 — requires project.persistence.components on the project. */
+  save(): Promise<SaveBlob>;
+  load(): Promise<{ blob: SaveBlob | undefined; restoredEntities: string[] }>;
+  clearSave(): Promise<void>;
   /** Three.js renderer resource counters (for HMR leak tests). */
   rendererInfo(): {
     geometries: number;
@@ -181,6 +199,28 @@ export async function createApp(
     runtimeOptions.devOverlay = true;
     runtimeOptions.devOverlayParent = shell;
   }
+  if (project.persistence !== undefined && project.persistence.components.length > 0) {
+    let store: LocalStore;
+    try {
+      store = createIndexedDbStore(`agf-${projectId}`);
+    } catch {
+      // No IndexedDB (jsdom / non-browser context): fall back to memory.
+      // Save/load still works, just doesn't survive a page reload.
+      store = createMemoryStore();
+    }
+    const persistence: NonNullable<RuntimeOptions["persistence"]> = {
+      store,
+      context: {
+        projectId,
+        profile: activeProfile,
+        allowlist: project.persistence.components
+      }
+    };
+    if (project.persistence.slot !== undefined) {
+      persistence.slot = project.persistence.slot;
+    }
+    runtimeOptions.persistence = persistence;
+  }
 
   const runtime: RuntimeHandle = await startRuntime(runtimeOptions);
 
@@ -246,6 +286,15 @@ export async function createApp(
     },
     rendererInfo() {
       return runtime.renderer.info();
+    },
+    async save() {
+      return runtime.save();
+    },
+    async load() {
+      return runtime.load();
+    },
+    async clearSave() {
+      return runtime.clearSave();
     },
     dispose(): void {
       diagnosticsOverlay?.dispose();

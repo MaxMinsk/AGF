@@ -1,0 +1,9 @@
+{
+  "agfFormatVersion": 1,
+  "id": "valid-hierarchy",
+  "name": "Valid Hierarchy",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": { "mode": "webgl", "background": "#000000" },
+  "profiles": ["static"]
+}
