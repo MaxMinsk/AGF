@@ -56,6 +56,15 @@ type CharacterController3DComponent = {
   applyImpulsesToDynamicBodies?: boolean;
   mass?: number;
   /**
+   * Multiplier on world gravity that the system adds to each step's
+   * desired movement before resolution. Default 0 — character moves
+   * exactly where gameplay wrote Transform, no implicit pull. Set to 1
+   * for human-feel platformers (capsule that falls + lands), or to a
+   * fractional value for low-gravity flight.
+   * Runtime-only field; not in the JSON schema.
+   */
+  gravityScale?: number;
+  /**
    * When the Transform position jumps by more than this distance in a
    * single fixed step, the system treats it as a teleport and bypasses
    * the controller's collide-and-slide pass. Defaults to 1 metre.
@@ -115,11 +124,6 @@ export function createCharacterMovementSystem(
       controllers.clear();
     }
     const fixedDt = context.time.fixedDt;
-    const dtGravity: readonly [number, number, number] = [
-      deps.gravity[0] * fixedDt,
-      deps.gravity[1] * fixedDt,
-      deps.gravity[2] * fixedDt
-    ];
 
     const ids = charQuery!.run();
     // Release controllers for entities that no longer carry the
@@ -167,10 +171,14 @@ export function createCharacterMovementSystem(
         continue;
       }
 
+      const gravityScale = config.gravityScale ?? 0;
+      const gx = deps.gravity[0] * gravityScale * fixedDt;
+      const gy = deps.gravity[1] * gravityScale * fixedDt;
+      const gz = deps.gravity[2] * gravityScale * fixedDt;
       const desired: readonly [number, number, number] = [
-        dx + dtGravity[0],
-        dy + dtGravity[1],
-        dz + dtGravity[2]
+        dx + gx,
+        dy + gy,
+        dz + gz
       ];
       const result = deps.adapter.computeCharacterMovement(controller, collider, desired);
       if (result === undefined) continue;
