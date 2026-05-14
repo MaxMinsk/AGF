@@ -67,6 +67,19 @@ export type HierarchyCache = {
    */
   resolveWorld(world: World, inputs?: ReadonlyArray<TransformInput>): Map<EntityId, ResolvedTransform>;
   /**
+   * M16-cache-c: bypass the O(N) `componentRevision` read by accepting
+   * an explicit set of entity ids the caller knows are dirty this frame.
+   * Same return shape; same fall-back to the canonical resolver on
+   * `needsFallback`. `dirtyIds` must include every entity whose
+   * `TransformInput` differs from the last call (the resolver
+   * propagates dirty to descendants automatically).
+   */
+  resolveWithDirty(
+    world: World,
+    inputs: ReadonlyArray<TransformInput>,
+    dirtyIds: ReadonlySet<EntityId>
+  ): Map<EntityId, ResolvedTransform>;
+  /**
    * Drop the cache. Use after schema-shape changes or HMR reloads where
    * cached `ResolvedTransform` references would mislead downstream identity
    * checks.
@@ -253,6 +266,122 @@ export function createHierarchyCache(): HierarchyCache {
         reused,
         evicted
       };
+      return result;
+    },
+    resolveWithDirty(
+      world: World,
+      inputs: ReadonlyArray<TransformInput>,
+      dirtyIds: ReadonlySet<EntityId>
+    ): Map<EntityId, ResolvedTransform> {
+      // M16-cache-c: skip the per-entity componentRevision read. Caller
+      // (TransformResolveSystem) already consumes world.consumeDirty('Transform');
+      // we trust that set + propagate dirty to descendants via the parent
+      // index. Steady-state path becomes O(dirty + |inputs traversal|),
+      // no per-entity Map lookups against the World.
+      const present = new Set<EntityId>();
+      for (const entry of inputs) present.add(entry.id);
+
+      let evicted = 0;
+      for (const id of cache.keys()) {
+        if (!present.has(id)) {
+          cache.delete(id);
+          evicted += 1;
+        }
+      }
+
+      // Propagate dirty downward through the parent chain.
+      const parentOf = new Map<EntityId, EntityId | undefined>();
+      const dirty = new Set<EntityId>(dirtyIds);
+      // Treat every entity that isn't in the cache as dirty (first sighting).
+      for (const input of inputs) {
+        parentOf.set(input.id, input.parent);
+        if (!cache.has(input.id)) dirty.add(input.id);
+      }
+      const ancestorDirty = (id: EntityId): boolean => {
+        let cursor: EntityId | undefined = id;
+        while (cursor !== undefined) {
+          if (dirty.has(cursor)) return true;
+          cursor = parentOf.get(cursor);
+        }
+        return false;
+      };
+      for (const input of inputs) {
+        if (!dirty.has(input.id) && ancestorDirty(input.id)) dirty.add(input.id);
+      }
+
+      // Fast path: zero dirty → reuse every cached entry referentially.
+      if (dirty.size === 0) {
+        const result = new Map<EntityId, ResolvedTransform>();
+        for (const input of inputs) {
+          const previous = cache.get(input.id);
+          if (previous !== undefined) result.set(input.id, previous.resolved);
+        }
+        lastStats = { total: inputs.length, dirty: 0, reused: result.size, evicted };
+        return result;
+      }
+
+      // Mixed path — same topo partial walk as resolveWorld, but without
+      // the per-entity revision read. Falls back to resolveHierarchy when
+      // a parent slips out of the input set mid-walk.
+      const inputById = new Map<EntityId, TransformInput>();
+      for (const input of inputs) inputById.set(input.id, input);
+
+      const order: EntityId[] = [];
+      const visited = new Set<EntityId>();
+      const visit = (id: EntityId): void => {
+        if (visited.has(id)) return;
+        visited.add(id);
+        const node = inputById.get(id);
+        if (node === undefined) return;
+        if (node.parent !== undefined) visit(node.parent);
+        order.push(id);
+      };
+      for (const input of inputs) visit(input.id);
+
+      const result = new Map<EntityId, ResolvedTransform>();
+      let reused = 0;
+      let needsFallback = false;
+      for (const id of order) {
+        const input = inputById.get(id);
+        if (input === undefined) continue;
+        const previous = cache.get(id);
+        if (!dirty.has(id) && previous !== undefined) {
+          result.set(id, previous.resolved);
+          reused += 1;
+          continue;
+        }
+        const local: LocalTransform = {
+          position: input.position ?? ZERO_VEC,
+          rotation: input.rotation ?? ZERO_VEC,
+          scale: input.scale ?? ONE_VEC
+        };
+        let worldT: WorldTransform = local;
+        if (input.parent !== undefined) {
+          const parentResolved = result.get(input.parent);
+          if (parentResolved === undefined) {
+            needsFallback = true;
+            break;
+          }
+          worldT = composeWorld(parentResolved.world, local);
+        }
+        const resolved: ResolvedTransform = { parent: input.parent, local, world: worldT };
+        result.set(id, resolved);
+        cache.set(id, { transformRevision: 0, resolved });
+      }
+
+      if (needsFallback) {
+        result.clear();
+        const fresh = resolveHierarchy(inputs);
+        for (const input of inputs) {
+          const resolved = fresh.get(input.id);
+          if (resolved === undefined) continue;
+          result.set(input.id, resolved);
+          cache.set(input.id, { transformRevision: 0, resolved });
+        }
+        reused = 0;
+      }
+
+      lastStats = { total: inputs.length, dirty: dirty.size, reused, evicted };
       return result;
     },
     clear(): void {

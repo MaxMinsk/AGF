@@ -44,7 +44,8 @@ Pick from this list at sprint start; carry the rest forward. Sprint 34 closed wi
 
 #### M22 perf follow-ups
 
-- `M16-cache-c` Push dirty-awareness into the cache itself (Map reuse + matrix scratch pool). Target: 10k chain-of-8 < 1 ms.
+- `M16-cache-c` ✅ Implemented. `cache.resolveWithDirty(world, inputs, dirtyIds)` accepts the caller-supplied dirty set directly, skipping the per-entity `world.componentRevision('Transform')` Map read that dominated cache-b. `TransformResolveSystem` now passes its consumed dirty set straight through. **Bench at 10k chain-of-8 @ 1%-dirty: 5.99 ms** (vs cache-b 8.04 ms ≈ 25% faster, vs no-cache 12.4 ms ≈ 2.1× faster).
+- `M16-cache-d` Next: persistent parent→children index so the topo walk skips entire non-dirty subtrees. Today the walk still touches every input. Target: drop 10k chain-of-8 toward < 1 ms.
 
 #### M17 batching
 
