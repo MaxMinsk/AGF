@@ -116,6 +116,9 @@
             },
             "OrbitCamera": {
               "$ref": "#/definitions/orbitCameraComponent"
+            },
+            "FollowCamera": {
+              "$ref": "#/definitions/followCameraComponent"
             }
           }
         }
@@ -600,6 +603,18 @@
           }
         }
       ]
+    },
+    "followCameraComponent": {
+      "description": "M21-cam-follow: anchor the camera to a target entity. Each frame FollowCameraSystem reads the target's world position, places the camera at `targetPosition + offset`, and orients it toward `targetPosition + lookAtOffset`. `smoothing` blends the previous camera position toward the new target per-frame (1 = snap, 0 = frozen).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "offset"],
+      "properties": {
+        "target": { "type": "string", "minLength": 1, "description": "Entity id to track." },
+        "offset": { "$ref": "#/definitions/vec3", "description": "Camera position relative to the target." },
+        "lookAtOffset": { "$ref": "#/definitions/vec3", "description": "Optional offset added to the target before computing the look-at direction; useful for looking slightly above the head." },
+        "smoothing": { "type": "number", "minimum": 0, "maximum": 1, "default": 1, "description": "Per-frame lerp factor toward the desired position. 1 = snap, 0 = never move." }
+      }
     },
     "orbitCameraComponent": {
       "description": "M21-cam-orbit: pure-data orbit-camera state. Place on the same entity as `Camera` + `Transform`. OrbitCameraSystem reads `(target, distance, pitch, yaw)` each frame and writes Transform.position + rotation so the camera looks at `target` from the given polar angles. Gameplay systems (mouse drag, follow-target, etc.) mutate these fields via applyCommands; the system stays input-agnostic.",
