@@ -53,8 +53,8 @@ export type ProjectMeta = {
     shadows?: {
       /** M21-shadow-static: disable per-frame shadow re-rendering for static scenes. */
       autoUpdate?: boolean;
-      /** M21-shadow-algorithm: pick PCF (default) vs VSM filtering. */
-      algorithm?: "pcf" | "vsm";
+      /** M21-shadow-algorithm: pick PCF (default) vs VSM vs PCSS filtering. */
+      algorithm?: "pcf" | "vsm" | "pcss";
       csm?: {
         enabled?: boolean;
         cascades?: number;

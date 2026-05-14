@@ -71,6 +71,7 @@ import {
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
+import { applyPcssShadowChunks } from "./shadow-pcss";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -304,9 +305,13 @@ export type AdapterOptions = {
    * `pcf` (default) — 4-tap percentage-closer filter; sharp, well
    * supported, what every existing project was tuned against.
    * `vsm` — variance shadow maps; smoother penumbras but light leaks
-   * around concave geometry. Pick per project.
+   * around concave geometry.
+   * `pcss` — percentage-closer soft shadows via shader-chunk
+   *   substitution. Smoothest penumbras + distance-aware blur; the
+   *   substitution is process-wide and one-way (toggling back to PCF
+   *   needs a reload).
    */
-  shadowAlgorithm?: "pcf" | "vsm";
+  shadowAlgorithm?: "pcf" | "vsm" | "pcss";
 };
 
 export type ToneMappingKind =
@@ -415,6 +420,9 @@ export class ThreeRenderAdapter {
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
     this.device.shadowMap.type = shadowAlgorithmType(options.shadowAlgorithm);
+    if (options.shadowAlgorithm === "pcss") {
+      applyPcssShadowChunks();
+    }
     // M21-color: tone-mapping is opt-in (default "none" / linear clamp)
     // so existing projects look identical after the upgrade. Projects
     // that want ACES Filmic / AgX highlight roll-off set
@@ -1521,8 +1529,14 @@ void main() {
 }
 `;
 
-function shadowAlgorithmType(kind: "pcf" | "vsm" | undefined): ShadowMapType {
-  return kind === "vsm" ? VSMShadowMap : PCFShadowMap;
+function shadowAlgorithmType(
+  kind: "pcf" | "vsm" | "pcss" | undefined
+): ShadowMapType {
+  // PCSS reuses the PCF shadow-map *generation* path; the soft-blur is
+  // injected on the receive side via shader-chunk substitution. So
+  // both `pcf` and `pcss` map to PCFShadowMap at the renderer level.
+  if (kind === "vsm") return VSMShadowMap;
+  return PCFShadowMap;
 }
 
 function applyShaderUniforms(

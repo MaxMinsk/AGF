@@ -6,7 +6,10 @@
   "assetRoot": "assets",
   "render": {
     "mode": "webgl",
-    "background": "#0a1118"
+    "background": "#0a1118",
+    "shadows": {
+      "algorithm": "pcss"
+    }
   },
   "profiles": ["static", "connected"],
   "physics": {

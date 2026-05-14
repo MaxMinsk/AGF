@@ -32,7 +32,7 @@ export type RuntimeOptions = {
     exposure?: number;
   };
   /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
-  shadowAlgorithm?: "pcf" | "vsm";
+  shadowAlgorithm?: "pcf" | "vsm" | "pcss";
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
