@@ -100,6 +100,58 @@ describe("createHierarchyCache", () => {
     expect(cache.stats()).toMatchObject({ dirty: 2 });
   });
 
+  it("matches the uncached resolver across N random mutation cycles (M16-cache-parity)", async () => {
+    // Codex review of docs/research/ecs-compare-performance.md flagged
+    // "derived cache, not a second ECS" as the architectural invariant.
+    // This is the parity test that locks it in: feed both the cached
+    // resolver and resolveWorldHierarchy the same World, mutate
+    // randomly, and require they agree field-for-field every cycle.
+    const { resolveWorldHierarchy } = await import("../../engine/core/transform/resolve");
+    const world = new World();
+    const ids: string[] = [];
+    for (let i = 0; i < 24; i += 1) {
+      const id = `n${i}`;
+      ids.push(id);
+      world.addEntity(id);
+      const parent = i === 0 ? undefined : ids[Math.floor(Math.random() * i)];
+      const transform: Record<string, unknown> = {
+        position: [Math.random() * 10, Math.random() * 10, Math.random() * 10],
+        rotation: [Math.random(), Math.random(), Math.random()],
+        scale: [1 + Math.random(), 1 + Math.random(), 1 + Math.random()]
+      };
+      if (parent !== undefined) transform["parent"] = parent;
+      world.setComponent(id, "Transform", transform);
+    }
+
+    const cache = createHierarchyCache();
+
+    for (let cycle = 0; cycle < 25; cycle += 1) {
+      // Mutate ~10% of entities each cycle.
+      const mutateCount = Math.max(1, Math.floor(ids.length * 0.1));
+      for (let m = 0; m < mutateCount; m += 1) {
+        const id = ids[Math.floor(Math.random() * ids.length)] ?? ids[0]!;
+        const previous = world.getComponent<Record<string, unknown>>(id, "Transform") ?? {};
+        world.setComponent(id, "Transform", {
+          ...previous,
+          position: [Math.random() * 10, Math.random() * 10, Math.random() * 10]
+        });
+      }
+      const cached = cache.resolveWorld(world);
+      const direct = resolveWorldHierarchy(world);
+      for (const id of ids) {
+        const c = cached.get(id);
+        const d = direct.get(id);
+        expect(c).toBeDefined();
+        expect(d).toBeDefined();
+        for (let axis = 0; axis < 3; axis += 1) {
+          expect(c?.world.position[axis]).toBeCloseTo(d?.world.position[axis] ?? 0, 9);
+          expect(c?.world.rotation[axis]).toBeCloseTo(d?.world.rotation[axis] ?? 0, 9);
+          expect(c?.world.scale[axis]).toBeCloseTo(d?.world.scale[axis] ?? 0, 9);
+        }
+      }
+    }
+  });
+
   it("matches the uncached resolver on the world transforms", async () => {
     const { resolveWorldHierarchy } = await import("../../engine/core/transform/resolve");
     const world = new World();

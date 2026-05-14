@@ -34,6 +34,10 @@ Sprint 33 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 - `ECS-B3` Benchmark batch-bucket collection. Deferred until `M17-bucketer` starts (no system to bench yet).
 - `M16-cache-a` ✅ Implemented. `World.componentRevision(id, name)` per-component data-revision counter (bumped on `setComponent`, zeroed on `removeComponent` / `removeEntity`). `createHierarchyCache()` in `engine/core/transform/resolve-cached.ts` with two fast paths: (1) zero-dirty steady-state returns cached `ResolvedTransform` refs (referential-equality-friendly); (2) mixed-dirty path does a topological partial walk, composing only dirty subtrees from cached parent worlds. 6 unit tests + 2 new bench cases (steady-state + 1%-dirty). **Results** at chain-of-8 @ 10k entities: no-cache 12.9 ms → steady-state 5.4 ms (~2.4× faster) → 1%-dirty 8.2 ms (~1.6× faster). Baseline refreshed.
 - `M16-cache-b` Next: incremental dirty-set maintained by `setComponent` hook instead of per-frame entity scan. Target: steady-state path becomes O(dirty) not O(N). Push 10k chain-of-8 toward < 1 ms.
+- `M16-cache-parity` ✅ Implemented. `tests/unit/transform-resolve-cached.test.ts` runs 25 cycles × ~10% random mutations on a 24-entity hierarchy, comparing cached resolver output field-for-field (toBeCloseTo precision 9) against `resolveWorldHierarchy`. Locks the "derived cache, not second ECS" invariant from the Codex review.
+- `M22-allocations` Allocation-focused bench for hierarchy resolve + renderer sync. Use `--expose-gc` + `process.memoryUsage().heapUsed` deltas. Frame jank correlates more with allocation churn than wall-time.
+- `M17-doctor` Pre-M17 design tool: `engine doctor` reports which entities would batch (same mesh + material + shadow flags) and explains why others wouldn't. Use it to size the bucketer story before writing it.
+- `SYS-rule-createquery` Lock the "systems must cache `createQuery` handles" rule into AGENTS.md + agent skills. Add `engine check` warning when a System hot path calls `world.query()` directly.
 
 #### M21 — Renderer → ECS systems
 
