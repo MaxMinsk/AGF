@@ -49,7 +49,7 @@ export type ProjectMeta = {
    */
   physics?: {
     enabled?: boolean;
-    gravity?: readonly [number, number, number];
+    gravity?: ReadonlyArray<number>;
     fixedDt?: number;
   };
 };
@@ -266,8 +266,11 @@ export async function createApp(
     const { createPhysicsSyncSystem } = await import(
       "../engine/physics/rapier/physics-sync-system"
     );
+    const gravity = project.physics.gravity;
     const physicsAdapter = await createRapierAdapter({
-      ...(project.physics.gravity !== undefined ? { gravity: project.physics.gravity } : {}),
+      ...(gravity !== undefined && gravity.length >= 3
+        ? { gravity: [gravity[0] ?? 0, gravity[1] ?? -9.81, gravity[2] ?? 0] as const }
+        : {}),
       ...(project.physics.fixedDt !== undefined ? { fixedDt: project.physics.fixedDt } : {})
     });
     const physicsRegistry = createPhysicsBodyRegistry(physicsAdapter);

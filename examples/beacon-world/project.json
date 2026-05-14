@@ -9,6 +9,11 @@
     "background": "#0a1118"
   },
   "profiles": ["static", "connected"],
+  "physics": {
+    "enabled": true,
+    "gravity": [0, -9.81, 0],
+    "fixedDt": 0.0166667
+  },
   "persistence": {
     "components": ["Repairable", "WorldSignal", "Scoreboard"]
   }
