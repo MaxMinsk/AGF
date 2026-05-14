@@ -158,11 +158,22 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     }
   );
 
-  // M21-env-generated: apply image-based-lighting environment for PBR
-  // materials. Default = "generated" (RoomEnvironment + PMREM) so
-  // MeshStandardMaterial renders with believable reflections out of the
-  // box. Scenes can opt out by declaring `environment: { kind: "none" }`.
-  renderer.adapter.setEnvironment(options.scene.environment?.kind ?? "generated");
+  // M21-env-generated + M21-env-hdr: apply image-based-lighting
+  // environment for PBR materials. Default = "generated"
+  // (RoomEnvironment + PMREM) so MeshStandardMaterial renders with
+  // believable reflections out of the box. Scenes can opt into
+  // `{ kind: "none" }` for fully unlit, or `{ kind: "hdr", url, intensity? }`
+  // for a real equirectangular sky.
+  const envSpec = options.scene.environment;
+  if (envSpec?.kind === "hdr") {
+    renderer.adapter.setEnvironment({
+      kind: "hdr",
+      url: envSpec.url,
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+    });
+  } else {
+    renderer.adapter.setEnvironment(envSpec?.kind ?? "generated");
+  }
 
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
   const fixedUpdate = options.fixedUpdate;

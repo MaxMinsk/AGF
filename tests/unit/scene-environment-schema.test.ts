@@ -26,8 +26,21 @@ describe("scene.environment (M21-env-generated)", () => {
   it("accepts kind: none", () => {
     expect(validate(sceneWithEnv({ kind: "none" }))).toBe(true);
   });
-  it("rejects unknown kind", () => {
+  it("accepts kind: hdr with url (M21-env-hdr)", () => {
+    expect(
+      validate(sceneWithEnv({ kind: "hdr", url: "runtime/sky/forest_2k.hdr" }))
+    ).toBe(true);
+  });
+  it("accepts kind: hdr with explicit intensity", () => {
+    expect(
+      validate(sceneWithEnv({ kind: "hdr", url: "runtime/sky/forest_2k.hdr", intensity: 0.6 }))
+    ).toBe(true);
+  });
+  it("rejects kind: hdr without url", () => {
     expect(validate(sceneWithEnv({ kind: "hdr" }))).toBe(false);
+  });
+  it("rejects unknown kind", () => {
+    expect(validate(sceneWithEnv({ kind: "cube" }))).toBe(false);
   });
   it("rejects unknown sibling fields", () => {
     expect(validate(sceneWithEnv({ kind: "generated", foo: 1 }))).toBe(false);

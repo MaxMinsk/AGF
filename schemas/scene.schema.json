@@ -24,13 +24,30 @@
     "environment": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Image-based-lighting environment (M21-env-generated). When absent, the renderer applies the `generated` RoomEnvironment fallback so MeshStandardMaterial / MeshPhysicalMaterial render with believable PBR out of the box. Set `kind: \"none\"` to opt out (e.g. for a fully unlit project).",
+      "description": "Image-based-lighting environment. `generated` (default) applies Three's RoomEnvironment via PMREMGenerator — believable PBR with zero authoring. `none` opts out (fully unlit / sky-less). `hdr` loads an equirectangular `.hdr` file via RGBELoader and pre-filters it through PMREMGenerator; pair with a real-sky directional light for outdoor scenes.",
       "properties": {
         "kind": {
-          "enum": ["generated", "none"],
+          "enum": ["generated", "none", "hdr"],
           "default": "generated"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to an equirectangular `.hdr` file under the project's assets root. Required when `kind: \"hdr\"`."
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1,
+          "description": "Multiplier on the scene's environment intensity. Only meaningful for `kind: \"hdr\"`."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "hdr" } }, "required": ["kind"] },
+          "then": { "required": ["url"] }
+        }
+      ]
     }
   },
   "definitions": {
