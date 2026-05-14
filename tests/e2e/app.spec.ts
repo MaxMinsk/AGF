@@ -6,6 +6,22 @@ test("renders a nonblank Three.js canvas", async ({ page }, testInfo) => {
   const canvas = page.getByTestId("engine-canvas");
   await expect(canvas).toBeVisible();
 
+  // Codex review (S43): block on `window.__agf.rendererReady` before pixel
+  // sampling. Without this guard the poll runs against a black canvas on
+  // first frame and either flakes (intermittent timeout) or stalls the GPU
+  // by issuing readbacks before the first scene draw lands.
+  await page.waitForFunction(
+    () => Boolean((window as unknown as { __agf?: { rendererReady?: Promise<unknown> } }).__agf?.rendererReady),
+    undefined,
+    { timeout: 10_000 }
+  );
+  await page.evaluate(
+    async () => {
+      const surface = (window as unknown as { __agf?: { rendererReady?: Promise<unknown> } }).__agf;
+      await surface?.rendererReady;
+    }
+  );
+
   await expect
     .poll(async () =>
       canvas.evaluate((element) => {

@@ -158,17 +158,24 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     }
   );
 
-  // M21-env-generated + M21-env-hdr: apply image-based-lighting
-  // environment for PBR materials. Default = "generated"
-  // (RoomEnvironment + PMREM) so MeshStandardMaterial renders with
-  // believable reflections out of the box. Scenes can opt into
-  // `{ kind: "none" }` for fully unlit, or `{ kind: "hdr", url, intensity? }`
-  // for a real equirectangular sky.
+  // M21-env-generated + M21-env-hdr + M21-env-cube: apply image-based-
+  // lighting environment for PBR materials. Default = "generated"
+  // (RoomEnvironment + PMREM). Scenes can opt into `{ kind: "none" }`
+  // for fully unlit, `{ kind: "hdr", url, intensity? }` for an
+  // equirectangular HDR sky, or `{ kind: "cube", faces, intensity? }`
+  // for a 6-face cubemap. Both HDR and cube go through PMREMGenerator
+  // so they supply IBL, not just a skybox.
   const envSpec = options.scene.environment;
   if (envSpec?.kind === "hdr") {
     renderer.adapter.setEnvironment({
       kind: "hdr",
       url: envSpec.url,
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+    });
+  } else if (envSpec?.kind === "cube") {
+    renderer.adapter.setEnvironment({
+      kind: "cube",
+      faces: envSpec.faces,
       ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
     });
   } else {

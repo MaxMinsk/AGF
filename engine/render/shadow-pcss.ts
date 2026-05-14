@@ -12,15 +12,21 @@
 // call this at construction time when `options.shadowAlgorithm === "pcss"`;
 // no other call site should touch it.
 //
-// **Current scope (v0):** the substitution targets the BASIC-shadowmap
-// variant of `getShadow` (the one that calls `texture2D(...)` rather
-// than `texture(...)` with `sampler2DShadow`). Default three.js shadow
-// mode `PCFShadowMap` uses the modern Vogel-disc / sampler2DShadow
-// path, so the substitution silently no-ops there. A proper fix that
-// rewrites the modern PCF variant + a CSM-shader patch are tracked as
-// `M21-shadow-pcss-modern` + `M21-shadow-pcss-csm`. Until they land,
-// `algorithm: "pcss"` is only visibly different from PCF when paired
-// with `BasicShadowMap` (which AGF doesn't currently expose).
+// **Why `BasicShadowMap`:** PCSS does a blocker search + variable-penumbra
+// filter, both of which need raw depth from the shadow map. Modern
+// `PCFShadowMap` binds the shadow map as `sampler2DShadow` and uses
+// hardware-comparison sampling — the GPU returns 0/1, not the depth value,
+// so the substitution silently no-ops there. The S41 implementation
+// chose this substitution path (matching three's own
+// `webgl_shadowmap_pcss.html` example) which targets the BASIC variant
+// of `getShadow` that reads `texture2D(shadowMap, ...).r`. To make the
+// PCSS algorithm actually visible, `shadowAlgorithmType("pcss")` in
+// `three-render-adapter.ts` returns `BasicShadowMap`, not
+// `PCFShadowMap`. Plain `algorithm: "pcf"` stays on the modern
+// PCFShadowMap path.
+//
+// `M21-shadow-pcss-csm` still tracks extending the substitution into
+// `CSMShader.js` so cascade-shadow scenes pick PCSS up too.
 
 import { ShaderChunk } from "three";
 

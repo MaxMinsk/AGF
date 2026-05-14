@@ -34,7 +34,7 @@ jobs:
           echo "No Cyrillic characters found in tracked files."
 
   typecheck-and-unit:
-    name: Typecheck + unit tests + engine:check
+    name: Typecheck + unit tests + engine:check + boundaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +46,10 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: engine:check examples
         run: npm run engine:check:examples
+      - name: imports:check (engine/core boundary)
+        run: npm run imports:check
+      - name: systems:check (no raw world.query in hot paths)
+        run: npm run systems:check
       - name: typecheck
         run: npm run typecheck
       - name: unit tests
@@ -66,3 +70,28 @@ jobs:
         run: npm run build
       - name: Bundle size check
         run: npm run bundle:check
+
+  node-backend-smoke:
+    name: Node reference backend (protocol-schema smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: backend:node smoke
+        run: npm run backend:node
+
+  dotnet-backend-build:
+    name: .NET reference backend (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - name: dotnet build (Release)
+        run: dotnet build examples/backends/dotnet-world-server/GameServer.csproj --configuration Release --nologo
