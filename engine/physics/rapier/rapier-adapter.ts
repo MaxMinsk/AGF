@@ -59,6 +59,27 @@ export type CollisionEvent = {
   started: boolean;
 };
 
+/** M24-character: opaque handle to a Rapier KinematicCharacterController. */
+export type CharacterControllerHandle = number;
+
+export type CharacterControllerSpec = {
+  /** Skin distance. Rapier's `offset` parameter. Default 0.01. */
+  offset?: number;
+  /** Max climbable slope in radians. Default ≈ 45°. */
+  maxSlope?: number;
+  /** Vertical snap distance for stairs / small steps. 0 disables. */
+  snapToGround?: number;
+  applyImpulsesToDynamicBodies?: boolean;
+  characterMass?: number;
+};
+
+export type CharacterMoveResult = {
+  /** Movement actually applied — may be shorter than the desired vector if the controller hit something. */
+  movement: readonly [number, number, number];
+  grounded: boolean;
+  slidingDownSlope: boolean;
+};
+
 export type RapierAdapter = {
   init(): Promise<void>;
   acquireBody(spec: BodyAcquireSpec): BodyHandle;
@@ -72,6 +93,17 @@ export type RapierAdapter = {
   step(dt?: number): void;
   /** Drain queued collision + intersection events from the most recent step. Pass-through map onto our handles. */
   drainEvents(): CollisionEvent[];
+  /** M24-character: create a kinematic character controller (one per character). */
+  acquireCharacterController(spec?: CharacterControllerSpec): CharacterControllerHandle;
+  releaseCharacterController(handle: CharacterControllerHandle): void;
+  /** Run the controller's collide-and-slide pass against a kinematic body's collider; returns the resolved movement + grounded flag. */
+  computeCharacterMovement(
+    controller: CharacterControllerHandle,
+    collider: ColliderHandle,
+    desired: readonly [number, number, number]
+  ): CharacterMoveResult | undefined;
+  /** Apply a kinematic translation to a body — used by characters to advance after computeCharacterMovement. */
+  setBodyNextKinematicTranslation(handle: BodyHandle, position: readonly [number, number, number]): void;
   setGravity(gravity: readonly [number, number, number]): void;
   info(): RapierAdapterInfo;
   dispose(): void;
@@ -114,6 +146,8 @@ export function createAdapterFromModule(
   const bodyColliders = new Map<BodyHandle, Set<ColliderHandle>>();
   /** Reverse — collider → body. Needed for `releaseCollider` to update `bodyColliders`. */
   const colliderBody = new Map<ColliderHandle, BodyHandle>();
+  const characterControllers = new Map<CharacterControllerHandle, RAPIER_TYPES.KinematicCharacterController>();
+  let nextCharacterHandle = 1;
   let totalSteps = 0;
 
   const eulerToQuat = (rotation: readonly [number, number, number]): { x: number; y: number; z: number; w: number } => {
@@ -304,6 +338,48 @@ export function createAdapterFromModule(
     setGravity(g): void {
       world.gravity = { x: g[0], y: g[1], z: g[2] };
     },
+    acquireCharacterController(spec = {}): CharacterControllerHandle {
+      const handle = nextCharacterHandle;
+      nextCharacterHandle += 1;
+      const controller = world.createCharacterController(spec.offset ?? 0.01);
+      if (spec.maxSlope !== undefined) controller.setMaxSlopeClimbAngle(spec.maxSlope);
+      if (spec.snapToGround !== undefined && spec.snapToGround > 0) {
+        controller.enableSnapToGround(spec.snapToGround);
+      }
+      if (spec.applyImpulsesToDynamicBodies !== undefined) {
+        controller.setApplyImpulsesToDynamicBodies(spec.applyImpulsesToDynamicBodies);
+      }
+      if (spec.characterMass !== undefined) controller.setCharacterMass(spec.characterMass);
+      characterControllers.set(handle, controller);
+      return handle;
+    },
+    releaseCharacterController(handle): void {
+      const controller = characterControllers.get(handle);
+      if (controller === undefined) return;
+      world.removeCharacterController(controller);
+      characterControllers.delete(handle);
+    },
+    computeCharacterMovement(controllerHandle, colliderHandle, desired): CharacterMoveResult | undefined {
+      const controller = characterControllers.get(controllerHandle);
+      const collider = colliders.get(colliderHandle);
+      if (controller === undefined || collider === undefined) return undefined;
+      controller.computeColliderMovement(collider, {
+        x: desired[0],
+        y: desired[1],
+        z: desired[2]
+      });
+      const movement = controller.computedMovement();
+      return {
+        movement: [movement.x, movement.y, movement.z],
+        grounded: controller.computedGrounded(),
+        slidingDownSlope: false
+      };
+    },
+    setBodyNextKinematicTranslation(handle, position): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.setNextKinematicTranslation({ x: position[0], y: position[1], z: position[2] });
+    },
     info(): RapierAdapterInfo {
       return {
         bodies: bodies.size,
@@ -313,8 +389,14 @@ export function createAdapterFromModule(
       };
     },
     dispose(): void {
+      for (const handle of [...characterControllers.keys()]) {
+        const controller = characterControllers.get(handle);
+        if (controller !== undefined) world.removeCharacterController(controller);
+      }
+      characterControllers.clear();
       bodies.clear();
       colliders.clear();
+      eventQueue.free();
       world.free();
     }
   };

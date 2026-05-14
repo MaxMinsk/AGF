@@ -57,6 +57,14 @@ function stubAdapter() {
     drainEvents() {
       return [];
     },
+    acquireCharacterController(): number {
+      return 0;
+    },
+    releaseCharacterController(): void {},
+    computeCharacterMovement() {
+      return undefined;
+    },
+    setBodyNextKinematicTranslation(): void {},
     setGravity(): void {},
     info() {
       return { bodies: positions.size, colliders: 0, fixedDt: 1 / 60, totalSteps: steps };
