@@ -35,7 +35,17 @@
         "programs": { "type": "integer", "minimum": 0 },
         "drawCalls": { "type": "integer", "minimum": 0 },
         "triangles": { "type": "integer", "minimum": 0 },
-        "meshes": { "type": "integer", "minimum": 0 }
+        "meshes": { "type": "integer", "minimum": 0 },
+        "lights": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "M21-light-budgets: max simultaneously active ECS Light entities. Catches scenes that grow runaway lights through HMR or procedural spawning."
+        },
+        "shadowCasters": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "M21-light-budgets: max ECS Lights with castShadow=true. Each shadow caster adds at least one shadow pass per frame."
+        }
       }
     }
   }

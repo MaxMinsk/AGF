@@ -39,7 +39,11 @@ export type RendererMetric =
   | "programs"
   | "drawCalls"
   | "triangles"
-  | "meshes";
+  | "meshes"
+  // M21-light-budgets: add light counters so projects can cap active
+  // lights / shadow-casting lights / shadow map memory.
+  | "lights"
+  | "shadowCasters";
 
 export type BundleStat = {
   largestChunk: string;
@@ -277,7 +281,9 @@ export function compareRendererInfo(
     "programs",
     "drawCalls",
     "triangles",
-    "meshes"
+    "meshes",
+    "lights",
+    "shadowCasters"
   ] as const) {
     const observed = info[metric];
     const hardLimit = hard[metric];
