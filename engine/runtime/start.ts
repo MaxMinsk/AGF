@@ -442,9 +442,28 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     pick(spec) {
       const hit = renderer.adapter.pickAtNdc(spec.x, spec.y);
       if (hit === undefined) return undefined;
-      const entityId = renderer.meshRegistry().entityForHandle(hit.handle);
-      if (entityId === undefined) return undefined;
-      return { entityId, point: hit.point, distance: hit.distance };
+      if (hit.kind === "mesh") {
+        const entityId = renderer.meshRegistry().entityForHandle(hit.handle);
+        if (entityId === undefined) return undefined;
+        return { entityId, point: hit.point, distance: hit.distance };
+      }
+      // M17-instance-picking-buckets: resolve `(bucket, instance)` to
+      // the EntityId by scanning entities carrying `BatchedMeshHandle`.
+      // Both InstancedMesh and BatchedMesh members write the same
+      // component shape `{ bucket, instance }` so one scan covers
+      // both kinds. Cold path — picks are click-driven, not per-frame.
+      // agf-allow: world.query
+      for (const id of world.query(["BatchedMeshHandle"])) {
+        const handle = world.getComponent<{ bucket: number; instance: number }>(
+          id,
+          "BatchedMeshHandle"
+        );
+        if (handle === undefined) continue;
+        if (handle.bucket === hit.bucket && handle.instance === hit.instance) {
+          return { entityId: id, point: hit.point, distance: hit.distance };
+        }
+      }
+      return undefined;
     },
     startRecording(projectId?: string): RecorderHandle {
       const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };
