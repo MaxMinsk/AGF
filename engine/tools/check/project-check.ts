@@ -184,6 +184,7 @@ function validateStartScene(
   diagnostics.push(...runValidator(sceneSchema.validate, sceneJson.data, scenePath, projectDir, sceneSchema.componentNames));
   diagnostics.push(...detectDuplicateEntityIds(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validateTransformHierarchy(sceneJson.data, scenePath, projectDir));
+  diagnostics.push(...validatePhysicsColliders(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
@@ -644,6 +645,73 @@ function detectDuplicateEntityIds(sceneData: JsonValue, scenePath: string, proje
     });
   });
 
+  return diagnostics;
+}
+
+const TRIMESH_VERTEX_WARN_THRESHOLD = 50_000;
+
+function validatePhysicsColliders(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  if (!isJsonObject(sceneData) || !Array.isArray(sceneData["entities"])) {
+    return diagnostics;
+  }
+  sceneData["entities"].forEach((entity, index) => {
+    if (!isJsonObject(entity)) return;
+    const components = entity["components"];
+    if (!isJsonObject(components)) return;
+    const collider = components["Collider3D"];
+    if (!isJsonObject(collider)) return;
+    const kind = collider["kind"];
+    const entityId = typeof entity["id"] === "string" ? entity["id"] : `entities[${index}]`;
+    if (kind === "trimesh") {
+      const body = components["RigidBody3D"];
+      if (isJsonObject(body) && body["type"] === "dynamic") {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_RIGIDBODY3D_DYNAMIC_TRIMESH",
+          file: toProjectRelativeFile(scenePath, projectDir),
+          path: `$.entities[${index}].components.RigidBody3D.type`,
+          message: `Entity "${entityId}" pairs a trimesh collider with a dynamic body. Rapier does not support concave dynamic shapes — collisions are undefined.`,
+          suggestion: "Either switch the body to type \"fixed\" / \"kinematicPosition\", or replace the trimesh with a convex hull / compound of primitives."
+        });
+      }
+      const vertices = collider["vertices"];
+      if (Array.isArray(vertices) && vertices.length / 3 > TRIMESH_VERTEX_WARN_THRESHOLD) {
+        diagnostics.push({
+          severity: "warning",
+          code: "AGF_COLLIDER3D_TRIMESH_LARGE",
+          file: toProjectRelativeFile(scenePath, projectDir),
+          path: `$.entities[${index}].components.Collider3D.vertices`,
+          message: `Trimesh on "${entityId}" carries ${Math.floor(vertices.length / 3)} vertices — over the ${TRIMESH_VERTEX_WARN_THRESHOLD}-vertex soft cap. Broadphase + narrow-phase cost scales with this number.`,
+          suggestion: "Consider a heightfield, a primitive compound, or a decimated collision mesh authored alongside the visual."
+        });
+      }
+    }
+    if (kind === "heightfield") {
+      const rows = collider["rows"];
+      const columns = collider["columns"];
+      const heights = collider["heights"];
+      if (
+        typeof rows === "number" &&
+        typeof columns === "number" &&
+        Array.isArray(heights) &&
+        heights.length !== rows * columns
+      ) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_COLLIDER3D_HEIGHTFIELD_DIMS",
+          file: toProjectRelativeFile(scenePath, projectDir),
+          path: `$.entities[${index}].components.Collider3D.heights`,
+          message: `Heightfield on "${entityId}" declares rows=${rows} × columns=${columns} (${rows * columns} samples) but the heights array has ${heights.length} entries.`,
+          suggestion: "Pad or trim the heights array so heights.length === rows * columns."
+        });
+      }
+    }
+  });
   return diagnostics;
 }
 

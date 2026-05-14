@@ -462,12 +462,12 @@
       }
     },
     "collider3DComponent": {
-      "description": "M24-schema: collision shape for a sibling RigidBody3D entity. Primitive kinds only in v0 (box/sphere/capsule/cylinder); trimesh + heightfield + compound land in M24-static-mesh. Set `sensor: true` for trigger volumes that emit events without resolving collision.",
+      "description": "M24-schema: collision shape for a sibling RigidBody3D entity. Primitives (box/sphere/capsule/cylinder), trimesh (arbitrary static geometry — must pair with RigidBody3D.type=\"fixed\"), and heightfield (terrain). Set `sensor: true` for trigger volumes that emit events without resolving collision.",
       "type": "object",
       "required": ["kind"],
       "properties": {
         "kind": {
-          "enum": ["box", "sphere", "capsule", "cylinder"]
+          "enum": ["box", "sphere", "capsule", "cylinder", "trimesh", "heightfield"]
         },
         "offset": {
           "$ref": "#/definitions/vec3",
@@ -542,6 +542,54 @@
             "properties": {
               "radius": { "type": "number", "exclusiveMinimum": 0 },
               "halfHeight": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "trimesh" } }, "required": ["kind"] },
+          "then": {
+            "required": ["vertices", "indices"],
+            "properties": {
+              "vertices": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 9,
+                "description": "Flat XYZ vertex array (`[x0, y0, z0, x1, y1, z1, ...]`). Length must be a multiple of 3 and ≥ 9 (one triangle). Authored in body-local space — Rapier applies the body's pose at step time."
+              },
+              "indices": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 },
+                "minItems": 3,
+                "description": "Triangle index array (`[i0, i1, i2, i3, i4, i5, ...]`). Length must be a multiple of 3."
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "heightfield" } }, "required": ["kind"] },
+          "then": {
+            "required": ["heights", "rows", "columns", "scale"],
+            "properties": {
+              "rows": {
+                "type": "integer",
+                "minimum": 2,
+                "description": "Number of height samples along the Z axis. `heights.length` must equal `rows * columns`."
+              },
+              "columns": {
+                "type": "integer",
+                "minimum": 2,
+                "description": "Number of height samples along the X axis."
+              },
+              "heights": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 4,
+                "description": "Row-major Y samples (`heights[row * columns + col]`). Pre-scale values."
+              },
+              "scale": {
+                "$ref": "#/definitions/vec3",
+                "description": "World-space size of the full heightfield. Y is the vertical scale applied to `heights` entries."
+              }
             }
           }
         }

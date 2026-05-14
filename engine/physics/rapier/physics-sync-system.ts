@@ -67,6 +67,18 @@ type Collider3DComponent = {
   size?: Vec3;
   radius?: number;
   halfHeight?: number;
+  /** M24-static-mesh: flat XYZ vertex array for trimesh. */
+  vertices?: ReadonlyArray<number>;
+  /** M24-static-mesh: triangle indices for trimesh. */
+  indices?: ReadonlyArray<number>;
+  /** M24-static-mesh: heightfield row count along Z. */
+  rows?: number;
+  /** M24-static-mesh: heightfield column count along X. */
+  columns?: number;
+  /** M24-static-mesh: row-major Y samples for heightfield. */
+  heights?: ReadonlyArray<number>;
+  /** M24-static-mesh: heightfield world-space scale. */
+  scale?: Vec3;
   offset?: Vec3;
   rotation?: Vec3;
   sensor?: boolean;
@@ -135,6 +147,14 @@ export function createPhysicsSyncSystem(
     }
     if (collider.radius !== undefined) spec.radius = collider.radius;
     if (collider.halfHeight !== undefined) spec.halfHeight = collider.halfHeight;
+    if (collider.vertices !== undefined) spec.vertices = collider.vertices;
+    if (collider.indices !== undefined) spec.indices = collider.indices;
+    if (collider.rows !== undefined) spec.rows = collider.rows;
+    if (collider.columns !== undefined) spec.columns = collider.columns;
+    if (collider.heights !== undefined) spec.heights = collider.heights;
+    if (collider.scale !== undefined) {
+      spec.scale = [collider.scale[0] ?? 1, collider.scale[1] ?? 1, collider.scale[2] ?? 1];
+    }
     if (collider.offset !== undefined) {
       spec.offset = [collider.offset[0] ?? 0, collider.offset[1] ?? 0, collider.offset[2] ?? 0];
     }

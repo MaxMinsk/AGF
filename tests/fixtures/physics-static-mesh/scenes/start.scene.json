@@ -1,0 +1,31 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "bad.dynamic-trimesh",
+      "components": {
+        "Transform": { "position": [0, 0, 0] },
+        "RigidBody3D": { "type": "dynamic", "mass": 1 },
+        "Collider3D": {
+          "kind": "trimesh",
+          "vertices": [0, 0, 0, 1, 0, 0, 0, 0, 1],
+          "indices": [0, 1, 2]
+        }
+      }
+    },
+    {
+      "id": "bad.heightfield-dims",
+      "components": {
+        "Transform": { "position": [0, 0, 5] },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": {
+          "kind": "heightfield",
+          "rows": 3,
+          "columns": 3,
+          "heights": [0, 0, 0, 0],
+          "scale": [10, 1, 10]
+        }
+      }
+    }
+  ]
+}

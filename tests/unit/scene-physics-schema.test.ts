@@ -98,3 +98,77 @@ describe("Collider3D schema (M24-schema)", () => {
     ).toBe(false);
   });
 });
+
+describe("Trimesh + heightfield colliders (M24-static-mesh)", () => {
+  it("accepts a minimal trimesh (one triangle)", () => {
+    expect(
+      validate(
+        sceneWith({
+          Collider3D: {
+            kind: "trimesh",
+            vertices: [0, 0, 0, 1, 0, 0, 0, 0, 1],
+            indices: [0, 1, 2]
+          }
+        })
+      )
+    ).toBe(true);
+  });
+
+  it("rejects trimesh without vertices", () => {
+    expect(
+      validate(sceneWith({ Collider3D: { kind: "trimesh", indices: [0, 1, 2] } }))
+    ).toBe(false);
+  });
+
+  it("rejects trimesh without indices", () => {
+    expect(
+      validate(
+        sceneWith({
+          Collider3D: { kind: "trimesh", vertices: [0, 0, 0, 1, 0, 0, 0, 0, 1] }
+        })
+      )
+    ).toBe(false);
+  });
+
+  it("accepts a minimal heightfield (2×2)", () => {
+    expect(
+      validate(
+        sceneWith({
+          Collider3D: {
+            kind: "heightfield",
+            rows: 2,
+            columns: 2,
+            heights: [0, 0, 0, 0],
+            scale: [10, 1, 10]
+          }
+        })
+      )
+    ).toBe(true);
+  });
+
+  it("rejects heightfield with rows < 2", () => {
+    expect(
+      validate(
+        sceneWith({
+          Collider3D: {
+            kind: "heightfield",
+            rows: 1,
+            columns: 2,
+            heights: [0, 0],
+            scale: [10, 1, 10]
+          }
+        })
+      )
+    ).toBe(false);
+  });
+
+  it("rejects heightfield missing scale", () => {
+    expect(
+      validate(
+        sceneWith({
+          Collider3D: { kind: "heightfield", rows: 2, columns: 2, heights: [0, 0, 0, 0] }
+        })
+      )
+    ).toBe(false);
+  });
+});
