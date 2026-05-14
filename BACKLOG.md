@@ -46,6 +46,15 @@ Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-s
 - `M17-doctor` `engine doctor` reports batch candidates (entities that share mesh + material + shadow flags) and explains why others wouldn't batch. Sizes the bucketer story before writing it.
 - `SYS-rule-createquery` Add to AGENTS.md: "Systems must cache `createQuery` handles, never call `world.query()` per frame in a hot path." Lightweight `engine check` warning when a file under `engine/**/systems/` calls `world.query(` directly.
 
+#### Renderer follow-ups surfaced this sprint
+
+- `M21-shadow-soft` Re-evaluate `PCFSoftShadowMap` vs `PCFShadowMap` vs `VSMShadowMap` when three.js stabilises soft shadows. r184 deprecated `PCFSoftShadowMap` (it aliases to `PCFShadowMap` with a runtime warning); document the chosen path + add a `renderer.shadowMap.type` field to `project.json#renderer.shadows` once VSM is on the M21-shadow-algorithm story.
+- `M21-shadow-glb-acne` Self-shadow polish on low-poly GLB meshes (drones / beacons / cores / hazards). Beacon's hazards animate scale (0.35 → 1.6) which interacts badly with world-space `normalBias`; current tuning `bias=-0.008, normalBias=0.22` works across the range but is empirically chosen, not derived. Investigate per-material `shadowSide = THREE.BackSide`, scale-aware bias, or polygonOffset overrides authored in the material manifest.
+
+#### M23 — Agent-driven dev-tuner UI (new)
+
+- `M23-tuner` Ephemeral tuning sliders the agent can spawn on request. The user asks "give me two sliders for `Light.shadow.bias` / `Light.shadow.normalBias`" → agent calls `__agf.dev.tuner.add({ name, target: { entityId, component, path }, min, max, step, value })`. Renders a small floating `<input type=range>` panel; every drag fires `__agf.applyCommands([{ kind: "component.set", ... }])` patching the parent component. User reports the dialled numbers; agent calls `__agf.dev.tuner.remove(name)` / `removeAll()`. Pattern: real engine runtime feature (`engine/runtime/dev-tuner.ts`) + a one-page agent skill on when to spawn/remove. Must respect snapshot determinism — the panel itself does NOT live in ECS and is hidden from `__agf.snapshot()`. Replaces the Playwright-screenshot-grid loop for visual-judgment-call values (shadow bias, light intensities, camera FOV, material roughness, etc.).
+
 ### Carried to Sprint 35+
 
 - `M21-light-spot-hemisphere-rect`, `M21-light-fallback` diagnostic finish.
