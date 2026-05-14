@@ -29,10 +29,9 @@ Sprint 40 focus is picked at sprint start. Natural openers (in priority order ba
 2. **M21-mat-custom** — custom `ShaderMaterial` / `onBeforeCompile` material kind for the manifest. Unlocks per-project shader experimentation without forking the adapter.
 3. **M25 / ASSET-compression** — flip Draco / KTX2 / Meshopt flags on `createGlbLoader` for a real project; route `M21-mat-textures`' texture cache through the shared KTX2Loader for `.ktx2` URLs. Decoder singletons + texture cache already in place.
 4. **ASSET-gltf-transform-investigate** — decide tooling for the offline pipeline (dev dep vs external CLI vs agent skill). Anchors `ASSET-optimize-command`.
-5. **DEV-server-test-coexist** — diagnose why `playwright.config.ts`' `reuseExistingServer: true` still lets preflight + ad-hoc test runs interrupt the developer's live `npm run dev` on 5173. Tighten the probe or pick a different port for headless test runs.
-6. **RUNTIME-resource-leak-tests** — HMR + adapter lifecycle leak tests across 30 cycles; assert `renderer.info.memory` / `info.programs` / `info.textures` stay bounded.
-7. **M17-lod** — `LOD { levels: [{ maxDistance, mesh }] }` component + integration with batching's per-instance LOD path.
-8. **M21-shadow-algorithm** — PCSS / VSM exploration once CSM is stable. Compare visual + perf vs the PCF default.
+5. **RUNTIME-resource-leak-tests** — HMR + adapter lifecycle leak tests across 30 cycles; assert `renderer.info.memory` / `info.programs` / `info.textures` stay bounded.
+6. **M17-lod** — `LOD { levels: [{ maxDistance, mesh }] }` component + integration with batching's per-instance LOD path.
+7. **M21-shadow-algorithm** — PCSS / VSM exploration once CSM is stable. Compare visual + perf vs the PCF default.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
