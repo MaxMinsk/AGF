@@ -19,6 +19,8 @@ export type PhysicsBodyRegistry = {
   handleFor(entityId: EntityId): BodyHandle | undefined;
   /** Acquire (or reacquire) the collider for an entity. Releases the previous one if any. */
   setCollider(entityId: EntityId, spec: ColliderAcquireSpec): ColliderHandle | undefined;
+  /** Direct collider lookup — used by M24-character to pass the collider into computeCharacterMovement. */
+  colliderFor(entityId: EntityId): ColliderHandle | undefined;
   /** Reverse lookup — used by M24-sensors to map Rapier collision events back to AGF EntityIds. */
   entityForCollider(collider: ColliderHandle): EntityId | undefined;
   entityIds(): IterableIterator<EntityId>;
@@ -69,6 +71,9 @@ export function createPhysicsBodyRegistry(adapter: RapierAdapter): PhysicsBodyRe
     },
     entityForCollider(collider): EntityId | undefined {
       return colliderToEntity.get(collider);
+    },
+    colliderFor(entityId): ColliderHandle | undefined {
+      return entityToCollider.get(entityId);
     },
     entityIds(): IterableIterator<EntityId> {
       return entityToBody.keys();

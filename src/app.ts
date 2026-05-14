@@ -313,6 +313,24 @@ export async function createApp(
       ...(project.physics.fixedDt !== undefined ? { fixedDt: project.physics.fixedDt } : {})
     });
     const physicsRegistry = createPhysicsBodyRegistry(physicsAdapter);
+    // M24-character: CharacterMovementSystem must run BEFORE
+    // PhysicsSyncSystem in the fixed-update phase so its
+    // setBodyNextKinematicTranslation queues land before adapter.step().
+    const { createCharacterMovementSystem } = await import(
+      "../engine/physics/rapier/character-movement-system"
+    );
+    const characterGravity: readonly [number, number, number] = [
+      gravity?.[0] ?? 0,
+      gravity?.[1] ?? -9.81,
+      gravity?.[2] ?? 0
+    ];
+    scheduler.register(
+      createCharacterMovementSystem({
+        registry: physicsRegistry,
+        adapter: physicsAdapter,
+        gravity: characterGravity
+      })
+    );
     const physicsSystem = createPhysicsSyncSystem(physicsRegistry, physicsAdapter);
     scheduler.register(physicsSystem);
   }
