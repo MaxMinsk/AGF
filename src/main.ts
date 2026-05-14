@@ -198,7 +198,14 @@ void (async (): Promise<void> => {
     const { mountPageBridge } = await import("../engine/dev/page-bridge");
     const activeProfile =
       requestedProfile ?? (requestedNetworked === "1" ? "connected" : "static");
-    mountPageBridge({ projectId: selectedId, profile: activeProfile });
+    const bridgeOptions: Parameters<typeof mountPageBridge>[0] = {
+      projectId: selectedId,
+      profile: activeProfile
+    };
+    if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
+      bridgeOptions.playerId = requestedPlayerId;
+    }
+    mountPageBridge(bridgeOptions);
   }
 
   if (import.meta.hot) {

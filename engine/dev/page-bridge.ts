@@ -23,6 +23,11 @@ export type PageBridgeOptions = {
   projectId: string;
   /** Active profile reported in the hello handshake. */
   profile: string;
+  /**
+   * Player id reported in the hello handshake. Lets agents target a
+   * specific tab via `/__agf/...?playerId=<id>` in multiplayer projects.
+   */
+  playerId?: string;
 };
 
 export type PageBridgeHandle = {
@@ -57,12 +62,14 @@ export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
     }
     const current = socket;
     current.addEventListener("open", () => {
-      current.send(
-        JSON.stringify({
-          kind: "hello",
-          payload: { projectId: options.projectId, profile: options.profile }
-        })
-      );
+      const helloPayload: Record<string, string> = {
+        projectId: options.projectId,
+        profile: options.profile
+      };
+      if (options.playerId !== undefined) {
+        helloPayload["playerId"] = options.playerId;
+      }
+      current.send(JSON.stringify({ kind: "hello", payload: helloPayload }));
     });
     current.addEventListener("message", (event: MessageEvent) => {
       let msg: IncomingMessage | undefined;
@@ -77,9 +84,9 @@ export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
       handleRpc(current, msg.id, msg.kind, msg.payload);
     });
     current.addEventListener("close", () => {
-      // The dev bridge displaces the previous page when a new one connects;
-      // reconnect after a short delay so this tab regains the active slot
-      // when the other tab goes away.
+      // Multi-page bridge (Sprint 32) no longer displaces other pages; we
+      // still reconnect after a transient close (Vite dev server restart,
+      // sleep/wake, etc.).
       scheduleReconnect();
     });
   };

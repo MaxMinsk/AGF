@@ -62,7 +62,7 @@ describe("agfDevBridge", () => {
     expect(nextCalled).toBe(false);
     expect(status).toBe(200);
     expect(headers.get("Content-Type")).toMatch(/json/);
-    expect(JSON.parse(body)).toEqual({ ok: true, version: "test-version" });
+    expect(JSON.parse(body)).toEqual({ ok: true, version: "test-version", pages: [] });
   });
 
   it("responds with structured 404 for unknown /__agf/* routes", () => {
