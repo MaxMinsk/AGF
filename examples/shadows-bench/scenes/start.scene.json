@@ -1,0 +1,31 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "RTS Camera" },
+        "Transform": { "position": [0, 22, 22], "rotation": [-40, 0, 0] },
+        "Camera": { "kind": "perspective", "active": true, "fov": 50, "near": 0.5, "far": 200 },
+        "RtsCamera": { "panSpeed": 12, "zoomSpeed": 6, "minHeight": 6, "maxHeight": 45 }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Name": { "label": "Sky Fill" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "hemisphere", "color": "#cfe2f3", "intensity": 0.55 }
+      }
+    },
+    {
+      "id": "ground",
+      "components": {
+        "Name": { "label": "Field" },
+        "Transform": { "position": [0, -0.25, 0], "scale": [80, 0.5, 80] },
+        "MeshRenderer": { "mesh": "box", "color": "#3e5f44" },
+        "ShadowFlags": { "cast": false, "receive": true }
+      }
+    }
+  ]
+}

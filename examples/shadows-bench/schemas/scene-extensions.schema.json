@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/examples/shadows-bench/schemas/scene-extensions.schema.json",
+  "title": "Shadows Bench Scene Extensions",
+  "description": "Project-local component types for the CSM shadows showcase.",
+  "components": {
+    "RtsCamera": {
+      "$ref": "#/definitions/rtsCameraComponent"
+    }
+  },
+  "definitions": {
+    "rtsCameraComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Strategy-game camera config: pan with WASD, zoom with wheel / Q+E. The system writes Transform.position each frame; rotation is authored once in the scene.",
+      "properties": {
+        "panSpeed": { "type": "number", "minimum": 0 },
+        "zoomSpeed": { "type": "number", "minimum": 0 },
+        "minHeight": { "type": "number", "minimum": 0 },
+        "maxHeight": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}
