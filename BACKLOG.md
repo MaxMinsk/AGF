@@ -21,30 +21,33 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 32 — TBD
+## Current Sprint: Sprint 32 — Finish M15 dev-server + close composition loops (M3-c / M4-reload-e2e / M16-cascade)
 
-Sprint 32 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 32 focus: close the remaining M15 surface (SSE events, multi-page, optional CLI), wire `expandScenePrefabs` into the runtime so Beacon can actually adopt prefabs, lock Beacon persistence with a Playwright reload spec, and ship the M16 cascade-delete polish.
 
-### Candidates
+### Stories
 
-#### M15 — Engine dev server (remaining)
+#### M15 — Engine dev server (finishing slice)
 
-- `M15-g` SSE event stream — `GET /__agf/events` streams diagnostics + HMR + scheduler ticks to the agent as server-sent events.
-- `M15-i` `engine connect <url>` CLI — optional thin wrapper around the HTTP endpoints. Agents can curl directly, so this is convenience.
-- `M15-multi-page` Allow multiple concurrent connected pages (key by socketId in handshake); drops the single-page invariant + the playwright workaround.
+- `M15-g` `GET /__agf/events` SSE stream — pushes runtime diagnostics + HMR `agf:asset-changed` + scheduler-tick markers to subscribed agents.
+- `M15-multi-page` Drop the single-active-page invariant: bridge keeps a Map keyed by socketId, RPC routes target by `?page=` query or the most recent socket. Remove `playwright.dev-bridge.config.ts` workaround.
+- `M15-i` `engine connect <url> <verb>` CLI — thin wrapper around the HTTP surface (`engine connect localhost:5173 bug-report`, `engine connect localhost:5173 commands < commands.json`).
 
-#### Composition + persistence
+#### M3 — Prefab runtime integration
 
-- `M3-c` Beacon World adopts prefabs for repeated cores / hazards (wires `expandScenePrefabs` into scene-load).
-- `M4-reload-e2e` Playwright spec: navigate to Beacon, repair a beacon, reload, assert the repaired state survives via IndexedDB.
-- `M16-cascade` Cascade-delete: removing a parented entity removes (or warns) about its children.
+- `M3-c-load` Wire `expandScenePrefabs` into the scene-load path so any project can declare `instances: [...]` alongside `entities` and have them materialise. Beacon-side adoption (`M3-c-beacon`) follows.
+- `M3-c-beacon` Beacon World's repeated cores / hazards become prefab instances.
 
-#### Backend follow-ups
+#### M4 — Persistence proof
 
-- `10.5+` C# skeleton WebSocket transport.
-- `10.14` Server-authoritative carry; `10.16` snapshot delta; `10.18` server hazard state.
+- `M4-reload-e2e` New Playwright spec navigates Beacon, drives a repair via injected commands, reloads, asserts the repaired beacon's state survives via IndexedDB.
 
-#### Engine polish
+#### M16 — Hierarchy polish
 
-- `M2b-seed` Wire deterministic RNG into the first system that actually rolls dice (still waiting).
-- `13.13` Audio asset path — replace procedural Web Audio beeps once an audio loader exists.
+- `M16-cascade` `entity.delete` removes the entity's children (transitively). New diagnostic `AGF_TRANSFORM_ORPHANED` emitted by `engine check` when a scene declares an entity with a parent that gets deleted.
+
+### Carried to Sprint 33
+
+- `M2b-seed` Wire deterministic RNG (still waiting for a system that actually rolls dice).
+- `13.13` Audio asset path — needs an audio loader first.
+- `10.5+` C# WS transport; `10.14` / `10.16` / `10.18` server-authoritative work.
