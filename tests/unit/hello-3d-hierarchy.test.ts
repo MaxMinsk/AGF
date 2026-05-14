@@ -62,21 +62,32 @@ describe("hello-3d transform hierarchy showcase", () => {
       expect(a[2]).toBeCloseTo(expected[2], 3);
     };
 
-    // arena.root sits at world (-2.4, 0, 0). All children are derived from it.
-    expectClose("arena.root", [-2.4, 0, 0]);
-    expectClose("arena.platform", [-2.4, -0.45, 0]);
-    expectClose("tower.base", [-2.4, 0.3, 0]);
-    // crown is parent.base (scale 0.8) shifted up by 1 in local Y.
-    expectClose("tower.crown", [-2.4, 0.3 + 0.8, 0]);
-    // spire sits at crown.local Y=1.1, which after crown's world scale [1.28, 0.32, 1.28] becomes 1.1 * 0.32 = 0.352.
-    expectClose("tower.spire", [-2.4, 1.1 + 0.352, 0]);
-    // disc is parented to arena.root, local (1.6, 0.9, 0); no extra rotation/scale on the parent.
-    expectClose("satellite.disc", [-0.8, 0.9, 0]);
-    // beacon is at disc.local (0, 1.4, 0). Disc has scale (0.5, 0.08, 0.5) and rotation 60° around Z.
-    //   scale (0, 1.4*0.08, 0) = (0, 0.112, 0)
-    //   rotate Z by 60°:  x' = -y*sin(60) = -0.112*0.866 ≈ -0.097, y' = y*cos(60) = 0.112*0.5 = 0.056
-    //   translate (-0.8, 0.9, 0) → (-0.897, 0.956, 0)
-    expectClose("satellite.beacon", [-0.897, 0.956, 0]);
+    // arena.root sits at world (-1.8, 0.05, 0). All children derive from it.
+    expectClose("arena.root", [-1.8, 0.05, 0]);
+    // platform: local (0, -0.45, 0) under arena.root → (-1.8, -0.4, 0).
+    expectClose("arena.platform", [-1.8, -0.4, 0]);
+    // tower.base: now OFF-AXIS at local (0.8, 0.3, 0) — so arena.root's Y spin
+    // sweeps the whole tower around. World = (-1.0, 0.35, 0).
+    expectClose("tower.base", [-1.0, 0.35, 0]);
+    // tower.crown: parent.base (scale 0.8) + local (0, 1, 0) → (-1.0, 0.35+0.8, 0).
+    expectClose("tower.crown", [-1.0, 1.15, 0]);
+    // tower.spire: off-axis at crown.local (0.5, 1, 0). Crown.world: pos
+    // (-1.0, 1.15, 0), rot 45°y, scale (1.28, 0.32, 1.28).
+    //   scale  → (0.64, 0.32, 0)
+    //   Ry(45) → (0.4525, 0.32, -0.4525)
+    //   T(-1.0, 1.15, 0) → (-0.5475, 1.47, -0.4525)
+    expectClose("tower.spire", [-0.5475, 1.47, -0.4525]);
+    // satellite.disc: off-axis at arena.root.local (-0.9, 0.9, 0) — so
+    // arena.root's Y spin sweeps it around (opposite the tower).
+    // World = (-2.7, 0.95, 0).
+    expectClose("satellite.disc", [-2.7, 0.95, 0]);
+    // satellite.beacon: off-axis at disc.local (0.8, 0.6, 0). Disc.world: pos
+    // (-2.7, 0.95, 0), rot (0, 0, 30°), scale (0.55, 0.08, 0.55).
+    //   scale  → (0.44, 0.048, 0)
+    //   Rz(30) → (0.44*cos30 - 0.048*sin30, 0.44*sin30 + 0.048*cos30, 0)
+    //         = (0.3811 - 0.024, 0.22 + 0.0416, 0) = (0.3571, 0.2616, 0)
+    //   T(-2.7, 0.95, 0) → (-2.3429, 1.2116, 0)
+    expectClose("satellite.beacon", [-2.3429, 1.2116, 0]);
   });
 
   it("compose parents' scale: tower.spire inherits 0.8 * 0.4 * 1.6 along Y", () => {
