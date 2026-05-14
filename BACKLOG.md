@@ -29,9 +29,9 @@ Sprint 33 focus is picked at sprint start. Agent-first priority from `CLAUDE.md`
 
 #### M22 — ECS performance & design discipline (start with benchmarks)
 
-- `ECS-B1` Add benchmark harness (`benchmarks/ecs/*.bench.ts`, lightweight runner — `tinybench` or zero-dep loop).
-- `ECS-B2` Benchmark current Map query patterns at 100 / 1k / 10k entities (snapshot, hierarchy resolve, single-component query, multi-component query, cached `createQuery`).
-- `ECS-B3` Benchmark batch-bucket collection (anticipating M17). Baseline numbers gate every future ECS storage change.
+- `ECS-B1` ✅ Implemented. Zero-dep runner at `benchmarks/ecs/runner.ts` (warm-up + mean / p50 / p99 / ops-per-sec). `npm run bench:ecs` CLI with `--suite` filter + `--json` mode. README + baseline JSON in `docs/research/ecs-benchmarks-baseline.json`. Not in preflight (timing noise).
+- `ECS-B2` ✅ Implemented. Three suites: `ecs-snapshot` (snapshotWorld), `ecs-query` (single / two-component / cached `createQuery` / rare-match), `ecs-hierarchy-resolve` (flat + chain-of-8) at 100 / 1k / 10k entities. **Findings:** `resolveHierarchy chain-of-8 @ 10k = ~12 ms` (73% of 60-FPS budget — `M16-cache` is mandatory before > 1k hierarchical entities); cached `createQuery` is ~18,000× faster than per-frame `world.query()` — every system must use it.
+- `ECS-B3` Benchmark batch-bucket collection. Deferred until `M17-bucketer` starts (no system to bench yet).
 
 #### M21 — Renderer → ECS systems
 
