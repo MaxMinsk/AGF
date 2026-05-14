@@ -21,29 +21,23 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 31 — TBD
+## Current Sprint: Sprint 32 — TBD
 
-Sprint 31 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 32 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
-Two anchor threads:
+#### M15 — Engine dev server (remaining)
 
-1. **M15 implementation** — start the engine dev-server vertical that the Sprint 30 investigation sequenced. The first slice (M15-a → M15-c → M15-d) gets an agent reaching `/__agf/snapshot`, `/__agf/diagnostics`, `/__agf/renderer-info`, and `/__agf/bug-report` over HTTP without touching DevTools.
-2. **M16 + M4 follow-ups** — `M16-cascade` delete handling, `M4-reload-e2e` Playwright spec, `M3-c` Beacon adopts prefabs.
+- `M15-g` SSE event stream — `GET /__agf/events` streams diagnostics + HMR + scheduler ticks to the agent as server-sent events.
+- `M15-i` `engine connect <url>` CLI — optional thin wrapper around the HTTP endpoints. Agents can curl directly, so this is convenience.
+- `M15-multi-page` Allow multiple concurrent connected pages (key by socketId in handshake); drops the single-page invariant + the playwright workaround.
 
-#### M15 — Engine dev server (first vertical)
+#### Composition + persistence
 
-- `M15-a` `engine/dev/agf-dev-bridge.ts` Vite plugin scaffold (`apply: "serve"`) + `GET /__agf/health` returning `{ ok: true, version }`. Production-build exclusion test.
-- `M15-b` Page-side bridge (`engine/dev/page-bridge.ts`) opens WS to `/__agf/ws` under `import.meta.env.DEV`; handshake message logs "page connected".
-- `M15-c` Pull endpoints — `GET /__agf/{snapshot,diagnostics,renderer-info,reload-events}` proxy the corresponding `app.*` methods with a 3-second RPC timeout.
-- `M15-d` `GET /__agf/bug-report` + `schemas/bug-report.schema.json`.
-
-#### Composition + persistence follow-ups
-
-- `M3-c` Beacon World adopts prefabs for repeated cores / hazards, wiring `expandScenePrefabs` into the scene-load path.
+- `M3-c` Beacon World adopts prefabs for repeated cores / hazards (wires `expandScenePrefabs` into scene-load).
 - `M4-reload-e2e` Playwright spec: navigate to Beacon, repair a beacon, reload, assert the repaired state survives via IndexedDB.
-- `M16-cascade` Cascade-delete: removing an entity that has children also removes (or warns about) its children.
+- `M16-cascade` Cascade-delete: removing a parented entity removes (or warns) about its children.
 
 #### Backend follow-ups
 

@@ -8,8 +8,8 @@
           "label": "Main Camera"
         },
         "Transform": {
-          "position": [0, 2.5, 6],
-          "rotation": [-15, 0, 0],
+          "position": [-1, 3, 7],
+          "rotation": [-18, 0, 0],
           "scale": [1, 1, 1]
         },
         "Camera": {
@@ -58,6 +58,99 @@
           "axis": "y",
           "speed": 45
         }
+      }
+    },
+
+    {
+      "id": "arena.root",
+      "components": {
+        "Name": { "label": "Arena Root — slow Y spin sweeps the whole platform" },
+        "Transform": {
+          "position": [-1.8, 0.05, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Spin": { "axis": "y", "speed": 18 }
+      }
+    },
+    {
+      "id": "arena.platform",
+      "components": {
+        "Name": { "label": "Arena Platform — child of arena.root; visually the turntable surface" },
+        "Transform": {
+          "parent": "arena.root",
+          "position": [0, -0.45, 0],
+          "rotation": [0, 0, 0],
+          "scale": [2.4, 0.1, 2.4]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#3b6e8f" }
+      }
+    },
+    {
+      "id": "tower.base",
+      "components": {
+        "Name": { "label": "Tower Base — OFF-AXIS (+X) so arena.root's spin sweeps the whole tower around" },
+        "Transform": {
+          "parent": "arena.root",
+          "position": [0.8, 0.3, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.8, 0.8, 0.8]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#9aa6b2" }
+      }
+    },
+    {
+      "id": "tower.crown",
+      "components": {
+        "Name": { "label": "Tower Crown — local Y spin; tower.spire is its child and rotates with it" },
+        "Transform": {
+          "parent": "tower.base",
+          "position": [0, 1, 0],
+          "rotation": [0, 45, 0],
+          "scale": [1.6, 0.4, 1.6]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#d97a3f" },
+        "Spin": { "axis": "y", "speed": 60 }
+      }
+    },
+    {
+      "id": "tower.spire",
+      "components": {
+        "Name": { "label": "Tower Spire — offset in X from the crown so the crown's Y spin orbits it" },
+        "Transform": {
+          "parent": "tower.crown",
+          "position": [0.5, 1, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.25, 1.6, 0.25]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#f7c948" }
+      }
+    },
+    {
+      "id": "satellite.disc",
+      "components": {
+        "Name": { "label": "Satellite Disc — OFF-AXIS (-X) so arena.root sweeps it; also tilted 30°z + local Y spin" },
+        "Transform": {
+          "parent": "arena.root",
+          "position": [-0.9, 0.9, 0],
+          "rotation": [0, 0, 30],
+          "scale": [0.55, 0.08, 0.55]
+        },
+        "MeshRenderer": { "mesh": "sphere", "color": "#88ccff" },
+        "Spin": { "axis": "y", "speed": 110 }
+      }
+    },
+    {
+      "id": "satellite.beacon",
+      "components": {
+        "Name": { "label": "Satellite Beacon — offset in X from the disc so disc's Y spin sweeps it along a tilted circle" },
+        "Transform": {
+          "parent": "satellite.disc",
+          "position": [0.8, 0.6, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1.7, 1.7, 1.7]
+        },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffcc66" }
       }
     }
   ]

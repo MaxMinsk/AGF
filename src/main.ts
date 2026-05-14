@@ -58,6 +58,11 @@ declare global {
       save(): Promise<unknown>;
       load(): Promise<unknown>;
       clearSave(): Promise<void>;
+      /** Recording v0 — used by the dev-bridge /__agf/recording/* routes. */
+      startRecording(): unknown;
+      stopRecording(): unknown;
+      /** Trigger an asset HMR reload from the dev bridge. */
+      reloadAsset(ref: string): void;
       /**
        * Snapshot of Three.js renderer resource counters. Useful for HMR
        * leak tests: take a baseline, reload assets N times, assert the
@@ -181,10 +186,19 @@ void (async (): Promise<void> => {
       save: () => app.save(),
       load: () => app.load(),
       clearSave: () => app.clearSave(),
+      startRecording: () => app.startRecording(),
+      stopRecording: () => app.stopRecording(),
+      reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
       reloadEvents: []
     };
+    // Open the dev-bridge WS so an agent can curl /__agf/* against the dev
+    // server without ever touching DevTools. Production builds drop this.
+    const { mountPageBridge } = await import("../engine/dev/page-bridge");
+    const activeProfile =
+      requestedProfile ?? (requestedNetworked === "1" ? "connected" : "static");
+    mountPageBridge({ projectId: selectedId, profile: activeProfile });
   }
 
   if (import.meta.hot) {

@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/bug-report.schema.json",
+  "title": "AGF Bug Report",
+  "description": "Composite snapshot produced by GET /__agf/bug-report. Bundles a running tab's state so an agent can diagnose a bug from a single curl response.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agfFormatVersion", "projectId", "capturedAt", "snapshot", "diagnostics", "rendererInfo"],
+  "properties": {
+    "agfFormatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Mirrors project.json's agfFormatVersion so the bug report carries its own format stamp."
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "snapshot": {
+      "type": "object",
+      "description": "WorldSnapshot from window.__agf.snapshot()."
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "rendererInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["geometries", "textures", "programs", "drawCalls", "triangles", "meshes"],
+      "properties": {
+        "geometries": { "type": "integer", "minimum": 0 },
+        "textures": { "type": "integer", "minimum": 0 },
+        "programs": { "type": "integer", "minimum": 0 },
+        "drawCalls": { "type": "integer", "minimum": 0 },
+        "triangles": { "type": "integer", "minimum": 0 },
+        "meshes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "reloadEvents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "count"],
+        "properties": {
+          "ref": { "type": "string" },
+          "count": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
