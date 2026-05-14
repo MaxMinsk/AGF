@@ -34,14 +34,33 @@ export const LIGHT: ComponentName = "Light";
 export const LOCAL_TO_WORLD: ComponentName = "LocalToWorld";
 export const RENDER_LIGHT_HANDLE: ComponentName = "RenderLightHandle";
 
-const SUPPORTED_KINDS: ReadonlySet<LightKind> = new Set<LightKind>(["directional", "point", "ambient"]);
+const SUPPORTED_KINDS: ReadonlySet<LightKind> = new Set<LightKind>([
+  "directional",
+  "point",
+  "ambient",
+  "spot",
+  "hemisphere",
+  "rect-area"
+]);
 
 type LightComponent = {
   kind: LightKind | string;
   color?: string;
   intensity?: number;
+  /** point + spot */
   distance?: number;
+  /** point + spot */
   decay?: number;
+  /** spot only */
+  angle?: number;
+  /** spot only */
+  penumbra?: number;
+  /** hemisphere only */
+  groundColor?: string;
+  /** rect-area only */
+  width?: number;
+  /** rect-area only */
+  height?: number;
   castShadow?: boolean;
   shadow?: LightShadowParams;
 };
@@ -126,21 +145,45 @@ export function createLightLifecycleSystem(
       const spec: LightAcquireSpec = { kind };
       if (comp.color !== undefined) spec.color = comp.color;
       if (comp.intensity !== undefined) spec.intensity = comp.intensity;
-      if (kind === "point") {
+      if (kind === "point" || kind === "spot") {
         if (comp.distance !== undefined) spec.distance = comp.distance;
         if (comp.decay !== undefined) spec.decay = comp.decay;
+      }
+      if (kind === "spot") {
+        if (comp.angle !== undefined) spec.angle = comp.angle;
+        if (comp.penumbra !== undefined) spec.penumbra = comp.penumbra;
+      }
+      if (kind === "hemisphere" && comp.groundColor !== undefined) {
+        spec.groundColor = comp.groundColor;
+      }
+      if (kind === "rect-area") {
+        if (comp.width !== undefined) spec.width = comp.width;
+        if (comp.height !== undefined) spec.height = comp.height;
       }
       const handle = deps.registry.acquireFor(id, spec);
       acquiredKind.set(id, kind);
       world.setComponent(id, RENDER_LIGHT_HANDLE, { id: handle });
 
       // Per-frame param patch (cheap; Three.js handles dirty-checking internally).
-      deps.adapter.setLightParams(handle, {
-        ...(comp.color !== undefined ? { color: comp.color } : {}),
-        ...(comp.intensity !== undefined ? { intensity: comp.intensity } : {}),
-        ...(kind === "point" && comp.distance !== undefined ? { distance: comp.distance } : {}),
-        ...(kind === "point" && comp.decay !== undefined ? { decay: comp.decay } : {})
-      });
+      const patch: Record<string, unknown> = {};
+      if (comp.color !== undefined) patch["color"] = comp.color;
+      if (comp.intensity !== undefined) patch["intensity"] = comp.intensity;
+      if ((kind === "point" || kind === "spot")) {
+        if (comp.distance !== undefined) patch["distance"] = comp.distance;
+        if (comp.decay !== undefined) patch["decay"] = comp.decay;
+      }
+      if (kind === "spot") {
+        if (comp.angle !== undefined) patch["angle"] = comp.angle;
+        if (comp.penumbra !== undefined) patch["penumbra"] = comp.penumbra;
+      }
+      if (kind === "hemisphere" && comp.groundColor !== undefined) {
+        patch["groundColor"] = comp.groundColor;
+      }
+      if (kind === "rect-area") {
+        if (comp.width !== undefined) patch["width"] = comp.width;
+        if (comp.height !== undefined) patch["height"] = comp.height;
+      }
+      deps.adapter.setLightParams(handle, patch);
 
       // Shadow config (gated by castShadow). Ambient ignores; directional / point apply.
       const shadowParams: LightShadowParams = comp.shadow ?? {};

@@ -26,22 +26,27 @@ import {
   type BufferGeometry,
   Color,
   DirectionalLight,
+  HemisphereLight,
   InstancedMesh,
   type Light,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
   type Object3D,
+  Object3D as ThreeObject3D,
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
   PointLight,
   Quaternion,
+  RectAreaLight,
   Scene,
+  SpotLight,
   type Texture,
   Vector3,
   WebGLRenderer
 } from "three";
+import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 export type MeshHandle = number;
@@ -63,7 +68,7 @@ export type BucketAcquireSpec = {
   receiveShadow?: boolean;
 };
 
-export type LightKind = "directional" | "point" | "ambient";
+export type LightKind = "directional" | "point" | "ambient" | "spot" | "hemisphere" | "rect-area";
 
 export type LightShadowParams = {
   /** Power-of-two shadow map size. Bigger = sharper + more VRAM. */
@@ -86,10 +91,20 @@ export type LightAcquireSpec = {
   kind: LightKind;
   color?: string;
   intensity?: number;
-  /** Point-light specific. */
+  /** Point + spot. */
   distance?: number;
-  /** Point-light specific. */
+  /** Point + spot. */
   decay?: number;
+  /** Spot only — cone half-angle in radians. */
+  angle?: number;
+  /** Spot only — soft edge ratio 0..1. */
+  penumbra?: number;
+  /** Hemisphere only — ground tint. */
+  groundColor?: string;
+  /** Rect-area only — emitter width. */
+  width?: number;
+  /** Rect-area only — emitter height. */
+  height?: number;
 };
 
 export type LightPatch = {
@@ -97,6 +112,11 @@ export type LightPatch = {
   intensity?: number;
   distance?: number;
   decay?: number;
+  angle?: number;
+  penumbra?: number;
+  groundColor?: string;
+  width?: number;
+  height?: number;
 };
 
 export type ResolvedWorld = {
@@ -162,6 +182,7 @@ export class ThreeRenderAdapter {
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
   private nextBucketHandle = 1;
+  private rectAreaUniformsReady = false;
   private readonly scratchMatrix = new Matrix4();
   private readonly scratchPosition = new Vector3();
   private readonly scratchScale = new Vector3();
@@ -267,6 +288,36 @@ export class ThreeRenderAdapter {
       case "point":
         light = new PointLight(color, intensity, spec.distance ?? 0, spec.decay ?? 2);
         break;
+      case "spot": {
+        const spot = new SpotLight(
+          color,
+          intensity,
+          spec.distance ?? 0,
+          spec.angle ?? Math.PI / 4,
+          spec.penumbra ?? 0,
+          spec.decay ?? 2
+        );
+        // SpotLight needs its target as a Scene child for shadow camera updates.
+        this.scene.add(spot.target);
+        light = spot;
+        break;
+      }
+      case "hemisphere":
+        light = new HemisphereLight(
+          color,
+          new Color(spec.groundColor ?? "#000000"),
+          intensity
+        );
+        break;
+      case "rect-area":
+        // The LUT init is per-renderer + idempotent; call once when the
+        // first rect-area light arrives.
+        if (!this.rectAreaUniformsReady) {
+          RectAreaLightUniformsLib.init();
+          this.rectAreaUniformsReady = true;
+        }
+        light = new RectAreaLight(color, intensity, spec.width ?? 1, spec.height ?? 1);
+        break;
     }
     this.lights.set(handle, light);
     this.scene.add(light);
@@ -277,6 +328,7 @@ export class ThreeRenderAdapter {
     const light = this.lights.get(handle);
     if (light === undefined) return;
     this.scene.remove(light);
+    if (light instanceof SpotLight) this.scene.remove(light.target);
     light.dispose();
     this.lights.delete(handle);
   }
@@ -289,6 +341,19 @@ export class ThreeRenderAdapter {
     if (light instanceof PointLight) {
       if (patch.distance !== undefined) light.distance = patch.distance;
       if (patch.decay !== undefined) light.decay = patch.decay;
+    }
+    if (light instanceof SpotLight) {
+      if (patch.distance !== undefined) light.distance = patch.distance;
+      if (patch.decay !== undefined) light.decay = patch.decay;
+      if (patch.angle !== undefined) light.angle = patch.angle;
+      if (patch.penumbra !== undefined) light.penumbra = patch.penumbra;
+    }
+    if (light instanceof HemisphereLight && patch.groundColor !== undefined) {
+      light.groundColor.set(patch.groundColor);
+    }
+    if (light instanceof RectAreaLight) {
+      if (patch.width !== undefined) light.width = patch.width;
+      if (patch.height !== undefined) light.height = patch.height;
     }
   }
 
