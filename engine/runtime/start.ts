@@ -97,6 +97,17 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   const scheduler = options.scheduler;
   const maxFixedStepsPerFrame = options.maxFixedStepsPerFrame;
 
+  // Auto-register the M21-b TransformResolveSystem as the last frameUpdate
+  // so it runs after any gameplay system that mutates Transform. Registration
+  // is idempotent: callers that have already added it are not duplicated.
+  if (scheduler !== undefined) {
+    const { createTransformResolveSystem } = await import("../render/systems/transform-resolve-system");
+    const ts = createTransformResolveSystem();
+    if (!scheduler.has(ts.name)) {
+      scheduler.register(ts);
+    }
+  }
+
   const time: TimeContext = {
     elapsed: 0,
     dt: 0,

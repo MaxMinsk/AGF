@@ -57,8 +57,15 @@ export type HierarchyCache = {
    * Resolve world transforms for every entity carrying `Transform` in the
    * World. Returns the same shape as `resolveHierarchy` but skips
    * re-composition for unchanged subtrees.
+   *
+   * Callers that need to pre-process inputs (e.g. convert
+   * `Transform.rotation` from degrees to radians, as the renderer's
+   * `TransformResolveSystem` does) pass their own `inputs` array. The
+   * cache still keys revision-tracking off `world.componentRevision(id,
+   * "Transform")` so the dirty-detection works the same regardless of who
+   * built the input.
    */
-  resolveWorld(world: World): Map<EntityId, ResolvedTransform>;
+  resolveWorld(world: World, inputs?: ReadonlyArray<TransformInput>): Map<EntityId, ResolvedTransform>;
   /**
    * Drop the cache. Use after schema-shape changes or HMR reloads where
    * cached `ResolvedTransform` references would mislead downstream identity
@@ -78,27 +85,35 @@ export function createHierarchyCache(): HierarchyCache {
   let lastStats: HierarchyCacheStats = { total: 0, dirty: 0, reused: 0, evicted: 0 };
 
   return {
-    resolveWorld(world: World): Map<EntityId, ResolvedTransform> {
+    resolveWorld(world: World, providedInputs?: ReadonlyArray<TransformInput>): Map<EntityId, ResolvedTransform> {
       const present = new Set<EntityId>();
       const inputs: TransformInput[] = [];
       const liveRevisions = new Map<EntityId, number>();
-      for (const id of world.entityIds()) {
-        if (!world.hasComponent(id, TRANSFORM)) continue;
-        present.add(id);
-        liveRevisions.set(id, world.componentRevision(id, TRANSFORM));
-        const t = world.getComponent<{
-          position?: Vec3;
-          rotation?: Vec3;
-          scale?: Vec3;
-          parent?: EntityId;
-        }>(id, TRANSFORM);
-        if (t === undefined) continue;
-        const entry: TransformInput = { id };
-        if (t.parent !== undefined) entry.parent = t.parent;
-        if (t.position !== undefined) entry.position = t.position;
-        if (t.rotation !== undefined) entry.rotation = t.rotation;
-        if (t.scale !== undefined) entry.scale = t.scale;
-        inputs.push(entry);
+      if (providedInputs !== undefined) {
+        for (const entry of providedInputs) {
+          present.add(entry.id);
+          liveRevisions.set(entry.id, world.componentRevision(entry.id, TRANSFORM));
+          inputs.push(entry);
+        }
+      } else {
+        for (const id of world.entityIds()) {
+          if (!world.hasComponent(id, TRANSFORM)) continue;
+          present.add(id);
+          liveRevisions.set(id, world.componentRevision(id, TRANSFORM));
+          const t = world.getComponent<{
+            position?: Vec3;
+            rotation?: Vec3;
+            scale?: Vec3;
+            parent?: EntityId;
+          }>(id, TRANSFORM);
+          if (t === undefined) continue;
+          const entry: TransformInput = { id };
+          if (t.parent !== undefined) entry.parent = t.parent;
+          if (t.position !== undefined) entry.position = t.position;
+          if (t.rotation !== undefined) entry.rotation = t.rotation;
+          if (t.scale !== undefined) entry.scale = t.scale;
+          inputs.push(entry);
+        }
       }
 
       // Evict entries for entities that no longer carry Transform.

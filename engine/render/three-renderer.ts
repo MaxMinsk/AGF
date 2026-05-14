@@ -82,11 +82,16 @@ export class ThreeRenderer {
   }
 
   /**
-   * Pull every entity's Transform off the World, convert degrees→radians,
-   * and feed the resolver so children inherit their parent's world frame.
-   * Returns an empty map when no entities carry Transform.
+   * Read resolved world transforms. If `TransformResolveSystem` (M21-b) is
+   * registered, every Transform-bearing entity carries a `LocalToWorld`
+   * component and we use that directly — zero work duplicated. If the
+   * system is absent, fall back to the inline resolve so apps that don't
+   * register a scheduler still render correctly.
    */
   private buildResolvedTransforms(): Map<EntityId, ResolvedTransform> {
+    const fromComponent = this.tryReadLocalToWorld();
+    if (fromComponent !== undefined) return fromComponent;
+
     const inputs: TransformInput[] = [];
     for (const id of this.world.entityIds()) {
       if (!this.world.hasComponent(id, "Transform")) {
@@ -128,6 +133,31 @@ export class ThreeRenderer {
         ])
       );
     }
+  }
+
+  private tryReadLocalToWorld(): Map<EntityId, ResolvedTransform> | undefined {
+    const carriers = this.world.query(["LocalToWorld"]);
+    if (carriers.length === 0) return undefined;
+    const result = new Map<EntityId, ResolvedTransform>();
+    for (const id of carriers) {
+      const ltw = this.world.getComponent<{
+        position: ReadonlyArray<number>;
+        rotation: ReadonlyArray<number>;
+        scale: ReadonlyArray<number>;
+      }>(id, "LocalToWorld");
+      if (ltw === undefined) continue;
+      const world = {
+        position: [ltw.position[0] ?? 0, ltw.position[1] ?? 0, ltw.position[2] ?? 0] as const,
+        rotation: [ltw.rotation[0] ?? 0, ltw.rotation[1] ?? 0, ltw.rotation[2] ?? 0] as const,
+        scale: [ltw.scale[0] ?? 1, ltw.scale[1] ?? 1, ltw.scale[2] ?? 1] as const
+      };
+      result.set(id, {
+        parent: undefined,
+        local: world,
+        world
+      });
+    }
+    return result;
   }
 
   /**
