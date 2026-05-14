@@ -110,6 +110,15 @@ declare global {
         readonly samples: number;
       };
       /**
+       * M21-shadow-static — manual shadow-map controls. `invalidateShadowMap()`
+       * forces one re-render on the next frame; useful when `project.render.shadows.autoUpdate`
+       * is false and a static caster has moved.
+       */
+      renderer: {
+        invalidateShadowMap(): void;
+        setShadowMapAutoUpdate(enabled: boolean): void;
+      };
+      /**
        * Physics query + debug controls. Undefined when the active
        * project did not opt into `physics.enabled`.
        */
@@ -310,6 +319,7 @@ void (async (): Promise<void> => {
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
       frameTiming: () => app.frameTiming(),
+      renderer: app.renderer,
       ...(app.physics !== undefined ? { physics: app.physics } : {}),
       reloadCount: 0,
       reloadEvents: [],

@@ -35,6 +35,8 @@ export type ProjectMeta = {
      * routes every renderer-managed material through `setupMaterial`.
      */
     shadows?: {
+      /** M21-shadow-static: disable per-frame shadow re-rendering for static scenes. */
+      autoUpdate?: boolean;
       csm?: {
         enabled?: boolean;
         cascades?: number;
@@ -154,6 +156,11 @@ export type AppHandle = {
     batchedBuckets: number;
     batchedBucketInstances: number;
     handleLeak: number;
+  };
+  /** M21-shadow-static: manual shadow-map controls (no-op when autoUpdate is true, which is the default). */
+  renderer: {
+    invalidateShadowMap(): void;
+    setShadowMapAutoUpdate(enabled: boolean): void;
   };
   /** M21-frame-timing — window-averaged per-phase tick timings in milliseconds. */
   frameTiming(): {
@@ -357,6 +364,13 @@ export async function createApp(
 
   const runtime: RuntimeHandle = await startRuntime(runtimeOptions);
 
+  // M21-shadow-static: opt out of per-frame shadow re-rendering for
+  // static scenes (the renderer bakes the cascade(s) once + on every
+  // explicit invalidateShadowMap()).
+  if (project.render?.shadows?.autoUpdate === false) {
+    runtime.renderer.adapter.setShadowMapAutoUpdate(false);
+  }
+
   // M21-shadow-csm: opt in to cascade shadow maps. Build happens lazily
   // once CameraSyncSystem picks an active camera; the adapter handles
   // deferred construction internally.
@@ -461,6 +475,14 @@ export async function createApp(
     },
     frameTiming() {
       return runtime.frameTiming();
+    },
+    renderer: {
+      invalidateShadowMap(): void {
+        runtime.renderer.adapter.invalidateShadowMap();
+      },
+      setShadowMapAutoUpdate(enabled: boolean): void {
+        runtime.renderer.adapter.setShadowMapAutoUpdate(enabled);
+      }
     },
     ...(physicsAdapter !== undefined && physicsRegistry !== undefined
       ? {
