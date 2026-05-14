@@ -57,6 +57,7 @@ export class ThreeRenderer {
   private cameraHandle: CameraHandle | undefined;
   private cameraEntityId: EntityId | undefined;
   private materialBindingExternal = false;
+  private meshTransformSyncExternal = false;
 
   constructor(
     world: World,
@@ -88,6 +89,15 @@ export class ThreeRenderer {
    */
   setMaterialBindingExternal(value: boolean): void {
     this.materialBindingExternal = value;
+  }
+
+  /**
+   * Tell the renderer that `MeshTransformSyncSystem` (M21-f) owns the
+   * per-frame `adapter.setMeshTransform` calls. The renderer skips the
+   * tail transform-write inside refreshMeshes when this flag is true.
+   */
+  setMeshTransformSyncExternal(value: boolean): void {
+    this.meshTransformSyncExternal = value;
   }
 
   resize(width: number, height: number): void {
@@ -326,9 +336,11 @@ export class ThreeRenderer {
         }
       }
 
-      const transform = resolved.get(id)?.world;
-      if (transform !== undefined) {
-        this.adapter.setMeshTransform(handle, toResolvedWorld(transform));
+      if (!this.meshTransformSyncExternal) {
+        const transform = resolved.get(id)?.world;
+        if (transform !== undefined) {
+          this.adapter.setMeshTransform(handle, toResolvedWorld(transform));
+        }
       }
     }
   }

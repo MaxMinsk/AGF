@@ -124,6 +124,15 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       scheduler.register(materialBindingSystem);
       renderer.setMaterialBindingExternal(true);
     }
+    const { createMeshTransformSyncSystem } = await import("../render/systems/mesh-transform-sync-system");
+    const mts = createMeshTransformSyncSystem({
+      adapter: renderer.adapter,
+      registry: renderer.meshRegistry()
+    });
+    if (!scheduler.has(mts.name)) {
+      scheduler.register(mts);
+      renderer.setMeshTransformSyncExternal(true);
+    }
   }
 
   const time: TimeContext = {
