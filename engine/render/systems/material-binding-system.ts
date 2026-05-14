@@ -188,6 +188,15 @@ function reconcileMaterial(
       if (manifest.iridescence !== undefined) patch.iridescence = manifest.iridescence;
       if (manifest.shininess !== undefined) patch.shininess = manifest.shininess;
       if (manifest.specular !== undefined) patch.specular = manifest.specular;
+      // M21-mat-textures
+      if (manifest.map !== undefined) patch.map = manifest.map;
+      if (manifest.normalMap !== undefined) patch.normalMap = manifest.normalMap;
+      if (manifest.normalScale !== undefined) patch.normalScale = manifest.normalScale;
+      if (manifest.roughnessMap !== undefined) patch.roughnessMap = manifest.roughnessMap;
+      if (manifest.metalnessMap !== undefined) patch.metalnessMap = manifest.metalnessMap;
+      if (manifest.emissiveMap !== undefined) patch.emissiveMap = manifest.emissiveMap;
+      if (manifest.emissiveIntensity !== undefined) patch.emissiveIntensity = manifest.emissiveIntensity;
+      if (manifest.aoMap !== undefined) patch.aoMap = manifest.aoMap;
       deps.adapter.setMeshMaterialPatch(handle, patch);
       world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "applied" });
     },
