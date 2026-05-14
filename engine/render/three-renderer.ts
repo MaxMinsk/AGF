@@ -1,20 +1,4 @@
-import {
-  AmbientLight,
-  BoxGeometry,
-  Color,
-  DirectionalLight,
-  Mesh,
-  MeshStandardMaterial,
-  PerspectiveCamera,
-  PlaneGeometry,
-  Scene,
-  SphereGeometry,
-  WebGLRenderer,
-  MathUtils,
-  type BufferGeometry,
-  type Material,
-  type Object3D
-} from "three";
+import { BoxGeometry, MathUtils, type BufferGeometry, type Mesh, type Object3D, PlaneGeometry, SphereGeometry } from "three";
 import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
 import {
@@ -26,6 +10,7 @@ import {
 import type { AssetRegistry } from "../runtime/asset-registry";
 import type { MaterialManifest } from "../runtime/asset-loaders/material-loader";
 import type { GlbAsset } from "./glb-loader";
+import { ThreeRenderAdapter, type CameraHandle, type MeshHandle, type ResolvedWorld } from "./three-render-adapter";
 
 type Vec3 = ReadonlyArray<number>;
 
@@ -50,18 +35,25 @@ type MeshRendererComponent = {
   color?: string;
 };
 
-const DEFAULT_COLOR = "#cccccc";
-
+/**
+ * Orchestrator for the renderer pipeline. Reads ECS state, decides what
+ * needs to happen each frame, and calls into the adapter. Three.js types
+ * appear here only via the GLB loader's payload — direct GPU touches go
+ * through `ThreeRenderAdapter`.
+ *
+ * `M21-a` extracted the adapter. Subsequent stories `M21-b..f` peel each
+ * `refresh*` method out into its own scheduler-registered `System`, at
+ * which point this class becomes a thin shim that creates the adapter,
+ * registers the systems and forwards a few lifecycle calls.
+ */
 export class ThreeRenderer {
   private readonly world: World;
-  private readonly canvas: HTMLCanvasElement;
-  private readonly renderer: WebGLRenderer;
-  private readonly scene: Scene;
-  private readonly meshes = new Map<EntityId, Mesh>();
+  private readonly adapter: ThreeRenderAdapter;
+  private readonly meshHandles = new Map<EntityId, MeshHandle>();
   private readonly appliedMaterials = new Map<EntityId, string>();
   private readonly appliedGeometries = new Map<EntityId, string>();
   private readonly assetRegistry: AssetRegistry | undefined;
-  private camera: PerspectiveCamera | undefined;
+  private cameraHandle: CameraHandle | undefined;
   private cameraEntityId: EntityId | undefined;
 
   constructor(
@@ -71,39 +63,22 @@ export class ThreeRenderer {
     assetRegistry?: AssetRegistry
   ) {
     this.world = world;
-    this.canvas = canvas;
     this.assetRegistry = assetRegistry;
-    this.renderer = new WebGLRenderer({
-      canvas,
-      antialias: true,
-      preserveDrawingBuffer: true
-    });
-    this.scene = new Scene();
-    if (background !== undefined) {
-      this.scene.background = new Color(background);
-    }
-    this.scene.add(new AmbientLight(0xffffff, 0.6));
-    const sun = new DirectionalLight(0xffffff, 0.85);
-    sun.position.set(5, 10, 7);
-    this.scene.add(sun);
+    const options: { canvas: HTMLCanvasElement; background?: string } = { canvas };
+    if (background !== undefined) options.background = background;
+    this.adapter = new ThreeRenderAdapter(options);
   }
 
   resize(width: number, height: number): void {
-    this.renderer.setSize(width, height, false);
-    if (this.camera !== undefined) {
-      this.camera.aspect = width / Math.max(1, height);
-      this.camera.updateProjectionMatrix();
-    }
+    this.adapter.resize(width, height);
   }
 
   render(): void {
     const resolved = this.buildResolvedTransforms();
     this.refreshCamera(resolved);
     this.refreshMeshes(resolved);
-    if (this.camera === undefined) {
-      return;
-    }
-    this.renderer.render(this.scene, this.camera);
+    if (!this.adapter.hasActiveCamera()) return;
+    this.adapter.draw();
   }
 
   /**
@@ -168,17 +143,7 @@ export class ThreeRenderer {
     triangles: number;
     meshes: number;
   } {
-    const memory = this.renderer.info.memory;
-    const renderStats = this.renderer.info.render;
-    const programs = this.renderer.info.programs?.length ?? 0;
-    return {
-      geometries: memory.geometries ?? 0,
-      textures: memory.textures ?? 0,
-      programs,
-      drawCalls: renderStats.calls ?? 0,
-      triangles: renderStats.triangles ?? 0,
-      meshes: this.meshes.size
-    };
+    return this.adapter.info();
   }
 
   /**
@@ -199,13 +164,12 @@ export class ThreeRenderer {
   }
 
   dispose(): void {
-    for (const mesh of this.meshes.values()) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      disposeMaterial(mesh.material);
-    }
-    this.meshes.clear();
-    this.renderer.dispose();
+    this.meshHandles.clear();
+    this.appliedMaterials.clear();
+    this.appliedGeometries.clear();
+    this.cameraHandle = undefined;
+    this.cameraEntityId = undefined;
+    this.adapter.dispose();
   }
 
   private refreshCamera(resolved: Map<EntityId, ResolvedTransform>): void {
@@ -222,41 +186,48 @@ export class ThreeRenderer {
       activeId = cameraEntities[0];
     }
     if (activeId === undefined) {
+      this.adapter.setActiveCamera(undefined);
       return;
     }
 
     const cameraComponent = this.world.getComponent<CameraComponent>(activeId, "Camera");
     if (cameraComponent === undefined || cameraComponent.kind !== "perspective") {
+      this.adapter.setActiveCamera(undefined);
       return;
     }
 
-    if (this.camera === undefined || this.cameraEntityId !== activeId) {
-      this.camera = new PerspectiveCamera(
-        cameraComponent.fov ?? 60,
-        this.canvasAspect(),
-        cameraComponent.near ?? 0.1,
-        cameraComponent.far ?? 100
-      );
+    if (this.cameraHandle === undefined || this.cameraEntityId !== activeId) {
+      if (this.cameraHandle !== undefined) {
+        this.adapter.releaseCamera(this.cameraHandle);
+      }
+      const acquire: { fov?: number; near?: number; far?: number } = {};
+      if (cameraComponent.fov !== undefined) acquire.fov = cameraComponent.fov;
+      if (cameraComponent.near !== undefined) acquire.near = cameraComponent.near;
+      if (cameraComponent.far !== undefined) acquire.far = cameraComponent.far;
+      this.cameraHandle = this.adapter.acquireCamera(acquire);
       this.cameraEntityId = activeId;
     } else {
-      this.camera.fov = cameraComponent.fov ?? this.camera.fov;
-      this.camera.near = cameraComponent.near ?? this.camera.near;
-      this.camera.far = cameraComponent.far ?? this.camera.far;
-      this.camera.updateProjectionMatrix();
+      const patch: { fov?: number; near?: number; far?: number } = {};
+      if (cameraComponent.fov !== undefined) patch.fov = cameraComponent.fov;
+      if (cameraComponent.near !== undefined) patch.near = cameraComponent.near;
+      if (cameraComponent.far !== undefined) patch.far = cameraComponent.far;
+      this.adapter.setCameraParams(this.cameraHandle, patch);
     }
 
-    applyResolvedTransform(this.camera, resolved.get(activeId)?.world);
+    this.adapter.setActiveCamera(this.cameraHandle);
+    const transform = resolved.get(activeId)?.world;
+    if (transform !== undefined) {
+      this.adapter.setCameraTransform(this.cameraHandle, toResolvedWorld(transform));
+    }
   }
 
   private refreshMeshes(resolved: Map<EntityId, ResolvedTransform>): void {
     const renderable = new Set(this.world.query(["MeshRenderer"]));
 
-    for (const [id, mesh] of this.meshes) {
+    for (const [id, handle] of this.meshHandles) {
       if (!renderable.has(id)) {
-        this.scene.remove(mesh);
-        mesh.geometry.dispose();
-        disposeMaterial(mesh.material);
-        this.meshes.delete(id);
+        this.adapter.releaseMesh(handle);
+        this.meshHandles.delete(id);
         this.appliedMaterials.delete(id);
         this.appliedGeometries.delete(id);
       }
@@ -268,41 +239,44 @@ export class ThreeRenderer {
         continue;
       }
 
-      let mesh = this.meshes.get(id);
-      if (mesh === undefined) {
+      let handle = this.meshHandles.get(id);
+      if (handle === undefined) {
         const geometry = isExternalMeshRef(meshComponent.mesh)
           ? createPlaceholderGeometry()
           : createPrimitiveGeometry(meshComponent.mesh);
         if (geometry === undefined) {
           continue;
         }
-        const material = new MeshStandardMaterial({
-          color: new Color(meshComponent.color ?? DEFAULT_COLOR)
-        });
-        mesh = new Mesh(geometry, material);
-        this.scene.add(mesh);
-        this.meshes.set(id, mesh);
-      } else if (mesh.material instanceof MeshStandardMaterial && meshComponent.material === undefined) {
-        mesh.material.color.set(meshComponent.color ?? DEFAULT_COLOR);
+        const acquire: { geometry: BufferGeometry; color?: string } = { geometry };
+        if (meshComponent.color !== undefined) acquire.color = meshComponent.color;
+        handle = this.adapter.acquireMesh(acquire);
+        this.meshHandles.set(id, handle);
+      } else if (meshComponent.material === undefined) {
+        const patch: { color?: string } = {};
+        if (meshComponent.color !== undefined) patch.color = meshComponent.color;
+        this.adapter.setMeshMaterialPatch(handle, patch);
       }
 
       if (isExternalMeshRef(meshComponent.mesh)) {
-        this.maybeLoadGeometry(id, mesh, meshComponent.mesh);
+        this.maybeLoadGeometry(id, handle, meshComponent.mesh);
       } else if (this.appliedGeometries.has(id)) {
         this.appliedGeometries.delete(id);
       }
 
       if (meshComponent.material !== undefined) {
-        this.maybeApplyMaterial(id, mesh, meshComponent.material);
+        this.maybeApplyMaterial(id, handle, meshComponent.material);
       } else if (this.appliedMaterials.has(id)) {
         this.appliedMaterials.delete(id);
       }
 
-      applyResolvedTransform(mesh, resolved.get(id)?.world);
+      const transform = resolved.get(id)?.world;
+      if (transform !== undefined) {
+        this.adapter.setMeshTransform(handle, toResolvedWorld(transform));
+      }
     }
   }
 
-  private maybeLoadGeometry(entityId: EntityId, mesh: Mesh, meshRef: string): void {
+  private maybeLoadGeometry(entityId: EntityId, handle: MeshHandle, meshRef: string): void {
     if (this.assetRegistry === undefined) {
       return;
     }
@@ -316,13 +290,15 @@ export class ThreeRenderer {
         if (this.appliedGeometries.get(entityId) !== meshRef) {
           return;
         }
+        if (!this.adapter.hasMesh(handle)) {
+          return;
+        }
         const sourceMesh = findFirstMesh(asset.scene);
         if (sourceMesh === undefined) {
           console.warn(`[agf] glb "${meshRef}" contains no Mesh; skipping.`);
           return;
         }
-        mesh.geometry.dispose();
-        mesh.geometry = sourceMesh.geometry.clone();
+        this.adapter.setMeshGeometry(handle, sourceMesh.geometry.clone());
       },
       (error: unknown) => {
         console.error(`[agf] mesh load failed for "${entityId}" → "${meshRef}":`, error);
@@ -333,7 +309,7 @@ export class ThreeRenderer {
     );
   }
 
-  private maybeApplyMaterial(entityId: EntityId, mesh: Mesh, materialRef: string): void {
+  private maybeApplyMaterial(entityId: EntityId, handle: MeshHandle, materialRef: string): void {
     if (this.assetRegistry === undefined) {
       return;
     }
@@ -344,23 +320,19 @@ export class ThreeRenderer {
 
     this.assetRegistry.get<MaterialManifest>(materialRef).then(
       (manifest) => {
-        if (!(mesh.material instanceof MeshStandardMaterial)) {
-          return;
-        }
         if (this.appliedMaterials.get(entityId) !== materialRef) {
           return;
         }
-        mesh.material.color.set(manifest.color);
-        if (manifest.roughness !== undefined) {
-          mesh.material.roughness = manifest.roughness;
+        if (!this.adapter.hasMesh(handle)) {
+          return;
         }
-        if (manifest.metalness !== undefined) {
-          mesh.material.metalness = manifest.metalness;
-        }
-        if (manifest.emissive !== undefined) {
-          mesh.material.emissive.set(manifest.emissive);
-        }
-        mesh.material.needsUpdate = true;
+        const patch: { color?: string; roughness?: number; metalness?: number; emissive?: string } = {
+          color: manifest.color
+        };
+        if (manifest.roughness !== undefined) patch.roughness = manifest.roughness;
+        if (manifest.metalness !== undefined) patch.metalness = manifest.metalness;
+        if (manifest.emissive !== undefined) patch.emissive = manifest.emissive;
+        this.adapter.setMeshMaterialPatch(handle, patch);
       },
       (error: unknown) => {
         console.error(`[agf] material load failed for "${entityId}" → "${materialRef}":`, error);
@@ -370,38 +342,21 @@ export class ThreeRenderer {
       }
     );
   }
-
-  private canvasAspect(): number {
-    const width = this.canvas.clientWidth || this.canvas.width;
-    const height = this.canvas.clientHeight || this.canvas.height;
-    return width / Math.max(1, height);
-  }
 }
 
-/**
- * Apply a resolver-produced world transform (radians already) to a Three.js
- * object. Falls back to identity when the entity has no Transform.
- */
-function applyResolvedTransform(object: Object3D, world: ResolverVec3Holder | undefined): void {
-  if (world === undefined) {
-    return;
-  }
-  object.position.set(world.position[0], world.position[1], world.position[2]);
-  object.rotation.set(world.rotation[0], world.rotation[1], world.rotation[2]);
-  object.scale.set(world.scale[0], world.scale[1], world.scale[2]);
+function toResolvedWorld(t: ResolvedTransform["world"]): ResolvedWorld {
+  return { position: t.position, rotation: t.rotation, scale: t.scale };
 }
-
-type ResolverVec3Holder = {
-  position: ResolverVec3;
-  rotation: ResolverVec3;
-  scale: ResolverVec3;
-};
 
 function toVec3(value: Vec3): ResolverVec3 {
   return [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0];
 }
 
-function identityFor(entry: TransformInput): ResolverVec3Holder {
+function identityFor(entry: TransformInput): {
+  position: ResolverVec3;
+  rotation: ResolverVec3;
+  scale: ResolverVec3;
+} {
   return {
     position: entry.position ?? [0, 0, 0],
     rotation: entry.rotation ?? [0, 0, 0],
@@ -440,14 +395,4 @@ function findFirstMesh(root: Object3D): Mesh | undefined {
     }
   });
   return found;
-}
-
-function disposeMaterial(material: Material | Material[]): void {
-  if (Array.isArray(material)) {
-    for (const item of material) {
-      item.dispose();
-    }
-    return;
-  }
-  material.dispose();
 }
