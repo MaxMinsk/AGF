@@ -44,7 +44,7 @@ Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-s
 #### Codex-review follow-ups
 
 - `M17-doctor` ✅ Implemented. `engine/tools/doctor/batch-candidates.ts` walks every `.scene.json` under `<projectDir>/scenes/`, groups `MeshRenderer` entities by `mesh|material|cast:receive` (the exact key M17 bucketer will use), and surfaces top buckets + singleton isolation reasons through `engine doctor`. Beacon-World today: 8 renderable → 6 buckets, 2 draw calls saved (beacon.west+east, core.north+south). Hazards isolate because their materials differ; ground/drone isolate as unique meshes. 4 unit tests (happy path / shadow-flag split / unique-mesh note / empty scene).
-- `SYS-rule-createquery` Add to AGENTS.md: "Systems must cache `createQuery` handles, never call `world.query()` per frame in a hot path." Lightweight `engine check` warning when a file under `engine/**/systems/` calls `world.query(` directly.
+- `SYS-rule-createquery` ✅ Implemented. `scripts/check-system-queries.mjs` scans `engine/render/systems/`, `engine/core/systems/`, and every `examples/*/src/systems/` for `world.query(` calls; fails with line numbers + remediation hint. Cold-path opt-out via `// agf-allow: world.query` comment on the line or directly above. Wired into preflight as `npm run systems:check`. AGENTS.md gets a new Hard Rule pointing at the 18,000× cached-vs-uncached benchmark. Fixed `CameraSyncSystem` (was calling `world.query()` twice per frame) to use cached `QueryHandle`s; annotated cold paths in `MaterialBindingSystem.forgetAssetBinding` and Beacon's `round-reset.ts`.
 
 #### Renderer follow-ups surfaced this sprint
 
@@ -57,6 +57,15 @@ Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-s
 
 ### Carried to Sprint 35+
 
+- `M24-investigate` Rapier WASM bundling + fixed-step spike. Anchor: `Notes/colliders_physics_implementation_analysis.md`. Goal: prove `@dimforge/rapier3d-compat` can be bundled via Vite, stepped via a fixed-dt loop, and disposed cleanly across HMR; measure bundle delta vs `bundle:check` budget. No engine integration yet — `spikes/physics-rapier-v0/`.
+- `M24-schema` `RigidBody3D` / `Collider3D` / `PhysicsMaterial3D` JSON schemas + diagnostics (`AGF_COLLIDER3D_KIND_INVALID`, `AGF_RIGIDBODY3D_DYNAMIC_TRIMESH`, `AGF_RIGIDBODY3D_PARENTED_DYNAMIC`, layer name validation, etc.).
+- `M24-adapter` `engine/physics/rapier/` adapter. Internal handle maps (`entityToBody`, `entityToColliders`, `bodyToEntity`, `colliderToEntity`, `lastBodySignature`). Lifecycle: `init` / `sync` / `step` / `dispose`. Primitive box/sphere/capsule/cylinder colliders. Fixed-step loop runs after gameplay fixed systems, writes dynamic body transforms back to `Transform`. M22 derived-cache rules apply: rebuildable, parity-tested, no authoring API exposed.
+- `M24-sync` Transform ↔ Rapier sync rules per body kind (fixed = ECS → body; kinematic = ECS target → body, post-step read; dynamic = body → ECS `Transform`). Teleport via explicit `physics.teleportBody` command.
+- `M24-sensors` Trigger volumes via `Collider3D.sensor = true`. Runtime-only derived components: `OverlappingTriggers3D`, `CurrentContacts3D`, `Grounded3D`. Collision events buffered per fixed step, drained by `CollisionStateSystem` before gameplay reads.
+- `M24-raycast` `runtime.physics.raycast({ origin, direction, maxDistance, mask })` returning `EntityId` + hit point/normal/distance. `runtime.physics.overlap({ shape, position, mask })` for area queries.
+- `M24-character` `CharacterController3D` schema + kinematic capsule wrapper around Rapier's controller. Exposes derived `grounded` / `groundNormal` / `collisions` state via runtime-only components.
+- `M24-debug` Rapier `world.debugRender()` overlay (line segments) toggleable in dev. `engine doctor` reports body/collider counts + dynamic vs static breakdown. HMR leak test ensures body count stays bounded.
+- `M24-static-mesh` Fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
 - `M21-light-spot-hemisphere-rect`, `M21-light-fallback` diagnostic finish.
 - `M21-shadow-csm` (CSM addon), `M21-shadow-algorithm` (PCSS / VSM).
 - `M17-bucketer` / `M17-batched-mesh` / `M17-lod` / `M17-bvh-culling`.

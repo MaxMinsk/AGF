@@ -85,10 +85,13 @@ export function createMaterialBindingSystem(
     name,
     frameUpdate,
     forgetAssetBinding(world: World, ref: string): void {
+      // Cold path — fires on HMR / dev-bridge asset invalidate, not per frame.
+      // agf-allow: world.query
       for (const id of world.query([APPLIED_GEOMETRY_REF])) {
         const applied = world.getComponent<AppliedRef>(id, APPLIED_GEOMETRY_REF);
         if (applied?.ref === ref) world.removeComponent(id, APPLIED_GEOMETRY_REF);
       }
+      // agf-allow: world.query
       for (const id of world.query([APPLIED_MATERIAL_REF])) {
         const applied = world.getComponent<AppliedRef>(id, APPLIED_MATERIAL_REF);
         if (applied?.ref === ref) world.removeComponent(id, APPLIED_MATERIAL_REF);

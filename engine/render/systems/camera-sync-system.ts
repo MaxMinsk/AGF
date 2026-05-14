@@ -40,10 +40,20 @@ export type CameraSyncSystemHandle = System & {
 export function createCameraSyncSystem(options: { name?: string } = {}): CameraSyncSystemHandle {
   const name = options.name ?? "render.camera-sync";
   let lastActive: EntityId | undefined;
+  // SYS-rule-createquery: cache QueryHandles so the per-frame structural
+  // filter pays only when the entity set actually changes.
+  let cachedWorld: import("../../core/ecs/world").World | undefined;
+  let camerasQuery: import("../../core/ecs/world").QueryHandle | undefined;
+  let activeMarkerQuery: import("../../core/ecs/world").QueryHandle | undefined;
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
-    const cameras = world.query([CAMERA]);
+    if (world !== cachedWorld) {
+      camerasQuery = world.createQuery([CAMERA]);
+      activeMarkerQuery = world.createQuery([ACTIVE_CAMERA]);
+      cachedWorld = world;
+    }
+    const cameras = camerasQuery!.run();
 
     // Pick: first explicit active === true; else first camera entity.
     let picked: EntityId | undefined;
@@ -75,7 +85,7 @@ export function createCameraSyncSystem(options: { name?: string } = {}): CameraS
     // Sweep up stragglers: an unrelated entity could have an old
     // ActiveCamera marker (HMR, test fixture, manual command pipeline).
     // Keep exactly one.
-    for (const id of world.query([ACTIVE_CAMERA])) {
+    for (const id of activeMarkerQuery!.run()) {
       if (id !== picked) {
         world.removeComponent(id, ACTIVE_CAMERA);
       }
