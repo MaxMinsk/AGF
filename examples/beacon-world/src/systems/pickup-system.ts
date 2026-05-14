@@ -53,8 +53,16 @@ type MeshRendererComponent = {
   color?: string;
 };
 
+// Used as the fallback when OverlappingTriggers3D is missing on the
+// carrier (e.g. physics disabled). When sensor data IS available the
+// system trusts the physics adapter's overlap set — the radii here
+// match the sensor collider authoring in scenes/start.scene.json so
+// behavior stays identical with or without physics.
 const DEFAULT_PICKUP_RADIUS = 1.2;
 const DEFAULT_DEPOSIT_RADIUS = 1.6;
+const OVERLAPPING_TRIGGERS_3D = "OverlappingTriggers3D";
+
+type OverlappingTriggers3DComponent = { entities: ReadonlyArray<EntityId> };
 const CARRY_HEIGHT_OFFSET = 0.6;
 const DEFAULT_REPAIRED_COLOR = "#4af0a8";
 const CONSUMED_PARK_Y = -100;
@@ -126,10 +134,18 @@ function tryPickup(
   q: PickupQueries,
   onEvent: PickupEventHandler | undefined
 ): void {
-  const pickups = q.carryingPickups.run();
+  // beacon-physics-sensor-wiring: when the carrier has a sensor-driven
+  // overlap set, trust it as the source of truth. Falls back to XZ
+  // proximity when OverlappingTriggers3D is absent (physics disabled).
+  const overlaps = world.getComponent<OverlappingTriggers3DComponent>(
+    carrierId,
+    OVERLAPPING_TRIGGERS_3D
+  );
+  const candidates: ReadonlyArray<EntityId> =
+    overlaps?.entities ?? q.carryingPickups.run();
   let closestId: EntityId | undefined;
   let closestDist = Infinity;
-  for (const pickupId of pickups) {
+  for (const pickupId of candidates) {
     const pickup = world.getComponent<PickupComponent>(pickupId, "Pickup");
     if (pickup === undefined || pickup.consumed === true) {
       continue;
@@ -139,7 +155,9 @@ function tryPickup(
       continue;
     }
     const dist = distanceXZ(position, pickupTransform.position ?? [0, 0, 0]);
-    if (dist < radius && dist < closestDist) {
+    // Sensor mode trusts the overlap; proximity mode applies the radius.
+    const inRange = overlaps !== undefined || dist < radius;
+    if (inRange && dist < closestDist) {
       closestId = pickupId;
       closestDist = dist;
     }
@@ -244,8 +262,16 @@ function handleCarry(
     });
   }
 
-  const repairables = q.repairablesWithTransform.run();
-  for (const beaconId of repairables) {
+  // Sensor-wiring: filter to repairables the carrier is currently
+  // overlapping (per OverlappingTriggers3D). Fallback to a full scan +
+  // radius check when no sensor data is available.
+  const overlaps = world.getComponent<OverlappingTriggers3DComponent>(
+    carrierId,
+    OVERLAPPING_TRIGGERS_3D
+  );
+  const repairableCandidates: ReadonlyArray<EntityId> =
+    overlaps?.entities ?? q.repairablesWithTransform.run();
+  for (const beaconId of repairableCandidates) {
     const repair = world.getComponent<RepairableComponent>(beaconId, "Repairable");
     if (repair === undefined || repair.repaired === true) {
       continue;
@@ -257,7 +283,12 @@ function handleCarry(
     if (beaconTransform === undefined) {
       continue;
     }
-    if (distanceXZ(carrierPosition, beaconTransform.position ?? [0, 0, 0]) >= depositRadius) {
+    // Apply the proximity cutoff only in fallback mode — sensor overlap
+    // already means we're inside the deposit radius.
+    if (
+      overlaps === undefined &&
+      distanceXZ(carrierPosition, beaconTransform.position ?? [0, 0, 0]) >= depositRadius
+    ) {
       continue;
     }
 
