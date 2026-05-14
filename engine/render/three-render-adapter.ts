@@ -26,25 +26,53 @@ import {
   type BufferGeometry,
   Color,
   DirectionalLight,
+  HemisphereLight,
+  InstancedMesh,
   type Light,
+  type Material,
+  Matrix4,
   Mesh,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
+  MeshPhongMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   type Object3D,
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
   PointLight,
+  Quaternion,
+  RectAreaLight,
   Scene,
+  SpotLight,
   type Texture,
+  Vector3,
   WebGLRenderer
 } from "three";
+import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
 export type LightHandle = number;
+/** M17: one InstancedMesh per bucket. */
+export type BucketHandle = number;
+/** Index inside a bucket. The bucket owns a contiguous range [0, count). */
+export type InstanceIndex = number;
 
-export type LightKind = "directional" | "point" | "ambient";
+export type BucketAcquireSpec = {
+  /** Initial GL upload geometry. The bucket caches it; recreate the bucket if geometry changes. */
+  geometry: BufferGeometry;
+  /** Initial slot count for the InstancedMesh. Grow via `resizeBucket`; can't shrink. */
+  capacity: number;
+  /** Initial material color (per-bucket; per-instance color via setInstanceColor). */
+  color?: string;
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+};
+
+export type LightKind = "directional" | "point" | "ambient" | "spot" | "hemisphere" | "rect-area";
 
 export type LightShadowParams = {
   /** Power-of-two shadow map size. Bigger = sharper + more VRAM. */
@@ -67,10 +95,20 @@ export type LightAcquireSpec = {
   kind: LightKind;
   color?: string;
   intensity?: number;
-  /** Point-light specific. */
+  /** Point + spot. */
   distance?: number;
-  /** Point-light specific. */
+  /** Point + spot. */
   decay?: number;
+  /** Spot only — cone half-angle in radians. */
+  angle?: number;
+  /** Spot only — soft edge ratio 0..1. */
+  penumbra?: number;
+  /** Hemisphere only — ground tint. */
+  groundColor?: string;
+  /** Rect-area only — emitter width. */
+  width?: number;
+  /** Rect-area only — emitter height. */
+  height?: number;
 };
 
 export type LightPatch = {
@@ -78,6 +116,11 @@ export type LightPatch = {
   intensity?: number;
   distance?: number;
   decay?: number;
+  angle?: number;
+  penumbra?: number;
+  groundColor?: string;
+  width?: number;
+  height?: number;
 };
 
 export type ResolvedWorld = {
@@ -86,11 +129,30 @@ export type ResolvedWorld = {
   scale: readonly [number, number, number];
 };
 
+/** M21-mat-physical: the shader kind to drive `setMeshMaterialKind`. */
+export type MaterialKind = "standard" | "physical" | "lambert" | "phong" | "basic";
+
 export type MaterialPatch = {
+  /** When set + different from the mesh's current material class, the adapter swaps the material instance. */
+  kind?: MaterialKind;
   color?: string;
   roughness?: number;
   metalness?: number;
   emissive?: string;
+  opacity?: number;
+  transparent?: boolean;
+  /** MeshPhysicalMaterial fields. */
+  clearcoat?: number;
+  clearcoatRoughness?: number;
+  ior?: number;
+  transmission?: number;
+  thickness?: number;
+  sheen?: number;
+  sheenColor?: string;
+  iridescence?: number;
+  /** MeshPhongMaterial fields. */
+  shininess?: number;
+  specular?: string;
 };
 
 export type CameraParams = {
@@ -110,6 +172,10 @@ export type AdapterInfo = {
   meshes: number;
   lights: number;
   shadowCasters: number;
+  /** M17: live InstancedMesh buckets currently in the scene. */
+  buckets: number;
+  /** M17: live instances summed across every bucket (sparse slots NOT counted). */
+  bucketInstances: number;
 };
 
 export type AdapterOptions = {
@@ -128,6 +194,7 @@ export class ThreeRenderAdapter {
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
   private readonly lights = new Map<LightHandle, Light>();
+  private readonly buckets = new Map<BucketHandle, BucketEntry>();
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
   private pmrem: PMREMGenerator | undefined;
@@ -137,6 +204,12 @@ export class ThreeRenderAdapter {
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
+  private nextBucketHandle = 1;
+  private rectAreaUniformsReady = false;
+  private readonly scratchMatrix = new Matrix4();
+  private readonly scratchPosition = new Vector3();
+  private readonly scratchScale = new Vector3();
+  private readonly scratchQuat = new Quaternion();
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -238,6 +311,36 @@ export class ThreeRenderAdapter {
       case "point":
         light = new PointLight(color, intensity, spec.distance ?? 0, spec.decay ?? 2);
         break;
+      case "spot": {
+        const spot = new SpotLight(
+          color,
+          intensity,
+          spec.distance ?? 0,
+          spec.angle ?? Math.PI / 4,
+          spec.penumbra ?? 0,
+          spec.decay ?? 2
+        );
+        // SpotLight needs its target as a Scene child for shadow camera updates.
+        this.scene.add(spot.target);
+        light = spot;
+        break;
+      }
+      case "hemisphere":
+        light = new HemisphereLight(
+          color,
+          new Color(spec.groundColor ?? "#000000"),
+          intensity
+        );
+        break;
+      case "rect-area":
+        // The LUT init is per-renderer + idempotent; call once when the
+        // first rect-area light arrives.
+        if (!this.rectAreaUniformsReady) {
+          RectAreaLightUniformsLib.init();
+          this.rectAreaUniformsReady = true;
+        }
+        light = new RectAreaLight(color, intensity, spec.width ?? 1, spec.height ?? 1);
+        break;
     }
     this.lights.set(handle, light);
     this.scene.add(light);
@@ -248,6 +351,7 @@ export class ThreeRenderAdapter {
     const light = this.lights.get(handle);
     if (light === undefined) return;
     this.scene.remove(light);
+    if (light instanceof SpotLight) this.scene.remove(light.target);
     light.dispose();
     this.lights.delete(handle);
   }
@@ -260,6 +364,19 @@ export class ThreeRenderAdapter {
     if (light instanceof PointLight) {
       if (patch.distance !== undefined) light.distance = patch.distance;
       if (patch.decay !== undefined) light.decay = patch.decay;
+    }
+    if (light instanceof SpotLight) {
+      if (patch.distance !== undefined) light.distance = patch.distance;
+      if (patch.decay !== undefined) light.decay = patch.decay;
+      if (patch.angle !== undefined) light.angle = patch.angle;
+      if (patch.penumbra !== undefined) light.penumbra = patch.penumbra;
+    }
+    if (light instanceof HemisphereLight && patch.groundColor !== undefined) {
+      light.groundColor.set(patch.groundColor);
+    }
+    if (light instanceof RectAreaLight) {
+      if (patch.width !== undefined) light.width = patch.width;
+      if (patch.height !== undefined) light.height = patch.height;
     }
   }
 
@@ -320,6 +437,117 @@ export class ThreeRenderAdapter {
     return this.lights.size;
   }
 
+  // ---- M17 InstancedMesh buckets ----
+
+  acquireBucket(spec: BucketAcquireSpec): BucketHandle {
+    const handle = this.nextBucketHandle;
+    this.nextBucketHandle += 1;
+    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.castShadow = spec.castShadow !== false;
+    mesh.receiveShadow = spec.receiveShadow !== false;
+    this.scene.add(mesh);
+    this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
+    return handle;
+  }
+
+  releaseBucket(handle: BucketHandle): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.mesh);
+    entry.mesh.dispose();
+    entry.mesh.geometry.dispose();
+    disposeMaterial(entry.mesh.material);
+    this.buckets.delete(handle);
+  }
+
+  resizeBucket(handle: BucketHandle, newCapacity: number): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    if (newCapacity <= entry.capacity) return;
+    // Recreate the InstancedMesh with a larger ring; copy live matrices over.
+    const oldMesh = entry.mesh;
+    const newMesh = new InstancedMesh(oldMesh.geometry, oldMesh.material, newCapacity);
+    newMesh.castShadow = oldMesh.castShadow;
+    newMesh.receiveShadow = oldMesh.receiveShadow;
+    newMesh.frustumCulled = oldMesh.frustumCulled;
+    newMesh.count = oldMesh.count;
+    for (const slot of entry.liveSlots) {
+      oldMesh.getMatrixAt(slot, this.scratchMatrix);
+      newMesh.setMatrixAt(slot, this.scratchMatrix);
+    }
+    newMesh.instanceMatrix.needsUpdate = true;
+    this.scene.remove(oldMesh);
+    oldMesh.dispose();
+    // Don't dispose geometry/material — newMesh shares them.
+    this.scene.add(newMesh);
+    entry.mesh = newMesh;
+    entry.capacity = newCapacity;
+  }
+
+  addBucketInstance(handle: BucketHandle): InstanceIndex | undefined {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return undefined;
+    if (entry.liveSlots.size >= entry.capacity) return undefined;
+    // Fill the lowest free slot < count, else extend count.
+    let slot = entry.mesh.count;
+    for (let i = 0; i < entry.mesh.count; i += 1) {
+      if (!entry.liveSlots.has(i)) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot >= entry.mesh.count) {
+      entry.mesh.count = slot + 1;
+    }
+    entry.liveSlots.add(slot);
+    return slot;
+  }
+
+  removeBucketInstance(handle: BucketHandle, index: InstanceIndex): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    if (!entry.liveSlots.has(index)) return;
+    // Zero-scale the instance so it vanishes; the slot becomes reusable.
+    this.scratchMatrix.makeScale(0, 0, 0);
+    entry.mesh.setMatrixAt(index, this.scratchMatrix);
+    entry.mesh.instanceMatrix.needsUpdate = true;
+    entry.liveSlots.delete(index);
+    // Tighten the count when we pop the tail.
+    while (entry.mesh.count > 0 && !entry.liveSlots.has(entry.mesh.count - 1)) {
+      entry.mesh.count -= 1;
+    }
+  }
+
+  setBucketInstanceTransform(
+    handle: BucketHandle,
+    index: InstanceIndex,
+    world: ResolvedWorld
+  ): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined || !entry.liveSlots.has(index)) return;
+    this.scratchPosition.set(world.position[0], world.position[1], world.position[2]);
+    this.scratchScale.set(world.scale[0], world.scale[1], world.scale[2]);
+    eulerToQuaternion(world.rotation, this.scratchQuat);
+    this.scratchMatrix.compose(this.scratchPosition, this.scratchQuat, this.scratchScale);
+    entry.mesh.setMatrixAt(index, this.scratchMatrix);
+    entry.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  bucketLiveCount(handle: BucketHandle): number {
+    return this.buckets.get(handle)?.liveSlots.size ?? 0;
+  }
+
+  bucketCapacity(handle: BucketHandle): number {
+    return this.buckets.get(handle)?.capacity ?? 0;
+  }
+
+  hasBucket(handle: BucketHandle): boolean {
+    return this.buckets.has(handle);
+  }
+
   resize(width: number, height: number): void {
     this.device.setSize(width, height, false);
     const active = this.activeCamera();
@@ -358,12 +586,54 @@ export class ThreeRenderAdapter {
   setMeshMaterialPatch(handle: MeshHandle, patch: MaterialPatch): void {
     const mesh = this.meshes.get(handle);
     if (mesh === undefined) return;
-    if (!(mesh.material instanceof MeshStandardMaterial)) return;
-    if (patch.color !== undefined) mesh.material.color.set(patch.color);
-    if (patch.roughness !== undefined) mesh.material.roughness = patch.roughness;
-    if (patch.metalness !== undefined) mesh.material.metalness = patch.metalness;
-    if (patch.emissive !== undefined) mesh.material.emissive.set(patch.emissive);
-    mesh.material.needsUpdate = true;
+
+    if (patch.kind !== undefined && !materialMatchesKind(mesh.material, patch.kind)) {
+      const next = createMaterialForKind(patch.kind, patch);
+      disposeMaterial(mesh.material);
+      mesh.material = next;
+    }
+    const material = mesh.material as
+      | MeshStandardMaterial
+      | MeshPhysicalMaterial
+      | MeshLambertMaterial
+      | MeshPhongMaterial
+      | MeshBasicMaterial;
+
+    if (patch.color !== undefined) material.color.set(patch.color);
+    if (patch.opacity !== undefined) material.opacity = patch.opacity;
+    if (patch.transparent !== undefined) material.transparent = patch.transparent;
+
+    if (
+      material instanceof MeshStandardMaterial ||
+      material instanceof MeshPhysicalMaterial
+    ) {
+      if (patch.roughness !== undefined) material.roughness = patch.roughness;
+      if (patch.metalness !== undefined) material.metalness = patch.metalness;
+      if (patch.emissive !== undefined) material.emissive.set(patch.emissive);
+    }
+
+    if (material instanceof MeshPhysicalMaterial) {
+      if (patch.clearcoat !== undefined) material.clearcoat = patch.clearcoat;
+      if (patch.clearcoatRoughness !== undefined) material.clearcoatRoughness = patch.clearcoatRoughness;
+      if (patch.ior !== undefined) material.ior = patch.ior;
+      if (patch.transmission !== undefined) material.transmission = patch.transmission;
+      if (patch.thickness !== undefined) material.thickness = patch.thickness;
+      if (patch.sheen !== undefined) material.sheen = patch.sheen;
+      if (patch.sheenColor !== undefined) material.sheenColor.set(patch.sheenColor);
+      if (patch.iridescence !== undefined) material.iridescence = patch.iridescence;
+    }
+
+    if (material instanceof MeshPhongMaterial) {
+      if (patch.shininess !== undefined) material.shininess = patch.shininess;
+      if (patch.specular !== undefined) material.specular.set(patch.specular);
+      if (patch.emissive !== undefined) material.emissive.set(patch.emissive);
+    }
+
+    if (material instanceof MeshLambertMaterial && patch.emissive !== undefined) {
+      material.emissive.set(patch.emissive);
+    }
+
+    material.needsUpdate = true;
   }
 
   setMeshTransform(handle: MeshHandle, world: ResolvedWorld): void {
@@ -436,6 +706,8 @@ export class ThreeRenderAdapter {
     for (const light of this.lights.values()) {
       if (light.castShadow) shadowCasters += 1;
     }
+    let bucketInstances = 0;
+    for (const entry of this.buckets.values()) bucketInstances += entry.liveSlots.size;
     return {
       geometries: memory.geometries ?? 0,
       textures: memory.textures ?? 0,
@@ -444,7 +716,9 @@ export class ThreeRenderAdapter {
       triangles: renderStats.triangles ?? 0,
       meshes: this.meshes.size,
       lights: this.lights.size,
-      shadowCasters
+      shadowCasters,
+      buckets: this.buckets.size,
+      bucketInstances
     };
   }
 
@@ -460,6 +734,7 @@ export class ThreeRenderAdapter {
       light.dispose();
     }
     this.lights.clear();
+    for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;
@@ -488,10 +763,68 @@ function applyTransform(object: Object3D, world: ResolvedWorld): void {
   object.scale.set(world.scale[0], world.scale[1], world.scale[2]);
 }
 
+type BucketEntry = {
+  mesh: InstancedMesh;
+  capacity: number;
+  liveSlots: Set<InstanceIndex>;
+};
+
+/** Fill an existing Quaternion from an Euler XYZ rotation (radians) — XYZ order matches Three.js default. */
+function eulerToQuaternion(rotation: readonly [number, number, number], out: Quaternion): Quaternion {
+  const c1 = Math.cos(rotation[0] / 2);
+  const c2 = Math.cos(rotation[1] / 2);
+  const c3 = Math.cos(rotation[2] / 2);
+  const s1 = Math.sin(rotation[0] / 2);
+  const s2 = Math.sin(rotation[1] / 2);
+  const s3 = Math.sin(rotation[2] / 2);
+  out.set(
+    s1 * c2 * c3 + c1 * s2 * s3,
+    c1 * s2 * c3 - s1 * c2 * s3,
+    c1 * c2 * s3 + s1 * s2 * c3,
+    c1 * c2 * c3 - s1 * s2 * s3
+  );
+  return out;
+}
+
 function disposeMaterial(material: Mesh["material"]): void {
   if (Array.isArray(material)) {
     for (const item of material) item.dispose();
     return;
   }
   material.dispose();
+}
+
+function materialMatchesKind(material: Material | Material[], kind: MaterialKind): boolean {
+  if (Array.isArray(material)) return false;
+  switch (kind) {
+    // MeshPhysicalMaterial extends MeshStandardMaterial; treat them as
+    // separate kinds so `kind: "standard"` never silently keeps a physical
+    // material that the manifest no longer wants.
+    case "standard":
+      return material.type === "MeshStandardMaterial";
+    case "physical":
+      return material.type === "MeshPhysicalMaterial";
+    case "lambert":
+      return material instanceof MeshLambertMaterial;
+    case "phong":
+      return material instanceof MeshPhongMaterial;
+    case "basic":
+      return material instanceof MeshBasicMaterial;
+  }
+}
+
+function createMaterialForKind(kind: MaterialKind, patch: MaterialPatch): Material {
+  const color = patch.color ?? DEFAULT_COLOR;
+  switch (kind) {
+    case "standard":
+      return new MeshStandardMaterial({ color: new Color(color) });
+    case "physical":
+      return new MeshPhysicalMaterial({ color: new Color(color) });
+    case "lambert":
+      return new MeshLambertMaterial({ color: new Color(color) });
+    case "phong":
+      return new MeshPhongMaterial({ color: new Color(color) });
+    case "basic":
+      return new MeshBasicMaterial({ color: new Color(color) });
+  }
 }

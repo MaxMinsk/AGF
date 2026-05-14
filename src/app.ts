@@ -120,6 +120,8 @@ export type AppHandle = {
     meshes: number;
     lights: number;
     shadowCasters: number;
+    buckets: number;
+    bucketInstances: number;
     handleLeak: number;
   };
   dispose(): void;

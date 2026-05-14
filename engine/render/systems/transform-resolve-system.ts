@@ -97,24 +97,27 @@ export function createTransformResolveSystem(
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
+    let dirty: Set<EntityId>;
     if (world !== cachedWorld) {
       // World swapped (HMR / project switch). Drop everything and re-seed
       // from a full scan so the inputCache matches the new world's state.
       inputCache.clear();
       cache.clear();
+      dirty = new Set();
       for (const id of world.entityIds()) {
         if (!world.hasComponent(id, TRANSFORM)) continue;
         const t = world.getComponent<TransformComponent>(id, TRANSFORM);
         if (t === undefined) continue;
         inputCache.set(id, buildInput(id, t));
+        dirty.add(id);
       }
-      // Drain the dirty queue so we don't reprocess the seed entries.
+      // Drain the dirty queue so we don't reprocess the seed entries on the next tick.
       world.consumeDirty(TRANSFORM);
       cachedWorld = world;
     } else {
       // Steady state: process only entities whose Transform changed since
       // the previous tick.
-      const dirty = world.consumeDirty(TRANSFORM);
+      dirty = world.consumeDirty(TRANSFORM);
       for (const id of dirty) {
         const t = world.getComponent<TransformComponent>(id, TRANSFORM);
         if (t === undefined) {
@@ -133,7 +136,9 @@ export function createTransformResolveSystem(
 
     let resolved;
     try {
-      resolved = cache.resolveWorld(world, [...inputCache.values()]);
+      // M16-cache-c: skip the cache's O(N) per-entity revision read; the
+      // dirty set we just consumed is authoritative.
+      resolved = cache.resolveWithDirty(world, [...inputCache.values()], dirty);
     } catch {
       // Renderer-import-boundary: engine check owns hierarchy diagnostics.
       // Mid-edit HMR can produce a transient broken hierarchy; swallow it

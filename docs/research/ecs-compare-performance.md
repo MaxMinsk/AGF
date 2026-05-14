@@ -43,8 +43,9 @@ Hierarchy resolve / transform pipeline is its own conversation:
 | **AGF — no cache** | Full rebuild every frame | **~12.9 ms** |
 | **AGF — `M16-cache-a` partial-walk cache, steady-state** | Reuse cached `ResolvedTransform` when nothing dirty | **~5.4 ms (~2.4× win)** |
 | **AGF — `M16-cache-a` partial-walk cache, 1% entities mutating per frame** | Re-compose only dirty subtree, reuse the rest | **~8.2 ms (~1.6× win)** |
-| **AGF — `M16-cache-b` World.consumeDirty + system-side inputCache, 1%-dirty** | System rebuilds TransformInput only for `world.consumeDirty("Transform")` entries; no per-frame entity scan | **~8.1 ms (~1.6× win — narrow vs M16-cache-a)** ⁵ |
-| **AGF target after `M16-cache-c`** | Push dirty-awareness into the cache itself; skip per-entity revision read | < 1 ms (goal) |
+| **AGF — `M16-cache-b` World.consumeDirty + system-side inputCache, 1%-dirty** | System rebuilds TransformInput only for `world.consumeDirty("Transform")` entries; no per-frame entity scan | **~8.0 ms (~1.6× win — narrow vs M16-cache-a)** ⁵ |
+| **AGF — `M16-cache-c` cache.resolveWithDirty, 1%-dirty** | Dirty set flows into the cache itself; no per-entity `componentRevision` read | **~6.0 ms (~2.1× win over no-cache; 25% over cache-b)** |
+| **AGF target after `M16-cache-d`** | Maintain children index → skip topo walk for non-dirty subtrees | < 1 ms (goal) |
 | **Unity DOTS TransformSystemGroup** ⁴ | LocalToWorld + parent-version chains, burst-compiled | < 0.1 ms |
 | **Three.js scene-graph (raw)** | Per-Object3D `updateMatrixWorld` cascade | ~2–4 ms for 10k flat, climbs fast with depth |
 

@@ -21,9 +21,22 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 35 — TBD
+## Current Sprint: Sprint 36 — TBD
 
-Sprint 35 focus is picked at sprint start. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 36 focus is picked at sprint start. Natural openers (in priority order based on Sprint 35 close):
+
+1. **M24-sync** — wire RapierAdapter into `start.ts` + Transform ↔ body sync.
+2. **M24-sensors** — collision events + runtime-only `Grounded3D` / `OverlappingTriggers3D`.
+3. **M24-character** — `CharacterController3D` kinematic capsule wrapper.
+4. **Beacon physics adoption** — drone walks on a fixed ground collider, pickup/hazard sensors fire `trigger.enter` events.
+5. **M16-cache-d** — children index → skip topo walk for non-dirty subtrees (chase < 1ms).
+6. **M17-batched-mesh** — `BatchedMesh` path for varied-geometry / shared-material scenery.
+7. **M21-shadow-csm** — outdoor CSM via `three/addons/csm/CSM.js` (needs `csm.setupMaterial` hook on every material — high-touch).
+8. **`examples/batch-bench/`** — stand-alone perf project that stress-tests the bucketer (referenced in HIGH_LEVEL_BACKLOG).
+
+## Sprint 35 — physics + batching + materials + cache polish + utsubo absorbed (DONE — archive merging)
+
+Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Candidates
 
@@ -31,9 +44,9 @@ Pick from this list at sprint start; carry the rest forward. Sprint 34 closed wi
 
 #### M24 — Rapier physics & colliders (just absorbed; ready to start)
 
-- `M24-investigate` Rapier WASM bundling + fixed-step spike under `spikes/physics-rapier-v0/`.
-- `M24-schema` `RigidBody3D` / `Collider3D` / `PhysicsMaterial3D` JSON schemas + diagnostics.
-- `M24-adapter` Rapier adapter under `engine/physics/rapier/` with primitive bodies + lifecycle.
+- `M24-investigate` ✅ Implemented. `spikes/physics-rapier-v0/spike.ts` + `README.md`. Confirms `@dimforge/rapier3d-compat` works: init=42ms, 60 fixed steps=8.2ms (well under 16.67ms frame budget), cube falls from 2.5→0.25 in 1 sim-second. Bundle delta ~1.6–1.8 MB gzipped → lazy `await import('@dimforge/rapier3d-compat')` is mandatory.
+- `M24-schema` ✅ Implemented. `RigidBody3D` (type: fixed/dynamic/kinematicPosition + mass/gravityScale/damping/lockRotations/ccd/canSleep) + `Collider3D` (kind: box/sphere/capsule/cylinder with per-kind if/then constraints + offset/rotation/sensor/friction/restitution/layer/mask) in `schemas/scene.schema.json`. 13 unit tests cover all kinds + negative cases (bad mass, unknown kind, missing halfHeight, restitution > 1, duplicate mask, etc.).
+- `M24-adapter` ✅ Implemented. `engine/physics/rapier/rapier-adapter.ts` — lazy-init wrapper. Dynamic `await import('@dimforge/rapier3d-compat')` inside `createRapierAdapter()`, plus a `createAdapterFromModule(RAPIER, options)` factory for test/spike code that already init'd RAPIER. Internal handle maps: `bodies` / `colliders` + reverse `colliderBody` + `bodyColliders` so `releaseBody` purges its child colliders (mirrors Rapier's auto-removal). API: `acquireBody / releaseBody / acquireCollider / releaseCollider / setBodyTransform / getBodyTranslation / getBodyRotation / step / setGravity / info / dispose`. All four v0 collider kinds (box / sphere / capsule / cylinder) wired with per-kind required fields. `spikes/physics-rapier-v0/adapter-spike.ts` exercises the full lifecycle (cube + ball + capsule fall + release → bodies=0, colliders=0).
 
 #### M21 Phase 2 — finish material + light family
 
@@ -44,7 +57,8 @@ Pick from this list at sprint start; carry the rest forward. Sprint 34 closed wi
 
 #### M22 perf follow-ups
 
-- `M16-cache-c` Push dirty-awareness into the cache itself (Map reuse + matrix scratch pool). Target: 10k chain-of-8 < 1 ms.
+- `M16-cache-c` ✅ Implemented. `cache.resolveWithDirty(world, inputs, dirtyIds)` accepts the caller-supplied dirty set directly, skipping the per-entity `world.componentRevision('Transform')` Map read that dominated cache-b. `TransformResolveSystem` now passes its consumed dirty set straight through. **Bench at 10k chain-of-8 @ 1%-dirty: 5.99 ms** (vs cache-b 8.04 ms ≈ 25% faster, vs no-cache 12.4 ms ≈ 2.1× faster).
+- `M16-cache-d` Next: persistent parent→children index so the topo walk skips entire non-dirty subtrees. Today the walk still touches every input. Target: drop 10k chain-of-8 toward < 1 ms.
 
 #### M17 batching
 
@@ -93,6 +107,33 @@ Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-s
 - `M23-tuner` ✅ Implemented. `engine/runtime/dev-tuner.ts` — agent-spawnable floating slider panel bound to component-field paths. Surface: `window.__agf.dev.tuner.{add,remove,removeAll,list}` with `{ name, target: { entityId, component, path }, min, max, step?, value?, label? }`. Each drag fires `applyCommands([{ kind: "component.set", ... }])` so the change flows through the existing pipeline (snapshot / HMR / network / replay / persistence). Panel is DOM, NOT in ECS — `__agf.snapshot()` never sees it. Per-frame poll keeps the displayed value in sync when other systems write the same field. Path helpers `getByPath` / `setByPath` exported + 6 unit tests; e2e spec asserts add→drag→snapshot-reflects→remove→panel-gone. Agent docs: `docs/agent/dev-tuner.md` (when to spawn, common patterns: shadow bias, FOV, material roughness; explicit non-goals).
 
 ### Carried to Sprint 35+
+
+#### Utsubo-driven follow-ups (`Notes/utsubo_threejs_best_practices_100_tips.md`)
+
+- `M21-frame-timing` Per-phase frame timing in dev snapshot (`inputMs` / `fixedUpdateMs` / `physicsMs` / `transformResolveMs` / `renderSyncMs` / `renderMs` / `postMs`). Plumbing on the `DiagnosticsBus` + exposed via `__agf.snapshot().frameTiming`. Useful agent signal for "which phase to optimise next".
+- `M21-tsl-investigate` Spike: evaluate Three.js TSL / NodeMaterial for AGF custom-material manifest path. Target: portable WebGL+WebGPU shader authoring without forcing agents to write WGSL + GLSL variants. Output: research doc + a recommendation on whether to defer until WebGPU renderer or adopt early as a v1 material kind.
+- `M21-webgpu-spike` Async WebGPU renderer adapter behind a profile flag (`project.json#renderer.backend: "auto" | "webgl" | "webgpu"`). `runtime.start()` becomes await-friendly. Keeps WebGL as default until tests cover both paths.
+- `M21-context-loss` Listen for WebGL `webglcontextlost` / `webglcontextrestored`; emit `AGF_RENDER_CONTEXT_LOST` / `AGF_RENDER_CONTEXT_RESTORED` diagnostics; rebuild renderer resources on restore.
+- `M21-light-budgets` `performance-budget.json#renderer.maxActiveLights` / `maxShadowCastingLights` / `maxShadowMapSize` + `engine doctor` warnings.
+- `M21-shadow-static` `renderer.shadowMap.autoUpdate = false` for declared-static shadow casters with explicit invalidation API. Big win for "huge level + a few moving things" scenes.
+- `M21-post-pipeline` Schema-driven post-processing chain (`project.json#renderer.post: [...]`) with selective bloom + FXAA + bloom intensity + per-pass budgets + tonemap at end. (Note: this is the M21 Phase-2 `M21-post-*` thread, sharpened.)
+- `M17-batched-mesh` Multi-geometry / shared-material `BatchedMesh` buckets, sibling to M17-bucketer's InstancedMesh path.
+- `M17-material-sharing-doctor` Doctor check: detect duplicate material signatures + report which manifests could be merged.
+- `M17-static-merge-spike` Static geometry merge with reverse `EntityId` lookup for picking. Strictly opt-in per-entity (`StaticMerge` tag); not on by default.
+- `M17-lod` `LOD { levels: [{ maxDistance, mesh }] }` component + integration with batching's per-instance LOD path.
+- `ASSET-decoder-paths` Single shared `DRACOLoader` + `KTX2Loader` constructed at adapter init; `KTX2Loader.detectSupport(renderer)` once. AGENTS rule already calls this out.
+- `ASSET-compression` Runtime support for KTX2 (UASTC normal + ETC1S diffuse) + Draco / Meshopt geometry. `GLTFLoader.setKTX2Loader` + `setMeshoptDecoder` wired in.
+- `ASSET-gltf-transform-investigate` Decide tooling: dev dep vs external CLI vs optional agent skill.
+- `ASSET-optimize-command` `engine asset optimize <project> <asset>` CLI invoking gltf-transform with project presets; writes `assets/runtime/...` from `assets/_sources/...`.
+- `ASSET-lod-metadata` LOD schema + `engine check` validation (distances strictly increasing, fallback declared).
+- `ASSET-texture-doctor` Doctor warnings: huge uncompressed PNG/JPEG in production profile, NPOT mismatches for compression formats, multiple active KTX2 loader instances, GLB references KTX2 but transcoder path missing.
+- `RUNTIME-progressive-loading` Asset manifest `priority: "critical" | "deferred"` + placeholder primitive + scene phases. Playtests wait for `priority: critical` instead of arbitrary timeouts.
+- `RUNTIME-renderer-ready` Async "renderer-ready" signal on `runtime.start()` for tests + dev bridge to await before screenshots / commands.
+- `RUNTIME-resource-leak-tests` HMR + adapter lifecycle leak tests across 30 cycles; assert `renderer.info.memory` / `info.programs` / `info.textures` stay bounded.
+- `RUNTIME-idle-rendering` Render-on-demand mode for static menus / inspector tools. Optional `renderer.demand: true` project flag.
+- `RUNTIME-gpu-timing` Feature-detected GPU timing queries (`EXT_disjoint_timer_query_webgl2`) in dev builds, surfaced through frame-phase snapshot.
+
+#### Sprint 34 carry-overs (pre-utsubo)
 
 - `M24-investigate` Rapier WASM bundling + fixed-step spike. Anchor: `Notes/colliders_physics_implementation_analysis.md`. Goal: prove `@dimforge/rapier3d-compat` can be bundled via Vite, stepped via a fixed-dt loop, and disposed cleanly across HMR; measure bundle delta vs `bundle:check` budget. No engine integration yet — `spikes/physics-rapier-v0/`.
 - `M24-schema` `RigidBody3D` / `Collider3D` / `PhysicsMaterial3D` JSON schemas + diagnostics (`AGF_COLLIDER3D_KIND_INVALID`, `AGF_RIGIDBODY3D_DYNAMIC_TRIMESH`, `AGF_RIGIDBODY3D_PARENTED_DYNAMIC`, layer name validation, etc.).

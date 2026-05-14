@@ -91,6 +91,8 @@ declare global {
         readonly meshes: number;
         readonly lights: number;
         readonly shadowCasters: number;
+        readonly buckets: number;
+        readonly bucketInstances: number;
         readonly handleLeak: number;
       };
       /**

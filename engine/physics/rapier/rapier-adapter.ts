@@ -1,0 +1,287 @@
+// M24-adapter: thin Rapier3D touchpoint. Only this file (and the future
+// rapier-systems folder) imports `@dimforge/rapier3d-compat`. Lazy +
+// async — `createRapierAdapter()` awaits the WASM init, so callers
+// must hold a Promise. The static-build entry never imports this
+// directly; `engine/runtime/start.ts` will gate it behind a
+// `project.json#physics.enabled` flag at construction time so projects
+// without physics pay zero bundle cost.
+
+import type RAPIER_TYPES from "@dimforge/rapier3d-compat";
+
+export type BodyHandle = number;
+export type ColliderHandle = number;
+
+export type BodyKind = "fixed" | "dynamic" | "kinematicPosition";
+
+export type BodyAcquireSpec = {
+  kind: BodyKind;
+  position: readonly [number, number, number];
+  rotation?: readonly [number, number, number];
+  mass?: number;
+  gravityScale?: number;
+  linearDamping?: number;
+  angularDamping?: number;
+  lockRotations?: boolean;
+  ccd?: boolean;
+  canSleep?: boolean;
+};
+
+export type ColliderKind = "box" | "sphere" | "capsule" | "cylinder";
+
+export type ColliderAcquireSpec = {
+  kind: ColliderKind;
+  /** Box-only: full extent on each axis. */
+  size?: readonly [number, number, number];
+  /** Sphere/capsule/cylinder. */
+  radius?: number;
+  /** Capsule/cylinder. */
+  halfHeight?: number;
+  offset?: readonly [number, number, number];
+  rotation?: readonly [number, number, number];
+  sensor?: boolean;
+  friction?: number;
+  restitution?: number;
+};
+
+export type RapierAdapterInfo = {
+  bodies: number;
+  colliders: number;
+  fixedDt: number;
+  /** Number of fixed steps executed across the adapter's lifetime. */
+  totalSteps: number;
+};
+
+export type RapierAdapter = {
+  init(): Promise<void>;
+  acquireBody(spec: BodyAcquireSpec): BodyHandle;
+  releaseBody(handle: BodyHandle): void;
+  acquireCollider(body: BodyHandle, spec: ColliderAcquireSpec): ColliderHandle | undefined;
+  releaseCollider(handle: ColliderHandle): void;
+  setBodyTransform(handle: BodyHandle, position: readonly [number, number, number], rotation?: readonly [number, number, number]): void;
+  getBodyTranslation(handle: BodyHandle): readonly [number, number, number] | undefined;
+  getBodyRotation(handle: BodyHandle): readonly [number, number, number, number] | undefined;
+  /** Advance the world by `dt` seconds. Pass exactly `fixedDt` from the runtime loop. */
+  step(dt?: number): void;
+  setGravity(gravity: readonly [number, number, number]): void;
+  info(): RapierAdapterInfo;
+  dispose(): void;
+};
+
+export type RapierAdapterOptions = {
+  /** Fixed timestep in seconds. Default 1/60. */
+  fixedDt?: number;
+  /** Gravity vector. Default earth-like (0, -9.81, 0). */
+  gravity?: readonly [number, number, number];
+};
+
+export async function createRapierAdapter(
+  options: RapierAdapterOptions = {}
+): Promise<RapierAdapter> {
+  const RAPIER = await import("@dimforge/rapier3d-compat");
+  await RAPIER.init();
+  return createAdapterFromModule(RAPIER, options);
+}
+
+/** Test-friendly factory — accepts an already-init'd RAPIER module. */
+export function createAdapterFromModule(
+  RAPIER: typeof RAPIER_TYPES,
+  options: RapierAdapterOptions = {}
+): RapierAdapter {
+  const fixedDt = options.fixedDt ?? 1 / 60;
+  const gravity = options.gravity ?? ([0, -9.81, 0] as const);
+
+  const world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] });
+  world.timestep = fixedDt;
+
+  let nextBodyHandle = 1;
+  let nextColliderHandle = 1;
+  const bodies = new Map<BodyHandle, RAPIER_TYPES.RigidBody>();
+  const colliders = new Map<ColliderHandle, RAPIER_TYPES.Collider>();
+  /** body → collider handles. Lets `releaseBody` purge children from `colliders`. */
+  const bodyColliders = new Map<BodyHandle, Set<ColliderHandle>>();
+  /** Reverse — collider → body. Needed for `releaseCollider` to update `bodyColliders`. */
+  const colliderBody = new Map<ColliderHandle, BodyHandle>();
+  let totalSteps = 0;
+
+  const eulerToQuat = (rotation: readonly [number, number, number]): { x: number; y: number; z: number; w: number } => {
+    const c1 = Math.cos(rotation[0] / 2);
+    const c2 = Math.cos(rotation[1] / 2);
+    const c3 = Math.cos(rotation[2] / 2);
+    const s1 = Math.sin(rotation[0] / 2);
+    const s2 = Math.sin(rotation[1] / 2);
+    const s3 = Math.sin(rotation[2] / 2);
+    return {
+      x: s1 * c2 * c3 + c1 * s2 * s3,
+      y: c1 * s2 * c3 - s1 * c2 * s3,
+      z: c1 * c2 * s3 + s1 * s2 * c3,
+      w: c1 * c2 * c3 - s1 * s2 * s3
+    };
+  };
+
+  const quatToEuler = (q: { x: number; y: number; z: number; w: number }): readonly [number, number, number] => {
+    // XYZ Euler from quaternion (matches scene-authoring convention).
+    const ysqr = q.y * q.y;
+    const t0 = 2 * (q.w * q.x + q.y * q.z);
+    const t1 = 1 - 2 * (q.x * q.x + ysqr);
+    const roll = Math.atan2(t0, t1);
+    let t2 = 2 * (q.w * q.y - q.z * q.x);
+    t2 = t2 > 1 ? 1 : t2 < -1 ? -1 : t2;
+    const pitch = Math.asin(t2);
+    const t3 = 2 * (q.w * q.z + q.x * q.y);
+    const t4 = 1 - 2 * (ysqr + q.z * q.z);
+    const yaw = Math.atan2(t3, t4);
+    return [roll, pitch, yaw];
+  };
+
+  return {
+    async init(): Promise<void> {
+      // Already initialised by `createRapierAdapter`. Kept for symmetry.
+    },
+    acquireBody(spec): BodyHandle {
+      let desc: RAPIER_TYPES.RigidBodyDesc;
+      switch (spec.kind) {
+        case "fixed":
+          desc = RAPIER.RigidBodyDesc.fixed();
+          break;
+        case "dynamic":
+          desc = RAPIER.RigidBodyDesc.dynamic();
+          if (spec.mass !== undefined) desc.setAdditionalMass(spec.mass);
+          break;
+        case "kinematicPosition":
+          desc = RAPIER.RigidBodyDesc.kinematicPositionBased();
+          break;
+      }
+      desc.setTranslation(spec.position[0], spec.position[1], spec.position[2]);
+      if (spec.rotation !== undefined) {
+        const q = eulerToQuat(spec.rotation);
+        desc.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+      }
+      if (spec.gravityScale !== undefined) desc.setGravityScale(spec.gravityScale);
+      if (spec.linearDamping !== undefined) desc.setLinearDamping(spec.linearDamping);
+      if (spec.angularDamping !== undefined) desc.setAngularDamping(spec.angularDamping);
+      if (spec.lockRotations === true) desc.lockRotations();
+      if (spec.ccd !== undefined) desc.setCcdEnabled(spec.ccd);
+      if (spec.canSleep !== undefined) desc.setCanSleep(spec.canSleep);
+
+      const body = world.createRigidBody(desc);
+      const handle = nextBodyHandle;
+      nextBodyHandle += 1;
+      bodies.set(handle, body);
+      bodyColliders.set(handle, new Set());
+      return handle;
+    },
+    releaseBody(handle): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      // Rapier removes attached colliders when the body is dropped — mirror
+      // that in our registry so handle counts stay honest.
+      const owned = bodyColliders.get(handle);
+      if (owned !== undefined) {
+        for (const cid of owned) {
+          colliders.delete(cid);
+          colliderBody.delete(cid);
+        }
+        bodyColliders.delete(handle);
+      }
+      world.removeRigidBody(body);
+      bodies.delete(handle);
+    },
+    acquireCollider(bodyHandle, spec): ColliderHandle | undefined {
+      const body = bodies.get(bodyHandle);
+      if (body === undefined) return undefined;
+      let desc: RAPIER_TYPES.ColliderDesc | null;
+      switch (spec.kind) {
+        case "box":
+          if (spec.size === undefined) return undefined;
+          desc = RAPIER.ColliderDesc.cuboid(spec.size[0] / 2, spec.size[1] / 2, spec.size[2] / 2);
+          break;
+        case "sphere":
+          if (spec.radius === undefined) return undefined;
+          desc = RAPIER.ColliderDesc.ball(spec.radius);
+          break;
+        case "capsule":
+          if (spec.radius === undefined || spec.halfHeight === undefined) return undefined;
+          desc = RAPIER.ColliderDesc.capsule(spec.halfHeight, spec.radius);
+          break;
+        case "cylinder":
+          if (spec.radius === undefined || spec.halfHeight === undefined) return undefined;
+          desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
+          break;
+      }
+      if (desc === null) return undefined;
+      if (spec.offset !== undefined) desc.setTranslation(spec.offset[0], spec.offset[1], spec.offset[2]);
+      if (spec.rotation !== undefined) {
+        const q = eulerToQuat(spec.rotation);
+        desc.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+      }
+      if (spec.sensor === true) desc.setSensor(true);
+      if (spec.friction !== undefined) desc.setFriction(spec.friction);
+      if (spec.restitution !== undefined) desc.setRestitution(spec.restitution);
+
+      const collider = world.createCollider(desc, body);
+      const handle = nextColliderHandle;
+      nextColliderHandle += 1;
+      colliders.set(handle, collider);
+      colliderBody.set(handle, bodyHandle);
+      bodyColliders.get(bodyHandle)?.add(handle);
+      return handle;
+    },
+    releaseCollider(handle): void {
+      const collider = colliders.get(handle);
+      if (collider === undefined) return;
+      world.removeCollider(collider, true);
+      colliders.delete(handle);
+      const bid = colliderBody.get(handle);
+      if (bid !== undefined) bodyColliders.get(bid)?.delete(handle);
+      colliderBody.delete(handle);
+    },
+    setBodyTransform(handle, position, rotation): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.setTranslation({ x: position[0], y: position[1], z: position[2] }, true);
+      if (rotation !== undefined) {
+        const q = eulerToQuat(rotation);
+        body.setRotation(q, true);
+      }
+    },
+    getBodyTranslation(handle): readonly [number, number, number] | undefined {
+      const body = bodies.get(handle);
+      if (body === undefined) return undefined;
+      const t = body.translation();
+      return [t.x, t.y, t.z];
+    },
+    getBodyRotation(handle): readonly [number, number, number, number] | undefined {
+      const body = bodies.get(handle);
+      if (body === undefined) return undefined;
+      const r = body.rotation();
+      const euler = quatToEuler(r);
+      return [euler[0], euler[1], euler[2], 0];
+    },
+    step(dt): void {
+      if (dt !== undefined && dt !== fixedDt) {
+        world.timestep = dt;
+      }
+      world.step();
+      totalSteps += 1;
+      if (dt !== undefined && dt !== fixedDt) {
+        world.timestep = fixedDt;
+      }
+    },
+    setGravity(g): void {
+      world.gravity = { x: g[0], y: g[1], z: g[2] };
+    },
+    info(): RapierAdapterInfo {
+      return {
+        bodies: bodies.size,
+        colliders: colliders.size,
+        fixedDt: world.timestep,
+        totalSteps
+      };
+    },
+    dispose(): void {
+      bodies.clear();
+      colliders.clear();
+      world.free();
+    }
+  };
+}

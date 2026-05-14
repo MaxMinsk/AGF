@@ -16,6 +16,7 @@ import type { MeshHandleRegistry } from "../mesh-handle-registry";
 
 export const MESH_RENDERER: string = "MeshRenderer";
 export const RENDER_MESH_HANDLE: string = "RenderMeshHandle";
+export const BATCHABLE: string = "Batchable";
 
 type MeshRendererComponent = {
   mesh: string;
@@ -51,9 +52,15 @@ export function createMeshLifecycleSystem(
       renderableQuery = world.createQuery([MESH_RENDERER]);
       cachedWorld = world;
     }
-    const renderable = new Set(renderableQuery!.run());
+    // BatchingSystem (M17-bucketer) owns Batchable entities; their visual
+    // is an InstancedMesh slot, not a per-entity Mesh. Skip them here so
+    // the two systems don't double-up.
+    const renderable = new Set<EntityId>();
+    for (const id of renderableQuery!.run()) {
+      if (!world.hasComponent(id, BATCHABLE)) renderable.add(id);
+    }
 
-    // Release departed.
+    // Release departed (also entities that became Batchable since last frame).
     const tracked: EntityId[] = [];
     for (const id of registry.entityIds()) tracked.push(id);
     for (const id of tracked) {

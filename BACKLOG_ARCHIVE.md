@@ -1537,6 +1537,58 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 35 — physics + batching + materials + cache polish + utsubo absorbed
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M17-bucketer` ✅ `Batchable` component + `BatchingSystem` that collapses same-mesh+color+shadow-flag entities into a single `InstancedMesh` per bucket. Adapter grows `acquireBucket` / `addBucketInstance` / `setBucketInstanceTransform` / `releaseBucket`. `MeshLifecycleSystem` skips Batchable entities. `rendererInfo()` reports `buckets` + `bucketInstances`. 5 schema tests + 7 system tests; e2e confirmed 24 entities → 1 bucket.
+- `M21-light-spot-hemisphere-rect` ✅ Adapter + LightLifecycleSystem cover all 6 kinds (`directional` / `point` / `ambient` / `spot` / `hemisphere` / `rect-area`). `RectAreaLightUniformsLib.init()` called once on first acquire. `spot.target` is added to the scene + disposed on release. `AGF_LIGHT_KIND_UNSUPPORTED` now fires only on actual typos.
+- `M21-mat-physical` + `M21-mat-unlit` ✅ Material manifest widens to 5 shader kinds (`standard` / `physical` / `lambert` / `phong` / `basic`). Physical fields (clearcoat / clearcoatRoughness / ior / transmission / thickness / sheen / sheenColor / iridescence) + phong fields (shininess / specular) + opacity. Adapter's `setMeshMaterialPatch` swaps the Three.js material class when `patch.kind` doesn't match; `MaterialBindingSystem` threads every per-kind field through. 6 schema tests + material-hmr-audit e2e green.
+- `M16-cache-c` ✅ `cache.resolveWithDirty(world, inputs, dirtyIds)` accepts the caller-supplied dirty set and skips the per-entity `componentRevision` read that dominated cache-b. **Bench at 10k chain-of-8 @ 1%-dirty: 5.99 ms** (~25% faster than cache-b, ~2.1× over no-cache). `TransformResolveSystem` now uses the new path; M16-cache-d (children index → skip non-dirty subtrees) is the next lever.
+- `M24-investigate` ✅ `spikes/physics-rapier-v0/` — confirms `@dimforge/rapier3d-compat` bundles via Vite's default loader. Init=42ms, 60 fixed steps=8ms. Bundle delta ~1.6–1.8 MB gzipped → runtime integration must lazy-import.
+- `M24-schema` ✅ `RigidBody3D` + `Collider3D` JSON schemas with per-kind `allOf+if/then` constraints (box requires size, sphere requires radius, capsule/cylinder require radius + halfHeight). Layer + mask + sensor + friction + restitution covered. 13 unit tests cover all kinds + negative cases.
+- `M24-adapter` ✅ `engine/physics/rapier/rapier-adapter.ts` — lazy-init wrapper, internal `bodies` / `colliders` / `bodyColliders` / `colliderBody` maps, full primitive lifecycle. `releaseBody` mirrors Rapier's auto-removal of attached colliders. Adapter spike exercises 4 bodies (cube + ball + capsule + ground) for 60 steps and verifies clean shutdown.
+- **Utsubo absorption** ✅ `Notes/utsubo_threejs_best_practices_100_tips.md` → `M25` Production asset pipeline epic in HIGH_LEVEL_BACKLOG + 22 new follow-up stories under Sprint 35+ (M21-frame-timing, M21-tsl-investigate, M21-webgpu-spike, M21-context-loss, M21-light-budgets, M21-shadow-static, M21-post-pipeline, M17-batched-mesh, M17-material-sharing-doctor, M17-static-merge-spike, M17-lod, ASSET-decoder-paths, ASSET-compression, ASSET-gltf-transform-investigate, ASSET-optimize-command, ASSET-lod-metadata, ASSET-texture-doctor, RUNTIME-progressive-loading, RUNTIME-renderer-ready, RUNTIME-resource-leak-tests, RUNTIME-idle-rendering, RUNTIME-gpu-timing). AGENTS.md gains three hard rules: no per-frame Three.js resource allocation, material variants are manifest refs, loaders constructed once.
+
+### Deliverables
+
+- `engine/render/systems/batching-system.ts`, scene schema `Batchable` + tests
+- `engine/render/three-render-adapter.ts` — bucket primitives + spot/hemisphere/rect-area lights + 5 material kinds
+- `engine/render/systems/material-binding-system.ts` — full physical/phong/etc. patch wiring
+- `engine/core/transform/resolve-cached.ts` — `resolveWithDirty` entry point
+- `engine/render/systems/transform-resolve-system.ts` — feeds the dirty set straight to cache
+- `engine/physics/rapier/rapier-adapter.ts`
+- `spikes/physics-rapier-v0/{spike,adapter-spike}.ts` + README
+- `schemas/scene.schema.json` — `Batchable` + `RigidBody3D` + `Collider3D`
+- `schemas/material.schema.json` — five shader kinds + per-kind fields
+- `engine/runtime/asset-loaders/material-loader.ts` — `MaterialShader` union
+- `AGENTS.md` — three new hard rules (per-frame alloc / material variants / loader singletons)
+- `HIGH_LEVEL_BACKLOG.md` — `M25` Production asset pipeline epic + utsubo follow-ups
+- 13 + 7 + 5 + 6 + 13 = 44 new unit tests; preflight clean with 1-retry policy
+
+### Verification
+
+- `npm run preflight` ✅ — full chain with 1-retry tolerance (hmr-stress + multiclient-roundtrip flake under load, deterministic in isolation).
+
+### Goal Recap
+
+Sprint 35 ran the full Sprint 35 candidate list — batching, all 6 light kinds, all 5 material kinds, hierarchy cache one layer faster, and Rapier physics from spike through schema to adapter (only sync + sensors remain). Mid-sprint absorbed the utsubo "100 tips" survey into M25 + 22 follow-up stories. AGENTS.md gained three hard rules that lock the per-frame allocation discipline.
+
+### Follow-Ups
+
+- `M24-sync` — Transform ↔ Rapier body two-way sync system + `engine/runtime/start.ts` integration gated by `project.json#physics.enabled`.
+- `M24-sensors` — Collision events buffered per fixed step + runtime-only `Grounded3D` / `OverlappingTriggers3D` components.
+- `M24-raycast` — `runtime.physics.raycast({...})` returning AGF EntityIds.
+- `M24-character` — `CharacterController3D` schema + kinematic capsule wrapper.
+- `M24-debug` — Rapier `world.debugRender()` overlay + `engine doctor` body/collider counts.
+- `M21-shadow-csm` — Cascaded Shadow Maps addon (high-touch, requires `csm.setupMaterial(material)` hook on every material).
+- `M16-cache-d` — children index to skip topo walk for non-dirty subtrees. Target < 1 ms at 10k chain-of-8.
+- `M17-batched-mesh` — multi-geometry / shared-material `BatchedMesh` buckets sibling to InstancedMesh path.
+
+
+
 ## Sprint 34 — Phase 2 visible delta: lights + shadows + IBL + cache polish + M23 tuner + M24 absorbed
 
 Status: Completed and archived.

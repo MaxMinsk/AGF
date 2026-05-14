@@ -249,18 +249,38 @@ describe("LightLifecycleSystem (M21-light-directional-point)", () => {
     expect(adapter.acquired[1]?.spec.kind).toBe("point");
   });
 
-  it("warns on unsupported kind (spot/hemisphere/rect-area land in M21-light-spot-hemisphere-rect)", () => {
+  it("warns on truly unsupported kind (e.g. typo'd 'sptolite')", () => {
     const adapter = stubAdapter();
     const registry = stubRegistry(adapter);
     const diagnostics = stubDiagnostics();
     const world = new World();
     world.addEntity("s");
-    world.setComponent("s", "Light", { kind: "spot", angle: 0.5 });
+    world.setComponent("s", "Light", { kind: "sptolite" });
     const system = createLightLifecycleSystem({ adapter: adapter as unknown as Adapter, registry, diagnostics });
     system.frameUpdate?.(ctx(world));
 
     expect(adapter.acquired).toHaveLength(0);
     expect(diagnostics.collected.some((d) => d.code === "AGF_LIGHT_KIND_UNSUPPORTED")).toBe(true);
+  });
+
+  it("acquires every kind from M21-light-spot-hemisphere-rect (spot/hemisphere/rect-area)", () => {
+    const adapter = stubAdapter();
+    const registry = stubRegistry(adapter);
+    const diagnostics = stubDiagnostics();
+    const world = new World();
+    world.addEntity("s");
+    world.setComponent("s", "Light", { kind: "spot", angle: 0.5, penumbra: 0.2 });
+    world.addEntity("h");
+    world.setComponent("h", "Light", { kind: "hemisphere", groundColor: "#222" });
+    world.addEntity("r");
+    world.setComponent("r", "Light", { kind: "rect-area", width: 2, height: 1 });
+    const system = createLightLifecycleSystem({ adapter: adapter as unknown as Adapter, registry, diagnostics });
+    system.frameUpdate?.(ctx(world));
+
+    expect(adapter.acquired).toHaveLength(3);
+    const kinds = adapter.acquired.map((a) => a.spec.kind).sort();
+    expect(kinds).toEqual(["hemisphere", "rect-area", "spot"]);
+    expect(diagnostics.collected.some((d) => d.code === "AGF_LIGHT_KIND_UNSUPPORTED")).toBe(false);
   });
 
   it("applies shadow params when castShadow is true", () => {
