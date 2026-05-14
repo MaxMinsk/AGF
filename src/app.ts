@@ -53,6 +53,8 @@ export type ProjectMeta = {
     shadows?: {
       /** M21-shadow-static: disable per-frame shadow re-rendering for static scenes. */
       autoUpdate?: boolean;
+      /** M21-shadow-algorithm: pick PCF (default) vs VSM filtering. */
+      algorithm?: "pcf" | "vsm";
       csm?: {
         enabled?: boolean;
         cascades?: number;
@@ -311,6 +313,9 @@ export async function createApp(
   }
   if (project.render?.color !== undefined) {
     runtimeOptions.color = project.render.color;
+  }
+  if (project.render?.shadows?.algorithm !== undefined) {
+    runtimeOptions.shadowAlgorithm = project.render.shadows.algorithm;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;

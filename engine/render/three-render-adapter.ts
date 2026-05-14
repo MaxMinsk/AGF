@@ -51,6 +51,8 @@ import {
   AgXToneMapping,
   type ToneMapping,
   PCFShadowMap,
+  VSMShadowMap,
+  type ShadowMapType,
   PerspectiveCamera,
   PMREMGenerator,
   PointLight,
@@ -296,6 +298,14 @@ export type AdapterOptions = {
    * keep the legacy linear / clamped look. `exposure` defaults to 1.
    */
   color?: ColorPipelineOptions;
+  /**
+   * M21-shadow-algorithm: pick the shadow-map filtering algorithm.
+   * `pcf` (default) — 4-tap percentage-closer filter; sharp, well
+   * supported, what every existing project was tuned against.
+   * `vsm` — variance shadow maps; smoother penumbras but light leaks
+   * around concave geometry. Pick per project.
+   */
+  shadowAlgorithm?: "pcf" | "vsm";
 };
 
 export type ToneMappingKind =
@@ -401,7 +411,7 @@ export class ThreeRenderAdapter {
     // directly produced a noisy console warning. VSM is a future stretch
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
-    this.device.shadowMap.type = PCFShadowMap;
+    this.device.shadowMap.type = shadowAlgorithmType(options.shadowAlgorithm);
     // M21-color: tone-mapping is opt-in (default "none" / linear clamp)
     // so existing projects look identical after the upgrade. Projects
     // that want ACES Filmic / AgX highlight roll-off set
@@ -1470,6 +1480,10 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }
 `;
+
+function shadowAlgorithmType(kind: "pcf" | "vsm" | undefined): ShadowMapType {
+  return kind === "vsm" ? VSMShadowMap : PCFShadowMap;
+}
 
 function applyShaderUniforms(
   material: ShaderMaterial,

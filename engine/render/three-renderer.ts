@@ -70,6 +70,7 @@ export class ThreeRenderer {
       onContextLost?: () => void;
       onContextRestored?: () => void;
       color?: import("./three-render-adapter").ColorPipelineOptions;
+      shadowAlgorithm?: "pcf" | "vsm";
     }
   ) {
     this.world = world;
@@ -84,6 +85,9 @@ export class ThreeRenderer {
     }
     if (extraOptions?.color !== undefined) {
       options.color = extraOptions.color;
+    }
+    if (extraOptions?.shadowAlgorithm !== undefined) {
+      options.shadowAlgorithm = extraOptions.shadowAlgorithm;
     }
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);

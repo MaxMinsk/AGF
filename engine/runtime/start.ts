@@ -31,6 +31,8 @@ export type RuntimeOptions = {
     toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
     exposure?: number;
   };
+  /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
+  shadowAlgorithm?: "pcf" | "vsm";
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -128,6 +130,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     options.assetRegistry,
     {
       ...(options.color !== undefined ? { color: options.color } : {}),
+      ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
