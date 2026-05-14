@@ -3,6 +3,7 @@ import { cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { agfDevBridge } from "./engine/dev/agf-dev-bridge";
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
 
@@ -66,7 +67,7 @@ function assetHotReload(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [copyExampleAssets(), assetHotReload()],
+  plugins: [copyExampleAssets(), assetHotReload(), agfDevBridge()],
   build: {
     rollupOptions: {
       output: {
