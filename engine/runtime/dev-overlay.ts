@@ -2,6 +2,13 @@ export type DevOverlayMetrics = {
   fps: number;
   fixedStepsPerSecond: number;
   entityCount: number;
+  /**
+   * Three.js `WebGLRenderer.info.render.calls` from the previous frame.
+   * Exposed so the agent + dev can spot batching regressions at a
+   * glance — `examples/batch-bench` ought to show ~5 draws regardless
+   * of seed count; spikes here mean a system is breaking the bucketer.
+   */
+  drawCalls?: number;
 };
 
 export type DevOverlayHandle = {
@@ -30,9 +37,15 @@ export function createDevOverlay(parent: HTMLElement): DevOverlayHandle {
 }
 
 function renderMetrics(metrics: DevOverlayMetrics): string {
-  return [
+  const parts = [
     `<span class="metric"><strong>${metrics.fps.toFixed(0)}</strong> fps</span>`,
     `<span class="metric"><strong>${metrics.fixedStepsPerSecond.toFixed(0)}</strong> steps/s</span>`,
     `<span class="metric"><strong>${metrics.entityCount}</strong> entities</span>`
-  ].join("");
+  ];
+  if (metrics.drawCalls !== undefined) {
+    parts.push(
+      `<span class="metric"><strong>${metrics.drawCalls}</strong> draws</span>`
+    );
+  }
+  return parts.join("");
 }

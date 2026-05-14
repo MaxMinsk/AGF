@@ -247,7 +247,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       overlay.update({
         fps: framesInWindow / windowElapsed,
         fixedStepsPerSecond: fixedStepsInWindow / windowElapsed,
-        entityCount: world.entityCount()
+        entityCount: world.entityCount(),
+        drawCalls: renderer.info().drawCalls
       });
       framesInWindow = 0;
       fixedStepsInWindow = 0;

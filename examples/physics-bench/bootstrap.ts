@@ -18,7 +18,14 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 import type { EngineCommand } from "../../engine/core/commands/types";
 
-type Shape = "box" | "sphere" | "capsule" | "mixed";
+// Primitive geometries available in createPrimitiveGeometry today:
+//   "box"    → BoxGeometry(1, 1, 1)
+//   "sphere" → SphereGeometry(0.5, ...)
+// Capsule has no visual primitive; the bench limits itself to box +
+// sphere so the collider matches the rendered mesh 1:1 — otherwise
+// pieces appear to "pass through" each other when the visual is larger
+// than the physical shape.
+type Shape = "box" | "sphere" | "mixed";
 
 const DEFAULT_COUNT = 200;
 const MAX_COUNT = 2048;
@@ -46,7 +53,7 @@ function resolveSpec(): Spec {
     }
   }
   let shape: Shape = "mixed";
-  if (rawShape === "box" || rawShape === "sphere" || rawShape === "capsule") {
+  if (rawShape === "box" || rawShape === "sphere") {
     shape = rawShape;
   }
   return { count, shape };
@@ -54,21 +61,21 @@ function resolveSpec(): Spec {
 
 function shapeFor(index: number, requested: Shape): Exclude<Shape, "mixed"> {
   if (requested !== "mixed") return requested;
-  const mod = index % 3;
-  if (mod === 0) return "box";
-  if (mod === 1) return "sphere";
-  return "capsule";
+  return index % 2 === 0 ? "box" : "sphere";
 }
 
+// Collider sizes mirror the visual primitive 1:1 so bodies don't appear
+// to clip through each other. Rapier's `cuboid` takes half-extents, so
+// `size: [1, 1, 1]` corresponds to a 1×1×1 collider that matches
+// `BoxGeometry(1, 1, 1)`. The sphere collider radius matches
+// `SphereGeometry(0.5, ...)`.
 function colliderFor(shape: Exclude<Shape, "mixed">): Record<string, unknown> {
-  if (shape === "box") return { kind: "box", size: [0.5, 0.5, 0.5] };
-  if (shape === "sphere") return { kind: "sphere", radius: 0.3 };
-  return { kind: "capsule", radius: 0.25, halfHeight: 0.25 };
+  if (shape === "box") return { kind: "box", size: [1, 1, 1] };
+  return { kind: "sphere", radius: 0.5 };
 }
 
 function meshFor(shape: Exclude<Shape, "mixed">): string {
-  if (shape === "sphere") return "sphere";
-  return "box";
+  return shape === "sphere" ? "sphere" : "box";
 }
 
 function buildSeedCommands(spec: Spec): EngineCommand[] {
@@ -117,7 +124,10 @@ function buildSeedCommands(spec: Spec): EngineCommand[] {
       kind: "component.set",
       entityId: id,
       component: "RigidBody3D",
-      data: { type: "dynamic", mass: 1, canSleep: true }
+      // ccd: true prevents fast-falling bodies from tunnelling through
+      // each other on a fixed step. The cost is per-body broad-phase
+      // queries; acceptable for the bench's body count (<2048).
+      data: { type: "dynamic", mass: 1, canSleep: true, ccd: true }
     });
     commands.push({
       kind: "component.set",
