@@ -42,6 +42,16 @@ export type ProjectMeta = {
     components: ReadonlyArray<string>;
     slot?: string;
   };
+  /**
+   * Optional Rapier3D physics config (M24). `enabled: true` triggers the
+   * lazy WASM import + PhysicsSyncSystem registration on the scheduler.
+   * Projects that omit this field pay zero physics bundle cost.
+   */
+  physics?: {
+    enabled?: boolean;
+    gravity?: readonly [number, number, number];
+    fixedDt?: number;
+  };
 };
 
 export type AppOptions = {
@@ -239,6 +249,28 @@ export async function createApp(
       persistence.slot = project.persistence.slot;
     }
     runtimeOptions.persistence = persistence;
+  }
+
+  // M24-sync: lazy-load Rapier and register PhysicsSyncSystem before
+  // `startRuntime` ticks. Adapter init is async (WASM); registering after
+  // start would race the first fixed step.
+  if (project.physics?.enabled === true) {
+    const { createRapierAdapter } = await import(
+      "../engine/physics/rapier/rapier-adapter"
+    );
+    const { createPhysicsBodyRegistry } = await import(
+      "../engine/physics/rapier/physics-body-registry"
+    );
+    const { createPhysicsSyncSystem } = await import(
+      "../engine/physics/rapier/physics-sync-system"
+    );
+    const physicsAdapter = await createRapierAdapter({
+      ...(project.physics.gravity !== undefined ? { gravity: project.physics.gravity } : {}),
+      ...(project.physics.fixedDt !== undefined ? { fixedDt: project.physics.fixedDt } : {})
+    });
+    const physicsRegistry = createPhysicsBodyRegistry(physicsAdapter);
+    const physicsSystem = createPhysicsSyncSystem(physicsRegistry, physicsAdapter);
+    scheduler.register(physicsSystem);
   }
 
   const runtime: RuntimeHandle = await startRuntime(runtimeOptions);
