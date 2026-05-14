@@ -36,6 +36,10 @@ Sprint 39 focus is picked at sprint start. Natural openers (in priority order ba
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
+### Investigation candidates
+
+- **DEV-server-test-coexist** — `playwright.config.ts` already declares `reuseExistingServer: true`, yet `preflight` (and ad-hoc `npx playwright test ...`) sometimes still conflict with a developer-launched `npm run dev` on 5173. Reproduce the failure mode, then either tighten the probe (HEAD `/__agf/health` before deciding to spawn) or pick a different port for headless test runs so the dev server stays untouched. Source: agent kept killing 5173 manually between commits — disruptive to the live dev loop.
+
 ### Parking lot (utsubo follow-ups + other carry-overs)
 
 These remain in scope but did not make the Sprint 37 opener list.

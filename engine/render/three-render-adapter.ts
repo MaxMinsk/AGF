@@ -360,12 +360,11 @@ export class ThreeRenderAdapter {
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
     this.device.shadowMap.type = PCFShadowMap;
-    // M21-color: default to ACES Filmic with exposure 1.0 — gives PBR
-    // materials a believable highlight roll-off out of the box. Three's
-    // `outputColorSpace` already defaults to `SRGBColorSpace` so we
-    // don't override it here. Projects can opt back to the linear look
-    // via `project.json#render.color.toneMapping: "none"`.
-    const toneMappingKind = options.color?.toneMapping ?? "aces-filmic";
+    // M21-color: tone-mapping is opt-in (default "none" / linear clamp)
+    // so existing projects look identical after the upgrade. Projects
+    // that want ACES Filmic / AgX highlight roll-off set
+    // `project.json#render.color.toneMapping: "aces-filmic"`.
+    const toneMappingKind = options.color?.toneMapping ?? "none";
     this.device.toneMapping = TONE_MAPPING_BY_KIND[toneMappingKind];
     this.device.toneMappingExposure = options.color?.exposure ?? 1;
     this.scene = new Scene();

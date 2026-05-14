@@ -42,11 +42,11 @@
         "color": {
           "type": "object",
           "additionalProperties": false,
-          "description": "M21-color: output color pipeline. WebGLRenderer's outputColorSpace stays at the engine default (sRGB); `toneMapping` controls how HDR colour ranges fold back into LDR. Default `aces-filmic` gives PBR a believable highlight roll-off.",
+          "description": "M21-color: output color pipeline. WebGLRenderer's outputColorSpace stays at the engine default (sRGB); `toneMapping` controls how HDR colour ranges fold back into LDR. Default `none` (legacy linear clamp) — opt in to `aces-filmic` / `agx` for PBR-correct highlight roll-off.",
           "properties": {
             "toneMapping": {
               "enum": ["none", "linear", "reinhard", "cineon", "aces-filmic", "agx"],
-              "default": "aces-filmic"
+              "default": "none"
             },
             "exposure": {
               "type": "number",
