@@ -28,7 +28,10 @@ describe("DIAGNOSTIC_CODES", () => {
       "AGF_PREFAB_INVALID",
       "AGF_TRANSFORM_PARENT_MISSING",
       "AGF_TRANSFORM_PARENT_SELF",
-      "AGF_TRANSFORM_PARENT_CYCLE"
+      "AGF_TRANSFORM_PARENT_CYCLE",
+      "AGF_RIGIDBODY3D_DYNAMIC_TRIMESH",
+      "AGF_COLLIDER3D_TRIMESH_LARGE",
+      "AGF_COLLIDER3D_HEIGHTFIELD_DIMS"
     ];
     expect([...ALL_DIAGNOSTIC_CODES].sort()).toEqual([...expected].sort());
     for (const code of expected) {

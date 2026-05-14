@@ -26,7 +26,13 @@ export type BodyAcquireSpec = {
   canSleep?: boolean;
 };
 
-export type ColliderKind = "box" | "sphere" | "capsule" | "cylinder";
+export type ColliderKind =
+  | "box"
+  | "sphere"
+  | "capsule"
+  | "cylinder"
+  | "trimesh"
+  | "heightfield";
 
 export type ColliderAcquireSpec = {
   kind: ColliderKind;
@@ -36,6 +42,18 @@ export type ColliderAcquireSpec = {
   radius?: number;
   /** Capsule/cylinder. */
   halfHeight?: number;
+  /** Trimesh-only: flat XYZ array; length must be a multiple of 3. */
+  vertices?: ReadonlyArray<number>;
+  /** Trimesh-only: triangle index array; length must be a multiple of 3. */
+  indices?: ReadonlyArray<number>;
+  /** Heightfield-only: row count along Z. */
+  rows?: number;
+  /** Heightfield-only: column count along X. */
+  columns?: number;
+  /** Heightfield-only: row-major Y samples (length = rows * columns). */
+  heights?: ReadonlyArray<number>;
+  /** Heightfield-only: world-space scale. Y component scales the height samples. */
+  scale?: readonly [number, number, number];
   offset?: readonly [number, number, number];
   rotation?: readonly [number, number, number];
   sensor?: boolean;
@@ -283,6 +301,39 @@ export function createAdapterFromModule(
           if (spec.radius === undefined || spec.halfHeight === undefined) return undefined;
           desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
           break;
+        case "trimesh": {
+          if (spec.vertices === undefined || spec.indices === undefined) return undefined;
+          if (spec.vertices.length === 0 || spec.vertices.length % 3 !== 0) return undefined;
+          if (spec.indices.length === 0 || spec.indices.length % 3 !== 0) return undefined;
+          desc = RAPIER.ColliderDesc.trimesh(
+            new Float32Array(spec.vertices),
+            new Uint32Array(spec.indices)
+          );
+          break;
+        }
+        case "heightfield": {
+          if (
+            spec.heights === undefined ||
+            spec.rows === undefined ||
+            spec.columns === undefined ||
+            spec.scale === undefined
+          ) {
+            return undefined;
+          }
+          if (spec.rows < 2 || spec.columns < 2) return undefined;
+          if (spec.heights.length !== spec.rows * spec.columns) return undefined;
+          // Rapier signature: heightfield(nrows, ncols, heights, scale).
+          // `nrows`/`ncols` are sample counts MINUS one (Rapier counts
+          // quads, not samples). The full world-space size is the
+          // `scale` vector applied to the unit grid.
+          desc = RAPIER.ColliderDesc.heightfield(
+            spec.rows - 1,
+            spec.columns - 1,
+            new Float32Array(spec.heights),
+            { x: spec.scale[0], y: spec.scale[1], z: spec.scale[2] }
+          );
+          break;
+        }
       }
       if (desc === null) return undefined;
       if (spec.offset !== undefined) desc.setTranslation(spec.offset[0], spec.offset[1], spec.offset[2]);
@@ -422,11 +473,15 @@ export function createAdapterFromModule(
       const controller = characterControllers.get(controllerHandle);
       const collider = colliders.get(colliderHandle);
       if (controller === undefined || collider === undefined) return undefined;
-      controller.computeColliderMovement(collider, {
-        x: desired[0],
-        y: desired[1],
-        z: desired[2]
-      });
+      // EXCLUDE_SENSORS keeps pickups / hazards / trigger volumes from
+      // pushing the character. Without this filter, the controller
+      // treats Beacon's 1.6m core sensor like a 1.6m wall and the
+      // drone can't approach anything.
+      controller.computeColliderMovement(
+        collider,
+        { x: desired[0], y: desired[1], z: desired[2] },
+        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS
+      );
       const movement = controller.computedMovement();
       return {
         movement: [movement.x, movement.y, movement.z],

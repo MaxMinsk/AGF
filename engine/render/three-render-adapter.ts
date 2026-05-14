@@ -42,6 +42,13 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   type Object3D,
+  ACESFilmicToneMapping,
+  LinearToneMapping,
+  NoToneMapping,
+  ReinhardToneMapping,
+  CineonToneMapping,
+  AgXToneMapping,
+  type ToneMapping,
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
@@ -51,6 +58,8 @@ import {
   Scene,
   SpotLight,
   type Texture,
+  TextureLoader,
+  SRGBColorSpace,
   Vector3,
   WebGLRenderer
 } from "three";
@@ -160,6 +169,7 @@ export type MaterialPatch = {
   roughness?: number;
   metalness?: number;
   emissive?: string;
+  emissiveIntensity?: number;
   opacity?: number;
   transparent?: boolean;
   /** MeshPhysicalMaterial fields. */
@@ -174,6 +184,21 @@ export type MaterialPatch = {
   /** MeshPhongMaterial fields. */
   shininess?: number;
   specular?: string;
+  /**
+   * M21-mat-textures: texture map URLs. The adapter resolves them
+   * through a process-wide cached TextureLoader and applies them to
+   * the matching Three.js material slot. KTX2-encoded textures
+   * (.ktx2) route through the shared KTX2Loader singleton — when
+   * the renderer has been wired with KTX2 support via the asset
+   * decoders module.
+   */
+  map?: string;
+  normalMap?: string;
+  normalScale?: number;
+  roughnessMap?: string;
+  metalnessMap?: string;
+  emissiveMap?: string;
+  aoMap?: string;
 };
 
 export type CameraParams = {
@@ -220,6 +245,42 @@ export type AdapterInfo = {
 export type AdapterOptions = {
   canvas: HTMLCanvasElement;
   background?: string;
+  /**
+   * M21-context-loss: fires when the WebGL context is lost or
+   * restored. Three.js's WebGLRenderer auto-re-uploads GPU resources
+   * on restore; the runtime wires these to the DiagnosticsBus so
+   * agents can react (pause systems, surface a banner, etc.).
+   */
+  onContextLost?: () => void;
+  onContextRestored?: () => void;
+  /**
+   * M21-color: output color pipeline. `toneMapping` defaults to
+   * `aces-filmic` (correct PBR look out of the box); set to `none` to
+   * keep the legacy linear / clamped look. `exposure` defaults to 1.
+   */
+  color?: ColorPipelineOptions;
+};
+
+export type ToneMappingKind =
+  | "none"
+  | "linear"
+  | "reinhard"
+  | "cineon"
+  | "aces-filmic"
+  | "agx";
+
+export type ColorPipelineOptions = {
+  toneMapping?: ToneMappingKind;
+  exposure?: number;
+};
+
+const TONE_MAPPING_BY_KIND: Record<ToneMappingKind, ToneMapping> = {
+  "none": NoToneMapping,
+  "linear": LinearToneMapping,
+  "reinhard": ReinhardToneMapping,
+  "cineon": CineonToneMapping,
+  "aces-filmic": ACESFilmicToneMapping,
+  "agx": AgXToneMapping
 };
 
 export type EnvironmentKind = "generated" | "none";
@@ -229,6 +290,12 @@ const DEFAULT_COLOR = "#cccccc";
 export class ThreeRenderAdapter {
   private readonly canvas: HTMLCanvasElement;
   private readonly device: WebGLRenderer;
+  private contextLostListener: ((event: Event) => void) | undefined;
+  private contextRestoredListener: (() => void) | undefined;
+  // M21-mat-textures: shared TextureLoader + URL → Texture cache so a
+  // map shared across N materials only fetches + decodes once.
+  private readonly textureLoader = new TextureLoader();
+  private readonly textureCache = new Map<string, Texture>();
   private readonly scene: Scene;
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
@@ -263,6 +330,27 @@ export class ThreeRenderAdapter {
       antialias: true,
       preserveDrawingBuffer: true
     });
+    // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
+    // Three.js auto-rebuilds GPU resources on restore; the runtime
+    // uses these callbacks to emit diagnostics + optionally pause
+    // gameplay until the context is back.
+    if (options.onContextLost !== undefined) {
+      const onLost = (event: Event): void => {
+        // Without preventDefault the browser does not attempt to
+        // restore the context.
+        event.preventDefault();
+        options.onContextLost?.();
+      };
+      this.canvas.addEventListener("webglcontextlost", onLost);
+      this.contextLostListener = onLost;
+    }
+    if (options.onContextRestored !== undefined) {
+      const onRestored = (): void => {
+        options.onContextRestored?.();
+      };
+      this.canvas.addEventListener("webglcontextrestored", onRestored);
+      this.contextRestoredListener = onRestored;
+    }
     // M21-shadow-basic: enable shadow rendering globally. Per-light + per-mesh
     // opt-in still happens via `setLightCastShadow` / `setMeshCastShadow` etc.
     //
@@ -272,6 +360,13 @@ export class ThreeRenderAdapter {
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
     this.device.shadowMap.type = PCFShadowMap;
+    // M21-color: tone-mapping is opt-in (default "none" / linear clamp)
+    // so existing projects look identical after the upgrade. Projects
+    // that want ACES Filmic / AgX highlight roll-off set
+    // `project.json#render.color.toneMapping: "aces-filmic"`.
+    const toneMappingKind = options.color?.toneMapping ?? "none";
+    this.device.toneMapping = TONE_MAPPING_BY_KIND[toneMappingKind];
+    this.device.toneMappingExposure = options.color?.exposure ?? 1;
     this.scene = new Scene();
     if (options.background !== undefined) {
       this.scene.background = new Color(options.background);
@@ -790,7 +885,70 @@ export class ThreeRenderAdapter {
       material.emissive.set(patch.emissive);
     }
 
+    // M21-mat-textures: apply texture maps for materials that support
+    // them. `map` (base colour) gets sRGB; the rest stay in linear
+    // space per glTF convention. Each setter is no-op-when-already-bound
+    // because we cache textures per URL.
+    if (
+      material instanceof MeshStandardMaterial ||
+      material instanceof MeshPhysicalMaterial ||
+      material instanceof MeshPhongMaterial ||
+      material instanceof MeshLambertMaterial ||
+      material instanceof MeshBasicMaterial
+    ) {
+      if (patch.map !== undefined) {
+        material.map = this.acquireTexture(patch.map, true);
+      }
+    }
+    if (
+      material instanceof MeshStandardMaterial ||
+      material instanceof MeshPhysicalMaterial ||
+      material instanceof MeshPhongMaterial
+    ) {
+      if (patch.normalMap !== undefined) material.normalMap = this.acquireTexture(patch.normalMap, false);
+      if (patch.normalScale !== undefined) material.normalScale.set(patch.normalScale, patch.normalScale);
+      if (patch.emissiveMap !== undefined) material.emissiveMap = this.acquireTexture(patch.emissiveMap, true);
+      if (patch.emissiveIntensity !== undefined) {
+        // emissiveIntensity is only on Standard/Physical, not Phong.
+        if (
+          material instanceof MeshStandardMaterial ||
+          material instanceof MeshPhysicalMaterial
+        ) {
+          material.emissiveIntensity = patch.emissiveIntensity;
+        }
+      }
+      if (patch.aoMap !== undefined) material.aoMap = this.acquireTexture(patch.aoMap, false);
+    }
+    if (
+      material instanceof MeshStandardMaterial ||
+      material instanceof MeshPhysicalMaterial
+    ) {
+      if (patch.roughnessMap !== undefined) {
+        material.roughnessMap = this.acquireTexture(patch.roughnessMap, false);
+      }
+      if (patch.metalnessMap !== undefined) {
+        material.metalnessMap = this.acquireTexture(patch.metalnessMap, false);
+      }
+    }
+
     material.needsUpdate = true;
+  }
+
+  /**
+   * M21-mat-textures: return a shared Texture for `url`, fetching +
+   * decoding once. Base-colour textures (sRGB) need an explicit
+   * colorSpace assignment; data textures (normal / roughness /
+   * metalness / AO) stay in the default linear space.
+   */
+  private acquireTexture(url: string, isColor: boolean): Texture {
+    const existing = this.textureCache.get(url);
+    if (existing !== undefined) return existing;
+    const texture = this.textureLoader.load(url);
+    if (isColor) {
+      texture.colorSpace = SRGBColorSpace;
+    }
+    this.textureCache.set(url, texture);
+    return texture;
   }
 
   setMeshTransform(handle: MeshHandle, world: ResolvedWorld): void {
@@ -1066,6 +1224,16 @@ export class ThreeRenderAdapter {
     this.pmrem = undefined;
     this.cameras.clear();
     this.activeCameraHandle = undefined;
+    if (this.contextLostListener !== undefined) {
+      this.canvas.removeEventListener("webglcontextlost", this.contextLostListener);
+      this.contextLostListener = undefined;
+    }
+    if (this.contextRestoredListener !== undefined) {
+      this.canvas.removeEventListener("webglcontextrestored", this.contextRestoredListener);
+      this.contextRestoredListener = undefined;
+    }
+    for (const texture of this.textureCache.values()) texture.dispose();
+    this.textureCache.clear();
     this.device.dispose();
   }
 

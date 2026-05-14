@@ -26,6 +26,11 @@ export type RuntimeOptions = {
   canvas: HTMLCanvasElement;
   scene: SceneInput;
   background?: string;
+  /** M21-color: output color pipeline. Forwarded to the renderer adapter. */
+  color?: {
+    toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
+    exposure?: number;
+  };
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -75,6 +80,13 @@ export type RuntimeHandle = {
   readonly diagnostics: DiagnosticsBus;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
+  /**
+   * Resolves after the first frame that actually rendered (active
+   * camera acquired + `renderer.adapter.draw()` executed). Use this
+   * in tests / dev-bridge clients before taking screenshots or
+   * reading rendererInfo to avoid racing the boot sequence.
+   */
+  readonly rendererReady: Promise<void>;
   /** Window-averaged per-phase timings — see FrameTiming. */
   frameTiming(): FrameTiming;
   /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
@@ -106,7 +118,34 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   const world = World.fromScene(options.scene);
   const diagnostics = options.diagnostics ?? createDiagnosticsBus();
   const { ThreeRenderer } = await import("../render/three-renderer");
-  const renderer = new ThreeRenderer(world, options.canvas, options.background, options.assetRegistry);
+  // M21-context-loss: route WebGL context events into the diagnostics
+  // bus so agents + tests can observe them. Three.js auto-rebuilds GPU
+  // resources on restore, so no further runtime action is needed today.
+  const renderer = new ThreeRenderer(
+    world,
+    options.canvas,
+    options.background,
+    options.assetRegistry,
+    {
+      ...(options.color !== undefined ? { color: options.color } : {}),
+      onContextLost: () => {
+        diagnostics.emit({
+          severity: "warning",
+          code: "AGF_RENDER_CONTEXT_LOST",
+          source: "renderer",
+          message: "WebGL context lost. Renderer paused until the browser restores it; gameplay systems continue running."
+        });
+      },
+      onContextRestored: () => {
+        diagnostics.emit({
+          severity: "info",
+          code: "AGF_RENDER_CONTEXT_RESTORED",
+          source: "renderer",
+          message: "WebGL context restored. Three.js re-uploaded GPU resources; rendering resumes on the next frame."
+        });
+      }
+    }
+  );
 
   // M21-env-generated: apply image-based-lighting environment for PBR
   // materials. Default = "generated" (RoomEnvironment + PMREM) so
@@ -196,6 +235,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
 
   let metricsWindowStart = 0;
   let framesInWindow = 0;
+  // RUNTIME-renderer-ready: resolves once `renderer.render()` performed
+  // an actual draw (i.e. CameraSyncSystem picked the active camera and
+  // adapter.draw() ran). Tests + dev-bridge clients await this before
+  // taking screenshots / reading rendererInfo to avoid racing boot.
+  let rendererReadyResolve: (() => void) | undefined;
+  const rendererReady = new Promise<void>((resolve) => {
+    rendererReadyResolve = resolve;
+  });
   let fixedStepsInWindow = 0;
   let fixedAccumMs = 0;
   let frameAccumMs = 0;
@@ -279,7 +326,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const renderPhaseStart = performance.now();
     frameAccumMs += renderPhaseStart - framePhaseStart;
 
-    renderer.render();
+    const drew = renderer.render();
+    if (drew && rendererReadyResolve !== undefined) {
+      rendererReadyResolve();
+      rendererReadyResolve = undefined;
+    }
 
     const tickEnd = performance.now();
     renderAccumMs += tickEnd - renderPhaseStart;
@@ -329,6 +380,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     renderer,
     time,
     diagnostics,
+    rendererReady,
     invalidateAsset(ref: string): void {
       options.assetRegistry?.invalidate(ref);
       if (materialBindingSystem !== undefined) {

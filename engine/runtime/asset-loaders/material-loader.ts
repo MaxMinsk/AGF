@@ -24,6 +24,15 @@ export type MaterialManifest = {
   /** MeshPhongMaterial fields. */
   shininess?: number;
   specular?: string;
+  /** M21-mat-textures: texture map URLs. */
+  map?: string;
+  normalMap?: string;
+  normalScale?: number;
+  roughnessMap?: string;
+  metalnessMap?: string;
+  emissiveMap?: string;
+  emissiveIntensity?: number;
+  aoMap?: string;
 };
 
 export function createMaterialLoader(): AssetLoader<MaterialManifest> {

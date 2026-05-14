@@ -1537,6 +1537,57 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 39 — static-mesh + decoder-paths follow-ups + renderer polish
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M24-static-mesh` ✅ Trimesh + heightfield collider kinds. Scene schema gains per-kind `allOf+if/then` constraints (trimesh: `vertices` + `indices`, heightfield: `rows` × `columns` + row-major `heights` + `scale`). RapierAdapter.acquireCollider switches on the new kinds; heightfield maps `nrows = rows-1, ncols = columns-1` per Rapier's quad-count convention. `engine check` gains `AGF_RIGIDBODY3D_DYNAMIC_TRIMESH` (error), `AGF_COLLIDER3D_TRIMESH_LARGE` (warning, ≥50k vertices), `AGF_COLLIDER3D_HEIGHTFIELD_DIMS` (error). Spike `spikes/physics-rapier-v0/static-mesh-spike.ts` lands a dynamic ball on a 5×5 heightfield (y=0.299) + a slanted trimesh wedge (y≈0.30 after slide).
+- `M24-character sensor-exclude fix` ✅ Carry-over hot-fix from Sprint 38: Rapier's KinematicCharacterController was treating sensor colliders as movement obstacles. Beacon's 1.2 / 1.6 m sensor radii (sized to gameplay pickup / deposit / hazard range) blocked the drone from approaching anything. `computeColliderMovement` now passes `QueryFilterFlags.EXCLUDE_SENSORS` so sensors still emit enter/exit events but stop pushing the character.
+- `M21-context-loss` ✅ ThreeRenderAdapter subscribes to canvas `webglcontextlost` / `webglcontextrestored` events (with `preventDefault` on lost so the browser actually restores). startRuntime emits `AGF_RENDER_CONTEXT_LOST` (warning) + `AGF_RENDER_CONTEXT_RESTORED` (info) on the DiagnosticsBus. Listeners cleaned up in adapter.dispose.
+- `M21-color` ✅ `project.json#render.color.{toneMapping, exposure}` (default toneMapping `"none"` — legacy linear) gives projects ACES Filmic / AgX / Reinhard / Cineon highlight roll-off on opt-in. Adapter maps the schema enum to the matching Three.js constant; the initial ACES default was reverted to "none" after a perceived overlit shift on Beacon.
+- `RUNTIME-renderer-ready` ✅ `ThreeRenderer.render()` returns `true` iff there was an active camera + a real `adapter.draw()` ran. start.ts seeds `RuntimeHandle.rendererReady: Promise<void>` resolved on the first such draw. Exposed via `AppHandle.rendererReady` → `window.__agf.rendererReady` so tests + dev-bridge clients await it before snapshots / rendererInfo probes.
+- `M21-mat-textures` ✅ Material manifest schema gains `map` / `normalMap` (+ `normalScale`) / `roughnessMap` / `metalnessMap` / `emissiveMap` (+ `emissiveIntensity`) / `aoMap`. MaterialPatch + MaterialBindingSystem forward through to `setMeshMaterialPatch`. Adapter holds a process-wide cached TextureLoader + URL→Texture Map so a shared map is fetched once. Base-colour gets SRGBColorSpace; data maps stay linear per glTF. KTX2 routing through the S38 decoder singletons is deferred to ASSET-compression.
+
+### Deliverables
+
+- `engine/physics/rapier/rapier-adapter.ts` — trimesh + heightfield branches in acquireCollider; EXCLUDE_SENSORS in computeColliderMovement
+- `engine/physics/rapier/physics-sync-system.ts` — Collider3D mirror fields for trimesh / heightfield
+- `engine/render/three-render-adapter.ts` — context callbacks, color pipeline, TextureLoader cache, texture-map application
+- `engine/render/three-renderer.ts` — render() returns boolean
+- `engine/runtime/start.ts` — `rendererReady`, context callbacks → diagnostics, color forwarding
+- `engine/runtime/asset-loaders/material-loader.ts` — texture fields on MaterialManifest
+- `engine/render/systems/material-binding-system.ts` — texture fields forwarded into MaterialPatch
+- `engine/tools/check/project-check.ts` — `validatePhysicsColliders`
+- `engine/tools/check/diagnostic-codes.ts` — 3 new codes
+- `schemas/scene.schema.json` — trimesh + heightfield Collider3D kinds
+- `schemas/material.schema.json` — texture-map fields
+- `schemas/project.schema.json` — `render.color`
+- `src/app.ts` + `src/main.ts` — rendererReady + color + context callbacks plumbed through
+- `spikes/physics-rapier-v0/static-mesh-spike.ts` (new)
+- `tests/fixtures/physics-static-mesh/` (new project-check fixture)
+- `tests/unit/scene-physics-schema.test.ts` — 6 trimesh + heightfield cases
+- `tests/unit/material-manifest-schema.test.ts` — 2 texture-map cases
+- `tests/unit/project-check.test.ts` — AGF_RIGIDBODY3D_DYNAMIC_TRIMESH + AGF_COLLIDER3D_HEIGHTFIELD_DIMS case
+- `tests/unit/diagnostic-codes.test.ts` — 3 new codes registered
+
+### Verification
+
+- `npm run preflight` ✅ — 387 unit tests + 21 e2e passed, 2-3 flaky-retried (the usual hmr-stress / multiclient-roundtrip / score-pulse set).
+- `beacon-world-gameplay.spec` ✅ — drone pickup + repair end-to-end through the now-non-blocking sensor wiring.
+- `project-switcher.spec` ("KeyD moves the Beacon World drone along +X") ✅.
+- Raycast spike + Static-mesh spike both green end-to-end against real Rapier.
+
+### Follow-Ups
+
+- `M25 / ASSET-compression` — flip Draco / KTX2 / Meshopt flags on `createGlbLoader` for a real project, then route the texture-map loader through the shared KTX2Loader for `.ktx2` references. Foundation already in place (S38 decoders + S39 texture cache).
+- `M21-mat-custom` — custom `ShaderMaterial` / `onBeforeCompile` shader kind for the manifest.
+- `M21-post-pipeline` — schema-driven `project.json#renderer.post` chain (EffectComposer + Bloom / FXAA / SSAO / Outline).
+- `DEV-server-test-coexist` — investigation: `playwright.config.ts` declares `reuseExistingServer: true` but preflight + ad-hoc test runs still sometimes interrupt the developer's live `npm run dev` on 5173. Tighten the probe or move headless tests to a separate port.
+
+
+
 ## Sprint 38 — character controller + physics raycast + bench polish
 
 Status: Completed and archived.

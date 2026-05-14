@@ -82,6 +82,13 @@ declare global {
        * leak tests: take a baseline, reload assets N times, assert the
        * counts stay bounded.
        */
+      /**
+       * RUNTIME-renderer-ready: resolves once the first successful
+       * frame draw completes. `await window.__agf.rendererReady` before
+       * taking screenshots or probing `rendererInfo()` to avoid
+       * racing the boot sequence.
+       */
+      rendererReady: Promise<void>;
       rendererInfo(): {
         readonly geometries: number;
         readonly textures: number;
@@ -317,6 +324,7 @@ void (async (): Promise<void> => {
       startRecording: () => app.startRecording(),
       stopRecording: () => app.stopRecording(),
       reloadAsset: (ref) => app.reloadAsset(ref),
+      rendererReady: app.rendererReady,
       rendererInfo: () => app.rendererInfo(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

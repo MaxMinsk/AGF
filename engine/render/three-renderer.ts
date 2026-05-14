@@ -65,12 +65,26 @@ export class ThreeRenderer {
     world: World,
     canvas: HTMLCanvasElement,
     background?: string,
-    assetRegistry?: AssetRegistry
+    assetRegistry?: AssetRegistry,
+    extraOptions?: {
+      onContextLost?: () => void;
+      onContextRestored?: () => void;
+      color?: import("./three-render-adapter").ColorPipelineOptions;
+    }
   ) {
     this.world = world;
     this.assetRegistry = assetRegistry;
-    const options: { canvas: HTMLCanvasElement; background?: string } = { canvas };
+    const options: import("./three-render-adapter").AdapterOptions = { canvas };
     if (background !== undefined) options.background = background;
+    if (extraOptions?.onContextLost !== undefined) {
+      options.onContextLost = extraOptions.onContextLost;
+    }
+    if (extraOptions?.onContextRestored !== undefined) {
+      options.onContextRestored = extraOptions.onContextRestored;
+    }
+    if (extraOptions?.color !== undefined) {
+      options.color = extraOptions.color;
+    }
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);
     this.lightRegistry = createLightHandleRegistry(this.adapter);
@@ -116,12 +130,19 @@ export class ThreeRenderer {
     this.adapter.resize(width, height);
   }
 
-  render(): void {
+  /**
+   * Drives one frame of rendering. Returns `true` iff there was an
+   * active camera + an actual `adapter.draw()` call ran — start.ts
+   * uses this to resolve `RuntimeHandle.rendererReady` on the first
+   * successful frame.
+   */
+  render(): boolean {
     const resolved = this.buildResolvedTransforms();
     this.refreshCamera(resolved);
     this.refreshMeshes(resolved);
-    if (!this.adapter.hasActiveCamera()) return;
+    if (!this.adapter.hasActiveCamera()) return false;
     this.adapter.draw();
+    return true;
   }
 
   /**

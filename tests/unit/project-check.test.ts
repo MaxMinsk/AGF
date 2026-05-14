@@ -94,6 +94,27 @@ describe("project check", () => {
     });
   });
 
+  it("emits AGF_RIGIDBODY3D_DYNAMIC_TRIMESH + AGF_COLLIDER3D_HEIGHTFIELD_DIMS (M24-static-mesh)", () => {
+    const result = checkProject(resolve(fixturesRoot, "physics-static-mesh"));
+    const codes = result.diagnostics.map((d) => d.code);
+    expect(result.ok).toBe(false);
+    expect(codes).toContain("AGF_RIGIDBODY3D_DYNAMIC_TRIMESH");
+    expect(codes).toContain("AGF_COLLIDER3D_HEIGHTFIELD_DIMS");
+    const dynamic = result.diagnostics.find(
+      (d) => d.code === "AGF_RIGIDBODY3D_DYNAMIC_TRIMESH"
+    );
+    expect(dynamic).toMatchObject({
+      severity: "error",
+      file: "scenes/start.scene.json",
+      message: expect.stringContaining("bad.dynamic-trimesh")
+    });
+    const dims = result.diagnostics.find((d) => d.code === "AGF_COLLIDER3D_HEIGHTFIELD_DIMS");
+    expect(dims).toMatchObject({
+      severity: "error",
+      message: expect.stringContaining("bad.heightfield-dims")
+    });
+  });
+
   it("emits AGF_TRANSFORM_PARENT_* diagnostics for bad hierarchies", () => {
     const result = checkProject(resolve(fixturesRoot, "transform-hierarchy"));
     const codes = result.diagnostics.map((d) => d.code);

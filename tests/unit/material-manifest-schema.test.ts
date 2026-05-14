@@ -53,4 +53,26 @@ describe("material manifest (M21-mat-physical + M21-mat-unlit)", () => {
   it("rejects opacity above 1", () => {
     expect(validate({ id: "m", shader: "standard", color: "#fff", opacity: 1.5 })).toBe(false);
   });
+
+  it("accepts texture maps (M21-mat-textures)", () => {
+    expect(
+      validate({
+        id: "tex",
+        shader: "standard",
+        color: "#ffffff",
+        map: "runtime/textures/brick-diffuse.png",
+        normalMap: "runtime/textures/brick-normal.png",
+        normalScale: 0.8,
+        roughnessMap: "runtime/textures/brick-roughness.png",
+        metalnessMap: "runtime/textures/brick-metalness.png",
+        emissiveMap: "runtime/textures/brick-emissive.png",
+        emissiveIntensity: 0.5,
+        aoMap: "runtime/textures/brick-ao.png"
+      })
+    ).toBe(true);
+  });
+
+  it("rejects empty texture map paths", () => {
+    expect(validate({ id: "bad", shader: "standard", color: "#fff", map: "" })).toBe(false);
+  });
 });
