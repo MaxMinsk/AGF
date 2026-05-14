@@ -71,6 +71,8 @@ export type AppOptions = {
 
 export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
+  /** The live ECS World — exposed so dev surfaces (M23-tuner) can read/write components without going through `applyCommands` for read-only path resolution. Writes must still use `applyCommands` to preserve replication/snapshot/HMR invariants. */
+  readonly world: import("../engine/core/ecs/world").World;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
   reloadAsset(ref: string): void;
@@ -264,6 +266,7 @@ export async function createApp(
 
   return {
     canvas,
+    world: runtime.world,
     applyCommands(commands): void {
       runtime.applyCommands(commands);
     },

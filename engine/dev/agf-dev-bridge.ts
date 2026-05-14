@@ -345,6 +345,41 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        if (route === "/tuner/add" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          await proxyToPage(req, res, "tuner-add", { spec: body });
+          return;
+        }
+        if (route === "/tuner/remove" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const name = (body as { name?: string }).name;
+          if (typeof name !== "string") {
+            respondJson(res, 400, {
+              ok: false,
+              error: { code: "AGF_BRIDGE_INVALID_TUNER_NAME", message: "Body must be JSON with a `name` string." }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "tuner-remove", { name });
+          return;
+        }
+        if (route === "/tuner/remove-all" && req.method === "POST") {
+          await proxyToPage(req, res, "tuner-remove-all");
+          return;
+        }
+        if (route === "/tuner/list" && req.method === "GET") {
+          await proxyToPage(req, res, "tuner-list");
+          return;
+        }
+
         if (route === "/events" && req.method === "GET") {
           const found = findPage(url);
           if ("error" in found) {

@@ -93,6 +93,30 @@ declare global {
         readonly shadowCasters: number;
         readonly handleLeak: number;
       };
+      /**
+       * M23-tuner — agent-spawnable sliders bound to component fields.
+       * See `engine/runtime/dev-tuner.ts` and `docs/agent/dev-tuner.md`.
+       */
+      dev?: {
+        readonly tuner: {
+          add(spec: {
+            name: string;
+            target: { entityId: string; component: string; path?: string };
+            min: number;
+            max: number;
+            step?: number;
+            value?: number;
+            label?: string;
+          }): void;
+          remove(name: string): void;
+          removeAll(): void;
+          list(): ReadonlyArray<{
+            readonly name: string;
+            readonly target: { entityId: string; component: string; path?: string };
+            readonly value: number;
+          }>;
+        };
+      };
     };
   }
 }
@@ -193,6 +217,11 @@ void (async (): Promise<void> => {
   );
 
   if (import.meta.env.DEV) {
+    const { createDevTuner } = await import("../engine/runtime/dev-tuner");
+    const tuner = createDevTuner({
+      world: app.world,
+      applyCommands: (commands) => app.applyCommands(commands)
+    });
     window.__agf = {
       snapshot: () => app.snapshot(),
       applyCommands: (commands) => app.applyCommands(commands),
@@ -209,7 +238,8 @@ void (async (): Promise<void> => {
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
-      reloadEvents: []
+      reloadEvents: [],
+      dev: { tuner }
     };
     // Open the dev-bridge WS so an agent can curl /__agf/* against the dev
     // server without ever touching DevTools. Production builds drop this.
