@@ -50,6 +50,7 @@ import {
   CineonToneMapping,
   AgXToneMapping,
   type ToneMapping,
+  BasicShadowMap,
   PCFShadowMap,
   VSMShadowMap,
   type ShadowMapType,
@@ -71,6 +72,7 @@ import {
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { CubeTextureLoader } from "three";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -337,7 +339,7 @@ const TONE_MAPPING_BY_KIND: Record<ToneMappingKind, ToneMapping> = {
   "agx": AgXToneMapping
 };
 
-export type EnvironmentKind = "generated" | "none" | "hdr";
+export type EnvironmentKind = "generated" | "none" | "hdr" | "cube";
 
 /**
  * M17-instance-picking + M17-instance-picking-buckets: hit-test result
@@ -370,7 +372,18 @@ export type PickHit =
 
 export type EnvironmentSpec =
   | { kind: "generated" | "none" }
-  | { kind: "hdr"; url: string; intensity?: number };
+  | { kind: "hdr"; url: string; intensity?: number }
+  | {
+      /**
+       * M21-env-cube: 6-face cubemap (positive-x, negative-x, positive-y,
+       * negative-y, positive-z, negative-z). Each face is fetched once via
+       * CubeTextureLoader and pre-filtered through PMREMGenerator so it
+       * supplies IBL, not just a skybox.
+       */
+      kind: "cube";
+      faces: readonly [string, string, string, string, string, string];
+      intensity?: number;
+    };
 
 const DEFAULT_COLOR = "#cccccc";
 
@@ -541,20 +554,42 @@ export class ThreeRenderAdapter {
     // load is async; we tear the existing env down only once the new
     // texture is ready so the scene doesn't flash unlit during the
     // round-trip.
-    if (normalised.kind !== "hdr") return; // exhaustiveness guard
-    const url = normalised.url;
-    const intensity = normalised.intensity ?? 1;
-    new RGBELoader().load(url, (texture) => {
-      const pmrem = this.pmrem;
-      if (pmrem === undefined) return;
-      const rt = pmrem.fromEquirectangular(texture);
-      texture.dispose();
-      this.currentEnvironmentTexture?.dispose();
-      this.currentEnvironmentTexture = rt.texture;
-      this.scene.environment = rt.texture;
-      this.scene.environmentIntensity = intensity;
-      this.currentEnvironmentKind = "hdr";
-    });
+    if (normalised.kind === "hdr") {
+      const url = normalised.url;
+      const intensity = normalised.intensity ?? 1;
+      new RGBELoader().load(url, (texture) => {
+        const pmrem = this.pmrem;
+        if (pmrem === undefined) return;
+        const rt = pmrem.fromEquirectangular(texture);
+        texture.dispose();
+        this.currentEnvironmentTexture?.dispose();
+        this.currentEnvironmentTexture = rt.texture;
+        this.scene.environment = rt.texture;
+        this.scene.environmentIntensity = intensity;
+        this.currentEnvironmentKind = "hdr";
+      });
+      return;
+    }
+    // M21-env-cube: 6-face cubemap. CubeTextureLoader returns a single
+    // CubeTexture; PMREM produces the IBL-ready render target. Same
+    // swap-once-ready ordering as the HDR path.
+    if (normalised.kind === "cube") {
+      const intensity = normalised.intensity ?? 1;
+      new CubeTextureLoader().load(
+        normalised.faces as unknown as string[],
+        (cubeTexture) => {
+          const pmrem = this.pmrem;
+          if (pmrem === undefined) return;
+          const rt = pmrem.fromCubemap(cubeTexture);
+          cubeTexture.dispose();
+          this.currentEnvironmentTexture?.dispose();
+          this.currentEnvironmentTexture = rt.texture;
+          this.scene.environment = rt.texture;
+          this.scene.environmentIntensity = intensity;
+          this.currentEnvironmentKind = "cube";
+        }
+      );
+    }
   }
 
   currentEnvironment(): EnvironmentKind {
@@ -1629,10 +1664,21 @@ void main() {
 function shadowAlgorithmType(
   kind: "pcf" | "vsm" | "pcss" | undefined
 ): ShadowMapType {
-  // PCSS reuses the PCF shadow-map *generation* path; the soft-blur is
-  // injected on the receive side via shader-chunk substitution. So
-  // both `pcf` and `pcss` map to PCFShadowMap at the renderer level.
+  // PCSS requires reading *raw depth* from the shadow map (blocker search +
+  // variable-penumbra filter). Modern three.js `PCFShadowMap` binds the
+  // shadow map as `sampler2DShadow` and uses hardware comparison — the
+  // sampler returns 0/1, not raw depth — so the PCSS shader-chunk
+  // substitution silently no-ops there.
+  //
+  // `BasicShadowMap` binds the shadow map as `sampler2D` and the chunk's
+  // BASIC variant of `getShadow` reads `texture2D( shadowMap, ... ).r`,
+  // which the S41 substitution actually replaces. Map `pcss` to
+  // `BasicShadowMap` so the algorithm has a visible effect; users who
+  // want plain default-PCF stick with `algorithm: "pcf"`. This matches
+  // the official `three/examples/webgl_shadowmap_pcss.html` setup that
+  // explicitly notes "PCSS requires reading raw depth values".
   if (kind === "vsm") return VSMShadowMap;
+  if (kind === "pcss") return BasicShadowMap;
   return PCFShadowMap;
 }
 

@@ -39,8 +39,56 @@ describe("scene.environment (M21-env-generated)", () => {
   it("rejects kind: hdr without url", () => {
     expect(validate(sceneWithEnv({ kind: "hdr" }))).toBe(false);
   });
-  it("rejects unknown kind", () => {
+  it("accepts kind: cube with 6 faces (M21-env-cube)", () => {
+    expect(
+      validate(
+        sceneWithEnv({
+          kind: "cube",
+          faces: [
+            "runtime/sky/px.jpg",
+            "runtime/sky/nx.jpg",
+            "runtime/sky/py.jpg",
+            "runtime/sky/ny.jpg",
+            "runtime/sky/pz.jpg",
+            "runtime/sky/nz.jpg"
+          ]
+        })
+      )
+    ).toBe(true);
+  });
+  it("accepts kind: cube with explicit intensity", () => {
+    expect(
+      validate(
+        sceneWithEnv({
+          kind: "cube",
+          intensity: 0.8,
+          faces: [
+            "runtime/sky/px.jpg",
+            "runtime/sky/nx.jpg",
+            "runtime/sky/py.jpg",
+            "runtime/sky/ny.jpg",
+            "runtime/sky/pz.jpg",
+            "runtime/sky/nz.jpg"
+          ]
+        })
+      )
+    ).toBe(true);
+  });
+  it("rejects kind: cube without faces", () => {
     expect(validate(sceneWithEnv({ kind: "cube" }))).toBe(false);
+  });
+  it("rejects kind: cube with fewer than 6 faces", () => {
+    expect(
+      validate(
+        sceneWithEnv({
+          kind: "cube",
+          faces: ["runtime/sky/px.jpg", "runtime/sky/nx.jpg"]
+        })
+      )
+    ).toBe(false);
+  });
+  it("rejects unknown kind", () => {
+    expect(validate(sceneWithEnv({ kind: "screen-space-sky" }))).toBe(false);
   });
   it("rejects unknown sibling fields", () => {
     expect(validate(sceneWithEnv({ kind: "generated", foo: 1 }))).toBe(false);

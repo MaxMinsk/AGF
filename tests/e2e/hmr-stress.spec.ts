@@ -28,28 +28,44 @@ test("touching one material 30 times keeps renderer info bounded", async ({ page
   };
 
   const cycles = 30;
-  const original = readFileSync(materialPath);
+  const originalText = readFileSync(materialPath, "utf8");
+  const originalJson = JSON.parse(originalText) as { roughness: number; [k: string]: unknown };
 
-  for (let i = 0; i < cycles; i += 1) {
-    const baselineEvents = (await page.evaluate(
-      () => window.__agf!.reloadEvents.length
-    )) as number;
+  // Alternate the `roughness` field by a sub-perceptible amount each cycle.
+  // Writing identical bytes 30 times in a row makes Vite's file watcher
+  // coalesce events (`change` is suppressed when contents match the last
+  // observed state), so the per-cycle reload-event wait would time out
+  // on the trailing iterations. Toggling between two close values keeps
+  // every write a real modification while preserving renderer behaviour.
+  try {
+    for (let i = 0; i < cycles; i += 1) {
+      const baselineEvents = (await page.evaluate(
+        () => window.__agf!.reloadEvents.length
+      )) as number;
 
-    writeFileSync(materialPath, original);
+      const variant = {
+        ...originalJson,
+        roughness: i % 2 === 0 ? originalJson.roughness : originalJson.roughness + 0.001
+      };
+      writeFileSync(materialPath, `${JSON.stringify(variant, null, 2)}\n`);
 
-    await page.waitForFunction(
-      ({ baseline: from, ref }) => {
-        const events = window.__agf?.reloadEvents ?? [];
-        for (let index = from; index < events.length; index += 1) {
-          if (events[index]?.ref === ref) {
-            return true;
+      await page.waitForFunction(
+        ({ baseline: from, ref }) => {
+          const events = window.__agf?.reloadEvents ?? [];
+          for (let index = from; index < events.length; index += 1) {
+            if (events[index]?.ref === ref) {
+              return true;
+            }
           }
-        }
-        return false;
-      },
-      { baseline: baselineEvents, ref: "runtime/materials/drone.material.json" },
-      { timeout: 10_000 }
-    );
+          return false;
+        },
+        { baseline: baselineEvents, ref: "runtime/materials/drone.material.json" },
+        { timeout: 10_000 }
+      );
+    }
+  } finally {
+    // Restore the original bytes so subsequent test runs see a clean tree.
+    writeFileSync(materialPath, originalText);
   }
 
   // Give the renderer a couple of frames to settle after the last reload.

@@ -19,6 +19,17 @@ export type SceneEnvironmentInput =
       url: string;
       /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
       intensity?: number;
+    }
+  | {
+      /**
+       * M21-env-cube: 6-face cubemap pre-filtered through PMREMGenerator.
+       * Six URLs in the order documented by three.js's CubeTextureLoader:
+       * [+x, -x, +y, -y, +z, -z].
+       */
+      kind: "cube";
+      faces: readonly [string, string, string, string, string, string];
+      /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
+      intensity?: number;
     };
 
 export type SceneInput = {

@@ -7,6 +7,13 @@ type Snapshot = {
 test("scoreboard row paints `data-pulse` when its player's repair count ticks", async ({ page }) => {
   await page.goto("/?project=beacon-world");
   await page.waitForFunction(() => Boolean(window.__agf));
+  // S43 codex review: gate every gameplay scenario on rendererReady so the
+  // first applyCommands batch doesn't race the renderer warm-up. Without
+  // this the round-reset path can land before the renderer registers its
+  // mesh handles, causing intermittent "data-pulse never appears" timeouts.
+  await page.evaluate(async () => {
+    await window.__agf!.rendererReady;
+  });
 
   // Reset to a clean baseline so the test is order-independent.
   await page.evaluate(() => window.__agf!.resetRound());

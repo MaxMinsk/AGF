@@ -24,10 +24,10 @@
     "environment": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Image-based-lighting environment. `generated` (default) applies Three's RoomEnvironment via PMREMGenerator — believable PBR with zero authoring. `none` opts out (fully unlit / sky-less). `hdr` loads an equirectangular `.hdr` file via RGBELoader and pre-filters it through PMREMGenerator; pair with a real-sky directional light for outdoor scenes.",
+      "description": "Image-based-lighting environment. `generated` (default) applies Three's RoomEnvironment via PMREMGenerator. `none` opts out. `hdr` loads an equirectangular `.hdr` via RGBELoader. `cube` loads a 6-face cubemap via CubeTextureLoader — both HDR and cube go through PMREMGenerator so they supply IBL, not just a skybox.",
       "properties": {
         "kind": {
-          "enum": ["generated", "none", "hdr"],
+          "enum": ["generated", "none", "hdr", "cube"],
           "default": "generated"
         },
         "url": {
@@ -35,17 +35,28 @@
           "minLength": 1,
           "description": "Path to an equirectangular `.hdr` file under the project's assets root. Required when `kind: \"hdr\"`."
         },
+        "faces": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Six face URLs in three.js CubeTextureLoader order: [+x, -x, +y, -y, +z, -z]. Required when `kind: \"cube\"`."
+        },
         "intensity": {
           "type": "number",
           "minimum": 0,
           "default": 1,
-          "description": "Multiplier on the scene's environment intensity. Only meaningful for `kind: \"hdr\"`."
+          "description": "Multiplier on the scene's environment intensity. Only meaningful for `kind: \"hdr\"` or `kind: \"cube\"`."
         }
       },
       "allOf": [
         {
           "if": { "properties": { "kind": { "const": "hdr" } }, "required": ["kind"] },
           "then": { "required": ["url"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "cube" } }, "required": ["kind"] },
+          "then": { "required": ["faces"] }
         }
       ]
     }
