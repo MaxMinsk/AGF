@@ -26,16 +26,59 @@ import {
   type BufferGeometry,
   Color,
   DirectionalLight,
+  type Light,
   Mesh,
   MeshStandardMaterial,
   type Object3D,
+  PCFShadowMap,
   PerspectiveCamera,
+  PMREMGenerator,
+  PointLight,
   Scene,
+  type Texture,
   WebGLRenderer
 } from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
+export type LightHandle = number;
+
+export type LightKind = "directional" | "point" | "ambient";
+
+export type LightShadowParams = {
+  /** Power-of-two shadow map size. Bigger = sharper + more VRAM. */
+  mapSize?: number;
+  bias?: number;
+  normalBias?: number;
+  radius?: number;
+  /** Orthographic frustum for directional lights. */
+  camera?: {
+    left?: number;
+    right?: number;
+    top?: number;
+    bottom?: number;
+    near?: number;
+    far?: number;
+  };
+};
+
+export type LightAcquireSpec = {
+  kind: LightKind;
+  color?: string;
+  intensity?: number;
+  /** Point-light specific. */
+  distance?: number;
+  /** Point-light specific. */
+  decay?: number;
+};
+
+export type LightPatch = {
+  color?: string;
+  intensity?: number;
+  distance?: number;
+  decay?: number;
+};
 
 export type ResolvedWorld = {
   position: readonly [number, number, number];
@@ -65,12 +108,16 @@ export type AdapterInfo = {
   drawCalls: number;
   triangles: number;
   meshes: number;
+  lights: number;
+  shadowCasters: number;
 };
 
 export type AdapterOptions = {
   canvas: HTMLCanvasElement;
   background?: string;
 };
+
+export type EnvironmentKind = "generated" | "none";
 
 const DEFAULT_COLOR = "#cccccc";
 
@@ -80,9 +127,16 @@ export class ThreeRenderAdapter {
   private readonly scene: Scene;
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
+  private readonly lights = new Map<LightHandle, Light>();
+  private fallbackAmbient: AmbientLight | undefined;
+  private fallbackDirectional: DirectionalLight | undefined;
+  private pmrem: PMREMGenerator | undefined;
+  private currentEnvironmentTexture: Texture | undefined;
+  private currentEnvironmentKind: EnvironmentKind = "none";
   private activeCameraHandle: CameraHandle | undefined;
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
+  private nextLightHandle = 1;
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -91,16 +145,179 @@ export class ThreeRenderAdapter {
       antialias: true,
       preserveDrawingBuffer: true
     });
+    // M21-shadow-basic: enable shadow rendering globally. Per-light + per-mesh
+    // opt-in still happens via `setLightCastShadow` / `setMeshCastShadow` etc.
+    //
+    // PCFShadowMap (4-tap PCF) is the default-recommended type in r184+.
+    // PCFSoftShadowMap was deprecated and aliases to PCFShadowMap; calling it
+    // directly produced a noisy console warning. VSM is a future stretch
+    // (Phase 3) but is not the default — it changes the artifact profile.
+    this.device.shadowMap.enabled = true;
+    this.device.shadowMap.type = PCFShadowMap;
     this.scene = new Scene();
     if (options.background !== undefined) {
       this.scene.background = new Color(options.background);
     }
-    // Fallback lighting until M21-light-* moves lights to ECS. Without these
-    // a scene with `MeshStandardMaterial` renders as a black blob.
-    this.scene.add(new AmbientLight(0xffffff, 0.6));
-    const sun = new DirectionalLight(0xffffff, 0.85);
-    sun.position.set(5, 10, 7);
-    this.scene.add(sun);
+    // Fallback lighting until LightLifecycleSystem (or the user's scene)
+    // provides ECS Light entities. `disableFallbackLighting` removes them
+    // once an ECS light is acquired.
+    this.enableFallbackLighting();
+  }
+
+  enableFallbackLighting(): void {
+    if (this.fallbackAmbient !== undefined || this.fallbackDirectional !== undefined) return;
+    this.fallbackAmbient = new AmbientLight(0xffffff, 0.6);
+    this.scene.add(this.fallbackAmbient);
+    this.fallbackDirectional = new DirectionalLight(0xffffff, 0.85);
+    this.fallbackDirectional.position.set(5, 10, 7);
+    this.scene.add(this.fallbackDirectional);
+  }
+
+  disableFallbackLighting(): void {
+    if (this.fallbackAmbient !== undefined) {
+      this.scene.remove(this.fallbackAmbient);
+      this.fallbackAmbient.dispose();
+      this.fallbackAmbient = undefined;
+    }
+    if (this.fallbackDirectional !== undefined) {
+      this.scene.remove(this.fallbackDirectional);
+      this.fallbackDirectional.dispose();
+      this.fallbackDirectional = undefined;
+    }
+  }
+
+  hasFallbackLighting(): boolean {
+    return this.fallbackAmbient !== undefined || this.fallbackDirectional !== undefined;
+  }
+
+  /**
+   * Apply an image-based-lighting environment that drives PBR reflections +
+   * indirect diffuse on `MeshStandardMaterial` / `MeshPhysicalMaterial`.
+   * `generated` builds Three.js's `RoomEnvironment` via `PMREMGenerator` —
+   * a tiny synthetic studio cube. `none` clears it. Idempotent: re-setting
+   * the same kind is a no-op.
+   */
+  setEnvironment(kind: EnvironmentKind): void {
+    if (kind === this.currentEnvironmentKind) return;
+    if (kind === "none") {
+      this.scene.environment = null;
+      this.currentEnvironmentTexture?.dispose();
+      this.currentEnvironmentTexture = undefined;
+      this.currentEnvironmentKind = "none";
+      return;
+    }
+    if (this.pmrem === undefined) {
+      this.pmrem = new PMREMGenerator(this.device);
+      this.pmrem.compileEquirectangularShader();
+    }
+    this.currentEnvironmentTexture?.dispose();
+    const envScene = new RoomEnvironment();
+    const rt = this.pmrem.fromScene(envScene, 0.04);
+    this.currentEnvironmentTexture = rt.texture;
+    this.scene.environment = rt.texture;
+    this.currentEnvironmentKind = "generated";
+  }
+
+  currentEnvironment(): EnvironmentKind {
+    return this.currentEnvironmentKind;
+  }
+
+  acquireLight(spec: LightAcquireSpec): LightHandle {
+    const handle = this.nextLightHandle;
+    this.nextLightHandle += 1;
+    const color = new Color(spec.color ?? "#ffffff");
+    const intensity = spec.intensity ?? 1;
+    let light: Light;
+    switch (spec.kind) {
+      case "ambient":
+        light = new AmbientLight(color, intensity);
+        break;
+      case "directional":
+        light = new DirectionalLight(color, intensity);
+        break;
+      case "point":
+        light = new PointLight(color, intensity, spec.distance ?? 0, spec.decay ?? 2);
+        break;
+    }
+    this.lights.set(handle, light);
+    this.scene.add(light);
+    return handle;
+  }
+
+  releaseLight(handle: LightHandle): void {
+    const light = this.lights.get(handle);
+    if (light === undefined) return;
+    this.scene.remove(light);
+    light.dispose();
+    this.lights.delete(handle);
+  }
+
+  setLightParams(handle: LightHandle, patch: LightPatch): void {
+    const light = this.lights.get(handle);
+    if (light === undefined) return;
+    if (patch.color !== undefined) light.color.set(patch.color);
+    if (patch.intensity !== undefined) light.intensity = patch.intensity;
+    if (light instanceof PointLight) {
+      if (patch.distance !== undefined) light.distance = patch.distance;
+      if (patch.decay !== undefined) light.decay = patch.decay;
+    }
+  }
+
+  setLightTransform(handle: LightHandle, world: ResolvedWorld): void {
+    const light = this.lights.get(handle);
+    if (light === undefined) return;
+    // Ambient lights ignore position; pushing it anyway is harmless and keeps the call site uniform.
+    applyTransform(light, world);
+  }
+
+  setLightCastShadow(handle: LightHandle, cast: boolean, params: LightShadowParams = {}): void {
+    const light = this.lights.get(handle);
+    if (light === undefined) return;
+    // AmbientLight doesn't support shadows; silently ignore. Directional /
+    // point share the shadow surface but each picks a different camera type.
+    if (!("shadow" in light) || (light as { shadow?: unknown }).shadow === undefined) return;
+    light.castShadow = cast;
+    if (!cast) return;
+    const sl = light as DirectionalLight | PointLight;
+    if (params.mapSize !== undefined) {
+      sl.shadow.mapSize.set(params.mapSize, params.mapSize);
+    }
+    if (params.bias !== undefined) sl.shadow.bias = params.bias;
+    if (params.normalBias !== undefined) sl.shadow.normalBias = params.normalBias;
+    if (params.radius !== undefined) sl.shadow.radius = params.radius;
+    if (params.camera !== undefined) {
+      const cam = sl.shadow.camera as unknown as {
+        left?: number;
+        right?: number;
+        top?: number;
+        bottom?: number;
+        near?: number;
+        far?: number;
+        updateProjectionMatrix(): void;
+      };
+      if (params.camera.left !== undefined) cam.left = params.camera.left;
+      if (params.camera.right !== undefined) cam.right = params.camera.right;
+      if (params.camera.top !== undefined) cam.top = params.camera.top;
+      if (params.camera.bottom !== undefined) cam.bottom = params.camera.bottom;
+      if (params.camera.near !== undefined) cam.near = params.camera.near;
+      if (params.camera.far !== undefined) cam.far = params.camera.far;
+      cam.updateProjectionMatrix();
+    }
+  }
+
+  setMeshShadowFlags(handle: MeshHandle, cast: boolean, receive: boolean): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    mesh.castShadow = cast;
+    mesh.receiveShadow = receive;
+  }
+
+  hasLight(handle: LightHandle): boolean {
+    return this.lights.has(handle);
+  }
+
+  lightCount(): number {
+    return this.lights.size;
   }
 
   resize(width: number, height: number): void {
@@ -215,13 +432,19 @@ export class ThreeRenderAdapter {
     const memory = this.device.info.memory;
     const renderStats = this.device.info.render;
     const programs = this.device.info.programs?.length ?? 0;
+    let shadowCasters = 0;
+    for (const light of this.lights.values()) {
+      if (light.castShadow) shadowCasters += 1;
+    }
     return {
       geometries: memory.geometries ?? 0,
       textures: memory.textures ?? 0,
       programs,
       drawCalls: renderStats.calls ?? 0,
       triangles: renderStats.triangles ?? 0,
-      meshes: this.meshes.size
+      meshes: this.meshes.size,
+      lights: this.lights.size,
+      shadowCasters
     };
   }
 
@@ -232,6 +455,16 @@ export class ThreeRenderAdapter {
       disposeMaterial(mesh.material);
     }
     this.meshes.clear();
+    for (const light of this.lights.values()) {
+      this.scene.remove(light);
+      light.dispose();
+    }
+    this.lights.clear();
+    this.disableFallbackLighting();
+    this.currentEnvironmentTexture?.dispose();
+    this.currentEnvironmentTexture = undefined;
+    this.pmrem?.dispose();
+    this.pmrem = undefined;
     this.cameras.clear();
     this.activeCameraHandle = undefined;
     this.device.dispose();

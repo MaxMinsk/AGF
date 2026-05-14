@@ -1,0 +1,89 @@
+{
+  "gc": true,
+  "cases": [
+    {
+      "name": "resolveHierarchy chain-of-8 @ 100",
+      "iterations": 200,
+      "heapDeltaKb": 2685.6171875,
+      "bytesPerOp": 13750.36,
+      "ns": 122220.41500000004
+    },
+    {
+      "name": "cached steady-state chain-of-8 @ 100",
+      "iterations": 500,
+      "heapDeltaKb": 2953.4453125,
+      "bytesPerOp": 6048.656,
+      "ns": 46071.25000000002
+    },
+    {
+      "name": "cached 1%-dirty chain-of-8 @ 100",
+      "iterations": 200,
+      "heapDeltaKb": 3108.9765625,
+      "bytesPerOp": 15917.96,
+      "ns": 75916.87499999991
+    },
+    {
+      "name": "snapshotWorld @ 100",
+      "iterations": 200,
+      "heapDeltaKb": 2624.0703125,
+      "bytesPerOp": 13435.24,
+      "ns": 31588.959999999985
+    },
+    {
+      "name": "resolveHierarchy chain-of-8 @ 1,000",
+      "iterations": 200,
+      "heapDeltaKb": 8840.1953125,
+      "bytesPerOp": 45261.8,
+      "ns": 1194988.9599999997
+    },
+    {
+      "name": "cached steady-state chain-of-8 @ 1,000",
+      "iterations": 500,
+      "heapDeltaKb": 1085.3046875,
+      "bytesPerOp": 2222.704,
+      "ns": 608309.0000000002
+    },
+    {
+      "name": "cached 1%-dirty chain-of-8 @ 1,000",
+      "iterations": 200,
+      "heapDeltaKb": 9206.375,
+      "bytesPerOp": 47136.64,
+      "ns": 714947.9149999996
+    },
+    {
+      "name": "snapshotWorld @ 1,000",
+      "iterations": 200,
+      "heapDeltaKb": 8676.1015625,
+      "bytesPerOp": 44421.64,
+      "ns": 229564.58500000052
+    },
+    {
+      "name": "resolveHierarchy chain-of-8 @ 10,000",
+      "iterations": 20,
+      "heapDeltaKb": 42006.203125,
+      "bytesPerOp": 2150717.6,
+      "ns": 12737424.999999996
+    },
+    {
+      "name": "cached steady-state chain-of-8 @ 10,000",
+      "iterations": 50,
+      "heapDeltaKb": 74557.171875,
+      "bytesPerOp": 1526930.88,
+      "ns": 6706534.160000001
+    },
+    {
+      "name": "cached 1%-dirty chain-of-8 @ 10,000",
+      "iterations": 20,
+      "heapDeltaKb": 23363.6953125,
+      "bytesPerOp": 1196221.2,
+      "ns": 8384616.6499999985
+    },
+    {
+      "name": "snapshotWorld @ 10,000",
+      "iterations": 20,
+      "heapDeltaKb": 24659.03125,
+      "bytesPerOp": 1262542.4,
+      "ns": 2620449.9999999823
+    }
+  ]
+}

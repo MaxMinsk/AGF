@@ -219,6 +219,43 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         payload = { subscribed: false };
         break;
       }
+      case "tuner-add": {
+        const spec = (payloadIn as { spec?: unknown } | undefined)?.spec;
+        const tuner = (api as { dev?: { tuner?: { add(s: unknown): void } } } | undefined)?.dev?.tuner;
+        if (tuner === undefined || spec === undefined) {
+          payload = undefined;
+          break;
+        }
+        tuner.add(spec);
+        payload = { added: (spec as { name?: string }).name };
+        break;
+      }
+      case "tuner-remove": {
+        const name = (payloadIn as { name?: string } | undefined)?.name;
+        const tuner = (api as { dev?: { tuner?: { remove(n: string): void } } } | undefined)?.dev?.tuner;
+        if (tuner === undefined || name === undefined) {
+          payload = undefined;
+          break;
+        }
+        tuner.remove(name);
+        payload = { removed: name };
+        break;
+      }
+      case "tuner-remove-all": {
+        const tuner = (api as { dev?: { tuner?: { removeAll(): void } } } | undefined)?.dev?.tuner;
+        if (tuner === undefined) {
+          payload = undefined;
+          break;
+        }
+        tuner.removeAll();
+        payload = { removed: "all" };
+        break;
+      }
+      case "tuner-list": {
+        const tuner = (api as { dev?: { tuner?: { list(): unknown } } } | undefined)?.dev?.tuner;
+        payload = tuner?.list();
+        break;
+      }
       default: {
         socket.send(
           JSON.stringify({

@@ -55,7 +55,77 @@
         "MeshRenderer": {
           "mesh": "box",
           "color": "#16242e"
+        },
+        "ShadowFlags": { "cast": false, "receive": true }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Name": { "label": "Ambient Sky Fill" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "ambient", "color": "#ffffff", "intensity": 0.55 }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Name": { "label": "Sun (warm key, slightly toward camera)" },
+        "Transform": { "position": [2, 14, 7] },
+        "Light": {
+          "kind": "directional",
+          "color": "#ffe4b3",
+          "intensity": 2.0,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": -0.015,
+            "normalBias": 0.5,
+            "camera": { "left": -10, "right": 10, "top": 10, "bottom": -10, "near": 8, "far": 28 }
+          }
         }
+      }
+    },
+    {
+      "id": "light.fill",
+      "components": {
+        "Name": { "label": "Cool Backlight Fill (opposite of sun)" },
+        "Transform": { "position": [-5, 4, -6] },
+        "Light": { "kind": "directional", "color": "#7a8fa0", "intensity": 0.2 }
+      }
+    },
+    {
+      "id": "light.beacon.west",
+      "components": {
+        "Name": { "label": "West Beacon Halo" },
+        "Transform": { "position": [-3.5, 2.6, 0] },
+        "Light": {
+          "kind": "point",
+          "color": "#4af0a8",
+          "intensity": 0,
+          "distance": 7,
+          "decay": 2,
+          "castShadow": true,
+          "shadow": { "mapSize": 1024, "bias": -0.002, "normalBias": 0.1 }
+        },
+        "BeaconLight": { "beaconId": "beacon.west", "repairedIntensity": 40, "brokenIntensity": 0 }
+      }
+    },
+    {
+      "id": "light.beacon.east",
+      "components": {
+        "Name": { "label": "East Beacon Halo" },
+        "Transform": { "position": [3.5, 2.6, 0] },
+        "Light": {
+          "kind": "point",
+          "color": "#4af0a8",
+          "intensity": 0,
+          "distance": 7,
+          "decay": 2,
+          "castShadow": true,
+          "shadow": { "mapSize": 1024, "bias": -0.002, "normalBias": 0.1 }
+        },
+        "BeaconLight": { "beaconId": "beacon.east", "repairedIntensity": 40, "brokenIntensity": 0 }
       }
     },
     {

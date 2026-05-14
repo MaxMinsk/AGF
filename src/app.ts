@@ -71,6 +71,8 @@ export type AppOptions = {
 
 export type AppHandle = {
   readonly canvas: HTMLCanvasElement;
+  /** The live ECS World — exposed so dev surfaces (M23-tuner) can read/write components without going through `applyCommands` for read-only path resolution. Writes must still use `applyCommands` to preserve replication/snapshot/HMR invariants. */
+  readonly world: import("../engine/core/ecs/world").World;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
   reloadAsset(ref: string): void;
@@ -108,7 +110,7 @@ export type AppHandle = {
   /** Recording controls (Sprint 28). Used by the dev-bridge /__agf/recording/* routes. */
   startRecording(): { started: true };
   stopRecording(): unknown;
-  /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant. */
+  /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant + light counts. */
   rendererInfo(): {
     geometries: number;
     textures: number;
@@ -116,6 +118,8 @@ export type AppHandle = {
     drawCalls: number;
     triangles: number;
     meshes: number;
+    lights: number;
+    shadowCasters: number;
     handleLeak: number;
   };
   dispose(): void;
@@ -262,6 +266,7 @@ export async function createApp(
 
   return {
     canvas,
+    world: runtime.world,
     applyCommands(commands): void {
       runtime.applyCommands(commands);
     },

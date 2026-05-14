@@ -55,6 +55,8 @@ const ROUND_ENTITY_ID = "world.signal";
 export function resetBeaconRound(world: World): number {
   let mutations = 0;
 
+  // Cold path — fires on KeyR / __agf.resetRound(), not per frame.
+  // agf-allow: world.query
   for (const beaconId of world.query(["Repairable"])) {
     const repair = world.getComponent<RepairableComponent>(beaconId, "Repairable");
     if (repair === undefined) {
@@ -85,6 +87,7 @@ export function resetBeaconRound(world: World): number {
     }
   }
 
+  // agf-allow: world.query — same cold path as above.
   for (const pickupId of world.query(["Pickup"])) {
     const pickup = world.getComponent<PickupComponent>(pickupId, "Pickup");
     if (pickup === undefined) {

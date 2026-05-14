@@ -60,6 +60,8 @@ test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events
       "camera.main",
       "cube.hero",
       "floor",
+      "light.ambient",
+      "light.sun",
       "satellite.beacon",
       "satellite.disc",
       "tower.base",

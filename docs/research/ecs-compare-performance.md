@@ -43,7 +43,8 @@ Hierarchy resolve / transform pipeline is its own conversation:
 | **AGF — no cache** | Full rebuild every frame | **~12.9 ms** |
 | **AGF — `M16-cache-a` partial-walk cache, steady-state** | Reuse cached `ResolvedTransform` when nothing dirty | **~5.4 ms (~2.4× win)** |
 | **AGF — `M16-cache-a` partial-walk cache, 1% entities mutating per frame** | Re-compose only dirty subtree, reuse the rest | **~8.2 ms (~1.6× win)** |
-| **AGF target after `M16-cache-b/c`** | Incremental indexes, O(dirty) without per-frame O(N) scan | < 1 ms (goal) |
+| **AGF — `M16-cache-b` World.consumeDirty + system-side inputCache, 1%-dirty** | System rebuilds TransformInput only for `world.consumeDirty("Transform")` entries; no per-frame entity scan | **~8.1 ms (~1.6× win — narrow vs M16-cache-a)** ⁵ |
+| **AGF target after `M16-cache-c`** | Push dirty-awareness into the cache itself; skip per-entity revision read | < 1 ms (goal) |
 | **Unity DOTS TransformSystemGroup** ⁴ | LocalToWorld + parent-version chains, burst-compiled | < 0.1 ms |
 | **Three.js scene-graph (raw)** | Per-Object3D `updateMatrixWorld` cascade | ~2–4 ms for 10k flat, climbs fast with depth |
 
@@ -189,6 +190,7 @@ Then edit the AGF row in the table above and the "Where we're fine / not fine" l
 2. **Friflo.Engine.ECS** — `Notes/ecs_notes.md` and the project's own README cite a comprehensive comparison against Arch / DefaultEcs / Unity ECS; ~10× over Unity ECS on the canonical "iterate transforms" loop is the headline number.
 3. **Unity DOTS / Bevy / Flecs** — published vendor benchmarks plus the `Skypjack/ecs-benchmark` C++ suite. Native ECSs are typically two orders of magnitude faster than any JS ECS on pure iteration; this is the architectural ceiling of the language + JIT.
 4. **Unity DOTS transform pipeline** — Unity Entities `TransformSystemGroup` documentation. Their LocalToWorld matrix + parent-revision approach is the model `M22 / M16-cache` follows.
+5. **M16-cache-b narrow win note** — at 1%-dirty / 10k entities the system-level optimisation saves the per-frame `world.entityIds()` scan + the deg→rad conversion for 9,900 clean entities. The cache layer below it still does O(N) revision reads + reference comparisons, which dominate the steady-state cost. M16-cache-c (push dirty-awareness one layer deeper) is what unlocks the < 1 ms target.
 
 Numbers in the tables are **bands**, not point measurements, because:
 

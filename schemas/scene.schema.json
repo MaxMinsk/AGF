@@ -20,6 +20,17 @@
       "type": "array",
       "description": "Optional prefab instances. Each entry expands into a regular entity at scene-load time. The engine validates these against the prefab registry; missing prefabs surface as AGF_SCENE_INSTANCE_PREFAB_MISSING.",
       "items": { "$ref": "#/definitions/instance" }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Image-based-lighting environment (M21-env-generated). When absent, the renderer applies the `generated` RoomEnvironment fallback so MeshStandardMaterial / MeshPhysicalMaterial render with believable PBR out of the box. Set `kind: \"none\"` to opt out (e.g. for a fully unlit project).",
+      "properties": {
+        "kind": {
+          "enum": ["generated", "none"],
+          "default": "generated"
+        }
+      }
     }
   },
   "definitions": {
@@ -81,6 +92,12 @@
             },
             "Presence": {
               "$ref": "#/definitions/presenceComponent"
+            },
+            "Light": {
+              "$ref": "#/definitions/lightComponent"
+            },
+            "ShadowFlags": {
+              "$ref": "#/definitions/shadowFlagsComponent"
             }
           }
         }
@@ -225,6 +242,127 @@
           "minLength": 1,
           "maxLength": 64
         }
+      }
+    },
+    "lightComponent": {
+      "description": "Light source (M21-light-schema). Polymorphic on `kind`. Position + rotation come from the entity's Transform — `LightSyncSystem` pushes the resolved world transform onto the underlying Three.js light. `castShadow` enables shadow-map rendering for that light (gated by the renderer's shadow pipeline, see M21-shadow-basic).",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["directional", "point", "spot", "ambient", "hemisphere", "rect-area"]
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "default": "#ffffff"
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "castShadow": {
+          "type": "boolean",
+          "default": false
+        },
+        "shadow": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Per-light shadow-map config; ignored unless castShadow is true.",
+          "properties": {
+            "mapSize": {
+              "type": "integer",
+              "enum": [256, 512, 1024, 2048, 4096],
+              "default": 1024
+            },
+            "bias": { "type": "number" },
+            "normalBias": { "type": "number" },
+            "radius": { "type": "number", "minimum": 0 },
+            "camera": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Orthographic shadow camera frustum (directional lights) or near/far cutoffs (spot/point).",
+              "properties": {
+                "left": { "type": "number" },
+                "right": { "type": "number" },
+                "top": { "type": "number" },
+                "bottom": { "type": "number" },
+                "near": { "type": "number", "exclusiveMinimum": 0 },
+                "far": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "point" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "distance": { "type": "number", "minimum": 0, "default": 0, "description": "Cutoff distance; 0 = no cutoff (physical 1/r² falloff)." },
+              "decay": { "type": "number", "minimum": 0, "default": 2 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "spot" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "distance": { "type": "number", "minimum": 0, "default": 0 },
+              "decay": { "type": "number", "minimum": 0, "default": 2 },
+              "angle": { "type": "number", "exclusiveMinimum": 0, "maximum": 1.5707963267948966, "description": "Cone half-angle in radians; max π/2." },
+              "penumbra": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+              "target": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-._]*$",
+                "description": "Optional entity id whose world position the spot points at. Defaults to scene origin."
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "directional" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-._]*$",
+                "description": "Optional entity id whose world position the directional light points at. Defaults to scene origin."
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "hemisphere" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "groundColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "default": "#000000"
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "rect-area" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "width": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+              "height": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "shadowFlagsComponent": {
+      "description": "Per-mesh shadow opt-out (M21-shadow-basic). When absent, default is { cast: true, receive: true } — matching Unity's defaults. Set either to false as a perf escape hatch.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cast": { "type": "boolean", "default": true },
+        "receive": { "type": "boolean", "default": true }
       }
     }
   }

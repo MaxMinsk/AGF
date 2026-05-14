@@ -13,11 +13,17 @@ import type { ThreeRenderAdapter } from "../three-render-adapter";
 
 export const LOCAL_TO_WORLD: ComponentName = "LocalToWorld";
 export const RENDER_MESH_HANDLE: ComponentName = "RenderMeshHandle";
+export const SHADOW_FLAGS: ComponentName = "ShadowFlags";
 
 type LocalToWorldComponent = {
   position: ReadonlyArray<number>;
   rotation: ReadonlyArray<number>;
   scale: ReadonlyArray<number>;
+};
+
+type ShadowFlagsComponent = {
+  cast?: boolean;
+  receive?: boolean;
 };
 
 export type MeshTransformSyncDeps = {
@@ -52,6 +58,10 @@ export function createMeshTransformSyncSystem(
           rotation: pad3(ltw.rotation),
           scale: pad3(ltw.scale, 1)
         });
+        // M21-shadow-basic: per-mesh ShadowFlags. Default both true if absent
+        // (matches Unity's default); set either to false as a perf escape hatch.
+        const flags = world.getComponent<ShadowFlagsComponent>(id, SHADOW_FLAGS);
+        deps.adapter.setMeshShadowFlags(handle, flags?.cast !== false, flags?.receive !== false);
       }
     }
   };

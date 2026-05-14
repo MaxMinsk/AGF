@@ -4,10 +4,17 @@
 // internal convention). Downstream renderer systems (M21-c..f) and any
 // gameplay code that wants resolved world transforms read this component.
 //
-// The cache lives across frames inside the closure — `M16-cache-a`
-// partial-walk caching cuts the steady-state cost ~2.4× and the 1%-dirty
-// cost ~1.6× compared to the no-cache path. See
-// `docs/research/ecs-benchmarks-baseline.json` for current numbers.
+// Caching, two layers (M16-cache-a + M16-cache-b):
+//
+//   - M16-cache-a: `createHierarchyCache` partial-walk + dirty-revision
+//     reuse of `ResolvedTransform` references.
+//
+//   - M16-cache-b (this system): an internal `inputCache` keeps the
+//     deg→rad-converted TransformInput for every known entity across
+//     frames. Each tick consumes the World's incremental dirty queue
+//     (`world.consumeDirty("Transform")`) and rebuilds inputs ONLY for
+//     entities that changed. Replaces the per-frame `world.entityIds()`
+//     scan; steady-state per-system cost becomes O(dirty), not O(N).
 
 import { MathUtils } from "three";
 
@@ -62,39 +69,71 @@ export function createTransformResolveSystem(
 ): TransformResolveSystemHandle {
   const cache = createHierarchyCache();
   const name = options.name ?? "render.transform-resolve";
+  // M16-cache-b: per-system input cache. Built incrementally from
+  // `world.consumeDirty("Transform")`. Holds the deg→rad-converted
+  // TransformInput so we never repeat the conversion for unchanged entities.
+  const inputCache = new Map<EntityId, TransformInput>();
+  let cachedWorld: import("../../core/ecs/world").World | undefined;
+
+  const buildInput = (id: EntityId, t: TransformComponent): TransformInput => {
+    const entry: TransformInput = { id };
+    if (t.parent !== undefined) entry.parent = t.parent;
+    if (t.position !== undefined) {
+      entry.position = [t.position[0] ?? 0, t.position[1] ?? 0, t.position[2] ?? 0];
+    }
+    if (t.rotation !== undefined) {
+      // Authoring convention: degrees. Resolver + Three.js convention: radians.
+      entry.rotation = [
+        MathUtils.degToRad(t.rotation[0] ?? 0),
+        MathUtils.degToRad(t.rotation[1] ?? 0),
+        MathUtils.degToRad(t.rotation[2] ?? 0)
+      ];
+    }
+    if (t.scale !== undefined) {
+      entry.scale = [t.scale[0] ?? 1, t.scale[1] ?? 1, t.scale[2] ?? 1];
+    }
+    return entry;
+  };
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
-    const inputs: TransformInput[] = [];
-    const presentIds = new Set<EntityId>();
-
-    for (const id of world.entityIds()) {
-      if (!world.hasComponent(id, TRANSFORM)) continue;
-      const t = world.getComponent<TransformComponent>(id, TRANSFORM);
-      if (t === undefined) continue;
-      presentIds.add(id);
-      const entry: TransformInput = { id };
-      if (t.parent !== undefined) entry.parent = t.parent;
-      if (t.position !== undefined) {
-        entry.position = [t.position[0] ?? 0, t.position[1] ?? 0, t.position[2] ?? 0];
+    if (world !== cachedWorld) {
+      // World swapped (HMR / project switch). Drop everything and re-seed
+      // from a full scan so the inputCache matches the new world's state.
+      inputCache.clear();
+      cache.clear();
+      for (const id of world.entityIds()) {
+        if (!world.hasComponent(id, TRANSFORM)) continue;
+        const t = world.getComponent<TransformComponent>(id, TRANSFORM);
+        if (t === undefined) continue;
+        inputCache.set(id, buildInput(id, t));
       }
-      if (t.rotation !== undefined) {
-        // Authoring convention: degrees. Resolver + Three.js convention: radians.
-        entry.rotation = [
-          MathUtils.degToRad(t.rotation[0] ?? 0),
-          MathUtils.degToRad(t.rotation[1] ?? 0),
-          MathUtils.degToRad(t.rotation[2] ?? 0)
-        ];
+      // Drain the dirty queue so we don't reprocess the seed entries.
+      world.consumeDirty(TRANSFORM);
+      cachedWorld = world;
+    } else {
+      // Steady state: process only entities whose Transform changed since
+      // the previous tick.
+      const dirty = world.consumeDirty(TRANSFORM);
+      for (const id of dirty) {
+        const t = world.getComponent<TransformComponent>(id, TRANSFORM);
+        if (t === undefined) {
+          // Transform removed (or the whole entity dropped). Evict +
+          // remove the matching LocalToWorld so downstream readers don't
+          // lock onto a stale value.
+          inputCache.delete(id);
+          if (world.hasComponent(id, LOCAL_TO_WORLD)) {
+            world.removeComponent(id, LOCAL_TO_WORLD);
+          }
+          continue;
+        }
+        inputCache.set(id, buildInput(id, t));
       }
-      if (t.scale !== undefined) {
-        entry.scale = [t.scale[0] ?? 1, t.scale[1] ?? 1, t.scale[2] ?? 1];
-      }
-      inputs.push(entry);
     }
 
     let resolved;
     try {
-      resolved = cache.resolveWorld(world, inputs);
+      resolved = cache.resolveWorld(world, [...inputCache.values()]);
     } catch {
       // Renderer-import-boundary: engine check owns hierarchy diagnostics.
       // Mid-edit HMR can produce a transient broken hierarchy; swallow it
@@ -102,7 +141,10 @@ export function createTransformResolveSystem(
       return;
     }
 
-    // Write LocalToWorld for every entity present this frame.
+    // Write LocalToWorld for every entity present this frame. The cache's
+    // partial-walk path returns the same `ResolvedTransform` reference for
+    // entities that didn't change → we still need to set the component
+    // (cheap idempotent path) so newly-mounted readers see it.
     for (const [id, value] of resolved) {
       const ltw: LocalToWorld = {
         position: value.world.position,
@@ -111,14 +153,6 @@ export function createTransformResolveSystem(
       };
       world.setComponent(id, LOCAL_TO_WORLD, ltw as unknown as Record<string, unknown>);
     }
-
-    // Evict stale LocalToWorld entries for entities that no longer carry
-    // Transform. Without this they linger and mislead downstream readers.
-    for (const id of world.query([LOCAL_TO_WORLD])) {
-      if (!presentIds.has(id)) {
-        world.removeComponent(id, LOCAL_TO_WORLD);
-      }
-    }
   };
 
   return {
@@ -126,6 +160,8 @@ export function createTransformResolveSystem(
     frameUpdate,
     clearCache(): void {
       cache.clear();
+      inputCache.clear();
+      cachedWorld = undefined;
     },
     stats(): ReturnType<HierarchyCache["stats"]> {
       return cache.stats();

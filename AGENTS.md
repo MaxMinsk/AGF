@@ -28,6 +28,7 @@ For recurring failures, update a validator, test, debug note or agent skill inst
 - Do not use `any` for external data; parse `unknown` through validators.
 - Do not make multiplayer mandatory for single-player projects.
 - Do not put example-game root assumptions above the engine repository root.
+- **Systems must cache `world.createQuery(...)` handles**, never call `world.query(...)` directly inside `frameUpdate` / `fixedUpdate`. Cached query handles are ~18,000× faster than raw `world.query()` on a steady-state scene (`docs/research/ecs-benchmarks-baseline.json`). Cold paths (HMR invalidate, round reset, one-off CLI tools) may use raw `query()`; mark the line with `// agf-allow: world.query` so the `systems:check` script doesn't flag it. The script runs in `npm run preflight`.
 
 ## Diagnostics
 
