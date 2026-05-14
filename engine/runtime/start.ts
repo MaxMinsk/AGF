@@ -80,6 +80,13 @@ export type RuntimeHandle = {
   readonly diagnostics: DiagnosticsBus;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
+  /**
+   * Resolves after the first frame that actually rendered (active
+   * camera acquired + `renderer.adapter.draw()` executed). Use this
+   * in tests / dev-bridge clients before taking screenshots or
+   * reading rendererInfo to avoid racing the boot sequence.
+   */
+  readonly rendererReady: Promise<void>;
   /** Window-averaged per-phase timings — see FrameTiming. */
   frameTiming(): FrameTiming;
   /** Drop the cached load + renderer binding for an asset ref. Used by HMR. */
@@ -228,6 +235,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
 
   let metricsWindowStart = 0;
   let framesInWindow = 0;
+  // RUNTIME-renderer-ready: resolves once `renderer.render()` performed
+  // an actual draw (i.e. CameraSyncSystem picked the active camera and
+  // adapter.draw() ran). Tests + dev-bridge clients await this before
+  // taking screenshots / reading rendererInfo to avoid racing boot.
+  let rendererReadyResolve: (() => void) | undefined;
+  const rendererReady = new Promise<void>((resolve) => {
+    rendererReadyResolve = resolve;
+  });
   let fixedStepsInWindow = 0;
   let fixedAccumMs = 0;
   let frameAccumMs = 0;
@@ -311,7 +326,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const renderPhaseStart = performance.now();
     frameAccumMs += renderPhaseStart - framePhaseStart;
 
-    renderer.render();
+    const drew = renderer.render();
+    if (drew && rendererReadyResolve !== undefined) {
+      rendererReadyResolve();
+      rendererReadyResolve = undefined;
+    }
 
     const tickEnd = performance.now();
     renderAccumMs += tickEnd - renderPhaseStart;
@@ -361,6 +380,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     renderer,
     time,
     diagnostics,
+    rendererReady,
     invalidateAsset(ref: string): void {
       options.assetRegistry?.invalidate(ref);
       if (materialBindingSystem !== undefined) {

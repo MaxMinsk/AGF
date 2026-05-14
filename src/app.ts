@@ -170,6 +170,12 @@ export type AppHandle = {
     invalidateShadowMap(): void;
     setShadowMapAutoUpdate(enabled: boolean): void;
   };
+  /**
+   * RUNTIME-renderer-ready: resolves once the renderer has drawn its
+   * first frame (active camera acquired). Tests + dev-bridge clients
+   * `await` this before taking screenshots / probing rendererInfo.
+   */
+  readonly rendererReady: Promise<void>;
   /** M21-frame-timing — window-averaged per-phase tick timings in milliseconds. */
   frameTiming(): {
     fixedUpdateMs: number;
@@ -443,6 +449,7 @@ export async function createApp(
   return {
     canvas,
     world: runtime.world,
+    rendererReady: runtime.rendererReady,
     applyCommands(commands): void {
       runtime.applyCommands(commands);
     },

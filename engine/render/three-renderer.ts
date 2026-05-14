@@ -130,12 +130,19 @@ export class ThreeRenderer {
     this.adapter.resize(width, height);
   }
 
-  render(): void {
+  /**
+   * Drives one frame of rendering. Returns `true` iff there was an
+   * active camera + an actual `adapter.draw()` call ran — start.ts
+   * uses this to resolve `RuntimeHandle.rendererReady` on the first
+   * successful frame.
+   */
+  render(): boolean {
     const resolved = this.buildResolvedTransforms();
     this.refreshCamera(resolved);
     this.refreshMeshes(resolved);
-    if (!this.adapter.hasActiveCamera()) return;
+    if (!this.adapter.hasActiveCamera()) return false;
     this.adapter.draw();
+    return true;
   }
 
   /**
