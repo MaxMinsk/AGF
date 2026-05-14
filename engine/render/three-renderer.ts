@@ -10,6 +10,7 @@ import {
 import type { AssetRegistry } from "../runtime/asset-registry";
 import type { MaterialManifest } from "../runtime/asset-loaders/material-loader";
 import type { GlbAsset } from "./glb-loader";
+import { createLightHandleRegistry, type LightHandleRegistry } from "./light-handle-registry";
 import { createMeshHandleRegistry, type MeshHandleRegistry } from "./mesh-handle-registry";
 import { ThreeRenderAdapter, type CameraHandle, type MeshHandle, type ResolvedWorld } from "./three-render-adapter";
 
@@ -51,6 +52,7 @@ export class ThreeRenderer {
   private readonly world: World;
   readonly adapter: ThreeRenderAdapter;
   private readonly registry: MeshHandleRegistry;
+  private readonly lightRegistry: LightHandleRegistry;
   private readonly appliedMaterials = new Map<EntityId, string>();
   private readonly appliedGeometries = new Map<EntityId, string>();
   private readonly assetRegistry: AssetRegistry | undefined;
@@ -71,6 +73,7 @@ export class ThreeRenderer {
     if (background !== undefined) options.background = background;
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);
+    this.lightRegistry = createLightHandleRegistry(this.adapter);
   }
 
   /**
@@ -80,6 +83,15 @@ export class ThreeRenderer {
    */
   meshRegistry(): MeshHandleRegistry {
     return this.registry;
+  }
+
+  /**
+   * Expose the shared light-handle registry so `start.ts` can construct
+   * `LightLifecycleSystem` (M21-light-directional-point) over the same
+   * handle table the renderer talks to.
+   */
+  lightRegistryHandle(): LightHandleRegistry {
+    return this.lightRegistry;
   }
 
   /**
@@ -207,6 +219,8 @@ export class ThreeRenderer {
     drawCalls: number;
     triangles: number;
     meshes: number;
+    lights: number;
+    shadowCasters: number;
     handleLeak: number;
   } {
     const adapter = this.adapter.info();
@@ -233,6 +247,7 @@ export class ThreeRenderer {
 
   dispose(): void {
     this.registry.clear();
+    this.lightRegistry.clear();
     this.appliedMaterials.clear();
     this.appliedGeometries.clear();
     this.cameraHandle = undefined;

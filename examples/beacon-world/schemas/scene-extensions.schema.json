@@ -30,6 +30,9 @@
     },
     "RoundState": {
       "$ref": "#/definitions/roundStateComponent"
+    },
+    "BeaconLight": {
+      "$ref": "#/definitions/beaconLightComponent"
     }
   },
   "definitions": {
@@ -264,6 +267,31 @@
           "minItems": 3,
           "maxItems": 3,
           "description": "World position the entity is sent back to when it dies and respawns."
+        }
+      }
+    },
+    "beaconLightComponent": {
+      "description": "Links a point Light entity to a beacon's Repairable state. BeaconLightSystem drives the light's intensity based on the beacon's repaired flag — broken beacons sit dark, repaired beacons emit at full brightness.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beaconId"],
+      "properties": {
+        "beaconId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-._]*$",
+          "description": "Entity id of the beacon this light tracks."
+        },
+        "repairedIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "default": 12,
+          "description": "Light intensity when the beacon's Repairable.repaired === true."
+        },
+        "brokenIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Light intensity when the beacon is unrepaired. Default 0 (fully dark)."
         }
       }
     }

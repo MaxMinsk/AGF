@@ -1,3 +1,4 @@
+import { createBeaconLightSystem } from "./src/systems/beacon-light-system";
 import { createPickupSystem } from "./src/systems/pickup-system";
 import { createHazardSystem } from "./src/systems/hazard-system";
 import { createSoundPings, type SoundPings } from "./src/audio/sound-pings";
@@ -68,6 +69,7 @@ export const beaconWorldBootstrap: ProjectBootstrap = {
     scheduler.register(createWorldSignalSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createRoundSystem(), { profiles: ["static", "connected"] });
     scheduler.register(createRoundAutoResetSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(createBeaconLightSystem(), { profiles: ["static", "connected"] });
     if (!networked) {
       return;
     }

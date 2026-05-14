@@ -89,6 +89,8 @@ declare global {
         readonly drawCalls: number;
         readonly triangles: number;
         readonly meshes: number;
+        readonly lights: number;
+        readonly shadowCasters: number;
         readonly handleLeak: number;
       };
     };

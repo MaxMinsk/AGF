@@ -133,6 +133,17 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       scheduler.register(mts);
       renderer.setMeshTransformSyncExternal(true);
     }
+    // M21-light-directional-point: own ECS Light entities. Runs after
+    // TransformResolveSystem so LocalToWorld is fresh; transform sync of
+    // lights happens inside this system (it's cheap — one Vec3 write per
+    // light per frame).
+    const { createLightLifecycleSystem } = await import("../render/systems/light-lifecycle-system");
+    const lls = createLightLifecycleSystem({
+      adapter: renderer.adapter,
+      registry: renderer.lightRegistryHandle(),
+      diagnostics
+    });
+    if (!scheduler.has(lls.name)) scheduler.register(lls);
   }
 
   const time: TimeContext = {

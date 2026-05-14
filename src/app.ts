@@ -108,7 +108,7 @@ export type AppHandle = {
   /** Recording controls (Sprint 28). Used by the dev-bridge /__agf/recording/* routes. */
   startRecording(): { started: true };
   stopRecording(): unknown;
-  /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant. */
+  /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant + light counts. */
   rendererInfo(): {
     geometries: number;
     textures: number;
@@ -116,6 +116,8 @@ export type AppHandle = {
     drawCalls: number;
     triangles: number;
     meshes: number;
+    lights: number;
+    shadowCasters: number;
     handleLeak: number;
   };
   dispose(): void;
