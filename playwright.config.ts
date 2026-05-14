@@ -8,6 +8,12 @@ export default defineConfig({
   // against the same dev server; each passes deterministically in isolation).
   // Real regressions still fail both attempts.
   retries: 1,
+  // CI Linux runners are noticeably slower than local macOS — many beacon
+  // gameplay specs hit the default 30 s test ceiling there even though they
+  // pass locally in 5–10 s. 60 s gives the renderer + physics + Vite boot
+  // chain enough headroom without masking real regressions; in isolation a
+  // healthy test still completes well under that budget.
+  timeout: 60_000,
   reporter: [["list"]],
   use: {
     baseURL: "http://127.0.0.1:5173",
