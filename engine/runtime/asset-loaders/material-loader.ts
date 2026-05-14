@@ -44,6 +44,9 @@ export type MaterialManifest = {
   /** M21-mat-custom: ShaderMaterial source + uniforms (only used when shader === "custom"). */
   vertexShader?: string;
   fragmentShader?: string;
+  /** M21-mat-shader-files: external `.vert` / `.glsl` paths under the project's assets root. */
+  vertexShaderRef?: string;
+  fragmentShaderRef?: string;
   uniforms?: Record<string, MaterialUniformValue>;
   defines?: Record<string, string>;
 };

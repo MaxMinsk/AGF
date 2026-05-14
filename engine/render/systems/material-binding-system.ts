@@ -197,11 +197,51 @@ function reconcileMaterial(
       if (manifest.emissiveMap !== undefined) patch.emissiveMap = manifest.emissiveMap;
       if (manifest.emissiveIntensity !== undefined) patch.emissiveIntensity = manifest.emissiveIntensity;
       if (manifest.aoMap !== undefined) patch.aoMap = manifest.aoMap;
-      // M21-mat-custom
+      // M21-mat-custom + M21-mat-shader-files: when an external shader
+      // ref is set, fetch the text + use it instead of the inline
+      // string. Refs run in parallel so the patch lands as soon as
+      // both files resolve.
       if (manifest.vertexShader !== undefined) patch.vertexShader = manifest.vertexShader;
       if (manifest.fragmentShader !== undefined) patch.fragmentShader = manifest.fragmentShader;
       if (manifest.uniforms !== undefined) patch.uniforms = manifest.uniforms;
       if (manifest.defines !== undefined) patch.defines = manifest.defines;
+      const refsToLoad: Promise<void>[] = [];
+      if (manifest.vertexShaderRef !== undefined) {
+        const ref = manifest.vertexShaderRef;
+        refsToLoad.push(
+          fetchShaderSource(ref).then(
+            (source) => {
+              patch.vertexShader = source;
+            },
+            (error) => {
+              console.error(`[agf] vertexShaderRef load failed for "${entityId}" → "${ref}":`, error);
+            }
+          )
+        );
+      }
+      if (manifest.fragmentShaderRef !== undefined) {
+        const ref = manifest.fragmentShaderRef;
+        refsToLoad.push(
+          fetchShaderSource(ref).then(
+            (source) => {
+              patch.fragmentShader = source;
+            },
+            (error) => {
+              console.error(`[agf] fragmentShaderRef load failed for "${entityId}" → "${ref}":`, error);
+            }
+          )
+        );
+      }
+      if (refsToLoad.length > 0) {
+        Promise.all(refsToLoad).then(() => {
+          const stillLive = world.getComponent<AppliedRef>(entityId, APPLIED_MATERIAL_REF);
+          if (stillLive?.ref !== materialRef) return;
+          if (!deps.adapter.hasMesh(handle)) return;
+          deps.adapter.setMeshMaterialPatch(handle, patch);
+          world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "applied" });
+        });
+        return;
+      }
       deps.adapter.setMeshMaterialPatch(handle, patch);
       world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "applied" });
     },
@@ -213,6 +253,26 @@ function reconcileMaterial(
       }
     }
   );
+}
+
+// M21-mat-shader-files: minimal text fetch via the browser. Cached per
+// URL so a shader shared across N manifests only round-trips once.
+const shaderSourceCache = new Map<string, Promise<string>>();
+async function fetchShaderSource(ref: string): Promise<string> {
+  const cached = shaderSourceCache.get(ref);
+  if (cached !== undefined) return cached;
+  const promise = fetch(ref).then((response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${ref}`);
+    }
+    return response.text();
+  });
+  shaderSourceCache.set(ref, promise);
+  // Drop the cache entry on failure so a retry can try again.
+  promise.catch(() => {
+    shaderSourceCache.delete(ref);
+  });
+  return promise;
 }
 
 function findFirstMeshOf(asset: GlbAsset): Mesh | undefined {
