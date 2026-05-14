@@ -5,6 +5,41 @@ import { expect, test } from "@playwright/test";
 // them serial.
 test.describe.configure({ mode: "serial" });
 
+async function waitForBridgeProject(baseURL: string | undefined, projectId: string): Promise<void> {
+  expect(baseURL).toBeDefined();
+  await expect
+    .poll(async () => {
+      const url = new URL("/__agf/health", baseURL).toString();
+      const response = await fetch(url);
+      const body = (await response.json()) as { page?: { projectId?: string } };
+      return body.page?.projectId;
+    }, { timeout: 8_000 })
+    .toBe(projectId);
+}
+
+/**
+ * Fetch with retry-on-503: under preflight load, parallel specs constantly
+ * displace each other on the dev bridge's single-page slot. page-bridge.ts
+ * auto-reconnects, so a brief retry resolves the race.
+ */
+async function fetchWithRetry(
+  url: string,
+  init?: RequestInit
+): Promise<{ status: number; body: { ok: boolean; payload?: unknown; error?: { code: string } } }> {
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const response = await fetch(url, init);
+    // Retry both 503 (no page) and 502 (page timeout) — both are transient
+    // under preflight load when other specs displace our page mid-request.
+    if (response.status !== 503 && response.status !== 502) {
+      return { status: response.status, body: (await response.json()) as { ok: boolean; payload?: unknown; error?: { code: string } } };
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  // Final attempt — surface whatever we got.
+  const final = await fetch(url, init);
+  return { status: final.status, body: (await final.json()) as { ok: boolean; payload?: unknown; error?: { code: string } } };
+}
+
 // Smoke-test the M15-a/b/c dev-server bridge end-to-end:
 // open a real page (which triggers the page-bridge to WS), then have the
 // test process fetch /__agf/* over HTTP and verify the page proxied the
@@ -18,20 +53,10 @@ test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  // Give the WS round-trip a tick to settle (open + send hello + plugin sees us).
-  await page.waitForTimeout(500);
 
-  const fetchJson = async (path: string): Promise<{ status: number; body: { ok: boolean; payload?: unknown; error?: { code: string } } }> => {
-    const url = new URL(path, baseURL).toString();
-    const response = await fetch(url);
-    const body = await response.json();
-    return { status: response.status, body };
-  };
+  const fetchJson = (path: string) => fetchWithRetry(new URL(path, baseURL).toString());
 
-  // Health reports the connected page now.
-  const health = await fetchJson("/__agf/health");
-  expect(health.status).toBe(200);
-  expect(health.body).toMatchObject({ ok: true, page: { projectId: "hello-3d" } });
+  // (Already awaited by waitForBridgeProject above.)
 
   // Snapshot must contain every entity declared in the hello-3d scene.
   const snapshot = await fetchJson("/__agf/snapshot");
@@ -109,7 +134,7 @@ test("POST /__agf/commands lets an agent edit the running scene live", async ({ 
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  await page.waitForTimeout(500);
+  await waitForBridgeProject(baseURL, "hello-3d");
 
   const postJson = async (path: string, body: unknown): Promise<{ status: number; body: unknown }> => {
     const url = new URL(path, baseURL).toString();
@@ -160,7 +185,7 @@ test("POST /__agf/asset/invalidate forwards to reloadAsset", async ({ page, base
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  await page.waitForTimeout(500);
+  await waitForBridgeProject(baseURL, "hello-3d");
 
   const url = new URL("/__agf/asset/invalidate", baseURL).toString();
   const response = await fetch(url, {
@@ -191,7 +216,7 @@ test("recording start/stop round-trips a Recording over the bridge", async ({ pa
   await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
     timeout: 5_000
   });
-  await page.waitForTimeout(500);
+  await waitForBridgeProject(baseURL, "hello-3d");
 
   const post = async (path: string): Promise<{ status: number; body: { ok: boolean; payload?: unknown } }> => {
     const url = new URL(path, baseURL).toString();

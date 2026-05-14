@@ -37,43 +37,72 @@ type IncomingMessage = {
 
 export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
   const w = globalThis as { WebSocket?: typeof WebSocket; location?: { host: string } };
-  if (w.WebSocket === undefined) {
+  const WebSocketCtor = w.WebSocket;
+  if (WebSocketCtor === undefined) {
     return { close: () => undefined };
   }
   const host = w.location?.host ?? "localhost:5173";
   const url = options.url ?? `ws://${host}/__agf/ws`;
-  let socket: WebSocket;
-  try {
-    socket = new w.WebSocket(url);
-  } catch {
-    return { close: () => undefined };
-  }
+  let socket: WebSocket | undefined;
+  let closedByUser = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
-  socket.addEventListener("open", () => {
-    socket.send(
-      JSON.stringify({
-        kind: "hello",
-        payload: { projectId: options.projectId, profile: options.profile }
-      })
-    );
-  });
-
-  socket.addEventListener("message", (event: MessageEvent) => {
-    let msg: IncomingMessage | undefined;
+  const connect = (): void => {
+    if (closedByUser) return;
     try {
-      msg = JSON.parse(typeof event.data === "string" ? event.data : "") as IncomingMessage;
+      socket = new WebSocketCtor(url);
     } catch {
+      scheduleReconnect();
       return;
     }
-    if (msg === undefined || typeof msg.id !== "number" || typeof msg.kind !== "string") {
-      return;
-    }
-    handleRpc(socket, msg.id, msg.kind, msg.payload);
-  });
+    const current = socket;
+    current.addEventListener("open", () => {
+      current.send(
+        JSON.stringify({
+          kind: "hello",
+          payload: { projectId: options.projectId, profile: options.profile }
+        })
+      );
+    });
+    current.addEventListener("message", (event: MessageEvent) => {
+      let msg: IncomingMessage | undefined;
+      try {
+        msg = JSON.parse(typeof event.data === "string" ? event.data : "") as IncomingMessage;
+      } catch {
+        return;
+      }
+      if (msg === undefined || typeof msg.id !== "number" || typeof msg.kind !== "string") {
+        return;
+      }
+      handleRpc(current, msg.id, msg.kind, msg.payload);
+    });
+    current.addEventListener("close", () => {
+      // The dev bridge displaces the previous page when a new one connects;
+      // reconnect after a short delay so this tab regains the active slot
+      // when the other tab goes away.
+      scheduleReconnect();
+    });
+  };
+
+  const scheduleReconnect = (): void => {
+    if (closedByUser) return;
+    if (reconnectTimer !== undefined) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      connect();
+    }, 250);
+  };
+
+  connect();
 
   return {
     close(): void {
-      socket.close();
+      closedByUser = true;
+      if (reconnectTimer !== undefined) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
+      socket?.close();
     }
   };
 }

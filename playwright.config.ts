@@ -2,6 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // dev-bridge.spec.ts owns the single connected-page slot on the dev
+  // server — running it next to other specs leads to displacement races.
+  // Run it separately via `npm run test:e2e:dev-bridge` (preflight calls
+  // both).
+  testIgnore: ["**/dev-bridge.spec.ts"],
   fullyParallel: true,
   reporter: [["list"]],
   use: {
