@@ -422,11 +422,15 @@ export function createAdapterFromModule(
       const controller = characterControllers.get(controllerHandle);
       const collider = colliders.get(colliderHandle);
       if (controller === undefined || collider === undefined) return undefined;
-      controller.computeColliderMovement(collider, {
-        x: desired[0],
-        y: desired[1],
-        z: desired[2]
-      });
+      // EXCLUDE_SENSORS keeps pickups / hazards / trigger volumes from
+      // pushing the character. Without this filter, the controller
+      // treats Beacon's 1.6m core sensor like a 1.6m wall and the
+      // drone can't approach anything.
+      controller.computeColliderMovement(
+        collider,
+        { x: desired[0], y: desired[1], z: desired[2] },
+        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS
+      );
       const movement = controller.computedMovement();
       return {
         movement: [movement.x, movement.y, movement.z],
