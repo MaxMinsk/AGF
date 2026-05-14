@@ -54,7 +54,9 @@ Baseline highlights (dev MBP, 2026-05-14):
 | `snapshotWorld @ 10k` | ~2.25 |
 | `query(['MeshRenderer','Transform']) @ 10k` (uncached) | ~0.37 |
 | `createQuery(...).run() @ 10k` (cached) | ~0.00002 |
-| `resolveHierarchy chain-of-8 @ 10k` | ~12.3 |
+| `resolveHierarchy chain-of-8 @ 10k` (no cache) | ~12.9 |
+| `cached resolveWorld steady-state chain-of-8 @ 10k` | ~5.4 (M16-cache-a) |
+| `cached resolveWorld 1%-dirty chain-of-8 @ 10k` | ~8.2 (M16-cache-a) |
 
 What these numbers immediately tell us:
 

@@ -15,6 +15,15 @@ export class World {
   private readonly stores = new Map<ComponentName, Map<EntityId, ComponentData>>();
   /** Incremented on every structural change so cached queries can detect staleness cheaply. */
   private revision = 0;
+  /**
+   * Per-component data-revision counter. Bumped on every `setComponent`
+   * (including overwrites — that's the whole point) and zeroed on
+   * `removeComponent`. Consumers that need to detect "did this entity's
+   * Transform actually change?" check `componentRevision(id, "Transform")`
+   * against their last-seen value. Cheap number compare; no allocations.
+   * M16-cache uses this for the LocalToWorld resolver cache.
+   */
+  private readonly componentRevisions = new Map<ComponentName, Map<EntityId, number>>();
 
   static fromScene(scene: SceneInput): World {
     const world = new World();
@@ -41,6 +50,9 @@ export class World {
     }
     for (const store of this.stores.values()) {
       store.delete(id);
+    }
+    for (const revisions of this.componentRevisions.values()) {
+      revisions.delete(id);
     }
     this.revision += 1;
   }
@@ -74,6 +86,7 @@ export class World {
     if (structural) {
       this.revision += 1;
     }
+    this.bumpComponentRevision(id, name);
   }
 
   getComponent<T = ComponentData>(id: EntityId, name: ComponentName): T | undefined {
@@ -95,7 +108,28 @@ export class World {
     }
     if (store.delete(id)) {
       this.revision += 1;
+      this.componentRevisions.get(name)?.delete(id);
     }
+  }
+
+  /**
+   * Per-component data-revision counter. Returns 0 if the entity has never
+   * carried this component; otherwise a strictly-increasing number bumped on
+   * every `setComponent(id, name, ...)` call. Designed to be checked by
+   * cache layers that need to detect "did this entity's data change since I
+   * last looked?" without diffing the payload.
+   */
+  componentRevision(id: EntityId, name: ComponentName): number {
+    return this.componentRevisions.get(name)?.get(id) ?? 0;
+  }
+
+  private bumpComponentRevision(id: EntityId, name: ComponentName): void {
+    let store = this.componentRevisions.get(name);
+    if (store === undefined) {
+      store = new Map();
+      this.componentRevisions.set(name, store);
+    }
+    store.set(id, (store.get(id) ?? 0) + 1);
   }
 
   /**

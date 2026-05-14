@@ -40,8 +40,10 @@ Hierarchy resolve / transform pipeline is its own conversation:
 
 | Engine | Approach | 10k chain-of-8 (rough) |
 | --- | --- | --- |
-| **AGF (current, no cache)** | Full rebuild every frame | **12.3 ms** |
-| **AGF target after `M16-cache`** | Dirty-flag + reused matrices | < 1 ms (goal) |
+| **AGF — no cache** | Full rebuild every frame | **~12.9 ms** |
+| **AGF — `M16-cache-a` partial-walk cache, steady-state** | Reuse cached `ResolvedTransform` when nothing dirty | **~5.4 ms (~2.4× win)** |
+| **AGF — `M16-cache-a` partial-walk cache, 1% entities mutating per frame** | Re-compose only dirty subtree, reuse the rest | **~8.2 ms (~1.6× win)** |
+| **AGF target after `M16-cache-b/c`** | Incremental indexes, O(dirty) without per-frame O(N) scan | < 1 ms (goal) |
 | **Unity DOTS TransformSystemGroup** ⁴ | LocalToWorld + parent-version chains, burst-compiled | < 0.1 ms |
 | **Three.js scene-graph (raw)** | Per-Object3D `updateMatrixWorld` cascade | ~2–4 ms for 10k flat, climbs fast with depth |
 
@@ -55,7 +57,7 @@ Hierarchy resolve / transform pipeline is its own conversation:
 
 ### Where we're not fine
 
-- **> 1k entities with hierarchies.** `resolveHierarchy chain-of-8 @ 10k = 12 ms` ≈ 73% of a 60 FPS frame. Anything dogfood-sized with parented rigs (a vehicle convoy, a hand of cards, a forest of trees) breaks at this scale. **`M22 / M16-cache` is mandatory before such a scene ships.**
+- **> 1k entities with hierarchies.** `resolveHierarchy chain-of-8 @ 10k = ~13 ms` (no cache) ≈ 77% of a 60 FPS frame. The `M16-cache-a` partial-walk cache brings this down to ~5.4 ms steady / ~8.2 ms with 1% per-frame mutation — usable for a 5k-entity scene, still tight at 10k. `M16-cache-b/c` (incremental indexes, no per-frame O(N) scan) is what pushes this below 1 ms.
 - **Per-frame `world.query()`.** Uncached two-component query at 10k = 0.37 ms. Three such systems = > 1 ms of overhead from queries alone, which is a lot when the renderer also wants its slice. **Every system must use `createQuery` and cache the handle.** (`SpinSystem` does; `M21-d` and friends will.)
 - **Batch rendering needs batching, not faster ECS.** At 5k visible meshes the bottleneck is draw calls, not ECS iteration. `M17` batching epic is the answer; trying to fix this by switching to bitECS would help the ECS pass go from 1 ms to 0.05 ms while the renderer still spends 80 ms on draw calls.
 

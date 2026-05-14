@@ -6,6 +6,7 @@
 
 import { createSuite, type SuiteResult } from "./runner";
 import { resolveHierarchy, type TransformInput } from "../../engine/core/transform/resolve";
+import { createHierarchyCache } from "../../engine/core/transform/resolve-cached";
 import { ENTITY_SIZES, makeWorld } from "./scene-fixtures";
 
 export async function runHierarchyBench(): Promise<SuiteResult> {
@@ -22,6 +23,36 @@ export async function runHierarchyBench(): Promise<SuiteResult> {
       const inputs = buildInputs(size, true);
       return () => {
         resolveHierarchy(inputs);
+      };
+    });
+    suite.bench(`cached resolveWorld steady-state chain-of-8 @ ${size.toLocaleString("en-US")}`, () => {
+      // M16-cache-a steady-state: nothing changes between resolves. This is
+      // the fast path the cache exists for (idle scene, paused, drone hover).
+      const world = makeWorld({ entities: size, hierarchy: true });
+      const cache = createHierarchyCache();
+      cache.resolveWorld(world); // prime
+      return () => {
+        cache.resolveWorld(world);
+      };
+    });
+    suite.bench(`cached resolveWorld 1%-dirty chain-of-8 @ ${size.toLocaleString("en-US")}`, () => {
+      // Worst-case-realistic: 1% of entities mutate per frame (player + a
+      // handful of NPCs in a thousand-object scene). Cache should still
+      // outperform the full rebuild meaningfully.
+      const world = makeWorld({ entities: size, hierarchy: true });
+      const cache = createHierarchyCache();
+      cache.resolveWorld(world);
+      const mutateCount = Math.max(1, Math.floor(size / 100));
+      let cursor = 0;
+      return () => {
+        for (let i = 0; i < mutateCount; i += 1) {
+          const id = `e${cursor}`;
+          cursor = (cursor + 1) % size;
+          const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+          if (t === undefined) continue;
+          world.setComponent(id, "Transform", { ...t, position: [Math.random(), 0, 0] });
+        }
+        cache.resolveWorld(world);
       };
     });
   }

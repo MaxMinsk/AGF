@@ -141,7 +141,14 @@ export function resolveWorldHierarchy(world: World): Map<EntityId, ResolvedTrans
   return resolveHierarchy(inputs);
 }
 
-function composeWorld(parentWorld: WorldTransform, local: LocalTransform): WorldTransform {
+/**
+ * Compose a child's local transform with its parent's already-resolved world
+ * transform. Exposed for the M16-cache partial-walk path so we can avoid
+ * calling the full `resolveHierarchy` when only a subset of subtrees are
+ * dirty. The math here is the same as the inline path inside
+ * `resolveHierarchy`; keep them in sync if either changes.
+ */
+export function composeWorld(parentWorld: WorldTransform, local: LocalTransform): WorldTransform {
   const parentMat = composeMatrix(parentWorld);
   const localMat = composeMatrix(local);
   const combined = multiplyMatrix(parentMat, localMat);
