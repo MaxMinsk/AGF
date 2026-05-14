@@ -1,4 +1,4 @@
-import { BoxGeometry, MathUtils, type BufferGeometry, type Mesh, type Object3D, PlaneGeometry, SphereGeometry } from "three";
+import { MathUtils, type Mesh, type Object3D } from "three";
 import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
 import {
@@ -10,6 +10,7 @@ import {
 import type { AssetRegistry } from "../runtime/asset-registry";
 import type { MaterialManifest } from "../runtime/asset-loaders/material-loader";
 import type { GlbAsset } from "./glb-loader";
+import { createMeshHandleRegistry, type MeshHandleRegistry } from "./mesh-handle-registry";
 import { ThreeRenderAdapter, type CameraHandle, type MeshHandle, type ResolvedWorld } from "./three-render-adapter";
 
 type Vec3 = ReadonlyArray<number>;
@@ -49,7 +50,7 @@ type MeshRendererComponent = {
 export class ThreeRenderer {
   private readonly world: World;
   private readonly adapter: ThreeRenderAdapter;
-  private readonly meshHandles = new Map<EntityId, MeshHandle>();
+  private readonly registry: MeshHandleRegistry;
   private readonly appliedMaterials = new Map<EntityId, string>();
   private readonly appliedGeometries = new Map<EntityId, string>();
   private readonly assetRegistry: AssetRegistry | undefined;
@@ -67,6 +68,16 @@ export class ThreeRenderer {
     const options: { canvas: HTMLCanvasElement; background?: string } = { canvas };
     if (background !== undefined) options.background = background;
     this.adapter = new ThreeRenderAdapter(options);
+    this.registry = createMeshHandleRegistry(this.adapter);
+  }
+
+  /**
+   * Expose the shared mesh-handle registry so `start.ts` can construct
+   * `MeshLifecycleSystem` (M21-d) and future renderer Systems against the
+   * same handle table the renderer reads.
+   */
+  meshRegistry(): MeshHandleRegistry {
+    return this.registry;
   }
 
   resize(width: number, height: number): void {
@@ -194,7 +205,7 @@ export class ThreeRenderer {
   }
 
   dispose(): void {
-    this.meshHandles.clear();
+    this.registry.clear();
     this.appliedMaterials.clear();
     this.appliedGeometries.clear();
     this.cameraHandle = undefined;
@@ -260,13 +271,17 @@ export class ThreeRenderer {
   private refreshMeshes(resolved: Map<EntityId, ResolvedTransform>): void {
     const renderable = new Set(this.world.query(["MeshRenderer"]));
 
-    for (const [id, handle] of this.meshHandles) {
-      if (!renderable.has(id)) {
-        this.adapter.releaseMesh(handle);
-        this.meshHandles.delete(id);
-        this.appliedMaterials.delete(id);
-        this.appliedGeometries.delete(id);
-      }
+    // Release entities that left the renderable set. When MeshLifecycleSystem
+    // (M21-d) is registered, it already does this and the loop here is a
+    // no-op; when no scheduler is in play, the renderer is the lifecycle
+    // owner. `registry.release` is idempotent.
+    const trackedIds: EntityId[] = [];
+    for (const id of this.registry.entityIds()) trackedIds.push(id);
+    for (const id of trackedIds) {
+      if (renderable.has(id)) continue;
+      this.registry.release(id);
+      this.appliedMaterials.delete(id);
+      this.appliedGeometries.delete(id);
     }
 
     for (const id of renderable) {
@@ -275,22 +290,16 @@ export class ThreeRenderer {
         continue;
       }
 
-      let handle = this.meshHandles.get(id);
-      if (handle === undefined) {
-        const geometry = isExternalMeshRef(meshComponent.mesh)
-          ? createPlaceholderGeometry()
-          : createPrimitiveGeometry(meshComponent.mesh);
-        if (geometry === undefined) {
-          continue;
-        }
-        const acquire: { geometry: BufferGeometry; color?: string } = { geometry };
-        if (meshComponent.color !== undefined) acquire.color = meshComponent.color;
-        handle = this.adapter.acquireMesh(acquire);
-        this.meshHandles.set(id, handle);
-      } else if (meshComponent.material === undefined) {
-        const patch: { color?: string } = {};
-        if (meshComponent.color !== undefined) patch.color = meshComponent.color;
-        this.adapter.setMeshMaterialPatch(handle, patch);
+      // `acquireFor` is idempotent — when MeshLifecycleSystem already
+      // acquired this entity, it returns the existing handle.
+      const handle = this.registry.acquireFor(id, meshComponent.mesh, meshComponent.color);
+      if (handle === undefined) continue;
+
+      // Color-only updates for entities that don't carry a material manifest
+      // ref. With a manifest, color comes from manifest.color via
+      // maybeApplyMaterial.
+      if (meshComponent.material === undefined && meshComponent.color !== undefined) {
+        this.adapter.setMeshMaterialPatch(handle, { color: meshComponent.color });
       }
 
       if (isExternalMeshRef(meshComponent.mesh)) {
@@ -398,25 +407,6 @@ function identityFor(entry: TransformInput): {
     rotation: entry.rotation ?? [0, 0, 0],
     scale: entry.scale ?? [1, 1, 1]
   };
-}
-
-function createPrimitiveGeometry(name: string): BufferGeometry | undefined {
-  switch (name) {
-    case "box":
-      return new BoxGeometry(1, 1, 1);
-    case "sphere":
-      return new SphereGeometry(0.5, 24, 16);
-    case "plane":
-      return new PlaneGeometry(1, 1);
-    default:
-      return undefined;
-  }
-}
-
-function createPlaceholderGeometry(): BufferGeometry {
-  // Near-zero box keeps the mesh in the scene graph without flashing a visible
-  // placeholder while the real geometry loads asynchronously.
-  return new BoxGeometry(0.0001, 0.0001, 0.0001);
 }
 
 function isExternalMeshRef(ref: string): boolean {

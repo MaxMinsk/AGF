@@ -105,10 +105,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   if (scheduler !== undefined) {
     const { createTransformResolveSystem } = await import("../render/systems/transform-resolve-system");
     const { createCameraSyncSystem } = await import("../render/systems/camera-sync-system");
+    const { createMeshLifecycleSystem } = await import("../render/systems/mesh-lifecycle-system");
     const ts = createTransformResolveSystem();
     if (!scheduler.has(ts.name)) scheduler.register(ts);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);
+    const mls = createMeshLifecycleSystem(renderer.meshRegistry());
+    if (!scheduler.has(mls.name)) scheduler.register(mls);
   }
 
   const time: TimeContext = {
