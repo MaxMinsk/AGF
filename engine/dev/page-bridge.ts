@@ -10,6 +10,9 @@ type AgfApi = {
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   reloadEvents?: unknown;
+  applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
+  startRecording?: () => unknown;
+  stopRecording?: () => unknown;
 };
 
 export type PageBridgeOptions = {
@@ -28,6 +31,7 @@ export type PageBridgeHandle = {
 type IncomingMessage = {
   id?: number;
   kind?: string;
+  payload?: unknown;
 };
 
 export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
@@ -63,7 +67,7 @@ export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
     if (msg === undefined || typeof msg.id !== "number" || typeof msg.kind !== "string") {
       return;
     }
-    handleRpc(socket, msg.id, msg.kind);
+    handleRpc(socket, msg.id, msg.kind, msg.payload);
   });
 
   return {
@@ -73,7 +77,7 @@ export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
   };
 }
 
-function handleRpc(socket: WebSocket, id: number, kind: string): void {
+function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unknown): void {
   const api = (globalThis as { __agf?: AgfApi }).__agf;
   try {
     let payload: unknown;
@@ -89,6 +93,22 @@ function handleRpc(socket: WebSocket, id: number, kind: string): void {
         break;
       case "reload-events":
         payload = api?.reloadEvents ?? [];
+        break;
+      case "commands": {
+        const commands = (payloadIn as { commands?: ReadonlyArray<unknown> } | undefined)?.commands;
+        if (!Array.isArray(commands) || api?.applyCommands === undefined) {
+          payload = undefined;
+          break;
+        }
+        api.applyCommands(commands);
+        payload = { applied: commands.length };
+        break;
+      }
+      case "recording-start":
+        payload = api?.startRecording?.() ?? { started: true };
+        break;
+      case "recording-stop":
+        payload = api?.stopRecording?.();
         break;
       default: {
         socket.send(

@@ -58,6 +58,9 @@ declare global {
       save(): Promise<unknown>;
       load(): Promise<unknown>;
       clearSave(): Promise<void>;
+      /** Recording v0 — used by the dev-bridge /__agf/recording/* routes. */
+      startRecording(): unknown;
+      stopRecording(): unknown;
       /**
        * Snapshot of Three.js renderer resource counters. Useful for HMR
        * leak tests: take a baseline, reload assets N times, assert the
@@ -181,6 +184,8 @@ void (async (): Promise<void> => {
       save: () => app.save(),
       load: () => app.load(),
       clearSave: () => app.clearSave(),
+      startRecording: () => app.startRecording(),
+      stopRecording: () => app.stopRecording(),
       rendererInfo: () => app.rendererInfo(),
       reloadCount: 0,
       reloadEvents: []

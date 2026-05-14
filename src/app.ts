@@ -96,6 +96,9 @@ export type AppHandle = {
   save(): Promise<SaveBlob>;
   load(): Promise<{ blob: SaveBlob | undefined; restoredEntities: string[] }>;
   clearSave(): Promise<void>;
+  /** Recording controls (Sprint 28). Used by the dev-bridge /__agf/recording/* routes. */
+  startRecording(): { started: true };
+  stopRecording(): unknown;
   /** Three.js renderer resource counters (for HMR leak tests). */
   rendererInfo(): {
     geometries: number;
@@ -295,6 +298,13 @@ export async function createApp(
     },
     async clearSave() {
       return runtime.clearSave();
+    },
+    startRecording(): { started: true } {
+      runtime.startRecording(projectId);
+      return { started: true };
+    },
+    stopRecording(): unknown {
+      return runtime.stopRecording();
     },
     dispose(): void {
       diagnosticsOverlay?.dispose();

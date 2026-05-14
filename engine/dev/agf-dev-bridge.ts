@@ -171,6 +171,54 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        if (route === "/commands" && req.method === "POST") {
+          try {
+            const body = await readJsonBody(req);
+            const commands = (body as { commands?: unknown }).commands;
+            if (!Array.isArray(commands)) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_BRIDGE_INVALID_COMMANDS",
+                  message: "Body must be JSON with a `commands` array."
+                }
+              });
+              return;
+            }
+            const payload = await rpc("commands", { commands });
+            respondJson(res, 200, { ok: true, payload });
+          } catch (error) {
+            const e = error as { code: string; message: string };
+            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
+            respondJson(res, status, { ok: false, error: e });
+          }
+          return;
+        }
+
+        if (route === "/recording/start" && req.method === "POST") {
+          try {
+            const payload = await rpc("recording-start");
+            respondJson(res, 200, { ok: true, payload });
+          } catch (error) {
+            const e = error as { code: string; message: string };
+            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
+            respondJson(res, status, { ok: false, error: e });
+          }
+          return;
+        }
+
+        if (route === "/recording/stop" && req.method === "POST") {
+          try {
+            const payload = await rpc("recording-stop");
+            respondJson(res, 200, { ok: true, payload });
+          } catch (error) {
+            const e = error as { code: string; message: string };
+            const status = e.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 502;
+            respondJson(res, status, { ok: false, error: e });
+          }
+          return;
+        }
+
         if (route === "/bug-report" && req.method === "GET") {
           if (activePageInfo === undefined) {
             respondJson(res, 503, {
@@ -257,6 +305,26 @@ function respondJson(res: ServerResponseLike, status: number, payload: unknown):
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(`${JSON.stringify(payload)}\n`);
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
+    req.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve());
+    req.on("error", (error: Error) => reject(error));
+  });
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (raw.length === 0) {
+    return {};
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw { code: "AGF_BRIDGE_INVALID_JSON", message: "Body is not valid JSON." };
+  }
 }
 
 // Re-export type for ServerResponse for consumers — `ServerResponse` from

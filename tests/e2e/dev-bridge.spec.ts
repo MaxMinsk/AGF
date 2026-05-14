@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+// The dev bridge holds a single connected page per server. Running these
+// specs in parallel makes them stomp on each other's WS handshake. Keep
+// them serial.
+test.describe.configure({ mode: "serial" });
+
 // Smoke-test the M15-a/b/c dev-server bridge end-to-end:
 // open a real page (which triggers the page-bridge to WS), then have the
 // test process fetch /__agf/* over HTTP and verify the page proxied the
@@ -96,4 +101,102 @@ test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events
   expect(report.snapshot.entities.length).toBeGreaterThan(0);
   expect(report.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
   expect(typeof report.rendererInfo["meshes"]).toBe("number");
+});
+
+test("POST /__agf/commands lets an agent edit the running scene live", async ({ page, baseURL }) => {
+  expect(baseURL).toBeDefined();
+  await page.goto("/?project=hello-3d");
+  await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
+    timeout: 5_000
+  });
+  await page.waitForTimeout(500);
+
+  const postJson = async (path: string, body: unknown): Promise<{ status: number; body: unknown }> => {
+    const url = new URL(path, baseURL).toString();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return { status: response.status, body: await response.json() };
+  };
+
+  // Move the cart's wheel offset from local (-1, 0, 0)? Easier: change
+  // tower.crown's color via a component.set command. Use cube.hero (we know it exists).
+  const result = await postJson("/__agf/commands", {
+    commands: [
+      {
+        kind: "component.set",
+        entityId: "cube.hero",
+        component: "MeshRenderer",
+        data: { mesh: "box", color: "#ff00ff" }
+      }
+    ]
+  });
+
+  expect(result.status).toBe(200);
+  expect((result.body as { ok: boolean }).ok).toBe(true);
+  expect((result.body as { payload: { applied: number } }).payload.applied).toBe(1);
+
+  // Verify the live snapshot reflects the change.
+  const snapshot = await page.evaluate(() => {
+    const api = (window as unknown as { __agf?: { snapshot?: () => unknown } }).__agf;
+    return api?.snapshot?.() ?? null;
+  });
+  const cube = (snapshot as { entities: Array<{ id: string; components: Record<string, unknown> }> }).entities.find(
+    (entity) => entity.id === "cube.hero"
+  );
+  expect(cube?.components["MeshRenderer"]).toMatchObject({ color: "#ff00ff" });
+
+  // Reject malformed body.
+  const bad = await postJson("/__agf/commands", { not_commands: 1 });
+  expect(bad.status).toBe(400);
+  expect((bad.body as { error: { code: string } }).error.code).toBe("AGF_BRIDGE_INVALID_COMMANDS");
+});
+
+test("recording start/stop round-trips a Recording over the bridge", async ({ page, baseURL }) => {
+  expect(baseURL).toBeDefined();
+  await page.goto("/?project=hello-3d");
+  await page.waitForFunction(() => Boolean((window as unknown as { __agf?: unknown }).__agf), {
+    timeout: 5_000
+  });
+  await page.waitForTimeout(500);
+
+  const post = async (path: string): Promise<{ status: number; body: { ok: boolean; payload?: unknown } }> => {
+    const url = new URL(path, baseURL).toString();
+    const response = await fetch(url, { method: "POST" });
+    return { status: response.status, body: await response.json() };
+  };
+
+  const start = await post("/__agf/recording/start");
+  expect(start.status).toBe(200);
+  expect(start.body.ok).toBe(true);
+
+  // Apply a single command via the page so the recorder captures it.
+  await page.evaluate(() => {
+    const api = (window as unknown as {
+      __agf?: { applyCommands?: (commands: ReadonlyArray<unknown>) => void };
+    }).__agf;
+    api?.applyCommands?.([
+      {
+        kind: "component.set",
+        entityId: "cube.hero",
+        component: "MeshRenderer",
+        data: { mesh: "box", color: "#00ffaa" }
+      }
+    ]);
+  });
+
+  const stop = await post("/__agf/recording/stop");
+  expect(stop.status).toBe(200);
+  expect(stop.body.ok).toBe(true);
+  const recording = stop.body.payload as {
+    agfFormatVersion: number;
+    projectId?: string;
+    commands: Array<{ command: { kind: string } }>;
+  };
+  expect(recording.agfFormatVersion).toBeGreaterThan(0);
+  expect(recording.projectId).toBe("hello-3d");
+  // The recorder picked up the live command injection.
+  expect(recording.commands.length).toBeGreaterThan(0);
 });
