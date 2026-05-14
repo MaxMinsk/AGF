@@ -16,9 +16,8 @@ A backend implementation must:
 
 ## Current Skeletons
 
-- `node-world-server/` — Node + TypeScript starting point. Loads the protocol schema, validates a couple of sample messages and reports ready. No transport yet.
-
-C#/.NET reference is planned but not yet scaffolded (see ADR-0001 and ADR-0006).
+- `node-world-server/` — Node + TypeScript reference backend. Loads the protocol schema, validates representative messages, and exposes an optional **WebSocket transport** via `--serve` (`npm run backend:node:serve`). Used by `tests/e2e/multiclient-roundtrip.spec.ts` as the multiplayer harness. No authentication, no persistence — meant for local-network playtests, not production.
+- `dotnet-world-server/` — .NET 9 reference skeleton. Builds cleanly with `dotnet build` and validates a few protocol messages on startup, but is smoke-only today: no transport. Reserved for the eventual SignalR mirror of the Node backend (see ADR-0001 and ADR-0006).
 
 ## How A Backend Should Be Added
 

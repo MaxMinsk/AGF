@@ -28,9 +28,32 @@ export type PerformanceBudget = {
     hard?: Partial<Record<RendererMetric, number>>;
   };
   bundle?: {
+    /** Budget for the largest non-vendor (main) chunk in `dist/assets`. */
     softLargestChunkGzipKb?: number;
     hardLargestChunkGzipKb?: number;
+    /**
+     * Optional per-vendor budgets keyed by chunk-name prefix (matches
+     * `scripts/check-bundle-size.mjs`). When omitted, the doctor falls back
+     * to DEFAULT_VENDOR_BUDGETS so projects don't accidentally fail because
+     * a lazy-loaded vendor chunk (e.g. Rapier WASM) is larger than the
+     * project's main-chunk budget.
+     */
+    vendors?: Record<string, { softGzipKb?: number; hardGzipKb?: number }>;
   };
+};
+
+/**
+ * Default vendor-chunk budgets mirroring `scripts/check-bundle-size.mjs`.
+ * Doctor uses these when the project's `performance-budget.json` does not
+ * declare its own `bundle.vendors` overrides. Keys are Rollup chunk-name
+ * prefixes; the hash suffix is ignored.
+ *
+ * If a chunk does not match any vendor prefix it is treated as a main chunk
+ * and weighed against `bundle.softLargestChunkGzipKb` / `hardLargestChunkGzipKb`.
+ */
+export const DEFAULT_VENDOR_BUDGETS: Record<string, { softGzipKb?: number; hardGzipKb: number }> = {
+  "rapier-": { hardGzipKb: 900 },
+  "three-": { hardGzipKb: 300 }
 };
 
 export type RendererMetric =
@@ -52,13 +75,31 @@ export type BundleStat = {
   violation: "hard" | "soft" | "none";
 };
 
+export type VendorBundleStat = {
+  /** Vendor chunk prefix (without hash), e.g. `rapier-`. */
+  prefix: string;
+  /** Full chunk file name as emitted by Rollup, e.g. `rapier-Ch5MPf19.js`. */
+  chunkName: string;
+  gzipKb: number;
+  hardGzipKb: number | undefined;
+  softGzipKb: number | undefined;
+  violation: "hard" | "soft" | "none";
+};
+
 export type DoctorReport = {
   projectDir: string;
   ok: boolean;
   diagnostics: Diagnostic[];
   summary: ProjectSummary;
   budget: PerformanceBudget | undefined;
+  /** Main-chunk size + violation vs the project's `bundle.{soft,hard}LargestChunkGzipKb`. */
   bundle: BundleStat | undefined;
+  /**
+   * Per-vendor chunk stats. Each vendor matched by prefix is reported separately
+   * with its own budget, so a lazy-loaded Rapier chunk doesn't fail a project
+   * that only enforces a main-chunk budget.
+   */
+  vendorBundles: VendorBundleStat[];
   /** Static M17-doctor analysis: how many entities would collapse into batched draw calls. */
   batchCandidates: BatchCandidateReport;
   /** Material-manifest deduplication report (M17-material-sharing-doctor). */
@@ -95,7 +136,9 @@ export function runDoctor(
     }
   }
 
-  const bundle = measureBundle(root, budget);
+  const { mainChunk, vendorChunks } = measureBundles(root, budget);
+  const bundle = mainChunk;
+  const vendorBundles = vendorChunks;
 
   const recommendations: string[] = [];
   const errorCount = check.diagnostics.filter((d) => d.severity === "error").length;
@@ -125,12 +168,23 @@ export function runDoctor(
     );
   } else if (bundle.violation === "hard") {
     recommendations.push(
-      `Largest JS chunk \`${bundle.largestChunk}\` is ${bundle.largestChunkGzipKb.toFixed(1)} KB gzipped — over the hard bundle budget.`
+      `Main JS chunk \`${bundle.largestChunk}\` is ${bundle.largestChunkGzipKb.toFixed(1)} KB gzipped — over the hard bundle budget.`
     );
   } else if (bundle.violation === "soft") {
     recommendations.push(
-      `Largest JS chunk \`${bundle.largestChunk}\` is ${bundle.largestChunkGzipKb.toFixed(1)} KB gzipped — over the soft bundle budget (still under hard).`
+      `Main JS chunk \`${bundle.largestChunk}\` is ${bundle.largestChunkGzipKb.toFixed(1)} KB gzipped — over the soft bundle budget (still under hard).`
     );
+  }
+  for (const v of vendorBundles) {
+    if (v.violation === "hard") {
+      recommendations.push(
+        `Vendor chunk \`${v.chunkName}\` is ${v.gzipKb.toFixed(1)} KB gzipped — over the hard vendor budget (${v.hardGzipKb} KB).`
+      );
+    } else if (v.violation === "soft") {
+      recommendations.push(
+        `Vendor chunk \`${v.chunkName}\` is ${v.gzipKb.toFixed(1)} KB gzipped — over the soft vendor budget (${v.softGzipKb} KB).`
+      );
+    }
   }
   recommendations.push(
     `For browser smoke and HMR, run \`npm run test:e2e\` and \`npm run dev\` (engine doctor stays headless).`
@@ -154,7 +208,10 @@ export function runDoctor(
     );
   }
 
-  const ok = check.ok && bundle?.violation !== "hard";
+  const ok =
+    check.ok &&
+    bundle?.violation !== "hard" &&
+    vendorBundles.every((v) => v.violation !== "hard");
 
   return {
     projectDir,
@@ -163,47 +220,94 @@ export function runDoctor(
     summary,
     budget,
     bundle,
+    vendorBundles,
     batchCandidates,
     materialSharing,
     recommendations
   };
 }
 
-function measureBundle(repoRoot: string, budget: PerformanceBudget | undefined): BundleStat | undefined {
+function measureBundles(
+  repoRoot: string,
+  budget: PerformanceBudget | undefined
+): { mainChunk: BundleStat | undefined; vendorChunks: VendorBundleStat[] } {
   const assetsDir = resolve(repoRoot, "dist/assets");
-  if (!existsSync(assetsDir)) {
-    return undefined;
+  if (!existsSync(assetsDir) || !statSync(assetsDir).isDirectory()) {
+    return { mainChunk: undefined, vendorChunks: [] };
   }
-  if (!statSync(assetsDir).isDirectory()) {
-    return undefined;
-  }
-  let largestBytes = 0;
-  let largestName = "";
+  const vendorBudgets: Record<string, { softGzipKb?: number; hardGzipKb?: number }> = {
+    ...DEFAULT_VENDOR_BUDGETS,
+    ...(budget?.bundle?.vendors ?? {})
+  };
+  const vendorPrefixes = Object.keys(vendorBudgets).sort((a, b) => b.length - a.length);
+
+  let mainLargestBytes = 0;
+  let mainLargestName = "";
+  const vendorByPrefix = new Map<string, { name: string; bytes: number }>();
+
   for (const name of readdirSync(assetsDir)) {
     if (!name.endsWith(".js")) continue;
     const full = resolve(assetsDir, name);
-    const bytes = readFileSync(full);
-    const gzipped = gzipSync(bytes).length;
-    if (gzipped > largestBytes) {
-      largestBytes = gzipped;
-      largestName = name;
+    const gzipped = gzipSync(readFileSync(full)).length;
+    const prefix = vendorPrefixes.find((p) => name.startsWith(p));
+    if (prefix !== undefined) {
+      const prev = vendorByPrefix.get(prefix);
+      if (prev === undefined || gzipped > prev.bytes) {
+        vendorByPrefix.set(prefix, { name, bytes: gzipped });
+      }
+      continue;
+    }
+    if (gzipped > mainLargestBytes) {
+      mainLargestBytes = gzipped;
+      mainLargestName = name;
     }
   }
-  if (largestName === "") {
-    return undefined;
+
+  let mainChunk: BundleStat | undefined;
+  if (mainLargestName !== "") {
+    const gzipKb = mainLargestBytes / 1024;
+    let violation: BundleStat["violation"] = "none";
+    if (
+      budget?.bundle?.hardLargestChunkGzipKb !== undefined &&
+      gzipKb > budget.bundle.hardLargestChunkGzipKb
+    ) {
+      violation = "hard";
+    } else if (
+      budget?.bundle?.softLargestChunkGzipKb !== undefined &&
+      gzipKb > budget.bundle.softLargestChunkGzipKb
+    ) {
+      violation = "soft";
+    }
+    mainChunk = {
+      largestChunk: mainLargestName,
+      largestChunkGzipKb: gzipKb,
+      violation
+    };
   }
-  const gzipKb = largestBytes / 1024;
-  let violation: BundleStat["violation"] = "none";
-  if (budget?.bundle?.hardLargestChunkGzipKb !== undefined && gzipKb > budget.bundle.hardLargestChunkGzipKb) {
-    violation = "hard";
-  } else if (budget?.bundle?.softLargestChunkGzipKb !== undefined && gzipKb > budget.bundle.softLargestChunkGzipKb) {
-    violation = "soft";
+
+  const vendorChunks: VendorBundleStat[] = [];
+  for (const prefix of vendorPrefixes) {
+    const measured = vendorByPrefix.get(prefix);
+    if (measured === undefined) continue;
+    const budgetEntry = vendorBudgets[prefix] ?? {};
+    const gzipKb = measured.bytes / 1024;
+    let violation: VendorBundleStat["violation"] = "none";
+    if (budgetEntry.hardGzipKb !== undefined && gzipKb > budgetEntry.hardGzipKb) {
+      violation = "hard";
+    } else if (budgetEntry.softGzipKb !== undefined && gzipKb > budgetEntry.softGzipKb) {
+      violation = "soft";
+    }
+    vendorChunks.push({
+      prefix,
+      chunkName: measured.name,
+      gzipKb,
+      hardGzipKb: budgetEntry.hardGzipKb,
+      softGzipKb: budgetEntry.softGzipKb,
+      violation
+    });
   }
-  return {
-    largestChunk: largestName,
-    largestChunkGzipKb: gzipKb,
-    violation
-  };
+
+  return { mainChunk, vendorChunks };
 }
 
 export function formatDoctor(report: DoctorReport): string {
@@ -245,7 +349,18 @@ export function formatDoctor(report: DoctorReport): string {
   }
   if (report.bundle !== undefined) {
     lines.push(
-      `  measured: \`${report.bundle.largestChunk}\` at ${report.bundle.largestChunkGzipKb.toFixed(1)} KB gzipped (${report.bundle.violation})`
+      `  main chunk: \`${report.bundle.largestChunk}\` at ${report.bundle.largestChunkGzipKb.toFixed(1)} KB gzipped (${report.bundle.violation})`
+    );
+  }
+  for (const v of report.vendorBundles) {
+    const limit =
+      v.hardGzipKb !== undefined
+        ? `hard ${v.hardGzipKb} KB`
+        : v.softGzipKb !== undefined
+          ? `soft ${v.softGzipKb} KB`
+          : "no budget";
+    lines.push(
+      `  vendor ${v.prefix}: \`${v.chunkName}\` at ${v.gzipKb.toFixed(1)} KB gzipped (${limit}, ${v.violation})`
     );
   }
   lines.push("");

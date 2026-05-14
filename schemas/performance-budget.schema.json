@@ -20,8 +20,28 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "softLargestChunkGzipKb": { "type": "number", "exclusiveMinimum": 0 },
-        "hardLargestChunkGzipKb": { "type": "number", "exclusiveMinimum": 0 }
+        "softLargestChunkGzipKb": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Soft ceiling for the largest non-vendor (main) chunk in `dist/assets`. `engine doctor` emits a warning when crossed."
+        },
+        "hardLargestChunkGzipKb": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Hard ceiling for the largest non-vendor (main) chunk. `engine doctor` exits non-zero when crossed. Vendor chunks (e.g. Rapier WASM, Three.js) are weighed against `bundle.vendors` overrides or DEFAULT_VENDOR_BUDGETS instead."
+        },
+        "vendors": {
+          "type": "object",
+          "description": "Per-vendor chunk budgets keyed by Rollup chunk-name prefix (matches scripts/check-bundle-size.mjs). When omitted, doctor falls back to built-in default vendor budgets so a lazy-loaded Rapier chunk does not fail a project that only enforces a main-chunk budget.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "softGzipKb": { "type": "number", "exclusiveMinimum": 0 },
+              "hardGzipKb": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
       }
     }
   },

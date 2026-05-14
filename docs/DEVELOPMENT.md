@@ -1,22 +1,39 @@
 # Development
 
-This file documents the intended development workflow. The actual commands will be wired during Sprint 1.
+This file documents the day-to-day development workflow. AGF is the public engine repository root; example games are nested under `examples/`.
 
-The current folder is the public engine repository root. Example games are nested under `examples/`.
-
-## Expected Commands
+## Commands
 
 ```bash
+# Run the showcase app (picks a project via `?project=<name>`)
 npm run dev
-npm run build
-npm run typecheck
-npm run test
-npm run test:e2e
-npm run preflight
+
+# Engine CLI surface (all run via `tsx engine/tools/cli.ts <cmd>`)
 npm run engine:check -- examples/hello-3d
 npm run engine:inspect -- examples/hello-3d
 npm run engine:inspect -- examples/hello-3d --json
-npm run playtest examples/hello-3d
+npm run engine:doctor -- examples/hello-3d
+npm run engine:summarize -- examples/hello-3d
+npm run engine:migrate -- examples/hello-3d
+npm run engine:asset -- optimize examples/beacon-world
+npm run engine:replay -- <recording.json>
+npm run engine:docs -- examples/hello-3d
+npm run engine:patch -- examples/hello-3d <patch.json>
+
+# Verification
+npm run typecheck                 # tsc --noEmit
+npm run test                      # vitest
+npm run test:e2e                  # playwright
+npm run repo:hygiene              # local mirror of CI Cyrillic check
+npm run imports:check             # engine/core import boundary
+npm run systems:check             # no raw world.query() in hot paths
+npm run bundle:check              # dist/assets size budgets
+npm run preflight                 # everything above + build
+
+# Reference backends
+npm run backend:node              # Node smoke validator (no transport)
+npm run backend:node:serve        # Node smoke + WebSocket --serve mode
+npm run backend:dotnet            # .NET skeleton (smoke-only)
 dotnet build examples/backends/dotnet-world-server/GameServer.csproj
 ```
 
@@ -46,7 +63,7 @@ For failures, follow `docs/agent/debug-protocol.md`. For "does it work?" discuss
 
 ## Project Validation
 
-`npm run preflight` validates `examples/hello-3d`, runs typecheck, runs unit tests, builds the static site and runs the browser smoke test.
+`npm run preflight` runs the local mirror of CI (`repo:hygiene`, `engine:check:examples`, `imports:check`, `systems:check`), then typecheck, unit tests, production build, bundle-size check and Playwright e2e in sequence.
 
 Use `engine check` before launching or editing a project deeply:
 

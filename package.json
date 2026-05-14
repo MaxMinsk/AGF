@@ -3,6 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "description": "Agent-first browser game framework. TypeScript + Three.js + JSON schemas + ECS + CLI/dev-bridge tooling so AI coding agents can author, validate and playtest games without a visual editor.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaxMinsk/AGF.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MaxMinsk/AGF/issues"
+  },
+  "homepage": "https://github.com/MaxMinsk/AGF#readme",
+  "keywords": [
+    "game-engine",
+    "game-framework",
+    "browser-games",
+    "threejs",
+    "ecs",
+    "agent-first",
+    "ai-coding",
+    "rapier",
+    "json-schema",
+    "typescript"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -29,7 +51,8 @@
     "bundle:check": "node scripts/check-bundle-size.mjs",
     "imports:check": "node scripts/check-import-boundaries.mjs",
     "systems:check": "node scripts/check-system-queries.mjs",
-    "preflight": "npm run engine:check:examples && npm run imports:check && npm run systems:check && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
+    "repo:hygiene": "node scripts/check-repo-hygiene.mjs",
+    "preflight": "npm run repo:hygiene && npm run engine:check:examples && npm run imports:check && npm run systems:check && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
   },
   "engines": {
     "node": ">=20.19.0"

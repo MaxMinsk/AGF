@@ -227,7 +227,7 @@ End of Phase 1: the renderer is five systems + a dumb adapter. *Visible* output 
 
 ## 8. Phase 2 — "Unity-class" feature target
 
-Phase 1 only buys structure. The user-facing goal — "почти как в Unity" — means the renderer eventually covers materials beyond `MeshStandardMaterial`, real lighting, real shadows, batching that scales to thousands of dynamic objects, post-processing, IBL/envmaps, tonemapping, multiple cameras. Each capability is its own epic; this section sequences them and shows how they slot into the five-system seam without re-architecting.
+Phase 1 only buys structure. The user-facing goal — "almost Unity-class" — means the renderer eventually covers materials beyond `MeshStandardMaterial`, real lighting, real shadows, batching that scales to thousands of dynamic objects, post-processing, IBL/envmaps, tonemapping, multiple cameras. Each capability is its own epic; this section sequences them and shows how they slot into the five-system seam without re-architecting.
 
 **Principles that apply to every Phase 2 milestone:**
 

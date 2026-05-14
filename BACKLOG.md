@@ -21,20 +21,35 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 43 — TBD
+## Current Sprint: Sprint 43 — Open-source readiness
 
-Sprint 43 focus is picked at sprint start. Natural openers (in priority order based on Sprint 42 close):
+Triggered by `Notes/codex_review_2.md` (open-source readiness audit, 2026-05-14). The review flagged release-hygiene blockers — missing LICENSE, stale README/DEVELOPMENT/backend docs, doctor vs bundle:check budget mismatch, one Cyrillic phrase in a research doc. Sprint 43 closes those gates so AGF can be presented as a pre-alpha engine without confusing first-time readers.
 
-1. **M21-shadow-pcss-modern** — rewrite the PCSS substitution against the modern PCF chunk. Today's S41 implementation only hits the BASIC variant of `getShadow` (texture2D path); default `PCFShadowMap` uses Vogel disc + `sampler2DShadow` + `texture(...)`, so PCSS silently no-ops in every project that doesn't override `shadowMap.type`. Substitute against that chunk and verify on `shadows-bench` + `physics-bench`.
-2. **M21-shadow-pcss-csm** — extend PCSS into `three/addons/csm/CSMShader.js` so cascade-shadow scenes (`shadows-bench`) get PCSS too. Today `applyPcssShadowChunks` only touches the standard `shadowmap_pars_fragment` chunk; CSM has its own.
-3. **ASSET-texture-compress** — KTX2 / Basis texture compression behind a `--textures` flag on `engine asset optimize`. Needs `basisu` toolchain commitment + per-channel policy authoring + `sharp` runtime.
-4. **M21-cam-cinematic** — scripted camera-track playback (sequence of `{ position, target, duration, ease }` waypoints). Useful for intro cinematics + replay tooling.
-5. **M21-env-cube** — cubemap environment source (6-face cross or per-face URLs) via CubeTextureLoader, complementing the S42 HDR path.
-6. **M21-webgpu-spike** — async WebGPU renderer adapter behind a profile flag (`project.json#renderer.backend: "auto" | "webgl" | "webgpu"`). Anchors the eventual TSL decision.
-7. **M17-lod-batched** — wire `LodSelectionSystem` to BatchedMesh's per-instance geometry id so LOD swap doesn't drop the entity out of the bucket.
-8. **ASSET-decoder-vendor** — vendor draco / basis libs into `public/decoders/` for offline / air-gapped builds (S40 vendored them but verify the decoder paths + add a CI guard against the CDN fallback).
+### Stories
 
-Default sprint size is 8–12 stories per `feedback-sprint-size`.
+1. **OSS-cyrillic-fix** ✅ — Replaced `"почти как в Unity"` → `"almost Unity-class"` in `docs/research/renderer-ecs-split-investigation.md`.
+2. **OSS-hygiene-local** ✅ — `scripts/check-repo-hygiene.mjs` + `npm run repo:hygiene` script + prepended to `preflight`. Local mirror of `.github/workflows/repo-hygiene.yml`.
+3. **OSS-license-metadata** ✅ — `LICENSE` (Apache-2.0), `THIRD_PARTY_NOTICES.md` (Draco / Basis Universal / Three.js / Rapier / AJV provenance), `package.json` gets `license`, `repository`, `bugs`, `homepage`, `keywords`, `description`.
+4. **OSS-community** ✅ — `CONTRIBUTING.md` (preflight contract + agent rules), `SECURITY.md` (DEV-only `__agf` boundary, vulnerability reporting).
+5. **OSS-readme-refresh** ✅ — Replaced Sprint-1-era README with pre-alpha status, quickstart, what-works-today list, examples, agent workflow, limitations, roadmap, license.
+6. **OSS-docs-sync** ✅ — `docs/DEVELOPMENT.md` drops "wired during Sprint 1", lists actual command surface; `examples/backends/README.md` documents Node WebSocket `--serve` mode; `examples/backends/node-world-server/README.md` documents serve mode + threat model.
+7. **OSS-doctor-budget-align** ✅ — `engine doctor` now splits main-chunk budgets from vendor-chunk budgets matching `scripts/check-bundle-size.mjs`. `DEFAULT_VENDOR_BUDGETS` default for `rapier-` / `three-`. Per-project `bundle.vendors` overrides. 4 unit tests (`tests/unit/doctor-vendor-budgets.test.ts`).
+8. **OSS-backlog-cleanup** ✅ — `HIGH_LEVEL_BACKLOG.md` "Sequencing the M-list" updated to mark steps 1–6 done, list real outstanding work.
+
+### Verification
+
+- `npm run repo:hygiene` ✅ — 431 tracked files, no Cyrillic.
+- `npm run typecheck` ✅.
+- `npm run engine:check:examples` ✅ — 5 projects.
+- `npm run imports:check` / `systems:check` ✅.
+- `npm run test` ✅ — 65 files, 412 tests.
+- `npm run engine:doctor -- examples/hello-3d` / `-- examples/beacon-world` — both clean, vendor chunks reported separately within their budgets.
+
+### Deferred to Sprint 44
+
+The renderer / asset-pipeline openers that were originally pencilled for Sprint 43 (PCSS-modern, PCSS-CSM, ASSET-texture-compress, cam-cinematic, env-cube, webgpu-spike, M17-lod-batched, ASSET-decoder-vendor verification) move to Sprint 44 alongside the remaining OSS-readiness work (CI parity, e2e stability).
+
+Default sprint size is 8–12 stories per `feedback-sprint-size`. Sprint 43 lands 8 stories.
 
 ### Parking lot
 
