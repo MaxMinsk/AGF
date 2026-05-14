@@ -40,7 +40,9 @@ export const RENDER_INTERNAL_COMPONENTS: ReadonlySet<ComponentName> = new Set([
   "RenderLightHandle",
   // M24-sensors: runtime-only collision state populated by PhysicsSyncSystem.
   "CurrentContacts3D",
-  "OverlappingTriggers3D"
+  "OverlappingTriggers3D",
+  // M17-lod: runtime-only stash for hidden entities (fallback: "hide").
+  "LodHidden"
 ]);
 
 export function snapshotWorld(

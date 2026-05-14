@@ -102,6 +102,9 @@
             "Batchable": {
               "$ref": "#/definitions/batchableComponent"
             },
+            "LOD": {
+              "$ref": "#/definitions/lodComponent"
+            },
             "RigidBody3D": {
               "$ref": "#/definitions/rigidBody3DComponent"
             },
@@ -594,6 +597,46 @@
           }
         }
       ]
+    },
+    "lodComponent": {
+      "description": "M17-lod: per-entity LOD chain. LodSelectionSystem reads the active camera's world position, picks the lowest-maxDistance level whose threshold the entity is inside, and writes that level's mesh / material onto MeshRenderer. Levels must be sorted by maxDistance ascending. `fallback` decides what happens past the last threshold — `last` keeps the cheapest mesh, `hide` drops the entity from rendering by removing MeshRenderer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["levels"],
+      "properties": {
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["maxDistance", "mesh"],
+            "properties": {
+              "maxDistance": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Distance from the active camera below which this level renders."
+              },
+              "mesh": {
+                "type": "string",
+                "minLength": 1
+              },
+              "material": {
+                "type": "string",
+                "minLength": 1
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            }
+          }
+        },
+        "fallback": {
+          "enum": ["last", "hide"],
+          "default": "last"
+        }
+      }
     },
     "batchableComponent": {
       "description": "Opts an entity into the M17 renderer batcher. BatchingSystem groups entities by (mesh + material + shadow flags + group) and emits one Three.js InstancedMesh per bucket. The `group` field is an authoring hint — siblings sharing the same group prefer the same bucket. The renderer treats entities WITHOUT this component as un-batched (single Mesh per entity). Omit to keep the existing per-entity path.",
