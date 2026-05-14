@@ -10,6 +10,7 @@ This folder is the public repository root for the engine. Example games are nest
 - Project-specific gameplay code, components and schema fragments live under `examples/<project>/`, never in `engine/` or root `schemas/`. Engine ships only generic primitives + reusable systems.
 - Use English for all repository content: code, comments, identifiers, docs, commit messages, PR text, diagnostics, fixtures. Conversational replies follow the user's language; only what lands in the repo is locked to English.
 - Keep gameplay state in ECS data and commands, not in renderer objects or hidden globals.
+- **Prefer ECS systems by default.** When adding new runtime behaviour (rendering passes, asset bindings, audio, input adapters, network adapters, etc.) the default shape is a scheduler-registered `System` reading/writing typed components. Deviate only when there is a concrete blocker — measurable perf cost, significant architectural complexity, or a third-party API that demands an opaque internal cache. Document the deviation inline when it happens.
 - Do not import Three.js, DOM APIs, Vite or Playwright from `engine/core`.
 - Do not edit generated files by hand.
 - Treat JSON Schema project data as runtime input: validate before trusting it.
