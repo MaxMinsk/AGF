@@ -13,8 +13,39 @@ export type WorldSnapshot = {
   time: TimeContext;
 };
 
-export function snapshotWorld(world: World, time: Readonly<TimeContext>): WorldSnapshot {
-  const componentNames = world.componentNames();
+export type SnapshotOptions = {
+  /**
+   * Include renderer-internal components (`LocalToWorld`, `RenderMeshHandle`,
+   * `AppliedGeometryRef`, `AppliedMaterialRef`, `ActiveCamera`) in the
+   * output. Defaults to false so agent inspection matches scene authoring
+   * shape. Set to true for renderer-pipeline debugging.
+   */
+  includeRenderInternals?: boolean;
+};
+
+/**
+ * Component names that exist purely to wire the renderer Systems (M21-b..f)
+ * together. They are derived from authoring components (`Transform`,
+ * `MeshRenderer`, `Camera`) and excluded from the default snapshot view so
+ * agents don't see them as authorable surfaces.
+ */
+export const RENDER_INTERNAL_COMPONENTS: ReadonlySet<ComponentName> = new Set([
+  "LocalToWorld",
+  "RenderMeshHandle",
+  "AppliedGeometryRef",
+  "AppliedMaterialRef",
+  "ActiveCamera"
+]);
+
+export function snapshotWorld(
+  world: World,
+  time: Readonly<TimeContext>,
+  options: SnapshotOptions = {}
+): WorldSnapshot {
+  const includeInternals = options.includeRenderInternals === true;
+  const componentNames = world.componentNames().filter((name) =>
+    includeInternals || !RENDER_INTERNAL_COMPONENTS.has(name)
+  );
   const entityIds = world.entityIds().sort();
   const entities: SnapshotEntity[] = entityIds.map((id) => {
     const components: Record<ComponentName, ComponentData> = {};
