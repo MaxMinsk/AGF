@@ -42,6 +42,16 @@ export type ProjectMeta = {
     components: ReadonlyArray<string>;
     slot?: string;
   };
+  /**
+   * Optional Rapier3D physics config (M24). `enabled: true` triggers the
+   * lazy WASM import + PhysicsSyncSystem registration on the scheduler.
+   * Projects that omit this field pay zero physics bundle cost.
+   */
+  physics?: {
+    enabled?: boolean;
+    gravity?: ReadonlyArray<number>;
+    fixedDt?: number;
+  };
 };
 
 export type AppOptions = {
@@ -122,6 +132,8 @@ export type AppHandle = {
     shadowCasters: number;
     buckets: number;
     bucketInstances: number;
+    batchedBuckets: number;
+    batchedBucketInstances: number;
     handleLeak: number;
   };
   dispose(): void;
@@ -239,6 +251,31 @@ export async function createApp(
       persistence.slot = project.persistence.slot;
     }
     runtimeOptions.persistence = persistence;
+  }
+
+  // M24-sync: lazy-load Rapier and register PhysicsSyncSystem before
+  // `startRuntime` ticks. Adapter init is async (WASM); registering after
+  // start would race the first fixed step.
+  if (project.physics?.enabled === true) {
+    const { createRapierAdapter } = await import(
+      "../engine/physics/rapier/rapier-adapter"
+    );
+    const { createPhysicsBodyRegistry } = await import(
+      "../engine/physics/rapier/physics-body-registry"
+    );
+    const { createPhysicsSyncSystem } = await import(
+      "../engine/physics/rapier/physics-sync-system"
+    );
+    const gravity = project.physics.gravity;
+    const physicsAdapter = await createRapierAdapter({
+      ...(gravity !== undefined && gravity.length >= 3
+        ? { gravity: [gravity[0] ?? 0, gravity[1] ?? -9.81, gravity[2] ?? 0] as const }
+        : {}),
+      ...(project.physics.fixedDt !== undefined ? { fixedDt: project.physics.fixedDt } : {})
+    });
+    const physicsRegistry = createPhysicsBodyRegistry(physicsAdapter);
+    const physicsSystem = createPhysicsSyncSystem(physicsRegistry, physicsAdapter);
+    scheduler.register(physicsSystem);
   }
 
   const runtime: RuntimeHandle = await startRuntime(runtimeOptions);

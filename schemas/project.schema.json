@@ -49,6 +49,32 @@
       "minItems": 1,
       "uniqueItems": true
     },
+    "physics": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional Rapier3D physics config (M24). When `enabled: true`, the runtime lazy-imports the Rapier WASM adapter and registers PhysicsSyncSystem in the fixed-update loop. Projects that omit this block pay zero bundle cost.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Master toggle. False (or absent) → no Rapier import, no PhysicsSyncSystem."
+        },
+        "gravity": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "default": [0, -9.81, 0],
+          "description": "World gravity vector in m/s²."
+        },
+        "fixedDt": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.01666666666,
+          "description": "Physics step in seconds. Defaults to 1/60 — matches the engine's fixed-update tick. Override to slow-mo (0.0083 = 120 Hz) or potato mode (0.033 = 30 Hz)."
+        }
+      }
+    },
     "persistence": {
       "type": "object",
       "additionalProperties": false,

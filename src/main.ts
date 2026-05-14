@@ -93,6 +93,8 @@ declare global {
         readonly shadowCasters: number;
         readonly buckets: number;
         readonly bucketInstances: number;
+        readonly batchedBuckets: number;
+        readonly batchedBucketInstances: number;
         readonly handleLeak: number;
       };
       /**
@@ -157,6 +159,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       project: projectJson.default as ProjectMeta,
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.beaconWorldBootstrap
+    };
+  },
+  "batch-bench": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/batch-bench/project.json"),
+      import("../examples/batch-bench/scenes/start.scene.json"),
+      import("../examples/batch-bench/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.batchBenchBootstrap
     };
   }
 };

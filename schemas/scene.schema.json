@@ -107,6 +107,9 @@
             },
             "Collider3D": {
               "$ref": "#/definitions/collider3DComponent"
+            },
+            "CharacterController3D": {
+              "$ref": "#/definitions/characterController3DComponent"
             }
           }
         }
@@ -372,6 +375,43 @@
       "properties": {
         "cast": { "type": "boolean", "default": true },
         "receive": { "type": "boolean", "default": true }
+      }
+    },
+    "characterController3DComponent": {
+      "description": "M24-character: Rapier kinematic character controller. Pairs with `RigidBody3D { type: \"kinematicPosition\" }` + `Collider3D { kind: \"capsule\" }`. Gameplay code writes per-step intent through `runtime.physics.moveCharacter(entityId, [dx, dy, dz])` (or the runtime-only `CharacterIntent3D` component); CharacterMovementSystem runs the Rapier controller, applies corrected movement, writes the resolved transform + a `Grounded3D` runtime component.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "offset": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.01,
+          "description": "Skin distance kept between the character and other colliders (Rapier offset parameter)."
+        },
+        "maxSlopeDegrees": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 89,
+          "default": 45,
+          "description": "Steepest slope angle the character can climb."
+        },
+        "snapToGroundDistance": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Vertical distance to snap to ground after a downward correction (handles small steps). 0 disables snapping."
+        },
+        "applyImpulsesToDynamicBodies": {
+          "type": "boolean",
+          "default": true,
+          "description": "If true, the character pushes dynamic bodies it touches (instead of just sliding off them)."
+        },
+        "mass": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 3,
+          "description": "Effective mass for impulse calculations when push-pushing dynamic bodies."
+        }
       }
     },
     "rigidBody3DComponent": {

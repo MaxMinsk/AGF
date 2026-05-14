@@ -55,6 +55,51 @@ export async function runHierarchyBench(): Promise<SuiteResult> {
         cache.resolveWorld(world);
       };
     });
+    suite.bench(`cache-d resolveDirtyDelta 1%-dirty chain-of-8 @ ${size.toLocaleString("en-US")}`, () => {
+      // M16-cache-d: persistent children index. Steady state with no
+      // dirty entries returns empty map (no traversal). 1% dirty walks
+      // only the dirty subtree.
+      const world = makeWorld({ entities: size, hierarchy: true });
+      const cache = createHierarchyCache();
+      const inputCache = new Map<string, TransformInput>();
+      for (const id of world.entityIds()) {
+        if (!world.hasComponent(id, "Transform")) continue;
+        const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+        if (t === undefined) continue;
+        const entry: TransformInput = { id };
+        if (typeof t["parent"] === "string") entry.parent = t["parent"];
+        const pos = t["position"];
+        if (Array.isArray(pos)) entry.position = [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0];
+        inputCache.set(id, entry);
+      }
+      cache.resolveDirtyDelta(world, [...inputCache.values()], new Set(inputCache.keys()));
+      world.consumeDirty("Transform");
+      const mutateCount = Math.max(1, Math.floor(size / 100));
+      let cursor = 0;
+      return () => {
+        for (let i = 0; i < mutateCount; i += 1) {
+          const id = `e${cursor}`;
+          cursor = (cursor + 1) % size;
+          const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+          if (t === undefined) continue;
+          world.setComponent(id, "Transform", { ...t, position: [Math.random(), 0, 0] });
+        }
+        const dirty = world.consumeDirty("Transform");
+        for (const id of dirty) {
+          const t = world.getComponent<Record<string, unknown>>(id, "Transform");
+          if (t === undefined) {
+            inputCache.delete(id);
+            continue;
+          }
+          const entry: TransformInput = { id };
+          if (typeof t["parent"] === "string") entry.parent = t["parent"];
+          const pos = t["position"];
+          if (Array.isArray(pos)) entry.position = [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0];
+          inputCache.set(id, entry);
+        }
+        cache.resolveDirtyDelta(world, [...inputCache.values()], dirty);
+      };
+    });
     suite.bench(`cache-c resolveWithDirty 1%-dirty chain-of-8 @ ${size.toLocaleString("en-US")}`, () => {
       // M16-cache-c: caller-supplied dirty set, no per-entity revision read.
       const world = makeWorld({ entities: size, hierarchy: true });

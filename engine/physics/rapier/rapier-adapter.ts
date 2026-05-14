@@ -51,6 +51,35 @@ export type RapierAdapterInfo = {
   totalSteps: number;
 };
 
+/** M24-sensors: drained per fixed step. handle1/handle2 are AGF ColliderHandle ids; resolve via the registry. */
+export type CollisionEvent = {
+  kind: "collision" | "intersection";
+  handle1: ColliderHandle;
+  handle2: ColliderHandle;
+  started: boolean;
+};
+
+/** M24-character: opaque handle to a Rapier KinematicCharacterController. */
+export type CharacterControllerHandle = number;
+
+export type CharacterControllerSpec = {
+  /** Skin distance. Rapier's `offset` parameter. Default 0.01. */
+  offset?: number;
+  /** Max climbable slope in radians. Default ≈ 45°. */
+  maxSlope?: number;
+  /** Vertical snap distance for stairs / small steps. 0 disables. */
+  snapToGround?: number;
+  applyImpulsesToDynamicBodies?: boolean;
+  characterMass?: number;
+};
+
+export type CharacterMoveResult = {
+  /** Movement actually applied — may be shorter than the desired vector if the controller hit something. */
+  movement: readonly [number, number, number];
+  grounded: boolean;
+  slidingDownSlope: boolean;
+};
+
 export type RapierAdapter = {
   init(): Promise<void>;
   acquireBody(spec: BodyAcquireSpec): BodyHandle;
@@ -62,6 +91,19 @@ export type RapierAdapter = {
   getBodyRotation(handle: BodyHandle): readonly [number, number, number, number] | undefined;
   /** Advance the world by `dt` seconds. Pass exactly `fixedDt` from the runtime loop. */
   step(dt?: number): void;
+  /** Drain queued collision + intersection events from the most recent step. Pass-through map onto our handles. */
+  drainEvents(): CollisionEvent[];
+  /** M24-character: create a kinematic character controller (one per character). */
+  acquireCharacterController(spec?: CharacterControllerSpec): CharacterControllerHandle;
+  releaseCharacterController(handle: CharacterControllerHandle): void;
+  /** Run the controller's collide-and-slide pass against a kinematic body's collider; returns the resolved movement + grounded flag. */
+  computeCharacterMovement(
+    controller: CharacterControllerHandle,
+    collider: ColliderHandle,
+    desired: readonly [number, number, number]
+  ): CharacterMoveResult | undefined;
+  /** Apply a kinematic translation to a body — used by characters to advance after computeCharacterMovement. */
+  setBodyNextKinematicTranslation(handle: BodyHandle, position: readonly [number, number, number]): void;
   setGravity(gravity: readonly [number, number, number]): void;
   info(): RapierAdapterInfo;
   dispose(): void;
@@ -92,15 +134,20 @@ export function createAdapterFromModule(
 
   const world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] });
   world.timestep = fixedDt;
+  const eventQueue = new RAPIER.EventQueue(true);
 
   let nextBodyHandle = 1;
   let nextColliderHandle = 1;
   const bodies = new Map<BodyHandle, RAPIER_TYPES.RigidBody>();
   const colliders = new Map<ColliderHandle, RAPIER_TYPES.Collider>();
+  /** Reverse map from Rapier's internal collider handle (a u32) to ours. */
+  const rapierToHandle = new Map<number, ColliderHandle>();
   /** body → collider handles. Lets `releaseBody` purge children from `colliders`. */
   const bodyColliders = new Map<BodyHandle, Set<ColliderHandle>>();
   /** Reverse — collider → body. Needed for `releaseCollider` to update `bodyColliders`. */
   const colliderBody = new Map<ColliderHandle, BodyHandle>();
+  const characterControllers = new Map<CharacterControllerHandle, RAPIER_TYPES.KinematicCharacterController>();
+  let nextCharacterHandle = 1;
   let totalSteps = 0;
 
   const eulerToQuat = (rotation: readonly [number, number, number]): { x: number; y: number; z: number; w: number } => {
@@ -218,10 +265,14 @@ export function createAdapterFromModule(
       if (spec.friction !== undefined) desc.setFriction(spec.friction);
       if (spec.restitution !== undefined) desc.setRestitution(spec.restitution);
 
+      // M24-sensors: enable active events so EventQueue collects
+      // collision + intersection starts/stops.
+      desc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
       const collider = world.createCollider(desc, body);
       const handle = nextColliderHandle;
       nextColliderHandle += 1;
       colliders.set(handle, collider);
+      rapierToHandle.set(collider.handle, handle);
       colliderBody.set(handle, bodyHandle);
       bodyColliders.get(bodyHandle)?.add(handle);
       return handle;
@@ -229,6 +280,7 @@ export function createAdapterFromModule(
     releaseCollider(handle): void {
       const collider = colliders.get(handle);
       if (collider === undefined) return;
+      rapierToHandle.delete(collider.handle);
       world.removeCollider(collider, true);
       colliders.delete(handle);
       const bid = colliderBody.get(handle);
@@ -261,14 +313,72 @@ export function createAdapterFromModule(
       if (dt !== undefined && dt !== fixedDt) {
         world.timestep = dt;
       }
-      world.step();
+      world.step(eventQueue);
       totalSteps += 1;
       if (dt !== undefined && dt !== fixedDt) {
         world.timestep = fixedDt;
       }
     },
+    drainEvents(): CollisionEvent[] {
+      const out: CollisionEvent[] = [];
+      eventQueue.drainCollisionEvents((h1, h2, started) => {
+        const a = rapierToHandle.get(h1);
+        const b = rapierToHandle.get(h2);
+        if (a === undefined || b === undefined) return;
+        out.push({ kind: "collision", handle1: a, handle2: b, started });
+      });
+      eventQueue.drainContactForceEvents(() => {
+        // ContactForceEvents — unused for v0; drain to keep the queue tidy.
+      });
+      // Rapier intersection (sensor) events ride the same drainCollisionEvents
+      // callback in current API; v0 collapses them under "collision". Future
+      // M24-sensors story splits sensor pairs via collider.isSensor() probe.
+      return out;
+    },
     setGravity(g): void {
       world.gravity = { x: g[0], y: g[1], z: g[2] };
+    },
+    acquireCharacterController(spec = {}): CharacterControllerHandle {
+      const handle = nextCharacterHandle;
+      nextCharacterHandle += 1;
+      const controller = world.createCharacterController(spec.offset ?? 0.01);
+      if (spec.maxSlope !== undefined) controller.setMaxSlopeClimbAngle(spec.maxSlope);
+      if (spec.snapToGround !== undefined && spec.snapToGround > 0) {
+        controller.enableSnapToGround(spec.snapToGround);
+      }
+      if (spec.applyImpulsesToDynamicBodies !== undefined) {
+        controller.setApplyImpulsesToDynamicBodies(spec.applyImpulsesToDynamicBodies);
+      }
+      if (spec.characterMass !== undefined) controller.setCharacterMass(spec.characterMass);
+      characterControllers.set(handle, controller);
+      return handle;
+    },
+    releaseCharacterController(handle): void {
+      const controller = characterControllers.get(handle);
+      if (controller === undefined) return;
+      world.removeCharacterController(controller);
+      characterControllers.delete(handle);
+    },
+    computeCharacterMovement(controllerHandle, colliderHandle, desired): CharacterMoveResult | undefined {
+      const controller = characterControllers.get(controllerHandle);
+      const collider = colliders.get(colliderHandle);
+      if (controller === undefined || collider === undefined) return undefined;
+      controller.computeColliderMovement(collider, {
+        x: desired[0],
+        y: desired[1],
+        z: desired[2]
+      });
+      const movement = controller.computedMovement();
+      return {
+        movement: [movement.x, movement.y, movement.z],
+        grounded: controller.computedGrounded(),
+        slidingDownSlope: false
+      };
+    },
+    setBodyNextKinematicTranslation(handle, position): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.setNextKinematicTranslation({ x: position[0], y: position[1], z: position[2] });
     },
     info(): RapierAdapterInfo {
       return {
@@ -279,8 +389,14 @@ export function createAdapterFromModule(
       };
     },
     dispose(): void {
+      for (const handle of [...characterControllers.keys()]) {
+        const controller = characterControllers.get(handle);
+        if (controller !== undefined) world.removeCharacterController(controller);
+      }
+      characterControllers.clear();
       bodies.clear();
       colliders.clear();
+      eventQueue.free();
       world.free();
     }
   };
