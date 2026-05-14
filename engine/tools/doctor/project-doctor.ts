@@ -10,6 +10,11 @@ import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { checkProject, type Diagnostic } from "../check/project-check";
 import { summarizeProject, type ProjectSummary } from "../summarize/project-summarize";
+import {
+  analyzeBatchCandidates,
+  formatBatchCandidates,
+  type BatchCandidateReport
+} from "./batch-candidates";
 
 export type PerformanceBudget = {
   agfFormatVersion: number;
@@ -45,6 +50,8 @@ export type DoctorReport = {
   summary: ProjectSummary;
   budget: PerformanceBudget | undefined;
   bundle: BundleStat | undefined;
+  /** Static M17-doctor analysis: how many entities would collapse into batched draw calls. */
+  batchCandidates: BatchCandidateReport;
   recommendations: string[];
 };
 
@@ -118,6 +125,13 @@ export function runDoctor(
     `For browser smoke and HMR, run \`npm run test:e2e\` and \`npm run dev\` (engine doctor stays headless).`
   );
 
+  const batchCandidates = analyzeBatchCandidates(projectDir);
+  if (batchCandidates.potentialDrawCallSavings > 0) {
+    recommendations.push(
+      `M17 batching could collapse ${batchCandidates.totalRenderable} renderables into ${batchCandidates.totalBuckets} bucket(s) — ${batchCandidates.potentialDrawCallSavings} draw call(s) saved when the bucketer ships.`
+    );
+  }
+
   const ok = check.ok && bundle?.violation !== "hard";
 
   return {
@@ -127,6 +141,7 @@ export function runDoctor(
     summary,
     budget,
     bundle,
+    batchCandidates,
     recommendations
   };
 }
@@ -210,6 +225,9 @@ export function formatDoctor(report: DoctorReport): string {
       `  measured: \`${report.bundle.largestChunk}\` at ${report.bundle.largestChunkGzipKb.toFixed(1)} KB gzipped (${report.bundle.violation})`
     );
   }
+  lines.push("");
+
+  lines.push(formatBatchCandidates(report.batchCandidates));
   lines.push("");
 
   lines.push("Recommendations:");

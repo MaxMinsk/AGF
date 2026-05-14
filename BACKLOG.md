@@ -43,7 +43,7 @@ Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-s
 
 #### Codex-review follow-ups
 
-- `M17-doctor` `engine doctor` reports batch candidates (entities that share mesh + material + shadow flags) and explains why others wouldn't batch. Sizes the bucketer story before writing it.
+- `M17-doctor` ✅ Implemented. `engine/tools/doctor/batch-candidates.ts` walks every `.scene.json` under `<projectDir>/scenes/`, groups `MeshRenderer` entities by `mesh|material|cast:receive` (the exact key M17 bucketer will use), and surfaces top buckets + singleton isolation reasons through `engine doctor`. Beacon-World today: 8 renderable → 6 buckets, 2 draw calls saved (beacon.west+east, core.north+south). Hazards isolate because their materials differ; ground/drone isolate as unique meshes. 4 unit tests (happy path / shadow-flag split / unique-mesh note / empty scene).
 - `SYS-rule-createquery` Add to AGENTS.md: "Systems must cache `createQuery` handles, never call `world.query()` per frame in a hot path." Lightweight `engine check` warning when a file under `engine/**/systems/` calls `world.query(` directly.
 
 #### Renderer follow-ups surfaced this sprint
