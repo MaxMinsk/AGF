@@ -1,0 +1,133 @@
+// Page-side counterpart of engine/dev/agf-dev-bridge.ts.
+//
+// In DEV, the browser opens a WebSocket to the Vite plugin and answers RPC
+// messages with the current `window.__agf.*` state. Production builds skip
+// this entirely (`import.meta.env.DEV` is statically false in build mode,
+// so Vite drops the call).
+
+type AgfApi = {
+  snapshot?: () => unknown;
+  diagnostics?: () => unknown;
+  rendererInfo?: () => unknown;
+  reloadEvents?: unknown;
+};
+
+export type PageBridgeOptions = {
+  /** Optional WS URL override (used by tests). Defaults to ws://<host>/__agf/ws. */
+  url?: string;
+  /** Project id reported in the hello handshake. */
+  projectId: string;
+  /** Active profile reported in the hello handshake. */
+  profile: string;
+};
+
+export type PageBridgeHandle = {
+  close(): void;
+};
+
+type IncomingMessage = {
+  id?: number;
+  kind?: string;
+};
+
+export function mountPageBridge(options: PageBridgeOptions): PageBridgeHandle {
+  const w = globalThis as { WebSocket?: typeof WebSocket; location?: { host: string } };
+  if (w.WebSocket === undefined) {
+    return { close: () => undefined };
+  }
+  const host = w.location?.host ?? "localhost:5173";
+  const url = options.url ?? `ws://${host}/__agf/ws`;
+  let socket: WebSocket;
+  try {
+    socket = new w.WebSocket(url);
+  } catch {
+    return { close: () => undefined };
+  }
+
+  socket.addEventListener("open", () => {
+    socket.send(
+      JSON.stringify({
+        kind: "hello",
+        payload: { projectId: options.projectId, profile: options.profile }
+      })
+    );
+  });
+
+  socket.addEventListener("message", (event: MessageEvent) => {
+    let msg: IncomingMessage | undefined;
+    try {
+      msg = JSON.parse(typeof event.data === "string" ? event.data : "") as IncomingMessage;
+    } catch {
+      return;
+    }
+    if (msg === undefined || typeof msg.id !== "number" || typeof msg.kind !== "string") {
+      return;
+    }
+    handleRpc(socket, msg.id, msg.kind);
+  });
+
+  return {
+    close(): void {
+      socket.close();
+    }
+  };
+}
+
+function handleRpc(socket: WebSocket, id: number, kind: string): void {
+  const api = (globalThis as { __agf?: AgfApi }).__agf;
+  try {
+    let payload: unknown;
+    switch (kind) {
+      case "snapshot":
+        payload = api?.snapshot?.();
+        break;
+      case "diagnostics":
+        payload = api?.diagnostics?.();
+        break;
+      case "renderer-info":
+        payload = api?.rendererInfo?.();
+        break;
+      case "reload-events":
+        payload = api?.reloadEvents ?? [];
+        break;
+      default: {
+        socket.send(
+          JSON.stringify({
+            id,
+            ok: false,
+            error: {
+              code: "AGF_BRIDGE_PAGE_HANDLER_UNKNOWN",
+              message: `Unknown RPC kind "${kind}".`
+            }
+          })
+        );
+        return;
+      }
+    }
+    if (payload === undefined) {
+      socket.send(
+        JSON.stringify({
+          id,
+          ok: false,
+          error: {
+            code: "AGF_BRIDGE_PAGE_HANDLER_MISSING",
+            message: `window.__agf.${kind} not available (page may still be booting).`
+          }
+        })
+      );
+      return;
+    }
+    socket.send(JSON.stringify({ id, ok: true, payload }));
+  } catch (error) {
+    socket.send(
+      JSON.stringify({
+        id,
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PAGE_HANDLER_FAILED",
+          message: (error as Error).message ?? String(error)
+        }
+      })
+    );
+  }
+}

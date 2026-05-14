@@ -185,6 +185,12 @@ void (async (): Promise<void> => {
       reloadCount: 0,
       reloadEvents: []
     };
+    // Open the dev-bridge WS so an agent can curl /__agf/* against the dev
+    // server without ever touching DevTools. Production builds drop this.
+    const { mountPageBridge } = await import("../engine/dev/page-bridge");
+    const activeProfile =
+      requestedProfile ?? (requestedNetworked === "1" ? "connected" : "static");
+    mountPageBridge({ projectId: selectedId, profile: activeProfile });
   }
 
   if (import.meta.hot) {
