@@ -42,6 +42,13 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   type Object3D,
+  ACESFilmicToneMapping,
+  LinearToneMapping,
+  NoToneMapping,
+  ReinhardToneMapping,
+  CineonToneMapping,
+  AgXToneMapping,
+  type ToneMapping,
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
@@ -228,6 +235,34 @@ export type AdapterOptions = {
    */
   onContextLost?: () => void;
   onContextRestored?: () => void;
+  /**
+   * M21-color: output color pipeline. `toneMapping` defaults to
+   * `aces-filmic` (correct PBR look out of the box); set to `none` to
+   * keep the legacy linear / clamped look. `exposure` defaults to 1.
+   */
+  color?: ColorPipelineOptions;
+};
+
+export type ToneMappingKind =
+  | "none"
+  | "linear"
+  | "reinhard"
+  | "cineon"
+  | "aces-filmic"
+  | "agx";
+
+export type ColorPipelineOptions = {
+  toneMapping?: ToneMappingKind;
+  exposure?: number;
+};
+
+const TONE_MAPPING_BY_KIND: Record<ToneMappingKind, ToneMapping> = {
+  "none": NoToneMapping,
+  "linear": LinearToneMapping,
+  "reinhard": ReinhardToneMapping,
+  "cineon": CineonToneMapping,
+  "aces-filmic": ACESFilmicToneMapping,
+  "agx": AgXToneMapping
 };
 
 export type EnvironmentKind = "generated" | "none";
@@ -303,6 +338,14 @@ export class ThreeRenderAdapter {
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
     this.device.shadowMap.type = PCFShadowMap;
+    // M21-color: default to ACES Filmic with exposure 1.0 — gives PBR
+    // materials a believable highlight roll-off out of the box. Three's
+    // `outputColorSpace` already defaults to `SRGBColorSpace` so we
+    // don't override it here. Projects can opt back to the linear look
+    // via `project.json#render.color.toneMapping: "none"`.
+    const toneMappingKind = options.color?.toneMapping ?? "aces-filmic";
+    this.device.toneMapping = TONE_MAPPING_BY_KIND[toneMappingKind];
+    this.device.toneMappingExposure = options.color?.exposure ?? 1;
     this.scene = new Scene();
     if (options.background !== undefined) {
       this.scene.background = new Color(options.background);

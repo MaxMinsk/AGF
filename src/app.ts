@@ -30,6 +30,14 @@ export type ProjectMeta = {
   render?: {
     background?: string;
     /**
+     * M21-color: output color pipeline. Defaults: toneMapping
+     * "aces-filmic", exposure 1.
+     */
+    color?: {
+      toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
+      exposure?: number;
+    };
+    /**
      * M21-shadow-csm: opt in to cascade shadow maps. When enabled, the
      * adapter constructs a CSM instance against the active camera and
      * routes every renderer-managed material through `setupMaterial`.
@@ -286,6 +294,9 @@ export async function createApp(
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;
+  }
+  if (project.render?.color !== undefined) {
+    runtimeOptions.color = project.render.color;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;

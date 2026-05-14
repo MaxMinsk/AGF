@@ -66,25 +66,24 @@ export class ThreeRenderer {
     canvas: HTMLCanvasElement,
     background?: string,
     assetRegistry?: AssetRegistry,
-    contextCallbacks?: {
+    extraOptions?: {
       onContextLost?: () => void;
       onContextRestored?: () => void;
+      color?: import("./three-render-adapter").ColorPipelineOptions;
     }
   ) {
     this.world = world;
     this.assetRegistry = assetRegistry;
-    const options: {
-      canvas: HTMLCanvasElement;
-      background?: string;
-      onContextLost?: () => void;
-      onContextRestored?: () => void;
-    } = { canvas };
+    const options: import("./three-render-adapter").AdapterOptions = { canvas };
     if (background !== undefined) options.background = background;
-    if (contextCallbacks?.onContextLost !== undefined) {
-      options.onContextLost = contextCallbacks.onContextLost;
+    if (extraOptions?.onContextLost !== undefined) {
+      options.onContextLost = extraOptions.onContextLost;
     }
-    if (contextCallbacks?.onContextRestored !== undefined) {
-      options.onContextRestored = contextCallbacks.onContextRestored;
+    if (extraOptions?.onContextRestored !== undefined) {
+      options.onContextRestored = extraOptions.onContextRestored;
+    }
+    if (extraOptions?.color !== undefined) {
+      options.color = extraOptions.color;
     }
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);

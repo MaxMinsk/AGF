@@ -26,6 +26,11 @@ export type RuntimeOptions = {
   canvas: HTMLCanvasElement;
   scene: SceneInput;
   background?: string;
+  /** M21-color: output color pipeline. Forwarded to the renderer adapter. */
+  color?: {
+    toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
+    exposure?: number;
+  };
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -115,6 +120,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     options.background,
     options.assetRegistry,
     {
+      ...(options.color !== undefined ? { color: options.color } : {}),
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
