@@ -21,31 +21,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 42 — TBD
+## Current Sprint: Sprint 43 — TBD
 
-Sprint 42 focus is picked at sprint start. Natural openers (in priority order based on Sprint 41 close):
+Sprint 43 focus is picked at sprint start. Natural openers (in priority order based on Sprint 42 close):
 
-1. **M21-shadow-pcss-csm** — extend PCSS into `CSMShader.js` so cascade-shadow scenes (`shadows-bench`) benefit too. Today `applyPcssShadowChunks` only touches the standard `shadowmap_pars_fragment` chunk; CSM has its own.
-2. **ASSET-texture-compress** — KTX2 / Basis texture compression behind a `--textures` flag on `engine asset optimize`. Needs `basisu` toolchain commitment + per-channel policy authoring + `sharp` runtime.
-3. **M17-instance-picking-buckets** — resolve `instanceId → EntityId` against M17 InstancedMesh / BatchedMesh buckets so Batchable entities are pickable too.
-4. **M21-cam-follow** — declarative follow-target camera component (target entity, offset, smoothing). Builds on M21-cam-orbit's input-agnostic pattern.
-5. **M21-cam-cinematic** — scripted camera-track playback (sequence of `{ position, target, duration, ease }` waypoints). Useful for intro cinematics + replay tooling.
-6. **M21-env-hdr** — load `.hdr` IBL files via the asset registry (RGBELoader), apply through PMREMGenerator. Replaces the current generated `RoomEnvironment` for projects that want a real sky.
-7. **M21-tsl-investigate** — spike: evaluate Three.js TSL / NodeMaterial for the AGF custom-material manifest path. Output: research doc + a recommendation on whether to defer until WebGPU lands or adopt early.
-8. **M17-static-merge-spike** — static geometry merge with reverse `EntityId` lookup for picking. Opt-in via a `StaticMerge` tag.
+1. **M21-shadow-pcss-modern** — rewrite the PCSS substitution against the modern PCF chunk. Today's S41 implementation only hits the BASIC variant of `getShadow` (texture2D path); default `PCFShadowMap` uses Vogel disc + `sampler2DShadow` + `texture(...)`, so PCSS silently no-ops in every project that doesn't override `shadowMap.type`. Substitute against that chunk and verify on `shadows-bench` + `physics-bench`.
+2. **M21-shadow-pcss-csm** — extend PCSS into `three/addons/csm/CSMShader.js` so cascade-shadow scenes (`shadows-bench`) get PCSS too. Today `applyPcssShadowChunks` only touches the standard `shadowmap_pars_fragment` chunk; CSM has its own.
+3. **ASSET-texture-compress** — KTX2 / Basis texture compression behind a `--textures` flag on `engine asset optimize`. Needs `basisu` toolchain commitment + per-channel policy authoring + `sharp` runtime.
+4. **M21-cam-cinematic** — scripted camera-track playback (sequence of `{ position, target, duration, ease }` waypoints). Useful for intro cinematics + replay tooling.
+5. **M21-env-cube** — cubemap environment source (6-face cross or per-face URLs) via CubeTextureLoader, complementing the S42 HDR path.
+6. **M21-webgpu-spike** — async WebGPU renderer adapter behind a profile flag (`project.json#renderer.backend: "auto" | "webgl" | "webgpu"`). Anchors the eventual TSL decision.
+7. **M17-lod-batched** — wire `LodSelectionSystem` to BatchedMesh's per-instance geometry id so LOD swap doesn't drop the entity out of the bucket.
+8. **ASSET-decoder-vendor** — vendor draco / basis libs into `public/decoders/` for offline / air-gapped builds (S40 vendored them but verify the decoder paths + add a CI guard against the CDN fallback).
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
 ### Parking lot
 
-Open work that did not make the Sprint 40 opener list. Each entry stays here until promoted.
+Open work that did not make the Sprint 43 opener list. Each entry stays here until promoted.
 
 #### Renderer (Phase 2 tail)
 
-- `M21-tsl-investigate` Three.js TSL / NodeMaterial spike — portable WebGL+WebGPU shader authoring without forcing agents into WGSL + GLSL forks.
+- `M21-shadow-pcss-modern` Rewrite PCSS substitution against the modern PCF chunk (Vogel + `sampler2DShadow`). S41 only touched the BASIC variant.
+- `M21-shadow-pcss-csm` Extend PCSS substitution into `CSMShader.js`.
 - `M21-webgpu-spike` Async WebGPU renderer adapter behind a profile flag (`project.json#renderer.backend: "auto" | "webgl" | "webgpu"`).
-- `M21-env-hdr` / `M21-env-cube` HDR / cubemap environment sources beyond the generated room.
-- `M21-cam-*` Camera helpers (orbit / follow / cinematic) as ECS components.
+- `M21-env-cube` Cubemap environment source (6-face cross or per-face URLs) via CubeTextureLoader.
+- `M21-cam-cinematic` Scripted camera-track playback (`{ position, target, duration, ease }` waypoints).
 - `M21-shadow-soft` Re-evaluate `PCFSoftShadowMap` vs `PCFShadowMap` vs `VSMShadowMap` once three.js stabilises soft shadows.
 - `M21-shadow-glb-acne` Self-shadow polish on low-poly GLB meshes; investigate per-material `shadowSide = THREE.BackSide`, scale-aware bias, or polygonOffset overrides.
 
@@ -57,7 +58,8 @@ Open work that did not make the Sprint 40 opener list. Each entry stays here unt
 
 #### Batching / scene composition
 
-- `M17-static-merge-spike` Static geometry merge with reverse `EntityId` lookup for picking. Strictly opt-in per-entity (`StaticMerge` tag).
+- `M17-lod-batched` Wire LodSelectionSystem to BatchedMesh's per-instance geometry id so LOD swap doesn't drop the entity out of the bucket.
+- `M17-static-merge-spike` Static geometry merge with reverse `EntityId` lookup for picking. Strictly opt-in per-entity (`StaticMerge` tag). Deferred until a 10k+ static-prop project asks (see `docs/research/m17-static-merge-investigation.md`).
 - `M3-c-load` + `M3-c-beacon` Wire `expandScenePrefabs` into scene-load + Beacon adopts prefab instances.
 - `M16-cache-e` Reusable matrices / pooled scratch buffers inside the cache layer.
 

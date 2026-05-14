@@ -9,10 +9,17 @@ export type SceneEntityInput = {
   components: Readonly<Record<ComponentName, ComponentData>>;
 };
 
-export type SceneEnvironmentInput = {
-  /** "generated" (M21-env-generated, default) or "none". Future kinds: "hdr", "cube". */
-  kind: "generated" | "none";
-};
+export type SceneEnvironmentInput =
+  | { kind: "generated" }
+  | { kind: "none" }
+  | {
+      /** M21-env-hdr: equirectangular HDR file pre-filtered through PMREMGenerator. */
+      kind: "hdr";
+      /** Path under the project's assets root, e.g. `runtime/sky/forest_2k.hdr`. */
+      url: string;
+      /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
+      intensity?: number;
+    };
 
 export type SceneInput = {
   id: string;

@@ -11,6 +11,16 @@
 // this process. Toggling back to PCF requires a page reload. Adapters
 // call this at construction time when `options.shadowAlgorithm === "pcss"`;
 // no other call site should touch it.
+//
+// **Current scope (v0):** the substitution targets the BASIC-shadowmap
+// variant of `getShadow` (the one that calls `texture2D(...)` rather
+// than `texture(...)` with `sampler2DShadow`). Default three.js shadow
+// mode `PCFShadowMap` uses the modern Vogel-disc / sampler2DShadow
+// path, so the substitution silently no-ops there. A proper fix that
+// rewrites the modern PCF variant + a CSM-shader patch are tracked as
+// `M21-shadow-pcss-modern` + `M21-shadow-pcss-csm`. Until they land,
+// `algorithm: "pcss"` is only visibly different from PCF when paired
+// with `BasicShadowMap` (which AGF doesn't currently expose).
 
 import { ShaderChunk } from "three";
 

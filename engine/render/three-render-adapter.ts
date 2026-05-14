@@ -70,6 +70,7 @@ import {
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -336,7 +337,40 @@ const TONE_MAPPING_BY_KIND: Record<ToneMappingKind, ToneMapping> = {
   "agx": AgXToneMapping
 };
 
-export type EnvironmentKind = "generated" | "none";
+export type EnvironmentKind = "generated" | "none" | "hdr";
+
+/**
+ * M17-instance-picking + M17-instance-picking-buckets: hit-test result
+ * from `pickAtNdc`. `kind` discriminates between a regular per-entity
+ * Mesh, an InstancedMesh bucket slot, and a BatchedMesh bucket slot.
+ * Callers resolve `(bucket, instance)` to an EntityId by reading the
+ * `BatchedMeshHandle` component table.
+ */
+export type PickHit =
+  | {
+      kind: "mesh";
+      handle: MeshHandle;
+      point: readonly [number, number, number];
+      distance: number;
+    }
+  | {
+      kind: "bucket";
+      bucket: BucketHandle;
+      instance: InstanceIndex;
+      point: readonly [number, number, number];
+      distance: number;
+    }
+  | {
+      kind: "batched-bucket";
+      bucket: BatchedBucketHandle;
+      instance: InstanceIndex;
+      point: readonly [number, number, number];
+      distance: number;
+    };
+
+export type EnvironmentSpec =
+  | { kind: "generated" | "none" }
+  | { kind: "hdr"; url: string; intensity?: number };
 
 const DEFAULT_COLOR = "#cccccc";
 
@@ -467,15 +501,22 @@ export class ThreeRenderAdapter {
   }
 
   /**
-   * Apply an image-based-lighting environment that drives PBR reflections +
-   * indirect diffuse on `MeshStandardMaterial` / `MeshPhysicalMaterial`.
-   * `generated` builds Three.js's `RoomEnvironment` via `PMREMGenerator` —
-   * a tiny synthetic studio cube. `none` clears it. Idempotent: re-setting
-   * the same kind is a no-op.
+   * Apply an image-based-lighting environment that drives PBR
+   * reflections + indirect diffuse on MeshStandardMaterial /
+   * MeshPhysicalMaterial:
+   * - `none` — clears the environment.
+   * - `generated` — builds Three.js's `RoomEnvironment` via PMREMGenerator.
+   * - `hdr` — fetches an equirectangular `.hdr` file via RGBELoader,
+   *   pre-filters with PMREMGenerator, applies as the scene environment.
+   *
+   * Idempotent on `generated` / `none`; `hdr` always reloads when the
+   * URL changes (cheap if the browser caches the file).
    */
-  setEnvironment(kind: EnvironmentKind): void {
-    if (kind === this.currentEnvironmentKind) return;
-    if (kind === "none") {
+  setEnvironment(spec: EnvironmentSpec | "generated" | "none"): void {
+    const normalised: EnvironmentSpec =
+      typeof spec === "string" ? { kind: spec } : spec;
+    if (normalised.kind === "none") {
+      if (this.currentEnvironmentKind === "none") return;
       this.scene.environment = null;
       this.currentEnvironmentTexture?.dispose();
       this.currentEnvironmentTexture = undefined;
@@ -486,12 +527,34 @@ export class ThreeRenderAdapter {
       this.pmrem = new PMREMGenerator(this.device);
       this.pmrem.compileEquirectangularShader();
     }
-    this.currentEnvironmentTexture?.dispose();
-    const envScene = new RoomEnvironment();
-    const rt = this.pmrem.fromScene(envScene, 0.04);
-    this.currentEnvironmentTexture = rt.texture;
-    this.scene.environment = rt.texture;
-    this.currentEnvironmentKind = "generated";
+    if (normalised.kind === "generated") {
+      if (this.currentEnvironmentKind === "generated") return;
+      this.currentEnvironmentTexture?.dispose();
+      const envScene = new RoomEnvironment();
+      const rt = this.pmrem.fromScene(envScene, 0.04);
+      this.currentEnvironmentTexture = rt.texture;
+      this.scene.environment = rt.texture;
+      this.currentEnvironmentKind = "generated";
+      return;
+    }
+    // M21-env-hdr: load equirect HDR + pre-filter through PMREM. The
+    // load is async; we tear the existing env down only once the new
+    // texture is ready so the scene doesn't flash unlit during the
+    // round-trip.
+    if (normalised.kind !== "hdr") return; // exhaustiveness guard
+    const url = normalised.url;
+    const intensity = normalised.intensity ?? 1;
+    new RGBELoader().load(url, (texture) => {
+      const pmrem = this.pmrem;
+      if (pmrem === undefined) return;
+      const rt = pmrem.fromEquirectangular(texture);
+      texture.dispose();
+      this.currentEnvironmentTexture?.dispose();
+      this.currentEnvironmentTexture = rt.texture;
+      this.scene.environment = rt.texture;
+      this.scene.environmentIntensity = intensity;
+      this.currentEnvironmentKind = "hdr";
+    });
   }
 
   currentEnvironment(): EnvironmentKind {
@@ -1097,28 +1160,62 @@ export class ThreeRenderAdapter {
   pickAtNdc(
     ndcX: number,
     ndcY: number
-  ): { handle: MeshHandle; point: readonly [number, number, number]; distance: number } | undefined {
+  ): PickHit | undefined {
     const camera = this.activeCamera();
     if (camera === undefined) return undefined;
     this.scratchPickNdc.set(ndcX, ndcY);
     this.scratchRaycaster.setFromCamera(this.scratchPickNdc, camera);
-    // Test against the per-entity mesh map (skip lights / buckets /
-    // overlays). Iterate in insertion order; pick the closest hit.
-    let bestHandle: MeshHandle | undefined;
+    let best: PickHit | undefined;
     let bestDistance = Number.POSITIVE_INFINITY;
-    let bestPoint: readonly [number, number, number] | undefined;
+
+    // 1. Per-entity Mesh map.
     for (const [handle, mesh] of this.meshes) {
-      const intersections = this.scratchRaycaster.intersectObject(mesh, false);
-      const first = intersections[0];
+      const first = this.scratchRaycaster.intersectObject(mesh, false)[0];
       if (first === undefined) continue;
       if (first.distance < bestDistance) {
         bestDistance = first.distance;
-        bestHandle = handle;
-        bestPoint = [first.point.x, first.point.y, first.point.z];
+        best = {
+          kind: "mesh",
+          handle,
+          point: [first.point.x, first.point.y, first.point.z],
+          distance: first.distance
+        };
       }
     }
-    if (bestHandle === undefined || bestPoint === undefined) return undefined;
-    return { handle: bestHandle, point: bestPoint, distance: bestDistance };
+
+    // 2. InstancedMesh buckets — Three reports the slot via `instanceId`.
+    for (const [bucketHandle, entry] of this.buckets) {
+      const first = this.scratchRaycaster.intersectObject(entry.mesh, false)[0];
+      if (first === undefined || first.instanceId === undefined) continue;
+      if (first.distance < bestDistance) {
+        bestDistance = first.distance;
+        best = {
+          kind: "bucket",
+          bucket: bucketHandle,
+          instance: first.instanceId,
+          point: [first.point.x, first.point.y, first.point.z],
+          distance: first.distance
+        };
+      }
+    }
+
+    // 3. BatchedMesh buckets — same `instanceId` semantics.
+    for (const [bucketHandle, entry] of this.batchedBuckets) {
+      const first = this.scratchRaycaster.intersectObject(entry.mesh, false)[0];
+      if (first === undefined || first.instanceId === undefined) continue;
+      if (first.distance < bestDistance) {
+        bestDistance = first.distance;
+        best = {
+          kind: "batched-bucket",
+          bucket: bucketHandle,
+          instance: first.instanceId,
+          point: [first.point.x, first.point.y, first.point.z],
+          distance: first.distance
+        };
+      }
+    }
+
+    return best;
   }
 
   draw(): void {

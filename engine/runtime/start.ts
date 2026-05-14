@@ -158,11 +158,22 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     }
   );
 
-  // M21-env-generated: apply image-based-lighting environment for PBR
-  // materials. Default = "generated" (RoomEnvironment + PMREM) so
-  // MeshStandardMaterial renders with believable reflections out of the
-  // box. Scenes can opt out by declaring `environment: { kind: "none" }`.
-  renderer.adapter.setEnvironment(options.scene.environment?.kind ?? "generated");
+  // M21-env-generated + M21-env-hdr: apply image-based-lighting
+  // environment for PBR materials. Default = "generated"
+  // (RoomEnvironment + PMREM) so MeshStandardMaterial renders with
+  // believable reflections out of the box. Scenes can opt into
+  // `{ kind: "none" }` for fully unlit, or `{ kind: "hdr", url, intensity? }`
+  // for a real equirectangular sky.
+  const envSpec = options.scene.environment;
+  if (envSpec?.kind === "hdr") {
+    renderer.adapter.setEnvironment({
+      kind: "hdr",
+      url: envSpec.url,
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+    });
+  } else {
+    renderer.adapter.setEnvironment(envSpec?.kind ?? "generated");
+  }
 
   const fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
   const fixedUpdate = options.fixedUpdate;
@@ -182,11 +193,16 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const { createMaterialBindingSystem } = await import("../render/systems/material-binding-system");
     const ts = createTransformResolveSystem();
     if (!scheduler.has(ts.name)) scheduler.register(ts);
-    // M21-cam-orbit: resolve OrbitCamera → Transform BEFORE
-    // CameraSyncSystem so the active camera sees the freshest pose.
+    // M21-cam-orbit + M21-cam-follow: resolve camera helpers →
+    // Transform BEFORE CameraSyncSystem so the active camera sees the
+    // freshest pose. Order: orbit first (pure-data), follow second
+    // (reads other entities' positions — may chain off an orbit camera).
     const { createOrbitCameraSystem } = await import("../render/systems/orbit-camera-system");
     const orbit = createOrbitCameraSystem();
     if (!scheduler.has(orbit.name)) scheduler.register(orbit);
+    const { createFollowCameraSystem } = await import("../render/systems/follow-camera-system");
+    const follow = createFollowCameraSystem();
+    if (!scheduler.has(follow.name)) scheduler.register(follow);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);
     // M17-lod: runs AFTER CameraSyncSystem (needs ActiveCamera) and
@@ -426,9 +442,28 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     pick(spec) {
       const hit = renderer.adapter.pickAtNdc(spec.x, spec.y);
       if (hit === undefined) return undefined;
-      const entityId = renderer.meshRegistry().entityForHandle(hit.handle);
-      if (entityId === undefined) return undefined;
-      return { entityId, point: hit.point, distance: hit.distance };
+      if (hit.kind === "mesh") {
+        const entityId = renderer.meshRegistry().entityForHandle(hit.handle);
+        if (entityId === undefined) return undefined;
+        return { entityId, point: hit.point, distance: hit.distance };
+      }
+      // M17-instance-picking-buckets: resolve `(bucket, instance)` to
+      // the EntityId by scanning entities carrying `BatchedMeshHandle`.
+      // Both InstancedMesh and BatchedMesh members write the same
+      // component shape `{ bucket, instance }` so one scan covers
+      // both kinds. Cold path — picks are click-driven, not per-frame.
+      // agf-allow: world.query
+      for (const id of world.query(["BatchedMeshHandle"])) {
+        const handle = world.getComponent<{ bucket: number; instance: number }>(
+          id,
+          "BatchedMeshHandle"
+        );
+        if (handle === undefined) continue;
+        if (handle.bucket === hit.bucket && handle.instance === hit.instance) {
+          return { entityId: id, point: hit.point, distance: hit.distance };
+        }
+      }
+      return undefined;
     },
     startRecording(projectId?: string): RecorderHandle {
       const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };
