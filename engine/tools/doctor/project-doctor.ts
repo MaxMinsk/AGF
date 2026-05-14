@@ -15,6 +15,11 @@ import {
   formatBatchCandidates,
   type BatchCandidateReport
 } from "./batch-candidates";
+import {
+  analyzeMaterialSharing,
+  formatMaterialSharing,
+  type MaterialSharingReport
+} from "./material-sharing";
 
 export type PerformanceBudget = {
   agfFormatVersion: number;
@@ -34,7 +39,11 @@ export type RendererMetric =
   | "programs"
   | "drawCalls"
   | "triangles"
-  | "meshes";
+  | "meshes"
+  // M21-light-budgets: add light counters so projects can cap active
+  // lights / shadow-casting lights / shadow map memory.
+  | "lights"
+  | "shadowCasters";
 
 export type BundleStat = {
   largestChunk: string;
@@ -52,6 +61,8 @@ export type DoctorReport = {
   bundle: BundleStat | undefined;
   /** Static M17-doctor analysis: how many entities would collapse into batched draw calls. */
   batchCandidates: BatchCandidateReport;
+  /** Material-manifest deduplication report (M17-material-sharing-doctor). */
+  materialSharing: MaterialSharingReport;
   recommendations: string[];
 };
 
@@ -132,6 +143,17 @@ export function runDoctor(
     );
   }
 
+  const materialSharing = analyzeMaterialSharing(projectDir);
+  if (materialSharing.duplicates.length > 0) {
+    const totalDuplicates = materialSharing.duplicates.reduce(
+      (sum, group) => sum + group.manifests.length,
+      0
+    );
+    recommendations.push(
+      `${materialSharing.duplicates.length} duplicate material signature(s) across ${totalDuplicates} manifests — see the doctor output to merge them and shrink M17 bucket counts.`
+    );
+  }
+
   const ok = check.ok && bundle?.violation !== "hard";
 
   return {
@@ -142,6 +164,7 @@ export function runDoctor(
     budget,
     bundle,
     batchCandidates,
+    materialSharing,
     recommendations
   };
 }
@@ -230,6 +253,9 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatBatchCandidates(report.batchCandidates));
   lines.push("");
 
+  lines.push(formatMaterialSharing(report.materialSharing));
+  lines.push("");
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
@@ -255,7 +281,9 @@ export function compareRendererInfo(
     "programs",
     "drawCalls",
     "triangles",
-    "meshes"
+    "meshes",
+    "lights",
+    "shadowCasters"
   ] as const) {
     const observed = info[metric];
     const hardLimit = hard[metric];

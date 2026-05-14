@@ -114,8 +114,28 @@ export type RapierAdapter = {
    * across frames — they back into Rapier's internal buffers.
    */
   getDebugLines(): { vertices: Float32Array; colors: Float32Array } | undefined;
+  /**
+   * M24-raycast: cast a ray and return the first solid hit, or
+   * undefined if nothing was hit within `maxDistance`. The returned
+   * `collider` is the adapter's `ColliderHandle` (the registry can
+   * map that to an `EntityId`). `point = origin + direction * distance`.
+   * `direction` should be normalised; non-unit vectors scale distance
+   * accordingly per Rapier's `Ray` semantics.
+   */
+  castRay(
+    origin: readonly [number, number, number],
+    direction: readonly [number, number, number],
+    maxDistance: number
+  ): RaycastHit | undefined;
   info(): RapierAdapterInfo;
   dispose(): void;
+};
+
+export type RaycastHit = {
+  collider: ColliderHandle;
+  distance: number;
+  point: readonly [number, number, number];
+  normal: readonly [number, number, number];
 };
 
 export type RapierAdapterOptions = {
@@ -353,6 +373,29 @@ export function createAdapterFromModule(
       // Rapier owns the underlying buffers; do not retain across calls.
       const buffers = world.debugRender();
       return { vertices: buffers.vertices, colors: buffers.colors };
+    },
+    castRay(origin, direction, maxDistance): RaycastHit | undefined {
+      const ray = new RAPIER.Ray(
+        { x: origin[0], y: origin[1], z: origin[2] },
+        { x: direction[0], y: direction[1], z: direction[2] }
+      );
+      // `solid: true` lets the ray hit a collider it starts inside —
+      // matches the common pick-from-camera-into-scene semantics.
+      const hit = world.castRayAndGetNormal(ray, maxDistance, true);
+      if (hit === null) return undefined;
+      const handle = rapierToHandle.get(hit.collider.handle);
+      if (handle === undefined) return undefined;
+      const distance = hit.timeOfImpact;
+      return {
+        collider: handle,
+        distance,
+        point: [
+          origin[0] + direction[0] * distance,
+          origin[1] + direction[1] * distance,
+          origin[2] + direction[2] * distance
+        ],
+        normal: [hit.normal.x, hit.normal.y, hit.normal.z]
+      };
     },
     acquireCharacterController(spec = {}): CharacterControllerHandle {
       const handle = nextCharacterHandle;

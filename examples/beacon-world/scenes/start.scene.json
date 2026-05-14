@@ -163,7 +163,14 @@
           "authority": "client"
         },
         "RigidBody3D": { "type": "kinematicPosition", "lockRotations": true },
-        "Collider3D": { "kind": "capsule", "radius": 0.3, "halfHeight": 0.35 }
+        "Collider3D": { "kind": "capsule", "radius": 0.3, "halfHeight": 0.35 },
+        "CharacterController3D": {
+          "offset": 0.01,
+          "maxSlopeDegrees": 45,
+          "snapToGroundDistance": 0.25,
+          "applyImpulsesToDynamicBodies": true,
+          "mass": 3
+        }
       }
     },
     {

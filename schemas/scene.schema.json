@@ -556,6 +556,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Optional authoring hint. Entities with the same group + matching mesh/material/shadow keys share an InstancedMesh bucket."
+        },
+        "path": {
+          "enum": ["instanced", "batched"],
+          "default": "instanced",
+          "description": "M17 bucketing path. `instanced` (default) groups by (mesh + colour + shadow + group) into a Three.js InstancedMesh — same geometry, varied transforms. `batched` groups by (colour + shadow + group) into a BatchedMesh — varied geometry, shared material; useful when many distinct primitive meshes share one material/colour. Mesh refs that point at GLBs are not eligible for either path yet."
         }
       }
     }

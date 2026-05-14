@@ -44,6 +44,11 @@
           "additionalProperties": false,
           "description": "Optional shadow-pipeline config. CSM (Cascade Shadow Maps) replaces the per-light directional shadow with N depth cascades sized to the active camera frustum — required for large outdoor scenes where one shadow map cannot cover the visible range without acne.",
           "properties": {
+            "autoUpdate": {
+              "type": "boolean",
+              "default": true,
+              "description": "M21-shadow-static: when false, `renderer.shadowMap.autoUpdate` is disabled and the map only re-renders on `__agf.renderer.invalidateShadowMap()`. Use for scenes whose shadow casters never move (large outdoor maps, RTS games) — saves a per-frame shadow pass per cascade."
+            },
             "csm": {
               "type": "object",
               "additionalProperties": false,

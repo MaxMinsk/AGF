@@ -8,6 +8,7 @@
     "mode": "webgl",
     "background": "#3a5066",
     "shadows": {
+      "autoUpdate": false,
       "csm": {
         "enabled": true,
         "cascades": 3,

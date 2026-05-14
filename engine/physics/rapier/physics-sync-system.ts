@@ -38,6 +38,7 @@ import type { PhysicsBodyRegistry } from "./physics-body-registry";
 export const RIGID_BODY_3D: ComponentName = "RigidBody3D";
 export const COLLIDER_3D: ComponentName = "Collider3D";
 export const TRANSFORM: ComponentName = "Transform";
+export const CHARACTER_CONTROLLER_3D: ComponentName = "CharacterController3D";
 /** M24-sensors: runtime-only components written by PhysicsSyncSystem from Rapier collision events. Hidden from default __agf.snapshot(). Never authored. */
 export const CURRENT_CONTACTS_3D: ComponentName = "CurrentContacts3D";
 export const OVERLAPPING_TRIGGERS_3D: ComponentName = "OverlappingTriggers3D";
@@ -191,10 +192,15 @@ export function createPhysicsSyncSystem(
       }
     }
 
-    // Phase 3: kinematic ECS-push → Rapier (before step).
+    // Phase 3: kinematic ECS-push → Rapier (before step). Entities
+    // carrying CharacterController3D are owned by
+    // CharacterMovementSystem — it queues setBodyNextKinematicTranslation
+    // via the controller's collide-and-slide pass; a hard-set here would
+    // bypass that resolution.
     for (const id of liveBodies) {
       const body = world.getComponent<RigidBody3DComponent>(id, RIGID_BODY_3D);
       if (body?.type !== "kinematicPosition") continue;
+      if (world.hasComponent(id, CHARACTER_CONTROLLER_3D)) continue;
       const handle = registry.handleFor(id);
       if (handle === undefined) continue;
       const transform = world.getComponent<TransformComponent>(id, TRANSFORM);
@@ -273,6 +279,26 @@ export function createPhysicsSyncSystem(
     // and we don't apply stale interpolation if a body becomes fixed.
     for (const id of [...interpolation.keys()]) {
       if (!liveInterpolated.has(id)) interpolation.delete(id);
+    }
+
+    // Phase 5b (M24-character): kinematic bodies driven by
+    // CharacterMovementSystem need post-step writeback too so the next
+    // frame sees the collision-resolved position. We write directly to
+    // Transform (no interpolation) because the controller already
+    // produces smooth per-step motion.
+    for (const id of liveBodies) {
+      if (!world.hasComponent(id, CHARACTER_CONTROLLER_3D)) continue;
+      const body = world.getComponent<RigidBody3DComponent>(id, RIGID_BODY_3D);
+      if (body?.type !== "kinematicPosition") continue;
+      const handle = registry.handleFor(id);
+      if (handle === undefined) continue;
+      const pos = adapter.getBodyTranslation(handle);
+      if (pos === undefined) continue;
+      const transform = world.getComponent<TransformComponent>(id, TRANSFORM);
+      world.setComponent(id, TRANSFORM, {
+        ...transform,
+        position: [pos[0], pos[1], pos[2]]
+      });
     }
   };
 

@@ -69,6 +69,9 @@ function stubAdapter() {
     getDebugLines() {
       return { vertices: new Float32Array(0), colors: new Float32Array(0) };
     },
+    castRay() {
+      return undefined;
+    },
     info() {
       return { bodies: positions.size, colliders: 0, fixedDt: 1 / 60, totalSteps: steps };
     },

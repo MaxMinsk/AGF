@@ -110,12 +110,33 @@ declare global {
         readonly samples: number;
       };
       /**
-       * M24-debug — physics-collider overlay controls. Undefined when
-       * the active project did not opt into `physics.enabled`.
+       * M21-shadow-static — manual shadow-map controls. `invalidateShadowMap()`
+       * forces one re-render on the next frame; useful when `project.render.shadows.autoUpdate`
+       * is false and a static caster has moved.
+       */
+      renderer: {
+        invalidateShadowMap(): void;
+        setShadowMapAutoUpdate(enabled: boolean): void;
+      };
+      /**
+       * Physics query + debug controls. Undefined when the active
+       * project did not opt into `physics.enabled`.
        */
       physics?: {
         setDebugOverlay(enabled: boolean): void;
         isDebugOverlayEnabled(): boolean;
+        raycast(spec: {
+          origin: ReadonlyArray<number>;
+          direction: ReadonlyArray<number>;
+          maxDistance: number;
+        }):
+          | {
+              readonly entityId: string;
+              readonly distance: number;
+              readonly point: readonly [number, number, number];
+              readonly normal: readonly [number, number, number];
+            }
+          | undefined;
       };
       /**
        * M23-tuner — agent-spawnable sliders bound to component fields.
@@ -298,6 +319,7 @@ void (async (): Promise<void> => {
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
       frameTiming: () => app.frameTiming(),
+      renderer: app.renderer,
       ...(app.physics !== undefined ? { physics: app.physics } : {}),
       reloadCount: 0,
       reloadEvents: [],

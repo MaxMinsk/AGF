@@ -467,6 +467,31 @@ export class ThreeRenderAdapter {
     }
   }
 
+  // ---- M21-shadow-static ----
+
+  /**
+   * Toggle `renderer.shadowMap.autoUpdate`. When false, the shadow
+   * cascade(s) only re-render on `invalidateShadowMap()`. Useful for
+   * scenes whose casters never move — saves a per-frame shadow pass.
+   */
+  setShadowMapAutoUpdate(enabled: boolean): void {
+    this.device.shadowMap.autoUpdate = enabled;
+    if (!enabled) {
+      // Force one final bake so the texture isn't empty when we stop
+      // auto-updating mid-frame.
+      this.device.shadowMap.needsUpdate = true;
+    }
+  }
+
+  /**
+   * Schedule one shadow-map render on the next frame. Used by static
+   * shadow scenes after a known caster moved (e.g. day/night, level
+   * change). No-op when autoUpdate is on.
+   */
+  invalidateShadowMap(): void {
+    this.device.shadowMap.needsUpdate = true;
+  }
+
   setMeshShadowFlags(handle: MeshHandle, cast: boolean, receive: boolean): void {
     const mesh = this.meshes.get(handle);
     if (mesh === undefined) return;

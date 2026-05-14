@@ -21,18 +21,18 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 38 — TBD
+## Current Sprint: Sprint 39 — TBD
 
-Sprint 38 focus is picked at sprint start. Natural openers (in priority order based on Sprint 37 close):
+Sprint 39 focus is picked at sprint start. Natural openers (in priority order based on Sprint 38 close):
 
-1. **beacon-physics-character** — switch `player.drone` from `PlayerControlled` Transform writes to a `CharacterController3D` + new `CharacterMovementSystem` that consumes input and queries the kinematic controller for collision-resolved motion. Project flag so static scenes (Hello-3D) keep the old path.
-2. **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
-3. **M17-batched-mesh-system** — wire the BatchedMesh adapter primitives behind a `Batchable.path?: "instanced" | "batched"` selector in `BatchingSystem`. Bucketing for "batched" keys by `material + shadow + group` (mesh varies). Add a `batch-bench` scenario pushing 4 different primitive meshes through one batched bucket.
-4. **M24-raycast** — `runtime.physics.raycast({ origin, direction, maxDistance, mask })` returning `EntityId` + hit point/normal/distance. `runtime.physics.overlap({ shape, position, mask })` for area queries.
-5. **M21-light-budgets** — `performance-budget.json#renderer.maxActiveLights` / `maxShadowCastingLights` / `maxShadowMapSize` + `engine doctor` warnings.
-6. **M21-shadow-static** — `renderer.shadowMap.autoUpdate = false` for declared-static shadow casters with explicit invalidation API; pairs with `shadows-bench` since most buildings + rocks are static.
-7. **M17-material-sharing-doctor** — `engine doctor` check that detects duplicate material signatures + reports which manifests could be merged.
-8. **ASSET-decoder-paths** — single shared `DRACOLoader` + `KTX2Loader` constructed at adapter init; `KTX2Loader.detectSupport(renderer)` once. Foundation for `ASSET-compression`.
+1. **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions. Unlocks levels built from real geometry (terrain heightfields, art-pipeline meshes) instead of authored boxes.
+2. **M25 / ASSET-compression** — wire the M24-decoder singletons (DRACO + KTX2 + Meshopt) into `createGlbLoader` for at least one project. Foundation for the ASSET pipeline epic — Beacon's GLBs become Draco-compressed and KTX2-textured.
+3. **M21-mat-textures** — manifest texture maps (base colour / normal / roughness / metalness / emissive / AO) routed through the shared KTX2Loader.
+4. **M21-color** — output color space + tonemap pipeline review. Verify Beacon + shadows-bench under correct sRGB → ACES filmic.
+5. **M21-context-loss** — listen for `webglcontextlost` / `webglcontextrestored`; emit diagnostics + rebuild renderer resources on restore.
+6. **M21-post-pipeline** — schema-driven post-processing chain (`project.json#renderer.post`) with selective Bloom + FXAA + tonemap at end.
+7. **M21-mat-custom** — custom `ShaderMaterial` / `onBeforeCompile` material kind for the manifest.
+8. **RUNTIME-renderer-ready** — async "renderer-ready" signal on `runtime.start()` for tests + dev bridge to await before screenshots / commands.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 
