@@ -1537,6 +1537,61 @@ Status: Completed and archived.
 - `M15-i` `engine connect <url>` CLI.
 - M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending.
 
+## Sprint 33 — M21 Phase 1 split + M22 / M16 perf foundation + Codex review
+
+Status: Completed and archived.
+
+### Completed Work
+
+- `M21-investigate` ✅ (carried from Sprint 32 backlog into Sprint 33 close-out). `docs/research/renderer-ecs-split-investigation.md` 589 lines: Phase 1 minimum split + Phase 2 Unity-class roadmap (materials / lights / shadows / batching / post-processing / IBL / color / camera features) with sprint-by-sprint sequencing and out-of-scope list.
+- `M22 / ECS-B1 + ECS-B2` ✅ Zero-dep ECS benchmark harness (`benchmarks/ecs/`), three suites (snapshot / query / hierarchy-resolve). Baseline JSON `docs/research/ecs-benchmarks-baseline.json`. `npm run bench:ecs` CLI with `--suite` + `--json`. Findings: `resolveHierarchy chain-of-8 @ 10k = ~12.9 ms` (73% of 60 FPS budget); cached `createQuery` is ~18,000× faster than `world.query()` uncached.
+- **`docs/research/ecs-compare-performance.md`** ✅ Competitive comparison: AGF vs bitECS / becsy / Miniplex / ECSY / Friflo / Unity DOTS / Bevy / Flecs. Matched-pair refresh rule with baseline JSON. Bands not points; agent-first multiplier explained.
+- `M16-cache-a` ✅ Per-component revision counter on `World` (`componentRevision(id, name)`); `createHierarchyCache()` in `engine/core/transform/resolve-cached.ts` with steady-state fast path (reused `ResolvedTransform` refs) + mixed-dirty partial walk (compose only dirty subtrees). **Result**: 10k chain-of-8 went from 12.9 ms → 5.4 ms steady-state (2.4× win) / 8.2 ms with 1% per-frame mutation (1.6× win). 6 unit tests.
+- `M16-cache-parity` ✅ Random-mutation parity test (25 cycles × 10% mutation, `toBeCloseTo` precision 9) — locks "derived cache, not second ECS" invariant.
+- `M21-a` ✅ `engine/render/three-render-adapter.ts` — Three.js touchpoint with opaque `MeshHandle` / `CameraHandle` IDs. Three.js types no longer leak past this boundary.
+- `M21-b` ✅ `TransformResolveSystem` + `LocalToWorld` (radians, renderer-internal component). Frame-update System uses M16-cache. Auto-registered at end of scheduler order from `startRuntime`.
+- `M21-c` ✅ `CameraSyncSystem` + `ActiveCamera` marker. Pick policy moved out of renderer; visible via `__agf.snapshot()`.
+- `M21-d` ✅ `MeshLifecycleSystem` + `MeshHandleRegistry` (shared `EntityId → MeshHandle` table) + `RenderMeshHandle` component.
+- `M21-e` ✅ `MaterialBindingSystem` + `AppliedGeometryRef` / `AppliedMaterialRef` (`{ ref, status: "pending" | "applied" | "failed" }`). Async asset.get + cancellation moved out of renderer; `invalidateAsset` routed through component removal.
+- `M21-f` ✅ `MeshTransformSyncSystem` — per-frame hottest path. Cached `createQuery(["RenderMeshHandle","LocalToWorld"])`.
+- `M21-g` ✅ `snapshotWorld({ includeRenderInternals? })` filters `LocalToWorld` / `RenderMeshHandle` / `AppliedGeometryRef` / `AppliedMaterialRef` / `ActiveCamera` from default output. `ThreeRenderer.info()` adds `handleLeak = registry.size() - count(world.query(["RenderMeshHandle"]))` for regression assertions.
+- `M21-boundary-check` ✅ `scripts/check-import-boundaries.mjs` — `engine/core` cannot import `three` or `engine/render/`. Wired into preflight as `npm run imports:check`.
+- **Codex review absorption** ✅ `CLAUDE.md` gained "one ECS source of truth; optimized structures are derived caches" non-negotiable with six gates (derived-from-ECS, no public authoring API, rebuildable, explicit invalidation, parity tests, benchmark). New follow-up stories in BACKLOG: `M22-allocations`, `M17-doctor`, `SYS-rule-createquery`.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts`, `engine/render/mesh-handle-registry.ts`
+- `engine/render/systems/{transform-resolve,camera-sync,mesh-lifecycle,material-binding,mesh-transform-sync}-system.ts`
+- `engine/core/transform/resolve-cached.ts`
+- `engine/core/ecs/world.ts` — `componentRevision(id, name)`
+- `engine/runtime/inspect.ts` — `SnapshotOptions { includeRenderInternals }` + `RENDER_INTERNAL_COMPONENTS` constant
+- `benchmarks/ecs/` — runner + 3 suites + README
+- `scripts/check-import-boundaries.mjs` + `npm run imports:check`
+- `docs/research/ecs-benchmarks-baseline.json` + `docs/research/ecs-compare-performance.md` + `docs/research/renderer-ecs-split-investigation.md` (Phase 2 expansion)
+- `CLAUDE.md` — "one ECS source of truth, derived caches" non-negotiable
+- 295 Vitest tests (48 files) — +22 new for the 5 systems + cache + parity + snapshot internals
+- All 23 Playwright e2e tests + manual bridge probes green
+
+### Verification
+
+- `npm run preflight` ✅ end-to-end: imports-check + engine-check + typecheck + 295 unit + build + bundle-check + 23 e2e.
+
+### Goal Recap
+
+Phase 1 of the M21 renderer→ECS split is complete. The renderer is now a thin orchestrator over five scheduler-registered systems and one Three.js adapter. Three.js types live only behind the adapter boundary, enforced by `imports:check`. Cached hierarchy resolution makes hierarchical scenes 2.4× faster steady-state. Competitive ECS comparison and decision rules for derived caches are documented. Codex review feedback was absorbed in-flight, not deferred.
+
+### Follow-Ups
+
+- `M16-cache-b/c` — incremental dirty queue maintained by `setComponent` (push 10k chain-of-8 toward < 1 ms steady-state).
+- `M22-allocations` — allocation-focused bench (Codex callout: browser jank is allocation churn, not just wall time).
+- `M17-doctor` — pre-M17 batch-candidate report in `engine doctor`.
+- `SYS-rule-createquery` — `engine check` warning for `world.query()` in System hot paths.
+- Phase 2 M21 epics: lights, shadows, materials, batching, post-processing, IBL, color (see `docs/research/renderer-ecs-split-investigation.md` §8).
+- `M20-a..l` netcode rework implementation (queued since Sprint 32).
+- `M3-c-load` + `M3-c-beacon` — prefab runtime + Beacon adoption.
+
+
+
 ## Sprint 32 — Finish M15 dev-server + composition loops + 4 new investigation epics
 
 Status: Completed and archived.

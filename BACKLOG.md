@@ -21,52 +21,38 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 33 — TBD
+## Current Sprint: Sprint 34 — Phase 2 visible delta: lights + shadows + IBL + cache polish
 
-Sprint 33 focus is picked at sprint start. Agent-first priority from `CLAUDE.md` applies. Default sprint size is 8–12 stories per `feedback-sprint-size`.
+Sprint 34 picks up the M21 Phase 2 sequencing from `docs/research/renderer-ecs-split-investigation.md` §8.9: highest visible delta first. After 12 stories of plumbing in Sprint 33, this sprint is **what the picture looks like** — lights as ECS components, basic shadow maps, a fallback IBL environment so PBR materials don't render flat. Plus M16-cache-b to finish the perf path the bench number called out, and three small Codex-review follow-ups.
 
-### Candidates
+### Stories
 
-#### M22 — ECS performance & design discipline (start with benchmarks)
+#### M21 — Phase 2 lighting and environment
 
-- `ECS-B1` ✅ Implemented. Zero-dep runner at `benchmarks/ecs/runner.ts` (warm-up + mean / p50 / p99 / ops-per-sec). `npm run bench:ecs` CLI with `--suite` filter + `--json` mode. README + baseline JSON in `docs/research/ecs-benchmarks-baseline.json`. Not in preflight (timing noise).
-- `ECS-B2` ✅ Implemented. Three suites: `ecs-snapshot` (snapshotWorld), `ecs-query` (single / two-component / cached `createQuery` / rare-match), `ecs-hierarchy-resolve` (flat + chain-of-8) at 100 / 1k / 10k entities. **Findings:** `resolveHierarchy chain-of-8 @ 10k = ~12 ms` (73% of 60-FPS budget — `M16-cache` is mandatory before > 1k hierarchical entities); cached `createQuery` is ~18,000× faster than per-frame `world.query()` — every system must use it.
-- `ECS-B3` Benchmark batch-bucket collection. Deferred until `M17-bucketer` starts (no system to bench yet).
-- `M16-cache-a` ✅ Implemented. `World.componentRevision(id, name)` per-component data-revision counter (bumped on `setComponent`, zeroed on `removeComponent` / `removeEntity`). `createHierarchyCache()` in `engine/core/transform/resolve-cached.ts` with two fast paths: (1) zero-dirty steady-state returns cached `ResolvedTransform` refs (referential-equality-friendly); (2) mixed-dirty path does a topological partial walk, composing only dirty subtrees from cached parent worlds. 6 unit tests + 2 new bench cases (steady-state + 1%-dirty). **Results** at chain-of-8 @ 10k entities: no-cache 12.9 ms → steady-state 5.4 ms (~2.4× faster) → 1%-dirty 8.2 ms (~1.6× faster). Baseline refreshed.
-- `M16-cache-b` Next: incremental dirty-set maintained by `setComponent` hook instead of per-frame entity scan. Target: steady-state path becomes O(dirty) not O(N). Push 10k chain-of-8 toward < 1 ms.
-- `M16-cache-parity` ✅ Implemented. `tests/unit/transform-resolve-cached.test.ts` runs 25 cycles × ~10% random mutations on a 24-entity hierarchy, comparing cached resolver output field-for-field (toBeCloseTo precision 9) against `resolveWorldHierarchy`. Locks the "derived cache, not second ECS" invariant from the Codex review.
-- `M22-allocations` Allocation-focused bench for hierarchy resolve + renderer sync. Use `--expose-gc` + `process.memoryUsage().heapUsed` deltas. Frame jank correlates more with allocation churn than wall-time.
-- `M17-doctor` Pre-M17 design tool: `engine doctor` reports which entities would batch (same mesh + material + shadow flags) and explains why others wouldn't. Use it to size the bucketer story before writing it.
-- `SYS-rule-createquery` Lock the "systems must cache `createQuery` handles" rule into AGENTS.md + agent skills. Add `engine check` warning when a System hot path calls `world.query()` directly.
+- `M21-light-schema` Add `Light` JSON Schema (kind discriminator: `directional` / `point` / `spot` / `ambient` / `hemisphere` / `rect-area`). Per-kind fields: `color`, `intensity`, plus kind-specific (`distance` / `decay` / `angle` / `penumbra` / etc.). Validation surface: `engine check` rejects malformed lights.
+- `M21-light-directional-point` Implement `LightLifecycleSystem` + `LightSyncSystem` covering `directional` / `point` / `ambient`. Adapter grows `acquireLight` / `releaseLight` / `setLightParams` / `setLightTransform`. Replace the hard-coded `AmbientLight + DirectionalLight` fallback with a `AGF_NO_LIGHTS` diagnostic when a scene declares zero lights (then keeps the fallback). Hello-3D and Beacon scenes adopt explicit `Light` entities.
+- `M21-shadow-basic` Per-light `castShadow` + per-mesh `ShadowFlags { cast, receive }` component (default both true if absent). `MeshLifecycleSystem` reads `ShadowFlags` and configures `mesh.castShadow` / `mesh.receiveShadow`. `LightLifecycleSystem` configures `light.shadow.*` from `Light.shadow`. Renderer enables `PCFSoftShadowMap`. Cost gate: ≤ baseline × 1.25 at 1k entities + 1 shadow-casting directional.
+- `M21-env-generated` `EnvironmentSystem` builds `RoomEnvironment` via `PMREMGenerator` once per scene load and assigns to `scene.environment`. Default ON so PBR materials look correct out of the box. Scene-level off-switch via `scene.environment: { kind: "none" }`.
 
-#### M21 — Renderer → ECS systems
+#### M22 — ECS perf follow-ups
 
-- `M21-investigate` ✅ Implemented. `docs/research/renderer-ecs-split-investigation.md` — audit of `ThreeRenderer` (12 responsibilities), proposed 5-system split + `ThreeRenderAdapter`, 5 renderer-internal components, renderer-import-boundary preserved, perf gates (frame-time ≤ baseline × 1.05 at 1k entities), Phase-1 8-story implementation queue (`M21-a..g` + `M21-boundary-check`), Phase-2 Unity-class roadmap (materials, lights, shadows, batching/instancing, post-processing, color/tonemap, IBL, camera features) with cross-references to Three.js examples and a sprint-by-sprint sequencing.
-- `M21-a` ✅ Implemented. `engine/render/three-render-adapter.ts` — narrow Three.js touchpoint with opaque `MeshHandle` / `CameraHandle` numeric IDs. API: `acquireMesh` / `releaseMesh` / `setMeshGeometry` / `setMeshMaterialPatch` / `setMeshTransform` / `acquireCamera` / `releaseCamera` / `setCameraParams` / `setCameraTransform` / `setActiveCamera` / `hasActiveCamera` / `resize` / `draw` / `dispose` / `info`. Three.js types no longer leak through the adapter boundary. `ThreeRenderer` refactored to hold `Map<EntityId, MeshHandle>` + `cameraHandle` internally and call only adapter methods. Behaviour identical: all 279 unit tests + 23 e2e tests green. Sets the seam for `M21-b..f` to peel each `refresh*` path out into its own scheduler-registered System.
-- `M21-b` ✅ Implemented. `engine/render/systems/transform-resolve-system.ts` — frame-update System using the `M16-cache-a` cached resolver. Writes `LocalToWorld` (radians) per Transform-bearing entity, evicts the component when Transform is removed. Auto-registered at the *end* of the scheduler order from `startRuntime` so it runs after gameplay systems that mutate Transform. `ThreeRenderer.buildResolvedTransforms` now prefers `LocalToWorld` when present and falls back to the inline resolve only when no scheduler is in play. 4 unit tests for the system + 6 for the cache + 23 e2e tests green.
-- `M21-c` ✅ Implemented. `engine/render/systems/camera-sync-system.ts` — frame-update System that picks the active camera (explicit `active === true` first, fall back to first Camera entity) and tags it with `ActiveCamera` ({}). Sweeps stray markers from unrelated entities. Auto-registered after `TransformResolveSystem` so the renderer sees both `LocalToWorld` and `ActiveCamera` on the same frame. `ThreeRenderer.refreshCamera` now prefers the marker; legacy inline pick stays as the no-scheduler fallback. 5 unit tests + 23 e2e green.
-- `M21-d` ✅ Implemented. `engine/render/mesh-handle-registry.ts` — shared `EntityId → MeshHandle` table over the adapter, idempotent `acquireFor` / `release`. `engine/render/systems/mesh-lifecycle-system.ts` — frame-update System that diffs the `MeshRenderer` query against the registry; acquires for newcomers, releases for departures, writes `RenderMeshHandle { id }` as a renderer-internal component. `ThreeRenderer.refreshMeshes` now routes through the registry; when the system is registered the renderer loop becomes a no-op for lifecycle and only does the material + transform pass. 4 unit tests + full 293 unit + 23 e2e green.
-- `M21-e` ✅ Implemented. `engine/render/systems/material-binding-system.ts` — frame-update System that owns async geometry (`.glb`) + material manifest loading + apply for renderable entities. Writes `AppliedGeometryRef` / `AppliedMaterialRef` (renderer-internal components, `{ ref, status: "pending" | "applied" | "failed" }`) — agent-inspectable via `__agf.snapshot()`. Cancellation is `live AppliedRef.ref !== expected → drop the result`. `forgetAssetBinding(world, ref)` removes the component (next frame system re-fetches), wired through `RuntimeHandle.invalidateAsset`. `ThreeRenderer.refreshMeshes` skips its legacy async paths when the system is registered (`materialBindingExternal` flag). 23 e2e green including `hmr-stress` + `material-hmr-audit`.
-- `M21-f` ✅ Implemented. `engine/render/systems/mesh-transform-sync-system.ts` — frame-update System with cached `createQuery(["RenderMeshHandle","LocalToWorld"])` (per the SYS-rule-createquery discipline). For each match it resolves the handle via the shared registry and calls `adapter.setMeshTransform`. `ThreeRenderer.refreshMeshes` skips its tail transform-write when the system is registered. End of Phase 1 mesh pipeline: lifecycle (M21-d) → material/geometry (M21-e) → transform (M21-f) all live in Systems; renderer just orchestrates resolve + camera + draw. 293 unit + 23 e2e green.
-- `M21-g` ✅ Implemented. `snapshotWorld(world, time, { includeRenderInternals? })` filters `LocalToWorld` / `RenderMeshHandle` / `AppliedGeometryRef` / `AppliedMaterialRef` / `ActiveCamera` out of the default output (constant `RENDER_INTERNAL_COMPONENTS`). `ThreeRenderer.info()` (and `window.__agf.rendererInfo()`) now reports `handleLeak = registry.size() - count(world.query(["RenderMeshHandle"]))` — non-zero is a renderer-pipeline regression. 2 unit tests.
-- `M21-boundary-check` ✅ Implemented. `scripts/check-import-boundaries.mjs` walks `engine/core/**/*.ts` and rejects any import of `three`/`three/*` or any relative path that resolves into `engine/render/`. Wired into preflight via `npm run imports:check`. Currently green: no violations.
+- `M16-cache-b` Replace the per-frame entity scan in `TransformResolveSystem` with an incremental dirty queue maintained by `World.setComponent` hooks. Target: steady-state path becomes O(dirty) not O(N). Push 10k chain-of-8 toward < 1 ms.
+- `M22-allocations` Allocation-focused bench for hierarchy resolve + renderer sync (Codex callout). `--expose-gc` + `process.memoryUsage().heapUsed` deltas per case. Adds `npm run bench:ecs:alloc`.
 
-**Phase 1 (M21 minimum split) is complete.** Renderer is a thin orchestrator over a 5-system pipeline (TransformResolve → CameraSync → MeshLifecycle → MaterialBinding → MeshTransformSync), one adapter, one shared registry. Ready for the Phase 2 epics from `docs/research/renderer-ecs-split-investigation.md`.
+#### Codex-review follow-ups
 
-#### M20 — Netcode rework (implementation)
+- `M17-doctor` `engine doctor` reports batch candidates (entities that share mesh + material + shadow flags) and explains why others wouldn't batch. Sizes the bucketer story before writing it.
+- `SYS-rule-createquery` Add to AGENTS.md: "Systems must cache `createQuery` handles, never call `world.query()` per frame in a hot path." Lightweight `engine check` warning when a file under `engine/**/systems/` calls `world.query(` directly.
 
-- `M20-a` Protocol: add `player.state` to `schemas/protocol.schema.json` (sequence + position + optional rotation).
-- `M20-b` Scene schema: `Networked.authority = "client-owned"` alongside the existing `"server"`. Beacon's `player.drone` becomes client-owned.
-- `M20-c` Server: `ServerWorld.applyPlayerState` accepts client position, optional `speed * dt` clamp.
+### Carried to Sprint 35+
 
-#### M3 — Prefab runtime integration
-
-- `M3-c-load` Wire `expandScenePrefabs` into the scene-load path so any project can declare `instances: [...]` alongside `entities` and have them materialise.
-- `M3-c-beacon` Beacon World's repeated cores / hazards become prefab instances.
-
-#### Carry-overs / standing items
-
-- `M15-i` `engine connect <url> <verb>` CLI — small convenience wrapper. Skip if not pulled into focus.
-- `M2b-seed` Wire deterministic RNG (still waiting for a system that rolls dice).
-- `13.13` Audio asset path — blocked on an audio loader.
-- `10.5+` C# WS transport.
+- `M21-light-spot-hemisphere-rect`, `M21-light-fallback` diagnostic finish.
+- `M21-shadow-csm` (CSM addon), `M21-shadow-algorithm` (PCSS / VSM).
+- `M17-bucketer` / `M17-batched-mesh` / `M17-lod` / `M17-bvh-culling`.
+- `M21-mat-*` (Physical / Unlit / Lambert / Phong / custom shader / `onBeforeCompile` / textures + KTX2).
+- `M21-post-*` (Composer + Bloom / FXAA / SMAA / SSAO / Outline).
+- `M21-color`, `M21-env-hdr`, `M21-env-cube`, `M21-cam-*`.
+- `M20-a..l` netcode rework implementation (carried from Sprint 32).
+- `M3-c-load` + `M3-c-beacon`.
+- `M16-cache-c` (reused matrices), `M16-cache-d/e`.
+- `M2b-seed`, `13.13` audio, `10.5+` C# WS transport.
