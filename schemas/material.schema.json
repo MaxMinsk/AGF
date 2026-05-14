@@ -12,8 +12,8 @@
       "description": "Stable kebab-case material id, unique within the project."
     },
     "shader": {
-      "enum": ["standard", "physical", "lambert", "phong", "basic"],
-      "description": "Shader pipeline. `standard` = MeshStandardMaterial (PBR baseline). `physical` = MeshPhysicalMaterial (adds clearcoat / transmission / sheen / iridescence). `lambert` / `phong` are cheap diffuse / specular paths for stylised projects. `basic` is unlit (UI billboards, particles, debug)."
+      "enum": ["standard", "physical", "lambert", "phong", "basic", "custom"],
+      "description": "Shader pipeline. `standard` = MeshStandardMaterial (PBR baseline). `physical` = MeshPhysicalMaterial (adds clearcoat / transmission / sheen / iridescence). `lambert` / `phong` are cheap diffuse / specular paths. `basic` is unlit (UI billboards, particles, debug). `custom` (M21-mat-custom) constructs a Three.js `ShaderMaterial` from inline `vertexShader` + `fragmentShader` GLSL strings + an optional `uniforms` map. Hex-string values in `uniforms` (e.g. `#4af0a8`) are parsed as colours; numeric / array values pass through."
     },
     "color": {
       "type": "string",
@@ -140,6 +140,37 @@
       "type": "string",
       "minLength": 1,
       "description": "Ambient occlusion texture. Sampled on the red channel per glTF convention."
+    },
+    "vertexShader": {
+      "type": "string",
+      "minLength": 1,
+      "description": "M21-mat-custom only. Inline GLSL vertex source for ShaderMaterial. Authoring external files + a text loader is a follow-up — for now the source lives in the manifest as a JSON string."
+    },
+    "fragmentShader": {
+      "type": "string",
+      "minLength": 1,
+      "description": "M21-mat-custom only. Inline GLSL fragment source."
+    },
+    "uniforms": {
+      "type": "object",
+      "description": "M21-mat-custom only. Per-uniform initial value. String hex (`#4af0a8`) is parsed as a Color; number / number-array values pass through.",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "number" },
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 1,
+            "maxItems": 16
+          }
+        ]
+      }
+    },
+    "defines": {
+      "type": "object",
+      "description": "M21-mat-custom only. #define directives spliced into the GLSL preamble. Values are stringified before substitution.",
+      "additionalProperties": { "type": "string" }
     }
   }
 }

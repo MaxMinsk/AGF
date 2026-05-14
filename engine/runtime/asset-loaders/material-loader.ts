@@ -1,7 +1,15 @@
 import type { AssetLoader } from "../asset-registry";
 
-/** M21-mat-physical: extend the manifest beyond MeshStandardMaterial. */
-export type MaterialShader = "standard" | "physical" | "lambert" | "phong" | "basic";
+/** M21-mat-physical + M21-mat-custom: extend the manifest beyond MeshStandardMaterial. */
+export type MaterialShader =
+  | "standard"
+  | "physical"
+  | "lambert"
+  | "phong"
+  | "basic"
+  | "custom";
+
+export type MaterialUniformValue = number | string | ReadonlyArray<number>;
 
 export type MaterialManifest = {
   id: string;
@@ -33,6 +41,11 @@ export type MaterialManifest = {
   emissiveMap?: string;
   emissiveIntensity?: number;
   aoMap?: string;
+  /** M21-mat-custom: ShaderMaterial source + uniforms (only used when shader === "custom"). */
+  vertexShader?: string;
+  fragmentShader?: string;
+  uniforms?: Record<string, MaterialUniformValue>;
+  defines?: Record<string, string>;
 };
 
 export function createMaterialLoader(): AssetLoader<MaterialManifest> {

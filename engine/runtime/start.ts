@@ -31,6 +31,8 @@ export type RuntimeOptions = {
     toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
     exposure?: number;
   };
+  /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
+  shadowAlgorithm?: "pcf" | "vsm";
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -128,6 +130,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     options.assetRegistry,
     {
       ...(options.color !== undefined ? { color: options.color } : {}),
+      ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
@@ -173,6 +176,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     if (!scheduler.has(ts.name)) scheduler.register(ts);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);
+    // M17-lod: runs AFTER CameraSyncSystem (needs ActiveCamera) and
+    // BEFORE MeshLifecycleSystem (writes MeshRenderer that
+    // MeshLifecycleSystem picks up the same frame).
+    const { createLodSelectionSystem } = await import("../render/systems/lod-selection-system");
+    const lod = createLodSelectionSystem();
+    if (!scheduler.has(lod.name)) scheduler.register(lod);
     const mls = createMeshLifecycleSystem(renderer.meshRegistry());
     if (!scheduler.has(mls.name)) scheduler.register(mls);
     const deps: Parameters<typeof createMaterialBindingSystem>[0] = {

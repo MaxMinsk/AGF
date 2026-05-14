@@ -197,6 +197,11 @@ function reconcileMaterial(
       if (manifest.emissiveMap !== undefined) patch.emissiveMap = manifest.emissiveMap;
       if (manifest.emissiveIntensity !== undefined) patch.emissiveIntensity = manifest.emissiveIntensity;
       if (manifest.aoMap !== undefined) patch.aoMap = manifest.aoMap;
+      // M21-mat-custom
+      if (manifest.vertexShader !== undefined) patch.vertexShader = manifest.vertexShader;
+      if (manifest.fragmentShader !== undefined) patch.fragmentShader = manifest.fragmentShader;
+      if (manifest.uniforms !== undefined) patch.uniforms = manifest.uniforms;
+      if (manifest.defines !== undefined) patch.defines = manifest.defines;
       deps.adapter.setMeshMaterialPatch(handle, patch);
       world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "applied" });
     },

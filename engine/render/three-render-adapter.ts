@@ -37,6 +37,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  ShaderMaterial,
   MeshLambertMaterial,
   MeshPhongMaterial,
   MeshPhysicalMaterial,
@@ -50,6 +51,8 @@ import {
   AgXToneMapping,
   type ToneMapping,
   PCFShadowMap,
+  VSMShadowMap,
+  type ShadowMapType,
   PerspectiveCamera,
   PMREMGenerator,
   PointLight,
@@ -60,12 +63,18 @@ import {
   type Texture,
   TextureLoader,
   SRGBColorSpace,
+  Vector2,
   Vector3,
   WebGLRenderer
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
@@ -159,8 +168,16 @@ export type ResolvedWorld = {
   scale: readonly [number, number, number];
 };
 
-/** M21-mat-physical: the shader kind to drive `setMeshMaterialKind`. */
-export type MaterialKind = "standard" | "physical" | "lambert" | "phong" | "basic";
+/** M21-mat-physical / M21-mat-custom: the shader kind to drive `setMeshMaterialKind`. */
+export type MaterialKind =
+  | "standard"
+  | "physical"
+  | "lambert"
+  | "phong"
+  | "basic"
+  | "custom";
+
+export type ShaderUniformValue = number | string | ReadonlyArray<number>;
 
 export type MaterialPatch = {
   /** When set + different from the mesh's current material class, the adapter swaps the material instance. */
@@ -185,6 +202,18 @@ export type MaterialPatch = {
   shininess?: number;
   specular?: string;
   /**
+   * M21-mat-custom: source-string fields for `kind: "custom"`. Each
+   * string is GLSL the renderer drops straight into a `ShaderMaterial`.
+   * `uniforms` is a flat name → value map; numeric strings starting
+   * with `#` are parsed as colours, arrays are passed through.
+   * `defines` lets the manifest gate `#ifdef` branches without
+   * recompiling the shader.
+   */
+  vertexShader?: string;
+  fragmentShader?: string;
+  uniforms?: Record<string, ShaderUniformValue>;
+  defines?: Record<string, string>;
+  /**
    * M21-mat-textures: texture map URLs. The adapter resolves them
    * through a process-wide cached TextureLoader and applies them to
    * the matching Three.js material slot. KTX2-encoded textures
@@ -208,6 +237,16 @@ export type CameraParams = {
   /** Width / height. The adapter recomputes this on `resize`; passing it here is only used to seed a freshly-acquired camera. */
   aspect?: number;
 };
+
+/**
+ * M21-post-pipeline — declarative post-processing chain. The adapter
+ * builds an EffectComposer from these entries (always followed by an
+ * `OutputPass` to apply the device's tone-mapping + sRGB conversion)
+ * once an active camera exists. Order is preserved.
+ */
+export type PostPassConfig =
+  | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
+  | { kind: "fxaa" };
 
 /**
  * M21-shadow-csm — config for the Cascade Shadow Maps adapter. The
@@ -259,6 +298,14 @@ export type AdapterOptions = {
    * keep the legacy linear / clamped look. `exposure` defaults to 1.
    */
   color?: ColorPipelineOptions;
+  /**
+   * M21-shadow-algorithm: pick the shadow-map filtering algorithm.
+   * `pcf` (default) — 4-tap percentage-closer filter; sharp, well
+   * supported, what every existing project was tuned against.
+   * `vsm` — variance shadow maps; smoother penumbras but light leaks
+   * around concave geometry. Pick per project.
+   */
+  shadowAlgorithm?: "pcf" | "vsm";
 };
 
 export type ToneMappingKind =
@@ -313,6 +360,11 @@ export class ThreeRenderAdapter {
   private csm: CSM | undefined;
   private csmConfig: CsmConfig | undefined;
   private readonly csmMaterials = new Set<Material>();
+  // M21-post-pipeline: composer + last-applied config. Rebuilt when the
+  // config or active camera changes (mirrors the CSM lazy-build flow).
+  private composer: EffectComposer | undefined;
+  private postConfig: ReadonlyArray<PostPassConfig> | undefined;
+  private composerSize: { width: number; height: number } | undefined;
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
@@ -359,7 +411,7 @@ export class ThreeRenderAdapter {
     // directly produced a noisy console warning. VSM is a future stretch
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
-    this.device.shadowMap.type = PCFShadowMap;
+    this.device.shadowMap.type = shadowAlgorithmType(options.shadowAlgorithm);
     // M21-color: tone-mapping is opt-in (default "none" / linear clamp)
     // so existing projects look identical after the upgrade. Projects
     // that want ACES Filmic / AgX highlight roll-off set
@@ -800,6 +852,10 @@ export class ThreeRenderAdapter {
 
   resize(width: number, height: number): void {
     this.device.setSize(width, height, false);
+    this.composerSize = { width, height };
+    if (this.composer !== undefined) {
+      this.composer.setSize(width, height);
+    }
     const active = this.activeCamera();
     if (active !== undefined) {
       active.aspect = width / Math.max(1, height);
@@ -1001,10 +1057,14 @@ export class ThreeRenderAdapter {
     if (handle !== undefined && !this.cameras.has(handle)) return;
     const previous = this.activeCameraHandle;
     this.activeCameraHandle = handle;
-    // CSM caches the camera reference. Rebuild if it changed (or if
-    // it became defined for the first time after a deferred enable).
+    // CSM + post-composer cache the camera reference. Rebuild if it
+    // changed (or if it became defined for the first time after a
+    // deferred enable).
     if (previous !== handle && this.csmConfig !== undefined) {
       this.rebuildCsm();
+    }
+    if (previous !== handle && this.postConfig !== undefined) {
+      this.rebuildComposer();
     }
   }
 
@@ -1019,7 +1079,11 @@ export class ThreeRenderAdapter {
     if (this.csm !== undefined) {
       this.csm.update();
     }
-    this.device.render(this.scene, camera);
+    if (this.composer !== undefined) {
+      this.composer.render();
+    } else {
+      this.device.render(this.scene, camera);
+    }
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -1038,6 +1102,70 @@ export class ThreeRenderAdapter {
     }
     this.csmConfig = config;
     this.rebuildCsm();
+  }
+
+  // ---- M21-post-pipeline ----
+
+  /**
+   * Configure the post-processing chain. `undefined` (or an empty array)
+   * disables the composer and `draw()` falls back to a direct
+   * `device.render()`. Each pass is built in array order; an `OutputPass`
+   * is always appended so the final blit picks up the renderer's
+   * `toneMapping` + `outputColorSpace` settings.
+   */
+  setPostPipeline(passes: ReadonlyArray<PostPassConfig> | undefined): void {
+    if (passes === undefined || passes.length === 0) {
+      this.disposeComposer();
+      this.postConfig = undefined;
+      return;
+    }
+    this.postConfig = passes;
+    this.rebuildComposer();
+  }
+
+  isPostPipelineActive(): boolean {
+    return this.composer !== undefined;
+  }
+
+  private rebuildComposer(): void {
+    const camera = this.activeCamera();
+    if (this.postConfig === undefined || camera === undefined) {
+      this.disposeComposer();
+      return;
+    }
+    this.disposeComposer();
+    const composer = new EffectComposer(this.device);
+    const size = this.composerSize ?? this.currentDeviceSize();
+    composer.setSize(size.width, size.height);
+    composer.setPixelRatio(this.device.getPixelRatio());
+    composer.addPass(new RenderPass(this.scene, camera));
+    for (const pass of this.postConfig) {
+      if (pass.kind === "bloom") {
+        const bloom = new UnrealBloomPass(
+          new Vector2(size.width, size.height),
+          pass.strength ?? 0.5,
+          pass.radius ?? 0.4,
+          pass.threshold ?? 0.85
+        );
+        composer.addPass(bloom);
+      } else if (pass.kind === "fxaa") {
+        composer.addPass(new FXAAPass());
+      }
+    }
+    composer.addPass(new OutputPass());
+    this.composer = composer;
+  }
+
+  private disposeComposer(): void {
+    if (this.composer === undefined) return;
+    this.composer.dispose();
+    this.composer = undefined;
+  }
+
+  private currentDeviceSize(): { width: number; height: number } {
+    const target = new Vector2();
+    this.device.getSize(target);
+    return { width: Math.max(1, target.x), height: Math.max(1, target.y) };
   }
 
   isCsmEnabled(): boolean {
@@ -1217,6 +1345,7 @@ export class ThreeRenderAdapter {
     for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
     for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
     this.setDebugOverlayEnabled(false);
+    this.disposeComposer();
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;
@@ -1307,6 +1436,8 @@ function materialMatchesKind(material: Material | Material[], kind: MaterialKind
       return material instanceof MeshPhongMaterial;
     case "basic":
       return material instanceof MeshBasicMaterial;
+    case "custom":
+      return material instanceof ShaderMaterial;
   }
 }
 
@@ -1323,5 +1454,54 @@ function createMaterialForKind(kind: MaterialKind, patch: MaterialPatch): Materi
       return new MeshPhongMaterial({ color: new Color(color) });
     case "basic":
       return new MeshBasicMaterial({ color: new Color(color) });
+    case "custom": {
+      const material = new ShaderMaterial({
+        vertexShader: patch.vertexShader ?? DEFAULT_VERTEX_SHADER,
+        fragmentShader: patch.fragmentShader ?? DEFAULT_FRAGMENT_SHADER
+      });
+      applyShaderUniforms(material, patch.uniforms);
+      if (patch.defines !== undefined) {
+        material.defines = { ...patch.defines };
+      }
+      return material;
+    }
+  }
+}
+
+const DEFAULT_VERTEX_SHADER = `
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const DEFAULT_FRAGMENT_SHADER = `
+uniform vec3 color;
+void main() {
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+function shadowAlgorithmType(kind: "pcf" | "vsm" | undefined): ShadowMapType {
+  return kind === "vsm" ? VSMShadowMap : PCFShadowMap;
+}
+
+function applyShaderUniforms(
+  material: ShaderMaterial,
+  uniforms: Record<string, ShaderUniformValue> | undefined
+): void {
+  if (uniforms === undefined) return;
+  for (const [name, raw] of Object.entries(uniforms)) {
+    let value: number | Color | ReadonlyArray<number>;
+    if (typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw)) {
+      value = new Color(raw);
+    } else if (typeof raw === "string") {
+      // Not a colour string and we don't have a texture loader hook
+      // here — skip silently; agents see the unknown uniform in the
+      // shader compile error instead.
+      continue;
+    } else {
+      value = raw;
+    }
+    material.uniforms[name] = { value };
   }
 }

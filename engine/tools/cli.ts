@@ -127,32 +127,55 @@ if (parsedArgs.command === "check") {
   }
 } else if (parsedArgs.command === "asset") {
   const positional = parsedArgs.positional;
-  const sub = positional[1];
-  const sourceFile = positional[2];
-  if (sub !== "import" || sourceFile === undefined || parsedArgs.assetId === undefined) {
+  const sub = positional[0];
+  if (sub === "import") {
+    const projectDir = positional[1];
+    const sourceFile = positional[2];
+    if (projectDir === undefined || sourceFile === undefined || parsedArgs.assetId === undefined) {
+      console.error(
+        "Usage: engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]"
+      );
+      process.exitCode = 2;
+    } else {
+      const importOptions: Parameters<typeof importAsset>[0] = {
+        projectDir,
+        sourceFile,
+        id: parsedArgs.assetId
+      };
+      if (parsedArgs.assetKind !== undefined) importOptions.kind = parsedArgs.assetKind;
+      if (parsedArgs.assetLicense !== undefined) importOptions.license = parsedArgs.assetLicense;
+      if (parsedArgs.assetNotes !== undefined) importOptions.notes = parsedArgs.assetNotes;
+      if (parsedArgs.assetSubdir !== undefined) importOptions.subdir = parsedArgs.assetSubdir;
+      const result = importAsset(importOptions);
+      emitResult(result, parsedArgs, () =>
+        [
+          `Imported ${result.runtimeRef}`,
+          `  copied to: ${result.runtimePath}`,
+          `  registered in: ${result.sourcesPath}`
+        ].join("\n")
+      );
+      process.exitCode = 0;
+    }
+  } else if (sub === "optimize") {
+    const projectDir = positional[1];
+    if (projectDir === undefined) {
+      console.error("Usage: engine asset optimize <projectDir>");
+      process.exitCode = 2;
+    } else {
+      void (async (): Promise<void> => {
+        const { optimizeProjectAssets, formatAssetOptimizeReport } = await import(
+          "./asset/asset-optimize.js"
+        );
+        const report = await optimizeProjectAssets(projectDir);
+        emitResult(report, parsedArgs, () => formatAssetOptimizeReport(report));
+        process.exitCode = 0;
+      })();
+    }
+  } else {
     console.error(
-      "Usage: engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]"
+      "Usage: engine asset <import|optimize> <projectDir> [...args]"
     );
     process.exitCode = 2;
-  } else {
-    const importOptions: Parameters<typeof importAsset>[0] = {
-      projectDir: parsedArgs.projectDir,
-      sourceFile,
-      id: parsedArgs.assetId
-    };
-    if (parsedArgs.assetKind !== undefined) importOptions.kind = parsedArgs.assetKind;
-    if (parsedArgs.assetLicense !== undefined) importOptions.license = parsedArgs.assetLicense;
-    if (parsedArgs.assetNotes !== undefined) importOptions.notes = parsedArgs.assetNotes;
-    if (parsedArgs.assetSubdir !== undefined) importOptions.subdir = parsedArgs.assetSubdir;
-    const result = importAsset(importOptions);
-    emitResult(result, parsedArgs, () =>
-      [
-        `Imported ${result.runtimeRef}`,
-        `  copied to: ${result.runtimePath}`,
-        `  registered in: ${result.sourcesPath}`
-      ].join("\n")
-    );
-    process.exitCode = 0;
   }
 } else {
   printUsage();
