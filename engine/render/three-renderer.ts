@@ -203,17 +203,23 @@ export class ThreeRenderer {
   }
 
   private refreshCamera(resolved: Map<EntityId, ResolvedTransform>): void {
-    const cameraEntities = this.world.query(["Camera"]);
-    let activeId: EntityId | undefined;
-    for (const id of cameraEntities) {
-      const component = this.world.getComponent<CameraComponent>(id, "Camera");
-      if (component?.active === true) {
-        activeId = id;
-        break;
-      }
-    }
+    // Prefer the ActiveCamera marker from CameraSyncSystem (M21-c). When the
+    // system isn't registered (no scheduler), fall back to the legacy
+    // inline pick so static-only consumers still render.
+    const markers = this.world.query(["ActiveCamera"]);
+    let activeId: EntityId | undefined = markers[0];
     if (activeId === undefined) {
-      activeId = cameraEntities[0];
+      const cameraEntities = this.world.query(["Camera"]);
+      for (const id of cameraEntities) {
+        const component = this.world.getComponent<CameraComponent>(id, "Camera");
+        if (component?.active === true) {
+          activeId = id;
+          break;
+        }
+      }
+      if (activeId === undefined) {
+        activeId = cameraEntities[0];
+      }
     }
     if (activeId === undefined) {
       this.adapter.setActiveCamera(undefined);

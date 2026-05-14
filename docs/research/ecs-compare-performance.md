@@ -79,6 +79,93 @@ Concretely:
 
 In other words: the throughput gap matters in a few specific shapes of game, and for those we have either named M22 work or a non-ECS escape hatch. For everything else (the shape Beacon-World is), AGF is already fast enough.
 
+## Codex Review And Ideas
+
+This doc is pointing in the right direction: it does not pretend AGF can beat native or typed-array ECSs at raw iteration, and it correctly treats the benchmark as calibration rather than a scoreboard. The most important architectural conclusion is worth making explicit:
+
+```text
+AGF should keep one ECS source of truth.
+Optimized structures are derived indexes/caches, not a second ECS.
+```
+
+That distinction matters. A `LocalToWorld` cache, `parent -> children` index, batch buckets, asset-usage index or network-id index is acceptable only if it can be fully rebuilt from `World` + components + commands. If a derived structure starts accepting independent gameplay writes, it has become a second state model and should be rejected.
+
+### Keep
+
+- **Keep `World` as the authoring/runtime contract.** Stable string entity ids, JSON components, schemas, diagnostics and snapshots are the agent-facing product.
+- **Keep `createQuery` as the default system pattern.** Systems should create query handles once and reuse them; raw `world.query()` should be treated as an inspect/tooling convenience or a non-hot path.
+- **Keep benchmarking by use case.** The useful comparison is not "AGF vs Bevy in a vacuum", but "AGF hierarchy/batching/inspect cost for Beacon-shaped scenes".
+- **Keep the native-ECS escape hatch on the server.** If we ever need 100k server-side NPCs, that is a backend architecture decision, not a reason to compromise the browser authoring model.
+
+### Tighten
+
+- **Separate source data from derived data in names.** Prefer names such as `TransformHierarchyCache`, `LocalToWorldCache`, `BatchBucketCache`, and `AssetUsageIndex` so future agents do not mistake them for authoring components.
+- **Add rebuild-vs-incremental tests for every cache.** For any derived cache, one test should mutate incrementally and another should rebuild from scratch; the resulting view must match.
+- **Measure allocations, not just elapsed time.** Browser jank will come from allocation churn as much as raw query time. `resolveHierarchy` and renderer sync should have allocation-focused benches.
+- **Document cache invalidation triggers.** Every cache should list which commands or component writes invalidate it.
+- **Treat hierarchy as a transform subsystem, not generic relations.** `Transform.parent` plus a derived children index is enough for now. Generic relation APIs can wait until multiple unrelated systems need them.
+
+### Watch Outs
+
+- **The 10-50x / 100-1000x numbers are directionally useful, not exact.** They compare different runtimes, machines and benchmark styles. Avoid using them as hard claims in public docs without same-machine reproduction.
+- **Cached query speed can hide stale-data bugs.** `createQuery` is safe for structural matching, but component data changes do not bump structural revision. That is intended. Do not use query caches for value-based queries unless the cache has value-version invalidation.
+- **Hierarchy cache can become the accidental engine core.** Renderer, physics, picking and save/load will all want `LocalToWorld`; keep ownership explicit or every subsystem will grow its own half-cache.
+- **Typed arrays are a migration path, not a default.** They are excellent for `LocalToWorld`, particles, batching and network snapshots. They are not a good authoring format.
+- **Renderer batching will likely beat ECS storage work in ROI.** If a scene has thousands of visible objects, draw calls dominate first. M17 should stay ahead of broad ECS rewrites.
+
+### Proposed Decision Rules
+
+Use these gates before adding a new optimized ECS-adjacent structure:
+
+- The structure is derived entirely from ECS state.
+- It has no public authoring API.
+- It can be rebuilt from scratch at any time.
+- It has explicit invalidation rules.
+- It has tests comparing incremental update to full rebuild.
+- It has a benchmark or a measured bottleneck.
+- It improves a named system: transform, batching, picking, network, inspect or save/load.
+
+If a proposed optimization fails any of those, keep the simple Map-backed world.
+
+### Suggested Follow-Up Stories
+
+| Story | Why |
+| --- | --- |
+| `M22-a` ECS benchmark harness hardening | Make `benchmarks/ecs` easy to run locally and keep JSON baselines stable enough for review. |
+| `M22-b` Allocation benchmark for hierarchy resolve | Time alone is not enough; prevent frame jank from per-frame matrices/maps/arrays. |
+| `M16-cache-b` `TransformHierarchyCache` rebuild/incremental parity tests | Locks the "derived cache, not second ECS" rule into tests. |
+| `M21-a` Renderer responsibility audit | The current renderer owns lifecycle, transform sync, material binding and metrics; batching needs those seams named. |
+| `M17-a` Batch candidate report in `engine doctor` | Before implementing instancing, report which entities would batch and why others would not. |
+| `SYS-a` System authoring rule: query handles only in hot systems | Update agent docs/skills so generated systems do not call raw `world.query()` every frame. |
+
+### Practical Architecture Target
+
+Near-term AGF should look like this:
+
+```text
+World
+  string ids
+  component maps
+  command pipeline
+  schema-backed data
+
+Derived runtime caches
+  TransformHierarchyCache -> LocalToWorld
+  QueryHandle cache -> matching entity ids
+  BatchBucketCache -> render buckets
+  AssetUsageIndex -> diagnostics / HMR
+  NetworkEntityIndex -> protocol lookup
+
+Adapters
+  renderer
+  picking
+  physics
+  save/load
+  backend sync
+```
+
+This is still one ECS. The caches are comparable to database indexes: performance structures that are disposable and rebuildable.
+
 ## Refresh procedure
 
 This doc is a snapshot. Refresh it when either side moves.

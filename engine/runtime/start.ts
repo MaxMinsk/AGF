@@ -97,15 +97,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   const scheduler = options.scheduler;
   const maxFixedStepsPerFrame = options.maxFixedStepsPerFrame;
 
-  // Auto-register the M21-b TransformResolveSystem as the last frameUpdate
-  // so it runs after any gameplay system that mutates Transform. Registration
-  // is idempotent: callers that have already added it are not duplicated.
+  // Auto-register renderer pipeline Systems at the *end* of the scheduler's
+  // order. Both run after any gameplay system that mutates Transform or
+  // Camera. Registration is idempotent: callers that have already added one
+  // by name are skipped. Order matters: TransformResolveSystem produces
+  // LocalToWorld before CameraSyncSystem (and future M21-d..f) read it.
   if (scheduler !== undefined) {
     const { createTransformResolveSystem } = await import("../render/systems/transform-resolve-system");
+    const { createCameraSyncSystem } = await import("../render/systems/camera-sync-system");
     const ts = createTransformResolveSystem();
-    if (!scheduler.has(ts.name)) {
-      scheduler.register(ts);
-    }
+    if (!scheduler.has(ts.name)) scheduler.register(ts);
+    const cs = createCameraSyncSystem();
+    if (!scheduler.has(cs.name)) scheduler.register(cs);
   }
 
   const time: TimeContext = {
