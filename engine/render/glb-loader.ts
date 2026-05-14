@@ -36,14 +36,22 @@ export type GlbLoaderOptions = DecoderOptions & {
  */
 export function createGlbLoader(options: GlbLoaderOptions = {}): AssetLoader<GlbAsset> {
   const loader = new GLTFLoader();
-  if (options.draco === true) {
+  // M25 / ASSET-compression: decoder hooks default-on. Three.js only
+  // engages a decoder when the GLB declares the matching extension
+  // (KHR_draco_mesh_compression / EXT_meshopt_compression), so
+  // uncompressed assets pay zero cost. Set `draco: false` /
+  // `meshopt: false` to skip the singleton init explicitly (e.g. tests
+  // that don't want the worker pool to spin up).
+  if (options.draco !== false) {
     loader.setDRACOLoader(getDracoLoader(options));
   }
+  if (options.meshopt !== false) {
+    loader.setMeshoptDecoder(getMeshoptDecoder());
+  }
+  // KTX2 needs the renderer reference (`detectSupport`); stays opt-in
+  // until a project starts shipping `.ktx2` textures.
   if (options.ktx2 === true && options.renderer !== undefined) {
     loader.setKTX2Loader(getKtx2Loader(options.renderer, options));
-  }
-  if (options.meshopt === true) {
-    loader.setMeshoptDecoder(getMeshoptDecoder());
   }
   return {
     name: "glb",
