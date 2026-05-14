@@ -101,6 +101,12 @@
             },
             "Batchable": {
               "$ref": "#/definitions/batchableComponent"
+            },
+            "RigidBody3D": {
+              "$ref": "#/definitions/rigidBody3DComponent"
+            },
+            "Collider3D": {
+              "$ref": "#/definitions/collider3DComponent"
             }
           }
         }
@@ -367,6 +373,139 @@
         "cast": { "type": "boolean", "default": true },
         "receive": { "type": "boolean", "default": true }
       }
+    },
+    "rigidBody3DComponent": {
+      "description": "M24-schema: declares an entity as a Rapier rigid body. Pair with a sibling Collider3D for the actual collision shape. 'fixed' = static level geometry. 'dynamic' = simulated, writes Transform after fixed step. 'kinematicPosition' = controlled by gameplay/character systems, participates in collisions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["fixed", "dynamic", "kinematicPosition"],
+          "description": "Body kind. AGF_RIGIDBODY3D_DYNAMIC_TRIMESH rejects dynamic+trimesh combos at validation time."
+        },
+        "mass": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Mass in kg. Required for dynamic bodies; ignored for fixed bodies. Validator emits AGF_RIGIDBODY3D_MASS_REQUIRED when missing on dynamic."
+        },
+        "gravityScale": {
+          "type": "number",
+          "default": 1,
+          "description": "0 = floats, 1 = standard, >1 = heavier. Negative values flip gravity for this body."
+        },
+        "linearDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "angularDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "lockRotations": {
+          "type": "boolean",
+          "default": false,
+          "description": "Freeze all rotations — useful for upright character controllers."
+        },
+        "ccd": {
+          "type": "boolean",
+          "default": false,
+          "description": "Continuous collision detection. Costlier but prevents fast-moving bodies tunneling through thin colliders."
+        },
+        "canSleep": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow Rapier to put the body to sleep when idle."
+        }
+      }
+    },
+    "collider3DComponent": {
+      "description": "M24-schema: collision shape for a sibling RigidBody3D entity. Primitive kinds only in v0 (box/sphere/capsule/cylinder); trimesh + heightfield + compound land in M24-static-mesh. Set `sensor: true` for trigger volumes that emit events without resolving collision.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["box", "sphere", "capsule", "cylinder"]
+        },
+        "offset": {
+          "$ref": "#/definitions/vec3",
+          "description": "Local-space offset relative to the body's Transform.position."
+        },
+        "rotation": {
+          "$ref": "#/definitions/vec3",
+          "description": "Local-space rotation (degrees, XYZ Euler) relative to the body's Transform.rotation."
+        },
+        "sensor": {
+          "type": "boolean",
+          "default": false,
+          "description": "Trigger volume — emits enter/exit events but doesn't push other bodies."
+        },
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.5
+        },
+        "restitution": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0,
+          "description": "Bounciness 0..1."
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Named collision layer (e.g. 'world', 'player'). Resolved against project.json#physics.layers at engine check time."
+        },
+        "mask": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Layers this collider interacts with. AGF_COLLIDER3D_LAYER_UNKNOWN catches unknown names."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "box" } }, "required": ["kind"] },
+          "then": {
+            "required": ["size"],
+            "properties": {
+              "size": { "$ref": "#/definitions/vec3", "description": "Full extent on each axis (Rapier wants half-extents; adapter divides by 2)." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "sphere" } }, "required": ["kind"] },
+          "then": {
+            "required": ["radius"],
+            "properties": {
+              "radius": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "capsule" } }, "required": ["kind"] },
+          "then": {
+            "required": ["radius", "halfHeight"],
+            "properties": {
+              "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "halfHeight": { "type": "number", "exclusiveMinimum": 0, "description": "Distance from center to cap-base (excluding hemispheres)." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "cylinder" } }, "required": ["kind"] },
+          "then": {
+            "required": ["radius", "halfHeight"],
+            "properties": {
+              "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "halfHeight": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      ]
     },
     "batchableComponent": {
       "description": "Opts an entity into the M17 renderer batcher. BatchingSystem groups entities by (mesh + material + shadow flags + group) and emits one Three.js InstancedMesh per bucket. The `group` field is an authoring hint — siblings sharing the same group prefer the same bucket. The renderer treats entities WITHOUT this component as un-batched (single Mesh per entity). Omit to keep the existing per-entity path.",

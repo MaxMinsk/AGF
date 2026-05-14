@@ -31,9 +31,9 @@ Pick from this list at sprint start; carry the rest forward. Sprint 34 closed wi
 
 #### M24 — Rapier physics & colliders (just absorbed; ready to start)
 
-- `M24-investigate` Rapier WASM bundling + fixed-step spike under `spikes/physics-rapier-v0/`.
-- `M24-schema` `RigidBody3D` / `Collider3D` / `PhysicsMaterial3D` JSON schemas + diagnostics.
-- `M24-adapter` Rapier adapter under `engine/physics/rapier/` with primitive bodies + lifecycle.
+- `M24-investigate` ✅ Implemented. `spikes/physics-rapier-v0/spike.ts` + `README.md`. Confirms `@dimforge/rapier3d-compat` works: init=42ms, 60 fixed steps=8.2ms (well under 16.67ms frame budget), cube falls from 2.5→0.25 in 1 sim-second. Bundle delta ~1.6–1.8 MB gzipped → lazy `await import('@dimforge/rapier3d-compat')` is mandatory.
+- `M24-schema` ✅ Implemented. `RigidBody3D` (type: fixed/dynamic/kinematicPosition + mass/gravityScale/damping/lockRotations/ccd/canSleep) + `Collider3D` (kind: box/sphere/capsule/cylinder with per-kind if/then constraints + offset/rotation/sensor/friction/restitution/layer/mask) in `schemas/scene.schema.json`. 13 unit tests cover all kinds + negative cases (bad mass, unknown kind, missing halfHeight, restitution > 1, duplicate mask, etc.).
+- `M24-adapter` Rapier adapter under `engine/physics/rapier/` with primitive bodies + lifecycle. Lazy import to keep static-build slim.
 
 #### M21 Phase 2 — finish material + light family
 
