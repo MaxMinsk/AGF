@@ -1,6 +1,21 @@
 import { spawn } from "node:child_process";
-import { writeFileSync, mkdirSync, watch as fsWatch } from "node:fs";
+import {
+  writeFileSync,
+  mkdirSync,
+  watch as fsWatch,
+  existsSync as existsSyncCli,
+  readdirSync as readdirSyncCli
+} from "node:fs";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath as fileURLToPathCli } from "node:url";
+
+const repoRootFromCli = resolve(dirname(fileURLToPathCli(import.meta.url)), "../..");
+
+type NewProjectOptionsForCli = {
+  name: string;
+  templateId?: string;
+  targetDir?: string;
+};
 import { checkProject, formatDiagnostics } from "./check/project-check";
 import {
   formatInspection,
@@ -24,6 +39,17 @@ import { importAsset } from "./asset/asset-import";
 import { formatReplay, replay } from "./replay/project-replay";
 import { formatDocsResult, generateDocs } from "./docs/project-docs";
 import { applyPatch, formatPatchResult, type EnginePatch } from "./patch/project-patch";
+import {
+  formatComponentCatalog,
+  listComponentCatalog
+} from "./components/list-components";
+import {
+  explainComponent,
+  formatComponentExplanation
+} from "./components/explain-component";
+import { createProjectFromTemplate, formatNewProjectResult } from "./new/project-new";
+// engine screenshot is loaded lazily so the engine: CLI surface doesn't drag
+// playwright into every command's startup cost.
 import { readFileSync } from "node:fs";
 
 type ParsedArgs = {
@@ -177,9 +203,111 @@ if (parsedArgs.command === "check") {
     );
     process.exitCode = 2;
   }
+} else if (parsedArgs.command === "screenshot") {
+  const positional = parsedArgs.positional;
+  const projectId = positional[0];
+  const args = process.argv.slice(2);
+  const outIdx = args.indexOf("--out");
+  const serverIdx = args.indexOf("--server-url");
+  const reuseServer = args.includes("--reuse-server");
+  const outPath = outIdx >= 0 ? args[outIdx + 1] : undefined;
+  const serverUrl = serverIdx >= 0 ? args[serverIdx + 1] : undefined;
+  if (projectId === undefined || outPath === undefined) {
+    console.error(
+      "Usage: engine screenshot <projectId> --out <path.png> [--server-url <url>] [--reuse-server] [--json] [--save <path>]"
+    );
+    process.exitCode = 2;
+  } else {
+    void (async (): Promise<void> => {
+      const { captureProjectScreenshot, formatScreenshotResult } = await import(
+        "./screenshot/project-screenshot.js"
+      );
+      const opts: { projectId: string; outPath: string; serverUrl?: string; reuseServer?: boolean } = {
+        projectId,
+        outPath
+      };
+      if (serverUrl !== undefined) opts.serverUrl = serverUrl;
+      if (reuseServer) opts.reuseServer = true;
+      const result = await captureProjectScreenshot(opts);
+      emitResult(result, parsedArgs, () => formatScreenshotResult(result));
+      process.exitCode = result.ok ? 0 : 1;
+    })();
+  }
+} else if (parsedArgs.command === "new") {
+  const positional = parsedArgs.positional;
+  const name = positional[0];
+  if (name === undefined) {
+    console.error("Usage: engine new <projectName> [--template <templateId>] [--target <dir>] [--json] [--save <path>]");
+    process.exitCode = 2;
+  } else {
+    const args = process.argv.slice(2);
+    const templateIdx = args.indexOf("--template");
+    const targetIdx = args.indexOf("--target");
+    const templateId = templateIdx >= 0 ? args[templateIdx + 1] : undefined;
+    const targetDir = targetIdx >= 0 ? args[targetIdx + 1] : undefined;
+    const opts: NewProjectOptionsForCli = { name };
+    if (templateId !== undefined) opts.templateId = templateId;
+    if (targetDir !== undefined) opts.targetDir = targetDir;
+    const result = createProjectFromTemplate(opts);
+    emitResult(result, parsedArgs, () => formatNewProjectResult(result));
+    process.exitCode = result.ok ? 0 : 1;
+  }
+} else if (parsedArgs.command === "list") {
+  const positional = parsedArgs.positional;
+  const what = positional[0];
+  if (what === "components") {
+    const projectArg = positional[1];
+    const catalog = listComponentCatalog(projectArg);
+    emitResult(catalog, parsedArgs, () => formatComponentCatalog(catalog));
+    process.exitCode = 0;
+  } else if (what === "examples") {
+    const examples = listExampleProjects();
+    emitResult({ examples }, parsedArgs, () =>
+      ["Examples:", ...examples.map((e) => `  ${e.id.padEnd(16)}  ${e.summary}`)].join("\n")
+    );
+    process.exitCode = 0;
+  } else {
+    console.error("Usage: engine list <components|examples> [projectDir]");
+    process.exitCode = 2;
+  }
+} else if (parsedArgs.command === "explain") {
+  const positional = parsedArgs.positional;
+  const what = positional[0];
+  const componentName = positional[1];
+  if (what === "component" && componentName !== undefined) {
+    const projectArg = positional[2];
+    const explanation = explainComponent(componentName, projectArg);
+    if (explanation === undefined) {
+      console.error(`Unknown component "${componentName}". Run \`engine list components\` to see the catalog.`);
+      process.exitCode = 1;
+    } else {
+      emitResult(explanation, parsedArgs, () => formatComponentExplanation(explanation));
+      process.exitCode = 0;
+    }
+  } else {
+    console.error("Usage: engine explain component <ComponentName> [projectDir]");
+    process.exitCode = 2;
+  }
 } else {
   printUsage();
   process.exitCode = 2;
+}
+
+function listExampleProjects(): Array<{ id: string; summary: string }> {
+  const examplesRoot = resolve(repoRootFromCli, "examples");
+  if (!existsSyncCli(examplesRoot)) return [];
+  const out: Array<{ id: string; summary: string }> = [];
+  for (const entry of readdirSyncCli(examplesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === "backends") continue;
+    const projectPath = resolve(examplesRoot, entry.name, "project.json");
+    if (!existsSyncCli(projectPath)) continue;
+    const project = JSON.parse(readFileSync(projectPath, "utf8")) as { id?: string; name?: string };
+    const id = project.id ?? entry.name;
+    const summary = project.name ?? "";
+    out.push({ id, summary });
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function buildInspectOptions(args: ParsedArgs): InspectOptions {
@@ -506,7 +634,12 @@ function printUsage(): void {
       "  engine asset import <projectDir> <sourceFile> --id <id> [--kind ...] [--license ...] [--notes ...] [--subdir ...]",
       "  engine replay <recording.json> [--expect <snapshot.json>] [--json] [--save <path>]",
       "  engine docs <projectDir> [--json] [--save <path>]",
-      "  engine patch <projectDir> <patch.json> [--check|--write] [--json] [--save <path>]"
+      "  engine patch <projectDir> <patch.json> [--check|--write] [--json] [--save <path>]",
+      "  engine list components [projectDir] [--json] [--save <path>]",
+      "  engine list examples [--json] [--save <path>]",
+      "  engine explain component <ComponentName> [projectDir] [--json] [--save <path>]",
+      "  engine new <projectName> [--template <templateId>] [--target <dir>] [--json] [--save <path>]",
+      "  engine screenshot <projectId> --out <path.png> [--server-url <url>] [--reuse-server] [--json] [--save <path>]"
     ].join("\n")
   );
 }
