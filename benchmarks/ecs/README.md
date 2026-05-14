@@ -41,6 +41,12 @@ storage / query / hierarchy must:
 3. Run again; verify mean ms hasn't regressed > 5% on any case (or
    document the tradeoff in the commit message).
 
+For the competitive picture (how AGF compares to bitECS / becsy / Miniplex /
+Unity DOTS / Bevy / Flecs), see
+[`docs/research/ecs-compare-performance.md`](../../docs/research/ecs-compare-performance.md).
+**Refresh that doc whenever you refresh the baseline below** — they're a
+matched pair.
+
 Baseline highlights (dev MBP, 2026-05-14):
 
 | Case | mean ms |
