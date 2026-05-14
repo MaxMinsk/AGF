@@ -1,0 +1,24 @@
+{
+  "agfFormatVersion": 1,
+  "id": "shadows-bench",
+  "name": "Shadows Bench",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#3a5066",
+    "shadows": {
+      "csm": {
+        "enabled": true,
+        "cascades": 3,
+        "maxFar": 60,
+        "mode": "practical",
+        "shadowMapSize": 2048,
+        "shadowBias": -0.00015,
+        "lightDirection": [-0.5, -1, -0.3],
+        "lightIntensity": 1.6
+      }
+    }
+  },
+  "profiles": ["static"]
+}

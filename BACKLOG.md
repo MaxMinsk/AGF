@@ -21,18 +21,18 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 37 — TBD
+## Current Sprint: Sprint 38 — TBD
 
-Sprint 37 focus is picked at sprint start. Natural openers (in priority order based on Sprint 36 close):
+Sprint 38 focus is picked at sprint start. Natural openers (in priority order based on Sprint 37 close):
 
-1. **M21-shadow-csm** — outdoor Cascade Shadow Maps via `three/addons/csm/CSM.js`. High-touch: adapter-side CSM instance bound to the active camera, per-frame `csm.update()`, and `csm.setupMaterial(material)` on every material the renderer manages (acquire / patch / manifest paths). Schema on `project.json#renderer.shadows.csm`. Conflict with the ECS-owned sun's shadow needs an opt-out path.
-2. **M17-batched-mesh-system** — wire the BatchedMesh adapter primitives behind a `Batchable.path?: "instanced" | "batched"` selector in `BatchingSystem`. Bucketing for "batched" keys by `material + shadow + group` (mesh varies); useful when many distinct geometries share one material. Add a `batch-bench` scenario pushing 4 different primitive meshes through one batched bucket and confirms drawCalls stay flat.
-3. **beacon-physics-character** — switch `player.drone` from `PlayerControlled` Transform writes to a `CharacterController3D` + a new `CharacterMovementSystem` that consumes input and queries the controller for collision-resolved motion. Requires a project flag so static scenes (Hello-3D) keep the old path.
-4. **beacon-physics-sensor-wiring** — replace `pickup-system` / `hazard-system` proximity loops with `OverlappingTriggers3D` reads. Gameplay events stay identical; the radius checks become sensor-collider acquisitions.
-5. **M24-raycast** — `runtime.physics.raycast({ origin, direction, maxDistance, mask })` returning `EntityId` + hit point/normal/distance. `runtime.physics.overlap({ shape, position, mask })` for area queries.
-6. **M24-debug** — Rapier `world.debugRender()` overlay (line segments) toggleable in dev. `engine doctor` reports body/collider counts + dynamic vs static breakdown. HMR leak test ensures body count stays bounded.
-7. **M24-static-mesh** — Fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
-8. **M21-frame-timing** — Per-phase frame timing in dev snapshot (`inputMs` / `fixedUpdateMs` / `physicsMs` / `transformResolveMs` / `renderSyncMs` / `renderMs` / `postMs`). Plumbing on `DiagnosticsBus` + exposed via `__agf.snapshot().frameTiming`.
+1. **beacon-physics-character** — switch `player.drone` from `PlayerControlled` Transform writes to a `CharacterController3D` + new `CharacterMovementSystem` that consumes input and queries the kinematic controller for collision-resolved motion. Project flag so static scenes (Hello-3D) keep the old path.
+2. **M24-static-mesh** — fixed-body `trimesh` + `heightfield` colliders from GLB assets. `engine check` warns on huge trimesh, rejects dynamic trimesh, validates heightfield dimensions.
+3. **M17-batched-mesh-system** — wire the BatchedMesh adapter primitives behind a `Batchable.path?: "instanced" | "batched"` selector in `BatchingSystem`. Bucketing for "batched" keys by `material + shadow + group` (mesh varies). Add a `batch-bench` scenario pushing 4 different primitive meshes through one batched bucket.
+4. **M24-raycast** — `runtime.physics.raycast({ origin, direction, maxDistance, mask })` returning `EntityId` + hit point/normal/distance. `runtime.physics.overlap({ shape, position, mask })` for area queries.
+5. **M21-light-budgets** — `performance-budget.json#renderer.maxActiveLights` / `maxShadowCastingLights` / `maxShadowMapSize` + `engine doctor` warnings.
+6. **M21-shadow-static** — `renderer.shadowMap.autoUpdate = false` for declared-static shadow casters with explicit invalidation API; pairs with `shadows-bench` since most buildings + rocks are static.
+7. **M17-material-sharing-doctor** — `engine doctor` check that detects duplicate material signatures + reports which manifests could be merged.
+8. **ASSET-decoder-paths** — single shared `DRACOLoader` + `KTX2Loader` constructed at adapter init; `KTX2Loader.detectSupport(renderer)` once. Foundation for `ASSET-compression`.
 
 Default sprint size is 8–12 stories per `feedback-sprint-size`.
 

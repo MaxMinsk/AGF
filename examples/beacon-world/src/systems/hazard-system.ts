@@ -46,6 +46,9 @@ type RespawnableComponent = {
 const CONSUMED_PARK_Y = -100;
 const DEFAULT_DAMAGE = 1;
 const DEFAULT_INVULNERABILITY_SECONDS = 1;
+const OVERLAPPING_TRIGGERS_3D = "OverlappingTriggers3D";
+
+type OverlappingTriggers3DComponent = { entities: ReadonlyArray<EntityId> };
 
 /**
  * Hazards pulse a danger radius and damage any Carrier inside it. The Carrier
@@ -101,7 +104,20 @@ export function createHazardSystem(options: HazardSystemOptions = {}): System {
 
         const hazardPos = hazardTransform.position ?? [0, 0, 0];
 
-        for (const entityId of candidates) {
+        // Sensor-wiring: when the hazard has an OverlappingTriggers3D
+        // entry (physics adapter populated it from Rapier events), only
+        // walk entities currently inside the outer sphere instead of
+        // every Transform candidate. The pulse-radius distance check
+        // still runs — damage gates on the *current* radius, not the
+        // sensor's static max.
+        const hazardOverlaps = world.getComponent<OverlappingTriggers3DComponent>(
+          hazardId,
+          OVERLAPPING_TRIGGERS_3D
+        );
+        const candidateIds: ReadonlyArray<EntityId> =
+          hazardOverlaps?.entities ?? candidates;
+
+        for (const entityId of candidateIds) {
           if (entityId === hazardId) {
             continue;
           }

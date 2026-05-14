@@ -66,6 +66,9 @@ function stubAdapter() {
     },
     setBodyNextKinematicTranslation(): void {},
     setGravity(): void {},
+    getDebugLines() {
+      return { vertices: new Float32Array(0), colors: new Float32Array(0) };
+    },
     info() {
       return { bodies: positions.size, colliders: 0, fixedDt: 1 / 60, totalSteps: steps };
     },
@@ -127,7 +130,7 @@ describe("PhysicsSyncSystem (M24-sync)", () => {
     expect(later?.position).toEqual([1.5, 0.9, 0]);
   });
 
-  it("writes dynamic body translations back into ECS Transform after step", () => {
+  it("writes dynamic body translations back into ECS Transform after step + frameUpdate", () => {
     const { adapter } = stubAdapter();
     const registry = createPhysicsBodyRegistry(adapter);
     const world = new World();
@@ -137,8 +140,12 @@ describe("PhysicsSyncSystem (M24-sync)", () => {
 
     const system = createPhysicsSyncSystem(registry, adapter);
     system.fixedUpdate?.(ctx(world));
+    // M24-interpolation: fixedUpdate now stores prev/curr; the Transform
+    // writeback happens in frameUpdate. With physicsAlpha defaulted to 0,
+    // the result equals prevPos (which seeded from currPos on the first
+    // step), so position still matches the stub's body translation.
+    system.frameUpdate?.(ctx(world));
     const transform = world.getComponent<{ position: ReadonlyArray<number> }>("cube", "Transform");
-    // Stub adapter doesn't actually simulate gravity — translation should equal initial.
     expect(transform?.position).toEqual([0, 2, 0]);
   });
 
@@ -188,5 +195,44 @@ describe("PhysicsSyncSystem (M24-sync)", () => {
     system.fixedUpdate?.(ctx(world));
     system.fixedUpdate?.(ctx(world));
     expect(spy.steps()).toBe(3);
+  });
+
+  it("interpolates dynamic Transform between fixed steps by time.physicsAlpha (M24-interpolation)", () => {
+    const { adapter, spy } = stubAdapter();
+    const registry = createPhysicsBodyRegistry(adapter);
+    const world = new World();
+    world.addEntity("cube");
+    world.setComponent("cube", "Transform", { position: [0, 0, 0] });
+    world.setComponent("cube", "RigidBody3D", { type: "dynamic", mass: 1 });
+
+    const system = createPhysicsSyncSystem(registry, adapter);
+    // First fixed step: body position = [0, 0, 0].
+    system.fixedUpdate?.(ctx(world));
+    // Move the body to simulate a step.
+    const handle = registry.handleFor("cube");
+    spy.positions.set(handle!, [10, 0, 0]);
+    // Second fixed step: body position = [10, 0, 0]; prev = [0, 0, 0], curr = [10, 0, 0].
+    system.fixedUpdate?.(ctx(world));
+
+    // alpha = 0 → expect prev = [0, 0, 0]
+    system.frameUpdate?.({
+      world,
+      time: { elapsed: 0, dt: 1 / 120, fixedDt: 1 / 60, frameCount: 0, fixedStepCount: 0, physicsAlpha: 0 }
+    });
+    expect(world.getComponent<{ position: ReadonlyArray<number> }>("cube", "Transform")?.position).toEqual([0, 0, 0]);
+
+    // alpha = 0.5 → expect midpoint = [5, 0, 0]
+    system.frameUpdate?.({
+      world,
+      time: { elapsed: 0, dt: 1 / 120, fixedDt: 1 / 60, frameCount: 0, fixedStepCount: 0, physicsAlpha: 0.5 }
+    });
+    expect(world.getComponent<{ position: ReadonlyArray<number> }>("cube", "Transform")?.position).toEqual([5, 0, 0]);
+
+    // alpha = 1 → expect curr = [10, 0, 0]
+    system.frameUpdate?.({
+      world,
+      time: { elapsed: 0, dt: 1 / 120, fixedDt: 1 / 60, frameCount: 0, fixedStepCount: 0, physicsAlpha: 1 }
+    });
+    expect(world.getComponent<{ position: ReadonlyArray<number> }>("cube", "Transform")?.position).toEqual([10, 0, 0]);
   });
 });

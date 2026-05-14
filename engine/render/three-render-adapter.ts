@@ -24,12 +24,15 @@
 import {
   AmbientLight,
   BatchedMesh,
-  type BufferGeometry,
+  BufferAttribute,
+  BufferGeometry,
   Color,
   DirectionalLight,
   HemisphereLight,
   InstancedMesh,
   type Light,
+  LineBasicMaterial,
+  LineSegments,
   type Material,
   Matrix4,
   Mesh,
@@ -53,6 +56,7 @@ import {
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { CSM } from "three/examples/jsm/csm/CSM.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
@@ -180,6 +184,20 @@ export type CameraParams = {
   aspect?: number;
 };
 
+/**
+ * M21-shadow-csm — config for the Cascade Shadow Maps adapter. The
+ * adapter constructs CSM lazily once an active camera exists.
+ */
+export type CsmConfig = {
+  cascades?: number;
+  maxFar?: number;
+  mode?: "practical" | "uniform" | "logarithmic";
+  shadowMapSize?: number;
+  shadowBias?: number;
+  lightDirection?: readonly [number, number, number];
+  lightIntensity?: number;
+};
+
 export type AdapterInfo = {
   geometries: number;
   textures: number;
@@ -224,6 +242,10 @@ export class ThreeRenderAdapter {
   private currentEnvironmentTexture: Texture | undefined;
   private currentEnvironmentKind: EnvironmentKind = "none";
   private activeCameraHandle: CameraHandle | undefined;
+  private debugOverlay: LineSegments | undefined;
+  private csm: CSM | undefined;
+  private csmConfig: CsmConfig | undefined;
+  private readonly csmMaterials = new Set<Material>();
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
@@ -466,6 +488,7 @@ export class ThreeRenderAdapter {
     const handle = this.nextBucketHandle;
     this.nextBucketHandle += 1;
     const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    this.registerWithCsm(material);
     const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
     mesh.count = 0;
     mesh.frustumCulled = false;
@@ -577,6 +600,7 @@ export class ThreeRenderAdapter {
     const handle = this.nextBatchedBucketHandle;
     this.nextBatchedBucketHandle += 1;
     const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    this.registerWithCsm(material);
     const mesh = new BatchedMesh(spec.maxInstances, spec.maxVertices, spec.maxIndices, material);
     mesh.frustumCulled = false;
     mesh.castShadow = spec.castShadow !== false;
@@ -667,6 +691,7 @@ export class ThreeRenderAdapter {
     const handle = this.nextMeshHandle;
     this.nextMeshHandle += 1;
     const material = new MeshStandardMaterial({ color: new Color(initial.color ?? DEFAULT_COLOR) });
+    this.registerWithCsm(material);
     const mesh = new Mesh(initial.geometry, material);
     this.meshes.set(handle, mesh);
     this.scene.add(mesh);
@@ -697,6 +722,7 @@ export class ThreeRenderAdapter {
       const next = createMaterialForKind(patch.kind, patch);
       disposeMaterial(mesh.material);
       mesh.material = next;
+      this.registerWithCsm(next);
     }
     const material = mesh.material as
       | MeshStandardMaterial
@@ -790,7 +816,13 @@ export class ThreeRenderAdapter {
 
   setActiveCamera(handle: CameraHandle | undefined): void {
     if (handle !== undefined && !this.cameras.has(handle)) return;
+    const previous = this.activeCameraHandle;
     this.activeCameraHandle = handle;
+    // CSM caches the camera reference. Rebuild if it changed (or if
+    // it became defined for the first time after a deferred enable).
+    if (previous !== handle && this.csmConfig !== undefined) {
+      this.rebuildCsm();
+    }
   }
 
   /** Used by the renderer to skip a draw when no camera is bound. */
@@ -801,7 +833,162 @@ export class ThreeRenderAdapter {
   draw(): void {
     const camera = this.activeCamera();
     if (camera === undefined) return;
+    if (this.csm !== undefined) {
+      this.csm.update();
+    }
     this.device.render(this.scene, camera);
+  }
+
+  // ---- M21-shadow-csm: cascade shadow maps ----
+
+  /**
+   * Turn CSM on or off. When `config` is provided, the adapter stores
+   * it and tries to construct CSM if an active camera exists; otherwise
+   * the build is deferred until `setActiveCamera` is called. Pass
+   * `undefined` to fully disable + restore materials.
+   */
+  setCsm(config: CsmConfig | undefined): void {
+    if (config === undefined) {
+      this.disposeCsm();
+      this.csmConfig = undefined;
+      return;
+    }
+    this.csmConfig = config;
+    this.rebuildCsm();
+  }
+
+  isCsmEnabled(): boolean {
+    return this.csm !== undefined;
+  }
+
+  private rebuildCsm(): void {
+    const camera = this.activeCamera();
+    if (this.csmConfig === undefined || camera === undefined) {
+      this.disposeCsm();
+      return;
+    }
+    // Reconstruct from scratch so a camera swap or config change is
+    // safe — CSM caches the camera ref + shader uniforms.
+    this.disposeCsm();
+    const direction = this.csmConfig.lightDirection ?? [-0.5, -1, -0.3];
+    const csm = new CSM({
+      camera,
+      parent: this.scene,
+      cascades: this.csmConfig.cascades ?? 3,
+      maxFar: this.csmConfig.maxFar ?? 100,
+      mode: this.csmConfig.mode ?? "practical",
+      shadowMapSize: this.csmConfig.shadowMapSize ?? 2048,
+      shadowBias: this.csmConfig.shadowBias ?? -0.0001,
+      lightDirection: new Vector3(direction[0], direction[1], direction[2]).normalize(),
+      lightIntensity: this.csmConfig.lightIntensity ?? 1.5
+    });
+    this.csm = csm;
+    // Register every material the adapter has already created.
+    for (const mesh of this.meshes.values()) {
+      this.registerWithCsm(mesh.material);
+    }
+    for (const bucket of this.buckets.values()) {
+      this.registerWithCsm(bucket.mesh.material);
+    }
+    for (const bucket of this.batchedBuckets.values()) {
+      this.registerWithCsm(bucket.mesh.material);
+    }
+  }
+
+  private disposeCsm(): void {
+    if (this.csm === undefined) return;
+    this.csm.remove();
+    this.csm.dispose();
+    this.csm = undefined;
+    // CSM.dispose already flips needsUpdate on each registered material
+    // so the shader recompiles without the cascade defines next frame.
+    this.csmMaterials.clear();
+  }
+
+  /**
+   * Idempotent. Materials created/swapped while CSM is active route
+   * through here so their shader picks up cascade uniforms.
+   */
+  private registerWithCsm(material: Material | Material[]): void {
+    if (this.csm === undefined) return;
+    if (Array.isArray(material)) {
+      for (const m of material) this.registerWithCsm(m);
+      return;
+    }
+    if (this.csmMaterials.has(material)) return;
+    this.csm.setupMaterial(material);
+    this.csmMaterials.add(material);
+  }
+
+  // ---- M24-debug: physics collider overlay ----
+
+  /**
+   * Show or hide a single LineSegments node in the scene that visualises
+   * Rapier's `debugRender()` output. The renderer owns the GPU resource;
+   * the physics debug system feeds new vertex/color buffers each frame.
+   * Returns true when the overlay is currently visible after the call.
+   */
+  setDebugOverlayEnabled(enabled: boolean): boolean {
+    if (enabled === (this.debugOverlay !== undefined)) {
+      return this.debugOverlay !== undefined;
+    }
+    if (enabled) {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute("position", new BufferAttribute(new Float32Array(0), 3));
+      geometry.setAttribute("color", new BufferAttribute(new Float32Array(0), 4));
+      const material = new LineBasicMaterial({ vertexColors: true, transparent: true, depthTest: false });
+      const segments = new LineSegments(geometry, material);
+      segments.frustumCulled = false;
+      // Render after everything else so the overlay always sits on top.
+      segments.renderOrder = 999;
+      this.scene.add(segments);
+      this.debugOverlay = segments;
+    } else if (this.debugOverlay !== undefined) {
+      this.scene.remove(this.debugOverlay);
+      this.debugOverlay.geometry.dispose();
+      const material = this.debugOverlay.material;
+      if (Array.isArray(material)) {
+        for (const m of material) m.dispose();
+      } else {
+        material.dispose();
+      }
+      this.debugOverlay = undefined;
+    }
+    return this.debugOverlay !== undefined;
+  }
+
+  isDebugOverlayEnabled(): boolean {
+    return this.debugOverlay !== undefined;
+  }
+
+  /**
+   * Push a fresh set of line-segment vertices + per-vertex RGBA colors
+   * into the debug overlay. Both buffers are flat `Float32Array`s:
+   *   vertices = [x0,y0,z0, x1,y1,z1, ...]
+   *   colors   = [r0,g0,b0,a0, r1,g1,b1,a1, ...]
+   * Caller is `engine/physics/rapier/physics-debug-system`.
+   */
+  setDebugOverlayData(vertices: Float32Array, colors: Float32Array): void {
+    const overlay = this.debugOverlay;
+    if (overlay === undefined) return;
+    const geometry = overlay.geometry;
+    const positionAttr = geometry.getAttribute("position") as BufferAttribute | undefined;
+    const colorAttr = geometry.getAttribute("color") as BufferAttribute | undefined;
+    // Rebuild only when size changes — same Float32Array length lets us
+    // reuse the BufferAttribute and just flip `needsUpdate`.
+    if (positionAttr === undefined || positionAttr.array.length !== vertices.length) {
+      geometry.setAttribute("position", new BufferAttribute(vertices, 3));
+    } else {
+      (positionAttr.array as Float32Array).set(vertices);
+      positionAttr.needsUpdate = true;
+    }
+    if (colorAttr === undefined || colorAttr.array.length !== colors.length) {
+      geometry.setAttribute("color", new BufferAttribute(colors, 4));
+    } else {
+      (colorAttr.array as Float32Array).set(colors);
+      colorAttr.needsUpdate = true;
+    }
+    geometry.setDrawRange(0, vertices.length / 3);
   }
 
   info(): AdapterInfo {
@@ -846,6 +1033,7 @@ export class ThreeRenderAdapter {
     this.lights.clear();
     for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
     for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
+    this.setDebugOverlayEnabled(false);
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;

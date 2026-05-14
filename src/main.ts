@@ -98,6 +98,26 @@ declare global {
         readonly handleLeak: number;
       };
       /**
+       * M21-frame-timing — window-averaged per-phase tick timings in
+       * milliseconds. `samples` is the frame count the window was
+       * averaged over (0 until the first window closes).
+       */
+      frameTiming(): {
+        readonly fixedUpdateMs: number;
+        readonly frameUpdateMs: number;
+        readonly renderMs: number;
+        readonly totalFrameMs: number;
+        readonly samples: number;
+      };
+      /**
+       * M24-debug — physics-collider overlay controls. Undefined when
+       * the active project did not opt into `physics.enabled`.
+       */
+      physics?: {
+        setDebugOverlay(enabled: boolean): void;
+        isDebugOverlayEnabled(): boolean;
+      };
+      /**
        * M23-tuner — agent-spawnable sliders bound to component fields.
        * See `engine/runtime/dev-tuner.ts` and `docs/agent/dev-tuner.md`.
        */
@@ -171,6 +191,30 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       project: projectJson.default as ProjectMeta,
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.batchBenchBootstrap
+    };
+  },
+  "physics-bench": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/physics-bench/project.json"),
+      import("../examples/physics-bench/scenes/start.scene.json"),
+      import("../examples/physics-bench/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.physicsBenchBootstrap
+    };
+  },
+  "shadows-bench": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/shadows-bench/project.json"),
+      import("../examples/shadows-bench/scenes/start.scene.json"),
+      import("../examples/shadows-bench/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.shadowsBenchBootstrap
     };
   }
 };
@@ -253,10 +297,22 @@ void (async (): Promise<void> => {
       stopRecording: () => app.stopRecording(),
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererInfo: () => app.rendererInfo(),
+      frameTiming: () => app.frameTiming(),
+      ...(app.physics !== undefined ? { physics: app.physics } : {}),
       reloadCount: 0,
       reloadEvents: [],
       dev: { tuner }
     };
+    // M24-debug: `?physicsDebug=1` boots the project with the collider
+    // overlay already on. Programmatic toggling via __agf.physics.* keeps
+    // working either way.
+    const requestedPhysicsDebug = params.get("physicsDebug");
+    if (
+      app.physics !== undefined &&
+      (requestedPhysicsDebug === "1" || requestedPhysicsDebug === "true")
+    ) {
+      app.physics.setDebugOverlay(true);
+    }
     // Open the dev-bridge WS so an agent can curl /__agf/* against the dev
     // server without ever touching DevTools. Production builds drop this.
     const { mountPageBridge } = await import("../engine/dev/page-bridge");

@@ -2,6 +2,24 @@ export type DevOverlayMetrics = {
   fps: number;
   fixedStepsPerSecond: number;
   entityCount: number;
+  /**
+   * Three.js `WebGLRenderer.info.render.calls` from the previous frame.
+   * Exposed so the agent + dev can spot batching regressions at a
+   * glance — `examples/batch-bench` ought to show ~5 draws regardless
+   * of seed count; spikes here mean a system is breaking the bucketer.
+   */
+  drawCalls?: number;
+  /**
+   * Window-averaged per-phase frame timings in milliseconds. When
+   * present, the overlay renders fixed / frame / render / total cells
+   * so the agent can spot which phase is dominating the budget.
+   */
+  frameTiming?: {
+    fixedUpdateMs: number;
+    frameUpdateMs: number;
+    renderMs: number;
+    totalFrameMs: number;
+  };
 };
 
 export type DevOverlayHandle = {
@@ -30,9 +48,24 @@ export function createDevOverlay(parent: HTMLElement): DevOverlayHandle {
 }
 
 function renderMetrics(metrics: DevOverlayMetrics): string {
-  return [
+  const parts = [
     `<span class="metric"><strong>${metrics.fps.toFixed(0)}</strong> fps</span>`,
     `<span class="metric"><strong>${metrics.fixedStepsPerSecond.toFixed(0)}</strong> steps/s</span>`,
     `<span class="metric"><strong>${metrics.entityCount}</strong> entities</span>`
-  ].join("");
+  ];
+  if (metrics.drawCalls !== undefined) {
+    parts.push(
+      `<span class="metric"><strong>${metrics.drawCalls}</strong> draws</span>`
+    );
+  }
+  if (metrics.frameTiming !== undefined) {
+    const t = metrics.frameTiming;
+    parts.push(
+      `<span class="metric"><strong>${t.fixedUpdateMs.toFixed(1)}</strong> fix</span>`,
+      `<span class="metric"><strong>${t.frameUpdateMs.toFixed(1)}</strong> frm</span>`,
+      `<span class="metric"><strong>${t.renderMs.toFixed(1)}</strong> rnd</span>`,
+      `<span class="metric"><strong>${t.totalFrameMs.toFixed(1)}</strong> ms</span>`
+    );
+  }
+  return parts.join("");
 }

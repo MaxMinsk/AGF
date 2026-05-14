@@ -27,7 +27,26 @@ import type { SaveBlob } from "../engine/runtime/persistence/save-load";
 
 export type ProjectMeta = {
   name: string;
-  render?: { background?: string };
+  render?: {
+    background?: string;
+    /**
+     * M21-shadow-csm: opt in to cascade shadow maps. When enabled, the
+     * adapter constructs a CSM instance against the active camera and
+     * routes every renderer-managed material through `setupMaterial`.
+     */
+    shadows?: {
+      csm?: {
+        enabled?: boolean;
+        cascades?: number;
+        maxFar?: number;
+        mode?: "practical" | "uniform" | "logarithmic";
+        shadowMapSize?: number;
+        shadowBias?: number;
+        lightDirection?: ReadonlyArray<number>;
+        lightIntensity?: number;
+      };
+    };
+  };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
    * The runtime picks one active profile (defaults to `profiles[0]`) and gates
@@ -135,6 +154,24 @@ export type AppHandle = {
     batchedBuckets: number;
     batchedBucketInstances: number;
     handleLeak: number;
+  };
+  /** M21-frame-timing — window-averaged per-phase tick timings in milliseconds. */
+  frameTiming(): {
+    fixedUpdateMs: number;
+    frameUpdateMs: number;
+    renderMs: number;
+    totalFrameMs: number;
+    samples: number;
+  };
+  /**
+   * M24-debug — physics-collider debug overlay controls. `undefined` when
+   * the active project did not declare `physics.enabled: true`.
+   */
+  physics?: {
+    /** Toggle the LineSegments overlay produced by Rapier's debugRender. */
+    setDebugOverlay(enabled: boolean): void;
+    /** Current state of the overlay. */
+    isDebugOverlayEnabled(): boolean;
   };
   dispose(): void;
 };
@@ -256,6 +293,8 @@ export async function createApp(
   // M24-sync: lazy-load Rapier and register PhysicsSyncSystem before
   // `startRuntime` ticks. Adapter init is async (WASM); registering after
   // start would race the first fixed step.
+  let physicsAdapter: import("../engine/physics/rapier/rapier-adapter").RapierAdapter | undefined;
+  const physicsDebugState = { enabled: false };
   if (project.physics?.enabled === true) {
     const { createRapierAdapter } = await import(
       "../engine/physics/rapier/rapier-adapter"
@@ -267,7 +306,7 @@ export async function createApp(
       "../engine/physics/rapier/physics-sync-system"
     );
     const gravity = project.physics.gravity;
-    const physicsAdapter = await createRapierAdapter({
+    physicsAdapter = await createRapierAdapter({
       ...(gravity !== undefined && gravity.length >= 3
         ? { gravity: [gravity[0] ?? 0, gravity[1] ?? -9.81, gravity[2] ?? 0] as const }
         : {}),
@@ -279,6 +318,41 @@ export async function createApp(
   }
 
   const runtime: RuntimeHandle = await startRuntime(runtimeOptions);
+
+  // M21-shadow-csm: opt in to cascade shadow maps. Build happens lazily
+  // once CameraSyncSystem picks an active camera; the adapter handles
+  // deferred construction internally.
+  const csmConfig = project.render?.shadows?.csm;
+  if (csmConfig !== undefined && csmConfig.enabled === true) {
+    const direction = csmConfig.lightDirection;
+    const csmSpec: import("../engine/render/three-render-adapter").CsmConfig = {};
+    if (csmConfig.cascades !== undefined) csmSpec.cascades = csmConfig.cascades;
+    if (csmConfig.maxFar !== undefined) csmSpec.maxFar = csmConfig.maxFar;
+    if (csmConfig.mode !== undefined) csmSpec.mode = csmConfig.mode;
+    if (csmConfig.shadowMapSize !== undefined) csmSpec.shadowMapSize = csmConfig.shadowMapSize;
+    if (csmConfig.shadowBias !== undefined) csmSpec.shadowBias = csmConfig.shadowBias;
+    if (direction !== undefined && direction.length >= 3) {
+      csmSpec.lightDirection = [direction[0] ?? -0.5, direction[1] ?? -1, direction[2] ?? -0.3] as const;
+    }
+    if (csmConfig.lightIntensity !== undefined) csmSpec.lightIntensity = csmConfig.lightIntensity;
+    runtime.renderer.adapter.setCsm(csmSpec);
+  }
+
+  // M24-debug: physics debug overlay — registered AFTER startRuntime so
+  // the renderer adapter exists. The system reads `physicsDebugState.enabled`
+  // each frame, so __agf.physics.setDebugOverlay flips it live.
+  if (physicsAdapter !== undefined) {
+    const { createPhysicsDebugSystem } = await import(
+      "../engine/physics/rapier/physics-debug-system"
+    );
+    scheduler.register(
+      createPhysicsDebugSystem({
+        physics: physicsAdapter,
+        renderer: runtime.renderer.adapter,
+        state: physicsDebugState
+      })
+    );
+  }
 
   const projectUi: ProjectUiHandle | undefined = bootstrap?.attachUi?.({
     shell,
@@ -347,6 +421,21 @@ export async function createApp(
     rendererInfo() {
       return runtime.renderer.info();
     },
+    frameTiming() {
+      return runtime.frameTiming();
+    },
+    ...(physicsAdapter !== undefined
+      ? {
+          physics: {
+            setDebugOverlay(enabled: boolean): void {
+              physicsDebugState.enabled = enabled;
+            },
+            isDebugOverlayEnabled(): boolean {
+              return physicsDebugState.enabled;
+            }
+          }
+        }
+      : {}),
     async save() {
       return runtime.save();
     },

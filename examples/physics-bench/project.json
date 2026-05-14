@@ -1,0 +1,17 @@
+{
+  "agfFormatVersion": 1,
+  "id": "physics-bench",
+  "name": "Physics Bench",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0a1118"
+  },
+  "profiles": ["static"],
+  "physics": {
+    "enabled": true,
+    "gravity": [0, -9.81, 0],
+    "fixedDt": 0.0166667
+  }
+}

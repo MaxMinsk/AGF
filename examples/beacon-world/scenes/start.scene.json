@@ -195,7 +195,7 @@
           "authority": "server"
         },
         "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "capsule", "radius": 0.6, "halfHeight": 1.2, "sensor": true }
+        "Collider3D": { "kind": "capsule", "radius": 1.6, "halfHeight": 1.2, "sensor": true }
       }
     },
     {
@@ -227,7 +227,7 @@
           "authority": "server"
         },
         "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "capsule", "radius": 0.6, "halfHeight": 1.2, "sensor": true }
+        "Collider3D": { "kind": "capsule", "radius": 1.6, "halfHeight": 1.2, "sensor": true }
       }
     },
     {
@@ -254,7 +254,7 @@
           "authority": "server"
         },
         "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "sphere", "radius": 0.5, "sensor": true }
+        "Collider3D": { "kind": "sphere", "radius": 1.2, "sensor": true }
       }
     },
     {
@@ -281,7 +281,7 @@
           "authority": "server"
         },
         "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "sphere", "radius": 0.5, "sensor": true }
+        "Collider3D": { "kind": "sphere", "radius": 1.2, "sensor": true }
       }
     },
     {

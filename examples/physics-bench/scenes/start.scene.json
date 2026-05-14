@@ -1,0 +1,95 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Physics Bench Camera" },
+        "Transform": { "position": [0, 8, 16], "rotation": [-22, 0, 0] },
+        "Camera": { "kind": "perspective", "active": true, "fov": 55, "near": 0.1, "far": 200 }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Name": { "label": "Ambient" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "ambient", "color": "#ffffff", "intensity": 0.55 }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Name": { "label": "Sun" },
+        "Transform": { "position": [5, 14, 7] },
+        "Light": {
+          "kind": "directional",
+          "color": "#ffe4b3",
+          "intensity": 1.8,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": -0.01,
+            "normalBias": 0.4,
+            "camera": { "left": -12, "right": 12, "top": 12, "bottom": -12, "near": 6, "far": 32 }
+          }
+        }
+      }
+    },
+    {
+      "id": "ground",
+      "components": {
+        "Name": { "label": "Ground Plate" },
+        "Transform": { "position": [0, -0.5, 0], "scale": [24, 0.5, 24] },
+        "MeshRenderer": { "mesh": "box", "color": "#1a232c" },
+        "ShadowFlags": { "cast": false, "receive": true },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [24, 0.5, 24] }
+      }
+    },
+    {
+      "id": "wall.north",
+      "components": {
+        "Name": { "label": "North Wall" },
+        "Transform": { "position": [0, 1.5, -12], "scale": [24, 3, 0.5] },
+        "MeshRenderer": { "mesh": "box", "color": "#222e3a" },
+        "ShadowFlags": { "cast": false, "receive": true },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [24, 3, 0.5] }
+      }
+    },
+    {
+      "id": "wall.south",
+      "components": {
+        "Name": { "label": "South Wall" },
+        "Transform": { "position": [0, 1.5, 12], "scale": [24, 3, 0.5] },
+        "MeshRenderer": { "mesh": "box", "color": "#222e3a" },
+        "ShadowFlags": { "cast": false, "receive": true },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [24, 3, 0.5] }
+      }
+    },
+    {
+      "id": "wall.east",
+      "components": {
+        "Name": { "label": "East Wall" },
+        "Transform": { "position": [12, 1.5, 0], "scale": [0.5, 3, 24] },
+        "MeshRenderer": { "mesh": "box", "color": "#222e3a" },
+        "ShadowFlags": { "cast": false, "receive": true },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [0.5, 3, 24] }
+      }
+    },
+    {
+      "id": "wall.west",
+      "components": {
+        "Name": { "label": "West Wall" },
+        "Transform": { "position": [-12, 1.5, 0], "scale": [0.5, 3, 24] },
+        "MeshRenderer": { "mesh": "box", "color": "#222e3a" },
+        "ShadowFlags": { "cast": false, "receive": true },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [0.5, 3, 24] }
+      }
+    }
+  ]
+}

@@ -38,6 +38,33 @@
         "background": {
           "type": "string",
           "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "shadows": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional shadow-pipeline config. CSM (Cascade Shadow Maps) replaces the per-light directional shadow with N depth cascades sized to the active camera frustum — required for large outdoor scenes where one shadow map cannot cover the visible range without acne.",
+          "properties": {
+            "csm": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "M21-shadow-csm: cascade shadow maps via three/addons/csm/CSM.js. When enabled, every material the adapter manages has `csm.setupMaterial(material)` called on it; existing directional Light entities should set castShadow: false (CSM brings its own directional lights). AGF_CSM_DIRECTIONAL_CONFLICT diagnostic fires when the scene still has a shadow-casting directional light.",
+              "properties": {
+                "enabled": { "type": "boolean", "default": false },
+                "cascades": { "type": "integer", "minimum": 2, "maximum": 4, "default": 3 },
+                "maxFar": { "type": "number", "exclusiveMinimum": 0, "default": 100 },
+                "mode": { "enum": ["practical", "uniform", "logarithmic"], "default": "practical" },
+                "shadowMapSize": { "type": "integer", "enum": [512, 1024, 2048, 4096], "default": 2048 },
+                "shadowBias": { "type": "number", "default": -0.0001 },
+                "lightDirection": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "lightIntensity": { "type": "number", "minimum": 0, "default": 1.5 }
+              }
+            }
+          }
         }
       }
     },
