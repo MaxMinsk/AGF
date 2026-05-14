@@ -21,18 +21,24 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 36 — TBD
+## Current Sprint: Sprint 36 — physics integration + cache polish + batched-mesh primitives
 
-Sprint 36 focus is picked at sprint start. Natural openers (in priority order based on Sprint 35 close):
+Sprint 36 focuses on integrating the Rapier adapter shipped in Sprint 35 into the runtime, finishing the cache work, and laying down `BatchedMesh` adapter primitives. Beacon physics adoption + `M21-shadow-csm` are the remaining open candidates.
 
-1. **M24-sync** — wire RapierAdapter into `start.ts` + Transform ↔ body sync.
-2. **M24-sensors** — collision events + runtime-only `Grounded3D` / `OverlappingTriggers3D`.
-3. **M24-character** — `CharacterController3D` kinematic capsule wrapper.
-4. **Beacon physics adoption** — drone walks on a fixed ground collider, pickup/hazard sensors fire `trigger.enter` events.
-5. **M16-cache-d** — children index → skip topo walk for non-dirty subtrees (chase < 1ms).
-6. **M17-batched-mesh** — `BatchedMesh` path for varied-geometry / shared-material scenery.
-7. **M21-shadow-csm** — outdoor CSM via `three/addons/csm/CSM.js` (needs `csm.setupMaterial` hook on every material — high-touch).
-8. **`examples/batch-bench/`** — stand-alone perf project that stress-tests the bucketer (referenced in HIGH_LEVEL_BACKLOG).
+### Stories
+
+- `M24-sync` ✅ Implemented. `engine/physics/rapier/physics-sync-system.ts` + `physics-body-registry.ts`. fixedUpdate System with 5 phases (acquire/release, kinematic push, step, sensors classify, dynamic writeback). Lazy-imports Rapier; registered by `startRuntime` when `project.physics?.enabled === true`. Project schema gains `physics: { enabled?, gravity?, fixedDt? }`. 6 unit tests with a stub adapter. Spike `spikes/physics-rapier-v0/sync-spike.ts` verified end-to-end with real Rapier.
+- `M24-sensors` ✅ Implemented. Adapter `drainEvents()` reads Rapier's `EventQueue`; PhysicsSyncSystem writes runtime-only `CurrentContacts3D` / `OverlappingTriggers3D` ECS components per fixed step. `entityForCollider` reverse lookup added to the body registry. Spike `spikes/physics-rapier-v0/sensor-spike.ts` confirms enter/exit events fire across a sensor box and on contact pairs.
+- `M24-character` ✅ Implemented. `CharacterController3D` component + adapter `acquireCharacterController` / `releaseCharacterController` / `computeCharacterMovement` / `setBodyNextKinematicTranslation`. Kinematic capsule wrapper around Rapier's `KinematicCharacterController` (offset / autostep / maxClimbSlope / minSlideSlope / snapToGround / up-vector). Spike `spikes/physics-rapier-v0/character-spike.ts` lands a capsule at y≈1.05 (halfHeight 0.7 + radius 0.35) on a fixed ground collider.
+- `M16-cache-d` ✅ Implemented. Persistent `parent→children` index in `resolve-cached.ts` (`knownInputs` / `childrenIndex` / `parentOfStored`); helpers `updateChildLink` / `evictFromIndexes` keep the index incrementally in sync as scenes mutate. New `resolveDirtyDelta(world, inputs, dirtyIds)` performs a BFS over the dirty closure and returns only changed `LocalToWorld` entries. `TransformResolveSystem` writes only the returned subset. **Bench at 10k chain-of-8 @ 1%-dirty: ~1.94 ms** (~3× faster than cache-c, ~6.5× faster than no-cache). Close to <1 ms target — remaining cost is matrix math, not graph walks.
+- `M17-batched-mesh` ✅ Implemented. Adapter primitives for `BatchedMesh` buckets — `acquireBatchedBucket` / `releaseBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance` / `removeBatchedInstance` / `setBatchedInstanceTransform` / `setBatchedInstanceGeometry` / `batchedBucketLiveCount`. Internal `batchedBuckets` map + `nextBatchedBucketHandle`. `rendererInfo()` exposes `batchedBuckets` / `batchedBucketInstances`. **System layer (BatchingSystem extension for `Batchable.path = "batched"`) deferred to a follow-up** — adapter is ready; the matcher / signature groups still live in Sprint 36 backlog.
+- `examples/batch-bench/` ✅ Implemented. Perf-only project at `examples/batch-bench/` — camera + ambient + sun + ground; no project-specific systems. Agent seeds N batchable entities via `__agf.applyCommands` and reads `__agf.rendererInfo()` to track draw calls / bucket sizes / per-frame timings. Acts as a regression target when M17 internals change. `engine:check` clean.
+
+### Remaining candidates
+
+- **Beacon physics adoption** — drone walks on a fixed ground collider, pickup/hazard sensors fire `trigger.enter` events. Next in line.
+- **M21-shadow-csm** — outdoor CSM via `three/addons/csm/CSM.js` (needs `csm.setupMaterial` hook on every material — high-touch).
+- **M17-batched-mesh-system** — wire the BatchedMesh adapter primitives behind a `Batchable.path = "batched"` selector in BatchingSystem.
 
 ## Sprint 35 — physics + batching + materials + cache polish + utsubo absorbed (DONE — archive merging)
 
