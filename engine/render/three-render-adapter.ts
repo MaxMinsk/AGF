@@ -26,7 +26,9 @@ import {
   type BufferGeometry,
   Color,
   DirectionalLight,
+  InstancedMesh,
   type Light,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   type Object3D,
@@ -34,8 +36,10 @@ import {
   PerspectiveCamera,
   PMREMGenerator,
   PointLight,
+  Quaternion,
   Scene,
   type Texture,
+  Vector3,
   WebGLRenderer
 } from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -43,6 +47,21 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 export type MeshHandle = number;
 export type CameraHandle = number;
 export type LightHandle = number;
+/** M17: one InstancedMesh per bucket. */
+export type BucketHandle = number;
+/** Index inside a bucket. The bucket owns a contiguous range [0, count). */
+export type InstanceIndex = number;
+
+export type BucketAcquireSpec = {
+  /** Initial GL upload geometry. The bucket caches it; recreate the bucket if geometry changes. */
+  geometry: BufferGeometry;
+  /** Initial slot count for the InstancedMesh. Grow via `resizeBucket`; can't shrink. */
+  capacity: number;
+  /** Initial material color (per-bucket; per-instance color via setInstanceColor). */
+  color?: string;
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+};
 
 export type LightKind = "directional" | "point" | "ambient";
 
@@ -110,6 +129,10 @@ export type AdapterInfo = {
   meshes: number;
   lights: number;
   shadowCasters: number;
+  /** M17: live InstancedMesh buckets currently in the scene. */
+  buckets: number;
+  /** M17: live instances summed across every bucket (sparse slots NOT counted). */
+  bucketInstances: number;
 };
 
 export type AdapterOptions = {
@@ -128,6 +151,7 @@ export class ThreeRenderAdapter {
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
   private readonly lights = new Map<LightHandle, Light>();
+  private readonly buckets = new Map<BucketHandle, BucketEntry>();
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
   private pmrem: PMREMGenerator | undefined;
@@ -137,6 +161,11 @@ export class ThreeRenderAdapter {
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
+  private nextBucketHandle = 1;
+  private readonly scratchMatrix = new Matrix4();
+  private readonly scratchPosition = new Vector3();
+  private readonly scratchScale = new Vector3();
+  private readonly scratchQuat = new Quaternion();
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -320,6 +349,117 @@ export class ThreeRenderAdapter {
     return this.lights.size;
   }
 
+  // ---- M17 InstancedMesh buckets ----
+
+  acquireBucket(spec: BucketAcquireSpec): BucketHandle {
+    const handle = this.nextBucketHandle;
+    this.nextBucketHandle += 1;
+    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.castShadow = spec.castShadow !== false;
+    mesh.receiveShadow = spec.receiveShadow !== false;
+    this.scene.add(mesh);
+    this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
+    return handle;
+  }
+
+  releaseBucket(handle: BucketHandle): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.mesh);
+    entry.mesh.dispose();
+    entry.mesh.geometry.dispose();
+    disposeMaterial(entry.mesh.material);
+    this.buckets.delete(handle);
+  }
+
+  resizeBucket(handle: BucketHandle, newCapacity: number): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    if (newCapacity <= entry.capacity) return;
+    // Recreate the InstancedMesh with a larger ring; copy live matrices over.
+    const oldMesh = entry.mesh;
+    const newMesh = new InstancedMesh(oldMesh.geometry, oldMesh.material, newCapacity);
+    newMesh.castShadow = oldMesh.castShadow;
+    newMesh.receiveShadow = oldMesh.receiveShadow;
+    newMesh.frustumCulled = oldMesh.frustumCulled;
+    newMesh.count = oldMesh.count;
+    for (const slot of entry.liveSlots) {
+      oldMesh.getMatrixAt(slot, this.scratchMatrix);
+      newMesh.setMatrixAt(slot, this.scratchMatrix);
+    }
+    newMesh.instanceMatrix.needsUpdate = true;
+    this.scene.remove(oldMesh);
+    oldMesh.dispose();
+    // Don't dispose geometry/material — newMesh shares them.
+    this.scene.add(newMesh);
+    entry.mesh = newMesh;
+    entry.capacity = newCapacity;
+  }
+
+  addBucketInstance(handle: BucketHandle): InstanceIndex | undefined {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return undefined;
+    if (entry.liveSlots.size >= entry.capacity) return undefined;
+    // Fill the lowest free slot < count, else extend count.
+    let slot = entry.mesh.count;
+    for (let i = 0; i < entry.mesh.count; i += 1) {
+      if (!entry.liveSlots.has(i)) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot >= entry.mesh.count) {
+      entry.mesh.count = slot + 1;
+    }
+    entry.liveSlots.add(slot);
+    return slot;
+  }
+
+  removeBucketInstance(handle: BucketHandle, index: InstanceIndex): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    if (!entry.liveSlots.has(index)) return;
+    // Zero-scale the instance so it vanishes; the slot becomes reusable.
+    this.scratchMatrix.makeScale(0, 0, 0);
+    entry.mesh.setMatrixAt(index, this.scratchMatrix);
+    entry.mesh.instanceMatrix.needsUpdate = true;
+    entry.liveSlots.delete(index);
+    // Tighten the count when we pop the tail.
+    while (entry.mesh.count > 0 && !entry.liveSlots.has(entry.mesh.count - 1)) {
+      entry.mesh.count -= 1;
+    }
+  }
+
+  setBucketInstanceTransform(
+    handle: BucketHandle,
+    index: InstanceIndex,
+    world: ResolvedWorld
+  ): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined || !entry.liveSlots.has(index)) return;
+    this.scratchPosition.set(world.position[0], world.position[1], world.position[2]);
+    this.scratchScale.set(world.scale[0], world.scale[1], world.scale[2]);
+    eulerToQuaternion(world.rotation, this.scratchQuat);
+    this.scratchMatrix.compose(this.scratchPosition, this.scratchQuat, this.scratchScale);
+    entry.mesh.setMatrixAt(index, this.scratchMatrix);
+    entry.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  bucketLiveCount(handle: BucketHandle): number {
+    return this.buckets.get(handle)?.liveSlots.size ?? 0;
+  }
+
+  bucketCapacity(handle: BucketHandle): number {
+    return this.buckets.get(handle)?.capacity ?? 0;
+  }
+
+  hasBucket(handle: BucketHandle): boolean {
+    return this.buckets.has(handle);
+  }
+
   resize(width: number, height: number): void {
     this.device.setSize(width, height, false);
     const active = this.activeCamera();
@@ -436,6 +576,8 @@ export class ThreeRenderAdapter {
     for (const light of this.lights.values()) {
       if (light.castShadow) shadowCasters += 1;
     }
+    let bucketInstances = 0;
+    for (const entry of this.buckets.values()) bucketInstances += entry.liveSlots.size;
     return {
       geometries: memory.geometries ?? 0,
       textures: memory.textures ?? 0,
@@ -444,7 +586,9 @@ export class ThreeRenderAdapter {
       triangles: renderStats.triangles ?? 0,
       meshes: this.meshes.size,
       lights: this.lights.size,
-      shadowCasters
+      shadowCasters,
+      buckets: this.buckets.size,
+      bucketInstances
     };
   }
 
@@ -460,6 +604,7 @@ export class ThreeRenderAdapter {
       light.dispose();
     }
     this.lights.clear();
+    for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
     this.disableFallbackLighting();
     this.currentEnvironmentTexture?.dispose();
     this.currentEnvironmentTexture = undefined;
@@ -486,6 +631,29 @@ function applyTransform(object: Object3D, world: ResolvedWorld): void {
   object.position.set(world.position[0], world.position[1], world.position[2]);
   object.rotation.set(world.rotation[0], world.rotation[1], world.rotation[2]);
   object.scale.set(world.scale[0], world.scale[1], world.scale[2]);
+}
+
+type BucketEntry = {
+  mesh: InstancedMesh;
+  capacity: number;
+  liveSlots: Set<InstanceIndex>;
+};
+
+/** Fill an existing Quaternion from an Euler XYZ rotation (radians) — XYZ order matches Three.js default. */
+function eulerToQuaternion(rotation: readonly [number, number, number], out: Quaternion): Quaternion {
+  const c1 = Math.cos(rotation[0] / 2);
+  const c2 = Math.cos(rotation[1] / 2);
+  const c3 = Math.cos(rotation[2] / 2);
+  const s1 = Math.sin(rotation[0] / 2);
+  const s2 = Math.sin(rotation[1] / 2);
+  const s3 = Math.sin(rotation[2] / 2);
+  out.set(
+    s1 * c2 * c3 + c1 * s2 * s3,
+    c1 * s2 * c3 - s1 * c2 * s3,
+    c1 * c2 * s3 + s1 * s2 * c3,
+    c1 * c2 * c3 - s1 * s2 * s3
+  );
+  return out;
 }
 
 function disposeMaterial(material: Mesh["material"]): void {

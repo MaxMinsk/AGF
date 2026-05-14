@@ -221,9 +221,12 @@ export class ThreeRenderer {
     meshes: number;
     lights: number;
     shadowCasters: number;
+    buckets: number;
+    bucketInstances: number;
     handleLeak: number;
   } {
     const adapter = this.adapter.info();
+    // agf-allow: world.query — diagnostic, fires once per __agf.rendererInfo() call.
     const tracked = this.world.query(["RenderMeshHandle"]).length;
     return { ...adapter, handleLeak: this.registry.size() - tracked };
   }

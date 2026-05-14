@@ -98,6 +98,9 @@
             },
             "ShadowFlags": {
               "$ref": "#/definitions/shadowFlagsComponent"
+            },
+            "Batchable": {
+              "$ref": "#/definitions/batchableComponent"
             }
           }
         }
@@ -363,6 +366,18 @@
       "properties": {
         "cast": { "type": "boolean", "default": true },
         "receive": { "type": "boolean", "default": true }
+      }
+    },
+    "batchableComponent": {
+      "description": "Opts an entity into the M17 renderer batcher. BatchingSystem groups entities by (mesh + material + shadow flags + group) and emits one Three.js InstancedMesh per bucket. The `group` field is an authoring hint — siblings sharing the same group prefer the same bucket. The renderer treats entities WITHOUT this component as un-batched (single Mesh per entity). Omit to keep the existing per-entity path.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional authoring hint. Entities with the same group + matching mesh/material/shadow keys share an InstancedMesh bucket."
+        }
       }
     }
   }

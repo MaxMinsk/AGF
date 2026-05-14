@@ -150,6 +150,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       diagnostics
     });
     if (!scheduler.has(lls.name)) scheduler.register(lls);
+
+    // M17-bucketer: collapse Batchable entities into InstancedMesh
+    // buckets. Runs AFTER MeshLifecycleSystem so the registry already
+    // ignored Batchable entities, and AFTER TransformResolveSystem so
+    // LocalToWorld is available for per-instance matrices.
+    const { createBatchingSystem } = await import("../render/systems/batching-system");
+    const bs = createBatchingSystem({ adapter: renderer.adapter, diagnostics });
+    if (!scheduler.has(bs.name)) scheduler.register(bs);
   }
 
   const time: TimeContext = {
