@@ -186,10 +186,81 @@ function validateStartScene(
   diagnostics.push(...detectDuplicateEntityIds(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validateTransformHierarchy(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validatePhysicsColliders(sceneJson.data, scenePath, projectDir));
+  diagnostics.push(...validateScenePrefabInstances(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
   }
+}
+
+function validateScenePrefabInstances(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string
+): Diagnostic[] {
+  if (!isJsonObject(sceneData) || !Array.isArray(sceneData["instances"])) {
+    return [];
+  }
+  const file = toProjectRelativeFile(scenePath, projectDir);
+  const out: Diagnostic[] = [];
+
+  // Build the prefab-id set from `prefabs/*.prefab.json` ids (not filenames),
+  // mirroring what the runtime registry sees.
+  const knownPrefabIds = new Set<string>();
+  const prefabsDir = resolve(projectDir, "prefabs");
+  if (isDirectory(prefabsDir)) {
+    for (const entry of readdirSyncSafe(prefabsDir)) {
+      if (!entry.endsWith(".prefab.json")) continue;
+      const parsed = readJson(resolve(prefabsDir, entry), projectDir);
+      if (!parsed.ok || !isJsonObject(parsed.data)) continue;
+      const id = parsed.data["id"];
+      if (typeof id === "string") knownPrefabIds.add(id);
+    }
+  }
+
+  // Collect existing entity ids so we can flag duplicate instance ids.
+  const entityIds = new Set<string>();
+  if (Array.isArray(sceneData["entities"])) {
+    for (const entity of sceneData["entities"]) {
+      if (isJsonObject(entity) && typeof entity["id"] === "string") {
+        entityIds.add(entity["id"]);
+      }
+    }
+  }
+
+  const instances = sceneData["instances"];
+  for (let index = 0; index < instances.length; index += 1) {
+    const instance = instances[index];
+    if (!isJsonObject(instance)) continue;
+    const id = typeof instance["id"] === "string" ? instance["id"] : undefined;
+    const prefab = typeof instance["prefab"] === "string" ? instance["prefab"] : undefined;
+    if (id !== undefined && entityIds.has(id)) {
+      out.push({
+        severity: "error",
+        code: "AGF_SCENE_INSTANCE_DUPLICATE_ID",
+        file,
+        path: `$.instances[${index}].id`,
+        message: `Instance id "${id}" collides with an existing entity id.`,
+        suggestion: "Rename the instance or remove the duplicate entity."
+      });
+    } else if (id !== undefined) {
+      entityIds.add(id);
+    }
+    if (prefab !== undefined && !knownPrefabIds.has(prefab)) {
+      out.push({
+        severity: "error",
+        code: "AGF_SCENE_INSTANCE_PREFAB_MISSING",
+        file,
+        path: `$.instances[${index}].prefab`,
+        message: `Instance "${id ?? "?"}" references unknown prefab "${prefab}".`,
+        suggestion:
+          knownPrefabIds.size > 0
+            ? `Known prefab ids: ${[...knownPrefabIds].sort().join(", ")}.`
+            : "Add a `<projectDir>/prefabs/<id>.prefab.json` file declaring this prefab."
+      });
+    }
+  }
+  return out;
 }
 
 function validatePlaytestScenarios(projectDir: string, diagnostics: Diagnostic[]): void {

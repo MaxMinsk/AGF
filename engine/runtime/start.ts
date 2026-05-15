@@ -2,6 +2,7 @@ import { applyCommand } from "../core/commands/command-queue";
 import type { EngineCommand } from "../core/commands/types";
 import type { SceneInput } from "../core/ecs/types";
 import { World } from "../core/ecs/world";
+import { expandScenePrefabs, type PrefabDefinition } from "../core/scene/expand-prefabs";
 import { advanceFixedStep } from "../core/loop/fixed-step";
 import type { TimeContext } from "../core/loop/types";
 import type { SystemScheduler } from "../core/systems/scheduler";
@@ -63,6 +64,13 @@ export type RuntimeOptions = {
   assetRegistry?: AssetRegistry;
   /** Optional diagnostics bus shared across runtime systems. */
   diagnostics?: DiagnosticsBus;
+  /**
+   * M3-c-load: optional prefab registry. When set, `scene.instances` are
+   * expanded into entities before `World.fromScene`. Unknown prefab refs
+   * + duplicate ids surface as `AGF_SCENE_INSTANCE_PREFAB_MISSING` /
+   * `AGF_SCENE_INSTANCE_DUPLICATE_ID` diagnostics.
+   */
+  prefabs?: ReadonlyMap<string, PrefabDefinition>;
   /**
    * Optional persistence config. When set, `RuntimeHandle.save/load/clearSave`
    * are wired to write through `store` using `context` (projectId + profile +
@@ -140,8 +148,33 @@ const DEFAULT_FIXED_DT = 1 / 60;
 const METRICS_WINDOW_SECONDS = 0.5;
 
 export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHandle> {
-  const world = World.fromScene(options.scene);
   const diagnostics = options.diagnostics ?? createDiagnosticsBus();
+  // M3-c-load: expand `scene.instances` into flat entities via the prefab
+  // registry before building the world. With no instances declared, the
+  // expansion is a no-op clone; with instances and no registry, we still
+  // expand against an empty registry so every reference surfaces as a
+  // diagnostic instead of silently dropping the entity.
+  const flatScene = (() => {
+    if (
+      options.scene.instances === undefined ||
+      options.scene.instances.length === 0
+    ) {
+      return options.scene;
+    }
+    const registry = options.prefabs ?? new Map<string, PrefabDefinition>();
+    const expansion = expandScenePrefabs(options.scene, registry);
+    for (const diagnostic of expansion.diagnostics) {
+      diagnostics.emit({
+        severity: diagnostic.severity,
+        code: diagnostic.code,
+        source: "scene-loader",
+        message: diagnostic.message,
+        details: { instanceIndex: diagnostic.instanceIndex }
+      });
+    }
+    return expansion.scene;
+  })();
+  const world = World.fromScene(flatScene);
   const { ThreeRenderer } = await import("../render/three-renderer");
   // M21-context-loss: route WebGL context events into the diagnostics
   // bus so agents + tests can observe them. Three.js auto-rebuilds GPU
@@ -181,7 +214,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   // equirectangular HDR sky, or `{ kind: "cube", faces, intensity? }`
   // for a 6-face cubemap. Both HDR and cube go through PMREMGenerator
   // so they supply IBL, not just a skybox.
-  const envSpec = options.scene.environment;
+  const envSpec = flatScene.environment;
   // Environment URLs in scenes are project-relative (same shape as
   // material refs). Resolve through the asset registry so they hit the
   // project's assetRoot — RGBELoader / CubeTextureLoader would
@@ -551,7 +584,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       return undefined;
     },
     startRecording(projectId?: string): RecorderHandle {
-      const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };
+      // Record the expanded scene — replay should rehydrate the same flat
+      // entity set without re-running prefab expansion.
+      const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: flatScene };
       if (projectId !== undefined) {
         recorderOptions.projectId = projectId;
       }

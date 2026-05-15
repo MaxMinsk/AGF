@@ -5,7 +5,27 @@ import { diffScenes } from "../engine/core/commands/scene-diff";
 import type { ProjectBootstrap } from "../engine/runtime/project-bootstrap";
 import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
+import type { PrefabDefinition } from "../engine/core/scene/expand-prefabs";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
+
+// M3-c-load: eager-imported prefab manifests for every example project. Vite
+// resolves `import.meta.glob` at build time, so projects without any
+// `prefabs/` directory simply produce no matching keys.
+const ALL_PROJECT_PREFABS = import.meta.glob<{ default: PrefabDefinition }>(
+  "../examples/*/prefabs/*.prefab.json",
+  { eager: true }
+);
+
+function loadPrefabsForProject(projectId: string): ReadonlyMap<string, PrefabDefinition> {
+  const registry = new Map<string, PrefabDefinition>();
+  const prefix = `../examples/${projectId}/prefabs/`;
+  for (const [path, mod] of Object.entries(ALL_PROJECT_PREFABS)) {
+    if (!path.startsWith(prefix)) continue;
+    const def = mod.default;
+    registry.set(def.id, def);
+  }
+  return registry;
+}
 
 declare global {
   interface Window {
@@ -311,10 +331,14 @@ void (async (): Promise<void> => {
   const loaded = await loader();
 
   let currentScene = loaded.scene;
+  const projectPrefabs = loadPrefabsForProject(selectedId);
   const appOptions: Parameters<typeof createApp>[5] = {
     ...baseAppOptions,
     bootstrap: loaded.bootstrap
   };
+  if (projectPrefabs.size > 0) {
+    appOptions.prefabs = projectPrefabs;
+  }
 
   let app: AppHandle = await createApp(
     root,

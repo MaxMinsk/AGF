@@ -2,10 +2,10 @@
   "id": "m9-hardwood",
   "shader": "standard",
   "color": "#ffffff",
-  "roughness": 0.65,
+  "roughness": 1.0,
   "metalness": 0,
   "map": "runtime/textures/hardwood2_diffuse.jpg",
   "bumpMap": "runtime/textures/hardwood2_bump.jpg",
-  "bumpScale": 0.6,
+  "bumpScale": 1.5,
   "roughnessMap": "runtime/textures/hardwood2_roughness.jpg"
 }

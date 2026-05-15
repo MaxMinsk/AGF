@@ -40,9 +40,20 @@ export type SceneEnvironmentInput =
       backgroundBlurriness?: number;
     };
 
+export type SceneInstanceInput = {
+  /** Entity id after expansion; must be unique in the scene. */
+  id: string;
+  /** Project-local prefab id (kebab-case). */
+  prefab: string;
+  /** Shallow per-component override map merged on top of the prefab. */
+  overrides?: Record<string, unknown>;
+};
+
 export type SceneInput = {
   id: string;
   entities: ReadonlyArray<SceneEntityInput>;
   /** Optional image-based-lighting environment for PBR materials. Default = `{ kind: "generated" }` applied at runtime if absent. */
   environment?: SceneEnvironmentInput;
+  /** Optional prefab instances. `expandScenePrefabs` flattens them into regular entities at scene-load time. */
+  instances?: ReadonlyArray<SceneInstanceInput>;
 };

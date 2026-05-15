@@ -125,6 +125,13 @@ export type AppOptions = {
    * does not import from `examples/`.
    */
   bootstrap?: ProjectBootstrap;
+  /**
+   * M3-c-load: prefab registry the runtime uses to expand scene `instances`.
+   * Keyed by prefab id. Pass `undefined` (or omit) for projects without
+   * prefab files — scenes that still declare `instances` will surface
+   * `AGF_SCENE_INSTANCE_PREFAB_MISSING` diagnostics.
+   */
+  prefabs?: ReadonlyMap<string, import("../engine/core/scene/expand-prefabs").PrefabDefinition>;
 };
 
 export type AppHandle = {
@@ -324,6 +331,9 @@ export async function createApp(
   });
 
   const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler, assetRegistry, diagnostics };
+  if (options.prefabs !== undefined) {
+    runtimeOptions.prefabs = options.prefabs;
+  }
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;

@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "scene-instance-duplicate-id",
+  "name": "Scene instance id collides with entity id",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}
