@@ -8,6 +8,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
+import { PRIMITIVE_MESHES } from "../../core/primitives";
 import { checkProject, type Diagnostic } from "../check/project-check";
 import { summarizeProject, type ProjectSummary } from "../summarize/project-summarize";
 import {
@@ -504,7 +505,7 @@ function countShadowCasters(projectDir: string): {
   return { dynamicCasterCount, staticCasterCount };
 }
 
-const PRIMITIVE_MESHES = new Set(["box", "sphere", "cylinder", "plane"]);
+// PRIMITIVE_MESHES imported from engine/core/primitives — single source of truth.
 
 function summarizeBatching(
   projectDir: string,

@@ -120,6 +120,20 @@ describe("project check", () => {
     });
   });
 
+  it("emits AGF_MATERIAL_REF_INVALID when MeshRenderer.material is a bare manifest id (S56)", () => {
+    const result = checkProject(resolve(fixturesRoot, "material-ref-bare-id"));
+    expect(result.ok).toBe(false);
+    const errs = result.diagnostics.filter((d) => d.code === "AGF_MATERIAL_REF_INVALID");
+    expect(errs).toHaveLength(1);
+    expect(errs[0]).toMatchObject({
+      severity: "error",
+      file: "scenes/start.scene.json",
+      path: "$.entities[1].components.MeshRenderer.material",
+      message: expect.stringContaining("m1-brick")
+    });
+    expect(errs[0]?.suggestion ?? "").toContain("runtime/materials/m1-brick.material.json");
+  });
+
   it("emits AGF_SCENE_INSTANCE_DUPLICATE_ID when an instance id collides with an entity id", () => {
     const result = checkProject(resolve(fixturesRoot, "scene-instance-duplicate-id"));
     expect(result.ok).toBe(false);

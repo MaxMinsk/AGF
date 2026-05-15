@@ -13,6 +13,7 @@
       ],
       "properties": {
         "mesh": {
+          "description": "Built-in primitive name or project-relative path to a .glb / .gltf. The primitive enum mirrors `engine/core/primitives.ts#PRIMITIVE_MESH_NAMES` — update both together.",
           "anyOf": [
             {
               "enum": [
