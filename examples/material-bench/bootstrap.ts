@@ -50,6 +50,15 @@ const STONE_COLUMN_COUNT = 12;
 const STONE_HEIGHT = 4.0;
 const STONE_RADIUS = 0.55;
 
+// Mid-ring reflection probes: one between every other stone column and
+// the centre. With 12 columns at 15° + i*30°, "every other" picks
+// 6 angles (15° / 75° / 135° / 195° / 255° / 315°). Probes sit at
+// radius 8 (between orbit radius 4 and column radius 11) so they
+// capture a distinct angle of the scene.
+const MID_PROBE_RADIUS = 8.0;
+const MID_PROBE_COUNT = 6;
+const MID_PROBE_Y = 1.0;
+
 // Centre column dimensions
 const CENTRE_PEDESTAL_HEIGHT = 0.6;
 const CENTRE_PEDESTAL_SCALE_XZ = 2.0; // radius 1.0
@@ -159,15 +168,39 @@ function buildSeedCommands(): EngineCommand[] {
       material
     });
     setComponent(commands, sphereId, "ShadowFlags", { cast: true, receive: true });
-    // S57: outer spheres share the centre probe. Reflection has slight
-    // parallax error (probe sits at the centre, not at the sphere) but
-    // the visible improvement vs. only-IBL is significant — they pick
-    // up the stonehenge columns + the other orbit-ring members. For
-    // pixel-perfect reflections each outer sphere would need its own
-    // probe (12× the cost, deferred).
+    // Reflection routing: slot 1–6 read the centre probe (chrome-style
+    // view from origin), slot 7–12 read the nearest mid-ring probe
+    // (off-centre view skewed toward the columns). Visible reflection
+    // diff between the two halves of the ring.
+    const useCentreProbe = i < OUTER_MATERIALS.length / 2;
+    const probeRef = useCentreProbe
+      ? "sphere.centre"
+      : `probe.mid.${String(((i - OUTER_MATERIALS.length / 2) % MID_PROBE_COUNT) + 1).padStart(2, "0")}`;
     setComponent(commands, sphereId, "EnvmapBinding", {
-      probe: "sphere.centre",
+      probe: probeRef,
       intensity: 0.85
+    });
+  }
+
+  // Mid-ring reflection probes — invisible entities. Six of them sit on
+  // a ring of radius 8, at the same angle as every other stone column.
+  // Outer ring spheres in the back half of the orbit (slot 7–12) bind
+  // to these via EnvmapBinding so their reflection picks up the local
+  // column instead of the centre-probe view.
+  for (let i = 0; i < MID_PROBE_COUNT; i += 1) {
+    const angle = (i / MID_PROBE_COUNT) * Math.PI * 2 + Math.PI / STONE_COLUMN_COUNT;
+    const x = Math.cos(angle) * MID_PROBE_RADIUS;
+    const z = Math.sin(angle) * MID_PROBE_RADIUS;
+    const slot = String(i + 1).padStart(2, "0");
+    const probeId = `probe.mid.${slot}`;
+    commands.push({ kind: "entity.create", entityId: probeId });
+    setComponent(commands, probeId, "Transform", { position: [x, MID_PROBE_Y, z] });
+    setComponent(commands, probeId, "ReflectionProbe", {
+      size: 128,
+      near: 0.1,
+      far: 60,
+      updateRate: 30,
+      excludeEntities: [probeId]
     });
   }
 

@@ -857,7 +857,12 @@ export class ThreeRenderAdapter {
   }): number {
     const renderTarget = new WebGLCubeRenderTarget(spec.size, { type: HalfFloatType });
     const cubeCam = new CubeCamera(spec.near, spec.far, renderTarget);
-    this.scene.add(cubeCam);
+    // INTENTIONALLY NOT added to scene. CubeCamera.update() only auto-
+    // refreshes its world matrix when parent === null; if we add it to
+    // the scene the matrixWorld stays one frame behind whatever we set
+    // via setReflectionProbeTransform, and the captured cubemap reads
+    // off-centre. CubeCamera doesn't need to be in the scene graph to
+    // render — it owns its own face cameras + projects directly.
     const handle = this.nextReflectionProbeHandle++;
     this.reflectionProbes.set(handle, { cubeCam, renderTarget });
     return handle;
@@ -886,6 +891,10 @@ export class ThreeRenderAdapter {
       obj.visible = false;
     }
     try {
+      // Force a world-matrix refresh — three.js's CubeCamera.update()
+      // does this only when parent === null, which it is now, but be
+      // explicit so a future "add to scene" doesn't silently break.
+      entry.cubeCam.updateMatrixWorld(true);
       entry.cubeCam.update(this.device, this.scene);
     } finally {
       for (const [obj, was] of restoreVisibility) obj.visible = was;
@@ -959,7 +968,7 @@ export class ThreeRenderAdapter {
     // painted after the opaque sky in the same depth range.
     const catcher = new Mesh(
       new PlaneGeometry(spec.radius * 2, spec.radius * 2),
-      new ShadowMaterial({ opacity: 1.0, transparent: true })
+      new ShadowMaterial({ opacity: 0.6, transparent: true })
     );
     catcher.name = "agf.grounded-skybox-shadow";
     catcher.rotation.x = -Math.PI / 2;
