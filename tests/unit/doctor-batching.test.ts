@@ -33,14 +33,17 @@ afterEach(() => {
 });
 
 describe("doctor batching report (S51)", () => {
-  it("reports autoBatch=false and a 'flip the switch' recommendation when primitives could batch", () => {
+  it("reports autoBatch=false and an 'explicitly disabled' recommendation when project opts out", () => {
+    // S53 M17-batch-default-on: default is now true, so to land
+    // autoBatch=false the project has to ship an explicit
+    // `render.batching.auto: false`.
     writeProject({
       agfFormatVersion: 1,
       id: "fake",
       name: "Fake",
       startScene: "scenes/start.scene.json",
       assetRoot: "assets",
-      render: { mode: "webgl" },
+      render: { mode: "webgl", batching: { auto: false } },
       profiles: ["static"]
     });
     writeScene([
@@ -55,8 +58,33 @@ describe("doctor batching report (S51)", () => {
     expect(report.batching.primitiveBucketCount).toBe(1);
     expect(report.batching.externalCount).toBe(0);
     expect(
-      report.recommendations.some((r) => r.includes("Auto-batch is off"))
+      report.recommendations.some((r) => r.includes("Auto-batch is explicitly disabled"))
     ).toBe(true);
+  });
+
+  it("reports autoBatch=true by default (S53) when no `batching.auto` field is set", () => {
+    writeProject({
+      agfFormatVersion: 1,
+      id: "fake",
+      name: "Fake",
+      startScene: "scenes/start.scene.json",
+      assetRoot: "assets",
+      render: { mode: "webgl" },
+      profiles: ["static"]
+    });
+    writeScene([
+      { id: "a", components: { MeshRenderer: { mesh: "box" } } },
+      { id: "b", components: { MeshRenderer: { mesh: "box" } } }
+    ]);
+
+    const report = runDoctor(projectDir);
+    expect(report.batching.autoBatch).toBe(true);
+    expect(report.batching.primitiveCount).toBe(2);
+    expect(report.batching.primitiveBucketCount).toBe(1);
+    // No recommendation needed — the default-on case is healthy.
+    expect(
+      report.recommendations.some((r) => r.toLowerCase().includes("auto-batch"))
+    ).toBe(false);
   });
 
   it("reports autoBatch=true and 'X draw calls saved' when auto is enabled", () => {

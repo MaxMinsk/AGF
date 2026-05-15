@@ -142,8 +142,8 @@
           "properties": {
             "auto": {
               "type": "boolean",
-              "default": false,
-              "description": "When true, BatchingSystem treats every entity with a built-in primitive mesh (box / sphere / plane) and no LOD / scene-extension overrides as Batchable without needing an explicit `Batchable` component. Per-entity opt-out: `Batchable: { enabled: false }`."
+              "default": true,
+              "description": "S53: default flipped to true — BatchingSystem treats every entity with a built-in primitive mesh (box / sphere / plane) and no LOD / scene-extension overrides as Batchable without needing an explicit `Batchable` component. Set to false to keep the legacy single-Mesh path. Per-entity opt-out (independent of the global flag): `Batchable: { enabled: false }`."
             },
             "path": {
               "enum": ["instanced", "batched"],

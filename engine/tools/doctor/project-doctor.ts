@@ -234,8 +234,12 @@ export function runDoctor(
   const batching = summarizeBatching(projectDir, batchCandidates);
   const primitivePotentialSavings = batching.primitiveCount - batching.primitiveBucketCount;
   if (!batching.autoBatch && primitivePotentialSavings > 0) {
+    // S53: default flipped to true, so an explicit `auto: false` is
+    // the only reason a primitive-rich scene would still be in the
+    // single-Mesh path. Surface the explicit opt-out so the agent
+    // knows the value was set deliberately, not forgotten.
     recommendations.push(
-      `Auto-batch is off — set \`render.batching.auto: true\` in project.json to collapse ${batching.primitiveCount} primitive entit${batching.primitiveCount === 1 ? "y" : "ies"} into ${batching.primitiveBucketCount} bucket(s) (~${primitivePotentialSavings} draw call(s) saved).`
+      `Auto-batch is explicitly disabled (\`render.batching.auto: false\`) — collapsing ${batching.primitiveCount} primitive entit${batching.primitiveCount === 1 ? "y" : "ies"} into ${batching.primitiveBucketCount} bucket(s) would save ~${primitivePotentialSavings} draw call(s). Remove the field (or set to true) to take the default-on path.`
     );
   } else if (batchCandidates.potentialDrawCallSavings > 0 && primitivePotentialSavings === 0) {
     recommendations.push(
@@ -373,14 +377,17 @@ function summarizeBatching(
   batchCandidates: BatchCandidateReport
 ): BatchingConfigReport {
   const projectPath = resolve(projectDir, "project.json");
-  let autoBatch = false;
+  // S53 M17-batch-default-on: default is now true (was false before
+  // S53). Only an explicit `auto: false` keeps the legacy single-Mesh
+  // path; absent / true → enabled.
+  let autoBatch = true;
   let path: "instanced" | "batched" = "instanced";
   if (existsSync(projectPath)) {
     try {
       const project = JSON.parse(readFileSync(projectPath, "utf8")) as {
         render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" } };
       };
-      autoBatch = project.render?.batching?.auto === true;
+      if (project.render?.batching?.auto === false) autoBatch = false;
       if (project.render?.batching?.path !== undefined) {
         path = project.render.batching.path;
       }
@@ -621,8 +628,8 @@ export function formatDoctor(report: DoctorReport): string {
 export function formatBatching(report: BatchingConfigReport): string {
   const lines: string[] = [];
   const autoLabel = report.autoBatch
-    ? "ON (project.json#render.batching.auto)"
-    : "OFF (set render.batching.auto: true in project.json)";
+    ? "ON (default since S53; explicit override via project.json#render.batching.auto)"
+    : "OFF (explicit `render.batching.auto: false` in project.json — default would be ON)";
   lines.push(`Batching: auto=${autoLabel}, path=${report.path}`);
   if (report.primitiveCount > 0) {
     const savings = report.primitiveCount - report.primitiveBucketCount;
