@@ -1,14 +1,8 @@
 import { describe, expect, it } from "vitest";
 import Ajv, { type ValidateFunction } from "ajv";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { loadBundledSceneSchema } from "../../engine/tools/schemas/load-scene-schema";
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const schema = JSON.parse(
-  readFileSync(resolve(repositoryRoot, "schemas/scene.schema.json"), "utf8")
-);
-
+const schema = loadBundledSceneSchema();
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validate: ValidateFunction = ajv.compile(schema);
 

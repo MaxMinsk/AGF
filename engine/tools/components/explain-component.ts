@@ -2,15 +2,13 @@
 //
 // Prints a compact spec for one component: required fields, optional
 // fields with types + descriptions, and a derived authoring example.
-// Reads from `schemas/scene.schema.json` (engine components) or
-// `<projectDir>/project-local-components.schema.json` (project-local).
+// Reads from the bundled scene schema (engine components — S48 split
+// inlines per-domain files) or
+// `<projectDir>/schemas/scene-extensions.schema.json` (project-local).
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "../../..");
+import { resolve } from "node:path";
+import { loadBundledSceneSchema } from "../schemas/load-scene-schema";
 
 export type ComponentExplanation = {
   name: string;
@@ -43,8 +41,7 @@ type SceneSchema = {
 };
 
 function readSceneSchema(): SceneSchema {
-  const schemaPath = resolve(repoRoot, "schemas/scene.schema.json");
-  return JSON.parse(readFileSync(schemaPath, "utf8")) as SceneSchema;
+  return loadBundledSceneSchema() as unknown as SceneSchema;
 }
 
 function resolveRef(schema: SceneSchema, ref: string): SchemaNode | undefined {
@@ -150,17 +147,22 @@ export function explainComponent(
     if (node !== undefined) return explainNode(schema, name, "engine", node);
   }
   if (projectDir !== undefined) {
+    // Match `engine check`'s mergeSceneExtensions path:
+    // <projectDir>/schemas/scene-extensions.schema.json with top-level
+    // `components: { Name: { $ref: "#/definitions/..." } }` + `definitions: {...}`.
     const projectSchemaPath = resolve(
       projectDir,
-      "project-local-components.schema.json"
+      "schemas/scene-extensions.schema.json"
     );
     if (existsSync(projectSchemaPath)) {
       const projectSchema = JSON.parse(
         readFileSync(projectSchemaPath, "utf8")
-      ) as { properties?: Record<string, SchemaNode> };
-      const node = projectSchema.properties?.[name];
-      if (node !== undefined)
-        return explainNode(schema, name, "project", node);
+      ) as { components?: Record<string, SchemaNode>; definitions?: Record<string, SchemaNode> };
+      const ref = projectSchema.components?.[name]?.$ref;
+      if (ref !== undefined && ref.startsWith("#/definitions/")) {
+        const node = projectSchema.definitions?.[ref.slice("#/definitions/".length)];
+        if (node !== undefined) return explainNode(schema, name, "project", node);
+      }
     }
   }
   return undefined;

@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/common.schema.json",
+  "title": "AGF Shared Schema Types",
+  "description": "Tiny shared building blocks referenced by scene + per-component schemas. Keep this file small — anything domain-specific belongs in components/<domain>.schema.json.",
+  "type": "object",
+  "definitions": {
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
+}

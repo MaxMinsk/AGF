@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/components/camera.schema.json",
+  "title": "AGF Camera components",
+  "description": "Component definitions for the camera domain. Pulled in by scene.schema.json via $ref; inlined into the bundled schema by engine/tools/schemas/load-scene-schema.ts.",
+  "type": "object",
+  "definitions": {
+    "cameraComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "perspective",
+            "orthographic"
+          ]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "fov": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "near": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "far": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "cinematicCameraComponent": {
+      "description": "M21-cam-cinematic: scripted camera waypoint playback. Each waypoint declares a camera position + look-at target + duration. CinematicCameraSystem interpolates Transform.position + rotation through the chain. `autoplay: true` starts on scene load; gameplay can pause/skip via applyCommands flipping `playing` or seeking `elapsed`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "waypoints"
+      ],
+      "properties": {
+        "waypoints": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "position",
+              "lookAt",
+              "duration"
+            ],
+            "properties": {
+              "position": {
+                "$ref": "common.schema.json#/definitions/vec3"
+              },
+              "lookAt": {
+                "$ref": "common.schema.json#/definitions/vec3"
+              },
+              "duration": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Seconds to traverse from the previous waypoint to this one."
+              },
+              "ease": {
+                "enum": [
+                  "linear",
+                  "easeIn",
+                  "easeOut",
+                  "easeInOut"
+                ],
+                "default": "easeInOut"
+              }
+            }
+          }
+        },
+        "loop": {
+          "type": "boolean",
+          "default": false
+        },
+        "autoplay": {
+          "type": "boolean",
+          "default": true
+        },
+        "playing": {
+          "type": "boolean",
+          "default": true
+        },
+        "elapsed": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Time accumulated since the start of the current cycle."
+        }
+      }
+    },
+    "followCameraComponent": {
+      "description": "M21-cam-follow: anchor the camera to a target entity. Each frame FollowCameraSystem reads the target's world position, places the camera at `targetPosition + offset`, and orients it toward `targetPosition + lookAtOffset`. `smoothing` blends the previous camera position toward the new target per-frame (1 = snap, 0 = frozen).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "offset"
+      ],
+      "properties": {
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Entity id to track."
+        },
+        "offset": {
+          "$ref": "common.schema.json#/definitions/vec3",
+          "description": "Camera position relative to the target."
+        },
+        "lookAtOffset": {
+          "$ref": "common.schema.json#/definitions/vec3",
+          "description": "Optional offset added to the target before computing the look-at direction; useful for looking slightly above the head."
+        },
+        "smoothing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1,
+          "description": "Per-frame lerp factor toward the desired position. 1 = snap, 0 = never move."
+        }
+      }
+    },
+    "orbitCameraComponent": {
+      "description": "M21-cam-orbit: pure-data orbit-camera state. Place on the same entity as `Camera` + `Transform`. OrbitCameraSystem reads `(target, distance, pitch, yaw)` each frame and writes Transform.position + rotation so the camera looks at `target` from the given polar angles. Gameplay systems (mouse drag, follow-target, etc.) mutate these fields via applyCommands; the system stays input-agnostic.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "distance"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "common.schema.json#/definitions/vec3",
+          "description": "World-space point the camera looks at."
+        },
+        "distance": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Distance from target to camera."
+        },
+        "pitch": {
+          "type": "number",
+          "default": 30,
+          "description": "Down-from-horizon angle in degrees. 0 = horizontal; positive = looking down."
+        },
+        "yaw": {
+          "type": "number",
+          "default": 0,
+          "description": "Angle around Y axis in degrees."
+        },
+        "minDistance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maxDistance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/components/network.schema.json",
+  "title": "AGF Network components",
+  "description": "Component definitions for the network domain. Pulled in by scene.schema.json via $ref; inlined into the bundled schema by engine/tools/schemas/load-scene-schema.ts.",
+  "type": "object",
+  "definitions": {
+    "networkedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority"
+      ],
+      "properties": {
+        "authority": {
+          "enum": [
+            "server",
+            "client"
+          ]
+        },
+        "channel": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "presenceComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "playerId"
+      ],
+      "properties": {
+        "playerId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,10 @@
   "title": "AGF Scene",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "entities"],
+  "required": [
+    "id",
+    "entities"
+  ],
   "properties": {
     "id": {
       "type": "string",
@@ -19,7 +22,9 @@
     "instances": {
       "type": "array",
       "description": "Optional prefab instances. Each entry expands into a regular entity at scene-load time. The engine validates these against the prefab registry; missing prefabs surface as AGF_SCENE_INSTANCE_PREFAB_MISSING.",
-      "items": { "$ref": "#/definitions/instance" }
+      "items": {
+        "$ref": "#/definitions/instance"
+      }
     },
     "environment": {
       "type": "object",
@@ -27,7 +32,12 @@
       "description": "Image-based-lighting environment. `generated` (default) applies Three's RoomEnvironment via PMREMGenerator. `none` opts out. `hdr` loads an equirectangular `.hdr` via RGBELoader. `cube` loads a 6-face cubemap via CubeTextureLoader — both HDR and cube go through PMREMGenerator so they supply IBL, not just a skybox.",
       "properties": {
         "kind": {
-          "enum": ["generated", "none", "hdr", "cube"],
+          "enum": [
+            "generated",
+            "none",
+            "hdr",
+            "cube"
+          ],
           "default": "generated"
         },
         "url": {
@@ -39,7 +49,10 @@
           "type": "array",
           "minItems": 6,
           "maxItems": 6,
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "description": "Six face URLs in three.js CubeTextureLoader order: [+x, -x, +y, -y, +z, -z]. Required when `kind: \"cube\"`."
         },
         "intensity": {
@@ -51,12 +64,38 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "kind": { "const": "hdr" } }, "required": ["kind"] },
-          "then": { "required": ["url"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "hdr"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "url"
+            ]
+          }
         },
         {
-          "if": { "properties": { "kind": { "const": "cube" } }, "required": ["kind"] },
-          "then": { "required": ["faces"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "cube"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "faces"
+            ]
+          }
         }
       ]
     }
@@ -65,7 +104,10 @@
     "instance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "prefab"],
+      "required": [
+        "id",
+        "prefab"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -86,7 +128,10 @@
     "entity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "components"],
+      "required": [
+        "id",
+        "components"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -98,699 +143,69 @@
           "minProperties": 1,
           "properties": {
             "Name": {
-              "$ref": "#/definitions/nameComponent"
+              "$ref": "components/core.schema.json#/definitions/nameComponent"
             },
             "Transform": {
-              "$ref": "#/definitions/transformComponent"
+              "$ref": "components/core.schema.json#/definitions/transformComponent"
             },
             "Camera": {
-              "$ref": "#/definitions/cameraComponent"
+              "$ref": "components/camera.schema.json#/definitions/cameraComponent"
             },
             "MeshRenderer": {
-              "$ref": "#/definitions/meshRendererComponent"
+              "$ref": "components/render.schema.json#/definitions/meshRendererComponent"
             },
             "Spin": {
-              "$ref": "#/definitions/spinComponent"
+              "$ref": "components/core.schema.json#/definitions/spinComponent"
             },
             "PlayerControlled": {
-              "$ref": "#/definitions/playerControlledComponent"
+              "$ref": "components/core.schema.json#/definitions/playerControlledComponent"
             },
             "Networked": {
-              "$ref": "#/definitions/networkedComponent"
+              "$ref": "components/network.schema.json#/definitions/networkedComponent"
             },
             "Presence": {
-              "$ref": "#/definitions/presenceComponent"
+              "$ref": "components/network.schema.json#/definitions/presenceComponent"
             },
             "Light": {
-              "$ref": "#/definitions/lightComponent"
+              "$ref": "components/render.schema.json#/definitions/lightComponent"
             },
             "ShadowFlags": {
-              "$ref": "#/definitions/shadowFlagsComponent"
+              "$ref": "components/render.schema.json#/definitions/shadowFlagsComponent"
             },
             "Batchable": {
-              "$ref": "#/definitions/batchableComponent"
+              "$ref": "components/render.schema.json#/definitions/batchableComponent"
             },
             "LOD": {
-              "$ref": "#/definitions/lodComponent"
+              "$ref": "components/render.schema.json#/definitions/lodComponent"
             },
             "RigidBody3D": {
-              "$ref": "#/definitions/rigidBody3DComponent"
+              "$ref": "components/physics-3d.schema.json#/definitions/rigidBody3DComponent"
             },
             "Collider3D": {
-              "$ref": "#/definitions/collider3DComponent"
+              "$ref": "components/physics-3d.schema.json#/definitions/collider3DComponent"
             },
             "CharacterController3D": {
-              "$ref": "#/definitions/characterController3DComponent"
+              "$ref": "components/physics-3d.schema.json#/definitions/characterController3DComponent"
             },
             "OrbitCamera": {
-              "$ref": "#/definitions/orbitCameraComponent"
+              "$ref": "components/camera.schema.json#/definitions/orbitCameraComponent"
             },
             "FollowCamera": {
-              "$ref": "#/definitions/followCameraComponent"
+              "$ref": "components/camera.schema.json#/definitions/followCameraComponent"
             },
             "Tweens": {
-              "$ref": "#/definitions/tweensComponent"
+              "$ref": "components/gamefeel.schema.json#/definitions/tweensComponent"
             },
             "ParticleEmitter": {
-              "$ref": "#/definitions/particleEmitterComponent"
+              "$ref": "components/gamefeel.schema.json#/definitions/particleEmitterComponent"
             },
             "CinematicCamera": {
-              "$ref": "#/definitions/cinematicCameraComponent"
-            }
-          }
-        }
-      }
-    },
-    "nameComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["label"],
-      "properties": {
-        "label": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "transformComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "position": {
-          "$ref": "#/definitions/vec3"
-        },
-        "rotation": {
-          "$ref": "#/definitions/vec3"
-        },
-        "scale": {
-          "$ref": "#/definitions/vec3"
-        },
-        "parent": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-._]*$",
-          "description": "Optional entity id of this transform's parent. When set, position/rotation/scale are interpreted in the parent's local frame; otherwise they are world-frame. Cycle / self-reference / missing-target are validated by engine check."
-        }
-      }
-    },
-    "cameraComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind"],
-      "properties": {
-        "kind": {
-          "enum": ["perspective", "orthographic"]
-        },
-        "active": {
-          "type": "boolean"
-        },
-        "fov": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "near": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "far": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        }
-      }
-    },
-    "meshRendererComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["mesh"],
-      "properties": {
-        "mesh": {
-          "anyOf": [
-            {
-              "enum": ["box", "sphere", "plane"]
+              "$ref": "components/camera.schema.json#/definitions/cinematicCameraComponent"
             },
-            {
-              "type": "string",
-              "minLength": 1
-            }
-          ]
-        },
-        "material": {
-          "type": "string",
-          "minLength": 1
-        },
-        "color": {
-          "type": "string",
-          "pattern": "^#[0-9a-fA-F]{6}$"
-        }
-      }
-    },
-    "vec3": {
-      "type": "array",
-      "items": {
-        "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
-    },
-    "spinComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["axis", "speed"],
-      "properties": {
-        "axis": {
-          "enum": ["x", "y", "z"]
-        },
-        "speed": {
-          "type": "number"
-        }
-      }
-    },
-    "playerControlledComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["speed"],
-      "properties": {
-        "speed": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        }
-      }
-    },
-    "networkedComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["authority"],
-      "properties": {
-        "authority": {
-          "enum": ["server", "client"]
-        },
-        "channel": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "presenceComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["playerId"],
-      "properties": {
-        "playerId": {
-          "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9._-]*$",
-          "minLength": 1,
-          "maxLength": 64
-        }
-      }
-    },
-    "lightComponent": {
-      "description": "Light source (M21-light-schema). Polymorphic on `kind`. Position + rotation come from the entity's Transform — `LightSyncSystem` pushes the resolved world transform onto the underlying Three.js light. `castShadow` enables shadow-map rendering for that light (gated by the renderer's shadow pipeline, see M21-shadow-basic).",
-      "type": "object",
-      "required": ["kind"],
-      "properties": {
-        "kind": {
-          "enum": ["directional", "point", "spot", "ambient", "hemisphere", "rect-area"]
-        },
-        "color": {
-          "type": "string",
-          "pattern": "^#[0-9a-fA-F]{6}$",
-          "default": "#ffffff"
-        },
-        "intensity": {
-          "type": "number",
-          "minimum": 0,
-          "default": 1
-        },
-        "castShadow": {
-          "type": "boolean",
-          "default": false
-        },
-        "shadow": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Per-light shadow-map config; ignored unless castShadow is true.",
-          "properties": {
-            "mapSize": {
-              "type": "integer",
-              "enum": [256, 512, 1024, 2048, 4096],
-              "default": 1024
-            },
-            "bias": { "type": "number" },
-            "normalBias": { "type": "number" },
-            "radius": { "type": "number", "minimum": 0 },
-            "camera": {
-              "type": "object",
-              "additionalProperties": false,
-              "description": "Orthographic shadow camera frustum (directional lights) or near/far cutoffs (spot/point).",
-              "properties": {
-                "left": { "type": "number" },
-                "right": { "type": "number" },
-                "top": { "type": "number" },
-                "bottom": { "type": "number" },
-                "near": { "type": "number", "exclusiveMinimum": 0 },
-                "far": { "type": "number", "exclusiveMinimum": 0 }
-              }
+            "WaypointMover": {
+              "$ref": "components/gamefeel.schema.json#/definitions/waypointMoverComponent"
             }
           }
-        }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "kind": { "const": "point" } }, "required": ["kind"] },
-          "then": {
-            "properties": {
-              "distance": { "type": "number", "minimum": 0, "default": 0, "description": "Cutoff distance; 0 = no cutoff (physical 1/r² falloff)." },
-              "decay": { "type": "number", "minimum": 0, "default": 2 }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "spot" } }, "required": ["kind"] },
-          "then": {
-            "properties": {
-              "distance": { "type": "number", "minimum": 0, "default": 0 },
-              "decay": { "type": "number", "minimum": 0, "default": 2 },
-              "angle": { "type": "number", "exclusiveMinimum": 0, "maximum": 1.5707963267948966, "description": "Cone half-angle in radians; max π/2." },
-              "penumbra": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
-              "target": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-._]*$",
-                "description": "Optional entity id whose world position the spot points at. Defaults to scene origin."
-              }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "directional" } }, "required": ["kind"] },
-          "then": {
-            "properties": {
-              "target": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-._]*$",
-                "description": "Optional entity id whose world position the directional light points at. Defaults to scene origin."
-              }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "hemisphere" } }, "required": ["kind"] },
-          "then": {
-            "properties": {
-              "groundColor": {
-                "type": "string",
-                "pattern": "^#[0-9a-fA-F]{6}$",
-                "default": "#000000"
-              }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "rect-area" } }, "required": ["kind"] },
-          "then": {
-            "properties": {
-              "width": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
-              "height": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
-            }
-          }
-        }
-      ]
-    },
-    "shadowFlagsComponent": {
-      "description": "Per-mesh shadow opt-out (M21-shadow-basic). When absent, default is { cast: true, receive: true } — matching Unity's defaults. Set either to false as a perf escape hatch.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "cast": { "type": "boolean", "default": true },
-        "receive": { "type": "boolean", "default": true }
-      }
-    },
-    "characterController3DComponent": {
-      "description": "M24-character: Rapier kinematic character controller. Pairs with `RigidBody3D { type: \"kinematicPosition\" }` + `Collider3D { kind: \"capsule\" }`. Gameplay code writes per-step intent through `runtime.physics.moveCharacter(entityId, [dx, dy, dz])` (or the runtime-only `CharacterIntent3D` component); CharacterMovementSystem runs the Rapier controller, applies corrected movement, writes the resolved transform + a `Grounded3D` runtime component.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "offset": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "default": 0.01,
-          "description": "Skin distance kept between the character and other colliders (Rapier offset parameter)."
-        },
-        "maxSlopeDegrees": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 89,
-          "default": 45,
-          "description": "Steepest slope angle the character can climb."
-        },
-        "snapToGroundDistance": {
-          "type": "number",
-          "minimum": 0,
-          "default": 0,
-          "description": "Vertical distance to snap to ground after a downward correction (handles small steps). 0 disables snapping."
-        },
-        "applyImpulsesToDynamicBodies": {
-          "type": "boolean",
-          "default": true,
-          "description": "If true, the character pushes dynamic bodies it touches (instead of just sliding off them)."
-        },
-        "mass": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "default": 3,
-          "description": "Effective mass for impulse calculations when push-pushing dynamic bodies."
-        }
-      }
-    },
-    "rigidBody3DComponent": {
-      "description": "M24-schema: declares an entity as a Rapier rigid body. Pair with a sibling Collider3D for the actual collision shape. 'fixed' = static level geometry. 'dynamic' = simulated, writes Transform after fixed step. 'kinematicPosition' = controlled by gameplay/character systems, participates in collisions.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type"],
-      "properties": {
-        "type": {
-          "enum": ["fixed", "dynamic", "kinematicPosition"],
-          "description": "Body kind. AGF_RIGIDBODY3D_DYNAMIC_TRIMESH rejects dynamic+trimesh combos at validation time."
-        },
-        "mass": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Mass in kg. Required for dynamic bodies; ignored for fixed bodies. Validator emits AGF_RIGIDBODY3D_MASS_REQUIRED when missing on dynamic."
-        },
-        "gravityScale": {
-          "type": "number",
-          "default": 1,
-          "description": "0 = floats, 1 = standard, >1 = heavier. Negative values flip gravity for this body."
-        },
-        "linearDamping": {
-          "type": "number",
-          "minimum": 0,
-          "default": 0
-        },
-        "angularDamping": {
-          "type": "number",
-          "minimum": 0,
-          "default": 0
-        },
-        "lockRotations": {
-          "type": "boolean",
-          "default": false,
-          "description": "Freeze all rotations — useful for upright character controllers."
-        },
-        "ccd": {
-          "type": "boolean",
-          "default": false,
-          "description": "Continuous collision detection. Costlier but prevents fast-moving bodies tunneling through thin colliders."
-        },
-        "canSleep": {
-          "type": "boolean",
-          "default": true,
-          "description": "Allow Rapier to put the body to sleep when idle."
-        }
-      }
-    },
-    "collider3DComponent": {
-      "description": "M24-schema: collision shape for a sibling RigidBody3D entity. Primitives (box/sphere/capsule/cylinder), trimesh (arbitrary static geometry — must pair with RigidBody3D.type=\"fixed\"), and heightfield (terrain). Set `sensor: true` for trigger volumes that emit events without resolving collision.",
-      "type": "object",
-      "required": ["kind"],
-      "properties": {
-        "kind": {
-          "enum": ["box", "sphere", "capsule", "cylinder", "trimesh", "heightfield"]
-        },
-        "offset": {
-          "$ref": "#/definitions/vec3",
-          "description": "Local-space offset relative to the body's Transform.position."
-        },
-        "rotation": {
-          "$ref": "#/definitions/vec3",
-          "description": "Local-space rotation (degrees, XYZ Euler) relative to the body's Transform.rotation."
-        },
-        "sensor": {
-          "type": "boolean",
-          "default": false,
-          "description": "Trigger volume — emits enter/exit events but doesn't push other bodies."
-        },
-        "friction": {
-          "type": "number",
-          "minimum": 0,
-          "default": 0.5
-        },
-        "restitution": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "default": 0,
-          "description": "Bounciness 0..1."
-        },
-        "layer": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Named collision layer (e.g. 'world', 'player'). Resolved against project.json#physics.layers at engine check time."
-        },
-        "mask": {
-          "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "uniqueItems": true,
-          "description": "Layers this collider interacts with. AGF_COLLIDER3D_LAYER_UNKNOWN catches unknown names."
-        }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "kind": { "const": "box" } }, "required": ["kind"] },
-          "then": {
-            "required": ["size"],
-            "properties": {
-              "size": { "$ref": "#/definitions/vec3", "description": "Full extent on each axis (Rapier wants half-extents; adapter divides by 2)." }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "sphere" } }, "required": ["kind"] },
-          "then": {
-            "required": ["radius"],
-            "properties": {
-              "radius": { "type": "number", "exclusiveMinimum": 0 }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "capsule" } }, "required": ["kind"] },
-          "then": {
-            "required": ["radius", "halfHeight"],
-            "properties": {
-              "radius": { "type": "number", "exclusiveMinimum": 0 },
-              "halfHeight": { "type": "number", "exclusiveMinimum": 0, "description": "Distance from center to cap-base (excluding hemispheres)." }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "cylinder" } }, "required": ["kind"] },
-          "then": {
-            "required": ["radius", "halfHeight"],
-            "properties": {
-              "radius": { "type": "number", "exclusiveMinimum": 0 },
-              "halfHeight": { "type": "number", "exclusiveMinimum": 0 }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "trimesh" } }, "required": ["kind"] },
-          "then": {
-            "required": ["vertices", "indices"],
-            "properties": {
-              "vertices": {
-                "type": "array",
-                "items": { "type": "number" },
-                "minItems": 9,
-                "description": "Flat XYZ vertex array (`[x0, y0, z0, x1, y1, z1, ...]`). Length must be a multiple of 3 and ≥ 9 (one triangle). Authored in body-local space — Rapier applies the body's pose at step time."
-              },
-              "indices": {
-                "type": "array",
-                "items": { "type": "integer", "minimum": 0 },
-                "minItems": 3,
-                "description": "Triangle index array (`[i0, i1, i2, i3, i4, i5, ...]`). Length must be a multiple of 3."
-              }
-            }
-          }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "heightfield" } }, "required": ["kind"] },
-          "then": {
-            "required": ["heights", "rows", "columns", "scale"],
-            "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 2,
-                "description": "Number of height samples along the Z axis. `heights.length` must equal `rows * columns`."
-              },
-              "columns": {
-                "type": "integer",
-                "minimum": 2,
-                "description": "Number of height samples along the X axis."
-              },
-              "heights": {
-                "type": "array",
-                "items": { "type": "number" },
-                "minItems": 4,
-                "description": "Row-major Y samples (`heights[row * columns + col]`). Pre-scale values."
-              },
-              "scale": {
-                "$ref": "#/definitions/vec3",
-                "description": "World-space size of the full heightfield. Y is the vertical scale applied to `heights` entries."
-              }
-            }
-          }
-        }
-      ]
-    },
-    "tweensComponent": {
-      "description": "M19-tween: array of in-progress tweens on this entity. Each tween writes `from→to` into another component's field over `duration` seconds using `ease`. `loop: \"none\"` removes the tween on completion; `\"loop\"` resets `elapsed`; `\"ping-pong\"` flips from/to. Replay-safe: TweenSystem runs in fixedUpdate so the same elapsed value is reproduced across `engine replay`.",
-      "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/definitions/tween" }
-    },
-    "tween": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["component", "property", "from", "to", "duration"],
-      "properties": {
-        "component": { "type": "string", "minLength": 1, "description": "Sibling component name to write into, e.g. 'Transform' or 'MeshRenderer'." },
-        "property": { "type": "string", "minLength": 1, "description": "Field name on the target component, e.g. 'scale' or 'opacity'." },
-        "from": {
-          "oneOf": [{ "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 4 }]
-        },
-        "to": {
-          "oneOf": [{ "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 4 }]
-        },
-        "duration": { "type": "number", "exclusiveMinimum": 0 },
-        "ease": {
-          "enum": ["linear", "easeIn", "easeOut", "easeInOut", "pulse"],
-          "default": "linear",
-          "description": "`pulse` uses sin(π·t) so a one-shot tween animates base → peak → base and auto-removes on completion (one-shot bounces / glints / damage flashes)."
-        },
-        "loop": { "enum": ["none", "loop", "ping-pong"], "default": "none" },
-        "elapsed": { "type": "number", "minimum": 0, "default": 0, "description": "Time accumulated so far. TweenSystem advances this each fixed step." }
-      }
-    },
-    "particleEmitterComponent": {
-      "description": "M19-particle-preset: spawn particles from a project-declared preset. Renderer adapter draws via additive InstancedMesh of small quads; particle data stays ECS-side so save/load survives. `preset` references `examples/<project>/particles/<id>.particle.json`. `lifetime: 0` keeps the emitter alive indefinitely (manual stop via applyCommands removing the component).",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["preset"],
-      "properties": {
-        "preset": { "type": "string", "minLength": 1, "description": "Preset id matching a project particle manifest." },
-        "lifetime": { "type": "number", "minimum": 0, "default": 0.5, "description": "Seconds the emitter stays alive; the component is removed once elapsed >= lifetime. 0 = forever." },
-        "elapsed": { "type": "number", "minimum": 0, "default": 0 },
-        "rate": { "type": "number", "exclusiveMinimum": 0, "default": 20, "description": "Particles emitted per second." },
-        "maxParticles": { "type": "integer", "minimum": 1, "default": 64 },
-        "offset": { "$ref": "#/definitions/vec3", "default": [0, 0, 0] }
-      }
-    },
-    "cinematicCameraComponent": {
-      "description": "M21-cam-cinematic: scripted camera waypoint playback. Each waypoint declares a camera position + look-at target + duration. CinematicCameraSystem interpolates Transform.position + rotation through the chain. `autoplay: true` starts on scene load; gameplay can pause/skip via applyCommands flipping `playing` or seeking `elapsed`.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["waypoints"],
-      "properties": {
-        "waypoints": {
-          "type": "array",
-          "minItems": 2,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["position", "lookAt", "duration"],
-            "properties": {
-              "position": { "$ref": "#/definitions/vec3" },
-              "lookAt": { "$ref": "#/definitions/vec3" },
-              "duration": { "type": "number", "exclusiveMinimum": 0, "description": "Seconds to traverse from the previous waypoint to this one." },
-              "ease": { "enum": ["linear", "easeIn", "easeOut", "easeInOut"], "default": "easeInOut" }
-            }
-          }
-        },
-        "loop": { "type": "boolean", "default": false },
-        "autoplay": { "type": "boolean", "default": true },
-        "playing": { "type": "boolean", "default": true },
-        "elapsed": { "type": "number", "minimum": 0, "default": 0, "description": "Time accumulated since the start of the current cycle." }
-      }
-    },
-    "followCameraComponent": {
-      "description": "M21-cam-follow: anchor the camera to a target entity. Each frame FollowCameraSystem reads the target's world position, places the camera at `targetPosition + offset`, and orients it toward `targetPosition + lookAtOffset`. `smoothing` blends the previous camera position toward the new target per-frame (1 = snap, 0 = frozen).",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["target", "offset"],
-      "properties": {
-        "target": { "type": "string", "minLength": 1, "description": "Entity id to track." },
-        "offset": { "$ref": "#/definitions/vec3", "description": "Camera position relative to the target." },
-        "lookAtOffset": { "$ref": "#/definitions/vec3", "description": "Optional offset added to the target before computing the look-at direction; useful for looking slightly above the head." },
-        "smoothing": { "type": "number", "minimum": 0, "maximum": 1, "default": 1, "description": "Per-frame lerp factor toward the desired position. 1 = snap, 0 = never move." }
-      }
-    },
-    "orbitCameraComponent": {
-      "description": "M21-cam-orbit: pure-data orbit-camera state. Place on the same entity as `Camera` + `Transform`. OrbitCameraSystem reads `(target, distance, pitch, yaw)` each frame and writes Transform.position + rotation so the camera looks at `target` from the given polar angles. Gameplay systems (mouse drag, follow-target, etc.) mutate these fields via applyCommands; the system stays input-agnostic.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["target", "distance"],
-      "properties": {
-        "target": { "$ref": "#/definitions/vec3", "description": "World-space point the camera looks at." },
-        "distance": { "type": "number", "exclusiveMinimum": 0, "description": "Distance from target to camera." },
-        "pitch": { "type": "number", "default": 30, "description": "Down-from-horizon angle in degrees. 0 = horizontal; positive = looking down." },
-        "yaw": { "type": "number", "default": 0, "description": "Angle around Y axis in degrees." },
-        "minDistance": { "type": "number", "exclusiveMinimum": 0 },
-        "maxDistance": { "type": "number", "exclusiveMinimum": 0 }
-      }
-    },
-    "lodComponent": {
-      "description": "M17-lod: per-entity LOD chain. LodSelectionSystem reads the active camera's world position, picks the lowest-maxDistance level whose threshold the entity is inside, and writes that level's mesh / material onto MeshRenderer. Levels must be sorted by maxDistance ascending. `fallback` decides what happens past the last threshold — `last` keeps the cheapest mesh, `hide` drops the entity from rendering by removing MeshRenderer.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["levels"],
-      "properties": {
-        "levels": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["maxDistance", "mesh"],
-            "properties": {
-              "maxDistance": {
-                "type": "number",
-                "exclusiveMinimum": 0,
-                "description": "Distance from the active camera below which this level renders."
-              },
-              "mesh": {
-                "type": "string",
-                "minLength": 1
-              },
-              "material": {
-                "type": "string",
-                "minLength": 1
-              },
-              "color": {
-                "type": "string",
-                "pattern": "^#[0-9a-fA-F]{6}$"
-              }
-            }
-          }
-        },
-        "fallback": {
-          "enum": ["last", "hide"],
-          "default": "last"
-        }
-      }
-    },
-    "batchableComponent": {
-      "description": "Opts an entity into the M17 renderer batcher. BatchingSystem groups entities by (mesh + material + shadow flags + group) and emits one Three.js InstancedMesh per bucket. The `group` field is an authoring hint — siblings sharing the same group prefer the same bucket. The renderer treats entities WITHOUT this component as un-batched (single Mesh per entity). Omit to keep the existing per-entity path.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "group": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Optional authoring hint. Entities with the same group + matching mesh/material/shadow keys share an InstancedMesh bucket."
-        },
-        "path": {
-          "enum": ["instanced", "batched"],
-          "default": "instanced",
-          "description": "M17 bucketing path. `instanced` (default) groups by (mesh + colour + shadow + group) into a Three.js InstancedMesh — same geometry, varied transforms. `batched` groups by (colour + shadow + group) into a BatchedMesh — varied geometry, shared material; useful when many distinct primitive meshes share one material/colour. Mesh refs that point at GLBs are not eligible for either path yet."
         }
       }
     }
