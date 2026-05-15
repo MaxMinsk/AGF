@@ -32,6 +32,7 @@ import {
   createPrimitiveGeometry,
   isExternalMeshRef
 } from "../mesh-handle-registry";
+import { bucketSpecHash, type BucketSpec } from "../bucket-spec";
 import type {
   BatchedBucketHandle,
   BatchedGeometryId,
@@ -314,11 +315,20 @@ export function createBatchingSystem(
     manifestProfileKey?: string | undefined,
     manifestColor?: string | undefined
   ): void => {
-    // S50 bucket key embeds the geometry source (primitive name OR
-    // glb ref) and the manifest profile (or "_" for the default
-    // material). Color stays per-instance via instanceColor.
-    const materialKey = manifestProfileKey ?? "_";
-    const bucketKey = `instanced|${renderer.mesh}|${materialKey}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    // S53 RENDER-bucket-spec-typed: bucket key is now derived from a
+    // typed BucketSpec via `bucketSpecHash()`. The hash format is
+    // identical to the pre-S53 hand-rolled string so existing tests
+    // + adapter call sites keep working; new dispatcher code (story 3+)
+    // routes through the spec itself instead of re-parsing strings.
+    const spec: BucketSpec = {
+      kind: "instanced",
+      mesh: renderer.mesh,
+      shadowCast: cast,
+      shadowReceive: receive,
+      ...(manifestProfileKey !== undefined ? { materialProfile: manifestProfileKey } : {}),
+      ...(batchable?.group !== undefined ? { group: batchable.group } : {})
+    };
+    const bucketKey = bucketSpecHash(spec);
     let record = bucketsByKey.get(bucketKey) as InstancedRecord | undefined;
     if (record === undefined) {
       const geometry =
@@ -447,7 +457,13 @@ export function createBatchingSystem(
     // BatchedMesh's `_batchColor * material.color` multiply doesn't
     // square the colour (which made the scene visibly darker on
     // shadows-bench when path: "batched" was first enabled).
-    const bucketKey = `batched|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    const batchedSpec: BucketSpec = {
+      kind: "batched",
+      shadowCast: cast,
+      shadowReceive: receive,
+      ...(batchable?.group !== undefined ? { group: batchable.group } : {})
+    };
+    const bucketKey = bucketSpecHash(batchedSpec);
     let record = bucketsByKey.get(bucketKey) as BatchedRecord | undefined;
     if (record === undefined) {
       const handle = deps.adapter.acquireBatchedBucket({
