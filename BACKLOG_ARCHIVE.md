@@ -2439,3 +2439,62 @@ Twin focus: restore the visual quality of shadows-bench (the scene got visibly d
 - **`M21-shadow-map-size-real-hw`** stays in Next Sprint candidates (user-driven measurement).
 - **`M17-bvh-extension`** stays in Next Sprint candidates (own sprint).
 
+## Sprint 53 — renderer refactor (pool + bucket + BVH)
+
+Status: Completed and archived.
+
+13 stories that consolidate the renderer's pool / bucket / batching surface accreted through S34–S52, ship the BVH-augmented BatchedMesh path the S51 deep-dive flagged, and close four S52 follow-ups (project.json save for the tuner, beacon idle-caster verification, M17-batch-default-on, M17-lod-batched) along the way. Plus a same-sprint hotfix when the BEACON ShadowCaster tag turned out to ship a visual regression — the corrected `DynamicShadowSystem` contract is recorded under "Follow-Ups".
+
+### Completed Work
+
+1. **RENDER-pool-registry** ✅ — `engine/render/render-pool-registry.ts`. Shared `RenderPoolRegistry<Entry>` helper replaces the `Map<H, Entry>` + `next<P>Handle` pattern across InstancedMesh + BatchedMesh + particle pool. Adapter call sites refactored; public API unchanged.
+2. **RENDER-bucket-spec-typed** ✅ — `engine/render/bucket-spec.ts`. Typed `BucketSpec` discriminated union (`instanced` / `batched` / `batched-bvh`) + `bucketSpecHash()` retire the hand-rolled `instanced|<mesh>|<material>|<shadow>|<group>` string keys. Hash output identical to the legacy strings so existing tests pass unchanged.
+3. **RENDER-pool-handle-union** ✅ — tagged `PoolHandle` union + `adapter.acquirePool(spec, opts): PoolHandle` dispatcher + `poolLiveCount` / `releasePool`. Per-kind methods stay public for back-compat. New unit suite `tests/unit/bucket-spec.test.ts` (6 cases).
+4. **M17-batch-default-on** ✅ — `project.json#render.batching.auto` default flipped from false → true. Doctor recommendation copy updated to surface the explicit-disabled case. All 5 example projects keep their explicit `auto: true` (redundant now but harmless).
+5. **M17-bvh-extension** ✅ — `@three.ez/batched-mesh-extensions` added as dep. `extendBatchedMeshPrototype()` runs once at module load. New `project.json#render.batching.path: "batched-bvh"` routes through the new path; adapter `ensureBucketBvh(handle)` lazily builds the BVH after first instance lands. `BatchingSystem.updateBatched` accepts a `useBvh` flag and walks the `record.useBvh` set at end-of-frame.
+6. **M17-batch-perf-rerun** ✅ — extended `scripts/perf-probe-batching.mjs` with a `--projectId` flag. Measured `instanced` / `batched` / `batched-bvh` on shadows-bench (327 instances) + batch-bench (401 cubes). Headline: BVH culled **84 % of triangles** on shadows-bench (451 k → 70 k) and **strictly dominated vanilla `batched`** (renderMs 0.74 → 0.57). On software-WebGL `batched-bvh` still loses to `instanced` because fillrate-bound dispatch dominates; real-hardware delta filed as follow-up. Findings appended to `docs/research/m17-batched-vs-instanced-shadows-bench.md`.
+7. **M17-lod-batched** ✅ — pinned the existing in-bucket LOD-swap behaviour with a new regression test (`tests/unit/batching-system-batched-path.test.ts`): mesh-ref change on a tagged-batched entity adds a new geometry to the same bucket + calls `setBatchedInstanceGeometry` without releasing the slot. LOD system docstring updated to spell out the batched-vs-instanced distinction.
+8. **DEVBRIDGE-project-patch** ✅ — new `POST /__agf/project-patch` endpoint (DEV-only). Body: `{ projectDir, patch }`. Path-traversal guarded; deep-merges patch onto current project.json; writes with 2-space indent + trailing newline. Production builds exclude the dev-bridge plugin entirely. 6 unit-tests for the `deepMerge` semantics (`tests/unit/devbridge-project-patch.test.ts`).
+9. **shadow-tuner-project-save** ✅ — "Save to project.json" button in `examples/shadows-bench/src/ui/shadow-tuner.ts` POSTs the current `FieldState` to the new endpoint, clears the localStorage shadow on success, falls back to a "endpoint unavailable" message when the dev bridge isn't there.
+10. **BEACON-shadow-caster-tag** ✅ — beacon-world's player drone tagged `ShadowCaster { dynamic: true }`. `scripts/perf-probe-beacon-tag.mjs` A/B probe toggles the tag, reloads, samples renderer info. (See Follow-Ups for the visual regression caught here and the fix.)
+11. **DOCTOR-renderer-pool-section** ✅ — `engine doctor` `Batching:` section gains `pathDistribution: { instanced, batched, batchedBvh }` with the per-entity `Batchable.path` override applied on top of the project default. Plus a new recommendation: when `path: "batched"` is set with primitive-rich scenes, suggests upgrading to `batched-bvh` with the Story 6 perf numbers.
+12. **RENDER-pool-test-coverage** ✅ — `tests/unit/render-pool-registry.test.ts` (8 cases). Pins handle monotonicity, no-handle-reuse-after-release, drain semantics. S53 test coverage matrix recorded in commit body.
+13. **RENDER-bucket-key-architecture-finalize** ✅ — `InstancedRecord` + `BatchedRecord` gain a `spec: BucketSpec` typed companion to `bucketKey`. Grep confirmed zero remaining hand-rolled `instanced|...|` / `batched|...|` string constructions outside `bucketSpecHash`.
+
+### Deliverables
+
+- `engine/render/render-pool-registry.ts` (new) + `engine/render/bucket-spec.ts` (new).
+- `engine/render/three-render-adapter.ts` — pool fields swap to `RenderPoolRegistry<Entry>`; `acquirePool` / `poolLiveCount` / `releasePool` added; `acquireBatchedBucket` accepts `useBvh`; `ensureBucketBvh` added; `BatchedBucketEntry` gains `useBvh` + `bvhBuilt`; `extendBatchedMeshPrototype()` called at module load.
+- `engine/render/systems/batching-system.ts` — `defaultPath` widened to include `"batched-bvh"`; `updateBatched` accepts `useBvh`, threads to `acquireBatchedBucket`, dispatch picks `"batched-bvh"` kind for `BucketSpec`; both records gain `spec`; end-of-frame `ensureBucketBvh` walk.
+- `engine/render/systems/dynamic-shadow-system.ts` — new movement-gated takeover: DSS stays no-op until first real LTW change.
+- `engine/render/systems/lod-selection-system.ts` — docstring updated.
+- `engine/runtime/start.ts` — `RuntimeOptions.batchingPath` widened to include `"batched-bvh"`.
+- `engine/dev/agf-dev-bridge.ts` — `/project-patch` route + `handleProjectPatch` + `deepMerge` helper exported.
+- `engine/tools/doctor/project-doctor.ts` — autoBatch default flipped; pool distribution + recommendations.
+- `schemas/project.schema.json` — `auto.default: true`; `path.enum` widened.
+- `examples/beacon-world/scenes/start.scene.json` — drone gains `ShadowCaster { dynamic: true }`.
+- `examples/shadows-bench/src/ui/shadow-tuner.ts` — Save-to-project.json button.
+- `package.json` — `@three.ez/batched-mesh-extensions` dependency added.
+- `scripts/perf-probe-batching.mjs` — `--projectId` flag + `batched-bvh` in defaults.
+- `scripts/perf-probe-beacon-tag.mjs` (new) — A/B probe for the idle-caster scenario.
+- 5 new unit-test files (bucket-spec, render-pool-registry, devbridge-project-patch, batching-system-batched-path BVH cases, dynamic-shadow-system movement-gated rewrite).
+- `docs/research/m17-batched-vs-instanced-shadows-bench.md` — `batched-bvh` numbers appended.
+- `docs/research/m21-shadows-bench-perf.md` — corrected BEACON measurement + audit-trail of the regression.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 75-file unit test (470 tests) + build + bundle:check + 11/11 e2e smoke.
+- `node scripts/perf-probe-batching.mjs --projectId shadows-bench` ✅ — `batched-bvh` numbers reproducible.
+- `node scripts/perf-probe-beacon-tag.mjs` ✅ — A/B reproducible.
+- `npm run engine:doctor -- examples/shadows-bench` ✅ — new pool distribution + BVH recommendation render correctly.
+- Beacon-world screenshot post-fix: 39 draw calls, all four objects cast clear shadows on the ground (visual regression closed).
+- Merged via PR [#58](https://github.com/MaxMinsk/google.com/MaxMinsk/AGF/pull/58).
+
+### Follow-Ups
+
+- **DSS visual regression (caught + fixed in-sprint).** First version of the `BEACON-shadow-caster-tag` ship turned `shadowMap.autoUpdate = false` on the first frame DSS saw a dynamic-tagged caster, before three.js had baked any shadow into the per-light textures. Symptom: "no shadows at startup, only appear after the drone moves". The fix lives in commit `aa03dea`: DSS now only takes over after observing a real LTW change. While every tagged caster is idle, three.js's `autoUpdate=true` default keeps baking the usual way. **Implication for the perf claim**: the previously-reported `−37 % renderMs / −85 % drawCalls` on idle beacon-world was a visual regression in disguise (no shadows = no shadow draws), not a real win. The honest delta for the idle scene is now `0 %` until the player moves; the real saving lands on movement-then-idle scenes. Filed in `docs/research/m21-shadows-bench-perf.md` under audit trail.
+- **Real-hardware BVH measurement.** Software-WebGL is fillrate-bound, so the 84 % triangle savings on shadows-bench didn't convert to a renderMs win. Real-hw probe (the user's machine) would flip the `batched-bvh` vs `instanced` crossover. Stays as the open follow-up alongside `M21-shadow-map-size-real-hw`.
+- **Move-then-stop perf re-probe.** The naive idle-only probe now matches the no-tag baseline by design. A future probe should record a sequence: idle → move → stop → idle, sampling the "stopped after a move" phase explicitly so the DSS savings actually show up in the numbers.
+- **render-pool-abstraction full caller migration.** Stories 1–3 + 13 set up the typed dispatcher + `PoolHandle` union, but most adapter call sites still use the per-kind acquire / release methods. A future sprint can migrate the call sites + retire the per-kind methods if the migration delivers measurable maintenance savings.
+- **GLB inside batched buckets.** `updateBatched` falls back to a placeholder geometry when the mesh ref isn't a primitive. The `instanced` path handles GLB via `loadGeometry` (asset registry); the batched paths could be threaded the same way for full parity.
+
