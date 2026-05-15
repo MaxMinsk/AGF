@@ -145,6 +145,9 @@
           "mesh": "runtime/models/drone.glb",
           "material": "runtime/materials/drone.material.json"
         },
+        "ShadowCaster": {
+          "dynamic": true
+        },
         "PlayerControlled": {
           "speed": 3.5
         },

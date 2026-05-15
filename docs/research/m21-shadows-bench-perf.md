@@ -144,6 +144,35 @@ count (cascade 3 → 2 saved ~17 %, FXAA-off saves ~14 %). Project teams
 that don't strictly need antialiasing for their visual style can
 remove it as a meaningful win.
 
+## Sprint 53 — BEACON-shadow-caster-tag confirms the idle-caster hypothesis
+
+S52's `M21-shadow-static-caster-tag` landed the mechanism but only
+saw `−17 %` renderMs on shadows-bench because cars + trees move every
+frame. The note predicted the real payoff was on scenes with idle
+dynamic casters. S53 measured beacon-world (drone sitting still, no
+key presses) with `scripts/perf-probe-beacon-tag.mjs` (toggles
+`ShadowCaster { dynamic: true }` on `player.drone`, reloads, samples):
+
+| metric         | tag absent | tag on | Δ       |
+|----------------|-----------:|-------:|--------:|
+| drawCalls      |    39      |    6   | **−85 %** |
+| triangles      | 1 156      |  136   | **−88 %** |
+| renderMs       |   0.41     |  0.26  | **−37 %** |
+| totalFrameMs   |   0.79     |  0.61  | **−22 %** |
+
+The 39 → 6 drawCalls drop reflects the directional + 2 point lights
+in beacon-world skipping their shadow re-bake: with `autoUpdate=true`
+each light's shadow map renders the whole scene every frame; once
+the only `dynamic` caster (the drone) sits still, `DynamicShadowSystem`
+keeps `shadowMap.autoUpdate=false` and never invalidates, so all
+three lights skip the shadow pass entirely. As soon as the drone
+moves, the tag flips back to dirty and the per-frame bakes resume.
+
+Acceptance from Story 10's backlog spec (≥ 25 % renderMs drop) is
+**exceeded** (−37 %). The hypothesis is confirmed: tag-driven
+shadow update is the right primitive for player-focused scenes; the
+right place to scale it next is multiplayer (NPCs / projectiles).
+
 ## Future follow-ups
 - **M21-shadow-map-size-real-hw.** Re-run `512map` probe on desktop GPU
   — software WebGL undersells the fill-rate savings.
