@@ -330,7 +330,7 @@ Animated water surfaces with their own reflection RT (uses `Reflector`
 under the hood) plus a refraction sample of the scene depth. Niche but
 visually striking; deferred until a project asks.
 
-## Priority analysis — which "вишка" first
+## Priority analysis — which polish lands first
 
 Ranking by visual win × low cost × likely re-use across projects. The
 "cost" column is rough sprint stories at our current sprint cadence.
