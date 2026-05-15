@@ -26,6 +26,8 @@ export type RuntimeOptions = {
   canvas: HTMLCanvasElement;
   scene: SceneInput;
   background?: string;
+  /** S52 POLISH-shadows-bench-sky: vertical gradient skybox; overrides `background` when present. */
+  skyGradient?: { top: string; bottom: string };
   /** M21-color: output color pipeline. Forwarded to the renderer adapter. */
   color?: {
     toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
@@ -151,6 +153,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     {
       ...(options.color !== undefined ? { color: options.color } : {}),
       ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
+      ...(options.skyGradient !== undefined ? { skyGradient: options.skyGradient } : {}),
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
@@ -301,6 +304,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       diagnostics
     });
     if (!scheduler.has(lls.name)) scheduler.register(lls);
+
+    // S52 M21-shadow-static-caster-tag: dormant unless the scene
+    // marks at least one entity as `ShadowCaster { dynamic: true }`.
+    // Runs LAST so LocalToWorld is fresh from TransformResolveSystem.
+    const { createDynamicShadowSystem } = await import("../render/systems/dynamic-shadow-system");
+    const dss = createDynamicShadowSystem({ adapter: renderer.adapter });
+    if (!scheduler.has(dss.name)) scheduler.register(dss);
 
   }
 

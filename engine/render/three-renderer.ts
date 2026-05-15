@@ -71,6 +71,7 @@ export class ThreeRenderer {
       onContextRestored?: () => void;
       color?: import("./three-render-adapter").ColorPipelineOptions;
       shadowAlgorithm?: "pcf" | "vsm" | "pcss";
+      skyGradient?: import("./three-render-adapter").SkyGradient;
     }
   ) {
     this.world = world;
@@ -88,6 +89,9 @@ export class ThreeRenderer {
     }
     if (extraOptions?.shadowAlgorithm !== undefined) {
       options.shadowAlgorithm = extraOptions.shadowAlgorithm;
+    }
+    if (extraOptions?.skyGradient !== undefined) {
+      options.skyGradient = extraOptions.skyGradient;
     }
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);

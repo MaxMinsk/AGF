@@ -13,28 +13,54 @@ import type { EngineCommand } from "../../engine/core/commands/types";
 import { createRtsCameraSystem } from "./src/systems/rts-camera-system";
 import { mountShadowTuner, type ShadowTunerDefaults } from "./src/ui/shadow-tuner";
 
+// Mirror of `project.json#render.shadows.csm` — keep in sync so the
+// tuner's "Reset to defaults" button restores the actual shipped values.
 const SHADOW_DEFAULTS: ShadowTunerDefaults = {
   cascades: 3,
   maxFar: 120,
   shadowMapSize: 1024,
   shadowBias: -0.000005,
-  shadowNormalBias: 0.12,
-  lightIntensity: 1.55,
+  shadowNormalBias: 0.06,
+  lightIntensity: 2.1,
   lightDirection: [-0.45, -1, -0.35],
   mode: "practical",
   algorithm: "pcss"
 };
 
+// S52 POLISH-shadows-bench-materials: palettes re-tuned for the new
+// ACES tonemap. The old hex values were chosen against linear-clamp
+// rendering and read muddy through the filmic curve — buildings sat
+// in a narrow beige band, trees were close to neutral, roofs were
+// near-black. Wider value ranges + slightly more saturation give the
+// scene its texture back without breaking auto-batch (every entry
+// is still a Standard inline colour, so all box / sphere primitives
+// share one InstancedMesh bucket per mesh).
 const PALETTE_BUILDINGS: ReadonlyArray<string> = [
-  "#c7b893",
-  "#a89373",
-  "#8a7656",
-  "#cdb079",
-  "#9d8862"
+  "#d8c8a4", // warm cream
+  "#b89a78", // sandstone
+  "#8a7656", // muddy tan
+  "#cdb079", // pale ochre
+  "#a08562", // dusty taupe
+  "#e8d7b4"  // bright stucco
 ];
-const PALETTE_ROOFS: ReadonlyArray<string> = ["#7a3b2e", "#5a2a20", "#a85440"];
-const PALETTE_TREES: ReadonlyArray<string> = ["#3a6b3c", "#4f7a4a", "#2f5530"];
-const PALETTE_ROCKS: ReadonlyArray<string> = ["#7d7972", "#8e8a82", "#6a665f"];
+const PALETTE_ROOFS: ReadonlyArray<string> = [
+  "#a8442f", // terracotta
+  "#6a2a1c", // burnt sienna
+  "#c4604a", // light brick
+  "#7d3a2a"  // weathered red
+];
+const PALETTE_TREES: ReadonlyArray<string> = [
+  "#5a8a3a", // fresh leaf
+  "#6fa050", // bright canopy
+  "#4a7038", // shaded foliage
+  "#7fb060"  // sun-lit lime
+];
+const PALETTE_ROCKS: ReadonlyArray<string> = [
+  "#8d8478", // warm stone
+  "#9a9286", // light grey-tan
+  "#736b60", // shaded boulder
+  "#a59c8e"  // weathered chalk
+];
 
 // Deterministic pseudo-random — no Math.random so replays stay stable.
 function lcg(seed: number): () => number {
@@ -147,8 +173,12 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     const rawX = Math.cos(angle) * radius;
     const rawZ = Math.sin(angle) * radius;
     const [x, z] = clearRoadCorridor(rawX, rawZ);
-    const trunkH = 0.8 + rand() * 0.8;
-    const canopyR = 0.7 + rand() * 0.7;
+    // S52 wider variance: 0.6..2.0 trunk, 0.5..1.6 canopy.
+    // The old 0.8..1.6 / 0.7..1.4 was too uniform — every tree
+    // read the same height, which made the forest look like a
+    // grid of identical bushes.
+    const trunkH = 0.6 + rand() * 1.4;
+    const canopyR = 0.5 + rand() * 1.1;
     const swayAmp = 1.8 + rand() * 1.5; // degrees
     const swayDur = 2.6 + rand() * 2.0; // seconds per cycle
 
@@ -163,6 +193,16 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       entityId: id,
       component: "Transform",
       data: { position: [x, 0, z] }
+    });
+    // S52 M21-shadow-static-caster-tag: tree roots have a sway Tween,
+    // so their LTW shifts every frame. Marking them dynamic keeps the
+    // shadow map in sync; without the tag the canopy would drift while
+    // its shadow stayed frozen at the initial bake pose.
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowCaster",
+      data: { dynamic: true }
     });
     commands.push({
       kind: "component.set",
@@ -199,7 +239,7 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       kind: "component.set",
       entityId: trunkId,
       component: "MeshRenderer",
-      data: { mesh: "box", color: "#5a3a23" }
+      data: { mesh: "box", color: "#6f4a30" }
     });
     commands.push({
       kind: "component.set",
@@ -261,7 +301,7 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       kind: "component.set",
       entityId: road.id,
       component: "MeshRenderer",
-      data: { mesh: "box", color: "#2f3135" }
+      data: { mesh: "box", color: "#3a3c40" }
     });
     commands.push({
       kind: "component.set",
@@ -328,6 +368,17 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       entityId: id,
       component: "Transform",
       data: { position: a }
+    });
+    // S52 M21-shadow-static-caster-tag: cars move continuously so
+    // their shadows must track them. Trees + cars are the only
+    // entities tagged dynamic in shadows-bench; ~290 static entities
+    // (buildings, rocks, lampposts, plaza props) skip the per-frame
+    // shadow re-bake.
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowCaster",
+      data: { dynamic: true }
     });
     commands.push({
       kind: "component.set",
@@ -452,6 +503,109 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
         data: { cast: true, receive: true }
       });
     }
+  }
+
+  // Lampposts — thin pole + bright head at the road edges. Six total:
+  // four mid-block along the EW street + two mid-block along the NS
+  // street. Skip the central intersection — the cars use that lane.
+  // All entities stay primitive Standard so they share the existing
+  // box / sphere buckets.
+  const LAMP_POLE_H = 3.6;
+  const LAMP_OFFSET = 3.3; // just outside the 4m-wide road kerb
+  const lampPositions: ReadonlyArray<{ x: number; z: number }> = [
+    { x: -28, z: -LAMP_OFFSET }, { x: -28, z: LAMP_OFFSET },
+    { x:  28, z: -LAMP_OFFSET }, { x:  28, z: LAMP_OFFSET },
+    { x: -LAMP_OFFSET, z: -28 }, { x: LAMP_OFFSET, z: -28 },
+    { x: -LAMP_OFFSET, z:  28 }, { x: LAMP_OFFSET, z:  28 }
+  ];
+  for (let i = 0; i < lampPositions.length; i++) {
+    const p = lampPositions[i]!;
+    const poleId = `lamp.${i}.pole`;
+    commands.push({ kind: "entity.create", entityId: poleId });
+    commands.push({
+      kind: "component.set",
+      entityId: poleId,
+      component: "Transform",
+      data: { position: [p.x, LAMP_POLE_H / 2, p.z], scale: [0.18, LAMP_POLE_H, 0.18] }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: poleId,
+      component: "MeshRenderer",
+      data: { mesh: "box", color: "#2a2620" }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: poleId,
+      component: "ShadowFlags",
+      data: { cast: true, receive: true }
+    });
+
+    const headId = `lamp.${i}.head`;
+    commands.push({ kind: "entity.create", entityId: headId });
+    commands.push({
+      kind: "component.set",
+      entityId: headId,
+      component: "Transform",
+      data: { position: [p.x, LAMP_POLE_H + 0.18, p.z], scale: [0.5, 0.35, 0.5] }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: headId,
+      component: "MeshRenderer",
+      // Bright warm tone — reads as a lit fixture under ACES even
+      // without emissive (introducing emissive would split the bucket
+      // into its own material manifest; keep it inline for now).
+      data: { mesh: "box", color: "#f0c869" }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: headId,
+      component: "ShadowFlags",
+      data: { cast: true, receive: true }
+    });
+  }
+
+  // Plaza props — six low planter boxes around the central intersection
+  // so the crossroads reads as a place, not just an empty cross. Two
+  // per quadrant, offset from the road kerb. Same Standard inline-
+  // colour treatment.
+  const plazaProps: ReadonlyArray<{
+    pos: [number, number, number];
+    scale: [number, number, number];
+    color: string;
+  }> = [
+    { pos: [-5.0, 0.35, -5.0], scale: [1.4, 0.7, 1.4], color: "#8a7656" },
+    { pos: [ 5.0, 0.35, -5.0], scale: [1.4, 0.7, 1.4], color: "#a08562" },
+    { pos: [-5.0, 0.35,  5.0], scale: [1.4, 0.7, 1.4], color: "#b89a78" },
+    { pos: [ 5.0, 0.35,  5.0], scale: [1.4, 0.7, 1.4], color: "#8a7656" },
+    // S52 fix: was at z=0 (centre of EW road, hello cars). Pushed
+    // off both road corridors so the prop sits on the pavement.
+    { pos: [-7.5, 0.25,  4.2], scale: [0.9, 0.5, 0.9], color: "#6f4a30" },
+    { pos: [ 7.5, 0.25, -4.2], scale: [0.9, 0.5, 0.9], color: "#6f4a30" }
+  ];
+  for (let i = 0; i < plazaProps.length; i++) {
+    const p = plazaProps[i]!;
+    const id = `plaza.prop.${i}`;
+    commands.push({ kind: "entity.create", entityId: id });
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "Transform",
+      data: { position: p.pos, scale: p.scale }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "MeshRenderer",
+      data: { mesh: "box", color: p.color }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowFlags",
+      data: { cast: true, receive: true }
+    });
   }
 
   // Rocks — squashed spheres of varied size at the field edges.

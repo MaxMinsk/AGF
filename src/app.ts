@@ -29,6 +29,7 @@ export type ProjectMeta = {
   name: string;
   render?: {
     background?: string;
+    skyGradient?: { top: string; bottom: string };
     /**
      * M21-color: output color pipeline. Defaults: toneMapping
      * "aces-filmic", exposure 1.
@@ -325,6 +326,9 @@ export async function createApp(
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;
+  }
+  if (project.render?.skyGradient !== undefined) {
+    runtimeOptions.skyGradient = project.render.skyGradient;
   }
   if (project.render?.color !== undefined) {
     runtimeOptions.color = project.render.color;

@@ -73,6 +73,10 @@ const scenarios = [
     j.render.shadows.csm.shadowMapSize = 512;
     j.render.shadows.csm.cascades = 2;
     return j;
+  }],
+  ["noFXAA", (j) => {
+    j.render.post = [];
+    return j;
   }]
 ];
 

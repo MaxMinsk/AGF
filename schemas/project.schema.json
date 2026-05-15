@@ -39,6 +39,16 @@
           "type": "string",
           "pattern": "^#[0-9a-fA-F]{6}$"
         },
+        "skyGradient": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["top", "bottom"],
+          "description": "S52 POLISH-shadows-bench-sky: vertical sky gradient. When set, the adapter builds a 4×256 CanvasTexture (top→bottom interpolated) and assigns it as `scene.background`, overriding the solid `background` colour. Cheap visual upgrade — the IBL environment (`scene.environment`) still drives PBR ambient; the gradient is purely the skybox the camera sees behind everything.",
+          "properties": {
+            "top": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+            "bottom": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+          }
+        },
         "post": {
           "type": "array",
           "description": "M21-post-pipeline: ordered post-processing chain. Each entry is a single pass. The adapter always appends an OutputPass after the configured chain so tone-mapping + sRGB conversion fire at the end.",

@@ -6,12 +6,20 @@
   "assetRoot": "assets",
   "render": {
     "mode": "webgl",
-    "background": "#3a5066",
+    "background": "#5d7d9b",
+    "skyGradient": {
+      "top": "#3f6589",
+      "bottom": "#bdc8d2"
+    },
     "post": [
       {
         "kind": "fxaa"
       }
     ],
+    "color": {
+      "toneMapping": "aces-filmic",
+      "exposure": 0.9
+    },
     "batching": {
       "auto": true
     },
@@ -24,13 +32,13 @@
         "mode": "practical",
         "shadowMapSize": 1024,
         "shadowBias": -0.000005,
-        "shadowNormalBias": 0.12,
+        "shadowNormalBias": 0.06,
         "lightDirection": [
           -0.45,
           -1,
           -0.35
         ],
-        "lightIntensity": 1.55
+        "lightIntensity": 2.1
       }
     }
   },

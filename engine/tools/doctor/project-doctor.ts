@@ -125,7 +125,26 @@ export type DoctorReport = {
   batching: BatchingConfigReport;
   /** Material-manifest deduplication report (M17-material-sharing-doctor). */
   materialSharing: MaterialSharingReport;
+  /** S52-doctor: shadow config snapshot + cascade cost recommendation. */
+  shadows: ShadowConfigReport;
   recommendations: string[];
+};
+
+export type ShadowConfigReport = {
+  /** `project.json#render.shadows.algorithm` — defaults to `pcf` per the schema. */
+  algorithm: "pcf" | "vsm" | "pcss";
+  /** `project.json#render.shadows.autoUpdate` — defaults to true. */
+  autoUpdate: boolean;
+  /** Whether CSM is enabled via `render.shadows.csm.enabled`. */
+  csmEnabled: boolean;
+  /** Cascade count when CSM is on (otherwise undefined). */
+  cascades: number | undefined;
+  /** Cascade-shadow-map size when CSM is on. */
+  shadowMapSize: number | undefined;
+  /** Entities tagged `ShadowCaster { dynamic: true }` across all scenes. */
+  dynamicCasterCount: number;
+  /** Entities tagged `ShadowCaster { dynamic: false }` explicitly. */
+  staticCasterCount: number;
 };
 
 export type DoctorOptions = {
@@ -235,6 +254,18 @@ export function runDoctor(
     );
   }
 
+  const shadows = summarizeShadows(projectDir);
+  if (shadows.csmEnabled && shadows.cascades !== undefined && shadows.cascades >= 3) {
+    recommendations.push(
+      `CSM uses ${shadows.cascades} cascades — each is a full shadow pass per frame. The S51 shadow deep-dive measured ~17 % renderMs saved going from 3 → 2; consider downgrading for outdoor scenes that don't need extreme near-detail.`
+    );
+  }
+  if (shadows.dynamicCasterCount === 0 && shadows.autoUpdate) {
+    recommendations.push(
+      `No \`ShadowCaster { dynamic: true }\` entities — every caster re-bakes every frame even though nothing moves. Tag the entities that actually animate (player / NPCs / animated props) so the renderer can skip the per-frame shadow pass when they're idle.`
+    );
+  }
+
   const ok =
     check.ok &&
     bundle?.violation !== "hard" &&
@@ -251,8 +282,88 @@ export function runDoctor(
     batchCandidates,
     batching,
     materialSharing,
+    shadows,
     recommendations
   };
+}
+
+function summarizeShadows(projectDir: string): ShadowConfigReport {
+  const projectPath = resolve(projectDir, "project.json");
+  let algorithm: "pcf" | "vsm" | "pcss" = "pcf";
+  let autoUpdate = true;
+  let csmEnabled = false;
+  let cascades: number | undefined;
+  let shadowMapSize: number | undefined;
+  if (existsSync(projectPath)) {
+    try {
+      const project = JSON.parse(readFileSync(projectPath, "utf8")) as {
+        render?: {
+          shadows?: {
+            algorithm?: "pcf" | "vsm" | "pcss";
+            autoUpdate?: boolean;
+            csm?: { enabled?: boolean; cascades?: number; shadowMapSize?: number };
+          };
+        };
+      };
+      algorithm = project.render?.shadows?.algorithm ?? "pcf";
+      autoUpdate = project.render?.shadows?.autoUpdate !== false;
+      csmEnabled = project.render?.shadows?.csm?.enabled === true;
+      cascades = project.render?.shadows?.csm?.cascades;
+      shadowMapSize = project.render?.shadows?.csm?.shadowMapSize;
+    } catch {
+      // project-check reports malformed project.json; defaults stay.
+    }
+  }
+
+  const { dynamicCasterCount, staticCasterCount } = countShadowCasters(projectDir);
+  return {
+    algorithm,
+    autoUpdate,
+    csmEnabled,
+    cascades,
+    shadowMapSize,
+    dynamicCasterCount,
+    staticCasterCount
+  };
+}
+
+function countShadowCasters(projectDir: string): {
+  dynamicCasterCount: number;
+  staticCasterCount: number;
+} {
+  const scenesDir = resolve(projectDir, "scenes");
+  let dynamicCasterCount = 0;
+  let staticCasterCount = 0;
+  if (!existsSync(scenesDir) || !statSync(scenesDir).isDirectory()) {
+    return { dynamicCasterCount, staticCasterCount };
+  }
+  const stack: string[] = [scenesDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (dir === undefined) break;
+    for (const name of readdirSync(dir)) {
+      const full = resolve(dir, name);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!name.endsWith(".scene.json")) continue;
+      let scene: { entities?: Array<{ components?: Record<string, unknown> }> };
+      try {
+        scene = JSON.parse(readFileSync(full, "utf8"));
+      } catch {
+        continue;
+      }
+      for (const entity of scene.entities ?? []) {
+        const tag = entity.components?.["ShadowCaster"] as { dynamic?: boolean } | undefined;
+        if (tag === undefined) continue;
+        if (tag.dynamic === true) dynamicCasterCount += 1;
+        else staticCasterCount += 1;
+      }
+    }
+  }
+  return { dynamicCasterCount, staticCasterCount };
 }
 
 const PRIMITIVE_MESHES = new Set(["box", "sphere", "plane"]);
@@ -491,6 +602,9 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatBatching(report.batching));
   lines.push("");
 
+  lines.push(formatShadows(report.shadows));
+  lines.push("");
+
   lines.push(formatBatchCandidates(report.batchCandidates));
   lines.push("");
 
@@ -529,6 +643,22 @@ export function formatBatching(report: BatchingConfigReport): string {
   }
   if (report.optedOutCount > 0) {
     lines.push(`  opted out (Batchable.enabled=false): ${report.optedOutCount}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatShadows(report: ShadowConfigReport): string {
+  const lines: string[] = [];
+  const cascadesLabel = report.csmEnabled
+    ? `CSM × ${report.cascades ?? "?"} cascade(s), ${report.shadowMapSize ?? "?"}px map`
+    : "single-light shadows (no CSM)";
+  lines.push(`Shadows: algorithm=${report.algorithm.toUpperCase()}, autoUpdate=${report.autoUpdate ? "ON" : "OFF"}, ${cascadesLabel}`);
+  if (report.dynamicCasterCount > 0 || report.staticCasterCount > 0) {
+    lines.push(
+      `  ShadowCaster tags: ${report.dynamicCasterCount} dynamic, ${report.staticCasterCount} explicit static (untagged entities are implicit static when any dynamic tag is present)`
+    );
+  } else {
+    lines.push(`  ShadowCaster tags: (none) — every caster re-bakes every frame`);
   }
   return lines.join("\n");
 }
