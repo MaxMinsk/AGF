@@ -2,6 +2,8 @@
 
 Practical reference for the tools an agent uses to iterate on an AGF project. Everything here is text-driven and JSON-friendly; no GUI required.
 
+Pair with [`debug-protocol.md`](debug-protocol.md), [`skills/playtest-debugging.md`](skills/playtest-debugging.md) and [`skills/engine-check.md`](skills/engine-check.md). When in doubt, those win.
+
 ## At-a-glance flow
 
 ```
@@ -18,16 +20,25 @@ inspect state
        │
 run gameplay
    ├─ npm run dev   → http://127.0.0.1:5173/?project=<id>
-   ├─ window.__agf.snapshot()        → live world snapshot (DEV only)
-   ├─ window.__agf.applyCommands([…]) → mutate live world (DEV only)
-   ├─ window.__agf.lastReloadedAsset → last asset ref that hot-reloaded (DEV only)
-   └─ window.__agf.reloadCount       → monotonic counter for any test that waits on "another reload"
+   ├─ window.__agf surface (16 calls — see skills/playtest-debugging.md)
+   └─ /__agf/* HTTP endpoints (12 routes — see skills/playtest-debugging.md)
        │
 robot playtest
    ├─ examples/<project>/playtests/*.playtest.json — describe scenario as data
    ├─ npm run test:e2e        → run every scenario once
    └─ npm run playtest:watch  → rerun the matching scenario on every save
 ```
+
+## Sprint workflow
+
+One long-lived `sprint/<N>-<slug>` branch per sprint. Inside the sprint:
+
+1. Pick a story from `BACKLOG.md` (or via `/start-next`).
+2. Implement, marking `Status: Implemented` in the BACKLOG entry.
+3. Commit immediately — the smallest relevant verification (typecheck / one unit suite / `engine check`) is enough mid-sprint. **Do not** run `npm run preflight` per story.
+4. At sprint close (`/archive-sprint`): run preflight, move detail to `BACKLOG_ARCHIVE.md`, promote the next sprint into Current Sprint, push the branch, open a single PR with `gh pr create`, auto-merge with `gh pr merge --squash --auto`.
+
+The whole policy is captured in `[[feedback-workflow]]` memory.
 
 ## `engine inspect` flags
 
@@ -37,8 +48,9 @@ robot playtest
 | `--query A,B` | Same intent; comma-separated single argument. AND of components. |
 | `--entity <id>` | Keep only entities whose id matches (repeatable). |
 | `--json` | Emit machine-readable JSON to stdout. |
-| `--save <path>` | Write the JSON payload to that path instead of stdout. Parent dirs are created. `stderr` gets a one-line confirmation; `stdout` stays clean. |
-| `--diff <a.json> <b.json>` | Compare two previously saved snapshots. Combinable with `--json` / `--save`. |
+| `--save <path>` | Write JSON payload to that path. Parent dirs created. `stderr` confirms; `stdout` stays clean. |
+| `--diff <a.json> <b.json>` | Compare two saved snapshots. Combinable with `--json` / `--save`. |
+| `--watch` | Stream NDJSON to stdout, one line per refresh. See [`inspect-stream.md`](inspect-stream.md). |
 
 Saved snapshots round-trip:
 
@@ -49,29 +61,32 @@ npm run engine:inspect -- examples/beacon-world --component Pickup --save after.
 npm run engine:inspect -- --diff before.json after.json
 ```
 
-## `window.__agf` (DEV builds only)
+## `window.__agf` surface (DEV builds only)
 
-```ts
-window.__agf = {
-  snapshot(): WorldSnapshot;
-  applyCommands(commands: ReadonlyArray<EngineCommand>): void;
-  lastReloadedAsset?: string;
-  reloadCount: number;
-};
-```
+Sixteen calls — see the table in [`skills/playtest-debugging.md`](skills/playtest-debugging.md). The day-to-day ones:
 
-Use `reloadCount` rather than parsing console logs when a test needs to wait for an asset hot-reload:
+- `__agf.snapshot()` — current `WorldSnapshot`.
+- `__agf.diagnostics()` — retained diagnostic list.
+- `__agf.applyCommands([...])` — mutate the live world.
+- `__agf.rendererInfo()` — counters incl. `gpuMs` on WebGL2 + `EXT_disjoint_timer_query_webgl2`.
+- `__agf.frameTiming()` — windowed `fixedUpdateMs / frameUpdateMs / renderMs`.
+- `__agf.pick({ x, y })` — ray cast at NDC.
+- `__agf.reloadCount` / `__agf.reloadEvents` — HMR observation tools.
 
-```ts
-const baseline = await page.evaluate(() => window.__agf!.reloadCount);
-// ... edit the file ...
-await page.waitForFunction(
-  (n) => (window.__agf?.reloadCount ?? 0) > n,
-  baseline
-);
-```
+Production builds leave `window.__agf` undefined.
 
-Production builds leave `window.__agf` undefined. The string-format console log (`[agf] hot-reloaded asset <ref>`) still exists but is for humans only.
+## Dev-bridge HTTP endpoints (DEV only)
+
+Twelve routes under `/__agf/*` — see the table in [`skills/playtest-debugging.md`](skills/playtest-debugging.md). Day-to-day:
+
+- `GET /__agf/snapshot` — for tooling outside the page.
+- `GET /__agf/diagnostics` — paired with the page bus.
+- `GET /__agf/events` — SSE stream of live diagnostics + reload events.
+- `POST /__agf/commands` — apply an EngineCommand array.
+- `POST /__agf/project-patch` — deep-merge a JSON patch onto `project.json` on disk + Vite reloads.
+- `GET /__agf/bug-report` — bundle (project meta + snapshot + diagnostics + renderer info + frame timing).
+
+Used by Playwright traces, the shadow-tuner save flow, and ad-hoc `curl` debugging.
 
 ## Playtest scenarios
 
@@ -121,3 +136,27 @@ npm run playtest:watch     # terminal 2 — edit the .playtest.json file to retr
 ### "Confirm a hot-reload actually fired in a Playwright test"
 
 Don't grep the console — read `window.__agf.reloadCount` before and after. See `tests/e2e/glb-hot-reload.spec.ts` for the pattern.
+
+### "Get a one-shot screenshot for a regression test"
+
+```bash
+npm run engine:screenshot -- <projectId> --out test-results/<name>.png
+```
+
+Boots headless Chromium against the dev server, awaits `__agf.rendererReady` (which respects `project.render.criticalAssets`), writes the PNG.
+
+### "Bundle everything I know about the current page for a bug report"
+
+```bash
+curl http://127.0.0.1:5173/__agf/bug-report > /tmp/agf-bug.json
+```
+
+or inside the page:
+
+```ts
+await window.__agf.copyDiagnostics();   // writes JSON to clipboard + returns string
+```
+
+### "Tune a numeric value visually instead of guessing"
+
+See [`dev-tuner.md`](dev-tuner.md). Spawn sliders via `__agf.dev.tuner.add(...)`, let the user dial, remove them, bake the values into the JSON.
