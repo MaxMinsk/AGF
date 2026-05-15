@@ -81,6 +81,9 @@ function stubAdapter(): AdapterStub & ThreeRenderAdapter {
       setBucketInstanceColor(handle: BucketHandle, instance: InstanceIndex, color: string): void {
         stub.colors.push({ handle, instance, color });
       },
+      recomputeBucketBoundingSphere(_handle: BucketHandle): void {
+        // no-op in stub
+      },
       bucketLiveCount(handle: BucketHandle): number {
         return stub.live.get(handle)?.size ?? 0;
       },

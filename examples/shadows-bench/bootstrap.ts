@@ -77,11 +77,15 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     const street = i % 2 === 0 ? "ns" : "ew";
     const axisOffset = (i - spec.buildings / 2) * 3.5 + (rand() - 0.5) * 1.4;
     const sideOffset = (Math.floor(i / 6) % 4 < 2 ? -1 : 1) * (3 + rand() * 3);
-    const x = street === "ns" ? sideOffset : axisOffset;
-    const z = street === "ns" ? axisOffset : sideOffset;
+    const rawX = street === "ns" ? sideOffset : axisOffset;
+    const rawZ = street === "ns" ? axisOffset : sideOffset;
     const w = 2 + rand() * 1.5;
     const h = 2 + rand() * 5;
     const d = 2 + rand() * 1.5;
+    // S50 — buildings need extra clearance: not just keep the centre
+    // off the road, but keep the whole footprint off it. Pass the
+    // building's half-width along each axis as a buffer override.
+    const [x, z] = clearRoadCorridor(rawX, rawZ, Math.max(w, d) / 2 + 0.5);
     commands.push({ kind: "entity.create", entityId: id });
     commands.push({
       kind: "component.set",
@@ -489,12 +493,11 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
  * road centreline so the props sit just off the kerb instead of in the
  * middle of traffic.
  */
-function clearRoadCorridor(x: number, z: number): [number, number] {
-  const HALF_ROAD = 2.5; // road half-width + small buffer
+function clearRoadCorridor(x: number, z: number, buffer = 2.5): [number, number] {
   let ax = x;
   let az = z;
-  if (Math.abs(az) < HALF_ROAD) az = (az === 0 ? 1 : Math.sign(az)) * HALF_ROAD;
-  if (Math.abs(ax) < HALF_ROAD) ax = (ax === 0 ? 1 : Math.sign(ax)) * HALF_ROAD;
+  if (Math.abs(az) < buffer) az = (az === 0 ? 1 : Math.sign(az)) * buffer;
+  if (Math.abs(ax) < buffer) ax = (ax === 0 ? 1 : Math.sign(ax)) * buffer;
   return [ax, az];
 }
 

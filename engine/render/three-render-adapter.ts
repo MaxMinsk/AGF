@@ -832,7 +832,14 @@ export class ThreeRenderAdapter {
     this.registerWithCsm(material);
     const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
     mesh.count = 0;
-    mesh.frustumCulled = false;
+    // S50 perf: enable per-bucket frustum culling. Three's
+    // InstancedMesh.computeBoundingSphere walks every instance's
+    // transform to produce an enclosing sphere; once set,
+    // frustumCulled=true skips the whole bucket when its sphere is
+    // outside the camera frustum (main pass + every CSM cascade). We
+    // recompute the sphere lazily via `recomputeBucketBoundingSphere`
+    // after the BatchingSystem finishes adding/removing instances.
+    mesh.frustumCulled = true;
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
     if (spec.useInstanceColor === true) {
@@ -845,6 +852,17 @@ export class ThreeRenderAdapter {
     this.scene.add(mesh);
     this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
     return handle;
+  }
+
+  /**
+   * Re-walk the bucket's per-instance transforms to update its
+   * enclosing bounding sphere. Three.js relies on this sphere for
+   * frustum culling. Cheap (~one Vec3 + sqrt per live instance).
+   */
+  recomputeBucketBoundingSphere(handle: BucketHandle): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    entry.mesh.computeBoundingSphere();
   }
 
   releaseBucket(handle: BucketHandle): void {

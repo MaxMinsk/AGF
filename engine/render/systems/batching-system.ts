@@ -84,6 +84,16 @@ type InstancedRecord = {
   shadowCast: boolean;
   shadowReceive: boolean;
   members: Map<EntityId, InstanceIndex>;
+  /**
+   * S50 perf: cached `[px,py,pz,rx,ry,rz,sx,sy,sz]` of the last
+   * LocalToWorld we wrote per instance. Skips the
+   * `setBucketInstanceTransform` (and therefore `instanceMatrix.needsUpdate`)
+   * when the LTW is bit-identical — static entities don't force GPU
+   * matrix re-uploads every frame.
+   */
+  lastWorld: Map<EntityId, [number, number, number, number, number, number, number, number, number]>;
+  /** Cache of last-written colours so we skip re-stamping unchanged. */
+  lastColor: Map<EntityId, string>;
 };
 
 type BatchedRecord = {
@@ -159,8 +169,11 @@ export function createBatchingSystem(
       const instance = record.members.get(entityId);
       if (instance !== undefined) {
         deps.adapter.removeBucketInstance(record.handle, instance);
+        dirtyInstancedBuckets.add(record.handle);
       }
       record.members.delete(entityId);
+      record.lastWorld.delete(entityId);
+      record.lastColor.delete(entityId);
     } else {
       const entry = record.members.get(entityId);
       if (entry !== undefined) {
@@ -177,6 +190,12 @@ export function createBatchingSystem(
       bucketsByKey.delete(record.bucketKey);
     }
   };
+
+  // Per-frame dirty set populated by updateInstanced when the LTW cache
+  // misses or an instance is added/removed. Flushed at the end of
+  // frameUpdate so each bucket's bounding sphere is recomputed at most
+  // once per frame instead of N times per instance change.
+  const dirtyInstancedBuckets = new Set<BucketHandle>();
 
   const updateInstanced = (
     world: World,
@@ -211,7 +230,9 @@ export function createBatchingSystem(
         color: renderer.color,
         shadowCast: cast,
         shadowReceive: receive,
-        members: new Map()
+        members: new Map(),
+        lastWorld: new Map(),
+        lastColor: new Map()
       };
       bucketsByKey.set(bucketKey, record);
     }
@@ -245,18 +266,50 @@ export function createBatchingSystem(
       record.members.set(entityId, instance);
       memberToBucket.set(entityId, record);
       world.setComponent(entityId, BATCHED_MESH_HANDLE, { bucket: record.handle, instance });
+      dirtyInstancedBuckets.add(record.handle);
     }
     const ltw = world.getComponent<LocalToWorldComponent>(entityId, LOCAL_TO_WORLD);
     if (ltw !== undefined) {
-      deps.adapter.setBucketInstanceTransform(record.handle, instance, {
-        position: [ltw.position[0] ?? 0, ltw.position[1] ?? 0, ltw.position[2] ?? 0],
-        rotation: [ltw.rotation[0] ?? 0, ltw.rotation[1] ?? 0, ltw.rotation[2] ?? 0],
-        scale: [ltw.scale[0] ?? 1, ltw.scale[1] ?? 1, ltw.scale[2] ?? 1]
-      });
+      const px = ltw.position[0] ?? 0;
+      const py = ltw.position[1] ?? 0;
+      const pz = ltw.position[2] ?? 0;
+      const rx = ltw.rotation[0] ?? 0;
+      const ry = ltw.rotation[1] ?? 0;
+      const rz = ltw.rotation[2] ?? 0;
+      const sx = ltw.scale[0] ?? 1;
+      const sy = ltw.scale[1] ?? 1;
+      const sz = ltw.scale[2] ?? 1;
+      // S50 perf: skip the per-frame setMatrixAt + needsUpdate when the
+      // LocalToWorld hasn't changed since the last write. For shadows-
+      // bench's static buildings / rocks / roads this cuts the GPU
+      // matrix upload from "every frame for every instance" to "only on
+      // actual movement". TransformResolveSystem still writes LTW every
+      // frame (cache returns the same ref for unchanged entities) so we
+      // do the cheap 9-number compare here.
+      const cached = record.lastWorld.get(entityId);
+      if (
+        cached === undefined ||
+        cached[0] !== px || cached[1] !== py || cached[2] !== pz ||
+        cached[3] !== rx || cached[4] !== ry || cached[5] !== rz ||
+        cached[6] !== sx || cached[7] !== sy || cached[8] !== sz
+      ) {
+        deps.adapter.setBucketInstanceTransform(record.handle, instance, {
+          position: [px, py, pz],
+          rotation: [rx, ry, rz],
+          scale: [sx, sy, sz]
+        });
+        record.lastWorld.set(entityId, [px, py, pz, rx, ry, rz, sx, sy, sz]);
+        dirtyInstancedBuckets.add(record.handle);
+      }
     }
     // Stamp per-instance colour. Falls back to white when the renderer
     // didn't declare one (matches the pre-S50 default-color behaviour).
-    deps.adapter.setBucketInstanceColor(record.handle, instance, renderer.color ?? "#ffffff");
+    // Cached so unchanged colours don't dirty the instanceColor buffer.
+    const desiredColor = renderer.color ?? "#ffffff";
+    if (record.lastColor.get(entityId) !== desiredColor) {
+      deps.adapter.setBucketInstanceColor(record.handle, instance, desiredColor);
+      record.lastColor.set(entityId, desiredColor);
+    }
   };
 
   const updateBatched = (
@@ -426,6 +479,16 @@ export function createBatchingSystem(
         updateInstanced(world, entityId, renderer, batchable, cast, receive);
       }
     }
+    // S50 perf: recompute the bounding sphere only on buckets that
+    // actually changed this frame. With per-bucket frustum culling
+    // enabled in `acquireBucket`, three.js skips the whole InstancedMesh
+    // (every cascade pass) when its sphere is outside the camera
+    // frustum. Recomputing once per frame per dirty bucket is
+    // O(instances) — cheap vs the savings from culling.
+    for (const handle of dirtyInstancedBuckets) {
+      deps.adapter.recomputeBucketBoundingSphere(handle);
+    }
+    dirtyInstancedBuckets.clear();
   };
 
   return {
