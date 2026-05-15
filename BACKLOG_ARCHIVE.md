@@ -2384,3 +2384,58 @@ Status: Completed and archived.
 - `M17-bvh-extension` — `@three.ez/batched-mesh-extensions` may flip the `batched` crossover toward smaller scenes; own sprint when prioritised.
 - shadows-bench picture got dimmer after S51's autoUpdate/bias changes — picked up as `POLISH-shadows-bench-*` in Sprint 52.
 
+## Sprint 52 — shadow perf + shadows-bench polish
+
+Status: Completed and archived.
+
+Twin focus: restore the visual quality of shadows-bench (the scene got visibly dimmer after S51's `autoUpdate=true` / normalBias / per-frame-shadow trade-offs) AND close the perf regression via a static-caster tagging primitive (main prize from the S51 deep-dive). All 9 stories landed.
+
+### Completed Work
+
+1. **POLISH-shadows-bench-lighting** ✅ — ACES Filmic tonemap (`render.color.toneMapping`) + exposure tuned to 0.9; directional intensity 1.55 → 2.1; hemisphere ambient 0.55 → 0.45 with a warm `groundColor: "#5b4a35"` so shaded faces pick up bounce; `shadowNormalBias: 0.12 → 0.06` (sized for the 1024 shadow map after S47's drop from 2048); background `#3a5066 → #5d7d9b`. SHADOW_DEFAULTS in `bootstrap.ts` synced so the tuner's "Reset to defaults" restores the shipped state.
+2. **POLISH-shadows-bench-materials** ✅ — palette refresh sized for ACES: buildings 5 → 6 entries (warm cream / sandstone / muddy tan / pale ochre / dusty taupe / bright stucco); roofs 3 → 4 (terracotta / burnt sienna / light brick / weathered red); trees 3 → 4 (fresh leaf / bright canopy / shaded foliage / sun-lit lime); rocks 3 → 4 (warm-stone / light grey-tan / shaded boulder / weathered chalk). Trunk `#5a3a23 → #6f4a30`; road `#2f3135 → #3a3c40`; ground `#3e5f44 → #4f7a4d`. All entries inline Standard so auto-batch still collapses to one InstancedMesh per primitive mesh.
+3. **POLISH-shadows-bench-composition** ✅ — tree-size variance widened (trunk 0.8..1.6 → 0.6..2.0, canopy 0.7..1.4 → 0.5..1.6); 8 lampposts placed along EW + NS streets (pole + warm `#f0c869` head per lamp); 6 plaza props around the central intersection (4 planter boxes at quadrant corners + 2 smaller crates flanking the EW road). Entity count 393 → 415, drawCalls steady at 11.
+4. **POLISH-shadows-bench-sky** ✅ — new `project.json#render.skyGradient: { top, bottom }` schema + adapter `createGradientTexture()` (4×256 CanvasTexture, sRGB) that overrides the solid background. `RuntimeOptions.skyGradient` plumbed through `ThreeRenderer` → `ThreeRenderAdapter`. shadows-bench gets `{ top: "#3f6589", bottom: "#bdc8d2" }`. The procedural IBL (`scene.environment: "generated"` via RoomEnvironment + PMREMGenerator) is untouched — the gradient is purely the visible skybox.
+5. **M21-shadow-static-caster-tag** ✅ — new `ShadowCaster { dynamic: boolean }` component (schema in `schemas/components/render.schema.json`, scene-schema entry in `schemas/scene.schema.json`) + `engine/render/systems/dynamic-shadow-system.ts`. The system is dormant until ≥1 entity carries `dynamic: true`, then flips `setShadowMapAutoUpdate(false)` and only calls `invalidateShadowMap()` when a tagged entity's LTW changes (epsilon 1e-5). Restores `autoUpdate=true` if the tag set empties. Wired into the renderer scheduler last so LTW is fresh from `TransformResolveSystem`. shadows-bench tags 6 cars + ~80 tree roots; ~290 static entities skip the per-frame shadow re-bake. Live probe: `renderMs 0.58 → 0.48 (−17 %)`, `totalFrameMs 1.92 → 1.82` despite 22 added entities. Real payoff lands on scenes with idle dynamic casters (beacon-world drone, NPCs at rest). 5 unit tests cover the contract.
+6. **DOCTOR-shadow-section** ✅ — new `ShadowConfigReport` + `Shadows:` block in `engine doctor` output, mirroring the S51 `Batching:` section. Reads `render.shadows.algorithm / autoUpdate / csm.cascades / csm.shadowMapSize` from `project.json` + scans scene JSON for `ShadowCaster` tag counts. Two recommendations: cascade-cost (`3 cascades cost ~17% renderMs vs 2`) when `cascades ≥ 3` + dynamic-caster nudge when `autoUpdate=true` and no `dynamic: true` tags.
+7. **M21-fxaa-cost-isolation** ✅ — added a `noFXAA` scenario to `scripts/perf-probe-shadows.mjs` (`render.post = []`). Empirical finding: **FXAA costs ~14 % renderMs** on shadows-bench (`0.49 → 0.42`), not the < 0.05 ms the hypothesis assumed. Two extra draw calls disappear (FXAA quad + OutputPass). Second-largest single perf lever after cascade count.
+8. **shadow-tuner-persistence** ✅ — S48 shadow tuner now persists state to `localStorage["agf.shadows-bench.shadow-tuner"]` on every field change. `loadPersisted()` restores per-field on init (forward-compatible — unknown keys ignored). Reset button calls `clearPersisted()` so next reload starts from project.json defaults. Private-mode browsers / quota errors silently no-op'd.
+9. **render-pool-abstraction** ✅ (design memo only; impl deferred) — `docs/research/render-pool-abstraction-design.md` scopes the ~150-line triplication across `acquireBucket` / `acquireBatchedBucket` / `acquireParticlePool` and proposes a 4-step unification (shared `RenderPoolRegistry<Spec, Entry>` helper → tagged `PoolHandle` union → `acquirePool(spec)` dispatcher → opt-in caller migration). Implementation deferred to a sprint that pairs it with `RENDER-bucket-key-architecture` + `M17-bvh-extension` since all three touch the same surface.
+
+### Deliverables
+
+- `engine/render/systems/dynamic-shadow-system.ts` (new) — `DynamicShadowSystem`.
+- `engine/render/three-render-adapter.ts` — `createGradientTexture()` + `SkyGradient` type + `CanvasTexture` import + gradient/background branching at scene-init.
+- `engine/render/three-renderer.ts` — `skyGradient` forwarded through the ctor.
+- `engine/runtime/start.ts` — `RuntimeOptions.skyGradient` + `DynamicShadowSystem` registration.
+- `engine/tools/doctor/project-doctor.ts` — `ShadowConfigReport` + `summarizeShadows()` + `countShadowCasters()` + `formatShadows()` + cascade-cost & dynamic-caster recommendations.
+- `schemas/project.schema.json` — `render.skyGradient` declared.
+- `schemas/scene.schema.json` + `schemas/components/render.schema.json` — `ShadowCaster` component.
+- `src/app.ts` — `project.json#render.skyGradient` → `runtimeOptions.skyGradient`.
+- `examples/shadows-bench/project.json` — ACES tonemap + exposure 0.9 + lightIntensity 2.1 + shadowNormalBias 0.06 + new background + `skyGradient`.
+- `examples/shadows-bench/scenes/start.scene.json` — hemisphere intensity 0.45 + `groundColor` + brighter ground.
+- `examples/shadows-bench/bootstrap.ts` — palette refresh, tree variance, 8 lampposts + 6 plaza props, `ShadowCaster { dynamic: true }` on cars + tree roots, `SHADOW_DEFAULTS` synced.
+- `examples/shadows-bench/src/ui/shadow-tuner.ts` — localStorage persistence.
+- `scripts/perf-probe-shadows.mjs` — `noFXAA` scenario.
+- `tests/unit/dynamic-shadow-system.test.ts` (new) — 5 cases.
+- `docs/research/m21-shadows-bench-perf.md` — appended FXAA + static-caster-tag findings.
+- `docs/research/render-pool-abstraction-design.md` (new) — pool-unification design memo.
+- `test-results/s52-shadows-bench/{01-before, 02..09}.png` — visual diff progression.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 72-file unit test (446 tests, +5 new) + build + bundle:check + 11/11 e2e smoke (23 s).
+- `node scripts/perf-probe-shadows.mjs --durationMs 4000 --only baseline,noFXAA` ✅ — FXAA delta reproducible.
+- `npm run engine:doctor -- examples/shadows-bench` ✅ — prints new `Shadows:` block.
+- Live perf delta on shadows-bench: `renderMs 0.58 → 0.48 (−17 %)`, `totalFrameMs 1.92 → 1.82 (−5.2 %)`.
+- Visual regression: `test-results/s52-shadows-bench/01-before.png` → `09-sky.png` show the lighting / materials / composition / sky progression.
+- Merged via PR [#56](https://github.com/MaxMinsk/AGF/pull/56). Resolved a `BACKLOG.md` conflict at merge time by rebasing the sprint branch onto the post-archive main.
+
+### Follow-Ups
+
+- **render-pool-abstraction impl** — design landed; implementation deferred to a sprint that bundles it with `RENDER-bucket-key-architecture` + `M17-bvh-extension`.
+- **shadow-tuner project.json save** — current persistence is localStorage only. A "Save to project.json" button would need a new dev-bridge endpoint (e.g. `POST /__agf/project-patch`); filed as a future story.
+- **Static-caster wins on idle scenes** — shadows-bench saw only `−17 %` because cars + trees move every frame. The mechanism delivers more on scenes with idle dynamic casters (beacon-world drone, NPCs at rest); worth measuring there.
+- **`M21-shadow-map-size-real-hw`** stays in Next Sprint candidates (user-driven measurement).
+- **`M17-bvh-extension`** stays in Next Sprint candidates (own sprint).
+
