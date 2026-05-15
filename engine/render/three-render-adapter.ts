@@ -937,15 +937,19 @@ export class ThreeRenderAdapter {
       this.groundedShadowMesh = undefined;
     }
     if (spec === undefined) return;
-    // GroundedSkybox's `height` constructor arg is the projection magnify
-    // factor (think: "how high the camera was when shooting the HDR") and
-    // MUST be positive — it throws on `height <= 0`. AGF's `spec.height`
-    // means "world Y where the virtual floor sits" so it can be negative.
-    // Build with a sane positive projection factor, then position the
-    // mesh externally so the floor lands at `spec.height`.
-    const PROJECTION_HEIGHT = 2;
-    const sky = new GroundedSkybox(envCubemap, PROJECTION_HEIGHT, spec.radius) as unknown as Mesh;
-    sky.position.y = spec.height;
+    // GroundedSkybox's `height` constructor arg controls the HDR
+    // projection — larger values magnify the downward part of the
+    // sky-sphere into the flat floor disk. The three.js docs example
+    // pairs `height: 15` with `radius: 100` (ratio ≈ 6.6); the same
+    // ratio reads well across project scales. AGF's `spec.height`
+    // means "world Y where the virtual floor sits" (so it can be
+    // negative); the projection magnitude is derived from radius.
+    // Per the docs the mesh is positioned so its internal -height
+    // floor line lands at world Y = mesh.position.y - height; we
+    // want that to equal spec.height.
+    const projectionHeight = Math.max(spec.radius / 6, 1);
+    const sky = new GroundedSkybox(envCubemap, projectionHeight, spec.radius) as unknown as Mesh;
+    sky.position.y = projectionHeight + spec.height;
     sky.name = "agf.grounded-skybox";
     this.scene.add(sky);
     this.groundedSkyboxMesh = sky;
