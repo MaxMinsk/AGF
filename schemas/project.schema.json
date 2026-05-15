@@ -142,6 +142,11 @@
             }
           }
         },
+        "idleMode": {
+          "enum": ["always", "on-demand"],
+          "default": "always",
+          "description": "S54 RUNTIME-idle-rendering. `always` (default): the runtime calls `renderer.render()` every animation frame. `on-demand`: the runtime skips the render call when the ECS mutation counter is unchanged from the previous frame (no entity add/remove, no component write). Useful for inspector / menu / wallpaper scenes where the camera is parked and nothing animates. First frame after boot, every window resize, and every frame any system writes ECS state always render."
+        },
         "batching": {
           "type": "object",
           "additionalProperties": false,

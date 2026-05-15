@@ -75,6 +75,8 @@ export type ProjectMeta = {
       /** S51 bucket path default: `instanced` (default) or `batched`. */
       path?: "instanced" | "batched" | "batched-bvh";
     };
+    /** S54 RUNTIME-idle-rendering: `on-demand` skips renderer.render() on frames where no ECS mutation fired. Default `always`. */
+    idleMode?: "always" | "on-demand";
   };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
@@ -355,6 +357,9 @@ export async function createApp(
   runtimeOptions.autoBatchPrimitives = project.render?.batching?.auto !== false;
   if (project.render?.batching?.path !== undefined) {
     runtimeOptions.batchingPath = project.render.batching.path;
+  }
+  if (project.render?.idleMode !== undefined) {
+    runtimeOptions.idleMode = project.render.idleMode;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;

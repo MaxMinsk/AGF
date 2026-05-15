@@ -49,6 +49,14 @@ export type RuntimeOptions = {
    * (per-instance frustum culling) per (material + shadow + group).
    */
   batchingPath?: "instanced" | "batched" | "batched-bvh";
+  /**
+   * S54 RUNTIME-idle-rendering. `"always"` (default) calls renderer.render()
+   * every animation frame. `"on-demand"` skips the call when the world's
+   * mutation counter is unchanged from the previous frame. First frame +
+   * every resize always render; toggling the mode at runtime is not
+   * supported (decided once at boot).
+   */
+  idleMode?: "always" | "on-demand";
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -412,12 +420,19 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     samples: 0
   };
 
+  const idleMode: "always" | "on-demand" = options.idleMode ?? "always";
+  let lastRenderedMutation = -1;
+  // The resize handler bumps this so the next frame re-renders even when
+  // the world hasn't changed (viewport may have, e.g. window resize).
+  let forceRenderNextFrame = false;
+
   const applyCanvasSize = (): void => {
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     const bounds = options.canvas.getBoundingClientRect();
     const width = Math.max(1, Math.floor(bounds.width * ratio));
     const height = Math.max(1, Math.floor(bounds.height * ratio));
     renderer.resize(width, height);
+    forceRenderNextFrame = true;
   };
 
   const tick = (timestampMs: number): void => {
@@ -482,7 +497,24 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const renderPhaseStart = performance.now();
     frameAccumMs += renderPhaseStart - framePhaseStart;
 
-    const drew = renderer.render();
+    // S54 RUNTIME-idle-rendering. In `on-demand` mode the runtime skips
+    // `renderer.render()` for frames where no ECS mutation fired. First
+    // frame after boot + every window resize + every frame any system
+    // wrote ECS state always render.
+    const currentMutation = world.mutationCounter();
+    const idleSkip =
+      idleMode === "on-demand" &&
+      !forceRenderNextFrame &&
+      rendererReadyResolve === undefined &&
+      currentMutation === lastRenderedMutation;
+    let drew = false;
+    if (!idleSkip) {
+      drew = renderer.render();
+      if (drew) {
+        lastRenderedMutation = currentMutation;
+        forceRenderNextFrame = false;
+      }
+    }
     if (drew && rendererReadyResolve !== undefined) {
       rendererReadyResolve();
       rendererReadyResolve = undefined;
