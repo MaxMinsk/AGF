@@ -1,0 +1,119 @@
+name: E2E Nightly (full Playwright)
+
+# Full Playwright suite — dev-server + preview-mode + serial-heavy. Runs:
+#   * nightly at 04:00 UTC,
+#   * on manual `workflow_dispatch`.
+#
+# Intentionally NOT triggered on `push: main` — the cron already covers
+# regression catches within ~24h, and re-running on every merge wastes
+# Actions minutes when the smoke gate already passed on the PR.
+#
+# Failures here do NOT block PRs (that's the smoke gate). Their job is
+# triage signal — artifacts on failure feed `agf-state.json` + the trace
+# back to the agent without needing a local repro.
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-dev:
+    name: Full Playwright — dev server
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          v=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps (cached browsers)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Run full dev-server suite
+        run: npm run test:e2e:full-dev
+      - name: Upload Playwright report on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-dev
+          path: playwright-report
+          retention-days: 3
+      - name: Upload test-results on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-dev
+          path: test-results
+          retention-days: 3
+
+  preview:
+    name: Full Playwright — vite preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          v=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps (cached browsers)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Run preview-mode suite
+        run: npm run test:e2e:preview
+      - name: Upload Playwright report on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-preview
+          path: playwright-report
+          retention-days: 3
+      - name: Upload test-results on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-preview
+          path: test-results
+          retention-days: 3

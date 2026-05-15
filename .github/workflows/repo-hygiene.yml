@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel any in-flight run when a new commit lands on the same PR/branch.
+# Saves Actions minutes during rapid-iteration sprint work.
+concurrency:
+  group: repo-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cyrillic-check:
     name: No Cyrillic in tracked files

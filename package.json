@@ -51,12 +51,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --project=smoke",
+    "test:e2e:preview": "playwright test --config=playwright.preview.config.ts",
+    "test:e2e:full-dev": "playwright test --project=chromium --project=serial-heavy",
     "playtest:watch": "node scripts/watch-playtests.mjs",
     "bundle:check": "node scripts/check-bundle-size.mjs",
     "imports:check": "node scripts/check-import-boundaries.mjs",
     "systems:check": "node scripts/check-system-queries.mjs",
     "repo:hygiene": "node scripts/check-repo-hygiene.mjs",
-    "preflight": "npm run repo:hygiene && npm run engine:check:examples && npm run imports:check && npm run systems:check && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e"
+    "preflight": "npm run repo:hygiene && npm run engine:check:examples && npm run imports:check && npm run systems:check && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e:smoke"
   },
   "engines": {
     "node": ">=20.19.0"
