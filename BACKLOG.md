@@ -21,7 +21,22 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 48 — Schema split + shadows-bench cars
+## Current Sprint: Sprint 49 — rendererInfo accuracy + hygiene tidy
+
+Small follow-ups noticed after S48 landed:
+
+### Stories
+
+1. **RENDERER-info-autoReset** ✅ — `__agf.rendererInfo().drawCalls` reported `1` for shadows-bench despite the scene having 300+ meshes. Root cause: `WebGLRenderer.info` resets its counters at the start of every `.render()` call, and the EffectComposer (FXAA + OutputPass in shadows-bench) issues 3 render passes per frame — so the values we read after composer.render() reflected only the final OutputPass, a single full-screen quad. Disabled `device.info.autoReset` + reset manually at the start of `draw()` so counters accumulate across every pass. shadows-bench now reports `drawCalls: 194, triangles: 70 274`.
+2. **HYGIENE-backlog-cyrillic** ✅ — Removed a stray Russian phrase from `BACKLOG.md`'s S43 archive entry (`repo:hygiene` ignores it because it's already on `main`, but cleaning it up now means no future scanning surprise).
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 433 tests
+- Live probe shadows-bench: `drawCalls: 194` (was `1`), `triangles: 70 274` (was `1`), zero page errors.
+
+## Archived: Sprint 48 — Schema split + shadows-bench cars
 
 Two heavy-lift items: a structural refactor (scene.schema.json was 800 lines; agents drowned opening it cold) plus a visible feature (shadows-bench gains roads + cars on the wind-swept village). Plus a fix for the S45 list/explain bug that pointed at the wrong project-local schema filename.
 
@@ -176,7 +191,7 @@ Triggered by `Notes/codex_review_2.md` (open-source readiness audit, 2026-05-14)
 
 ### Stories
 
-1. **OSS-cyrillic-fix** ✅ — Replaced `"почти как в Unity"` → `"almost Unity-class"` in `docs/research/renderer-ecs-split-investigation.md`.
+1. **OSS-cyrillic-fix** ✅ — Replaced the Russian phrase meaning "almost like Unity" with `"almost Unity-class"` in `docs/research/renderer-ecs-split-investigation.md`.
 2. **OSS-hygiene-local** ✅ — `scripts/check-repo-hygiene.mjs` + `npm run repo:hygiene` script + prepended to `preflight`. Local mirror of `.github/workflows/repo-hygiene.yml`.
 3. **OSS-license-metadata** ✅ — `LICENSE` (Apache-2.0), `THIRD_PARTY_NOTICES.md` (Draco / Basis Universal / Three.js / Rapier / AJV provenance), `package.json` gets `license`, `repository`, `bugs`, `homepage`, `keywords`, `description`.
 4. **OSS-community** ✅ — `CONTRIBUTING.md` (preflight contract + agent rules), `SECURITY.md` (DEV-only `__agf` boundary, vulnerability reporting).
