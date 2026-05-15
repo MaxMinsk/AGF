@@ -194,6 +194,16 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       component: "Transform",
       data: { position: [x, 0, z] }
     });
+    // S52 M21-shadow-static-caster-tag: tree roots have a sway Tween,
+    // so their LTW shifts every frame. Marking them dynamic keeps the
+    // shadow map in sync; without the tag the canopy would drift while
+    // its shadow stayed frozen at the initial bake pose.
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowCaster",
+      data: { dynamic: true }
+    });
     commands.push({
       kind: "component.set",
       entityId: id,
@@ -358,6 +368,17 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       entityId: id,
       component: "Transform",
       data: { position: a }
+    });
+    // S52 M21-shadow-static-caster-tag: cars move continuously so
+    // their shadows must track them. Trees + cars are the only
+    // entities tagged dynamic in shadows-bench; ~290 static entities
+    // (buildings, rocks, lampposts, plaza props) skip the per-frame
+    // shadow re-bake.
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowCaster",
+      data: { dynamic: true }
     });
     commands.push({
       kind: "component.set",
@@ -558,8 +579,10 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     { pos: [ 5.0, 0.35, -5.0], scale: [1.4, 0.7, 1.4], color: "#a08562" },
     { pos: [-5.0, 0.35,  5.0], scale: [1.4, 0.7, 1.4], color: "#b89a78" },
     { pos: [ 5.0, 0.35,  5.0], scale: [1.4, 0.7, 1.4], color: "#8a7656" },
-    { pos: [-7.5, 0.25,  0.0], scale: [0.9, 0.5, 0.9], color: "#6f4a30" },
-    { pos: [ 7.5, 0.25,  0.0], scale: [0.9, 0.5, 0.9], color: "#6f4a30" }
+    // S52 fix: was at z=0 (centre of EW road, hello cars). Pushed
+    // off both road corridors so the prop sits on the pavement.
+    { pos: [-7.5, 0.25,  4.2], scale: [0.9, 0.5, 0.9], color: "#6f4a30" },
+    { pos: [ 7.5, 0.25, -4.2], scale: [0.9, 0.5, 0.9], color: "#6f4a30" }
   ];
   for (let i = 0; i < plazaProps.length; i++) {
     const p = plazaProps[i]!;

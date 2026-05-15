@@ -86,15 +86,41 @@ Not changing `examples/shadows-bench/project.json` yet — config swap is
 the user's call. Re-measuring on real hardware first would change the
 ranking of the cheap levers (`512 map` likely gains relative weight).
 
-## Follow-up stories worth filing
+## Sprint 52 — M21-shadow-static-caster-tag landed
 
-- **M21-shadow-static-caster-tag.** Reintroduce the static-shadow
-  optimization without losing dynamic shadows. Tag entities as
-  static (default) vs dynamic (cars + tweened trees). `autoUpdate=false`
-  on the renderer; movement systems flip `renderer.shadowMap.needsUpdate`
-  on the frame they actually move a shadow caster. Removes the per-
-  frame shadow re-render for the ~290 static entities while keeping
-  the moving 15 correct. Highest-impact follow-up.
+Shipped `ShadowCaster { dynamic: boolean }` component + `DynamicShadowSystem`
+(`engine/render/systems/dynamic-shadow-system.ts`). System is dormant
+unless the scene tags ≥1 entity as `dynamic: true`; when it sees one
+it flips `renderer.shadowMap.autoUpdate = false` and calls
+`invalidateShadowMap()` only on frames where a tagged entity's
+LocalToWorld actually changed (epsilon 1e-5). 5 unit tests cover the
+contract (dormant / first-bake / move-triggers / static-ignored /
+tag-removal-restores-autoUpdate).
+
+shadows-bench tags applied: 6 cars + ~80 tree roots. The remaining
+~290 entities (buildings, rocks, lampposts, plaza props, ground,
+trunks, canopies, car body/cabin/wheels children) stay untagged →
+static.
+
+Live probe (4 s × 250 ms samples, headless software-WebGL, scene
+grew from 305 → 327 bucket instances after S52 composition story):
+
+|                  | renderMs | totalFrameMs |
+|------------------|---------:|-------------:|
+| S51 baseline (autoUpdate=true, no tag, 305 instances) |  0.58  |  1.92  |
+| S52 with tag    (autoUpdate=false, 327 instances)     |  **0.48**  |  **1.82**  |
+| Delta            |  **−17 %**  |  **−5.2 %**  |
+
+The drop happens even though shadows-bench cars + trees move every
+frame (both well over the 1e-5 epsilon). Hypothesis: three.js's
+`autoUpdate=true` path issues a slightly heavier shadow-pass
+dispatch than `autoUpdate=false + needsUpdate=true` does, so even a
+"invalidate every frame" pattern saves overhead. The real payoff
+will be on scenes with idle dynamic casters (beacon-world drone,
+NPC patrols) where many frames skip the invalidate entirely — those
+should approach the original baked-shadow perf.
+
+## Future follow-ups
 - **M21-shadow-map-size-real-hw.** Re-run `512map` probe on desktop GPU
   — software WebGL undersells the fill-rate savings.
 - **M21-fxaa-cost-isolation.** Probe FXAA on/off — confirms or rules

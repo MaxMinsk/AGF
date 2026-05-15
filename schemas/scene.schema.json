@@ -172,6 +172,9 @@
             "ShadowFlags": {
               "$ref": "components/render.schema.json#/definitions/shadowFlagsComponent"
             },
+            "ShadowCaster": {
+              "$ref": "components/render.schema.json#/definitions/shadowCasterComponent"
+            },
             "Batchable": {
               "$ref": "components/render.schema.json#/definitions/batchableComponent"
             },

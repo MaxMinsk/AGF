@@ -280,6 +280,18 @@
         }
       }
     },
+    "shadowCasterComponent": {
+      "description": "M21-shadow-static-caster-tag (S52): opt a single entity into the dynamic-caster set. When ANY entity in the world carries `ShadowCaster { dynamic: true }`, `DynamicShadowSystem` flips `renderer.shadowMap.autoUpdate = false` and only triggers a shadow re-bake when one of those entities' LocalToWorld actually changes. Entities without a `ShadowCaster` component (or with `dynamic: false`) are treated as static — they cast shadows once on first bake and the cache holds. Useful when most casters are stationary (buildings, terrain, rocks) and only a handful (player, enemies, animated props) need per-frame shadow updates.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dynamic": {
+          "type": "boolean",
+          "default": false,
+          "description": "True → invalidates the shadow map whenever this entity's LocalToWorld changes. False / absent → treated as static, contributes to the initial bake and never re-triggers."
+        }
+      }
+    },
     "lodComponent": {
       "description": "M17-lod: per-entity LOD chain. LodSelectionSystem reads the active camera's world position, picks the lowest-maxDistance level whose threshold the entity is inside, and writes that level's mesh / material onto MeshRenderer. Levels must be sorted by maxDistance ascending. `fallback` decides what happens past the last threshold — `last` keeps the cheapest mesh, `hide` drops the entity from rendering by removing MeshRenderer.",
       "type": "object",

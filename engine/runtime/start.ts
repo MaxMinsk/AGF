@@ -302,6 +302,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     });
     if (!scheduler.has(lls.name)) scheduler.register(lls);
 
+    // S52 M21-shadow-static-caster-tag: dormant unless the scene
+    // marks at least one entity as `ShadowCaster { dynamic: true }`.
+    // Runs LAST so LocalToWorld is fresh from TransformResolveSystem.
+    const { createDynamicShadowSystem } = await import("../render/systems/dynamic-shadow-system");
+    const dss = createDynamicShadowSystem({ adapter: renderer.adapter });
+    if (!scheduler.has(dss.name)) scheduler.register(dss);
+
   }
 
   const time: TimeContext = {
