@@ -57,6 +57,14 @@ export type RuntimeOptions = {
    * supported (decided once at boot).
    */
   idleMode?: "always" | "on-demand";
+  /**
+   * S54 RUNTIME-progressive-loading: list of asset refs (e.g.
+   * `runtime/materials/hero.material.json`, `runtime/models/hero.glb`)
+   * that must finish loading before `rendererReady` resolves. Every other
+   * asset stays on the existing placeholder-then-swap path. Empty / omitted
+   * → no critical gate, identical to S53 behaviour.
+   */
+  criticalAssets?: ReadonlyArray<string>;
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -154,6 +162,34 @@ export type RuntimeHandle = {
 
 const DEFAULT_FIXED_DT = 1 / 60;
 const METRICS_WINDOW_SECONDS = 0.5;
+
+// S54 RUNTIME-progressive-loading: returns true once every critical asset
+// has reached `applied` or `failed` — anything still `pending` blocks the
+// `rendererReady` promise so dev-bridge / tests don't race the loader.
+// Walks AppliedMaterialRef + AppliedGeometryRef each call; cheap for the
+// handful of refs an agent will ever flag critical.
+export function criticalAssetsReady(
+  world: World,
+  criticalAssets: ReadonlyArray<string>
+): boolean {
+  if (criticalAssets.length === 0) return true;
+  const pending = new Set(criticalAssets);
+  // agf-allow: world.query — diagnostic gate, fires once per frame only
+  // until rendererReady resolves.
+  for (const id of world.query(["AppliedMaterialRef"])) {
+    const applied = world.getComponent<{ ref: string; status: string }>(id, "AppliedMaterialRef");
+    if (applied === undefined) continue;
+    if (applied.status === "pending") continue;
+    pending.delete(applied.ref);
+  }
+  for (const id of world.query(["AppliedGeometryRef"])) {
+    const applied = world.getComponent<{ ref: string; status: string }>(id, "AppliedGeometryRef");
+    if (applied === undefined) continue;
+    if (applied.status === "pending") continue;
+    pending.delete(applied.ref);
+  }
+  return pending.size === 0;
+}
 
 export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHandle> {
   const diagnostics = options.diagnostics ?? createDiagnosticsBus();
@@ -421,6 +457,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   };
 
   const idleMode: "always" | "on-demand" = options.idleMode ?? "always";
+  const criticalAssets: ReadonlyArray<string> = options.criticalAssets ?? [];
   let lastRenderedMutation = -1;
   // The resize handler bumps this so the next frame re-renders even when
   // the world hasn't changed (viewport may have, e.g. window resize).
@@ -515,7 +552,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
         forceRenderNextFrame = false;
       }
     }
-    if (drew && rendererReadyResolve !== undefined) {
+    if (drew && rendererReadyResolve !== undefined && criticalAssetsReady(world, criticalAssets)) {
       rendererReadyResolve();
       rendererReadyResolve = undefined;
     }

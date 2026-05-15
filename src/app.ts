@@ -77,6 +77,8 @@ export type ProjectMeta = {
     };
     /** S54 RUNTIME-idle-rendering: `on-demand` skips renderer.render() on frames where no ECS mutation fired. Default `always`. */
     idleMode?: "always" | "on-demand";
+    /** S54 RUNTIME-progressive-loading: asset refs that must finish loading before `rendererReady` resolves. */
+    criticalAssets?: ReadonlyArray<string>;
   };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
@@ -360,6 +362,9 @@ export async function createApp(
   }
   if (project.render?.idleMode !== undefined) {
     runtimeOptions.idleMode = project.render.idleMode;
+  }
+  if (project.render?.criticalAssets !== undefined && project.render.criticalAssets.length > 0) {
+    runtimeOptions.criticalAssets = project.render.criticalAssets;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;
