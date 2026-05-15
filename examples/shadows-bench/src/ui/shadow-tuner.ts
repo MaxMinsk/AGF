@@ -131,16 +131,32 @@ export function mountShadowTuner(
         (state as Record<string, number>)[name as string] = raw;
       }
       output.textContent = format(state[name] as number);
-      // Debounce: setCsm rebuilds CSM lights + recompiles every material,
-      // which is ~50–150 ms of main-thread work. Without debounce a slider
-      // drag at 60 Hz freezes the frame loop visibly. 120 ms is fast
-      // enough to feel live but slow enough to keep the camera responsive.
-      scheduleApply();
+      handleFieldChanged(name);
     });
   };
 
   let applyTimer: number | undefined;
-  function scheduleApply(): void {
+  // Structural fields require a full setCsm() rebuild (~100 ms of
+  // main-thread work that recompiles every material via
+  // `csm.setupMaterial`). Debounce so slider drags don't freeze the
+  // frame loop.
+  const STRUCTURAL_FIELDS = new Set<keyof FieldState>(["cascades", "maxFar", "shadowMapSize"]);
+  function handleFieldChanged(name: keyof FieldState): void {
+    if (STRUCTURAL_FIELDS.has(name)) {
+      scheduleStructuralApply();
+      return;
+    }
+    // Cheap in-place mutators on the existing CSM lights — apply on
+    // every input tick. Shadow re-render is triggered by the bias setters.
+    if (name === "shadowBias") {
+      runtime.renderer.adapter.setCsmShadowBias(state.shadowBias);
+    } else if (name === "shadowNormalBias") {
+      runtime.renderer.adapter.setCsmShadowNormalBias(state.shadowNormalBias);
+    } else if (name === "lightIntensity") {
+      runtime.renderer.adapter.setCsmLightIntensity(state.lightIntensity);
+    }
+  }
+  function scheduleStructuralApply(): void {
     if (applyTimer !== undefined) return;
     applyTimer = window.setTimeout(() => {
       applyTimer = undefined;
@@ -211,6 +227,9 @@ export function mountShadowTuner(
       applyTimer = undefined;
     }
     applyCsm();
+    runtime.renderer.adapter.setCsmShadowBias(state.shadowBias);
+    runtime.renderer.adapter.setCsmShadowNormalBias(state.shadowNormalBias);
+    runtime.renderer.adapter.setCsmLightIntensity(state.lightIntensity);
   });
 
   function formatFor(name: keyof FieldState, value: number): string {

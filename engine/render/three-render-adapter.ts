@@ -1373,6 +1373,41 @@ export class ThreeRenderAdapter {
   }
 
   /**
+   * Cheap in-place mutators on the existing CSM lights. Avoid a full
+   * rebuild for parameters that don't change cascade structure
+   * (`shadowBias`, `shadowNormalBias`, `lightIntensity`). A full
+   * `setCsm()` rebuild costs ~100 ms per call because every material in
+   * the scene gets reregistered via `csm.setupMaterial(...)`; calling
+   * that on each slider tick freezes the frame loop visibly. These
+   * setters take microseconds.
+   *
+   * No-op when CSM is not currently active.
+   */
+  setCsmShadowBias(value: number): void {
+    if (this.csm === undefined) return;
+    for (const light of this.csm.lights) light.shadow.bias = value;
+    if (this.csmConfig !== undefined) this.csmConfig = { ...this.csmConfig, shadowBias: value };
+    this.invalidateShadowMap();
+  }
+
+  setCsmShadowNormalBias(value: number): void {
+    if (this.csm === undefined) return;
+    for (const light of this.csm.lights) light.shadow.normalBias = value;
+    if (this.csmConfig !== undefined)
+      this.csmConfig = { ...this.csmConfig, shadowNormalBias: value };
+    this.invalidateShadowMap();
+  }
+
+  setCsmLightIntensity(value: number): void {
+    if (this.csm === undefined) return;
+    for (const light of this.csm.lights) light.intensity = value;
+    if (this.csmConfig !== undefined)
+      this.csmConfig = { ...this.csmConfig, lightIntensity: value };
+    // Light intensity doesn't change shadow geometry — no shadow re-render
+    // needed.
+  }
+
+  /**
    * Switch the shadow filter algorithm at runtime. PCF / VSM swap freely
    * because they only differ in `WebGLRenderer.shadowMap.type` + the
    * sampler bindings three regenerates on the next compile.
