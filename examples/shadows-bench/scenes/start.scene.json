@@ -16,7 +16,7 @@
       "components": {
         "Name": { "label": "Sky Fill" },
         "Transform": { "position": [0, 0, 0] },
-        "Light": { "kind": "hemisphere", "color": "#cfe2f3", "intensity": 0.55 }
+        "Light": { "kind": "hemisphere", "color": "#cfe2f3", "groundColor": "#5b4a35", "intensity": 1.05 }
       }
     },
     {

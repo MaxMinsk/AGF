@@ -13,13 +13,15 @@ import type { EngineCommand } from "../../engine/core/commands/types";
 import { createRtsCameraSystem } from "./src/systems/rts-camera-system";
 import { mountShadowTuner, type ShadowTunerDefaults } from "./src/ui/shadow-tuner";
 
+// Mirror of `project.json#render.shadows.csm` — keep in sync so the
+// tuner's "Reset to defaults" button restores the actual shipped values.
 const SHADOW_DEFAULTS: ShadowTunerDefaults = {
   cascades: 3,
   maxFar: 120,
   shadowMapSize: 1024,
   shadowBias: -0.000005,
-  shadowNormalBias: 0.12,
-  lightIntensity: 1.55,
+  shadowNormalBias: 0.06,
+  lightIntensity: 2.4,
   lightDirection: [-0.45, -1, -0.35],
   mode: "practical",
   algorithm: "pcss"
