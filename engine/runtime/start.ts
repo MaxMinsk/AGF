@@ -273,7 +273,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
       ...(envSpec.backgroundBlurriness !== undefined
         ? { backgroundBlurriness: envSpec.backgroundBlurriness }
-        : {})
+        : {}),
+      ...(envSpec.groundedSkybox !== undefined ? { groundedSkybox: envSpec.groundedSkybox } : {})
     });
   } else if (envSpec?.kind === "cube") {
     const [f0, f1, f2, f3, f4, f5] = envSpec.faces;
@@ -292,7 +293,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
       ...(envSpec.backgroundBlurriness !== undefined
         ? { backgroundBlurriness: envSpec.backgroundBlurriness }
-        : {})
+        : {}),
+      ...(envSpec.groundedSkybox !== undefined ? { groundedSkybox: envSpec.groundedSkybox } : {})
     });
   } else {
     renderer.adapter.setEnvironment(envSpec?.kind ?? "generated");

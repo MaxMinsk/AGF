@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-05-15). Workaround shipped Sprint 54 (`BENCH-material-bench`): `MaterialBindingSystem` calls `assetRegistry.urlFor(ref)` before forwarding texture refs to `TextureLoader`. Full registry integration (`AssetRegistry.get<TextureAsset>()`) tracked as the S56 `ASSET-textures-via-registry` story; this ADR records the contract regardless of which implementation step is current.
+Accepted (2026-05-15). Full integration shipped Sprint 57 (`ASSET-textures-via-registry`): `MaterialBindingSystem` calls `assetRegistry.get<Texture>(ref)` and passes the loaded `Texture` instance into the adapter through `MaterialPatch`. The S54 `urlFor` workaround that pre-dated this is retired; the adapter no longer owns a private `TextureLoader` or texture cache. Both implementation steps land under this ADR; the rule it records is unchanged.
 
 ## Context
 
@@ -34,24 +34,30 @@ Two follow-on rules:
 
 ## Two implementation steps
 
-Sprint 54 (shipped) — `urlFor` workaround:
+Sprint 54 — `urlFor` workaround (retired in S57):
 
 ```ts
-// engine/render/systems/material-binding-system.ts
 const resolveTexture = (ref: string): string =>
   deps.assetRegistry !== undefined ? deps.assetRegistry.urlFor(ref) : ref;
 if (manifest.map !== undefined) patch.map = resolveTexture(manifest.map);
 ```
 
-The texture URL is correct, but the load still goes through Three.js's `TextureLoader` directly. Pros: minimal change, no new loader registration. Cons: 404s don't emit `AGF_RUNTIME_ASSET_LOAD_FAILED`, HMR can't invalidate one texture without remounting the whole material.
+The texture URL was correct, but the load still went through Three.js's `TextureLoader` directly. Pro: minimal change, no new loader registration. Con: 404s didn't emit `AGF_RUNTIME_ASSET_LOAD_FAILED`, HMR couldn't invalidate one texture without remounting the whole material.
 
-Sprint 56 (planned, `ASSET-textures-via-registry` story) — registry integration:
+Sprint 57 — full registry integration (shipped):
 
 ```ts
-deps.assetRegistry.get<TextureAsset>(ref).then((texture) => { patch.map = texture; ... });
+// engine/render/systems/material-binding-system.ts
+for (const { ref, slot } of textureRefs) {
+  refsToLoad.push(
+    deps.assetRegistry.get<Texture>(ref).then((texture) => {
+      patch[slot] = texture;
+    })
+  );
+}
 ```
 
-The texture rides the standard async-binding path (`AppliedTextureRef` component, status: pending / applied / failed). Diagnostics emit on failure. HMR invalidate works per-ref.
+`engine/render/texture-loader.ts` exports `createTextureLoader(): AssetLoader<Texture>`. `MaterialPatch.{map,normalMap,...}` types changed from URL strings to pre-loaded `Texture` instances. The adapter retires its local `textureCache` + `acquireTexture` path; colorSpace is re-tagged at bind time. 404s emit `AGF_RUNTIME_ASSET_LOAD_FAILED` through the registry's diagnostics bus; `__agf.reloadAsset(ref)` invalidates one texture entry without remounting the material.
 
 ## Consequences
 

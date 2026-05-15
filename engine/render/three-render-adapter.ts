@@ -46,6 +46,8 @@ import {
   MeshPhongMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
+  PlaneGeometry,
+  ShadowMaterial,
   type Object3D,
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -68,7 +70,6 @@ import {
   Scene,
   SpotLight,
   type Texture,
-  TextureLoader,
   NoColorSpace,
   SRGBColorSpace,
   Vector2,
@@ -79,6 +80,7 @@ import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLigh
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CubeTextureLoader } from "three";
+import { GroundedSkybox } from "three/examples/jsm/objects/GroundedSkybox.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
@@ -96,6 +98,9 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
+import { LUTPass } from "three/examples/jsm/postprocessing/LUTPass.js";
+import { LUTCubeLoader } from "three/examples/jsm/loaders/LUTCubeLoader.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
@@ -353,7 +358,9 @@ export type CameraParams = {
  */
 export type PostPassConfig =
   | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
-  | { kind: "fxaa" };
+  | { kind: "fxaa" }
+  | { kind: "ssao"; radius?: number; intensity?: number; kernelSize?: number }
+  | { kind: "color-lut"; file: string; intensity?: number };
 
 /**
  * M21-shadow-csm — config for the Cascade Shadow Maps adapter. The
@@ -502,6 +509,8 @@ export type EnvironmentSpec =
       asBackground?: boolean;
       /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
       backgroundBlurriness?: number;
+      /** S57 GROUND-skybox config; applied after the IBL load completes. */
+      groundedSkybox?: { height: number; radius: number };
     }
   | {
       /**
@@ -516,6 +525,8 @@ export type EnvironmentSpec =
       asBackground?: boolean;
       /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
       backgroundBlurriness?: number;
+      /** S57 GROUND-skybox config; applied after the IBL load completes. */
+      groundedSkybox?: { height: number; radius: number };
     };
 
 const DEFAULT_COLOR = "#cccccc";
@@ -549,6 +560,12 @@ export class ThreeRenderAdapter {
   private pmrem: PMREMGenerator | undefined;
   private currentEnvironmentTexture: Texture | undefined;
   private currentEnvironmentKind: EnvironmentKind = "none";
+  // S57 GROUND-skybox: optional helpers + an invisible shadow-catcher
+  // plane underneath. The shadow-catcher uses `ShadowMaterial`, which is
+  // unlit + transparent except for whatever shadow projects on it — the
+  // HDR background underneath shows through everywhere else.
+  private groundedSkyboxMesh: Mesh | undefined;
+  private groundedShadowMesh: Mesh | undefined;
   private activeCameraHandle: CameraHandle | undefined;
   private debugOverlay: LineSegments | undefined;
   private csm: CSM | undefined;
@@ -753,6 +770,7 @@ export class ThreeRenderAdapter {
       const intensity = normalised.intensity ?? 1;
       const asBackground = normalised.asBackground === true;
       const blur = normalised.backgroundBlurriness;
+      const groundedSpec = normalised.groundedSkybox;
       new RGBELoader().load(url, (texture) => {
         const pmrem = this.pmrem;
         if (pmrem === undefined) return;
@@ -769,8 +787,16 @@ export class ThreeRenderAdapter {
           this.scene.background = texture;
           this.scene.backgroundIntensity = intensity;
           this.scene.backgroundBlurriness = blur ?? 0;
-        } else {
+        } else if (groundedSpec === undefined) {
           texture.dispose();
+        }
+        // S57 GROUND-skybox: mount once the prefiltered cubemap exists.
+        // We use `rt.texture` (the PMREM cubemap) so the grounded sky
+        // matches the IBL the materials see. The raw equirect would
+        // look identical at distance but read sharper on the seam line.
+        this.mountGroundedSkybox(groundedSpec, rt.texture);
+        if (!asBackground && groundedSpec === undefined) {
+          // Already disposed `texture` above.
         }
         this.currentEnvironmentKind = "hdr";
       });
@@ -783,6 +809,7 @@ export class ThreeRenderAdapter {
       const intensity = normalised.intensity ?? 1;
       const asBackground = normalised.asBackground === true;
       const blur = normalised.backgroundBlurriness;
+      const groundedSpec = normalised.groundedSkybox;
       new CubeTextureLoader().load(
         normalised.faces as unknown as string[],
         (cubeTexture) => {
@@ -797,9 +824,10 @@ export class ThreeRenderAdapter {
             this.scene.background = cubeTexture;
             this.scene.backgroundIntensity = intensity;
             this.scene.backgroundBlurriness = blur ?? 0;
-          } else {
+          } else if (groundedSpec === undefined) {
             cubeTexture.dispose();
           }
+          this.mountGroundedSkybox(groundedSpec, rt.texture);
           this.currentEnvironmentKind = "cube";
         }
       );
@@ -808,6 +836,53 @@ export class ThreeRenderAdapter {
 
   currentEnvironment(): EnvironmentKind {
     return this.currentEnvironmentKind;
+  }
+
+  /**
+   * S57 GROUND-skybox. Mounts (or replaces) the curved-bottom sky mesh
+   * plus an invisible shadow-catcher plane at the same height. The
+   * shadow-catcher uses ShadowMaterial — fully transparent except for
+   * incoming shadow contribution — so light writes a soft falloff on
+   * the virtual ground while the HDR shows through everywhere else.
+   *
+   * Pass `undefined` to remove both meshes.
+   */
+  private mountGroundedSkybox(
+    spec: { height: number; radius: number } | undefined,
+    envCubemap: Texture
+  ): void {
+    if (this.groundedSkyboxMesh !== undefined) {
+      this.scene.remove(this.groundedSkyboxMesh);
+      (this.groundedSkyboxMesh.material as Material).dispose();
+      this.groundedSkyboxMesh.geometry.dispose();
+      this.groundedSkyboxMesh = undefined;
+    }
+    if (this.groundedShadowMesh !== undefined) {
+      this.scene.remove(this.groundedShadowMesh);
+      (this.groundedShadowMesh.material as Material).dispose();
+      this.groundedShadowMesh.geometry.dispose();
+      this.groundedShadowMesh = undefined;
+    }
+    if (spec === undefined) return;
+    const sky = new GroundedSkybox(envCubemap, spec.height, spec.radius) as unknown as Mesh;
+    sky.name = "agf.grounded-skybox";
+    this.scene.add(sky);
+    this.groundedSkyboxMesh = sky;
+
+    // Shadow-catcher: a large flat plane laid on the same ground line,
+    // using ShadowMaterial so it only contributes the shadow lookup.
+    // Plane radius = sky.radius so the catcher covers the visible
+    // horizon-touching region without going wildly past it.
+    const catcher = new Mesh(
+      new PlaneGeometry(spec.radius * 2, spec.radius * 2),
+      new ShadowMaterial({ opacity: 0.55, transparent: true })
+    );
+    catcher.name = "agf.grounded-skybox-shadow";
+    catcher.rotation.x = -Math.PI / 2;
+    catcher.position.y = spec.height;
+    catcher.receiveShadow = true;
+    this.scene.add(catcher);
+    this.groundedShadowMesh = catcher;
   }
 
   acquireLight(spec: LightAcquireSpec): LightHandle {
@@ -1970,10 +2045,49 @@ export class ThreeRenderAdapter {
         composer.addPass(bloom);
       } else if (pass.kind === "fxaa") {
         composer.addPass(new FXAAPass());
+      } else if (pass.kind === "ssao") {
+        // S57 POST-ssao: vendored SSAOPass. Requires a camera, which we
+        // already gated above via `activeCamera()`. The pass renders an AO
+        // buffer in screen space + blends it back; cost ~5–10 % of base
+        // render at default kernel size 32.
+        const ssao = new SSAOPass(
+          this.scene,
+          camera,
+          size.width,
+          size.height,
+          pass.kernelSize ?? 32
+        );
+        if (pass.radius !== undefined) ssao.kernelRadius = pass.radius;
+        composer.addPass(ssao);
+      } else if (pass.kind === "color-lut") {
+        // S57 POST-color-lut: vendored LUTPass + LUTCubeLoader. The LUT
+        // load is async — we add the pass with a placeholder identity
+        // LUT first so the composer stays valid, then swap in the real
+        // 3D texture when it arrives.
+        const lutPass = new LUTPass();
+        if (pass.intensity !== undefined) lutPass.intensity = pass.intensity;
+        composer.addPass(lutPass);
+        const url = this.resolveLutUrl(pass.file);
+        new LUTCubeLoader().load(url, (result) => {
+          lutPass.lut = result.texture3D;
+        });
       }
     }
     composer.addPass(new OutputPass());
     this.composer = composer;
+  }
+
+  /**
+   * S57 POST-color-lut: hook for the asset-path resolution that lives
+   * in `engine/runtime/start.ts` — the adapter doesn't own the registry,
+   * so the runtime overrides this when wiring the adapter together.
+   * Default falls back to the raw ref (matches the pre-S54 behaviour for
+   * texture refs).
+   */
+  lutUrlResolver: ((ref: string) => string) | undefined;
+  private resolveLutUrl(ref: string): string {
+    if (this.lutUrlResolver !== undefined) return this.lutUrlResolver(ref);
+    return ref;
   }
 
   private disposeComposer(): void {

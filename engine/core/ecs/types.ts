@@ -23,6 +23,8 @@ export type SceneEnvironmentInput =
       asBackground?: boolean;
       /** Optional sky blurriness in [0, 1] when `asBackground` is true. Defaults to 0 (sharp). */
       backgroundBlurriness?: number;
+      /** S57 GROUND-skybox: vendored `GroundedSkybox` helper. When set, the renderer mounts a curved-bottom sky mesh at the given height + radius so the HDR meets a virtual ground instead of dropping straight to the horizon. */
+      groundedSkybox?: { height: number; radius: number };
     }
   | {
       /**
@@ -38,6 +40,8 @@ export type SceneEnvironmentInput =
       asBackground?: boolean;
       /** Optional sky blurriness in [0, 1] when `asBackground` is true. Defaults to 0 (sharp). */
       backgroundBlurriness?: number;
+      /** S57 GROUND-skybox: same as the HDR path. */
+      groundedSkybox?: { height: number; radius: number };
     };
 
 export type SceneInstanceInput = {
