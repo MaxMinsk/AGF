@@ -197,6 +197,12 @@
             "ShadowCaster": {
               "$ref": "components/render.schema.json#/definitions/shadowCasterComponent"
             },
+            "ReflectionProbe": {
+              "$ref": "components/render.schema.json#/definitions/reflectionProbeComponent"
+            },
+            "EnvmapBinding": {
+              "$ref": "components/render.schema.json#/definitions/envmapBindingComponent"
+            },
             "Batchable": {
               "$ref": "components/render.schema.json#/definitions/batchableComponent"
             },

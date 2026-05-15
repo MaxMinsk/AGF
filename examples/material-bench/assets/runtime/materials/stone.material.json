@@ -1,0 +1,7 @@
+{
+  "id": "stone",
+  "shader": "standard",
+  "color": "#6f6960",
+  "roughness": 0.95,
+  "metalness": 0.0
+}

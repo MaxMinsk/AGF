@@ -48,6 +48,9 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   ShadowMaterial,
+  CubeCamera,
+  WebGLCubeRenderTarget,
+  HalfFloatType,
   type Object3D,
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -340,6 +343,9 @@ export type MaterialPatch = {
   metalnessMap?: Texture;
   emissiveMap?: Texture;
   aoMap?: Texture;
+  /** S57 REFLECTION-cube-probe: optional per-object envmap override (CubeTexture). Falls back to `scene.environment` when undefined. */
+  envMap?: Texture;
+  envMapIntensity?: number;
 };
 
 export type CameraParams = {
@@ -838,6 +844,73 @@ export class ThreeRenderAdapter {
     return this.currentEnvironmentKind;
   }
 
+  // ---- S57 REFLECTION-cube-probe ----
+
+  private readonly reflectionProbes = new Map<
+    number,
+    { cubeCam: CubeCamera; renderTarget: WebGLCubeRenderTarget }
+  >();
+  private nextReflectionProbeHandle = 1;
+
+  acquireReflectionProbe(spec: {
+    size: 128 | 256 | 512;
+    near: number;
+    far: number;
+  }): number {
+    const renderTarget = new WebGLCubeRenderTarget(spec.size, { type: HalfFloatType });
+    const cubeCam = new CubeCamera(spec.near, spec.far, renderTarget);
+    this.scene.add(cubeCam);
+    const handle = this.nextReflectionProbeHandle++;
+    this.reflectionProbes.set(handle, { cubeCam, renderTarget });
+    return handle;
+  }
+
+  setReflectionProbeTransform(
+    handle: number,
+    position: readonly [number, number, number]
+  ): void {
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return;
+    entry.cubeCam.position.set(position[0], position[1], position[2]);
+  }
+
+  updateReflectionProbe(
+    handle: number,
+    hiddenObjects: ReadonlyArray<Object3D>
+  ): void {
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return;
+    // Hide the excluded entities for the duration of the cube render so
+    // the camera doesn't see itself or its owner.
+    const restoreVisibility = new Map<Object3D, boolean>();
+    for (const obj of hiddenObjects) {
+      restoreVisibility.set(obj, obj.visible);
+      obj.visible = false;
+    }
+    try {
+      entry.cubeCam.update(this.device, this.scene);
+    } finally {
+      for (const [obj, was] of restoreVisibility) obj.visible = was;
+    }
+  }
+
+  reflectionProbeTexture(handle: number): Texture | undefined {
+    return this.reflectionProbes.get(handle)?.renderTarget.texture;
+  }
+
+  releaseReflectionProbe(handle: number): void {
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.cubeCam);
+    entry.renderTarget.dispose();
+    this.reflectionProbes.delete(handle);
+  }
+
+  /** Look up the Three.js mesh for an entity — needed by `ReflectionProbeSystem` to hide excluded entities. */
+  meshForHandle(handle: number): Object3D | undefined {
+    return this.meshes.get(handle);
+  }
+
   /**
    * S57 GROUND-skybox. Mounts (or replaces) the curved-bottom sky mesh
    * plus an invisible shadow-catcher plane at the same height. The
@@ -869,18 +942,20 @@ export class ThreeRenderAdapter {
     this.scene.add(sky);
     this.groundedSkyboxMesh = sky;
 
-    // Shadow-catcher: a large flat plane laid on the same ground line,
-    // using ShadowMaterial so it only contributes the shadow lookup.
-    // Plane radius = sky.radius so the catcher covers the visible
-    // horizon-touching region without going wildly past it.
+    // Shadow-catcher: a large flat plane laid 1 mm above the grounded
+    // sky mesh's floor line, using ShadowMaterial so it only contributes
+    // the shadow lookup. The y-lift avoids z-fighting with the
+    // skybox surface; `renderOrder = 1` keeps the transparent catcher
+    // painted after the opaque sky in the same depth range.
     const catcher = new Mesh(
       new PlaneGeometry(spec.radius * 2, spec.radius * 2),
       new ShadowMaterial({ opacity: 0.55, transparent: true })
     );
     catcher.name = "agf.grounded-skybox-shadow";
     catcher.rotation.x = -Math.PI / 2;
-    catcher.position.y = spec.height;
+    catcher.position.y = spec.height + 0.001;
     catcher.receiveShadow = true;
+    catcher.renderOrder = 1;
     this.scene.add(catcher);
     this.groundedShadowMesh = catcher;
   }
@@ -1668,6 +1743,9 @@ export class ThreeRenderAdapter {
         patch.metalnessMap.colorSpace = NoColorSpace;
         material.metalnessMap = patch.metalnessMap;
       }
+      // S57 REFLECTION-cube-probe: per-object envmap override.
+      if (patch.envMap !== undefined) material.envMap = patch.envMap;
+      if (patch.envMapIntensity !== undefined) material.envMapIntensity = patch.envMapIntensity;
     }
 
     material.needsUpdate = true;

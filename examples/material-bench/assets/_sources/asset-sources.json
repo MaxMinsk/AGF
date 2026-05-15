@@ -6,6 +6,7 @@
       "kind": "material",
       "runtimeFiles": [
         "runtime/materials/cement.material.json",
+        "runtime/materials/stone.material.json",
         "runtime/materials/m0-chrome.material.json",
         "runtime/materials/m1-plastic-rough.material.json",
         "runtime/materials/m2-plastic-glossy.material.json",

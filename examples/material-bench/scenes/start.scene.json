@@ -39,7 +39,7 @@
             "mapSize": 2048,
             "bias": -0.00002,
             "normalBias": 0.004,
-            "camera": { "left": -8, "right": 8, "top": 6, "bottom": -4, "near": 0.5, "far": 24 }
+            "camera": { "left": -14, "right": 14, "top": 14, "bottom": -14, "near": 0.5, "far": 40 }
           }
         }
       }

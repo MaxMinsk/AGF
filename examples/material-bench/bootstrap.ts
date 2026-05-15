@@ -23,6 +23,7 @@ import type { EngineCommand } from "../../engine/core/commands/types";
 const MATERIAL_DIR = "runtime/materials";
 const CENTRE_MATERIAL = `${MATERIAL_DIR}/m0-chrome.material.json`;
 const CEMENT_MATERIAL = `${MATERIAL_DIR}/cement.material.json`;
+const STONE_MATERIAL = `${MATERIAL_DIR}/stone.material.json`;
 const OUTER_MATERIALS: ReadonlyArray<string> = [
   `${MATERIAL_DIR}/m1-plastic-rough.material.json`,
   `${MATERIAL_DIR}/m2-plastic-glossy.material.json`,
@@ -39,7 +40,15 @@ const OUTER_MATERIALS: ReadonlyArray<string> = [
 ];
 
 const RING_RADIUS = 4.0;
-const GROUND_TOP_Y = -0.75; // ground plinth at y=-0.8, scale.y=0.1 → top = -0.75
+const GROUND_TOP_Y = -0.75; // grounded skybox y; pedestals + columns rest on this line.
+
+// Stonehenge perimeter. Tall stone columns at a distance, evenly spaced
+// in a ring around the orbit so the centre chrome sphere's reflection
+// probe has something interesting to capture.
+const STONE_RING_RADIUS = 11.0;
+const STONE_COLUMN_COUNT = 8;
+const STONE_HEIGHT = 4.0;
+const STONE_RADIUS = 0.55;
 
 // Centre column dimensions
 const CENTRE_PEDESTAL_HEIGHT = 0.6;
@@ -97,6 +106,19 @@ function buildSeedCommands(): EngineCommand[] {
     material: CENTRE_MATERIAL
   });
   setComponent(commands, centreSphereId, "ShadowFlags", { cast: true, receive: true });
+  // S57 REFLECTION-cube-probe: the centre chrome sphere both hosts the
+  // probe and reads its own reflection (the cube camera sits at the
+  // sphere's position, the sphere itself is auto-excluded so it doesn't
+  // see itself). Pedestals + outer spheres stay visible in the cube so
+  // the chrome reflects the whole arrangement.
+  setComponent(commands, centreSphereId, "ReflectionProbe", {
+    size: 256,
+    near: 0.1,
+    far: 60,
+    updateRate: 60,
+    excludeEntities: [centreSphereId, centrePedestalId]
+  });
+  setComponent(commands, centreSphereId, "EnvmapBinding", { probe: centreSphereId });
 
   // Outer ring — 12 sphere + pedestal pairs around a circle of radius
   // RING_RADIUS. Each outer entity is parented to ROOT so they orbit when
@@ -137,6 +159,29 @@ function buildSeedCommands(): EngineCommand[] {
       material
     });
     setComponent(commands, sphereId, "ShadowFlags", { cast: true, receive: true });
+  }
+
+  // Stonehenge perimeter — STATIC entities at the world root (NOT
+  // children of `spheres.root`), so they don't orbit. Tall cement
+  // cylinders evenly spaced around the orbit give the centre chrome
+  // sphere's reflection probe something to capture besides the sky.
+  const stoneY = GROUND_TOP_Y + STONE_HEIGHT / 2;
+  for (let i = 0; i < STONE_COLUMN_COUNT; i += 1) {
+    const angle = (i / STONE_COLUMN_COUNT) * Math.PI * 2 + Math.PI / STONE_COLUMN_COUNT;
+    const x = Math.cos(angle) * STONE_RING_RADIUS;
+    const z = Math.sin(angle) * STONE_RING_RADIUS;
+    const slot = String(i + 1).padStart(2, "0");
+    const stoneId = `stone.${slot}`;
+    commands.push({ kind: "entity.create", entityId: stoneId });
+    setComponent(commands, stoneId, "Transform", {
+      position: [x, stoneY, z],
+      scale: [STONE_RADIUS * 2, STONE_HEIGHT, STONE_RADIUS * 2]
+    });
+    setComponent(commands, stoneId, "MeshRenderer", {
+      mesh: "cylinder",
+      material: STONE_MATERIAL
+    });
+    setComponent(commands, stoneId, "ShadowFlags", { cast: true, receive: true });
   }
 
   return commands;
