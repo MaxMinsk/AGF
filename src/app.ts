@@ -203,6 +203,8 @@ export type AppHandle = {
     reflectionProbes: number;
     /** S59 PERF-renderer-info: total PMREM regen ms across all probes this frame. Zero unless a probe opted into `prefilter: "pmrem"`. */
     prefilterMs: number;
+    /** S59 REFLECTION-planar: count of live `PlanarMirror` Reflector meshes. */
+    planarMirrors: number;
   };
   /** M21-shadow-static: manual shadow-map controls (no-op when autoUpdate is true, which is the default). */
   renderer: {

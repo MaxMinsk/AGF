@@ -305,6 +305,17 @@
         "intensity": { "type": "number", "minimum": 0, "default": 1, "description": "Three.js `material.envMapIntensity`. Useful for clearcoat / non-metallic surfaces that want a softer environment contribution." }
       }
     },
+    "planarMirrorComponent": {
+      "description": "S59 REFLECTION-planar: turn this entity into a planar mirror via three.js's `Reflector` helper. The runtime spawns an internal Reflector mesh (a PlaneGeometry of `width × height`) at the entity's LocalToWorld, renders the scene reflected across it into a private render target each frame, and composites the result back onto the mirror surface. Unlike `ReflectionProbe` the projection is planar — no parallax compensation — so place the mirror where reflections of the camera-side scene look correct (water, lobby floor, smooth glass tile). Cost is one extra full-scene render per mirror per frame; keep the resolution modest (512–1024).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0, "default": 10, "description": "World-space width of the mirror plane along its local X." },
+        "height": { "type": "number", "exclusiveMinimum": 0, "default": 10, "description": "World-space height along its local Y. The mirror normal is +Z in local space." },
+        "resolution": { "enum": [256, 512, 1024, 2048], "default": 512, "description": "Per-side render-target resolution. 512 reads as smooth water; 1024+ is sharper but doubles VRAM + fill cost." },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#88aaff", "description": "Tint applied to the reflected colour. Use sparingly — large deviations from neutral break the mirror illusion." }
+      }
+    },
     "shadowCasterComponent": {
       "description": "M21-shadow-static-caster-tag (S52): opt a single entity into the dynamic-caster set. When ANY entity in the world carries `ShadowCaster { dynamic: true }`, `DynamicShadowSystem` flips `renderer.shadowMap.autoUpdate = false` and only triggers a shadow re-bake when one of those entities' LocalToWorld actually changes. Entities without a `ShadowCaster` component (or with `dynamic: false`) are treated as static — they cast shadows once on first bake and the cache holds. Useful when most casters are stationary (buildings, terrain, rocks) and only a handful (player, enemies, animated props) need per-frame shadow updates.",
       "type": "object",

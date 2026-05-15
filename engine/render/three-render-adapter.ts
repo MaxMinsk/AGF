@@ -86,6 +86,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CubeTextureLoader } from "three";
 import { GroundedSkybox } from "three/examples/jsm/objects/GroundedSkybox.js";
+import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
@@ -422,6 +423,8 @@ export type AdapterInfo = {
    * the cadence skipped this frame.
    */
   prefilterMs: number;
+  /** S59 REFLECTION-planar: live planar-mirror Reflector meshes. */
+  planarMirrors: number;
 };
 
 export type SkyGradient = {
@@ -991,6 +994,64 @@ export class ThreeRenderAdapter {
   /** Look up the Three.js mesh for an entity — needed by `ReflectionProbeSystem` to hide excluded entities. */
   meshForHandle(handle: number): Object3D | undefined {
     return this.meshes.get(handle);
+  }
+
+  // S59 REFLECTION-planar: per-entity planar mirror via three.js's
+  // `Reflector` helper. Unlike ReflectionProbe (cube capture, works on
+  // any geometry), Reflector renders the scene through a portal-style
+  // RTT for a single flat surface — perfect for water / lobby floor /
+  // smooth glass tile. Cost is one extra full-scene render per mirror
+  // per frame.
+  private readonly planarMirrors = new Map<number, { mirror: Reflector }>();
+  private nextPlanarMirrorHandle = 1;
+
+  acquirePlanarMirror(spec: {
+    width: number;
+    height: number;
+    resolution: number;
+    color?: string;
+  }): number {
+    const geometry = new PlaneGeometry(spec.width, spec.height);
+    const mirror = new Reflector(geometry, {
+      textureWidth: spec.resolution,
+      textureHeight: spec.resolution,
+      color: new Color(spec.color ?? "#88aaff"),
+      clipBias: 0.003
+    });
+    // Reflector geometry is a PlaneGeometry on the XY plane facing +Z;
+    // matrix updates via setPlanarMirrorTransform put it where the
+    // entity's LocalToWorld says.
+    this.scene.add(mirror);
+    const handle = this.nextPlanarMirrorHandle++;
+    this.planarMirrors.set(handle, { mirror });
+    return handle;
+  }
+
+  setPlanarMirrorTransform(
+    handle: number,
+    ltw: { position: readonly number[]; rotation: readonly number[]; scale: readonly number[] }
+  ): void {
+    const entry = this.planarMirrors.get(handle);
+    if (entry === undefined) return;
+    entry.mirror.position.set(ltw.position[0]!, ltw.position[1]!, ltw.position[2]!);
+    entry.mirror.quaternion.set(ltw.rotation[0]!, ltw.rotation[1]!, ltw.rotation[2]!, ltw.rotation[3]!);
+    entry.mirror.scale.set(ltw.scale[0]!, ltw.scale[1]!, ltw.scale[2]!);
+    entry.mirror.updateMatrixWorld(true);
+  }
+
+  releasePlanarMirror(handle: number): void {
+    const entry = this.planarMirrors.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.mirror);
+    entry.mirror.geometry.dispose();
+    // Reflector materials are internal; dispose-on-remove is the helper's
+    // documented teardown. The wrapping object3d is what matters.
+    (entry.mirror.material as Material).dispose();
+    this.planarMirrors.delete(handle);
+  }
+
+  planarMirrorCount(): number {
+    return this.planarMirrors.size;
   }
 
   /**
@@ -2406,7 +2467,8 @@ export class ThreeRenderAdapter {
       batchedBuckets: this.batchedBuckets.size(),
       batchedBucketInstances,
       reflectionProbes: this.reflectionProbes.size,
-      prefilterMs: this.reflectionPrefilterMsThisFrame
+      prefilterMs: this.reflectionPrefilterMsThisFrame,
+      planarMirrors: this.planarMirrors.size
     };
     const gpuMs = this.gpuTimer?.read();
     if (gpuMs !== undefined) {

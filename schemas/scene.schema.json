@@ -203,6 +203,9 @@
             "EnvmapBinding": {
               "$ref": "components/render.schema.json#/definitions/envmapBindingComponent"
             },
+            "PlanarMirror": {
+              "$ref": "components/render.schema.json#/definitions/planarMirrorComponent"
+            },
             "Batchable": {
               "$ref": "components/render.schema.json#/definitions/batchableComponent"
             },

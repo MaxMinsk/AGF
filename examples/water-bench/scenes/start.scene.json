@@ -1,0 +1,101 @@
+{
+  "id": "start",
+  "environment": { "kind": "generated" },
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Main Camera" },
+        "Transform": {
+          "position": [0, 2, 8],
+          "rotation": [-12, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Camera": { "kind": "perspective", "active": true, "fov": 55, "near": 0.1, "far": 200 }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Name": { "label": "Sun" },
+        "Transform": { "position": [6, 12, 9] },
+        "Light": {
+          "kind": "directional",
+          "color": "#fff5dc",
+          "intensity": 1.4,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": -0.0003,
+            "normalBias": 0.02,
+            "camera": { "left": -12, "right": 12, "top": 12, "bottom": -12, "near": 0.1, "far": 40 }
+          }
+        }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Name": { "label": "Hemi Fill" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "hemisphere", "color": "#cfe9ff", "groundColor": "#1b2238", "intensity": 0.45 }
+      }
+    },
+    {
+      "id": "water",
+      "components": {
+        "Name": { "label": "Water Surface" },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [-90, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "PlanarMirror": {
+          "width": 30,
+          "height": 30,
+          "resolution": 512,
+          "color": "#a8c6ff"
+        }
+      }
+    },
+    {
+      "id": "prop.sphere",
+      "components": {
+        "Name": { "label": "Floating Sphere" },
+        "Transform": {
+          "position": [-2.2, 1.6, -1.0],
+          "rotation": [0, 0, 0],
+          "scale": [1.1, 1.1, 1.1]
+        },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ff5a8a" },
+        "ShadowFlags": { "cast": true, "receive": true }
+      }
+    },
+    {
+      "id": "prop.cube",
+      "components": {
+        "Name": { "label": "Floating Cube" },
+        "Transform": {
+          "position": [0, 1.2, -0.6],
+          "rotation": [12, 24, 8],
+          "scale": [1.2, 1.2, 1.2]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#7ad8ff" },
+        "ShadowFlags": { "cast": true, "receive": true }
+      }
+    },
+    {
+      "id": "prop.cylinder",
+      "components": {
+        "Name": { "label": "Floating Cylinder" },
+        "Transform": {
+          "position": [2.4, 1.4, -1.4],
+          "rotation": [0, 0, 18],
+          "scale": [0.9, 1.8, 0.9]
+        },
+        "MeshRenderer": { "mesh": "cylinder", "color": "#f6d27a" },
+        "ShadowFlags": { "cast": true, "receive": true }
+      }
+    }
+  ]
+}
