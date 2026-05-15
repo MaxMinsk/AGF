@@ -91,14 +91,51 @@ export function mountShadowTuner(
     <button type="button" class="reset">Reset to defaults</button>
   `;
 
+  const PERSIST_KEY = "agf.shadows-bench.shadow-tuner";
+
+  // S52 shadow-tuner-persistence: restore the last-saved values from
+  // localStorage so tune → reload → tune doesn't wipe the previous
+  // session. Falls back silently to defaults if storage is missing,
+  // corrupted, or contains keys we don't recognise (forward compat).
+  function loadPersisted(): Partial<FieldState> {
+    if (typeof window === "undefined" || typeof window.localStorage === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem(PERSIST_KEY);
+      if (raw === null) return {};
+      const parsed = JSON.parse(raw) as Partial<FieldState>;
+      return parsed;
+    } catch {
+      return {};
+    }
+  }
+
+  const persisted = loadPersisted();
   const state: FieldState = {
-    cascades: defaults.cascades,
-    maxFar: defaults.maxFar,
-    shadowMapSize: defaults.shadowMapSize,
-    shadowBias: defaults.shadowBias,
-    shadowNormalBias: defaults.shadowNormalBias,
-    lightIntensity: defaults.lightIntensity
+    cascades: persisted.cascades ?? defaults.cascades,
+    maxFar: persisted.maxFar ?? defaults.maxFar,
+    shadowMapSize: persisted.shadowMapSize ?? defaults.shadowMapSize,
+    shadowBias: persisted.shadowBias ?? defaults.shadowBias,
+    shadowNormalBias: persisted.shadowNormalBias ?? defaults.shadowNormalBias,
+    lightIntensity: persisted.lightIntensity ?? defaults.lightIntensity
   };
+
+  function persistState(): void {
+    if (typeof window === "undefined" || typeof window.localStorage === "undefined") return;
+    try {
+      window.localStorage.setItem(PERSIST_KEY, JSON.stringify(state));
+    } catch {
+      // Storage quota / private-mode browsers — silently no-op.
+    }
+  }
+
+  function clearPersisted(): void {
+    if (typeof window === "undefined" || typeof window.localStorage === "undefined") return;
+    try {
+      window.localStorage.removeItem(PERSIST_KEY);
+    } catch {
+      // ignore
+    }
+  }
 
   const sizeSteps: ShadowTunerDefaults["shadowMapSize"][] = [512, 1024, 2048, 4096];
 
@@ -134,6 +171,9 @@ export function mountShadowTuner(
 
   let applyTimer: number | undefined;
   function handleFieldChanged(name: keyof FieldState): void {
+    // S52 shadow-tuner-persistence: save current state to localStorage
+    // on every field change so reload restores the same view.
+    persistState();
     // Cascades count actually changes the number of DirectionalLights
     // inside CSM — only a full setCsm() rebuild can do that, and the
     // rebuild recompiles every material's shader (~100 ms + GPU
@@ -187,6 +227,10 @@ export function mountShadowTuner(
     state.shadowBias = defaults.shadowBias;
     state.shadowNormalBias = defaults.shadowNormalBias;
     state.lightIntensity = defaults.lightIntensity;
+    // S52 shadow-tuner-persistence: Reset also wipes the saved state
+    // so the next reload starts from project.json defaults rather than
+    // the pre-reset tuned values.
+    clearPersisted();
     for (const name of [
       "cascades",
       "maxFar",
@@ -254,6 +298,24 @@ export function mountShadowTuner(
   }
 
   parent.appendChild(panel);
+
+  // S52 shadow-tuner-persistence: when the persisted state differs
+  // from project.json defaults, apply it now so the visual matches
+  // the slider readings on boot. Done after `parent.appendChild` so
+  // any panel-side dispatch is wired before the first invalidate.
+  const persistedDiffers =
+    persisted.cascades !== undefined ||
+    persisted.maxFar !== undefined ||
+    persisted.shadowMapSize !== undefined ||
+    persisted.shadowBias !== undefined ||
+    persisted.shadowNormalBias !== undefined ||
+    persisted.lightIntensity !== undefined;
+  if (persistedDiffers) {
+    applyCsm();
+    runtime.renderer.adapter.setCsmShadowBias(state.shadowBias);
+    runtime.renderer.adapter.setCsmShadowNormalBias(state.shadowNormalBias);
+    runtime.renderer.adapter.setCsmLightIntensity(state.lightIntensity);
+  }
 
   return {
     element: panel,
