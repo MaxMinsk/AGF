@@ -112,6 +112,19 @@ export type BucketAcquireSpec = {
    * one-bucket-per-color so their existing fixtures stay deterministic.
    */
   useInstanceColor?: boolean;
+  /**
+   * S50 manifest batching: opaque profile id (e.g. `std|R0.4|M0.2|E#7a4a08`).
+   * Cached in the BucketRecord on the BatchingSystem side; the adapter
+   * doesn't interpret it. Used only to widen the bucket key on the
+   * BatchingSystem side so different manifests don't collapse.
+   */
+  materialProfile?: string;
+  /** S50 manifest batching: standard material parameters. */
+  materialParams?: {
+    roughness?: number;
+    metalness?: number;
+    emissive?: string;
+  };
 };
 
 /**
@@ -828,7 +841,16 @@ export class ThreeRenderAdapter {
     // and each instance modulates via its own `instanceColor` attribute.
     // Material is compiled once with the attribute attached.
     const baseColor = spec.useInstanceColor === true ? "#ffffff" : spec.color ?? DEFAULT_COLOR;
-    const material = new MeshStandardMaterial({ color: new Color(baseColor) });
+    const materialOpts: ConstructorParameters<typeof MeshStandardMaterial>[0] = {
+      color: new Color(baseColor)
+    };
+    if (spec.materialParams !== undefined) {
+      const p = spec.materialParams;
+      if (p.roughness !== undefined) materialOpts.roughness = p.roughness;
+      if (p.metalness !== undefined) materialOpts.metalness = p.metalness;
+      if (p.emissive !== undefined) materialOpts.emissive = new Color(p.emissive);
+    }
+    const material = new MeshStandardMaterial(materialOpts);
     this.registerWithCsm(material);
     const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
     mesh.count = 0;

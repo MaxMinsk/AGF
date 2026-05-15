@@ -252,7 +252,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     // entities and skips them — no double-rendering as a single Mesh.
     const { createBatchingSystem } = await import("../render/systems/batching-system");
     const bs = createBatchingSystem(
-      { adapter: renderer.adapter, diagnostics },
+      {
+        adapter: renderer.adapter,
+        diagnostics,
+        ...(options.assetRegistry !== undefined ? { assetRegistry: options.assetRegistry } : {})
+      },
       options.autoBatchPrimitives === true ? { autoIncludePrimitives: true } : {}
     );
     if (!scheduler.has(bs.name)) scheduler.register(bs);

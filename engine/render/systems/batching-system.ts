@@ -115,6 +115,15 @@ type BucketRecord = InstancedRecord | BatchedRecord;
 export type BatchingDeps = {
   adapter: ThreeRenderAdapter;
   diagnostics?: DiagnosticsBus | undefined;
+  /**
+   * S50 GLB + manifest batching: when provided, BatchingSystem
+   * eagerly fetches loaded glb geometries + texture-less standard
+   * material manifests so multiple entities sharing the same mesh-ref
+   * / manifest collapse into one InstancedMesh bucket. Loading is
+   * async; entities stay on the single-Mesh fallback until the cache
+   * resolves.
+   */
+  assetRegistry?: import("../../runtime/asset-registry").AssetRegistry;
 };
 
 export type BatchingSystemHandle = System & {
@@ -153,6 +162,94 @@ export function createBatchingSystem(
   const bucketsByKey = new Map<string, BucketRecord>();
   const memberToBucket = new Map<EntityId, BucketRecord>();
   const warnedKeys = new Set<string>();
+
+  // S50 GLB batching: shared per-meshRef geometry cache. Each value is
+  // a clone of the GLB's first mesh geometry — buckets keep this clone
+  // for the lifetime of the bucket. "pending" prevents redundant
+  // re-fetches; "failed" stays as a permanent skip so the entity falls
+  // back to single-Mesh rendering forever.
+  type GeometrySlot = { kind: "ready"; geometry: import("three").BufferGeometry } | { kind: "pending" | "failed" };
+  const geometryCache = new Map<string, GeometrySlot>();
+
+  // S50 manifest batching: texture-less standard manifests collapse
+  // into a single bucket per (roughness, metalness, emissive) profile.
+  // Color goes per-instance via instanceColor. Anything with texture
+  // refs or non-standard shader stays on the single-Mesh path.
+  type ManifestSlot =
+    | { kind: "ready"; profileKey: string; color: string }
+    | { kind: "pending" | "skip" };
+  const manifestCache = new Map<string, ManifestSlot>();
+
+  function loadGeometry(meshRef: string): GeometrySlot {
+    const cached = geometryCache.get(meshRef);
+    if (cached !== undefined) return cached;
+    if (deps.assetRegistry === undefined) {
+      geometryCache.set(meshRef, { kind: "failed" });
+      return { kind: "failed" };
+    }
+    const pending: GeometrySlot = { kind: "pending" };
+    geometryCache.set(meshRef, pending);
+    void deps.assetRegistry
+      .get<import("../glb-loader").GlbAsset>(meshRef)
+      .then((asset) => {
+        // Walk the GLB scene; pick the first Mesh's geometry. Mirrors
+        // `findFirstMesh` in three-renderer.ts.
+        let sourceGeometry: import("three").BufferGeometry | undefined;
+        asset.scene.traverse((obj) => {
+          if (sourceGeometry !== undefined) return;
+          const maybeMesh = obj as { isMesh?: boolean; geometry?: import("three").BufferGeometry };
+          if (maybeMesh.isMesh === true && maybeMesh.geometry !== undefined) {
+            sourceGeometry = maybeMesh.geometry;
+          }
+        });
+        if (sourceGeometry === undefined) {
+          geometryCache.set(meshRef, { kind: "failed" });
+          return;
+        }
+        geometryCache.set(meshRef, { kind: "ready", geometry: sourceGeometry.clone() });
+      })
+      .catch(() => {
+        geometryCache.set(meshRef, { kind: "failed" });
+      });
+    return pending;
+  }
+
+  function loadManifest(materialRef: string): ManifestSlot {
+    const cached = manifestCache.get(materialRef);
+    if (cached !== undefined) return cached;
+    if (deps.assetRegistry === undefined) {
+      manifestCache.set(materialRef, { kind: "skip" });
+      return { kind: "skip" };
+    }
+    const pending: ManifestSlot = { kind: "pending" };
+    manifestCache.set(materialRef, pending);
+    void deps.assetRegistry
+      .get<import("../../runtime/asset-loaders/material-loader").MaterialManifest>(materialRef)
+      .then((manifest) => {
+        const shader = (manifest as { shader?: string }).shader ?? "standard";
+        // Bucket only standard PBR with no texture refs. Anything with
+        // map/normalMap/etc. stays on the single-Mesh path because the
+        // texture uniform can't vary per-instance without atlasing.
+        const m = manifest as Record<string, unknown>;
+        const hasTexture = Object.keys(m).some(
+          (k) => k.endsWith("Map") || k.endsWith("Texture")
+        );
+        if (shader !== "standard" || hasTexture) {
+          manifestCache.set(materialRef, { kind: "skip" });
+          return;
+        }
+        const roughness = typeof m["roughness"] === "number" ? m["roughness"] : 0.5;
+        const metalness = typeof m["metalness"] === "number" ? m["metalness"] : 0;
+        const emissive = typeof m["emissive"] === "string" ? m["emissive"] : "#000000";
+        const profileKey = `std|R${roughness}|M${metalness}|E${emissive}`;
+        const color = typeof m["color"] === "string" ? m["color"] : "#cccccc";
+        manifestCache.set(materialRef, { kind: "ready", profileKey, color });
+      })
+      .catch(() => {
+        manifestCache.set(materialRef, { kind: "skip" });
+      });
+    return pending;
+  }
 
   const releaseBucket = (record: BucketRecord): void => {
     if (record.path === "instanced") {
@@ -203,25 +300,40 @@ export function createBatchingSystem(
     renderer: MeshRendererComponent,
     batchable: BatchableComponent | undefined,
     cast: boolean,
-    receive: boolean
+    receive: boolean,
+    glbGeometry?: import("three").BufferGeometry | undefined,
+    manifestProfileKey?: string | undefined,
+    manifestColor?: string | undefined
   ): void => {
-    // M17-batchable-color-variants (S50): bucket key intentionally omits
-    // `renderer.color` so entities with different colours share a
-    // bucket. Per-instance colour is stamped via
-    // `adapter.setBucketInstanceColor` below; the bucket is allocated
-    // with `useInstanceColor: true` so the InstancedMesh carries the
-    // instanceColor attribute from compile time.
-    const bucketKey = `instanced|${renderer.mesh}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    // S50 bucket key embeds the geometry source (primitive name OR
+    // glb ref) and the manifest profile (or "_" for the default
+    // material). Color stays per-instance via instanceColor.
+    const materialKey = manifestProfileKey ?? "_";
+    const bucketKey = `instanced|${renderer.mesh}|${materialKey}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
     let record = bucketsByKey.get(bucketKey) as InstancedRecord | undefined;
     if (record === undefined) {
-      const geometry = createPrimitiveGeometry(renderer.mesh) ?? createPlaceholderGeometry();
-      const handle = deps.adapter.acquireBucket({
+      const geometry =
+        glbGeometry ?? createPrimitiveGeometry(renderer.mesh) ?? createPlaceholderGeometry();
+      const acquireSpec: Parameters<typeof deps.adapter.acquireBucket>[0] = {
         geometry,
         capacity: DEFAULT_BUCKET_CAPACITY,
         useInstanceColor: true,
         castShadow: cast,
         receiveShadow: receive
-      });
+      };
+      if (manifestProfileKey !== undefined) {
+        acquireSpec.materialProfile = manifestProfileKey;
+        // profileKey format: `std|R<roughness>|M<metalness>|E<emissive>`.
+        const match = manifestProfileKey.match(/^std\|R([^|]+)\|M([^|]+)\|E(.+)$/);
+        if (match !== null) {
+          acquireSpec.materialParams = {
+            roughness: Number.parseFloat(match[1]!),
+            metalness: Number.parseFloat(match[2]!),
+            emissive: match[3]!
+          };
+        }
+      }
+      const handle = deps.adapter.acquireBucket(acquireSpec);
       record = {
         path: "instanced",
         handle,
@@ -302,10 +414,10 @@ export function createBatchingSystem(
         dirtyInstancedBuckets.add(record.handle);
       }
     }
-    // Stamp per-instance colour. Falls back to white when the renderer
-    // didn't declare one (matches the pre-S50 default-color behaviour).
+    // Stamp per-instance colour. Priority: renderer.color (authored
+    // override) > manifest.color (from the loaded material) > white.
     // Cached so unchanged colours don't dirty the instanceColor buffer.
-    const desiredColor = renderer.color ?? "#ffffff";
+    const desiredColor = renderer.color ?? manifestColor ?? "#ffffff";
     if (record.lastColor.get(entityId) !== desiredColor) {
       deps.adapter.setBucketInstanceColor(record.handle, instance, desiredColor);
       record.lastColor.set(entityId, desiredColor);
@@ -445,29 +557,44 @@ export function createBatchingSystem(
         releaseEntity(world, entityId);
         continue;
       }
-      // Auto-batch mode only batches primitive meshes — anything that
-      // resolves to a glb / manifest / LOD chain falls back to the
-      // single-Mesh path.
+      // Auto-batch mode skips entities that BatchingSystem can't yet
+      // handle (LOD swap, async-loading geometry that hasn't resolved).
       if (autoIncludePrimitives && batchable === undefined) {
-        if (!PRIMITIVE_MESHES.has(renderer.mesh)) {
-          releaseEntity(world, entityId);
-          continue;
-        }
         if (world.hasComponent(entityId, "LOD")) {
           releaseEntity(world, entityId);
           continue;
         }
       }
-      if (isExternalMeshRef(renderer.mesh)) {
-        // GLB mesh batching is deferred — async geometry loading still
-        // belongs to MeshLifecycle until M25 ASSET-compression lands.
-        releaseEntity(world, entityId);
-        continue;
+      // S50 GLB batching: a non-primitive mesh ref means we need the
+      // loaded BufferGeometry from AssetRegistry. While it loads, the
+      // entity falls back to single-Mesh rendering.
+      let glbGeometry: import("three").BufferGeometry | undefined;
+      if (!PRIMITIVE_MESHES.has(renderer.mesh)) {
+        if (!isExternalMeshRef(renderer.mesh)) {
+          // Unknown non-primitive non-external — leave to single-Mesh.
+          releaseEntity(world, entityId);
+          continue;
+        }
+        const slot = loadGeometry(renderer.mesh);
+        if (slot.kind !== "ready") {
+          releaseEntity(world, entityId);
+          continue;
+        }
+        glbGeometry = slot.geometry;
       }
+      // S50 manifest batching: texture-less standard manifests share a
+      // bucket per (roughness, metalness, emissive). Color goes per-
+      // instance below.
+      let manifestProfileKey: string | undefined;
+      let manifestColor: string | undefined;
       if (renderer.material !== undefined) {
-        // Manifest path is M17-mat; for now exclude manifest-coloured meshes.
-        releaseEntity(world, entityId);
-        continue;
+        const slot = loadManifest(renderer.material);
+        if (slot.kind !== "ready") {
+          releaseEntity(world, entityId);
+          continue;
+        }
+        manifestProfileKey = slot.profileKey;
+        manifestColor = slot.color;
       }
       const flags = world.getComponent<ShadowFlagsComponent>(entityId, SHADOW_FLAGS);
       const cast = flags?.cast !== false;
@@ -476,7 +603,17 @@ export function createBatchingSystem(
       if (path === "batched") {
         updateBatched(world, entityId, renderer, batchable, cast, receive);
       } else {
-        updateInstanced(world, entityId, renderer, batchable, cast, receive);
+        updateInstanced(
+          world,
+          entityId,
+          renderer,
+          batchable,
+          cast,
+          receive,
+          glbGeometry,
+          manifestProfileKey,
+          manifestColor
+        );
       }
     }
     // S50 perf: recompute the bounding sphere only on buckets that
