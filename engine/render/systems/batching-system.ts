@@ -65,7 +65,7 @@ type BatchableComponent = {
    *               varies and is stored per-instance as a BatchedGeometryId.
    * Default "instanced".
    */
-  path?: "instanced" | "batched";
+  path?: "instanced" | "batched" | "batched-bvh";
 };
 type MeshRendererComponent = { mesh: string; color?: string; material?: string };
 type ShadowFlagsComponent = { cast?: boolean; receive?: boolean };
@@ -104,6 +104,8 @@ type BatchedRecord = {
   color: string | undefined;
   shadowCast: boolean;
   shadowReceive: boolean;
+  /** S53 M17-bvh-extension: true when the bucket was acquired for the BVH path. */
+  useBvh: boolean;
   /** mesh-ref → adapter geometry id (added at most once per mesh per bucket). */
   geometries: Map<string, BatchedGeometryId>;
   /** entity id → { meshRef, instance index in BatchedMesh } so the system can
@@ -153,7 +155,7 @@ export type BatchingOptions = {
    * `BatchedMesh` (per-instance frustum culling on, vertex shader
    * skipped for off-screen instances). Default "instanced".
    */
-  defaultPath?: "instanced" | "batched";
+  defaultPath?: "instanced" | "batched" | "batched-bvh";
 };
 
 export function createBatchingSystem(
@@ -162,7 +164,7 @@ export function createBatchingSystem(
 ): BatchingSystemHandle {
   const name = options.name ?? "render.batching";
   const autoIncludePrimitives = options.autoIncludePrimitives === true;
-  const defaultPath: "instanced" | "batched" = options.defaultPath ?? "instanced";
+  const defaultPath: "instanced" | "batched" | "batched-bvh" = options.defaultPath ?? "instanced";
   // Built-in primitive set must mirror `createPrimitiveGeometry` in
   // mesh-handle-registry.ts. The auto-batch path falls back to single-
   // Mesh rendering for any mesh that isn't a primitive.
@@ -449,7 +451,8 @@ export function createBatchingSystem(
     renderer: MeshRendererComponent,
     batchable: BatchableComponent | undefined,
     cast: boolean,
-    receive: boolean
+    receive: boolean,
+    useBvh: boolean
   ): void => {
     // S51 bugfix: bucket key MUST omit renderer.color — same as the
     // InstancedMesh path since S50. Per-instance colour is uploaded via
@@ -458,7 +461,7 @@ export function createBatchingSystem(
     // square the colour (which made the scene visibly darker on
     // shadows-bench when path: "batched" was first enabled).
     const batchedSpec: BucketSpec = {
-      kind: "batched",
+      kind: useBvh ? "batched-bvh" : "batched",
       shadowCast: cast,
       shadowReceive: receive,
       ...(batchable?.group !== undefined ? { group: batchable.group } : {})
@@ -471,7 +474,8 @@ export function createBatchingSystem(
         maxVertices: BATCHED_MAX_VERTICES,
         maxIndices: BATCHED_MAX_INDICES,
         castShadow: cast,
-        receiveShadow: receive
+        receiveShadow: receive,
+        useBvh
       });
       record = {
         path: "batched",
@@ -480,6 +484,7 @@ export function createBatchingSystem(
         color: undefined,
         shadowCast: cast,
         shadowReceive: receive,
+        useBvh,
         geometries: new Map(),
         members: new Map()
       };
@@ -633,9 +638,9 @@ export function createBatchingSystem(
       const flags = world.getComponent<ShadowFlagsComponent>(entityId, SHADOW_FLAGS);
       const cast = flags?.cast !== false;
       const receive = flags?.receive !== false;
-      const path: "instanced" | "batched" = batchable?.path ?? defaultPath;
-      if (path === "batched") {
-        updateBatched(world, entityId, renderer, batchable, cast, receive);
+      const path: "instanced" | "batched" | "batched-bvh" = batchable?.path ?? defaultPath;
+      if (path === "batched" || path === "batched-bvh") {
+        updateBatched(world, entityId, renderer, batchable, cast, receive, path === "batched-bvh");
       } else {
         updateInstanced(
           world,
@@ -660,6 +665,16 @@ export function createBatchingSystem(
       deps.adapter.recomputeBucketBoundingSphere(handle);
     }
     dirtyInstancedBuckets.clear();
+
+    // S53 M17-bvh-extension: now that this frame's adds have settled,
+    // light up the BVH on any batched-bvh bucket that has instances
+    // but no BVH yet. Idempotent — `ensureBucketBvh` no-ops once the
+    // BVH is built, and the extension auto-updates from then on.
+    for (const record of bucketsByKey.values()) {
+      if (record.path === "batched" && record.useBvh) {
+        deps.adapter.ensureBucketBvh(record.handle);
+      }
+    }
   };
 
   return {

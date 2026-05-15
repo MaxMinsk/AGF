@@ -72,7 +72,7 @@ export type ProjectMeta = {
       /** S50 auto-batch: include every primitive-mesh entity in the batcher by default. */
       auto?: boolean;
       /** S51 bucket path default: `instanced` (default) or `batched`. */
-      path?: "instanced" | "batched";
+      path?: "instanced" | "batched" | "batched-bvh";
     };
   };
   /**

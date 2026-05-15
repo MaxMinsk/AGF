@@ -81,6 +81,14 @@ import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
+import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
+
+// S53 M17-bvh-extension: the extension patches BatchedMesh.prototype
+// once at module load. Idempotent — safe to call multiple times across
+// HMR reloads. The patch is a precondition for the BVH-augmented
+// `batched-bvh` path; vanilla `batched` is unaffected because the
+// extension only activates when `mesh.computeBVH()` is called.
+extendBatchedMeshPrototype();
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -191,6 +199,15 @@ export type BatchedBucketAcquireSpec = {
   color?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
+  /**
+   * S53 M17-bvh-extension: when true, the adapter tags the bucket for
+   * BVH-accelerated per-instance frustum culling. Call
+   * `ensureBucketBvh(handle)` once initial instances are added — the
+   * BVH builds lazily and auto-updates from then on. Cheaper than the
+   * default O(N) bounding-sphere walk when many instances are
+   * off-screen.
+   */
+  useBvh?: boolean;
 };
 
 export type LightKind = "directional" | "point" | "ambient" | "spot" | "hemisphere" | "rect-area";
@@ -1118,7 +1135,33 @@ export class ThreeRenderAdapter {
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
     this.scene.add(mesh);
-    return this.batchedBuckets.acquire({ mesh, liveInstances: new Set() });
+    return this.batchedBuckets.acquire({
+      mesh,
+      liveInstances: new Set(),
+      useBvh: spec.useBvh === true,
+      bvhBuilt: false
+    });
+  }
+
+  /**
+   * S53 M17-bvh-extension: builds the BVH on the underlying
+   * BatchedMesh once at least one instance exists. No-op when the
+   * bucket wasn't acquired with `useBvh: true`, when the BVH has
+   * already been built, or when the bucket is still empty.
+   * BatchingSystem calls this once per frame for `batched-bvh` buckets
+   * so the BVH lights up after initial population without exposing
+   * three.ez internals to gameplay.
+   */
+  ensureBucketBvh(handle: BatchedBucketHandle): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined) return;
+    if (!entry.useBvh || entry.bvhBuilt) return;
+    if (entry.liveInstances.size === 0) return;
+    // The extension augments BatchedMesh.prototype with `computeBVH()`;
+    // the type isn't visible to TS without a module declaration, so we
+    // cast through `unknown`.
+    (entry.mesh as unknown as { computeBVH: () => void }).computeBVH();
+    entry.bvhBuilt = true;
   }
 
   releaseBatchedBucket(handle: BatchedBucketHandle): void {
@@ -1265,11 +1308,13 @@ export class ThreeRenderAdapter {
           maxVertices: opts.maxVertices,
           maxIndices: opts.maxIndices,
           castShadow: spec.shadowCast,
-          receiveShadow: spec.shadowReceive
+          receiveShadow: spec.shadowReceive,
+          // S53 M17-bvh-extension: only the `batched-bvh` variant gets
+          // the BVH-accelerated frustum-cull path on the underlying
+          // BatchedMesh. `batched` stays on the default O(N) walk.
+          useBvh: spec.kind === "batched-bvh"
         };
         if (opts.color !== undefined) batchedSpec.color = opts.color;
-        // S53 BVH variant lands in story 5; this kind stays compatible
-        // with the vanilla BatchedMesh path until then.
         return { kind: spec.kind, handle: this.acquireBatchedBucket(batchedSpec) };
       }
     }
@@ -2043,6 +2088,10 @@ type BucketEntry = {
 type BatchedBucketEntry = {
   mesh: BatchedMesh;
   liveInstances: Set<InstanceIndex>;
+  /** S53 M17-bvh-extension: opt-in flag set on `acquireBatchedBucket({ useBvh: true })`. */
+  useBvh: boolean;
+  /** S53 M17-bvh-extension: flips true after the first `computeBVH()` call. */
+  bvhBuilt: boolean;
 };
 
 /** Fill an existing Quaternion from an Euler XYZ rotation (radians) — XYZ order matches Three.js default. */

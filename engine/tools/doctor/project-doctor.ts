@@ -90,7 +90,7 @@ export type BatchingConfigReport = {
   /** project.json#render.batching.auto (defaults to false when absent). */
   autoBatch: boolean;
   /** project.json#render.batching.path — `instanced` (default) or `batched`. */
-  path: "instanced" | "batched";
+  path: "instanced" | "batched" | "batched-bvh";
   /** Renderable entities whose mesh is a built-in primitive (box / sphere / plane). */
   primitiveCount: number;
   /** Distinct bucket keys among the primitive entities (mesh + material profile + shadow flags + group). */
@@ -381,11 +381,11 @@ function summarizeBatching(
   // S53). Only an explicit `auto: false` keeps the legacy single-Mesh
   // path; absent / true → enabled.
   let autoBatch = true;
-  let path: "instanced" | "batched" = "instanced";
+  let path: "instanced" | "batched" | "batched-bvh" = "instanced";
   if (existsSync(projectPath)) {
     try {
       const project = JSON.parse(readFileSync(projectPath, "utf8")) as {
-        render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" } };
+        render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" | "batched-bvh" } };
       };
       if (project.render?.batching?.auto === false) autoBatch = false;
       if (project.render?.batching?.path !== undefined) {

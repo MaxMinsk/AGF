@@ -28,6 +28,8 @@ type BatchedAdapterStub = {
   transforms: Array<{ handle: BatchedBucketHandle; instance: InstanceIndex; world: ResolvedWorld }>;
   colors: Array<{ handle: BatchedBucketHandle; instance: InstanceIndex; color: string }>;
   liveByBucket: Map<BatchedBucketHandle, Set<InstanceIndex>>;
+  /** S53: handles on which `ensureBucketBvh` has been called. */
+  bvhBuilt: Set<BatchedBucketHandle>;
 };
 
 function stubBatchedAdapter(): BatchedAdapterStub & ThreeRenderAdapter {
@@ -40,7 +42,8 @@ function stubBatchedAdapter(): BatchedAdapterStub & ThreeRenderAdapter {
     addedInstances: [],
     transforms: [],
     colors: [],
-    liveByBucket: new Map()
+    liveByBucket: new Map(),
+    bvhBuilt: new Set()
   };
   return Object.assign(
     {} as unknown as ThreeRenderAdapter,
@@ -93,6 +96,12 @@ function stubBatchedAdapter(): BatchedAdapterStub & ThreeRenderAdapter {
         color: string
       ): void {
         stub.colors.push({ handle, instance, color });
+      },
+      ensureBucketBvh(handle: BatchedBucketHandle): void {
+        // S53 stub: record per-bucket BVH activation; the real adapter
+        // delegates to `mesh.computeBVH()` from
+        // `@three.ez/batched-mesh-extensions`.
+        stub.bvhBuilt.add(handle);
       },
       batchedBucketLiveCount(handle: BatchedBucketHandle): number {
         return stub.liveByBucket.get(handle)?.size ?? 0;
@@ -190,5 +199,44 @@ describe("BatchingSystem batched path (S51)", () => {
 
     expect(adapter.acquired).toHaveLength(1);
     expect(adapter.addedInstances).toHaveLength(1);
+  });
+
+  it("routes path: 'batched-bvh' through useBvh + calls ensureBucketBvh after instances added (S53)", () => {
+    const adapter = stubBatchedAdapter();
+    const world = new World();
+    for (const id of ["a", "b", "c"]) {
+      world.addEntity(id);
+      world.setComponent(id, "MeshRenderer", { mesh: "box", color: "#ff0000" });
+      world.setComponent(id, "Batchable", { path: "batched-bvh" });
+      world.setComponent(id, "LocalToWorld", {
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+    }
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.acquired[0]?.spec.useBvh).toBe(true);
+    // After instances land, BatchingSystem lights up the BVH.
+    expect(adapter.bvhBuilt.size).toBe(1);
+    expect(adapter.bvhBuilt.has(adapter.acquired[0]!.handle)).toBe(true);
+  });
+
+  it("vanilla batched path does NOT call ensureBucketBvh", () => {
+    const adapter = stubBatchedAdapter();
+    const world = new World();
+    world.addEntity("a");
+    world.setComponent("a", "MeshRenderer", { mesh: "box" });
+    world.setComponent("a", "Batchable", { path: "batched" });
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.acquired[0]?.spec.useBvh).toBeFalsy();
+    expect(adapter.bvhBuilt.size).toBe(0);
   });
 });
