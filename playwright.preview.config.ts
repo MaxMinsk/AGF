@@ -13,8 +13,7 @@ import { defineConfig, devices } from "@playwright/test";
 const SMOKE_TESTS = [
   /app\.spec\.ts/,
   /project-switcher\.spec\.ts/,
-  /hello-3d-hierarchy\.spec\.ts/,
-  /playtest-runner\.spec\.ts/
+  /hello-3d-hierarchy\.spec\.ts/
 ];
 
 const HMR_AND_DEV_BRIDGE_TESTS = [

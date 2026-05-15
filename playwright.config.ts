@@ -24,9 +24,13 @@ const SMOKE_TESTS = [
   /app\.spec\.ts/,
   /project-switcher\.spec\.ts/,
   /hello-3d-hierarchy\.spec\.ts/,
-  /dev-bridge\.spec\.ts/,
-  /playtest-runner\.spec\.ts/
+  /dev-bridge\.spec\.ts/
 ];
+// playtest-runner.spec.ts intentionally NOT in smoke. Beacon's playtests
+// chain pickup → carry → deposit through Rapier physics + the scoring
+// system; under SwiftShader software-WebGL on ubuntu-latest the chain
+// takes longer than the per-step ceiling agents would expect from a
+// PR-required gate. Lives in `chromium` (full dev nightly) instead.
 
 const HMR_AND_DEV_BRIDGE_TESTS = [
   /hmr-stress\.spec\.ts/,
