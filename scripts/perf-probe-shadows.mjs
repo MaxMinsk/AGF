@@ -20,14 +20,20 @@ import { chromium } from "@playwright/test";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const projectPath = resolve(repoRoot, "examples/shadows-bench/project.json");
+const projectId = (function getProjectId() {
+  // Parse --projectId early so the targeted project.json is correct.
+  const idx = process.argv.indexOf("--projectId");
+  return idx >= 0 && idx + 1 < process.argv.length ? process.argv[idx + 1] : "shadows-bench";
+})();
+const projectPath = resolve(repoRoot, `examples/${projectId}/project.json`);
 
 const args = parseArgs(process.argv.slice(2));
 const durationMs = Number(args.durationMs ?? 5000);
 const sampleMs = Number(args.sampleMs ?? 250);
 const settleMs = Number(args.settleMs ?? 1500);
 const serverUrl = args.server ?? "http://127.0.0.1:5173";
-const projectId = args.projectId ?? "shadows-bench";
+// projectId was resolved above (before const projectPath); keep the
+// alias to avoid disturbing downstream readers.
 const only = args.only !== undefined ? new Set(args.only.split(",")) : undefined;
 
 function parseArgs(argv) {

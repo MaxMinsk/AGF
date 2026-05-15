@@ -59,6 +59,32 @@ export function createDynamicShadowSystem(
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
   let autoUpdateDisabled = false;
+  // S53 BEACON-shadow-caster-tag follow-up: don't disable
+  // `shadowMap.autoUpdate` until we've observed at least one real
+  // LTW change. The previous "first-sighting counts as dirty" path
+  // turned autoUpdate off immediately, which on beacon-world left
+  // the shadow textures empty until the drone actually moved —
+  // baking on frame 1 with autoUpdate=false + needsUpdate=true
+  // didn't survive across subsequent renders for reasons we
+  // didn't fully isolate (probably related to three.js's per-
+  // light shadow-map allocation order). The new contract:
+  //
+  // - While `movementSeen === false`: leave autoUpdate at the
+  //   three.js default (true). The renderer bakes shadows every
+  //   frame the normal way. DSS is effectively a no-op for the
+  //   scene's idle phase.
+  // - As soon as any tagged-dynamic caster's LTW shifts beyond
+  //   EPSILON, flip `movementSeen = true`, disable autoUpdate,
+  //   call `invalidateShadowMap()` so the now-current pose bakes
+  //   once, then drive subsequent re-bakes only on further
+  //   movement (the original S52 perf goal).
+  //
+  // Trade-off: scenes whose dynamic casters never move pay the
+  // full per-frame shadow-bake cost forever. That matches the
+  // pre-S52 baseline and is the right default — a shadow bug at
+  // startup is worse than missing a perf saving on a perfectly
+  // idle scene.
+  let movementSeen = false;
   const lastWorld = new Map<EntityId, [number, number, number, number, number, number, number, number, number]>();
 
   const frameUpdate = (context: SystemContext): void => {
@@ -67,6 +93,7 @@ export function createDynamicShadowSystem(
       query = world.createQuery([SHADOW_CASTER, LOCAL_TO_WORLD]);
       cachedWorld = world;
       autoUpdateDisabled = false;
+      movementSeen = false;
       lastWorld.clear();
     }
     const handle = query;
@@ -93,9 +120,11 @@ export function createDynamicShadowSystem(
         ltw.scale[0] ?? 1, ltw.scale[1] ?? 1, ltw.scale[2] ?? 1
       ];
       if (prev === undefined) {
-        // First sighting → counts as dirty so the initial bake happens
-        // even after we flip autoUpdate off below.
-        dirty = true;
+        // First sighting — record but DON'T mark dirty. While
+        // autoUpdate is still at the three.js default (`true`)
+        // there's no point invalidating; three.js bakes every
+        // frame anyway. We need a REAL movement to justify the
+        // autoUpdate flip.
         lastWorld.set(id, next);
         continue;
       }
@@ -127,15 +156,24 @@ export function createDynamicShadowSystem(
       return;
     }
 
-    if (!autoUpdateDisabled) {
+    // Flip movementSeen the first frame we observe a real LTW
+    // change. From this point on the system takes over: autoUpdate
+    // goes off and we invalidate on every subsequent dirty frame.
+    if (dirty) movementSeen = true;
+
+    if (!autoUpdateDisabled && movementSeen) {
       deps.adapter.setShadowMapAutoUpdate(false);
       autoUpdateDisabled = true;
-      // setShadowMapAutoUpdate(false) already triggers one final bake.
-      // We still mark dirty below if any caster moved, so the cache
-      // stays current.
+      // setShadowMapAutoUpdate(false) already triggers one final
+      // bake via `needsUpdate=true`, so the just-moved pose lands
+      // in the shadow texture immediately.
     }
 
-    if (dirty) {
+    // Subsequent dirty frames re-bake on demand. While autoUpdate
+    // is still on (no movement yet seen), three.js bakes every
+    // frame on its own — calling invalidateShadowMap() here would
+    // be redundant.
+    if (dirty && autoUpdateDisabled) {
       deps.adapter.invalidateShadowMap();
     }
   };

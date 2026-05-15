@@ -46,7 +46,7 @@ export type RuntimeOptions = {
    * per (mesh + material + shadow + group). `"batched"` uses BatchedMesh
    * (per-instance frustum culling) per (material + shadow + group).
    */
-  batchingPath?: "instanced" | "batched";
+  batchingPath?: "instanced" | "batched" | "batched-bvh";
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;

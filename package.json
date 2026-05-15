@@ -79,6 +79,7 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
+    "@three.ez/batched-mesh-extensions": "^0.0.11",
     "@types/three": "^0.184.1",
     "ajv": "^8.20.0",
     "three": "^0.184.0"

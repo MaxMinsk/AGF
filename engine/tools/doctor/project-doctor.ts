@@ -90,7 +90,7 @@ export type BatchingConfigReport = {
   /** project.json#render.batching.auto (defaults to false when absent). */
   autoBatch: boolean;
   /** project.json#render.batching.path — `instanced` (default) or `batched`. */
-  path: "instanced" | "batched";
+  path: "instanced" | "batched" | "batched-bvh";
   /** Renderable entities whose mesh is a built-in primitive (box / sphere / plane). */
   primitiveCount: number;
   /** Distinct bucket keys among the primitive entities (mesh + material profile + shadow flags + group). */
@@ -103,6 +103,17 @@ export type BatchingConfigReport = {
   explicitBatchableCount: number;
   /** Entities with `Batchable: { enabled: false }` — opted out even with auto-batch on. */
   optedOutCount: number;
+  /**
+   * S53 DOCTOR-renderer-pool-section: per-path entity count with the
+   * per-entity `Batchable.path` override applied on top of the
+   * project-level `render.batching.path` default. Lets agents see at a
+   * glance which pool path each scene actually targets.
+   */
+  pathDistribution: {
+    instanced: number;
+    batched: number;
+    batchedBvh: number;
+  };
 };
 
 export type DoctorReport = {
@@ -234,8 +245,12 @@ export function runDoctor(
   const batching = summarizeBatching(projectDir, batchCandidates);
   const primitivePotentialSavings = batching.primitiveCount - batching.primitiveBucketCount;
   if (!batching.autoBatch && primitivePotentialSavings > 0) {
+    // S53: default flipped to true, so an explicit `auto: false` is
+    // the only reason a primitive-rich scene would still be in the
+    // single-Mesh path. Surface the explicit opt-out so the agent
+    // knows the value was set deliberately, not forgotten.
     recommendations.push(
-      `Auto-batch is off — set \`render.batching.auto: true\` in project.json to collapse ${batching.primitiveCount} primitive entit${batching.primitiveCount === 1 ? "y" : "ies"} into ${batching.primitiveBucketCount} bucket(s) (~${primitivePotentialSavings} draw call(s) saved).`
+      `Auto-batch is explicitly disabled (\`render.batching.auto: false\`) — collapsing ${batching.primitiveCount} primitive entit${batching.primitiveCount === 1 ? "y" : "ies"} into ${batching.primitiveBucketCount} bucket(s) would save ~${primitivePotentialSavings} draw call(s). Remove the field (or set to true) to take the default-on path.`
     );
   } else if (batchCandidates.potentialDrawCallSavings > 0 && primitivePotentialSavings === 0) {
     recommendations.push(
@@ -263,6 +278,15 @@ export function runDoctor(
   if (shadows.dynamicCasterCount === 0 && shadows.autoUpdate) {
     recommendations.push(
       `No \`ShadowCaster { dynamic: true }\` entities — every caster re-bakes every frame even though nothing moves. Tag the entities that actually animate (player / NPCs / animated props) so the renderer can skip the per-frame shadow pass when they're idle.`
+    );
+  }
+  // S53 DOCTOR-renderer-pool-section: recommend the BVH-augmented
+  // BatchedMesh path when the project uses `batched` and the scene
+  // shape (lots of primitives) is the one S53's perf-rerun showed
+  // strictly dominates vanilla `batched`.
+  if (batching.path === "batched" && (batching.primitiveCount > 0 || batching.externalCount > 0)) {
+    recommendations.push(
+      `\`render.batching.path\` is the legacy "batched" — try "batched-bvh" (S53). The BVH-augmented path strictly dominated vanilla batched on shadows-bench (renderMs −23 %, triangles −81 %) thanks to the BVH walk replacing the O(N) per-instance frustum loop.`
     );
   }
 
@@ -373,14 +397,17 @@ function summarizeBatching(
   batchCandidates: BatchCandidateReport
 ): BatchingConfigReport {
   const projectPath = resolve(projectDir, "project.json");
-  let autoBatch = false;
-  let path: "instanced" | "batched" = "instanced";
+  // S53 M17-batch-default-on: default is now true (was false before
+  // S53). Only an explicit `auto: false` keeps the legacy single-Mesh
+  // path; absent / true → enabled.
+  let autoBatch = true;
+  let path: "instanced" | "batched" | "batched-bvh" = "instanced";
   if (existsSync(projectPath)) {
     try {
       const project = JSON.parse(readFileSync(projectPath, "utf8")) as {
-        render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" } };
+        render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" | "batched-bvh" } };
       };
-      autoBatch = project.render?.batching?.auto === true;
+      if (project.render?.batching?.auto === false) autoBatch = false;
       if (project.render?.batching?.path !== undefined) {
         path = project.render.batching.path;
       }
@@ -403,7 +430,21 @@ function summarizeBatching(
     }
   }
 
-  const { explicitBatchableCount, optedOutCount } = countExplicitBatchable(projectDir);
+  const { explicitBatchableCount, optedOutCount, pathOverrides } = countExplicitBatchable(projectDir);
+
+  // Each batchable entity lands on `Batchable.path` if set, else the
+  // project-level `path` default. Total batchable count = primitives
+  // + externals minus opt-outs (those go to the single-Mesh path,
+  // not counted under any pool).
+  const totalBatchable = Math.max(0, primitiveCount + externalCount - optedOutCount);
+  const overriddenTotal =
+    pathOverrides.instanced + pathOverrides.batched + pathOverrides.batchedBvh;
+  const defaultEntitiesCount = Math.max(0, totalBatchable - overriddenTotal);
+  const pathDistribution = {
+    instanced: pathOverrides.instanced + (path === "instanced" ? defaultEntitiesCount : 0),
+    batched: pathOverrides.batched + (path === "batched" ? defaultEntitiesCount : 0),
+    batchedBvh: pathOverrides.batchedBvh + (path === "batched-bvh" ? defaultEntitiesCount : 0)
+  };
 
   return {
     autoBatch,
@@ -413,19 +454,22 @@ function summarizeBatching(
     externalCount,
     externalBucketCount: externalBuckets.size,
     explicitBatchableCount,
-    optedOutCount
+    optedOutCount,
+    pathDistribution
   };
 }
 
 function countExplicitBatchable(projectDir: string): {
   explicitBatchableCount: number;
   optedOutCount: number;
+  pathOverrides: { instanced: number; batched: number; batchedBvh: number };
 } {
   const scenesDir = resolve(projectDir, "scenes");
   let explicitBatchableCount = 0;
   let optedOutCount = 0;
+  const pathOverrides = { instanced: 0, batched: 0, batchedBvh: 0 };
   if (!existsSync(scenesDir) || !statSync(scenesDir).isDirectory()) {
-    return { explicitBatchableCount, optedOutCount };
+    return { explicitBatchableCount, optedOutCount, pathOverrides };
   }
   const stack: string[] = [scenesDir];
   while (stack.length > 0) {
@@ -447,7 +491,7 @@ function countExplicitBatchable(projectDir: string): {
       }
       for (const entity of scene.entities ?? []) {
         const batchable = entity.components?.["Batchable"] as
-          | { enabled?: boolean }
+          | { enabled?: boolean; path?: "instanced" | "batched" | "batched-bvh" }
           | undefined;
         if (batchable === undefined) continue;
         if (batchable.enabled === false) {
@@ -455,10 +499,17 @@ function countExplicitBatchable(projectDir: string): {
         } else {
           explicitBatchableCount += 1;
         }
+        // Path override counts a renderable entity even when
+        // batchable.enabled isn't false; tracked separately so
+        // the path distribution and explicit count don't leak
+        // into each other.
+        if (batchable.path === "instanced") pathOverrides.instanced += 1;
+        else if (batchable.path === "batched") pathOverrides.batched += 1;
+        else if (batchable.path === "batched-bvh") pathOverrides.batchedBvh += 1;
       }
     }
   }
-  return { explicitBatchableCount, optedOutCount };
+  return { explicitBatchableCount, optedOutCount, pathOverrides };
 }
 
 function measureBundles(
@@ -621,8 +672,8 @@ export function formatDoctor(report: DoctorReport): string {
 export function formatBatching(report: BatchingConfigReport): string {
   const lines: string[] = [];
   const autoLabel = report.autoBatch
-    ? "ON (project.json#render.batching.auto)"
-    : "OFF (set render.batching.auto: true in project.json)";
+    ? "ON (default since S53; explicit override via project.json#render.batching.auto)"
+    : "OFF (explicit `render.batching.auto: false` in project.json — default would be ON)";
   lines.push(`Batching: auto=${autoLabel}, path=${report.path}`);
   if (report.primitiveCount > 0) {
     const savings = report.primitiveCount - report.primitiveBucketCount;
@@ -643,6 +694,23 @@ export function formatBatching(report: BatchingConfigReport): string {
   }
   if (report.optedOutCount > 0) {
     lines.push(`  opted out (Batchable.enabled=false): ${report.optedOutCount}`);
+  }
+  // S53 DOCTOR-renderer-pool-section: per-path entity distribution.
+  // Only worth printing when ≥1 entity actually targets a non-default
+  // path — otherwise the project-level `path=...` line above already
+  // carries the same information.
+  const dist = report.pathDistribution;
+  const distTotal = dist.instanced + dist.batched + dist.batchedBvh;
+  const nonDefaultPaths =
+    (report.path !== "instanced" && dist.instanced > 0) ||
+    (report.path !== "batched" && dist.batched > 0) ||
+    (report.path !== "batched-bvh" && dist.batchedBvh > 0);
+  if (distTotal > 0 && nonDefaultPaths) {
+    const parts: string[] = [];
+    if (dist.instanced > 0) parts.push(`${dist.instanced} instanced`);
+    if (dist.batched > 0) parts.push(`${dist.batched} batched`);
+    if (dist.batchedBvh > 0) parts.push(`${dist.batchedBvh} batched-bvh`);
+    lines.push(`  path distribution (with per-entity overrides): ${parts.join(", ")}`);
   }
   return lines.join("\n");
 }

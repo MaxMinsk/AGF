@@ -79,6 +79,16 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CubeTextureLoader } from "three";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
+import { RenderPoolRegistry } from "./render-pool-registry";
+import type { BucketSpec, PoolHandle } from "./bucket-spec";
+import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
+
+// S53 M17-bvh-extension: the extension patches BatchedMesh.prototype
+// once at module load. Idempotent — safe to call multiple times across
+// HMR reloads. The patch is a precondition for the BVH-augmented
+// `batched-bvh` path; vanilla `batched` is unaffected because the
+// extension only activates when `mesh.computeBVH()` is called.
+extendBatchedMeshPrototype();
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -151,6 +161,34 @@ export type ParticlePoolAcquireSpec = {
 export type BatchedBucketHandle = number;
 export type BatchedGeometryId = number;
 
+/**
+ * S53 RENDER-pool-handle-union: construction-only options for
+ * `acquirePool`. Identity options (`shadowCast` / `shadowReceive` /
+ * `materialProfile` / `group`) come in via `BucketSpec`; this carries
+ * the per-kind GL allocation params that the underlying
+ * `acquireBucket` / `acquireBatchedBucket` methods need.
+ */
+export type PoolAcquireOptions =
+  | {
+      kind: "instanced";
+      geometry: BufferGeometry;
+      capacity: number;
+      useInstanceColor?: boolean;
+      color?: string;
+      materialParams?: {
+        roughness?: number;
+        metalness?: number;
+        emissive?: string;
+      };
+    }
+  | {
+      kind: "batched";
+      maxInstances: number;
+      maxVertices: number;
+      maxIndices: number;
+      color?: string;
+    };
+
 export type BatchedBucketAcquireSpec = {
   /** Maximum instances the BatchedMesh ring will hold. Grow with resize (not supported in v0). */
   maxInstances: number;
@@ -161,6 +199,15 @@ export type BatchedBucketAcquireSpec = {
   color?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
+  /**
+   * S53 M17-bvh-extension: when true, the adapter tags the bucket for
+   * BVH-accelerated per-instance frustum culling. Call
+   * `ensureBucketBvh(handle)` once initial instances are added — the
+   * BVH builds lazily and auto-updates from then on. Cheaper than the
+   * default O(N) bounding-sphere walk when many instances are
+   * off-screen.
+   */
+  useBvh?: boolean;
 };
 
 export type LightKind = "directional" | "point" | "ambient" | "spot" | "hemisphere" | "rect-area";
@@ -459,15 +506,18 @@ export class ThreeRenderAdapter {
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
   private readonly lights = new Map<LightHandle, Light>();
-  private readonly buckets = new Map<BucketHandle, BucketEntry>();
-  private readonly batchedBuckets = new Map<BatchedBucketHandle, BatchedBucketEntry>();
+  // S53 RENDER-pool-registry: replaces the three triplicated patterns
+  // (Map<H, Entry> + `next<Pool>Handle` counter) that the InstancedMesh
+  // bucketer, BatchedMesh bucketer, and particle pool each grew
+  // independently. `RenderPoolRegistry` owns the handle counter +
+  // lookup Map; per-pool dispose still lives in the `release*` methods.
+  private readonly buckets = new RenderPoolRegistry<BucketEntry>();
+  private readonly batchedBuckets = new RenderPoolRegistry<BatchedBucketEntry>();
   /** M19-particle: live particle pools (additive InstancedMesh). */
-  private readonly particlePools = new Map<
-    ParticlePoolHandle,
-    { mesh: InstancedMesh; capacity: number }
-  >();
-  private nextParticlePoolHandle = 1;
-  private nextBatchedBucketHandle = 1;
+  private readonly particlePools = new RenderPoolRegistry<{
+    mesh: InstancedMesh;
+    capacity: number;
+  }>();
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
   private pmrem: PMREMGenerator | undefined;
@@ -486,7 +536,6 @@ export class ThreeRenderAdapter {
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
-  private nextBucketHandle = 1;
   private rectAreaUniformsReady = false;
   private readonly scratchMatrix = new Matrix4();
   private readonly scratchPosition = new Vector3();
@@ -845,8 +894,6 @@ export class ThreeRenderAdapter {
   // ---- M17 InstancedMesh buckets ----
 
   acquireBucket(spec: BucketAcquireSpec): BucketHandle {
-    const handle = this.nextBucketHandle;
-    this.nextBucketHandle += 1;
     // When `useInstanceColor` is on, the material's base color stays white
     // and each instance modulates via its own `instanceColor` attribute.
     // Material is compiled once with the attribute attached.
@@ -882,8 +929,7 @@ export class ThreeRenderAdapter {
       mesh.instanceColor = new InstancedBufferAttribute(colors, 3);
     }
     this.scene.add(mesh);
-    this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
-    return handle;
+    return this.buckets.acquire({ mesh, capacity: spec.capacity, liveSlots: new Set() });
   }
 
   /**
@@ -898,13 +944,12 @@ export class ThreeRenderAdapter {
   }
 
   releaseBucket(handle: BucketHandle): void {
-    const entry = this.buckets.get(handle);
+    const entry = this.buckets.release(handle);
     if (entry === undefined) return;
     this.scene.remove(entry.mesh);
     entry.mesh.dispose();
     entry.mesh.geometry.dispose();
     disposeMaterial(entry.mesh.material);
-    this.buckets.delete(handle);
   }
 
   resizeBucket(handle: BucketHandle, newCapacity: number): void {
@@ -1018,8 +1063,6 @@ export class ThreeRenderAdapter {
   // ---- M19-particle: additive InstancedMesh pools ----
 
   acquireParticlePool(spec: ParticlePoolAcquireSpec): ParticlePoolHandle {
-    const handle = this.nextParticlePoolHandle;
-    this.nextParticlePoolHandle += 1;
     const radius = spec.radius ?? 0.05;
     const geometry = new IcosahedronGeometry(radius, 1);
     const color = new Color(spec.color);
@@ -1036,8 +1079,7 @@ export class ThreeRenderAdapter {
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     this.scene.add(mesh);
-    this.particlePools.set(handle, { mesh, capacity: spec.capacity });
-    return handle;
+    return this.particlePools.acquire({ mesh, capacity: spec.capacity });
   }
 
   /**
@@ -1062,20 +1104,17 @@ export class ThreeRenderAdapter {
   }
 
   releaseParticlePool(handle: ParticlePoolHandle): void {
-    const entry = this.particlePools.get(handle);
+    const entry = this.particlePools.release(handle);
     if (entry === undefined) return;
     this.scene.remove(entry.mesh);
     entry.mesh.dispose();
     entry.mesh.geometry.dispose();
     disposeMaterial(entry.mesh.material);
-    this.particlePools.delete(handle);
   }
 
   // ---- M17-batched-mesh: BatchedMesh buckets ----
 
   acquireBatchedBucket(spec: BatchedBucketAcquireSpec): BatchedBucketHandle {
-    const handle = this.nextBatchedBucketHandle;
-    this.nextBatchedBucketHandle += 1;
     // S51 colour-parity: BatchedMesh always carries per-instance colour
     // (via `setColorAt` on the instance colours texture). The base
     // material colour multiplies with that per-instance colour, so we
@@ -1096,17 +1135,41 @@ export class ThreeRenderAdapter {
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
     this.scene.add(mesh);
-    this.batchedBuckets.set(handle, { mesh, liveInstances: new Set() });
-    return handle;
+    return this.batchedBuckets.acquire({
+      mesh,
+      liveInstances: new Set(),
+      useBvh: spec.useBvh === true,
+      bvhBuilt: false
+    });
+  }
+
+  /**
+   * S53 M17-bvh-extension: builds the BVH on the underlying
+   * BatchedMesh once at least one instance exists. No-op when the
+   * bucket wasn't acquired with `useBvh: true`, when the BVH has
+   * already been built, or when the bucket is still empty.
+   * BatchingSystem calls this once per frame for `batched-bvh` buckets
+   * so the BVH lights up after initial population without exposing
+   * three.ez internals to gameplay.
+   */
+  ensureBucketBvh(handle: BatchedBucketHandle): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined) return;
+    if (!entry.useBvh || entry.bvhBuilt) return;
+    if (entry.liveInstances.size === 0) return;
+    // The extension augments BatchedMesh.prototype with `computeBVH()`;
+    // the type isn't visible to TS without a module declaration, so we
+    // cast through `unknown`.
+    (entry.mesh as unknown as { computeBVH: () => void }).computeBVH();
+    entry.bvhBuilt = true;
   }
 
   releaseBatchedBucket(handle: BatchedBucketHandle): void {
-    const entry = this.batchedBuckets.get(handle);
+    const entry = this.batchedBuckets.release(handle);
     if (entry === undefined) return;
     this.scene.remove(entry.mesh);
     entry.mesh.dispose();
     disposeMaterial(entry.mesh.material);
-    this.batchedBuckets.delete(handle);
   }
 
   addBatchedGeometry(handle: BatchedBucketHandle, geometry: BufferGeometry): BatchedGeometryId | undefined {
@@ -1185,6 +1248,109 @@ export class ThreeRenderAdapter {
 
   batchedBucketLiveCount(handle: BatchedBucketHandle): number {
     return this.batchedBuckets.get(handle)?.liveInstances.size ?? 0;
+  }
+
+  // ---- S53 RENDER-pool-handle-union: typed dispatcher ----
+
+  /**
+   * Acquire a pool by `BucketSpec` identity + per-kind construction
+   * options. Returns a tagged `PoolHandle` so downstream readers
+   * (story 11's doctor, story 13's BatchingSystem migration) can
+   * dispatch on `kind` without consulting a separate Map.
+   *
+   * The kinds map to existing pool methods:
+   * - `instanced` → `acquireBucket` (BVH-free InstancedMesh path).
+   * - `batched`   → `acquireBatchedBucket` (BatchedMesh, per-instance
+   *   frustum culling via three.js' `perObjectFrustumCulled`).
+   * - `batched-bvh` → reserved for story 5. Currently routes to
+   *   `acquireBatchedBucket`; the BVH adapter swap lands when
+   *   `@three.ez/batched-mesh-extensions` is wired in.
+   *
+   * Construction-only options (`geometry`, `capacity`, `useInstanceColor`,
+   * `materialParams`, `maxInstances`, `maxVertices`, `maxIndices`) come
+   * in via `opts`. Identity options (`shadowCast`, `shadowReceive`,
+   * `materialProfile`, `group`) come from `spec` and are forwarded so
+   * the underlying acquire call gets a fully-populated spec.
+   *
+   * Existing per-kind methods (`acquireBucket`, `acquireBatchedBucket`)
+   * stay public for back-compat — call sites can adopt the dispatcher
+   * incrementally.
+   */
+  acquirePool(spec: BucketSpec, opts: PoolAcquireOptions): PoolHandle {
+    switch (spec.kind) {
+      case "instanced": {
+        if (opts.kind !== "instanced") {
+          throw new Error(
+            `acquirePool: spec.kind "instanced" requires opts.kind "instanced" (got "${opts.kind}").`
+          );
+        }
+        const bucketSpec: BucketAcquireSpec = {
+          geometry: opts.geometry,
+          capacity: opts.capacity,
+          castShadow: spec.shadowCast,
+          receiveShadow: spec.shadowReceive
+        };
+        if (opts.useInstanceColor !== undefined) bucketSpec.useInstanceColor = opts.useInstanceColor;
+        if (opts.materialParams !== undefined) bucketSpec.materialParams = opts.materialParams;
+        if (spec.materialProfile !== undefined) bucketSpec.materialProfile = spec.materialProfile;
+        if (opts.color !== undefined) bucketSpec.color = opts.color;
+        return { kind: "instanced", handle: this.acquireBucket(bucketSpec) };
+      }
+      case "batched":
+      case "batched-bvh": {
+        if (opts.kind !== "batched") {
+          throw new Error(
+            `acquirePool: spec.kind "${spec.kind}" requires opts.kind "batched" (got "${opts.kind}").`
+          );
+        }
+        const batchedSpec: BatchedBucketAcquireSpec = {
+          maxInstances: opts.maxInstances,
+          maxVertices: opts.maxVertices,
+          maxIndices: opts.maxIndices,
+          castShadow: spec.shadowCast,
+          receiveShadow: spec.shadowReceive,
+          // S53 M17-bvh-extension: only the `batched-bvh` variant gets
+          // the BVH-accelerated frustum-cull path on the underlying
+          // BatchedMesh. `batched` stays on the default O(N) walk.
+          useBvh: spec.kind === "batched-bvh"
+        };
+        if (opts.color !== undefined) batchedSpec.color = opts.color;
+        return { kind: spec.kind, handle: this.acquireBatchedBucket(batchedSpec) };
+      }
+    }
+  }
+
+  /**
+   * Live instance count for a pool by typed handle. Maps to the
+   * existing per-kind counters (`bucketLiveCount` /
+   * `batchedBucketLiveCount`) without forcing callers to know which
+   * to use. New in S53 alongside the typed `PoolHandle`.
+   */
+  poolLiveCount(handle: PoolHandle): number {
+    switch (handle.kind) {
+      case "instanced":
+        return this.bucketLiveCount(handle.handle);
+      case "batched":
+      case "batched-bvh":
+        return this.batchedBucketLiveCount(handle.handle);
+    }
+  }
+
+  /**
+   * Release a pool by typed handle. Routes to `releaseBucket` or
+   * `releaseBatchedBucket` based on `kind`. Mirrors the symmetry of
+   * `acquirePool`.
+   */
+  releasePool(handle: PoolHandle): void {
+    switch (handle.kind) {
+      case "instanced":
+        this.releaseBucket(handle.handle);
+        return;
+      case "batched":
+      case "batched-bvh":
+        this.releaseBatchedBucket(handle.handle);
+        return;
+    }
   }
 
   resize(width: number, height: number): void {
@@ -1447,7 +1613,7 @@ export class ThreeRenderAdapter {
     }
 
     // 2. InstancedMesh buckets — Three reports the slot via `instanceId`.
-    for (const [bucketHandle, entry] of this.buckets) {
+    for (const [bucketHandle, entry] of this.buckets.entriesIter()) {
       const first = this.scratchRaycaster.intersectObject(entry.mesh, false)[0];
       if (first === undefined || first.instanceId === undefined) continue;
       if (first.distance < bestDistance) {
@@ -1463,7 +1629,7 @@ export class ThreeRenderAdapter {
     }
 
     // 3. BatchedMesh buckets — same `instanceId` semantics.
-    for (const [bucketHandle, entry] of this.batchedBuckets) {
+    for (const [bucketHandle, entry] of this.batchedBuckets.entriesIter()) {
       const first = this.scratchRaycaster.intersectObject(entry.mesh, false)[0];
       if (first === undefined || first.instanceId === undefined) continue;
       if (first.distance < bestDistance) {
@@ -1852,9 +2018,9 @@ export class ThreeRenderAdapter {
       meshes: this.meshes.size,
       lights: this.lights.size,
       shadowCasters,
-      buckets: this.buckets.size,
+      buckets: this.buckets.size(),
       bucketInstances,
-      batchedBuckets: this.batchedBuckets.size,
+      batchedBuckets: this.batchedBuckets.size(),
       batchedBucketInstances
     };
   }
@@ -1871,8 +2037,8 @@ export class ThreeRenderAdapter {
       light.dispose();
     }
     this.lights.clear();
-    for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
-    for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
+    for (const [handle] of [...this.buckets.entriesIter()]) this.releaseBucket(handle);
+    for (const [handle] of [...this.batchedBuckets.entriesIter()]) this.releaseBatchedBucket(handle);
     this.setDebugOverlayEnabled(false);
     this.disposeComposer();
     this.disableFallbackLighting();
@@ -1922,6 +2088,10 @@ type BucketEntry = {
 type BatchedBucketEntry = {
   mesh: BatchedMesh;
   liveInstances: Set<InstanceIndex>;
+  /** S53 M17-bvh-extension: opt-in flag set on `acquireBatchedBucket({ useBvh: true })`. */
+  useBvh: boolean;
+  /** S53 M17-bvh-extension: flips true after the first `computeBVH()` call. */
+  bvhBuilt: boolean;
 };
 
 /** Fill an existing Quaternion from an Euler XYZ rotation (radians) — XYZ order matches Three.js default. */

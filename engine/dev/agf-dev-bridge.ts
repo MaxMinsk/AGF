@@ -14,7 +14,9 @@
 //
 // Production builds exclude this plugin entirely (`apply: "serve"`).
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isAbsolute, resolve as resolvePath, sep as pathSep } from "node:path";
 import type { Duplex } from "node:stream";
 import type { Plugin, ViteDevServer } from "vite";
 import { WebSocketServer, type WebSocket as WsConnection } from "ws";
@@ -318,6 +320,20 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        if (route === "/project-patch" && req.method === "POST") {
+          // S53 DEVBRIDGE-project-patch: shallow merge-patch onto a
+          // project.json on disk. Dev-only (the whole `/__agf/*`
+          // surface is); the shadow tuner is the first caller.
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const result = await handleProjectPatch(server, body as Record<string, unknown>);
+          respondJson(res, result.status, result.payload);
+          return;
+        }
+
         if (route === "/commands" && req.method === "POST") {
           const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
           if ("code" in (body as object)) {
@@ -513,6 +529,152 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   } catch {
     throw { code: "AGF_BRIDGE_INVALID_JSON", message: "Body is not valid JSON." };
   }
+}
+
+/**
+ * S53 DEVBRIDGE-project-patch: shallow merge-patch a project.json on
+ * disk. Body shape:
+ *   {
+ *     projectDir: "examples/shadows-bench",   // relative to vite root
+ *     patch: { render: { shadows: { csm: { shadowMapSize: 2048 } } } }
+ *   }
+ * Validates `projectDir` is inside vite's project root, ensures
+ * project.json exists, deep-merges the patch onto the current
+ * contents, and writes the result back. Returns the merged document
+ * on success.
+ *
+ * Validation is structural only — the route does NOT yet run the
+ * project against `schemas/project.schema.json` (the doctor + engine
+ * check already cover that path on the developer's next run). A
+ * follow-up can wire AJV here if writes start producing invalid
+ * config that breaks the running page mid-tune.
+ */
+async function handleProjectPatch(
+  server: ViteDevServer,
+  body: Record<string, unknown>
+): Promise<{ status: number; payload: unknown }> {
+  const projectDirInput = body["projectDir"];
+  const patch = body["patch"];
+  if (typeof projectDirInput !== "string" || projectDirInput.length === 0) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PROJECT_PATCH_INVALID",
+          message: "Body must be JSON `{ projectDir: string, patch: object }`."
+        }
+      }
+    };
+  }
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PROJECT_PATCH_INVALID",
+          message: "`patch` must be a JSON object."
+        }
+      }
+    };
+  }
+  const viteRoot = resolvePath(server.config.root);
+  const absoluteProjectDir = isAbsolute(projectDirInput)
+    ? resolvePath(projectDirInput)
+    : resolvePath(viteRoot, projectDirInput);
+  // Path-traversal guard: only allow paths under the vite root.
+  if (
+    absoluteProjectDir !== viteRoot &&
+    !absoluteProjectDir.startsWith(viteRoot + pathSep)
+  ) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PROJECT_PATCH_ESCAPE",
+          message: `projectDir "${projectDirInput}" resolves outside vite root.`
+        }
+      }
+    };
+  }
+  const projectJsonPath = resolvePath(absoluteProjectDir, "project.json");
+  if (!existsSync(projectJsonPath)) {
+    return {
+      status: 404,
+      payload: {
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PROJECT_PATCH_NOT_FOUND",
+          message: `project.json not found at "${projectJsonPath}".`
+        }
+      }
+    };
+  }
+  let current: Record<string, unknown>;
+  try {
+    current = JSON.parse(readFileSync(projectJsonPath, "utf8")) as Record<string, unknown>;
+  } catch (err) {
+    return {
+      status: 500,
+      payload: {
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PROJECT_PATCH_PARSE",
+          message: `Failed to parse project.json: ${(err as Error).message}`
+        }
+      }
+    };
+  }
+  const merged = deepMerge(current, patch as Record<string, unknown>);
+  try {
+    writeFileSync(projectJsonPath, `${JSON.stringify(merged, null, 2)}\n`);
+  } catch (err) {
+    return {
+      status: 500,
+      payload: {
+        ok: false,
+        error: {
+          code: "AGF_BRIDGE_PROJECT_PATCH_WRITE",
+          message: `Failed to write project.json: ${(err as Error).message}`
+        }
+      }
+    };
+  }
+  return {
+    status: 200,
+    payload: { ok: true, projectJsonPath, merged }
+  };
+}
+
+/**
+ * Plain recursive merge for JSON-only structures: objects are merged
+ * key-by-key, arrays + primitives in `patch` replace the value in
+ * `base`. Sufficient for the shadow tuner's "save settings" flow
+ * which only writes a handful of leaf fields under `render.shadows`.
+ */
+export function deepMerge(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, patchValue] of Object.entries(patch)) {
+    const baseValue = out[key];
+    if (
+      patchValue !== null &&
+      typeof patchValue === "object" &&
+      !Array.isArray(patchValue) &&
+      baseValue !== null &&
+      typeof baseValue === "object" &&
+      !Array.isArray(baseValue)
+    ) {
+      out[key] = deepMerge(baseValue as Record<string, unknown>, patchValue as Record<string, unknown>);
+    } else {
+      out[key] = patchValue;
+    }
+  }
+  return out;
 }
 
 export type { ServerResponse };

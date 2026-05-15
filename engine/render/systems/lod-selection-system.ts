@@ -7,6 +7,16 @@
 // updates `MeshRenderer.mesh` (+ optional `material` / `color`) when
 // the chosen level differs from the entity's last applied level.
 //
+// **S53 M17-lod-batched.** When the entity is on the `batched` or
+// `batched-bvh` path, an LOD swap stays within the bucket: the
+// downstream `BatchingSystem.updateBatched` flow detects the mesh-ref
+// change, adds the new geometry to the same bucket (if not already
+// present), and calls `setBatchedInstanceGeometry` to repoint the
+// instance's geometryId without releasing the slot. Coverage in
+// `tests/unit/batching-system-batched-path.test.ts`. The `instanced`
+// path still releases + re-acquires (one InstancedMesh owns one
+// geometry).
+//
 // Past the last threshold:
 //   - `fallback: "last"` (default) keeps the cheapest mesh on screen.
 //   - `fallback: "hide"` deletes MeshRenderer so MeshLifecycleSystem

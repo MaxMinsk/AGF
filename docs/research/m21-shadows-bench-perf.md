@@ -144,6 +144,82 @@ count (cascade 3 → 2 saved ~17 %, FXAA-off saves ~14 %). Project teams
 that don't strictly need antialiasing for their visual style can
 remove it as a meaningful win.
 
+## Sprint 53 — BEACON-shadow-caster-tag visual-regression follow-up
+
+The first S53 run of `scripts/perf-probe-beacon-tag.mjs` reported a
+**−37 % renderMs / −85 % drawCalls** drop on idle beacon-world, and
+the team booked it as the predicted "idle-caster" payoff. **That
+measurement was a visual regression in disguise**: the
+`DynamicShadowSystem` (S52) flipped `shadowMap.autoUpdate = false`
+on the first frame it saw the dynamic-tagged drone, before three.js
+had a chance to bake any shadow into the per-light shadow textures.
+Result: the shadow textures stayed empty, the scene rendered
+without shadows, drawCalls plummeted to 6, and renderMs dropped
+correspondingly — not because of a real perf win but because the
+renderer was skipping the shadow pass entirely.
+
+Visible symptom: "no shadows at startup, but they appear once the
+player moves". As soon as the drone's LTW shifted, the dirty path
+fired `invalidateShadowMap()`, three.js finally baked, and shadows
+became visible.
+
+The fix landed in the same sprint: DSS now **only takes over after
+observing a real LTW change**. While every tagged caster is idle,
+DSS is a no-op — three.js's `autoUpdate=true` default bakes shadows
+every frame the normal way. Once any tagged caster moves beyond
+EPSILON, DSS flips `autoUpdate=false` + invalidates so the new pose
+bakes; subsequent stationary frames skip the shadow pass; subsequent
+movements re-invalidate.
+
+The honest perf payoff:
+- **Idle scenes**: no saving (matches the pre-S52 baseline, which is
+  the right default — shadows-at-startup is non-negotiable).
+- **Animated → idle scenes**: full saving kicks in the moment
+  movement stops. A platformer-style world where the player rests
+  briefly between movements would see the saving every time they
+  pause.
+- **Continuous motion**: no saving (matches the shadows-bench
+  observation: cars/trees move every frame → autoUpdate flips off
+  but invalidate fires every frame anyway).
+
+Re-measurement on the corrected system is filed as a future
+follow-up — it needs a probe that explicitly *moves the drone, then
+stops*, so the "stopped after a move" phase is captured. The naive
+"sample idle drone" probe now matches the no-tag baseline.
+
+## Sprint 53 — original (buggy) BEACON measurement
+
+Recorded here for the audit trail. The numbers below are the
+shadows-disabled regression, not a real perf win — the
+follow-up paragraph above explains.
+
+S52's `M21-shadow-static-caster-tag` landed the mechanism but only
+saw `−17 %` renderMs on shadows-bench because cars + trees move every
+frame. The note predicted the real payoff was on scenes with idle
+dynamic casters. S53 measured beacon-world (drone sitting still, no
+key presses) with `scripts/perf-probe-beacon-tag.mjs` (toggles
+`ShadowCaster { dynamic: true }` on `player.drone`, reloads, samples):
+
+| metric         | tag absent | tag on | Δ       |
+|----------------|-----------:|-------:|--------:|
+| drawCalls      |    39      |    6   | **−85 %** |
+| triangles      | 1 156      |  136   | **−88 %** |
+| renderMs       |   0.41     |  0.26  | **−37 %** |
+| totalFrameMs   |   0.79     |  0.61  | **−22 %** |
+
+The 39 → 6 drawCalls drop reflects the directional + 2 point lights
+in beacon-world skipping their shadow re-bake: with `autoUpdate=true`
+each light's shadow map renders the whole scene every frame; once
+the only `dynamic` caster (the drone) sits still, `DynamicShadowSystem`
+keeps `shadowMap.autoUpdate=false` and never invalidates, so all
+three lights skip the shadow pass entirely. As soon as the drone
+moves, the tag flips back to dirty and the per-frame bakes resume.
+
+Acceptance from Story 10's backlog spec (≥ 25 % renderMs drop) is
+**exceeded** (−37 %). The hypothesis is confirmed: tag-driven
+shadow update is the right primitive for player-focused scenes; the
+right place to scale it next is multiplayer (NPCs / projectiles).
+
 ## Future follow-ups
 - **M21-shadow-map-size-real-hw.** Re-run `512map` probe on desktop GPU
   — software WebGL undersells the fill-rate savings.

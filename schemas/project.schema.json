@@ -142,13 +142,13 @@
           "properties": {
             "auto": {
               "type": "boolean",
-              "default": false,
-              "description": "When true, BatchingSystem treats every entity with a built-in primitive mesh (box / sphere / plane) and no LOD / scene-extension overrides as Batchable without needing an explicit `Batchable` component. Per-entity opt-out: `Batchable: { enabled: false }`."
+              "default": true,
+              "description": "S53: default flipped to true — BatchingSystem treats every entity with a built-in primitive mesh (box / sphere / plane) and no LOD / scene-extension overrides as Batchable without needing an explicit `Batchable` component. Set to false to keep the legacy single-Mesh path. Per-entity opt-out (independent of the global flag): `Batchable: { enabled: false }`."
             },
             "path": {
-              "enum": ["instanced", "batched"],
+              "enum": ["instanced", "batched", "batched-bvh"],
               "default": "instanced",
-              "description": "S51 project-wide bucket path default. `instanced` (default) — one InstancedMesh per (mesh + material + shadow + group) with whole-bucket frustum culling. `batched` — one BatchedMesh per (material + shadow + group); each geometry registers once and three.js does per-instance frustum culling on the CPU. Trade-off: BatchedMesh wins on big scenes where many instances are off-screen each frame; InstancedMesh wins when every instance is in view. Override per-entity via `Batchable: { path: \"batched\" }`."
+              "description": "S51/S53 project-wide bucket path default. `instanced` (default) — one InstancedMesh per (mesh + material + shadow + group) with whole-bucket frustum culling. `batched` — one BatchedMesh per (material + shadow + group); each geometry registers once and three.js does per-instance frustum culling on the CPU with an O(N) loop. `batched-bvh` (S53) — same as `batched` but builds a BVH over the per-instance bounding boxes; frustum culling becomes a tree walk instead of the linear loop, expected to flip the InstancedMesh vs BatchedMesh crossover toward smaller scenes. Override per-entity via `Batchable: { path: \"batched-bvh\" }`."
             }
           }
         }

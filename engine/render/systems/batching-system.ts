@@ -32,6 +32,7 @@ import {
   createPrimitiveGeometry,
   isExternalMeshRef
 } from "../mesh-handle-registry";
+import { bucketSpecHash, type BucketSpec } from "../bucket-spec";
 import type {
   BatchedBucketHandle,
   BatchedGeometryId,
@@ -64,7 +65,7 @@ type BatchableComponent = {
    *               varies and is stored per-instance as a BatchedGeometryId.
    * Default "instanced".
    */
-  path?: "instanced" | "batched";
+  path?: "instanced" | "batched" | "batched-bvh";
 };
 type MeshRendererComponent = { mesh: string; color?: string; material?: string };
 type ShadowFlagsComponent = { cast?: boolean; receive?: boolean };
@@ -78,6 +79,8 @@ type BatchedMeshHandleComponent = { bucket: BucketHandle; instance: InstanceInde
 type InstancedRecord = {
   path: "instanced";
   handle: BucketHandle;
+  /** S53: typed `BucketSpec` companion to `bucketKey` for structured introspection. */
+  spec: BucketSpec;
   bucketKey: string;
   mesh: string;
   color: string | undefined;
@@ -99,10 +102,14 @@ type InstancedRecord = {
 type BatchedRecord = {
   path: "batched";
   handle: BatchedBucketHandle;
+  /** S53: typed `BucketSpec` companion to `bucketKey` for structured introspection. */
+  spec: BucketSpec;
   bucketKey: string;
   color: string | undefined;
   shadowCast: boolean;
   shadowReceive: boolean;
+  /** S53 M17-bvh-extension: true when the bucket was acquired for the BVH path. */
+  useBvh: boolean;
   /** mesh-ref → adapter geometry id (added at most once per mesh per bucket). */
   geometries: Map<string, BatchedGeometryId>;
   /** entity id → { meshRef, instance index in BatchedMesh } so the system can
@@ -152,7 +159,7 @@ export type BatchingOptions = {
    * `BatchedMesh` (per-instance frustum culling on, vertex shader
    * skipped for off-screen instances). Default "instanced".
    */
-  defaultPath?: "instanced" | "batched";
+  defaultPath?: "instanced" | "batched" | "batched-bvh";
 };
 
 export function createBatchingSystem(
@@ -161,7 +168,7 @@ export function createBatchingSystem(
 ): BatchingSystemHandle {
   const name = options.name ?? "render.batching";
   const autoIncludePrimitives = options.autoIncludePrimitives === true;
-  const defaultPath: "instanced" | "batched" = options.defaultPath ?? "instanced";
+  const defaultPath: "instanced" | "batched" | "batched-bvh" = options.defaultPath ?? "instanced";
   // Built-in primitive set must mirror `createPrimitiveGeometry` in
   // mesh-handle-registry.ts. The auto-batch path falls back to single-
   // Mesh rendering for any mesh that isn't a primitive.
@@ -314,11 +321,20 @@ export function createBatchingSystem(
     manifestProfileKey?: string | undefined,
     manifestColor?: string | undefined
   ): void => {
-    // S50 bucket key embeds the geometry source (primitive name OR
-    // glb ref) and the manifest profile (or "_" for the default
-    // material). Color stays per-instance via instanceColor.
-    const materialKey = manifestProfileKey ?? "_";
-    const bucketKey = `instanced|${renderer.mesh}|${materialKey}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    // S53 RENDER-bucket-spec-typed: bucket key is now derived from a
+    // typed BucketSpec via `bucketSpecHash()`. The hash format is
+    // identical to the pre-S53 hand-rolled string so existing tests
+    // + adapter call sites keep working; new dispatcher code (story 3+)
+    // routes through the spec itself instead of re-parsing strings.
+    const spec: BucketSpec = {
+      kind: "instanced",
+      mesh: renderer.mesh,
+      shadowCast: cast,
+      shadowReceive: receive,
+      ...(manifestProfileKey !== undefined ? { materialProfile: manifestProfileKey } : {}),
+      ...(batchable?.group !== undefined ? { group: batchable.group } : {})
+    };
+    const bucketKey = bucketSpecHash(spec);
     let record = bucketsByKey.get(bucketKey) as InstancedRecord | undefined;
     if (record === undefined) {
       const geometry =
@@ -346,6 +362,7 @@ export function createBatchingSystem(
       record = {
         path: "instanced",
         handle,
+        spec,
         bucketKey,
         mesh: renderer.mesh,
         color: renderer.color,
@@ -439,7 +456,8 @@ export function createBatchingSystem(
     renderer: MeshRendererComponent,
     batchable: BatchableComponent | undefined,
     cast: boolean,
-    receive: boolean
+    receive: boolean,
+    useBvh: boolean
   ): void => {
     // S51 bugfix: bucket key MUST omit renderer.color — same as the
     // InstancedMesh path since S50. Per-instance colour is uploaded via
@@ -447,7 +465,13 @@ export function createBatchingSystem(
     // BatchedMesh's `_batchColor * material.color` multiply doesn't
     // square the colour (which made the scene visibly darker on
     // shadows-bench when path: "batched" was first enabled).
-    const bucketKey = `batched|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    const batchedSpec: BucketSpec = {
+      kind: useBvh ? "batched-bvh" : "batched",
+      shadowCast: cast,
+      shadowReceive: receive,
+      ...(batchable?.group !== undefined ? { group: batchable.group } : {})
+    };
+    const bucketKey = bucketSpecHash(batchedSpec);
     let record = bucketsByKey.get(bucketKey) as BatchedRecord | undefined;
     if (record === undefined) {
       const handle = deps.adapter.acquireBatchedBucket({
@@ -455,15 +479,18 @@ export function createBatchingSystem(
         maxVertices: BATCHED_MAX_VERTICES,
         maxIndices: BATCHED_MAX_INDICES,
         castShadow: cast,
-        receiveShadow: receive
+        receiveShadow: receive,
+        useBvh
       });
       record = {
         path: "batched",
         handle,
+        spec: batchedSpec,
         bucketKey,
         color: undefined,
         shadowCast: cast,
         shadowReceive: receive,
+        useBvh,
         geometries: new Map(),
         members: new Map()
       };
@@ -617,9 +644,9 @@ export function createBatchingSystem(
       const flags = world.getComponent<ShadowFlagsComponent>(entityId, SHADOW_FLAGS);
       const cast = flags?.cast !== false;
       const receive = flags?.receive !== false;
-      const path: "instanced" | "batched" = batchable?.path ?? defaultPath;
-      if (path === "batched") {
-        updateBatched(world, entityId, renderer, batchable, cast, receive);
+      const path: "instanced" | "batched" | "batched-bvh" = batchable?.path ?? defaultPath;
+      if (path === "batched" || path === "batched-bvh") {
+        updateBatched(world, entityId, renderer, batchable, cast, receive, path === "batched-bvh");
       } else {
         updateInstanced(
           world,
@@ -644,6 +671,16 @@ export function createBatchingSystem(
       deps.adapter.recomputeBucketBoundingSphere(handle);
     }
     dirtyInstancedBuckets.clear();
+
+    // S53 M17-bvh-extension: now that this frame's adds have settled,
+    // light up the BVH on any batched-bvh bucket that has instances
+    // but no BVH yet. Idempotent — `ensureBucketBvh` no-ops once the
+    // BVH is built, and the extension auto-updates from then on.
+    for (const record of bucketsByKey.values()) {
+      if (record.path === "batched" && record.useBvh) {
+        deps.adapter.ensureBucketBvh(record.handle);
+      }
+    }
   };
 
   return {

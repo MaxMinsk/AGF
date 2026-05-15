@@ -28,6 +28,8 @@ type BatchedAdapterStub = {
   transforms: Array<{ handle: BatchedBucketHandle; instance: InstanceIndex; world: ResolvedWorld }>;
   colors: Array<{ handle: BatchedBucketHandle; instance: InstanceIndex; color: string }>;
   liveByBucket: Map<BatchedBucketHandle, Set<InstanceIndex>>;
+  /** S53: handles on which `ensureBucketBvh` has been called. */
+  bvhBuilt: Set<BatchedBucketHandle>;
 };
 
 function stubBatchedAdapter(): BatchedAdapterStub & ThreeRenderAdapter {
@@ -40,7 +42,8 @@ function stubBatchedAdapter(): BatchedAdapterStub & ThreeRenderAdapter {
     addedInstances: [],
     transforms: [],
     colors: [],
-    liveByBucket: new Map()
+    liveByBucket: new Map(),
+    bvhBuilt: new Set()
   };
   return Object.assign(
     {} as unknown as ThreeRenderAdapter,
@@ -93,6 +96,12 @@ function stubBatchedAdapter(): BatchedAdapterStub & ThreeRenderAdapter {
         color: string
       ): void {
         stub.colors.push({ handle, instance, color });
+      },
+      ensureBucketBvh(handle: BatchedBucketHandle): void {
+        // S53 stub: record per-bucket BVH activation; the real adapter
+        // delegates to `mesh.computeBVH()` from
+        // `@three.ez/batched-mesh-extensions`.
+        stub.bvhBuilt.add(handle);
       },
       batchedBucketLiveCount(handle: BatchedBucketHandle): number {
         return stub.liveByBucket.get(handle)?.size ?? 0;
@@ -190,5 +199,100 @@ describe("BatchingSystem batched path (S51)", () => {
 
     expect(adapter.acquired).toHaveLength(1);
     expect(adapter.addedInstances).toHaveLength(1);
+  });
+
+  it("routes path: 'batched-bvh' through useBvh + calls ensureBucketBvh after instances added (S53)", () => {
+    const adapter = stubBatchedAdapter();
+    const world = new World();
+    for (const id of ["a", "b", "c"]) {
+      world.addEntity(id);
+      world.setComponent(id, "MeshRenderer", { mesh: "box", color: "#ff0000" });
+      world.setComponent(id, "Batchable", { path: "batched-bvh" });
+      world.setComponent(id, "LocalToWorld", {
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+    }
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.acquired[0]?.spec.useBvh).toBe(true);
+    // After instances land, BatchingSystem lights up the BVH.
+    expect(adapter.bvhBuilt.size).toBe(1);
+    expect(adapter.bvhBuilt.has(adapter.acquired[0]!.handle)).toBe(true);
+  });
+
+  it("vanilla batched path does NOT call ensureBucketBvh", () => {
+    const adapter = stubBatchedAdapter();
+    const world = new World();
+    world.addEntity("a");
+    world.setComponent("a", "MeshRenderer", { mesh: "box" });
+    world.setComponent("a", "Batchable", { path: "batched" });
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.acquired[0]?.spec.useBvh).toBeFalsy();
+    expect(adapter.bvhBuilt.size).toBe(0);
+  });
+
+  it("LOD swap within a batched bucket reassigns geometryId without dropping the instance (S53 M17-lod-batched)", () => {
+    // Simulates LodSelectionSystem flipping the mesh ref on a single
+    // entity: first frame uses `box`, then mutates to `sphere`. The
+    // BatchingSystem should add the new geometry to the same bucket
+    // and call setBatchedInstanceGeometry instead of releasing the
+    // instance and re-acquiring it.
+    const adapter = stubBatchedAdapter();
+    // Track setGeometryAt calls — the existing stub didn't.
+    const setGeometryCalls: Array<{
+      handle: BatchedBucketHandle;
+      instance: InstanceIndex;
+      geometryId: BatchedGeometryId;
+    }> = [];
+    (adapter as unknown as {
+      setBatchedInstanceGeometry: (
+        handle: BatchedBucketHandle,
+        instance: InstanceIndex,
+        geometryId: BatchedGeometryId
+      ) => void;
+    }).setBatchedInstanceGeometry = (handle, instance, geometryId): void => {
+      setGeometryCalls.push({ handle, instance, geometryId });
+    };
+
+    const world = new World();
+    world.addEntity("lod");
+    world.setComponent("lod", "MeshRenderer", { mesh: "box" });
+    world.setComponent("lod", "Batchable", { path: "batched" });
+    world.setComponent("lod", "LocalToWorld", {
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    // After frame 1: one bucket, one geometry (box), one instance.
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.geometriesByBucket.get(adapter.acquired[0]!.handle)).toBe(1);
+    expect(adapter.addedInstances).toHaveLength(1);
+    const initialInstance = adapter.addedInstances[0]!.instance;
+
+    // LOD swap: same entity, new mesh ref.
+    world.setComponent("lod", "MeshRenderer", { mesh: "sphere" });
+    system.frameUpdate?.(ctx(world));
+
+    // No new bucket, no new instance — the existing slot was repointed.
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.addedInstances).toHaveLength(1);
+    // One extra geometry was added to the bucket (the sphere).
+    expect(adapter.geometriesByBucket.get(adapter.acquired[0]!.handle)).toBe(2);
+    // setBatchedInstanceGeometry was called for the swap.
+    expect(setGeometryCalls).toHaveLength(1);
+    expect(setGeometryCalls[0]!.instance).toBe(initialInstance);
   });
 });

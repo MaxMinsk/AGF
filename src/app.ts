@@ -72,7 +72,7 @@ export type ProjectMeta = {
       /** S50 auto-batch: include every primitive-mesh entity in the batcher by default. */
       auto?: boolean;
       /** S51 bucket path default: `instanced` (default) or `batched`. */
-      path?: "instanced" | "batched";
+      path?: "instanced" | "batched" | "batched-bvh";
     };
   };
   /**
@@ -336,9 +336,10 @@ export async function createApp(
   if (project.render?.shadows?.algorithm !== undefined) {
     runtimeOptions.shadowAlgorithm = project.render.shadows.algorithm;
   }
-  if (project.render?.batching?.auto === true) {
-    runtimeOptions.autoBatchPrimitives = true;
-  }
+  // S53 M17-batch-default-on: auto-batch defaults to true. Setting
+  // `render.batching.auto: false` explicitly keeps the legacy
+  // single-Mesh path; any other value (true, absent) enables.
+  runtimeOptions.autoBatchPrimitives = project.render?.batching?.auto !== false;
   if (project.render?.batching?.path !== undefined) {
     runtimeOptions.batchingPath = project.render.batching.path;
   }

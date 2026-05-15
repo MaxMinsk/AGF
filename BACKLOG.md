@@ -44,6 +44,31 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** Netcode rework (carried from Sprint 32).
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint
+## Current Sprint: Sprint 53 — renderer refactor (pool + bucket + BVH)
 
-_(awaiting Sprint 53 plan — pull a candidate from the list above or open a new direction)_
+Coherent renderer cleanup sprint. The pool / bucket / batching surface accreted through S34–S52 — three near-identical pool patterns, hand-rolled string bucket keys, and a `path: "batched"` lever that loses on small scenes because of multi-draw command overhead (per `docs/research/m17-batched-vs-instanced-shadows-bench.md`). Now consolidates: shared `RenderPoolRegistry` → typed `BucketSpec` → tagged `PoolHandle` dispatcher → BVH-augmented BatchedMesh path that's expected to flip the crossover for smaller scenes. Picks up four S52 follow-ups (project.json save for the tuner, beacon idle-caster measurement, `M17-batch-default-on`, `M17-lod-batched`) along the way.
+
+13 stories — sized to the **10–15** floor recorded in [[feedback-sprint-size]] (Sprint 52 shipped 9; this one widens by ~25 %).
+
+### Stories
+
+1. **RENDER-pool-registry** — extract `RenderPoolRegistry<Spec, Entry>` per the [render-pool-abstraction design memo](docs/research/render-pool-abstraction-design.md). Replaces the triplicated bookkeeping (`nextHandle++`, live-slot Set, capacity Map, scene attach/detach, dispose) across `acquireBucket` / `acquireBatchedBucket` / `acquireParticlePool`. Net ≥ −100 lines in `three-render-adapter.ts`. No public-API or caller changes at land time; existing tests pass unchanged.
+2. **RENDER-bucket-spec-typed** — replace the hand-rolled `instanced|<mesh>|<shadow>|<group>` string bucket keys with a `BucketSpec` discriminated union + a `bucketSpecHash()` helper that AGF/three.js share. Keeps BatchingSystem keying behaviour identical (verified by `tests/unit/batching-system.test.ts`); cleans the dispatch surface for stories 3 + 5 below.
+3. **RENDER-pool-handle-union** — tagged `PoolHandle` (`{ kind: "instanced" | "batched" | "batched-bvh" | "particle"; handle: number }`) + `adapter.acquirePool(spec: BucketSpec): PoolHandle` dispatcher. Existing per-kind methods stay for back-compat; new dispatcher demonstrated by at least one call-site migration (BatchingSystem path-select) + a unit test.
+4. **M17-batch-default-on** — flip `RuntimeOptions.autoBatchPrimitives` default to `true` so new projects get auto-batch without the explicit `project.json#render.batching.auto: true`. Audit all 5 examples to confirm none rely on single-Mesh semantics. Add a migration note + project-doctor recommendation update so agents inheriting an existing project know the flag is now opt-out.
+5. **M17-bvh-extension** — add `@three.ez/batched-mesh-extensions` as a dep (BVH-augmented `BatchedMesh` subclass). New `project.json#render.batching.path: "batched-bvh"` enum value + adapter `acquireBatchedBucket` switch that selects the BVH-extended class. BVH replaces the O(N) per-instance frustum loop with a tree walk; expected to flip the `instanced`-vs-`batched` crossover toward smaller scenes.
+6. **M17-batch-perf-rerun** — re-run `scripts/perf-probe-batching.mjs` with three scenarios (`instanced` baseline, `batched`, `batched-bvh`) on shadows-bench + batch-bench. Append findings to `docs/research/m17-batched-vs-instanced-shadows-bench.md`. Acceptance: `batched-bvh` matches or beats `instanced` on shadows-bench; `batch-bench` (400 cubes, mostly in view) shows the relative scaling.
+7. **M17-lod-batched** — wire `LodSelectionSystem` to `BatchedMesh.setGeometryIdAt` so LOD swap stays within the bucket instead of dropping the entity to the single-Mesh path. Pairs with the new `BucketSpec` machinery from story 2. Acceptance: a hello-3d-derived `lod-bench` (or batch-bench-lod variant) shows an entity's LOD switch flipping geometryId without losing the bucket handle.
+8. **DEVBRIDGE-project-patch** — new `POST /__agf/project-patch` endpoint, DEV-only (gated like the existing `__agf` surface; absent from production). Body: `{ jsonPointer, value }` or a small JSON-merge-patch. Writes back to `project.json` on disk via the Vite middleware. Diagnostics emit on success/failure. Schema-validates against `schemas/project.schema.json` before writing.
+9. **shadow-tuner-project-save** — adopt the new endpoint in `examples/shadows-bench/src/ui/shadow-tuner.ts`. "Save to project.json" button POSTs the current `FieldState`. localStorage stays as session fallback when the endpoint is unavailable (e.g., a built preview). Closes the S52 deferred follow-up.
+10. **BEACON-shadow-caster-tag** — tag the beacon-world drone (`Player`) entity as `ShadowCaster { dynamic: true }` in bootstrap. Run `perf-probe-shadows.mjs` against beacon-world (probe needs minor changes to point at a different project). Expectation: ≥ 25 % renderMs drop (the S52 deepdive's "idle-caster scene" hypothesis). Append findings to `docs/research/m21-shadows-bench-perf.md`.
+11. **DOCTOR-renderer-pool-section** — extend `engine doctor` Shadows section + add an adjacent `Renderer pools:` section reporting bucket counts per path (instanced / batched / batched-bvh / particle), entity-pool fit, and detected typed-vs-string key migration state. Pairs with stories 1–3.
+12. **RENDER-pool-test-coverage** — unit tests for `bucketSpecHash()` (stable + ordering-insensitive within tag set), `acquirePool` dispatch (each `spec.kind` routes correctly), and the BVH path adapter contract (frustum cull skips off-screen instances via the stub adapter pattern from `batching-system-batched-path.test.ts`).
+13. **RENDER-bucket-key-architecture-finalize** — retire the legacy string bucket keys in `BatchingSystem` once stories 2 + 3 land. Map<string, BucketRecord> → Map<BucketSpecHash, BucketRecord>. Confirms no caller is still constructing the old key shape. Closes `RENDER-bucket-key-architecture`.
+
+### Out of scope
+
+- `M21-shadow-soft`, `M21-shadow-glb-acne` — different shadow epic; not gated by the refactor.
+- `M21-webgpu-spike` — needs its own sprint (separate adapter backend).
+- `M21-shadow-map-size-real-hw` — user-driven probe, stays in Next Sprint candidates.
+- Asset pipeline polish (`ASSET-*`), `M3-c-load/beacon` prefabs, M20 netcode — separate sprints when prioritised.
