@@ -79,6 +79,8 @@ type BatchedMeshHandleComponent = { bucket: BucketHandle; instance: InstanceInde
 type InstancedRecord = {
   path: "instanced";
   handle: BucketHandle;
+  /** S53: typed `BucketSpec` companion to `bucketKey` for structured introspection. */
+  spec: BucketSpec;
   bucketKey: string;
   mesh: string;
   color: string | undefined;
@@ -100,6 +102,8 @@ type InstancedRecord = {
 type BatchedRecord = {
   path: "batched";
   handle: BatchedBucketHandle;
+  /** S53: typed `BucketSpec` companion to `bucketKey` for structured introspection. */
+  spec: BucketSpec;
   bucketKey: string;
   color: string | undefined;
   shadowCast: boolean;
@@ -358,6 +362,7 @@ export function createBatchingSystem(
       record = {
         path: "instanced",
         handle,
+        spec,
         bucketKey,
         mesh: renderer.mesh,
         color: renderer.color,
@@ -480,6 +485,7 @@ export function createBatchingSystem(
       record = {
         path: "batched",
         handle,
+        spec: batchedSpec,
         bucketKey,
         color: undefined,
         shadowCast: cast,
