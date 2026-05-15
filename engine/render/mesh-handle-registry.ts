@@ -4,7 +4,13 @@
 // M21-f, and during the transition ThreeRenderer itself) read the registry
 // to find the handle they should be writing to.
 
-import { BoxGeometry, PlaneGeometry, SphereGeometry, type BufferGeometry } from "three";
+import {
+  BoxGeometry,
+  CylinderGeometry,
+  PlaneGeometry,
+  SphereGeometry,
+  type BufferGeometry
+} from "three";
 
 import type { EntityId } from "../core/ecs/types";
 import type { MeshHandle, ThreeRenderAdapter } from "./three-render-adapter";
@@ -79,7 +85,9 @@ export function createPrimitiveGeometry(name: string): BufferGeometry | undefine
     case "box":
       return new BoxGeometry(1, 1, 1);
     case "sphere":
-      return new SphereGeometry(0.5, 24, 16);
+      return new SphereGeometry(0.5, 32, 20);
+    case "cylinder":
+      return new CylinderGeometry(0.5, 0.5, 1, 24);
     case "plane":
       return new PlaneGeometry(1, 1);
     default:

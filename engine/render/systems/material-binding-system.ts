@@ -188,15 +188,23 @@ function reconcileMaterial(
       if (manifest.iridescence !== undefined) patch.iridescence = manifest.iridescence;
       if (manifest.shininess !== undefined) patch.shininess = manifest.shininess;
       if (manifest.specular !== undefined) patch.specular = manifest.specular;
-      // M21-mat-textures
-      if (manifest.map !== undefined) patch.map = manifest.map;
-      if (manifest.normalMap !== undefined) patch.normalMap = manifest.normalMap;
+      // M21-mat-textures: texture refs are project-relative (same shape as
+      // the material ref itself, e.g. "runtime/textures/foo.jpg"). Resolve
+      // them through the asset registry so they hit the project's
+      // assetRoot — three.js TextureLoader would otherwise resolve them
+      // against the document URL and miss the project subdirectory.
+      const resolveTexture = (ref: string): string =>
+        deps.assetRegistry !== undefined ? deps.assetRegistry.urlFor(ref) : ref;
+      if (manifest.map !== undefined) patch.map = resolveTexture(manifest.map);
+      if (manifest.normalMap !== undefined) patch.normalMap = resolveTexture(manifest.normalMap);
       if (manifest.normalScale !== undefined) patch.normalScale = manifest.normalScale;
-      if (manifest.roughnessMap !== undefined) patch.roughnessMap = manifest.roughnessMap;
-      if (manifest.metalnessMap !== undefined) patch.metalnessMap = manifest.metalnessMap;
-      if (manifest.emissiveMap !== undefined) patch.emissiveMap = manifest.emissiveMap;
+      if (manifest.bumpMap !== undefined) patch.bumpMap = resolveTexture(manifest.bumpMap);
+      if (manifest.bumpScale !== undefined) patch.bumpScale = manifest.bumpScale;
+      if (manifest.roughnessMap !== undefined) patch.roughnessMap = resolveTexture(manifest.roughnessMap);
+      if (manifest.metalnessMap !== undefined) patch.metalnessMap = resolveTexture(manifest.metalnessMap);
+      if (manifest.emissiveMap !== undefined) patch.emissiveMap = resolveTexture(manifest.emissiveMap);
       if (manifest.emissiveIntensity !== undefined) patch.emissiveIntensity = manifest.emissiveIntensity;
-      if (manifest.aoMap !== undefined) patch.aoMap = manifest.aoMap;
+      if (manifest.aoMap !== undefined) patch.aoMap = resolveTexture(manifest.aoMap);
       // M21-mat-custom + M21-mat-shader-files: when an external shader
       // ref is set, fetch the text + use it instead of the inline
       // string. Refs run in parallel so the patch lands as soon as

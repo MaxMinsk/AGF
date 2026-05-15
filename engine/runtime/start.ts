@@ -32,6 +32,7 @@ export type RuntimeOptions = {
   color?: {
     toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
     exposure?: number;
+    transmissionResolutionScale?: number;
   };
   /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
   shadowAlgorithm?: "pcf" | "vsm" | "pcss";
@@ -181,17 +182,40 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   // for a 6-face cubemap. Both HDR and cube go through PMREMGenerator
   // so they supply IBL, not just a skybox.
   const envSpec = options.scene.environment;
+  // Environment URLs in scenes are project-relative (same shape as
+  // material refs). Resolve through the asset registry so they hit the
+  // project's assetRoot — RGBELoader / CubeTextureLoader would
+  // otherwise resolve against the document URL.
+  const resolveEnvUrl = (ref: string): string =>
+    options.assetRegistry !== undefined ? options.assetRegistry.urlFor(ref) : ref;
   if (envSpec?.kind === "hdr") {
     renderer.adapter.setEnvironment({
       kind: "hdr",
-      url: envSpec.url,
-      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+      url: resolveEnvUrl(envSpec.url),
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {}),
+      ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
+      ...(envSpec.backgroundBlurriness !== undefined
+        ? { backgroundBlurriness: envSpec.backgroundBlurriness }
+        : {})
     });
   } else if (envSpec?.kind === "cube") {
+    const [f0, f1, f2, f3, f4, f5] = envSpec.faces;
+    const resolvedFaces: readonly [string, string, string, string, string, string] = [
+      resolveEnvUrl(f0),
+      resolveEnvUrl(f1),
+      resolveEnvUrl(f2),
+      resolveEnvUrl(f3),
+      resolveEnvUrl(f4),
+      resolveEnvUrl(f5)
+    ];
     renderer.adapter.setEnvironment({
       kind: "cube",
-      faces: envSpec.faces,
-      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+      faces: resolvedFaces,
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {}),
+      ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
+      ...(envSpec.backgroundBlurriness !== undefined
+        ? { backgroundBlurriness: envSpec.backgroundBlurriness }
+        : {})
     });
   } else {
     renderer.adapter.setEnvironment(envSpec?.kind ?? "generated");

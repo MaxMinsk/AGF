@@ -90,6 +90,13 @@
               "exclusiveMinimum": 0,
               "default": 1,
               "description": "Multiplier on the scene luminance before tone mapping. >1 brightens, <1 darkens."
+            },
+            "transmissionResolutionScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "default": 1,
+              "description": "Multiplier on the resolution of WebGLRenderer's transmission pre-pass. Three.js renders the whole opaque scene into a private render target every frame so `MeshPhysicalMaterial.transmission` can sample refraction. Lower values (e.g. 0.5) halve that pre-pass cost — usually invisible because the result is mip-blurred by the material's roughness anyway."
             }
           }
         },

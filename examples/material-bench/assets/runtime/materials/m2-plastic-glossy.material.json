@@ -1,0 +1,7 @@
+{
+  "id": "m2-plastic-glossy",
+  "shader": "standard",
+  "color": "#b88550",
+  "roughness": 0.1,
+  "metalness": 0
+}

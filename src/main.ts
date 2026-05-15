@@ -253,6 +253,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.shadowsBenchBootstrap
     };
+  },
+  "material-bench": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/material-bench/project.json"),
+      import("../examples/material-bench/scenes/start.scene.json"),
+      import("../examples/material-bench/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.materialBenchBootstrap
+    };
   }
 };
 

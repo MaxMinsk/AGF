@@ -405,7 +405,7 @@ function countShadowCasters(projectDir: string): {
   return { dynamicCasterCount, staticCasterCount };
 }
 
-const PRIMITIVE_MESHES = new Set(["box", "sphere", "plane"]);
+const PRIMITIVE_MESHES = new Set(["box", "sphere", "cylinder", "plane"]);
 
 function summarizeBatching(
   projectDir: string,

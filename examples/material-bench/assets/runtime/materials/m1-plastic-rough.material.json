@@ -1,0 +1,7 @@
+{
+  "id": "m1-plastic-rough",
+  "shader": "standard",
+  "color": "#cccccc",
+  "roughness": 1.0,
+  "metalness": 0
+}

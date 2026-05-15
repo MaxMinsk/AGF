@@ -29,6 +29,7 @@ import {
   CanvasTexture,
   Color,
   DirectionalLight,
+  EquirectangularReflectionMapping,
   HemisphereLight,
   IcosahedronGeometry,
   InstancedBufferAttribute,
@@ -323,6 +324,8 @@ export type MaterialPatch = {
   map?: string;
   normalMap?: string;
   normalScale?: number;
+  bumpMap?: string;
+  bumpScale?: number;
   roughnessMap?: string;
   metalnessMap?: string;
   emissiveMap?: string;
@@ -434,6 +437,8 @@ export type ToneMappingKind =
 export type ColorPipelineOptions = {
   toneMapping?: ToneMappingKind;
   exposure?: number;
+  /** Multiplier on the resolution of three.js' transmission pre-pass render target. */
+  transmissionResolutionScale?: number;
 };
 
 const TONE_MAPPING_BY_KIND: Record<ToneMappingKind, ToneMapping> = {
@@ -478,7 +483,14 @@ export type PickHit =
 
 export type EnvironmentSpec =
   | { kind: "generated" | "none" }
-  | { kind: "hdr"; url: string; intensity?: number }
+  | {
+      kind: "hdr";
+      url: string;
+      intensity?: number;
+      asBackground?: boolean;
+      /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
+      backgroundBlurriness?: number;
+    }
   | {
       /**
        * M21-env-cube: 6-face cubemap (positive-x, negative-x, positive-y,
@@ -489,6 +501,9 @@ export type EnvironmentSpec =
       kind: "cube";
       faces: readonly [string, string, string, string, string, string];
       intensity?: number;
+      asBackground?: boolean;
+      /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
+      backgroundBlurriness?: number;
     };
 
 const DEFAULT_COLOR = "#cccccc";
@@ -603,6 +618,13 @@ export class ThreeRenderAdapter {
     const toneMappingKind = options.color?.toneMapping ?? "none";
     this.device.toneMapping = TONE_MAPPING_BY_KIND[toneMappingKind];
     this.device.toneMappingExposure = options.color?.exposure ?? 1;
+    // Lower the transmission pre-pass resolution when requested. Three.js
+    // renders the whole opaque scene into this RT every frame so refraction
+    // can sample it. At 0.5 the cost halves and refraction stays visually
+    // identical because `roughness` already mip-blurs the result.
+    if (options.color?.transmissionResolutionScale !== undefined) {
+      this.device.transmissionResolutionScale = options.color.transmissionResolutionScale;
+    }
     this.scene = new Scene();
     if (options.skyGradient !== undefined) {
       this.scene.background = createGradientTexture(options.skyGradient);
@@ -685,15 +707,27 @@ export class ThreeRenderAdapter {
     if (normalised.kind === "hdr") {
       const url = normalised.url;
       const intensity = normalised.intensity ?? 1;
+      const asBackground = normalised.asBackground === true;
+      const blur = normalised.backgroundBlurriness;
       new RGBELoader().load(url, (texture) => {
         const pmrem = this.pmrem;
         if (pmrem === undefined) return;
         const rt = pmrem.fromEquirectangular(texture);
-        texture.dispose();
         this.currentEnvironmentTexture?.dispose();
         this.currentEnvironmentTexture = rt.texture;
         this.scene.environment = rt.texture;
         this.scene.environmentIntensity = intensity;
+        if (asBackground) {
+          // EquirectangularReflectionMapping lets three.js render the
+          // equirect HDR as a sky. Re-use the raw RGBE texture for that
+          // (the PMREM cubemap is downsampled and looks soft as a sky).
+          texture.mapping = EquirectangularReflectionMapping;
+          this.scene.background = texture;
+          this.scene.backgroundIntensity = intensity;
+          this.scene.backgroundBlurriness = blur ?? 0;
+        } else {
+          texture.dispose();
+        }
         this.currentEnvironmentKind = "hdr";
       });
       return;
@@ -703,17 +737,25 @@ export class ThreeRenderAdapter {
     // swap-once-ready ordering as the HDR path.
     if (normalised.kind === "cube") {
       const intensity = normalised.intensity ?? 1;
+      const asBackground = normalised.asBackground === true;
+      const blur = normalised.backgroundBlurriness;
       new CubeTextureLoader().load(
         normalised.faces as unknown as string[],
         (cubeTexture) => {
           const pmrem = this.pmrem;
           if (pmrem === undefined) return;
           const rt = pmrem.fromCubemap(cubeTexture);
-          cubeTexture.dispose();
           this.currentEnvironmentTexture?.dispose();
           this.currentEnvironmentTexture = rt.texture;
           this.scene.environment = rt.texture;
           this.scene.environmentIntensity = intensity;
+          if (asBackground) {
+            this.scene.background = cubeTexture;
+            this.scene.backgroundIntensity = intensity;
+            this.scene.backgroundBlurriness = blur ?? 0;
+          } else {
+            cubeTexture.dispose();
+          }
           this.currentEnvironmentKind = "cube";
         }
       );
@@ -1466,6 +1508,8 @@ export class ThreeRenderAdapter {
     ) {
       if (patch.normalMap !== undefined) material.normalMap = this.acquireTexture(patch.normalMap, false);
       if (patch.normalScale !== undefined) material.normalScale.set(patch.normalScale, patch.normalScale);
+      if (patch.bumpMap !== undefined) material.bumpMap = this.acquireTexture(patch.bumpMap, false);
+      if (patch.bumpScale !== undefined) material.bumpScale = patch.bumpScale;
       if (patch.emissiveMap !== undefined) material.emissiveMap = this.acquireTexture(patch.emissiveMap, true);
       if (patch.emissiveIntensity !== undefined) {
         // emissiveIntensity is only on Standard/Physical, not Phong.

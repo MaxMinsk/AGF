@@ -1,0 +1,14 @@
+{
+  "id": "m11-ice",
+  "shader": "physical",
+  "color": "#ffffff",
+  "roughness": 0.15,
+  "metalness": 0,
+  "transmission": 0.35,
+  "ior": 1.33,
+  "thickness": 0.2,
+  "map": "runtime/textures/Ice002_1K-JPG_Color.jpg",
+  "normalMap": "runtime/textures/Ice002_1K-JPG_NormalGL.jpg",
+  "normalScale": 1.2,
+  "roughnessMap": "runtime/textures/Ice002_1K-JPG_Roughness.jpg"
+}

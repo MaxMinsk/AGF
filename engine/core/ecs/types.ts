@@ -19,6 +19,10 @@ export type SceneEnvironmentInput =
       url: string;
       /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
       intensity?: number;
+      /** When true, also assign the HDR as the scene's background sky. Defaults to false. */
+      asBackground?: boolean;
+      /** Optional sky blurriness in [0, 1] when `asBackground` is true. Defaults to 0 (sharp). */
+      backgroundBlurriness?: number;
     }
   | {
       /**
@@ -30,6 +34,10 @@ export type SceneEnvironmentInput =
       faces: readonly [string, string, string, string, string, string];
       /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
       intensity?: number;
+      /** When true, also assign the cube map as the scene's background sky. Defaults to false. */
+      asBackground?: boolean;
+      /** Optional sky blurriness in [0, 1] when `asBackground` is true. Defaults to 0 (sharp). */
+      backgroundBlurriness?: number;
     };
 
 export type SceneInput = {

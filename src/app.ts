@@ -37,6 +37,7 @@ export type ProjectMeta = {
     color?: {
       toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
       exposure?: number;
+      transmissionResolutionScale?: number;
     };
     /**
      * M21-post-pipeline: ordered post-processing chain. The adapter

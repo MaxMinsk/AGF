@@ -1,0 +1,8 @@
+{
+  "id": "m8-iridescent",
+  "shader": "physical",
+  "color": "#1d1d1d",
+  "roughness": 0.2,
+  "metalness": 0.5,
+  "iridescence": 1.0
+}

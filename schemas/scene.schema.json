@@ -60,6 +60,18 @@
           "minimum": 0,
           "default": 1,
           "description": "Multiplier on the scene's environment intensity. Only meaningful for `kind: \"hdr\"` or `kind: \"cube\"`."
+        },
+        "asBackground": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, also assign the loaded environment texture as the scene background (Three.js `scene.background`) so the HDR / cubemap is visible behind geometry. Only meaningful for `kind: \"hdr\"` or `kind: \"cube\"` — overrides `project.render.background` for that scene."
+        },
+        "backgroundBlurriness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0,
+          "description": "Optional sky blur factor in [0, 1] when `asBackground: true`. 0 keeps the sky sharp; 0.3 reads as a noticeable defocus; 1.0 turns the sky into broad colour fields."
         }
       },
       "allOf": [

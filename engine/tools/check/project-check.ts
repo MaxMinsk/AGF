@@ -50,7 +50,7 @@ const builtInComponentNames = [
   "Spin",
   "Transform"
 ] as const;
-const primitiveMeshes = new Set(["box", "sphere", "plane"]);
+const primitiveMeshes = new Set(["box", "sphere", "cylinder", "plane"]);
 
 const staticSchemaPaths: Record<StaticSchemaKey, string> = {
   project: "schemas/project.schema.json",
@@ -597,7 +597,7 @@ function validateAssetReference(input: {
       message: `${capitalize(input.referenceKind)} asset "${input.reference}" does not exist under assetRoot "${input.assetRoot}".`,
       suggestion:
         input.referenceKind === "mesh"
-          ? "Add the runtime mesh file, update the reference, or use a primitive mesh: box, sphere, plane."
+          ? "Add the runtime mesh file, update the reference, or use a primitive mesh: box, sphere, cylinder, plane."
           : "Add the material file under assetRoot or remove the material reference until materials are implemented."
     }
   ];

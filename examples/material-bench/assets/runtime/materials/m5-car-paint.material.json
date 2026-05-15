@@ -1,0 +1,9 @@
+{
+  "id": "m5-car-paint",
+  "shader": "physical",
+  "color": "#c92836",
+  "roughness": 0.4,
+  "metalness": 0.2,
+  "clearcoat": 1.0,
+  "clearcoatRoughness": 0.05
+}
