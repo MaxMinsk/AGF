@@ -75,6 +75,73 @@ inequality fails. Rough crossover guess for shadows-bench geometry:
   `@three.ez/batched-mesh-extensions` collapses the per-instance loop
   into a tree walk — could flip the crossover for smaller scenes).
 
+## Sprint 53 — `batched-bvh` measurement (M17-bvh-extension)
+
+Sprint 53 wired `@three.ez/batched-mesh-extensions` behind a new
+`project.json#render.batching.path: "batched-bvh"` enum value. The
+extension augments `BatchedMesh.prototype` with `computeBVH()`; after
+the first frame `BatchingSystem` calls it once per bucket, then
+three.js auto-updates the BVH from then on. Per-instance frustum
+culling becomes a BVH walk instead of the O(N) bounding-sphere loop
+the vanilla `batched` path used.
+
+**shadows-bench** (327 instances, 3-cascade CSM, headless software-WebGL):
+
+| scenario           | drawCalls | triangles  | renderMs | totalFrameMs |
+|--------------------|----------:|-----------:|---------:|-------------:|
+| instanced (S53 default) |    12 |  451 720  |   0.45   |   1.57      |
+| batched            |     8 |  371 097  |   0.74   |   1.86      |
+| **batched-bvh**    |   **5** |  **70 336** | **0.57**  | **1.76**    |
+
+The BVH path:
+- **drawCalls −58 %** vs instanced (12 → 5) — BVH-driven multi-draw
+  collapses the off-screen instances out of the command list.
+- **triangles −84 %** vs instanced (451 720 → 70 336) — vanilla
+  `batched` only managed −18 % because its per-instance loop runs
+  on the camera frustum without spatial acceleration.
+- **renderMs −23 %** vs vanilla `batched` (0.74 → 0.57) — BVH walk is
+  faster than the O(N) loop on this scene size.
+- **renderMs +27 %** vs `instanced` (0.45 → 0.57) — still loses to
+  the single `drawInstanced` call because software-WebGL is fillrate-
+  bound and the 84 % triangle saving doesn't show up in this metric.
+  On real hardware where fillrate matters the ranking should flip.
+
+**batch-bench** (401 cubes, all in the orbit camera frustum, no shadows):
+
+| scenario           | drawCalls | triangles | renderMs | totalFrameMs |
+|--------------------|----------:|----------:|---------:|-------------:|
+| instanced          |     2     |   4 812   |   0.16   |   0.48      |
+| batched            |     2     |   4 812   |   0.32   |   0.74      |
+| batched-bvh        |     2     |   4 812   |   0.36   |   0.74      |
+
+All cubes are visible, so neither BVH nor the vanilla `batched`
+per-instance loop has anything to cull — `triangles` is identical
+across paths. The extra renderMs is pure dispatch overhead:
+- `instanced` issues one `drawInstanced` call → cheapest.
+- `batched` adds a multi-draw command list overhead (~+100 %).
+- `batched-bvh` adds the BVH walk on top (~+12 % vs `batched`).
+
+So `batched-bvh` is **strictly worse than `instanced`** when most
+instances are visible, and **strictly better than `batched`** when
+many are not. The crossover on shadows-bench (CSM camera framing
+the whole village) falls inside the "some off-screen, some on" zone
+where BVH wins big on triangles but loses on dispatch.
+
+## Recommendation update
+
+- **`instanced` (default since S53)** remains the right default for
+  scenes where the camera sees most instances.
+- **`batched-bvh`** is the right call when:
+  - many instances are off-screen each frame (player-focused
+    camera with a wide world; first-person FPS; a corridor view of
+    a big procedural map);
+  - the scene has expensive per-fragment work (heavy shaders or
+    very large viewport) so the 84 % triangle saving converts to
+    real renderMs.
+- **`batched`** (vanilla) is now a stepping-stone path that
+  `batched-bvh` strictly dominates for this scene class. Keep the
+  enum value for compatibility but don't recommend it in docs.
+
 ## Reproduce
 
 ```

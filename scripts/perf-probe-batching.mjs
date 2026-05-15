@@ -15,7 +15,8 @@
 //
 // Usage:
 //   node scripts/perf-probe-batching.mjs
-//   node scripts/perf-probe-batching.mjs --paths instanced,batched --durationMs 4000
+//   node scripts/perf-probe-batching.mjs --paths instanced,batched,batched-bvh --durationMs 4000
+//   node scripts/perf-probe-batching.mjs --projectId batch-bench
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -24,15 +25,15 @@ import { chromium } from "@playwright/test";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const projectPath = resolve(repoRoot, "examples/shadows-bench/project.json");
 
 const args = parseArgs(process.argv.slice(2));
-const paths = (args.paths ?? "instanced,batched").split(",").map((s) => s.trim());
+const paths = (args.paths ?? "instanced,batched,batched-bvh").split(",").map((s) => s.trim());
 const durationMs = Number(args.durationMs ?? 4000);
 const sampleMs = Number(args.sampleMs ?? 200);
 const settleMs = Number(args.settleMs ?? 1500);
 const serverUrl = args.server ?? "http://127.0.0.1:5173";
 const projectId = args.projectId ?? "shadows-bench";
+const projectPath = resolve(repoRoot, `examples/${projectId}/project.json`);
 
 function parseArgs(argv) {
   const out = {};
