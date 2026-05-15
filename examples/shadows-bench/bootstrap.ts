@@ -173,8 +173,12 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     const rawX = Math.cos(angle) * radius;
     const rawZ = Math.sin(angle) * radius;
     const [x, z] = clearRoadCorridor(rawX, rawZ);
-    const trunkH = 0.8 + rand() * 0.8;
-    const canopyR = 0.7 + rand() * 0.7;
+    // S52 wider variance: 0.6..2.0 trunk, 0.5..1.6 canopy.
+    // The old 0.8..1.6 / 0.7..1.4 was too uniform — every tree
+    // read the same height, which made the forest look like a
+    // grid of identical bushes.
+    const trunkH = 0.6 + rand() * 1.4;
+    const canopyR = 0.5 + rand() * 1.1;
     const swayAmp = 1.8 + rand() * 1.5; // degrees
     const swayDur = 2.6 + rand() * 2.0; // seconds per cycle
 
@@ -478,6 +482,107 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
         data: { cast: true, receive: true }
       });
     }
+  }
+
+  // Lampposts — thin pole + bright head at the road edges. Six total:
+  // four mid-block along the EW street + two mid-block along the NS
+  // street. Skip the central intersection — the cars use that lane.
+  // All entities stay primitive Standard so they share the existing
+  // box / sphere buckets.
+  const LAMP_POLE_H = 3.6;
+  const LAMP_OFFSET = 3.3; // just outside the 4m-wide road kerb
+  const lampPositions: ReadonlyArray<{ x: number; z: number }> = [
+    { x: -28, z: -LAMP_OFFSET }, { x: -28, z: LAMP_OFFSET },
+    { x:  28, z: -LAMP_OFFSET }, { x:  28, z: LAMP_OFFSET },
+    { x: -LAMP_OFFSET, z: -28 }, { x: LAMP_OFFSET, z: -28 },
+    { x: -LAMP_OFFSET, z:  28 }, { x: LAMP_OFFSET, z:  28 }
+  ];
+  for (let i = 0; i < lampPositions.length; i++) {
+    const p = lampPositions[i]!;
+    const poleId = `lamp.${i}.pole`;
+    commands.push({ kind: "entity.create", entityId: poleId });
+    commands.push({
+      kind: "component.set",
+      entityId: poleId,
+      component: "Transform",
+      data: { position: [p.x, LAMP_POLE_H / 2, p.z], scale: [0.18, LAMP_POLE_H, 0.18] }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: poleId,
+      component: "MeshRenderer",
+      data: { mesh: "box", color: "#2a2620" }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: poleId,
+      component: "ShadowFlags",
+      data: { cast: true, receive: true }
+    });
+
+    const headId = `lamp.${i}.head`;
+    commands.push({ kind: "entity.create", entityId: headId });
+    commands.push({
+      kind: "component.set",
+      entityId: headId,
+      component: "Transform",
+      data: { position: [p.x, LAMP_POLE_H + 0.18, p.z], scale: [0.5, 0.35, 0.5] }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: headId,
+      component: "MeshRenderer",
+      // Bright warm tone — reads as a lit fixture under ACES even
+      // without emissive (introducing emissive would split the bucket
+      // into its own material manifest; keep it inline for now).
+      data: { mesh: "box", color: "#f0c869" }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: headId,
+      component: "ShadowFlags",
+      data: { cast: true, receive: true }
+    });
+  }
+
+  // Plaza props — six low planter boxes around the central intersection
+  // so the crossroads reads as a place, not just an empty cross. Two
+  // per quadrant, offset from the road kerb. Same Standard inline-
+  // colour treatment.
+  const plazaProps: ReadonlyArray<{
+    pos: [number, number, number];
+    scale: [number, number, number];
+    color: string;
+  }> = [
+    { pos: [-5.0, 0.35, -5.0], scale: [1.4, 0.7, 1.4], color: "#8a7656" },
+    { pos: [ 5.0, 0.35, -5.0], scale: [1.4, 0.7, 1.4], color: "#a08562" },
+    { pos: [-5.0, 0.35,  5.0], scale: [1.4, 0.7, 1.4], color: "#b89a78" },
+    { pos: [ 5.0, 0.35,  5.0], scale: [1.4, 0.7, 1.4], color: "#8a7656" },
+    { pos: [-7.5, 0.25,  0.0], scale: [0.9, 0.5, 0.9], color: "#6f4a30" },
+    { pos: [ 7.5, 0.25,  0.0], scale: [0.9, 0.5, 0.9], color: "#6f4a30" }
+  ];
+  for (let i = 0; i < plazaProps.length; i++) {
+    const p = plazaProps[i]!;
+    const id = `plaza.prop.${i}`;
+    commands.push({ kind: "entity.create", entityId: id });
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "Transform",
+      data: { position: p.pos, scale: p.scale }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "MeshRenderer",
+      data: { mesh: "box", color: p.color }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowFlags",
+      data: { cast: true, receive: true }
+    });
   }
 
   // Rocks — squashed spheres of varied size at the field edges.
