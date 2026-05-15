@@ -14,6 +14,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel any in-flight smoke run when a new commit lands on the same ref
+# (PR or branch). Saves Actions minutes when an agent pushes a fix-up
+# while the previous run is still going.
+concurrency:
+  group: e2e-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   smoke:
     name: Playwright smoke
@@ -27,8 +34,26 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      # Playwright browser binaries are ~300 MB. Cache them between runs
+      # keyed by the resolved playwright version in package-lock.json so a
+      # version bump invalidates the cache automatically.
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          v=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps (cached browsers)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Run smoke project
         run: npm run test:e2e:smoke
       # `continue-on-error: true` on the artifact uploads — when the

@@ -2,20 +2,24 @@ name: E2E Nightly (full Playwright)
 
 # Full Playwright suite — dev-server + preview-mode + serial-heavy. Runs:
 #   * nightly at 04:00 UTC,
-#   * on manual `workflow_dispatch`,
-#   * on pushes to `main` (so a regression that smoke missed still shows up
-#     within the day).
+#   * on manual `workflow_dispatch`.
 #
-# Failures here do NOT block PRs (that's the smoke gate above). Their job
-# is triage signal — the artifacts are uploaded for each failed test so an
-# agent can read `agf-state.json` + the trace without re-running locally.
+# Intentionally NOT triggered on `push: main` — the cron already covers
+# regression catches within ~24h, and re-running on every merge wastes
+# Actions minutes when the smoke gate already passed on the PR.
+#
+# Failures here do NOT block PRs (that's the smoke gate). Their job is
+# triage signal — artifacts on failure feed `agf-state.json` + the trace
+# back to the agent without needing a local repro.
 
 on:
   schedule:
     - cron: "0 4 * * *"
-  push:
-    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: e2e-nightly-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   full-dev:
@@ -30,8 +34,23 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          v=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps (cached browsers)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Run full dev-server suite
         run: npm run test:e2e:full-dev
       - name: Upload Playwright report on failure
@@ -63,8 +82,23 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          v=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps (cached browsers)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Run preview-mode suite
         run: npm run test:e2e:preview
       - name: Upload Playwright report on failure
