@@ -2,6 +2,6 @@
   "id": "m0-chrome",
   "shader": "standard",
   "color": "#f8fafc",
-  "roughness": 0.02,
+  "roughness": 0.12,
   "metalness": 1.0
 }

@@ -54,6 +54,7 @@ import {
   type Object3D,
   ACESFilmicToneMapping,
   AdditiveBlending,
+  LinearMipmapLinearFilter,
   LinearToneMapping,
   NoToneMapping,
   ReinhardToneMapping,
@@ -855,7 +856,17 @@ export class ThreeRenderAdapter {
     near: number;
     far: number;
   }): number {
-    const renderTarget = new WebGLCubeRenderTarget(spec.size, { type: HalfFloatType });
+    // generateMipmaps + LinearMipmapLinearFilter lets MeshStandard/
+    // MeshPhysicalMaterial sample the cube map at roughness > 0 with a
+    // box-filtered mip chain — not full PMREM GGX prefilter, but a
+    // close-enough blurry reflection for moderate-roughness surfaces.
+    // Three.js's CubeCamera.update temporarily flips generateMipmaps off
+    // during the 6 face renders and rebuilds the mip chain after.
+    const renderTarget = new WebGLCubeRenderTarget(spec.size, {
+      type: HalfFloatType,
+      generateMipmaps: true,
+      minFilter: LinearMipmapLinearFilter
+    });
     const cubeCam = new CubeCamera(spec.near, spec.far, renderTarget);
     // INTENTIONALLY NOT added to scene. CubeCamera.update() only auto-
     // refreshes its world matrix when parent === null; if we add it to
