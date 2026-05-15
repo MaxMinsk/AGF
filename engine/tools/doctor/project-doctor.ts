@@ -148,7 +148,24 @@ export type DoctorReport = {
   textures: TextureDoctorReport;
   /** S54 DOCTOR-prefab-section: declared prefab inventory + instance usage. */
   prefabs: PrefabsReport;
+  /** S57 DOCTOR-reflection-section: declared reflection probes + cadence summary. */
+  reflectionProbes: ReflectionProbesReport;
   recommendations: string[];
+};
+
+export type ReflectionProbesReport = {
+  /** One entry per `ReflectionProbe`-tagged entity across every scene. */
+  probes: ReadonlyArray<{
+    entityId: string;
+    sceneFile: string;
+    size: number;
+    updateRate: number;
+    excludeCount: number;
+  }>;
+  /** Bindings that reference a probe id not actually declared. */
+  missingProbeBindings: ReadonlyArray<{ bindingEntityId: string; probeId: string; sceneFile: string }>;
+  /** Probes with no `excludeEntities` list — almost certainly a self-reflection bug. */
+  probesWithoutSelfExclude: ReadonlyArray<string>;
 };
 
 export type PrefabsReport = {
@@ -325,6 +342,22 @@ export function runDoctor(
     );
   }
 
+  const reflectionProbes = summarizeReflectionProbes(projectDir);
+  if (reflectionProbes.missingProbeBindings.length > 0) {
+    const refs = reflectionProbes.missingProbeBindings
+      .slice(0, 3)
+      .map((b) => `${b.bindingEntityId} → ${b.probeId}`)
+      .join(", ");
+    recommendations.push(
+      `${reflectionProbes.missingProbeBindings.length} EnvmapBinding(s) reference unknown ReflectionProbe ids [${refs}]. Add the probe entity or fix the ref.`
+    );
+  }
+  if (reflectionProbes.probesWithoutSelfExclude.length > 0) {
+    recommendations.push(
+      `${reflectionProbes.probesWithoutSelfExclude.length} ReflectionProbe(s) [${reflectionProbes.probesWithoutSelfExclude.join(", ")}] have no excludeEntities — the cube camera will see its own owner. Add the owner id to excludeEntities.`
+    );
+  }
+
   const prefabs = summarizePrefabs(projectDir);
   if (prefabs.missingPrefabRefs.length > 0) {
     const refs = prefabs.missingPrefabRefs.slice(0, 5).join(", ");
@@ -356,7 +389,90 @@ export function runDoctor(
     shadows,
     textures,
     prefabs,
+    reflectionProbes,
     recommendations
+  };
+}
+
+function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
+  const probes: Array<{
+    entityId: string;
+    sceneFile: string;
+    size: number;
+    updateRate: number;
+    excludeCount: number;
+    selfExcluded: boolean;
+  }> = [];
+  const bindings: Array<{ bindingEntityId: string; probeId: string; sceneFile: string }> = [];
+  const declaredProbeIds = new Set<string>();
+
+  const scenesDir = resolve(projectDir, "scenes");
+  if (!existsSync(scenesDir) || !statSync(scenesDir).isDirectory()) {
+    return { probes: [], missingProbeBindings: [], probesWithoutSelfExclude: [] };
+  }
+  const stack: string[] = [scenesDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (dir === undefined) break;
+    for (const name of readdirSync(dir)) {
+      const full = resolve(dir, name);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!name.endsWith(".scene.json")) continue;
+      let scene: { entities?: Array<{ id?: string; components?: Record<string, unknown> }> };
+      try {
+        scene = JSON.parse(readFileSync(full, "utf8"));
+      } catch {
+        continue;
+      }
+      const relFile = full.replace(`${projectDir}/`, "");
+      for (const entity of scene.entities ?? []) {
+        if (typeof entity.id !== "string" || entity.components === undefined) continue;
+        const probeConfig = entity.components["ReflectionProbe"] as
+          | { size?: number; updateRate?: number; excludeEntities?: ReadonlyArray<string> }
+          | undefined;
+        if (probeConfig !== undefined) {
+          declaredProbeIds.add(entity.id);
+          const exclude = probeConfig.excludeEntities ?? [];
+          probes.push({
+            entityId: entity.id,
+            sceneFile: relFile,
+            size: probeConfig.size ?? 256,
+            updateRate: probeConfig.updateRate ?? 60,
+            excludeCount: exclude.length,
+            selfExcluded: exclude.includes(entity.id)
+          });
+        }
+        const binding = entity.components["EnvmapBinding"] as { probe?: string } | undefined;
+        if (binding !== undefined && typeof binding.probe === "string") {
+          bindings.push({
+            bindingEntityId: entity.id,
+            probeId: binding.probe,
+            sceneFile: relFile
+          });
+        }
+      }
+    }
+  }
+
+  const missingProbeBindings = bindings.filter((b) => !declaredProbeIds.has(b.probeId));
+  const probesWithoutSelfExclude = probes
+    .filter((p) => p.excludeCount === 0 || !p.selfExcluded)
+    .map((p) => p.entityId);
+
+  return {
+    probes: probes.map(({ entityId, sceneFile, size, updateRate, excludeCount }) => ({
+      entityId,
+      sceneFile,
+      size,
+      updateRate,
+      excludeCount
+    })),
+    missingProbeBindings,
+    probesWithoutSelfExclude
   };
 }
 
@@ -783,9 +899,38 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatPrefabs(report.prefabs));
   lines.push("");
 
+  lines.push(formatReflectionProbes(report.reflectionProbes));
+  lines.push("");
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatReflectionProbes(report: ReflectionProbesReport): string {
+  const lines: string[] = [];
+  lines.push(`Reflections: ${report.probes.length} ReflectionProbe(s).`);
+  if (report.probes.length === 0) {
+    lines.push("  (no scene declares a ReflectionProbe)");
+    return lines.join("\n");
+  }
+  // Estimated cost = sum over probes of (updateRate * 6 faces).
+  let extraRendersPerSecond = 0;
+  for (const probe of report.probes) {
+    extraRendersPerSecond += probe.updateRate * 6;
+    lines.push(
+      `  ${probe.entityId} (${probe.sceneFile}) — ${probe.size}² @ ${probe.updateRate} Hz, ${probe.excludeCount} excluded`
+    );
+  }
+  lines.push(`  estimated extra renders/sec: ${extraRendersPerSecond}`);
+  if (report.missingProbeBindings.length > 0) {
+    lines.push(
+      `  missing probe refs: ${report.missingProbeBindings
+        .map((b) => `${b.bindingEntityId} → ${b.probeId}`)
+        .join(", ")}`
+    );
   }
   return lines.join("\n");
 }

@@ -937,7 +937,15 @@ export class ThreeRenderAdapter {
       this.groundedShadowMesh = undefined;
     }
     if (spec === undefined) return;
-    const sky = new GroundedSkybox(envCubemap, spec.height, spec.radius) as unknown as Mesh;
+    // GroundedSkybox's `height` constructor arg is the projection magnify
+    // factor (think: "how high the camera was when shooting the HDR") and
+    // MUST be positive — it throws on `height <= 0`. AGF's `spec.height`
+    // means "world Y where the virtual floor sits" so it can be negative.
+    // Build with a sane positive projection factor, then position the
+    // mesh externally so the floor lands at `spec.height`.
+    const PROJECTION_HEIGHT = 2;
+    const sky = new GroundedSkybox(envCubemap, PROJECTION_HEIGHT, spec.radius) as unknown as Mesh;
+    sky.position.y = spec.height;
     sky.name = "agf.grounded-skybox";
     this.scene.add(sky);
     this.groundedSkyboxMesh = sky;
@@ -949,11 +957,13 @@ export class ThreeRenderAdapter {
     // painted after the opaque sky in the same depth range.
     const catcher = new Mesh(
       new PlaneGeometry(spec.radius * 2, spec.radius * 2),
-      new ShadowMaterial({ opacity: 0.55, transparent: true })
+      new ShadowMaterial({ opacity: 1.0, transparent: true })
     );
     catcher.name = "agf.grounded-skybox-shadow";
     catcher.rotation.x = -Math.PI / 2;
-    catcher.position.y = spec.height + 0.001;
+    // 10 mm above the sky's flat-bottom disc avoids z-fighting on
+    // GPUs with low depth precision at this scene scale.
+    catcher.position.y = spec.height + 0.01;
     catcher.receiveShadow = true;
     catcher.renderOrder = 1;
     this.scene.add(catcher);

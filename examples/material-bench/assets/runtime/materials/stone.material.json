@@ -1,7 +1,11 @@
 {
   "id": "stone",
   "shader": "standard",
-  "color": "#6f6960",
-  "roughness": 0.95,
-  "metalness": 0.0
+  "color": "#7e7468",
+  "roughness": 1.0,
+  "metalness": 0.0,
+  "bumpMap": "runtime/textures/brick_bump.jpg",
+  "bumpScale": 2.5,
+  "roughnessMap": "runtime/textures/brick_roughness.jpg"
 }
+

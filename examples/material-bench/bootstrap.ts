@@ -46,7 +46,7 @@ const GROUND_TOP_Y = -0.75; // grounded skybox y; pedestals + columns rest on th
 // in a ring around the orbit so the centre chrome sphere's reflection
 // probe has something interesting to capture.
 const STONE_RING_RADIUS = 11.0;
-const STONE_COLUMN_COUNT = 8;
+const STONE_COLUMN_COUNT = 12;
 const STONE_HEIGHT = 4.0;
 const STONE_RADIUS = 0.55;
 
@@ -115,7 +115,7 @@ function buildSeedCommands(): EngineCommand[] {
     size: 256,
     near: 0.1,
     far: 60,
-    updateRate: 60,
+    updateRate: 30,
     excludeEntities: [centreSphereId, centrePedestalId]
   });
   setComponent(commands, centreSphereId, "EnvmapBinding", { probe: centreSphereId });
@@ -159,6 +159,16 @@ function buildSeedCommands(): EngineCommand[] {
       material
     });
     setComponent(commands, sphereId, "ShadowFlags", { cast: true, receive: true });
+    // S57: outer spheres share the centre probe. Reflection has slight
+    // parallax error (probe sits at the centre, not at the sphere) but
+    // the visible improvement vs. only-IBL is significant — they pick
+    // up the stonehenge columns + the other orbit-ring members. For
+    // pixel-perfect reflections each outer sphere would need its own
+    // probe (12× the cost, deferred).
+    setComponent(commands, sphereId, "EnvmapBinding", {
+      probe: "sphere.centre",
+      intensity: 0.85
+    });
   }
 
   // Stonehenge perimeter — STATIC entities at the world root (NOT

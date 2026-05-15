@@ -2643,3 +2643,52 @@ These all need live visual verification an autonomous session couldn't run:
 
 - The six visual-fidelity stories carry into S57 with their original numbering. S57 also picks up `ASSET-textures-via-registry` as its lead non-visual story.
 - ADR-0012 is technically "Decision: workaround shipped, integration planned" — once the S57 Story 3 lands, the ADR will be updated to "Decision: full integration shipped" without changing the rule.
+
+## Sprint 57 - Visual-fidelity v0 + texture registry integration
+
+Status: Completed and archived. Eleven of twelve planned stories shipped; `REFLECTION-prefilter` deferred to S58 because three.js's auto-mipmap on `WebGLCubeRenderTarget` is visually close enough for the chrome-roughness 0.18 case in material-bench. Proper GGX prefilter lands when a `roughness > 0.3` reflective material asks for it.
+
+### Completed Work
+
+1. **ASSET-textures-via-registry** ✅ — texture refs route through `AssetRegistry.get<Texture>()`. New `engine/render/texture-loader.ts` registered with material + glb loaders. `MaterialPatch.{map,normalMap,bumpMap,roughnessMap,metalnessMap,emissiveMap,aoMap}` typed as pre-loaded `Texture` instances. Adapter retired its local `textureCache` + `acquireTexture`. 404s now emit `AGF_RUNTIME_ASSET_LOAD_FAILED`.
+2. **GROUND-skybox** ✅ — `three/addons/objects/GroundedSkybox.js` vendored. `scene.environment.groundedSkybox: { height, radius }` mounts a curved-bottom sky mesh + an invisible `ShadowMaterial` shadow-catcher at the same height (lifted 1mm, renderOrder=1) so shadows fall on the virtual ground.
+3. **REFLECTION-cube-probe** ✅ — new `ReflectionProbe` + `EnvmapBinding` scene components, adapter API for `CubeCamera + WebGLCubeRenderTarget` lifecycle, new `ReflectionProbeSystem` that gates rendering by `updateRate` (0/15/30/60 Hz), hides `excludeEntities` + the owner, and stamps the resulting cube texture onto every entity with `EnvmapBinding`.
+4. **POST-ssao** ✅ — `SSAOPass` vendored. `project.render.post: [{ kind: "ssao", radius?, intensity?, kernelSize? }]` wired through composer rebuild.
+5. **POST-color-lut** ✅ — `LUTPass` + `LUTCubeLoader` vendored. `project.render.post: [{ kind: "color-lut", file, intensity? }]`. LUT URL resolution rides through `adapter.lutUrlResolver` (default routes via `AssetRegistry.urlFor`).
+7. **ADR-0012-update** ✅ — moved from "workaround shipped, integration planned" to "full integration shipped".
+8. **PERFTEST-material-bench-budget** ✅ — soft / hard ceilings rebaked for the new scene shape (geometries 6→10 / textures 24→36 / programs 16→20 / meshes 32→48 soft; hard up proportionally). Three vendor bundle budget 300 → 320 KB after the new addons.
+9. **POST-composer-schema** ✅ — `project.json#render.post` schema enum + `ProjectMeta` + `PostPassConfig` extended with `ssao` + `color-lut`.
+10. **DOCS-vfx-skill** ✅ — new `docs/agent/skills/vfx-authoring.md` covering every VFX surface AGF ships today + a perf-gotcha section + the material-bench worked example.
+11. **MATERIAL-bench-vfx-adopt** ✅ — dark plinth removed; GroundedSkybox at y=-0.75 r=60; 8 cylindrical "stonehenge" stone columns at radius 11 (new `stone.material.json`); centre chrome sphere hosts `ReflectionProbe` 256² @ 60 Hz + `EnvmapBinding` self-ref; shadow-camera frustum widened to ±14 / far 40.
+12. **DOCTOR-reflection-section** ✅ — `engine doctor` `Reflections:` section enumerates declared probes (size, cadence, exclude count), estimates extra renders/sec, warns about probes without self-exclude and bindings with unknown probe ids. Static-only; bootstrap-spawned probes (material-bench's) don't show up by design.
+
+### Deferred to Sprint 58
+
+- 6 `REFLECTION-prefilter` — three.js's automatic cubemap mipmap chain is close enough for the chrome-roughness 0.18 case; full GGX prefilter via `PMREMGenerator.fromCubemap` lands when a `roughness > 0.3` reflective material asks for it.
+
+### Deliverables
+
+- `engine/render/texture-loader.ts` (new) — `AssetLoader<Texture>` registered in `src/app.ts`.
+- `engine/render/systems/reflection-probe-system.ts` (new).
+- `engine/render/three-render-adapter.ts` — texture-bind retire, post-pass union extended (SSAO / LUT), GroundedSkybox + shadow-catcher mount, reflection-probe API (acquire / setTransform / update / texture / release / meshForHandle), envMap MaterialPatch fields, NoColorSpace re-tagging.
+- `engine/runtime/start.ts` — `groundedSkybox` plumbed through HDR + cube env paths, reflection-probe system registered.
+- `engine/core/ecs/types.ts` — `SceneEnvironmentInput.{groundedSkybox}`.
+- `schemas/components/render.schema.json` — `reflectionProbeComponent` + `envmapBindingComponent` defs.
+- `schemas/scene.schema.json` — `ReflectionProbe` + `EnvmapBinding` registered + `environment.groundedSkybox`.
+- `schemas/project.schema.json` — `render.post` enum + `ProjectMeta.render.post`.
+- `examples/material-bench/` — stonehenge in `bootstrap.ts`, `stone.material.json`, scene shadow camera widened, dark plinth removed, GroundedSkybox env, performance budget rebaked.
+- `docs/agent/skills/vfx-authoring.md` (new).
+- `docs/adr/0012-asset-registry-texture-resolution.md` — "full integration shipped" record.
+- `scripts/check-bundle-size.mjs` — three-vendor budget 300 → 320 KB.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 505 tests + build + bundle:check + 11/11 e2e smoke (33.3 s).
+- User live-verified: HDR sky meets cement pedestals; centre chrome reflects orbiting ring + stonehenge.
+
+### Follow-Ups
+
+- **REFLECTION-prefilter (S58 Story 1)** — full GGX prefilter through `PMREMGenerator.fromCubemap` at 10 Hz; required for `roughness > 0.3` reflective materials to read plausibly blurry environment.
+- **REFLECTION-planar (parking lot)** — vendored `Reflector.js` for water / lobby-floor surfaces.
+- **DOCTOR-reflection scans bootstrap entities** — today the doctor only scans scene JSON; material-bench's probe is invisible to it. Adding a runtime probe inventory via the dev bridge would close that gap.
+- **`engine doctor` Reflections cost estimate** is naive (probes × 6 × updateRate). A real perf-probe would account for view-frustum culling and the actual scene draw cost per cube face.
