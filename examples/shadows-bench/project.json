@@ -16,7 +16,6 @@
       "auto": true
     },
     "shadows": {
-      "autoUpdate": false,
       "algorithm": "pcss",
       "csm": {
         "enabled": true,
