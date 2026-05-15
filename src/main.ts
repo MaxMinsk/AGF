@@ -132,6 +132,8 @@ declare global {
         readonly batchedBuckets: number;
         readonly batchedBucketInstances: number;
         readonly handleLeak: number;
+        /** S54 RUNTIME-gpu-timing: GPU-side frame ms when `EXT_disjoint_timer_query_webgl2` is supported; undefined otherwise. */
+        readonly gpuMs?: number;
       };
       /**
        * M21-frame-timing — window-averaged per-phase tick timings in
