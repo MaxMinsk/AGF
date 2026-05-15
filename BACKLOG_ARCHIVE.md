@@ -2600,3 +2600,46 @@ Single focused pass: every agent-facing doc + skill memo + slash-command referen
 - **ADR audit.** Texture resolution through `AssetRegistry.urlFor`, environment.asBackground, primitive-set extensions and `transmissionResolutionScale` are documented in skill memos but not anchored in any ADR. Spawn a doc-only follow-up sprint if the codebase needs the architectural record.
 - **`engine docs <projectId>` regen.** The auto-generated docs under `docs/generated/<projectId>/` weren't refreshed during S55. They aren't used by agents day-to-day (the hand-written skill memos are), but a follow-up run keeps them aligned with the new schema fields (`asBackground`, `backgroundBlurriness`, `transmissionResolutionScale`, `idleMode`, `criticalAssets`, `bumpMap`, `bumpScale`).
 - **MeshRenderer.material path-validator.** Several docs (build-a-game, asset-pipeline, scene-authoring, material-authoring) call out the bare-id-vs-path pitfall — backlog candidate to make `engine check` enforce it.
+
+## Sprint 56 - Engine hygiene + ADR catch-up
+
+Status: Completed and archived. Six of twelve planned stories shipped; six visual-fidelity stories deferred to S57 because they need live browser eyeball-tests that an autonomous session can't run.
+
+### Completed Work
+
+1. **MESHRENDERER-material-path-validator** ✅ — new `AGF_MATERIAL_REF_INVALID` error in `engine check` when `MeshRenderer.material` isn't a `.material.json` path under `assetRoot`. Closes the bare-id silent-fail flagged in `material-bench-asset-friction.md`. Fixture pair + 1 unit test. Diagnostics catalogue updated.
+2. **PRIMITIVE-set-single-source** ✅ — new `engine/core/primitives.ts` exports `PRIMITIVE_MESHES: ReadonlySet<string>`, `PRIMITIVE_MESH_NAMES: ReadonlyArray<PrimitiveMeshName>`, `isPrimitiveMesh()` helper. Five hand-rolled Sets across the engine collapse into one source of truth; the JSON-schema enum keeps a paired comment pointing at the TS source.
+8. **ADR-0009-shadow-caster-dynamic-tag** ✅ — anchors `ShadowCaster { dynamic }` + `DynamicShadowSystem` with the S53 audit-trail of the first-version visual regression.
+9. **ADR-0010-typed-render-pool** ✅ — anchors `BucketSpec` discriminated union, `PoolHandle` union, `RenderPoolRegistry<Entry>` (S53).
+10. **ADR-0011-prefab-instantiation** ✅ — anchors `expandScenePrefabs` + shallow-merge override semantics + the `AGF_SCENE_INSTANCE_*` diagnostics + "no nested deep merge" rule (S54).
+11. **ADR-0012-asset-registry-texture-resolution** ✅ — anchors the texture-refs-through-AssetRegistry rule; records the `urlFor` workaround (S54) and the planned `get<TextureAsset>()` integration (S57).
+
+### Deferred to Sprint 57
+
+These all need live visual verification an autonomous session couldn't run:
+
+- 3 `ASSET-textures-via-registry`
+- 4 `GROUND-skybox`
+- 5 `REFLECTION-cube-probe`
+- 6 `POST-ssao`
+- 7 `POST-color-lut`
+- 12 `REFLECTION-prefilter` (depends on 5)
+
+### Deliverables
+
+- `engine/core/primitives.ts` (new) — single-source primitive set.
+- `engine/tools/check/project-check.ts` — new `AGF_MATERIAL_REF_INVALID` path validator + imports the primitives.
+- `engine/render/systems/batching-system.ts`, `engine/tools/doctor/project-doctor.ts` — import from `engine/core/primitives.ts`.
+- `schemas/components/render.schema.json` — paired-comment on the primitive enum.
+- `docs/diagnostics.md` — new code documented.
+- `docs/adr/0009-0012-*.md` (4 new files).
+- `tests/fixtures/material-ref-bare-id/` (new fixture) + 1 new unit test in `project-check.test.ts`.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 505 tests + build + bundle:check + 11/11 e2e smoke (24.9 s).
+
+### Follow-Ups
+
+- The six visual-fidelity stories carry into S57 with their original numbering. S57 also picks up `ASSET-textures-via-registry` as its lead non-visual story.
+- ADR-0012 is technically "Decision: workaround shipped, integration planned" — once the S57 Story 3 lands, the ADR will be updated to "Decision: full integration shipped" without changing the rule.

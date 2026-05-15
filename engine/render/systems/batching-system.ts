@@ -25,6 +25,7 @@
 
 import type { ComponentName, EntityId } from "../../core/ecs/types";
 import type { QueryHandle, World } from "../../core/ecs/world";
+import { PRIMITIVE_MESHES } from "../../core/primitives";
 import type { System, SystemContext } from "../../core/systems/types";
 import type { DiagnosticsBus } from "../../runtime/diagnostics/diagnostics-bus";
 import {
@@ -172,7 +173,7 @@ export function createBatchingSystem(
   // Built-in primitive set must mirror `createPrimitiveGeometry` in
   // mesh-handle-registry.ts. The auto-batch path falls back to single-
   // Mesh rendering for any mesh that isn't a primitive.
-  const PRIMITIVE_MESHES = new Set(["box", "sphere", "cylinder", "plane"]);
+  // Imported from engine/core/primitives — single source of truth.
   let cachedWorld: World | undefined;
   let batchableQuery: QueryHandle | undefined;
   const bucketsByKey = new Map<string, BucketRecord>();

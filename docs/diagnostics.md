@@ -49,6 +49,7 @@ Codes follow `AGF_<DOMAIN>_<SUBJECT>_<DETAIL>`:
 | `AGF_ASSET_SOURCES_MISSING` | warning | `assets/_sources/asset-sources.json` is absent under `assetRoot`. |
 | `AGF_ASSET_REFERENCE_INVALID` | error | A mesh / material reference escapes `assetRoot` or is absolute. |
 | `AGF_ASSET_REFERENCE_MISSING` | error | A mesh / material reference points to a non-existing file. |
+| `AGF_MATERIAL_REF_INVALID` | error | `MeshRenderer.material` is not a `.material.json` path under `assetRoot` (e.g. a bare manifest id like `"m1-brick"`). (S56) |
 | `AGF_LOD_DISTANCES_OUT_OF_ORDER` | error | A `.lod.json` chain's `maxDistance` values are not strictly ascending. (S54) |
 | `AGF_LOD_DISTANCE_DUPLICATE` | error | Two LOD levels share the same `maxDistance`. (S54) |
 | `AGF_LOD_MESH_MISSING` | error | An LOD level's `mesh` ref does not resolve under `assetRoot`. (S54) |

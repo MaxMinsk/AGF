@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "material-ref-bare-id",
+  "name": "MeshRenderer.material uses a bare manifest id",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#000000"
+  },
+  "profiles": ["static"]
+}

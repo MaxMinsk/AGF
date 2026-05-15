@@ -3,6 +3,7 @@ import { loadBundledSceneSchema } from "../schemas/load-scene-schema";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PRIMITIVE_MESHES, PRIMITIVE_MESH_NAMES } from "../../core/primitives";
 import { CURRENT_FORMAT_VERSION, MIN_SUPPORTED_FORMAT_VERSION } from "./format-version";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -50,7 +51,7 @@ const builtInComponentNames = [
   "Spin",
   "Transform"
 ] as const;
-const primitiveMeshes = new Set(["box", "sphere", "cylinder", "plane"]);
+const primitiveMeshes = PRIMITIVE_MESHES;
 
 const staticSchemaPaths: Record<StaticSchemaKey, string> = {
   project: "schemas/project.schema.json",
@@ -537,16 +538,32 @@ function validateSceneAssetReferences(
 
       const material = meshRenderer["material"];
       if (typeof material === "string") {
-        diagnostics.push(
-          ...validateAssetReference({
-            projectDir,
-            assetRoot,
-            scenePath,
-            jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
-            reference: material,
-            referenceKind: "material"
-          })
-        );
+        // S56 MESHRENDERER-material-path-validator: the runtime expects a
+        // project-relative manifest path (`runtime/materials/<id>.material.json`)
+        // — a bare manifest id silently fails to load. Flag the shape
+        // before the file-existence check so the suggestion points at the
+        // right fix instead of "file missing".
+        if (!material.endsWith(".material.json")) {
+          diagnostics.push({
+            severity: "error",
+            code: "AGF_MATERIAL_REF_INVALID",
+            file: toProjectRelativeFile(scenePath, projectDir),
+            path: `$.entities[${entityIndex}].components.MeshRenderer.material`,
+            message: `MeshRenderer.material "${material}" is not a manifest path. The runtime expects a project-relative path ending in \`.material.json\`.`,
+            suggestion: `Use the full path, e.g. \`runtime/materials/${material}.material.json\` if "${material}" is the manifest id.`
+          });
+        } else {
+          diagnostics.push(
+            ...validateAssetReference({
+              projectDir,
+              assetRoot,
+              scenePath,
+              jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
+              reference: material,
+              referenceKind: "material"
+            })
+          );
+        }
       }
     }
 
@@ -668,7 +685,7 @@ function validateAssetReference(input: {
       message: `${capitalize(input.referenceKind)} asset "${input.reference}" does not exist under assetRoot "${input.assetRoot}".`,
       suggestion:
         input.referenceKind === "mesh"
-          ? "Add the runtime mesh file, update the reference, or use a primitive mesh: box, sphere, cylinder, plane."
+          ? `Add the runtime mesh file, update the reference, or use a primitive mesh: ${PRIMITIVE_MESH_NAMES.join(", ")}.`
           : "Add the material file under assetRoot or remove the material reference until materials are implemented."
     }
   ];

@@ -1,0 +1,19 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Transform": { "position": [0, 2, 5] },
+        "Camera": { "kind": "perspective", "active": true }
+      }
+    },
+    {
+      "id": "sphere.broken",
+      "components": {
+        "Transform": { "position": [0, 0, 0] },
+        "MeshRenderer": { "mesh": "sphere", "material": "m1-brick" }
+      }
+    }
+  ]
+}
