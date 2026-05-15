@@ -221,6 +221,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const { createTweenSystem } = await import("../core/systems/tween-system");
     const tweens = createTweenSystem();
     if (!scheduler.has(tweens.name)) scheduler.register(tweens);
+    // M19-waypoint-mover: generic position-along-path primitive. Sibling
+    // of CinematicCamera but writes plain Transform + optionally faces
+    // velocity. Runs in fixed-update.
+    const { createWaypointMoverSystem } = await import("../core/systems/waypoint-mover-system");
+    const waypointMover = createWaypointMoverSystem();
+    if (!scheduler.has(waypointMover.name)) scheduler.register(waypointMover);
     // M19-particle-preset: emit + advance particles in a renderer-side
     // pool. Stays in frame-update (visual only, no gameplay impact).
     const { createParticleEmitterSystem } = await import("../render/systems/particle-emitter-system");

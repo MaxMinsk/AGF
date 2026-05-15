@@ -1,4 +1,5 @@
 import Ajv, { type AnySchema, type ErrorObject, type ValidateFunction } from "ajv";
+import { loadBundledSceneSchema } from "../schemas/load-scene-schema";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -762,7 +763,11 @@ function getSceneSchemaForProject(projectDir: string): SceneSchemaForProject {
     return cached;
   }
 
-  const baseSchema = readSchema(baseSceneSchemaPath) as JsonObject;
+  // S48: scene.schema.json is the small entry point pointing at
+  // schemas/components/*.schema.json + common.schema.json. The bundler
+  // inlines every external $ref into a single in-memory schema so the
+  // AJV compile + extension merge path below stays unchanged.
+  const baseSchema = loadBundledSceneSchema() as JsonObject;
   const extensionPath = resolve(projectDir, "schemas/scene-extensions.schema.json");
 
   let mergedSchema: JsonObject = baseSchema;

@@ -21,7 +21,39 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 47 — Game-feel pass (tween / particles / cinematic / PCSS / shadows-bench polish)
+## Current Sprint: Sprint 48 — Schema split + shadows-bench cars
+
+Two heavy-lift items: a structural refactor (scene.schema.json was 800 lines; agents drowned opening it cold) plus a visible feature (shadows-bench gains roads + cars on the wind-swept village). Plus a fix for the S45 list/explain bug that pointed at the wrong project-local schema filename.
+
+### Stories
+
+1. **SCHEMA-scene-split** ✅ — `scene.schema.json` shrinks from 798 → 210 lines. Component definitions move to `schemas/components/{core,render,camera,physics-3d,gamefeel,network}.schema.json` (75-352 lines each). Shared types (`vec3`) move to `schemas/common.schema.json`. New `engine/tools/schemas/load-scene-schema.ts` bundler walks external `$ref`s, inlines them back into a single in-memory schema for AJV — no cross-file AJV machinery, all 7 consumers (project-check, list-components, explain-component, the 4 scene-* unit tests) call the same loader. 429 unit tests still green.
+2. **list/explain fix** ✅ — `engine list components <projectDir>` and `engine explain component <Name> <projectDir>` were pointing at the non-existent `project-local-components.schema.json`. Now read `<projectDir>/schemas/scene-extensions.schema.json` (the file `engine check` actually uses) and resolve `$ref`s through it. Verified: shadows-bench's `RtsCamera` shows up in the catalog.
+3. **M19-WaypointMover** ✅ — generic `WaypointMover { waypoints[], loop, elapsed, faceForward }` component + `WaypointMoverSystem`. Sibling of CinematicCamera but for any Transform (not just the active camera) + derives yaw from velocity when `faceForward: true`. Replay-safe via fixed-update. 4 unit tests.
+4. **shadows-bench roads + cars** ✅ — 2 cross-shaped roads (EW + NS) sit just above the ground. 6 cars ping-pong along them, each on its own lane (±1.2 / 0.0) so traffic never collides. Each car is a parent entity (WaypointMover-driven) with child body + cabin + 4 wheels — proper car shape, not a cube. `pulse`-loop Tween on each body provides a subtle ~0.6° roll wobble with staggered phase.
+5. **shadows-bench trees actually sway** ✅ — the S47 wind-sway tween wasn't visible because the canopy was a sibling entity, not parented to the trunk. Restructured each tree as a root + child trunk + child canopy hierarchy parented to a sway-tweened root, so the whole tree pivots from the base.
+
+### Deliverables
+
+- `schemas/scene.schema.json` (798 → 210 lines)
+- `schemas/common.schema.json` + `schemas/components/*.schema.json` (new)
+- `engine/tools/schemas/load-scene-schema.ts` (new — bundler)
+- `engine/core/systems/waypoint-mover-system.ts` (new)
+- `engine/runtime/start.ts` — register WaypointMoverSystem
+- `examples/shadows-bench/bootstrap.ts` — roads + 6 cars (parent/child hierarchy) + tree hierarchy rewrite for visible sway
+- `tests/unit/waypoint-mover-system.test.ts` (new) + 4 scene-* tests now use `loadBundledSceneSchema`
+- `engine/tools/components/{list,explain}-component.ts` — fixed scene-extensions path
+- `SECURITY.md` — slimmed down, dropped maintainer's personal email
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 69 files, 433 tests
+- `npm run engine:check:examples` ✅ — 5 projects OK
+- `npm run engine:list -- components examples/shadows-bench` ✅ — 20 built-ins + `RtsCamera` (project-local)
+- Live probe: trees sway (tree.0 X rotation oscillates), cars move on dedicated lanes (car.0 traverses -34→-21 in 1.5s), zero page errors
+
+## Archived: Sprint 47 — Game-feel pass (tween / particles / cinematic / PCSS / shadows-bench polish)
 
 Visible feedback layer + shadow polish. Adds 3 ECS-native game-feel primitives, fixes the S41 PCSS substitution that was silently no-op'ing, and tunes the shadows-bench scene to look alive.
 

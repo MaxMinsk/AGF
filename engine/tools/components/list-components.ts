@@ -1,19 +1,19 @@
 // S45 AGENT-cli-list-components.
 //
 // Lists every component an agent can author in a project. Sources:
-//   1. Built-in components declared on `scene.schema.json` under
-//      `definitions.entity.properties.components.properties`.
+//   1. Built-in components declared in the bundled scene schema under
+//      `definitions.entity.properties.components.properties`. The S48
+//      split keeps `scene.schema.json` as a tiny index — the bundler
+//      inlines every domain file's definitions so a single resolver
+//      handles all engine components.
 //   2. Project-local components declared in
-//      `<projectDir>/project-local-components.schema.json` if present.
+//      `<projectDir>/schemas/scene-extensions.schema.json` if present.
 //
 // Pure data — emits a stable shape so callers can read JSON or render text.
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "../../..");
+import { resolve } from "node:path";
+import { loadBundledSceneSchema } from "../schemas/load-scene-schema";
 
 export type ComponentEntry = {
   name: string;
@@ -39,8 +39,7 @@ type SchemaNode = {
 };
 
 function readSceneSchema(): SceneSchema {
-  const schemaPath = resolve(repoRoot, "schemas/scene.schema.json");
-  return JSON.parse(readFileSync(schemaPath, "utf8")) as SceneSchema;
+  return loadBundledSceneSchema() as unknown as SceneSchema;
 }
 
 function resolveRef(schema: SceneSchema, ref: string): SchemaNode | undefined {
@@ -69,20 +68,31 @@ export function listComponentCatalog(projectDir?: string): ComponentCatalog {
 
   const project: ComponentEntry[] = [];
   if (projectDir !== undefined) {
+    // Project-local extensions live in `<projectDir>/schemas/scene-extensions.schema.json`
+    // — the same path that `engine check`'s mergeSceneExtensions reads. The
+    // format is top-level `components: { Name: { $ref: "#/definitions/..." } }`
+    // plus `definitions: { ... }`. We resolve the $ref to fetch descriptions
+    // so the catalog matches what an author sees in the schema.
     const projectSchemaPath = resolve(
       projectDir,
-      "project-local-components.schema.json"
+      "schemas/scene-extensions.schema.json"
     );
     if (existsSync(projectSchemaPath)) {
       const projectSchema = JSON.parse(
         readFileSync(projectSchemaPath, "utf8")
-      ) as { properties?: Record<string, SchemaNode> };
-      for (const [name, node] of Object.entries(projectSchema.properties ?? {})) {
+      ) as { components?: Record<string, SchemaNode>; definitions?: Record<string, SchemaNode> };
+      const projectComponents = projectSchema.components ?? {};
+      for (const [name, node] of Object.entries(projectComponents)) {
+        const ref = node.$ref;
+        const target =
+          ref !== undefined && ref.startsWith("#/definitions/")
+            ? projectSchema.definitions?.[ref.slice("#/definitions/".length)]
+            : undefined;
         project.push({
           name,
           source: "project",
-          description: node.description,
-          ref: undefined
+          description: target?.description ?? node.description,
+          ref
         });
       }
       project.sort((a, b) => a.name.localeCompare(b.name));

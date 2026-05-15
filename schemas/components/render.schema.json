@@ -1,0 +1,352 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/components/render.schema.json",
+  "title": "AGF Render components",
+  "description": "Component definitions for the render domain. Pulled in by scene.schema.json via $ref; inlined into the bundled schema by engine/tools/schemas/load-scene-schema.ts.",
+  "type": "object",
+  "definitions": {
+    "meshRendererComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mesh"
+      ],
+      "properties": {
+        "mesh": {
+          "anyOf": [
+            {
+              "enum": [
+                "box",
+                "sphere",
+                "plane"
+              ]
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "material": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      }
+    },
+    "lightComponent": {
+      "description": "Light source (M21-light-schema). Polymorphic on `kind`. Position + rotation come from the entity's Transform — `LightSyncSystem` pushes the resolved world transform onto the underlying Three.js light. `castShadow` enables shadow-map rendering for that light (gated by the renderer's shadow pipeline, see M21-shadow-basic).",
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "directional",
+            "point",
+            "spot",
+            "ambient",
+            "hemisphere",
+            "rect-area"
+          ]
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "default": "#ffffff"
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "castShadow": {
+          "type": "boolean",
+          "default": false
+        },
+        "shadow": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Per-light shadow-map config; ignored unless castShadow is true.",
+          "properties": {
+            "mapSize": {
+              "type": "integer",
+              "enum": [
+                256,
+                512,
+                1024,
+                2048,
+                4096
+              ],
+              "default": 1024
+            },
+            "bias": {
+              "type": "number"
+            },
+            "normalBias": {
+              "type": "number"
+            },
+            "radius": {
+              "type": "number",
+              "minimum": 0
+            },
+            "camera": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Orthographic shadow camera frustum (directional lights) or near/far cutoffs (spot/point).",
+              "properties": {
+                "left": {
+                  "type": "number"
+                },
+                "right": {
+                  "type": "number"
+                },
+                "top": {
+                  "type": "number"
+                },
+                "bottom": {
+                  "type": "number"
+                },
+                "near": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "far": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "point"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "distance": {
+                "type": "number",
+                "minimum": 0,
+                "default": 0,
+                "description": "Cutoff distance; 0 = no cutoff (physical 1/r² falloff)."
+              },
+              "decay": {
+                "type": "number",
+                "minimum": 0,
+                "default": 2
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "spot"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "distance": {
+                "type": "number",
+                "minimum": 0,
+                "default": 0
+              },
+              "decay": {
+                "type": "number",
+                "minimum": 0,
+                "default": 2
+              },
+              "angle": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1.5707963267948966,
+                "description": "Cone half-angle in radians; max π/2."
+              },
+              "penumbra": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0
+              },
+              "target": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-._]*$",
+                "description": "Optional entity id whose world position the spot points at. Defaults to scene origin."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "directional"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-._]*$",
+                "description": "Optional entity id whose world position the directional light points at. Defaults to scene origin."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "hemisphere"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "groundColor": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "default": "#000000"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "rect-area"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "default": 1
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "default": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "shadowFlagsComponent": {
+      "description": "Per-mesh shadow opt-out (M21-shadow-basic). When absent, default is { cast: true, receive: true } — matching Unity's defaults. Set either to false as a perf escape hatch.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cast": {
+          "type": "boolean",
+          "default": true
+        },
+        "receive": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "lodComponent": {
+      "description": "M17-lod: per-entity LOD chain. LodSelectionSystem reads the active camera's world position, picks the lowest-maxDistance level whose threshold the entity is inside, and writes that level's mesh / material onto MeshRenderer. Levels must be sorted by maxDistance ascending. `fallback` decides what happens past the last threshold — `last` keeps the cheapest mesh, `hide` drops the entity from rendering by removing MeshRenderer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "levels"
+      ],
+      "properties": {
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "maxDistance",
+              "mesh"
+            ],
+            "properties": {
+              "maxDistance": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Distance from the active camera below which this level renders."
+              },
+              "mesh": {
+                "type": "string",
+                "minLength": 1
+              },
+              "material": {
+                "type": "string",
+                "minLength": 1
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            }
+          }
+        },
+        "fallback": {
+          "enum": [
+            "last",
+            "hide"
+          ],
+          "default": "last"
+        }
+      }
+    },
+    "batchableComponent": {
+      "description": "Opts an entity into the M17 renderer batcher. BatchingSystem groups entities by (mesh + material + shadow flags + group) and emits one Three.js InstancedMesh per bucket. The `group` field is an authoring hint — siblings sharing the same group prefer the same bucket. The renderer treats entities WITHOUT this component as un-batched (single Mesh per entity). Omit to keep the existing per-entity path.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional authoring hint. Entities with the same group + matching mesh/material/shadow keys share an InstancedMesh bucket."
+        },
+        "path": {
+          "enum": [
+            "instanced",
+            "batched"
+          ],
+          "default": "instanced",
+          "description": "M17 bucketing path. `instanced` (default) groups by (mesh + colour + shadow + group) into a Three.js InstancedMesh — same geometry, varied transforms. `batched` groups by (colour + shadow + group) into a BatchedMesh — varied geometry, shared material; useful when many distinct primitive meshes share one material/colour. Mesh refs that point at GLBs are not eligible for either path yet."
+        }
+      }
+    }
+  }
+}
