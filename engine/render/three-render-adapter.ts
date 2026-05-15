@@ -469,6 +469,17 @@ export class ThreeRenderAdapter {
       antialias: true,
       preserveDrawingBuffer: true
     });
+    // M21-frame-timing: by default three.js resets `info.render.*` on
+    // every `.render()` call. With EffectComposer (FXAA / Bloom /
+    // OutputPass) one frame issues 3+ `.render()` invocations and the
+    // counters we expose via `rendererInfo()` end up showing only the
+    // LAST pass's stats — typically a single full-screen quad, hence
+    // the misleading `drawCalls: 1` an agent sees from `__agf.rendererInfo()`.
+    //
+    // Disable autoReset + reset manually at the start of `draw()` so
+    // `info.render.calls / triangles` accumulate across every pass in
+    // the frame.
+    this.device.info.autoReset = false;
     // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
     // Three.js auto-rebuilds GPU resources on restore; the runtime
     // uses these callbacks to emit diagnostics + optionally pause
@@ -1347,6 +1358,9 @@ export class ThreeRenderAdapter {
     if (this.csm !== undefined) {
       this.csm.update();
     }
+    // With `info.autoReset = false` we own the per-frame reset so the
+    // counters span every composer pass.
+    this.device.info.reset();
     if (this.composer !== undefined) {
       this.composer.render();
     } else {
