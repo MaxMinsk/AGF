@@ -14,7 +14,7 @@
     ],
     "color": {
       "toneMapping": "aces-filmic",
-      "exposure": 1.35
+      "exposure": 1.1
     },
     "batching": {
       "auto": true
@@ -34,7 +34,7 @@
           -1,
           -0.35
         ],
-        "lightIntensity": 2.4
+        "lightIntensity": 2.1
       }
     }
   },

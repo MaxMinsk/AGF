@@ -21,7 +21,7 @@ const SHADOW_DEFAULTS: ShadowTunerDefaults = {
   shadowMapSize: 1024,
   shadowBias: -0.000005,
   shadowNormalBias: 0.06,
-  lightIntensity: 2.4,
+  lightIntensity: 2.1,
   lightDirection: [-0.45, -1, -0.35],
   mode: "practical",
   algorithm: "pcss"
