@@ -79,6 +79,7 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CubeTextureLoader } from "three";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
+import { RenderPoolRegistry } from "./render-pool-registry";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -459,15 +460,18 @@ export class ThreeRenderAdapter {
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
   private readonly lights = new Map<LightHandle, Light>();
-  private readonly buckets = new Map<BucketHandle, BucketEntry>();
-  private readonly batchedBuckets = new Map<BatchedBucketHandle, BatchedBucketEntry>();
+  // S53 RENDER-pool-registry: replaces the three triplicated patterns
+  // (Map<H, Entry> + `next<Pool>Handle` counter) that the InstancedMesh
+  // bucketer, BatchedMesh bucketer, and particle pool each grew
+  // independently. `RenderPoolRegistry` owns the handle counter +
+  // lookup Map; per-pool dispose still lives in the `release*` methods.
+  private readonly buckets = new RenderPoolRegistry<BucketEntry>();
+  private readonly batchedBuckets = new RenderPoolRegistry<BatchedBucketEntry>();
   /** M19-particle: live particle pools (additive InstancedMesh). */
-  private readonly particlePools = new Map<
-    ParticlePoolHandle,
-    { mesh: InstancedMesh; capacity: number }
-  >();
-  private nextParticlePoolHandle = 1;
-  private nextBatchedBucketHandle = 1;
+  private readonly particlePools = new RenderPoolRegistry<{
+    mesh: InstancedMesh;
+    capacity: number;
+  }>();
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
   private pmrem: PMREMGenerator | undefined;
@@ -486,7 +490,6 @@ export class ThreeRenderAdapter {
   private nextMeshHandle = 1;
   private nextCameraHandle = 1;
   private nextLightHandle = 1;
-  private nextBucketHandle = 1;
   private rectAreaUniformsReady = false;
   private readonly scratchMatrix = new Matrix4();
   private readonly scratchPosition = new Vector3();
@@ -845,8 +848,6 @@ export class ThreeRenderAdapter {
   // ---- M17 InstancedMesh buckets ----
 
   acquireBucket(spec: BucketAcquireSpec): BucketHandle {
-    const handle = this.nextBucketHandle;
-    this.nextBucketHandle += 1;
     // When `useInstanceColor` is on, the material's base color stays white
     // and each instance modulates via its own `instanceColor` attribute.
     // Material is compiled once with the attribute attached.
@@ -882,8 +883,7 @@ export class ThreeRenderAdapter {
       mesh.instanceColor = new InstancedBufferAttribute(colors, 3);
     }
     this.scene.add(mesh);
-    this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
-    return handle;
+    return this.buckets.acquire({ mesh, capacity: spec.capacity, liveSlots: new Set() });
   }
 
   /**
@@ -898,13 +898,12 @@ export class ThreeRenderAdapter {
   }
 
   releaseBucket(handle: BucketHandle): void {
-    const entry = this.buckets.get(handle);
+    const entry = this.buckets.release(handle);
     if (entry === undefined) return;
     this.scene.remove(entry.mesh);
     entry.mesh.dispose();
     entry.mesh.geometry.dispose();
     disposeMaterial(entry.mesh.material);
-    this.buckets.delete(handle);
   }
 
   resizeBucket(handle: BucketHandle, newCapacity: number): void {
@@ -1018,8 +1017,6 @@ export class ThreeRenderAdapter {
   // ---- M19-particle: additive InstancedMesh pools ----
 
   acquireParticlePool(spec: ParticlePoolAcquireSpec): ParticlePoolHandle {
-    const handle = this.nextParticlePoolHandle;
-    this.nextParticlePoolHandle += 1;
     const radius = spec.radius ?? 0.05;
     const geometry = new IcosahedronGeometry(radius, 1);
     const color = new Color(spec.color);
@@ -1036,8 +1033,7 @@ export class ThreeRenderAdapter {
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     this.scene.add(mesh);
-    this.particlePools.set(handle, { mesh, capacity: spec.capacity });
-    return handle;
+    return this.particlePools.acquire({ mesh, capacity: spec.capacity });
   }
 
   /**
@@ -1062,20 +1058,17 @@ export class ThreeRenderAdapter {
   }
 
   releaseParticlePool(handle: ParticlePoolHandle): void {
-    const entry = this.particlePools.get(handle);
+    const entry = this.particlePools.release(handle);
     if (entry === undefined) return;
     this.scene.remove(entry.mesh);
     entry.mesh.dispose();
     entry.mesh.geometry.dispose();
     disposeMaterial(entry.mesh.material);
-    this.particlePools.delete(handle);
   }
 
   // ---- M17-batched-mesh: BatchedMesh buckets ----
 
   acquireBatchedBucket(spec: BatchedBucketAcquireSpec): BatchedBucketHandle {
-    const handle = this.nextBatchedBucketHandle;
-    this.nextBatchedBucketHandle += 1;
     // S51 colour-parity: BatchedMesh always carries per-instance colour
     // (via `setColorAt` on the instance colours texture). The base
     // material colour multiplies with that per-instance colour, so we
@@ -1096,17 +1089,15 @@ export class ThreeRenderAdapter {
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
     this.scene.add(mesh);
-    this.batchedBuckets.set(handle, { mesh, liveInstances: new Set() });
-    return handle;
+    return this.batchedBuckets.acquire({ mesh, liveInstances: new Set() });
   }
 
   releaseBatchedBucket(handle: BatchedBucketHandle): void {
-    const entry = this.batchedBuckets.get(handle);
+    const entry = this.batchedBuckets.release(handle);
     if (entry === undefined) return;
     this.scene.remove(entry.mesh);
     entry.mesh.dispose();
     disposeMaterial(entry.mesh.material);
-    this.batchedBuckets.delete(handle);
   }
 
   addBatchedGeometry(handle: BatchedBucketHandle, geometry: BufferGeometry): BatchedGeometryId | undefined {
@@ -1447,7 +1438,7 @@ export class ThreeRenderAdapter {
     }
 
     // 2. InstancedMesh buckets — Three reports the slot via `instanceId`.
-    for (const [bucketHandle, entry] of this.buckets) {
+    for (const [bucketHandle, entry] of this.buckets.entriesIter()) {
       const first = this.scratchRaycaster.intersectObject(entry.mesh, false)[0];
       if (first === undefined || first.instanceId === undefined) continue;
       if (first.distance < bestDistance) {
@@ -1463,7 +1454,7 @@ export class ThreeRenderAdapter {
     }
 
     // 3. BatchedMesh buckets — same `instanceId` semantics.
-    for (const [bucketHandle, entry] of this.batchedBuckets) {
+    for (const [bucketHandle, entry] of this.batchedBuckets.entriesIter()) {
       const first = this.scratchRaycaster.intersectObject(entry.mesh, false)[0];
       if (first === undefined || first.instanceId === undefined) continue;
       if (first.distance < bestDistance) {
@@ -1852,9 +1843,9 @@ export class ThreeRenderAdapter {
       meshes: this.meshes.size,
       lights: this.lights.size,
       shadowCasters,
-      buckets: this.buckets.size,
+      buckets: this.buckets.size(),
       bucketInstances,
-      batchedBuckets: this.batchedBuckets.size,
+      batchedBuckets: this.batchedBuckets.size(),
       batchedBucketInstances
     };
   }
@@ -1871,8 +1862,8 @@ export class ThreeRenderAdapter {
       light.dispose();
     }
     this.lights.clear();
-    for (const handle of [...this.buckets.keys()]) this.releaseBucket(handle);
-    for (const handle of [...this.batchedBuckets.keys()]) this.releaseBatchedBucket(handle);
+    for (const [handle] of [...this.buckets.entriesIter()]) this.releaseBucket(handle);
+    for (const [handle] of [...this.batchedBuckets.entriesIter()]) this.releaseBatchedBucket(handle);
     this.setDebugOverlayEnabled(false);
     this.disposeComposer();
     this.disableFallbackLighting();
