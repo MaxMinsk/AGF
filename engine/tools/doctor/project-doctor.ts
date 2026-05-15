@@ -20,6 +20,11 @@ import {
   formatMaterialSharing,
   type MaterialSharingReport
 } from "./material-sharing";
+import {
+  scanProjectTextures,
+  formatTextureDoctor,
+  type TextureDoctorReport
+} from "./texture-doctor";
 
 export type PerformanceBudget = {
   agfFormatVersion: number;
@@ -138,6 +143,8 @@ export type DoctorReport = {
   materialSharing: MaterialSharingReport;
   /** S52-doctor: shadow config snapshot + cascade cost recommendation. */
   shadows: ShadowConfigReport;
+  /** S54 ASSET-texture-doctor: huge / NPOT / no-transcoder findings. */
+  textures: TextureDoctorReport;
   recommendations: string[];
 };
 
@@ -295,6 +302,13 @@ export function runDoctor(
     bundle?.violation !== "hard" &&
     vendorBundles.every((v) => v.violation !== "hard");
 
+  const textures = scanProjectTextures(projectDir);
+  if (textures.findings.length > 0) {
+    recommendations.push(
+      `${textures.findings.length} texture warning(s) — see the Textures section in the doctor output (run \`npm run engine:doctor -- ${projectDir}\` for details).`
+    );
+  }
+
   return {
     projectDir,
     ok,
@@ -307,6 +321,7 @@ export function runDoctor(
     batching,
     materialSharing,
     shadows,
+    textures,
     recommendations
   };
 }
@@ -660,6 +675,9 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push("");
 
   lines.push(formatMaterialSharing(report.materialSharing));
+  lines.push("");
+
+  lines.push(formatTextureDoctor(report.textures));
   lines.push("");
 
   lines.push("Recommendations:");
