@@ -120,6 +120,30 @@ will be on scenes with idle dynamic casters (beacon-world drone,
 NPC patrols) where many frames skip the invalidate entirely — those
 should approach the original baked-shadow perf.
 
+## Sprint 52 — M21-fxaa-cost-isolation result
+
+Added a `noFXAA` scenario to `scripts/perf-probe-shadows.mjs` (patches
+`render.post = []`). Measured on the post-S52 shadows-bench (sky
+gradient + lampposts + plaza props + tagged dynamic casters; 327
+bucket instances):
+
+|                  | drawCalls | renderMs | totalFrameMs |
+|------------------|----------:|---------:|-------------:|
+| baseline (FXAA on) |   12     |   0.49   |   1.76      |
+| noFXAA           |   10     |   0.42   |   1.63      |
+| Δ                |   −2     | **−14 %**  |  **−7.6 %**   |
+
+The original hypothesis (< 0.05 ms) was wrong by roughly an order of
+magnitude — FXAA + its supporting OutputPass + composer dispatch is
+~0.07 ms per frame on this scene, ~14 % of renderMs. Two draw calls
+disappear when the post chain empties: the FXAA quad and the
+composer's appended OutputPass.
+
+This means FXAA is the second-largest single perf lever after cascade
+count (cascade 3 → 2 saved ~17 %, FXAA-off saves ~14 %). Project teams
+that don't strictly need antialiasing for their visual style can
+remove it as a meaningful win.
+
 ## Future follow-ups
 - **M21-shadow-map-size-real-hw.** Re-run `512map` probe on desktop GPU
   — software WebGL undersells the fill-rate savings.
