@@ -121,7 +121,7 @@ function buildSeedCommands(): EngineCommand[] {
   // see itself). Pedestals + outer spheres stay visible in the cube so
   // the chrome reflects the whole arrangement.
   setComponent(commands, centreSphereId, "ReflectionProbe", {
-    size: 256,
+    size: 128,
     near: 0.1,
     far: 60,
     updateRate: 30,
@@ -199,7 +199,7 @@ function buildSeedCommands(): EngineCommand[] {
       size: 128,
       near: 0.1,
       far: 60,
-      updateRate: 30,
+      updateRate: 15,
       excludeEntities: [probeId]
     });
   }
