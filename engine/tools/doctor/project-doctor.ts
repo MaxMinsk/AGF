@@ -86,6 +86,25 @@ export type VendorBundleStat = {
   violation: "hard" | "soft" | "none";
 };
 
+export type BatchingConfigReport = {
+  /** project.json#render.batching.auto (defaults to false when absent). */
+  autoBatch: boolean;
+  /** project.json#render.batching.path — `instanced` (default) or `batched`. */
+  path: "instanced" | "batched";
+  /** Renderable entities whose mesh is a built-in primitive (box / sphere / plane). */
+  primitiveCount: number;
+  /** Distinct bucket keys among the primitive entities (mesh + material profile + shadow flags + group). */
+  primitiveBucketCount: number;
+  /** Renderable entities whose mesh ref points to an external asset (.glb / .gltf). */
+  externalCount: number;
+  /** Distinct bucket keys among the external mesh entities. */
+  externalBucketCount: number;
+  /** Entities that carry an explicit `Batchable` component in scene JSON. */
+  explicitBatchableCount: number;
+  /** Entities with `Batchable: { enabled: false }` — opted out even with auto-batch on. */
+  optedOutCount: number;
+};
+
 export type DoctorReport = {
   projectDir: string;
   ok: boolean;
@@ -102,6 +121,8 @@ export type DoctorReport = {
   vendorBundles: VendorBundleStat[];
   /** Static M17-doctor analysis: how many entities would collapse into batched draw calls. */
   batchCandidates: BatchCandidateReport;
+  /** S51-doctor: actual auto-batch config + per-class entity counts. */
+  batching: BatchingConfigReport;
   /** Material-manifest deduplication report (M17-material-sharing-doctor). */
   materialSharing: MaterialSharingReport;
   recommendations: string[];
@@ -191,9 +212,15 @@ export function runDoctor(
   );
 
   const batchCandidates = analyzeBatchCandidates(projectDir);
-  if (batchCandidates.potentialDrawCallSavings > 0) {
+  const batching = summarizeBatching(projectDir, batchCandidates);
+  const primitivePotentialSavings = batching.primitiveCount - batching.primitiveBucketCount;
+  if (!batching.autoBatch && primitivePotentialSavings > 0) {
     recommendations.push(
-      `M17 batching could collapse ${batchCandidates.totalRenderable} renderables into ${batchCandidates.totalBuckets} bucket(s) — ${batchCandidates.potentialDrawCallSavings} draw call(s) saved when the bucketer ships.`
+      `Auto-batch is off — set \`render.batching.auto: true\` in project.json to collapse ${batching.primitiveCount} primitive entit${batching.primitiveCount === 1 ? "y" : "ies"} into ${batching.primitiveBucketCount} bucket(s) (~${primitivePotentialSavings} draw call(s) saved).`
+    );
+  } else if (batchCandidates.potentialDrawCallSavings > 0 && primitivePotentialSavings === 0) {
+    recommendations.push(
+      `M17 batching could collapse ${batchCandidates.totalRenderable} renderables into ${batchCandidates.totalBuckets} bucket(s) — external-mesh batching kicks in once \`AssetRegistry\` has loaded the .glb geometry.`
     );
   }
 
@@ -222,9 +249,105 @@ export function runDoctor(
     bundle,
     vendorBundles,
     batchCandidates,
+    batching,
     materialSharing,
     recommendations
   };
+}
+
+const PRIMITIVE_MESHES = new Set(["box", "sphere", "plane"]);
+
+function summarizeBatching(
+  projectDir: string,
+  batchCandidates: BatchCandidateReport
+): BatchingConfigReport {
+  const projectPath = resolve(projectDir, "project.json");
+  let autoBatch = false;
+  let path: "instanced" | "batched" = "instanced";
+  if (existsSync(projectPath)) {
+    try {
+      const project = JSON.parse(readFileSync(projectPath, "utf8")) as {
+        render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" } };
+      };
+      autoBatch = project.render?.batching?.auto === true;
+      if (project.render?.batching?.path !== undefined) {
+        path = project.render.batching.path;
+      }
+    } catch {
+      // project-check reports malformed project.json; defaults stay.
+    }
+  }
+
+  let primitiveCount = 0;
+  let externalCount = 0;
+  const primitiveBuckets = new Set<string>();
+  const externalBuckets = new Set<string>();
+  for (const bucket of batchCandidates.buckets) {
+    if (PRIMITIVE_MESHES.has(bucket.mesh)) {
+      primitiveCount += bucket.entities.length;
+      primitiveBuckets.add(bucket.key);
+    } else if (bucket.mesh.endsWith(".glb") || bucket.mesh.endsWith(".gltf")) {
+      externalCount += bucket.entities.length;
+      externalBuckets.add(bucket.key);
+    }
+  }
+
+  const { explicitBatchableCount, optedOutCount } = countExplicitBatchable(projectDir);
+
+  return {
+    autoBatch,
+    path,
+    primitiveCount,
+    primitiveBucketCount: primitiveBuckets.size,
+    externalCount,
+    externalBucketCount: externalBuckets.size,
+    explicitBatchableCount,
+    optedOutCount
+  };
+}
+
+function countExplicitBatchable(projectDir: string): {
+  explicitBatchableCount: number;
+  optedOutCount: number;
+} {
+  const scenesDir = resolve(projectDir, "scenes");
+  let explicitBatchableCount = 0;
+  let optedOutCount = 0;
+  if (!existsSync(scenesDir) || !statSync(scenesDir).isDirectory()) {
+    return { explicitBatchableCount, optedOutCount };
+  }
+  const stack: string[] = [scenesDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (dir === undefined) break;
+    for (const name of readdirSync(dir)) {
+      const full = resolve(dir, name);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!name.endsWith(".scene.json")) continue;
+      let scene: { entities?: Array<{ components?: Record<string, unknown> }> };
+      try {
+        scene = JSON.parse(readFileSync(full, "utf8"));
+      } catch {
+        continue;
+      }
+      for (const entity of scene.entities ?? []) {
+        const batchable = entity.components?.["Batchable"] as
+          | { enabled?: boolean }
+          | undefined;
+        if (batchable === undefined) continue;
+        if (batchable.enabled === false) {
+          optedOutCount += 1;
+        } else {
+          explicitBatchableCount += 1;
+        }
+      }
+    }
+  }
+  return { explicitBatchableCount, optedOutCount };
 }
 
 function measureBundles(
@@ -365,6 +488,9 @@ export function formatDoctor(report: DoctorReport): string {
   }
   lines.push("");
 
+  lines.push(formatBatching(report.batching));
+  lines.push("");
+
   lines.push(formatBatchCandidates(report.batchCandidates));
   lines.push("");
 
@@ -374,6 +500,35 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatBatching(report: BatchingConfigReport): string {
+  const lines: string[] = [];
+  const autoLabel = report.autoBatch
+    ? "ON (project.json#render.batching.auto)"
+    : "OFF (set render.batching.auto: true in project.json)";
+  lines.push(`Batching: auto=${autoLabel}, path=${report.path}`);
+  if (report.primitiveCount > 0) {
+    const savings = report.primitiveCount - report.primitiveBucketCount;
+    const verb = report.autoBatch ? "collapse into" : "would collapse into";
+    lines.push(
+      `  primitives: ${report.primitiveCount} entit${report.primitiveCount === 1 ? "y" : "ies"} ${verb} ${report.primitiveBucketCount} bucket(s) — ${savings} draw call(s) ${report.autoBatch ? "saved" : "available"}`
+    );
+  } else {
+    lines.push("  primitives: none");
+  }
+  if (report.externalCount > 0) {
+    lines.push(
+      `  external meshes: ${report.externalCount} entit${report.externalCount === 1 ? "y" : "ies"} across ${report.externalBucketCount} bucket(s) — batched once AssetRegistry has loaded the geometry`
+    );
+  }
+  if (report.explicitBatchableCount > 0) {
+    lines.push(`  explicit Batchable: ${report.explicitBatchableCount}`);
+  }
+  if (report.optedOutCount > 0) {
+    lines.push(`  opted out (Batchable.enabled=false): ${report.optedOutCount}`);
   }
   return lines.join("\n");
 }

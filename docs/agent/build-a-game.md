@@ -66,6 +66,22 @@ npm run engine:asset -- import examples/<project> path/to/source.glb --id <asset
 
 Records provenance in `asset-sources.json`; pair with `engine:asset -- optimize` if you ship to production.
 
+### Cut draw calls with auto-batch
+
+The renderer batches built-in primitives (`box`, `sphere`, `plane`) into one `InstancedMesh` per (mesh + material profile + shadow flags + group). Per-instance color goes into an `InstancedBufferAttribute`, so entities with different colors still share a bucket. External meshes (`.glb`) and texture-less material manifests batch the same way once `AssetRegistry` has loaded the geometry.
+
+Flip it on with one line in `project.json`:
+
+```json
+"render": { "mode": "webgl", "batching": { "auto": true } }
+```
+
+- **Opt out per entity** with `Batchable: { enabled: false }` — useful when an entity needs a unique runtime material override.
+- **Hint a split** with `Batchable: { group: "rocks" }` — forces a separate bucket even if mesh + material match.
+- **Verify** with `npm run engine:doctor -- examples/<project>`: the `Batching:` section shows `auto=ON/OFF`, primitive / external entity counts, and how many draw calls collapsed (or would collapse). When auto is off but primitives could batch, the doctor surfaces a "flip the switch" recommendation.
+
+Entities with an `LOD` component or a runtime material override stay on the single-`Mesh` path automatically — the bucketer can't pick the right mesh per instance.
+
 ### Snapshot the screen
 
 ```

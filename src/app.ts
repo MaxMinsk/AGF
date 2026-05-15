@@ -70,6 +70,8 @@ export type ProjectMeta = {
     batching?: {
       /** S50 auto-batch: include every primitive-mesh entity in the batcher by default. */
       auto?: boolean;
+      /** S51 bucket path default: `instanced` (default) or `batched`. */
+      path?: "instanced" | "batched";
     };
   };
   /**
@@ -332,6 +334,9 @@ export async function createApp(
   }
   if (project.render?.batching?.auto === true) {
     runtimeOptions.autoBatchPrimitives = true;
+  }
+  if (project.render?.batching?.path !== undefined) {
+    runtimeOptions.batchingPath = project.render.batching.path;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;

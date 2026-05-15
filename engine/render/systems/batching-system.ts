@@ -145,6 +145,14 @@ export type BatchingOptions = {
    * flips it on via `project.json#render.batching.auto: true`.
    */
   autoIncludePrimitives?: boolean;
+  /**
+   * S51 project-wide bucket path default. Entities can still override
+   * per-Batchable via `Batchable: { path: "batched" }`. Setting this
+   * to "batched" routes every auto-batched primitive through
+   * `BatchedMesh` (per-instance frustum culling on, vertex shader
+   * skipped for off-screen instances). Default "instanced".
+   */
+  defaultPath?: "instanced" | "batched";
 };
 
 export function createBatchingSystem(
@@ -153,6 +161,7 @@ export function createBatchingSystem(
 ): BatchingSystemHandle {
   const name = options.name ?? "render.batching";
   const autoIncludePrimitives = options.autoIncludePrimitives === true;
+  const defaultPath: "instanced" | "batched" = options.defaultPath ?? "instanced";
   // Built-in primitive set must mirror `createPrimitiveGeometry` in
   // mesh-handle-registry.ts. The auto-batch path falls back to single-
   // Mesh rendering for any mesh that isn't a primitive.
@@ -432,15 +441,19 @@ export function createBatchingSystem(
     cast: boolean,
     receive: boolean
   ): void => {
-    // BatchedMesh bucket key omits mesh — varied-geometry, shared-material.
-    const bucketKey = `batched|${renderer.color ?? ""}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    // S51 bugfix: bucket key MUST omit renderer.color — same as the
+    // InstancedMesh path since S50. Per-instance colour is uploaded via
+    // setBatchedInstanceColor below; the bucket material stays white so
+    // BatchedMesh's `_batchColor * material.color` multiply doesn't
+    // square the colour (which made the scene visibly darker on
+    // shadows-bench when path: "batched" was first enabled).
+    const bucketKey = `batched|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
     let record = bucketsByKey.get(bucketKey) as BatchedRecord | undefined;
     if (record === undefined) {
       const handle = deps.adapter.acquireBatchedBucket({
         maxInstances: BATCHED_MAX_INSTANCES,
         maxVertices: BATCHED_MAX_VERTICES,
         maxIndices: BATCHED_MAX_INDICES,
-        ...(renderer.color !== undefined ? { color: renderer.color } : {}),
         castShadow: cast,
         receiveShadow: receive
       });
@@ -448,7 +461,7 @@ export function createBatchingSystem(
         path: "batched",
         handle,
         bucketKey,
-        color: renderer.color,
+        color: undefined,
         shadowCast: cast,
         shadowReceive: receive,
         geometries: new Map(),
@@ -515,6 +528,11 @@ export function createBatchingSystem(
         rotation: [ltw.rotation[0] ?? 0, ltw.rotation[1] ?? 0, ltw.rotation[2] ?? 0],
         scale: [ltw.scale[0] ?? 1, ltw.scale[1] ?? 1, ltw.scale[2] ?? 1]
       });
+    }
+    // S51-BatchedMesh-color: per-instance colour via BatchedMesh.setColorAt
+    // so multi-coloured primitive entities can share one BatchedMesh.
+    if (renderer.color !== undefined) {
+      deps.adapter.setBatchedInstanceColor(record.handle, entry.instance, renderer.color);
     }
   };
 
@@ -599,7 +617,7 @@ export function createBatchingSystem(
       const flags = world.getComponent<ShadowFlagsComponent>(entityId, SHADOW_FLAGS);
       const cast = flags?.cast !== false;
       const receive = flags?.receive !== false;
-      const path: "instanced" | "batched" = batchable?.path ?? "instanced";
+      const path: "instanced" | "batched" = batchable?.path ?? defaultPath;
       if (path === "batched") {
         updateBatched(world, entityId, renderer, batchable, cast, receive);
       } else {

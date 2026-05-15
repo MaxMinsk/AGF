@@ -23,7 +23,14 @@ test("renders a Three.js canvas + renderer reports draw calls", async ({ page },
       async () =>
         page.evaluate(() => {
           const api = (window as unknown as {
-            __agf?: { rendererInfo?: () => { drawCalls: number; meshes: number } };
+            __agf?: {
+              rendererInfo?: () => {
+                drawCalls: number;
+                meshes: number;
+                bucketInstances: number;
+                batchedBucketInstances: number;
+              };
+            };
           }).__agf;
           return api?.rendererInfo?.() ?? null;
         }),
@@ -33,12 +40,26 @@ test("renders a Three.js canvas + renderer reports draw calls", async ({ page },
 
   const info = await page.evaluate(() => {
     const api = (window as unknown as {
-      __agf?: { rendererInfo?: () => { drawCalls: number; meshes: number } };
+      __agf?: {
+        rendererInfo?: () => {
+          drawCalls: number;
+          meshes: number;
+          bucketInstances: number;
+          batchedBucketInstances: number;
+        };
+      };
     }).__agf;
     return api?.rendererInfo?.();
   });
   expect(info?.drawCalls ?? 0).toBeGreaterThan(0);
-  expect(info?.meshes ?? 0).toBeGreaterThan(0);
+  // S50 auto-batch landed on hello-3d, so primitive renderables route
+  // through InstancedMesh / BatchedMesh buckets and `meshes` reads 0.
+  // Either path counts as "we rendered something" — sum them.
+  const renderables =
+    (info?.meshes ?? 0) +
+    (info?.bucketInstances ?? 0) +
+    (info?.batchedBucketInstances ?? 0);
+  expect(renderables).toBeGreaterThan(0);
 
   const screenshotPath = testInfo.outputPath("hello-3d-canvas.png");
   await page.screenshot({ path: screenshotPath, fullPage: true });

@@ -39,6 +39,12 @@ export type RuntimeOptions = {
    * entity opt-out via `Batchable: { enabled: false }`. Defaults to false.
    */
   autoBatchPrimitives?: boolean;
+  /**
+   * S51 default bucket path. `"instanced"` (default) uses InstancedMesh
+   * per (mesh + material + shadow + group). `"batched"` uses BatchedMesh
+   * (per-instance frustum culling) per (material + shadow + group).
+   */
+  batchingPath?: "instanced" | "batched";
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -251,13 +257,16 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     // first. MeshLifecycle then sees `BatchedMeshHandle` on auto-batched
     // entities and skips them — no double-rendering as a single Mesh.
     const { createBatchingSystem } = await import("../render/systems/batching-system");
+    const batchingOptions: Parameters<typeof createBatchingSystem>[1] = {};
+    if (options.autoBatchPrimitives === true) batchingOptions.autoIncludePrimitives = true;
+    if (options.batchingPath !== undefined) batchingOptions.defaultPath = options.batchingPath;
     const bs = createBatchingSystem(
       {
         adapter: renderer.adapter,
         diagnostics,
         ...(options.assetRegistry !== undefined ? { assetRegistry: options.assetRegistry } : {})
       },
-      options.autoBatchPrimitives === true ? { autoIncludePrimitives: true } : {}
+      batchingOptions
     );
     if (!scheduler.has(bs.name)) scheduler.register(bs);
     const mls = createMeshLifecycleSystem(renderer.meshRegistry());

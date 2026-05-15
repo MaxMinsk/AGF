@@ -1066,10 +1066,23 @@ export class ThreeRenderAdapter {
   acquireBatchedBucket(spec: BatchedBucketAcquireSpec): BatchedBucketHandle {
     const handle = this.nextBatchedBucketHandle;
     this.nextBatchedBucketHandle += 1;
-    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    // S51 colour-parity: BatchedMesh always carries per-instance colour
+    // (via `setColorAt` on the instance colours texture). The base
+    // material colour multiplies with that per-instance colour, so we
+    // anchor the material to white — otherwise spec.color or DEFAULT_COLOR
+    // would square against the per-instance value and darken everything
+    // (caught on shadows-bench when path: "batched" was first wired).
+    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? "#ffffff") });
     this.registerWithCsm(material);
     const mesh = new BatchedMesh(spec.maxInstances, spec.maxVertices, spec.maxIndices, material);
+    // S51-BatchedMesh-perf: per-instance frustum culling is the headline
+    // win over InstancedMesh — three.js tests each instance's bounding
+    // sphere against the camera per render call (main + each cascade).
+    // Whole-mesh frustumCulled stays off so the per-instance pass owns
+    // visibility decisions; otherwise three.js would short-circuit on a
+    // single mesh-level test before the per-instance loop runs.
     mesh.frustumCulled = false;
+    mesh.perObjectFrustumCulled = true;
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
     this.scene.add(mesh);
@@ -1089,6 +1102,13 @@ export class ThreeRenderAdapter {
   addBatchedGeometry(handle: BatchedBucketHandle, geometry: BufferGeometry): BatchedGeometryId | undefined {
     const entry = this.batchedBuckets.get(handle);
     if (entry === undefined) return undefined;
+    // S51-BatchedMesh-perf: per-instance frustum culling reads each
+    // geometry's boundingBox + boundingSphere via getBoundingBoxAt /
+    // getBoundingSphereAt. Primitive geometries (BoxGeometry, etc.) and
+    // GLB geometries don't always have these computed; ensure both are
+    // present before BatchedMesh ingests the buffer.
+    if (geometry.boundingBox === null) geometry.computeBoundingBox();
+    if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
     try {
       return entry.mesh.addGeometry(geometry);
     } catch {
@@ -1139,6 +1159,18 @@ export class ThreeRenderAdapter {
     const entry = this.batchedBuckets.get(handle);
     if (entry === undefined || !entry.liveInstances.has(instance)) return;
     entry.mesh.setGeometryIdAt(instance, geometryId);
+  }
+
+  /** S51-BatchedMesh-color: per-instance colour parity with InstancedMesh. */
+  setBatchedInstanceColor(
+    handle: BatchedBucketHandle,
+    instance: InstanceIndex,
+    color: string
+  ): void {
+    const entry = this.batchedBuckets.get(handle);
+    if (entry === undefined || !entry.liveInstances.has(instance)) return;
+    this.scratchColor.set(color);
+    entry.mesh.setColorAt(instance, this.scratchColor);
   }
 
   batchedBucketLiveCount(handle: BatchedBucketHandle): number {
