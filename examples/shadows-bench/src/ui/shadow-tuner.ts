@@ -131,9 +131,22 @@ export function mountShadowTuner(
         (state as Record<string, number>)[name as string] = raw;
       }
       output.textContent = format(state[name] as number);
-      applyCsm();
+      // Debounce: setCsm rebuilds CSM lights + recompiles every material,
+      // which is ~50–150 ms of main-thread work. Without debounce a slider
+      // drag at 60 Hz freezes the frame loop visibly. 120 ms is fast
+      // enough to feel live but slow enough to keep the camera responsive.
+      scheduleApply();
     });
   };
+
+  let applyTimer: number | undefined;
+  function scheduleApply(): void {
+    if (applyTimer !== undefined) return;
+    applyTimer = window.setTimeout(() => {
+      applyTimer = undefined;
+      applyCsm();
+    }, 120);
+  }
 
   rangeRow("cascades", (v) => String(Math.round(v)));
   rangeRow("maxFar", (v) => `${v.toFixed(0)} u`);
@@ -191,6 +204,12 @@ export function mountShadowTuner(
       }
       output.textContent = formatFor(name, state[name] as number);
     }
+    // Reset is an explicit user action — apply immediately, don't wait
+    // for the debounce.
+    if (applyTimer !== undefined) {
+      window.clearTimeout(applyTimer);
+      applyTimer = undefined;
+    }
     applyCsm();
   });
 
@@ -222,6 +241,11 @@ export function mountShadowTuner(
       lightDirection: defaults.lightDirection,
       mode: defaults.mode
     });
+    // shadows-bench runs with `shadows.autoUpdate: false` (static scene
+    // optimisation) — after a CSM rebuild the new cascades sit dark
+    // until something explicitly re-renders them. Trigger a one-shot
+    // re-render so the tuner change is immediately visible.
+    runtime.renderer.adapter.invalidateShadowMap();
   }
 
   parent.appendChild(panel);
