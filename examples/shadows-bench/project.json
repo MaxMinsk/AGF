@@ -13,8 +13,7 @@
       }
     ],
     "batching": {
-      "auto": true,
-      "path": "batched"
+      "auto": true
     },
     "shadows": {
       "algorithm": "pcss",
