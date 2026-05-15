@@ -33,6 +33,12 @@ export type RuntimeOptions = {
   };
   /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
   shadowAlgorithm?: "pcf" | "vsm" | "pcss";
+  /**
+   * S50 auto-batch: when true, BatchingSystem treats every entity with a
+   * built-in primitive mesh as Batchable without an explicit tag. Per-
+   * entity opt-out via `Batchable: { enabled: false }`. Defaults to false.
+   */
+  autoBatchPrimitives?: boolean;
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -240,6 +246,20 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const { createLodSelectionSystem } = await import("../render/systems/lod-selection-system");
     const lod = createLodSelectionSystem();
     if (!scheduler.has(lod.name)) scheduler.register(lod);
+    // S50: BatchingSystem runs BEFORE MeshLifecycleSystem so that on each
+    // frame the bucket reservation + BatchedMeshHandle write happen
+    // first. MeshLifecycle then sees `BatchedMeshHandle` on auto-batched
+    // entities and skips them — no double-rendering as a single Mesh.
+    const { createBatchingSystem } = await import("../render/systems/batching-system");
+    const bs = createBatchingSystem(
+      {
+        adapter: renderer.adapter,
+        diagnostics,
+        ...(options.assetRegistry !== undefined ? { assetRegistry: options.assetRegistry } : {})
+      },
+      options.autoBatchPrimitives === true ? { autoIncludePrimitives: true } : {}
+    );
+    if (!scheduler.has(bs.name)) scheduler.register(bs);
     const mls = createMeshLifecycleSystem(renderer.meshRegistry());
     if (!scheduler.has(mls.name)) scheduler.register(mls);
     const deps: Parameters<typeof createMaterialBindingSystem>[0] = {
@@ -273,13 +293,6 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     });
     if (!scheduler.has(lls.name)) scheduler.register(lls);
 
-    // M17-bucketer: collapse Batchable entities into InstancedMesh
-    // buckets. Runs AFTER MeshLifecycleSystem so the registry already
-    // ignored Batchable entities, and AFTER TransformResolveSystem so
-    // LocalToWorld is available for per-instance matrices.
-    const { createBatchingSystem } = await import("../render/systems/batching-system");
-    const bs = createBatchingSystem({ adapter: renderer.adapter, diagnostics });
-    if (!scheduler.has(bs.name)) scheduler.register(bs);
   }
 
   const time: TimeContext = {

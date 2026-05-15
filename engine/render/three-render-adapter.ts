@@ -30,6 +30,7 @@ import {
   DirectionalLight,
   HemisphereLight,
   IcosahedronGeometry,
+  InstancedBufferAttribute,
   InstancedMesh,
   type Light,
   LineBasicMaterial,
@@ -96,10 +97,34 @@ export type BucketAcquireSpec = {
   geometry: BufferGeometry;
   /** Initial slot count for the InstancedMesh. Grow via `resizeBucket`; can't shrink. */
   capacity: number;
-  /** Initial material color (per-bucket; per-instance color via setInstanceColor). */
+  /** Initial / fallback material color when `useInstanceColor` is off. */
   color?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
+  /**
+   * M17-batchable-color-variants (S50): when true, the bucket allocates
+   * an `instanceColor` InstancedBufferAttribute so each slot can carry
+   * its own color. Three.js's MeshStandardMaterial picks the attribute
+   * up automatically and modulates the base color per instance. Use
+   * `setBucketInstanceColor(handle, index, color)` to write per-slot.
+   *
+   * Default false to keep older call sites (batch-bench, physics-bench)
+   * one-bucket-per-color so their existing fixtures stay deterministic.
+   */
+  useInstanceColor?: boolean;
+  /**
+   * S50 manifest batching: opaque profile id (e.g. `std|R0.4|M0.2|E#7a4a08`).
+   * Cached in the BucketRecord on the BatchingSystem side; the adapter
+   * doesn't interpret it. Used only to widen the bucket key on the
+   * BatchingSystem side so different manifests don't collapse.
+   */
+  materialProfile?: string;
+  /** S50 manifest batching: standard material parameters. */
+  materialParams?: {
+    roughness?: number;
+    metalness?: number;
+    emissive?: string;
+  };
 };
 
 /**
@@ -457,6 +482,7 @@ export class ThreeRenderAdapter {
   private rectAreaUniformsReady = false;
   private readonly scratchMatrix = new Matrix4();
   private readonly scratchPosition = new Vector3();
+  private readonly scratchColor = new Color();
   private readonly scratchScale = new Vector3();
   private readonly scratchQuat = new Quaternion();
   private readonly scratchRaycaster = new Raycaster();
@@ -811,16 +837,54 @@ export class ThreeRenderAdapter {
   acquireBucket(spec: BucketAcquireSpec): BucketHandle {
     const handle = this.nextBucketHandle;
     this.nextBucketHandle += 1;
-    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    // When `useInstanceColor` is on, the material's base color stays white
+    // and each instance modulates via its own `instanceColor` attribute.
+    // Material is compiled once with the attribute attached.
+    const baseColor = spec.useInstanceColor === true ? "#ffffff" : spec.color ?? DEFAULT_COLOR;
+    const materialOpts: ConstructorParameters<typeof MeshStandardMaterial>[0] = {
+      color: new Color(baseColor)
+    };
+    if (spec.materialParams !== undefined) {
+      const p = spec.materialParams;
+      if (p.roughness !== undefined) materialOpts.roughness = p.roughness;
+      if (p.metalness !== undefined) materialOpts.metalness = p.metalness;
+      if (p.emissive !== undefined) materialOpts.emissive = new Color(p.emissive);
+    }
+    const material = new MeshStandardMaterial(materialOpts);
     this.registerWithCsm(material);
     const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
     mesh.count = 0;
-    mesh.frustumCulled = false;
+    // S50 perf: enable per-bucket frustum culling. Three's
+    // InstancedMesh.computeBoundingSphere walks every instance's
+    // transform to produce an enclosing sphere; once set,
+    // frustumCulled=true skips the whole bucket when its sphere is
+    // outside the camera frustum (main pass + every CSM cascade). We
+    // recompute the sphere lazily via `recomputeBucketBoundingSphere`
+    // after the BatchingSystem finishes adding/removing instances.
+    mesh.frustumCulled = true;
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
+    if (spec.useInstanceColor === true) {
+      // Pre-fill with white so freshly-added instances render neutrally
+      // until the first `setBucketInstanceColor` writes a real colour.
+      const colors = new Float32Array(spec.capacity * 3);
+      colors.fill(1);
+      mesh.instanceColor = new InstancedBufferAttribute(colors, 3);
+    }
     this.scene.add(mesh);
     this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
     return handle;
+  }
+
+  /**
+   * Re-walk the bucket's per-instance transforms to update its
+   * enclosing bounding sphere. Three.js relies on this sphere for
+   * frustum culling. Cheap (~one Vec3 + sqrt per live instance).
+   */
+  recomputeBucketBoundingSphere(handle: BucketHandle): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined) return;
+    entry.mesh.computeBoundingSphere();
   }
 
   releaseBucket(handle: BucketHandle): void {
@@ -849,6 +913,14 @@ export class ThreeRenderAdapter {
       newMesh.setMatrixAt(slot, this.scratchMatrix);
     }
     newMesh.instanceMatrix.needsUpdate = true;
+    // Preserve per-instance colour when the bucket carries one.
+    if (oldMesh.instanceColor !== null && oldMesh.instanceColor !== undefined) {
+      const newColors = new Float32Array(newCapacity * 3);
+      newColors.fill(1);
+      const oldArray = oldMesh.instanceColor.array as Float32Array;
+      newColors.set(oldArray.subarray(0, Math.min(oldArray.length, newColors.length)));
+      newMesh.instanceColor = new InstancedBufferAttribute(newColors, 3);
+    }
     this.scene.remove(oldMesh);
     oldMesh.dispose();
     // Don't dispose geometry/material — newMesh shares them.
@@ -904,6 +976,21 @@ export class ThreeRenderAdapter {
     this.scratchMatrix.compose(this.scratchPosition, this.scratchQuat, this.scratchScale);
     entry.mesh.setMatrixAt(index, this.scratchMatrix);
     entry.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * M17-batchable-color-variants: stamp a per-instance colour on a
+   * bucket slot. No-op if the bucket was acquired without
+   * `useInstanceColor`. Three's InstancedMesh.setColorAt + needsUpdate
+   * uploads the colour on the next draw.
+   */
+  setBucketInstanceColor(handle: BucketHandle, index: InstanceIndex, color: string): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined || !entry.liveSlots.has(index)) return;
+    const mesh = entry.mesh;
+    if (mesh.instanceColor === null || mesh.instanceColor === undefined) return;
+    mesh.setColorAt(index, this.scratchColor.set(color));
+    mesh.instanceColor.needsUpdate = true;
   }
 
   bucketLiveCount(handle: BucketHandle): number {

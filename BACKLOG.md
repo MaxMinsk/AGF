@@ -21,7 +21,48 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 49 — rendererInfo accuracy + hygiene tidy
+## Next Sprint candidates
+
+- **M17-batch-perf-investigation** — S50 brought drawCalls 203 → 5 and CPU-measured `renderMs` 3.60 → 0.39 (9×) but the user reports the dev-overlay FPS readout is **lower** with batching on. Headless software-WebGL caps at ~5 fps so the perf comparison can't be done there. Hypotheses + concrete probes:
+  - `instanceMatrix.needsUpdate = true` fires every frame in `setBucketInstanceTransform` regardless of whether the matrix changed. With 305 instances × 64 bytes = 19.5 KB GPU upload every frame even for static buildings / rocks / roads. Fix: track last-written matrix per (handle, instance) + skip the write when elements are bit-identical, OR consume an ECS dirty bit on `LocalToWorld`.
+  - `frustumCulled = false` on every InstancedMesh bucket. All 305 instances render in every pass (main + each CSM cascade) regardless of camera frustum. Without batching, each single Mesh frustum-culls per-pass; for a scene with 305 entities spanning ±40 units, that probably removes 60–80% of the work per cascade. Fix: leave frustumCulled=true and compute a bucket bounding sphere that grows as instances are added (recompute lazily when an instance leaves the current sphere).
+  - `instanceColor` attribute fetch + interpolation costs per-vertex in the standard material's vertex shader. A bucket-color material (when every instance shares one color) might benefit from a fast-path that skips the attribute. Less likely to matter than #1/#2 — instanceColor is a single Vec3 attribute, cheap on modern GPUs.
+  - Acceptance: dev-overlay FPS on shadows-bench should match or beat the non-batched baseline. Output: `docs/research/m17-batching-perf-investigation.md` + per-fix benchmark numbers, then the actual fixes land as follow-up stories.
+
+- **M17-batch-glb-meshes** — today the BatchingSystem only batches entities whose `MeshRenderer.mesh` is a built-in primitive (box/sphere/plane). Any GLB / asset-path mesh falls through to single-Mesh rendering even when many entities share the same `runtime/models/<name>.glb`. The renderer already loads geometry once via `AssetRegistry`; the batcher needs to promote the bucket key to include arbitrary mesh refs + cache the loaded `BufferGeometry` so multiple instances share one InstancedMesh. Acceptance: beacon-world's beacon + core glb instances collapse to 2 buckets (one per (model + shadow + group)) instead of 8 single Meshes.
+- **M17-batch-material-manifests** — entities with `MeshRenderer.material = "runtime/materials/<x>.material.json"` also fall through today. With per-instance color now available (S50), texture-less manifests (Standard with only color/roughness/metalness) could route through the same InstancedMesh path. Texture-bearing manifests need a separate bucket per manifest (texture uniforms can't vary per-instance without atlasing — defer). Acceptance: shadows-bench + beacon-world manifest-material entities batch when textures are absent.
+- **M17-batch-default-on** — once GLB + manifest batching land, flip `autoBatchPrimitives` (renamed `autoBatch`) on by default and update existing project.json files to opt out only where they need single-Mesh semantics. Goal: agents stop thinking about Batchable for the typical case.
+- **RENDER-bucket-key-architecture** — current bucket key is a hand-rolled string `instanced|<mesh>|<shadow>|<group>`. With GLB + manifests joining the routing logic between InstancedMesh and BatchedMesh paths gets messier. Investigate moving to a typed BucketSpec + Map<hash, BucketRecord>, and revisit the dispatch between bucketer (M17) and batched-mesh-system (M17-b) under a single abstraction.
+
+## Current Sprint: Sprint 50 — auto-batch + per-instance color + perf squeeze
+
+Three compounding wins for shadows-bench (one project.json flag): **drawCalls 203 → 5** (40×) and **renderMs 3.60 → 0.39** (9×). Plus the perf-squeeze follow-ups landed in the same PR after the first round revealed a static-instance GPU-upload regression.
+
+### Stories
+
+1. **M17-batchable-color-variants** ✅ — adapter `acquireBucket({ useInstanceColor: true })` allocates the `instanceColor` InstancedBufferAttribute on the InstancedMesh + `setBucketInstanceColor(handle, index, color)` writes per-slot colour. `BatchingSystem.updateInstanced` drops `renderer.color` from the bucket key so different-coloured entities collapse into one InstancedMesh.
+2. **M17-auto-batch-primitives** ✅ — `BatchingOptions.autoIncludePrimitives` plumbed through `RuntimeOptions.autoBatchPrimitives` + `project.json#render.batching.auto`. When on, every entity with a built-in primitive mesh, no LOD, no manifest material is auto-batched without `Batchable`. Per-entity opt-out: `Batchable: { enabled: false }`. All 5 example projects (hello-3d, beacon-world, batch-bench, physics-bench, shadows-bench) have the flag on.
+3. **M17-system-ordering** ✅ — BatchingSystem moved BEFORE MeshLifecycleSystem so `BatchedMeshHandle` is set first. `MeshLifecycleSystem.frameUpdate` AND `ThreeRenderer.refreshMeshes` (the fallback path called every frame from `render()`) both now skip entities with `BatchedMeshHandle` — the historical filter only looked at `Batchable`, so auto-batched entities were double-rendered (the 310-draw / 27 ms-frame regression caught during S50 development).
+4. **M17-perf-ltw-cache** ✅ — `BatchingSystem.InstancedRecord.lastWorld` caches the last-written `[px,py,pz,rx,ry,rz,sx,sy,sz]` per instance. `updateInstanced` skips both `setBucketInstanceTransform` AND `instanceMatrix.needsUpdate` when the LTW is bit-identical. Static buildings / rocks / roads no longer force a full 305 × 16 float GPU re-upload every frame.
+5. **M17-perf-color-cache** ✅ — Same idea for `setBucketInstanceColor` — cached per-instance colour means a frame with no colour changes doesn't dirty the instanceColor attribute.
+6. **M17-perf-bucket-frustum-culling** ✅ — InstancedMesh buckets now ship with `frustumCulled = true`. `recomputeBucketBoundingSphere(handle)` is called once per frame per dirty bucket (tracked by `dirtyInstancedBuckets: Set<BucketHandle>` populated by the LTW cache misses + instance add/remove). Three.js then skips the whole bucket per camera-pass when its sphere is outside the frustum.
+7. **shadows-bench adoption** ✅ — `project.json#render.batching.auto: true`; trees + rocks + **buildings** repositioned to clear the road corridors via `clearRoadCorridor(x, z, buffer)` (now per-entity buffer; buildings use `max(w, d)/2 + 0.5` so their footprint never crosses the kerb).
+8. **Three.js batching research note** ✅ — `docs/research/m17-three-batching-references.md` summarises the relevant `References/three.js/examples/*.html` (`webgl_mesh_batch`, `webgl_instancing_dynamic`, `webgl_batch_lod_bvh`, etc.) and sequences the follow-up perf work into Sprint 51 candidates: BatchedMesh primary path with `perObjectFrustumCulled`, BVH extension, LOD-batched geometry.
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 69 files, 433 tests (one existing batching test rewritten for the new colour-variant semantics)
+- shadows-bench live probe with `batching.auto: true`:
+  - drawCalls: **203 → 5** (40× fewer)
+  - frame time: **5.4 ms → 1.4 ms** (4× faster)
+  - `meshes: 0`, `buckets: 3`, `bucketInstances: 305`, `handleLeak: 0`
+
+### Notes for Sprint 51+
+
+`Next Sprint candidates` covers the remaining batching work: GLB mesh batching, material-manifest batching, default-on once those land, and a cleaner BucketSpec abstraction over the InstancedMesh + BatchedMesh paths.
+
+## Archived: Sprint 49 — rendererInfo accuracy + hygiene tidy
 
 Small follow-ups noticed after S48 landed:
 

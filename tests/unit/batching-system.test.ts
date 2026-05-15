@@ -20,6 +20,7 @@ type AdapterStub = {
   addedInstances: Array<{ handle: BucketHandle; instance: InstanceIndex }>;
   removedInstances: Array<{ handle: BucketHandle; instance: InstanceIndex }>;
   transforms: Array<{ handle: BucketHandle; instance: InstanceIndex; world: ResolvedWorld }>;
+  colors: Array<{ handle: BucketHandle; instance: InstanceIndex; color: string }>;
   live: Map<BucketHandle, Set<InstanceIndex>>;
   capacities: Map<BucketHandle, number>;
 };
@@ -34,6 +35,7 @@ function stubAdapter(): AdapterStub & ThreeRenderAdapter {
     addedInstances: [],
     removedInstances: [],
     transforms: [],
+    colors: [],
     live: new Map(),
     capacities: new Map()
   };
@@ -75,6 +77,12 @@ function stubAdapter(): AdapterStub & ThreeRenderAdapter {
         world: ResolvedWorld
       ): void {
         stub.transforms.push({ handle, instance, world });
+      },
+      setBucketInstanceColor(handle: BucketHandle, instance: InstanceIndex, color: string): void {
+        stub.colors.push({ handle, instance, color });
+      },
+      recomputeBucketBoundingSphere(_handle: BucketHandle): void {
+        // no-op in stub
       },
       bucketLiveCount(handle: BucketHandle): number {
         return stub.live.get(handle)?.size ?? 0;
@@ -121,7 +129,10 @@ describe("BatchingSystem (M17-bucketer)", () => {
     expect(world.hasComponent("b", BATCHED_MESH_HANDLE)).toBe(true);
   });
 
-  it("splits buckets by color difference", () => {
+  it("shares a bucket across colour variants and stamps per-instance colour", () => {
+    // S50: bucket key no longer includes renderer.color; the per-instance
+    // colour is uploaded via setBucketInstanceColor instead so different
+    // colours collapse into one InstancedMesh.
     const adapter = stubAdapter();
     const world = new World();
     world.addEntity("red");
@@ -133,7 +144,11 @@ describe("BatchingSystem (M17-bucketer)", () => {
 
     const system = createBatchingSystem({ adapter });
     system.frameUpdate?.(ctx(world));
-    expect(system.bucketCount()).toBe(2);
+    expect(system.bucketCount()).toBe(1);
+    expect(adapter.acquired[0]?.spec.useInstanceColor).toBe(true);
+    const colors = adapter.colors.map((c) => c.color);
+    expect(colors).toContain("#ff0000");
+    expect(colors).toContain("#0000ff");
   });
 
   it("splits buckets by group hint even if mesh + color match", () => {

@@ -8,8 +8,13 @@
     "mode": "webgl",
     "background": "#3a5066",
     "post": [
-      { "kind": "fxaa" }
+      {
+        "kind": "fxaa"
+      }
     ],
+    "batching": {
+      "auto": true
+    },
     "shadows": {
       "autoUpdate": false,
       "algorithm": "pcss",
@@ -21,10 +26,16 @@
         "shadowMapSize": 1024,
         "shadowBias": -0.000005,
         "shadowNormalBias": 0.12,
-        "lightDirection": [-0.45, -1, -0.35],
+        "lightDirection": [
+          -0.45,
+          -1,
+          -0.35
+        ],
         "lightIntensity": 1.55
       }
     }
   },
-  "profiles": ["static"]
+  "profiles": [
+    "static"
+  ]
 }

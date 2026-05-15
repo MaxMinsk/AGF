@@ -6,7 +6,8 @@
   "assetRoot": "assets",
   "render": {
     "mode": "webgl",
-    "background": "#09131d"
+    "background": "#09131d",
+    "batching": { "auto": true }
   },
   "profiles": ["static"]
 }

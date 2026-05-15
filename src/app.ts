@@ -67,6 +67,10 @@ export type ProjectMeta = {
         lightIntensity?: number;
       };
     };
+    batching?: {
+      /** S50 auto-batch: include every primitive-mesh entity in the batcher by default. */
+      auto?: boolean;
+    };
   };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
@@ -325,6 +329,9 @@ export async function createApp(
   }
   if (project.render?.shadows?.algorithm !== undefined) {
     runtimeOptions.shadowAlgorithm = project.render.shadows.algorithm;
+  }
+  if (project.render?.batching?.auto === true) {
+    runtimeOptions.autoBatchPrimitives = true;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;
