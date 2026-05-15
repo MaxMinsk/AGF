@@ -1,0 +1,8 @@
+{
+  "agfFormatVersion": 1,
+  "id": "pickup-core",
+  "description": "Energy core prefab.",
+  "components": {
+    "Transform": { "position": [0, 0.5, 0] }
+  }
+}

@@ -94,6 +94,47 @@ describe("project check", () => {
     });
   });
 
+  it("accepts scene `instances` whose prefab refs resolve to declared prefab ids (M3-c-load)", () => {
+    const result = checkProject(resolve(fixturesRoot, "scene-instance-valid"));
+    expect(result.ok).toBe(true);
+    const instanceErrors = result.diagnostics.filter(
+      (d) =>
+        d.code === "AGF_SCENE_INSTANCE_PREFAB_MISSING" ||
+        d.code === "AGF_SCENE_INSTANCE_DUPLICATE_ID"
+    );
+    expect(instanceErrors).toEqual([]);
+  });
+
+  it("emits AGF_SCENE_INSTANCE_PREFAB_MISSING when an instance references an unknown prefab id", () => {
+    const result = checkProject(resolve(fixturesRoot, "scene-instance-missing-prefab"));
+    expect(result.ok).toBe(false);
+    const missing = result.diagnostics.filter(
+      (d) => d.code === "AGF_SCENE_INSTANCE_PREFAB_MISSING"
+    );
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toMatchObject({
+      severity: "error",
+      file: "scenes/start.scene.json",
+      path: "$.instances[1].prefab",
+      message: expect.stringContaining("does-not-exist")
+    });
+  });
+
+  it("emits AGF_SCENE_INSTANCE_DUPLICATE_ID when an instance id collides with an entity id", () => {
+    const result = checkProject(resolve(fixturesRoot, "scene-instance-duplicate-id"));
+    expect(result.ok).toBe(false);
+    const duplicates = result.diagnostics.filter(
+      (d) => d.code === "AGF_SCENE_INSTANCE_DUPLICATE_ID"
+    );
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0]).toMatchObject({
+      severity: "error",
+      file: "scenes/start.scene.json",
+      path: "$.instances[0].id",
+      message: expect.stringContaining("core.alpha")
+    });
+  });
+
   it("emits AGF_RIGIDBODY3D_DYNAMIC_TRIMESH + AGF_COLLIDER3D_HEIGHTFIELD_DIMS (M24-static-mesh)", () => {
     const result = checkProject(resolve(fixturesRoot, "physics-static-mesh"));
     const codes = result.diagnostics.map((d) => d.code);

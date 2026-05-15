@@ -1,0 +1,11 @@
+{
+  "id": "m10-brick",
+  "shader": "standard",
+  "color": "#ffffff",
+  "roughness": 1.0,
+  "metalness": 0,
+  "map": "runtime/textures/brick_diffuse.jpg",
+  "bumpMap": "runtime/textures/brick_bump.jpg",
+  "bumpScale": 3.5,
+  "roughnessMap": "runtime/textures/brick_roughness.jpg"
+}

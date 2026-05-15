@@ -1,0 +1,19 @@
+{
+  "agfFormatVersion": 1,
+  "id": "material-bench",
+  "name": "Material Bench",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "color": {
+      "toneMapping": "aces-filmic",
+      "exposure": 1.0,
+      "transmissionResolutionScale": 0.5
+    },
+    "batching": {
+      "auto": false
+    }
+  },
+  "profiles": ["static"]
+}

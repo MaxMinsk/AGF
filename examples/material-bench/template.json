@@ -1,0 +1,35 @@
+{
+  "templateId": "material-bench",
+  "name": "Material Bench",
+  "summary": "PBR material showcase. A central chrome sphere with 12 smaller spheres orbiting it on a ring of cement cylinder pedestals; HDR environment, ACES filmic tonemap. Use it to compare standard vs physical shader parameters side-by-side.",
+  "gameplayVocabulary": ["sphere", "pedestal", "material", "PBR", "HDR", "showcase"],
+  "extensionPoints": [
+    {
+      "id": "tweak-material",
+      "summary": "Adjust roughness / metalness / clearcoat / transmission on an existing material manifest.",
+      "files": ["examples/material-bench/assets/runtime/materials/"]
+    },
+    {
+      "id": "add-material-slot",
+      "summary": "Add a new material manifest and reference it from `OUTER_MATERIALS` in bootstrap.ts.",
+      "files": [
+        "examples/material-bench/assets/runtime/materials/",
+        "examples/material-bench/bootstrap.ts"
+      ]
+    },
+    {
+      "id": "swap-hdr-environment",
+      "summary": "Replace the HDR file under `assets/runtime/hdr/` and update the scene's `environment.url`.",
+      "files": [
+        "examples/material-bench/assets/runtime/hdr/",
+        "examples/material-bench/scenes/start.scene.json"
+      ]
+    },
+    {
+      "id": "change-rotation",
+      "summary": "The group spin lives on `spheres.root.Spin`. Adjust `speed` (degrees per second) or `axis` in the scene.",
+      "files": ["examples/material-bench/scenes/start.scene.json"]
+    }
+  ],
+  "templateContextFile": "template_context.md"
+}

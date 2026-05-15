@@ -90,6 +90,13 @@
               "exclusiveMinimum": 0,
               "default": 1,
               "description": "Multiplier on the scene luminance before tone mapping. >1 brightens, <1 darkens."
+            },
+            "transmissionResolutionScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "default": 1,
+              "description": "Multiplier on the resolution of WebGLRenderer's transmission pre-pass. Three.js renders the whole opaque scene into a private render target every frame so `MeshPhysicalMaterial.transmission` can sample refraction. Lower values (e.g. 0.5) halve that pre-pass cost — usually invisible because the result is mip-blurred by the material's roughness anyway."
             }
           }
         },
@@ -134,6 +141,20 @@
               }
             }
           }
+        },
+        "idleMode": {
+          "enum": ["always", "on-demand"],
+          "default": "always",
+          "description": "S54 RUNTIME-idle-rendering. `always` (default): the runtime calls `renderer.render()` every animation frame. `on-demand`: the runtime skips the render call when the ECS mutation counter is unchanged from the previous frame (no entity add/remove, no component write). Useful for inspector / menu / wallpaper scenes where the camera is parked and nothing animates. First frame after boot, every window resize, and every frame any system writes ECS state always render."
+        },
+        "criticalAssets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "S54 RUNTIME-progressive-loading: asset refs (`runtime/materials/hero.material.json`, `runtime/models/hero.glb`, …) that must finish loading before `window.__agf.rendererReady` resolves. Every other asset stays on the existing placeholder-then-swap path. Tests / dev-bridge / Playwright `await` `rendererReady` instead of guessing how many frames the first draw takes."
         },
         "batching": {
           "type": "object",

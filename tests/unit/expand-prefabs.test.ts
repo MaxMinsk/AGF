@@ -106,4 +106,20 @@ describe("expandScenePrefabs", () => {
     expect(result.scene).not.toBe(scene);
     expect(scene.entities).toHaveLength(0);
   });
+
+  it("preserves top-level scene fields like `environment` and drops only `instances`", () => {
+    const scene: SceneWithInstances = {
+      id: "start",
+      entities: [],
+      environment: { kind: "hdr", url: "runtime/hdr/foo.hdr", intensity: 0.9 },
+      instances: [{ id: "core.a", prefab: "pickup-core" }]
+    };
+    const result = expandScenePrefabs(scene, registry);
+    expect(result.scene.environment).toEqual({
+      kind: "hdr",
+      url: "runtime/hdr/foo.hdr",
+      intensity: 0.9
+    });
+    expect((result.scene as { instances?: unknown }).instances).toBeUndefined();
+  });
 });

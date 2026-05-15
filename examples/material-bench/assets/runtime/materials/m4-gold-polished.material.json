@@ -1,0 +1,7 @@
+{
+  "id": "m4-gold-polished",
+  "shader": "standard",
+  "color": "#ffd770",
+  "roughness": 0.08,
+  "metalness": 1.0
+}

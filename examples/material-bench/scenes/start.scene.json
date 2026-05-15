@@ -1,0 +1,64 @@
+{
+  "id": "start",
+  "environment": {
+    "kind": "hdr",
+    "url": "runtime/hdr/venice_sunset_1k.hdr",
+    "intensity": 1.0,
+    "asBackground": true,
+    "backgroundBlurriness": 0.35
+  },
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Main Camera" },
+        "Transform": { "position": [0, 1.4, 8.5], "rotation": [-8, 0, 0] },
+        "Camera": { "kind": "perspective", "active": true, "fov": 45, "near": 0.1, "far": 100 }
+      }
+    },
+    {
+      "id": "light.fill",
+      "components": {
+        "Name": { "label": "Ambient Fill" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "ambient", "color": "#cfe0ff", "intensity": 0.15 }
+      }
+    },
+    {
+      "id": "light.key",
+      "components": {
+        "Name": { "label": "Key" },
+        "Transform": { "position": [5, 8, 6] },
+        "Light": {
+          "kind": "directional",
+          "color": "#fff2d2",
+          "intensity": 0.6,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": -0.00002,
+            "normalBias": 0.004,
+            "camera": { "left": -8, "right": 8, "top": 6, "bottom": -4, "near": 0.5, "far": 24 }
+          }
+        }
+      }
+    },
+    {
+      "id": "ground",
+      "components": {
+        "Name": { "label": "Plinth" },
+        "Transform": { "position": [0, -0.8, 0], "scale": [16, 0.1, 8] },
+        "MeshRenderer": { "mesh": "box", "color": "#1c2530" },
+        "ShadowFlags": { "cast": false, "receive": true }
+      }
+    },
+    {
+      "id": "spheres.root",
+      "components": {
+        "Name": { "label": "Sphere Group (auto-rotates around Y)" },
+        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0] },
+        "Spin": { "axis": "y", "speed": 14 }
+      }
+    }
+  ]
+}

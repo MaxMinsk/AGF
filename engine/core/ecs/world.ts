@@ -16,6 +16,14 @@ export class World {
   /** Incremented on every structural change so cached queries can detect staleness cheaply. */
   private revision = 0;
   /**
+   * Bumped on every mutation — `addEntity` / `removeEntity` /
+   * `setComponent` / `removeComponent`. Exposed via `mutationCounter()`
+   * so the runtime's render-on-demand mode can skip `renderer.render()`
+   * for frames where no system touched ECS state. Coarse signal — false
+   * positives only (a system writing back the same value still bumps).
+   */
+  private mutations = 0;
+  /**
    * Per-component data-revision counter. Bumped on every `setComponent`
    * (including overwrites — that's the whole point) and zeroed on
    * `removeComponent`. Consumers that need to detect "did this entity's
@@ -51,6 +59,7 @@ export class World {
     }
     this.entities.add(id);
     this.revision += 1;
+    this.mutations += 1;
   }
 
   removeEntity(id: EntityId): void {
@@ -64,6 +73,16 @@ export class World {
       revisions.delete(id);
     }
     this.revision += 1;
+    this.mutations += 1;
+  }
+
+  /**
+   * Monotonic counter bumped on every mutation (entity add / remove,
+   * component set / remove). Used by the runtime's render-on-demand
+   * mode to skip `renderer.render()` when nothing changed this frame.
+   */
+  mutationCounter(): number {
+    return this.mutations;
   }
 
   hasEntity(id: EntityId): boolean {
@@ -95,6 +114,7 @@ export class World {
     if (structural) {
       this.revision += 1;
     }
+    this.mutations += 1;
     this.bumpComponentRevision(id, name);
     this.markDirty(name, id);
   }
@@ -118,6 +138,7 @@ export class World {
     }
     if (store.delete(id)) {
       this.revision += 1;
+      this.mutations += 1;
       this.componentRevisions.get(name)?.delete(id);
       this.markDirty(name, id);
     }

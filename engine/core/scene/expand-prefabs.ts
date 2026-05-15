@@ -10,7 +10,7 @@
 // renderer coupling. The CLI / runtime layer is responsible for loading
 // prefab files and passing them in as a registry.
 
-import type { SceneEntityInput, SceneInput } from "../ecs/types";
+import type { SceneEntityInput, SceneInput, SceneInstanceInput } from "../ecs/types";
 
 export type PrefabDefinition = {
   id: string;
@@ -19,15 +19,11 @@ export type PrefabDefinition = {
   description?: string;
 };
 
-export type SceneInstance = {
-  id: string;
-  prefab: string;
-  overrides?: Record<string, unknown>;
-};
+/** @deprecated use `SceneInstanceInput` from `engine/core/ecs/types`. */
+export type SceneInstance = SceneInstanceInput;
 
-export type SceneWithInstances = SceneInput & {
-  instances?: ReadonlyArray<SceneInstance>;
-};
+/** @deprecated `SceneInput` now carries `instances?` directly. */
+export type SceneWithInstances = SceneInput;
 
 export type ExpansionDiagnostic = {
   severity: "error";
@@ -49,7 +45,7 @@ export type ExpansionResult = {
  * expansion, the caller decides how to act on the diagnostics list.
  */
 export function expandScenePrefabs(
-  scene: SceneWithInstances,
+  scene: SceneInput,
   registry: ReadonlyMap<string, PrefabDefinition>
 ): ExpansionResult {
   const diagnostics: ExpansionDiagnostic[] = [];
@@ -58,7 +54,7 @@ export function expandScenePrefabs(
 
   const instances = scene.instances ?? [];
   for (let index = 0; index < instances.length; index += 1) {
-    const instance = instances[index] as SceneInstance;
+    const instance = instances[index] as SceneInstanceInput;
     if (ids.has(instance.id)) {
       diagnostics.push({
         severity: "error",
@@ -84,10 +80,13 @@ export function expandScenePrefabs(
     ids.add(instance.id);
   }
 
-  return {
-    scene: { id: scene.id, entities },
-    diagnostics
-  };
+  // Strip `instances` from the output; preserve every other top-level
+  // scene field (environment, future scene-level metadata) so downstream
+  // systems don't lose context.
+  const { instances: _consumed, ...rest } = scene;
+  const expanded: SceneInput = { ...rest, entities };
+
+  return { scene: expanded, diagnostics };
 }
 
 function mergeComponents(

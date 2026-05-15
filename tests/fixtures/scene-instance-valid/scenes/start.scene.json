@@ -1,0 +1,25 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Transform": { "position": [0, 2, 5] },
+        "Camera": { "kind": "perspective", "active": true }
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "core.alpha",
+      "prefab": "pickup-core",
+      "overrides": {
+        "Transform": { "position": [1, 0, 0] }
+      }
+    },
+    {
+      "id": "core.beta",
+      "prefab": "pickup-core"
+    }
+  ]
+}

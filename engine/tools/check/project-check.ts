@@ -50,7 +50,7 @@ const builtInComponentNames = [
   "Spin",
   "Transform"
 ] as const;
-const primitiveMeshes = new Set(["box", "sphere", "plane"]);
+const primitiveMeshes = new Set(["box", "sphere", "cylinder", "plane"]);
 
 const staticSchemaPaths: Record<StaticSchemaKey, string> = {
   project: "schemas/project.schema.json",
@@ -186,10 +186,81 @@ function validateStartScene(
   diagnostics.push(...detectDuplicateEntityIds(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validateTransformHierarchy(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validatePhysicsColliders(sceneJson.data, scenePath, projectDir));
+  diagnostics.push(...validateScenePrefabInstances(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
   }
+}
+
+function validateScenePrefabInstances(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string
+): Diagnostic[] {
+  if (!isJsonObject(sceneData) || !Array.isArray(sceneData["instances"])) {
+    return [];
+  }
+  const file = toProjectRelativeFile(scenePath, projectDir);
+  const out: Diagnostic[] = [];
+
+  // Build the prefab-id set from `prefabs/*.prefab.json` ids (not filenames),
+  // mirroring what the runtime registry sees.
+  const knownPrefabIds = new Set<string>();
+  const prefabsDir = resolve(projectDir, "prefabs");
+  if (isDirectory(prefabsDir)) {
+    for (const entry of readdirSyncSafe(prefabsDir)) {
+      if (!entry.endsWith(".prefab.json")) continue;
+      const parsed = readJson(resolve(prefabsDir, entry), projectDir);
+      if (!parsed.ok || !isJsonObject(parsed.data)) continue;
+      const id = parsed.data["id"];
+      if (typeof id === "string") knownPrefabIds.add(id);
+    }
+  }
+
+  // Collect existing entity ids so we can flag duplicate instance ids.
+  const entityIds = new Set<string>();
+  if (Array.isArray(sceneData["entities"])) {
+    for (const entity of sceneData["entities"]) {
+      if (isJsonObject(entity) && typeof entity["id"] === "string") {
+        entityIds.add(entity["id"]);
+      }
+    }
+  }
+
+  const instances = sceneData["instances"];
+  for (let index = 0; index < instances.length; index += 1) {
+    const instance = instances[index];
+    if (!isJsonObject(instance)) continue;
+    const id = typeof instance["id"] === "string" ? instance["id"] : undefined;
+    const prefab = typeof instance["prefab"] === "string" ? instance["prefab"] : undefined;
+    if (id !== undefined && entityIds.has(id)) {
+      out.push({
+        severity: "error",
+        code: "AGF_SCENE_INSTANCE_DUPLICATE_ID",
+        file,
+        path: `$.instances[${index}].id`,
+        message: `Instance id "${id}" collides with an existing entity id.`,
+        suggestion: "Rename the instance or remove the duplicate entity."
+      });
+    } else if (id !== undefined) {
+      entityIds.add(id);
+    }
+    if (prefab !== undefined && !knownPrefabIds.has(prefab)) {
+      out.push({
+        severity: "error",
+        code: "AGF_SCENE_INSTANCE_PREFAB_MISSING",
+        file,
+        path: `$.instances[${index}].prefab`,
+        message: `Instance "${id ?? "?"}" references unknown prefab "${prefab}".`,
+        suggestion:
+          knownPrefabIds.size > 0
+            ? `Known prefab ids: ${[...knownPrefabIds].sort().join(", ")}.`
+            : "Add a `<projectDir>/prefabs/<id>.prefab.json` file declaring this prefab."
+      });
+    }
+  }
+  return out;
 }
 
 function validatePlaytestScenarios(projectDir: string, diagnostics: Diagnostic[]): void {
@@ -449,39 +520,114 @@ function validateSceneAssetReferences(
     }
 
     const meshRenderer = components["MeshRenderer"];
-    if (!isJsonObject(meshRenderer)) {
-      return;
+    if (isJsonObject(meshRenderer)) {
+      const mesh = meshRenderer["mesh"];
+      if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+        diagnostics.push(
+          ...validateAssetReference({
+            projectDir,
+            assetRoot,
+            scenePath,
+            jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.mesh`,
+            reference: mesh,
+            referenceKind: "mesh"
+          })
+        );
+      }
+
+      const material = meshRenderer["material"];
+      if (typeof material === "string") {
+        diagnostics.push(
+          ...validateAssetReference({
+            projectDir,
+            assetRoot,
+            scenePath,
+            jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
+            reference: material,
+            referenceKind: "material"
+          })
+        );
+      }
     }
 
-    const mesh = meshRenderer["mesh"];
-    if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+    // S54 ASSET-lod-metadata: per-level structural checks the JSON
+    // schema can't express on its own — ascending distances and
+    // mesh refs that point at real assets / primitives.
+    const lod = components["LOD"];
+    if (isJsonObject(lod) && Array.isArray(lod["levels"])) {
       diagnostics.push(
-        ...validateAssetReference({
+        ...validateLodComponent(lod["levels"], {
           projectDir,
           assetRoot,
           scenePath,
-          jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.mesh`,
-          reference: mesh,
-          referenceKind: "mesh"
-        })
-      );
-    }
-
-    const material = meshRenderer["material"];
-    if (typeof material === "string") {
-      diagnostics.push(
-        ...validateAssetReference({
-          projectDir,
-          assetRoot,
-          scenePath,
-          jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
-          reference: material,
-          referenceKind: "material"
+          entityIndex
         })
       );
     }
   });
 
+  return diagnostics;
+}
+
+function validateLodComponent(
+  levels: JsonValue[],
+  ctx: {
+    projectDir: string;
+    assetRoot: string;
+    scenePath: string;
+    entityIndex: number;
+  }
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const seenDistances = new Set<number>();
+  let previousDistance = -Infinity;
+  levels.forEach((level, levelIndex) => {
+    if (!isJsonObject(level)) return;
+    const distance = level["maxDistance"];
+    const mesh = level["mesh"];
+    const basePath = `$.entities[${ctx.entityIndex}].components.LOD.levels[${levelIndex}]`;
+    if (typeof distance === "number") {
+      if (seenDistances.has(distance)) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_LOD_DISTANCE_DUPLICATE",
+          file: toProjectRelativeFile(ctx.scenePath, ctx.projectDir),
+          path: `${basePath}.maxDistance`,
+          message: `LOD level ${levelIndex} reuses maxDistance ${distance}; each level needs a unique threshold.`,
+          suggestion: "Adjust the distance so every LOD level has a distinct fall-off point."
+        });
+      }
+      seenDistances.add(distance);
+      if (distance <= previousDistance) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_LOD_DISTANCES_OUT_OF_ORDER",
+          file: toProjectRelativeFile(ctx.scenePath, ctx.projectDir),
+          path: `${basePath}.maxDistance`,
+          message: `LOD level ${levelIndex} maxDistance ${distance} is not strictly greater than the previous level (${previousDistance}). LodSelectionSystem expects ascending order.`,
+          suggestion: "Reorder the levels so maxDistance ascends and each level is the cheapest mesh that still looks acceptable up to that range."
+        });
+      }
+      previousDistance = distance;
+    }
+    if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+      const refDiagnostics = validateAssetReference({
+        projectDir: ctx.projectDir,
+        assetRoot: ctx.assetRoot,
+        scenePath: ctx.scenePath,
+        jsonPath: `${basePath}.mesh`,
+        reference: mesh,
+        referenceKind: "mesh"
+      });
+      // Re-tag the diagnostics so the agent sees an LOD-specific code.
+      for (const diag of refDiagnostics) {
+        diagnostics.push({
+          ...diag,
+          code: "AGF_LOD_MESH_MISSING"
+        });
+      }
+    }
+  });
   return diagnostics;
 }
 
@@ -522,7 +668,7 @@ function validateAssetReference(input: {
       message: `${capitalize(input.referenceKind)} asset "${input.reference}" does not exist under assetRoot "${input.assetRoot}".`,
       suggestion:
         input.referenceKind === "mesh"
-          ? "Add the runtime mesh file, update the reference, or use a primitive mesh: box, sphere, plane."
+          ? "Add the runtime mesh file, update the reference, or use a primitive mesh: box, sphere, cylinder, plane."
           : "Add the material file under assetRoot or remove the material reference until materials are implemented."
     }
   ];

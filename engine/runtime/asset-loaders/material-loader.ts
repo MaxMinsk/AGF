@@ -36,6 +36,8 @@ export type MaterialManifest = {
   map?: string;
   normalMap?: string;
   normalScale?: number;
+  bumpMap?: string;
+  bumpScale?: number;
   roughnessMap?: string;
   metalnessMap?: string;
   emissiveMap?: string;

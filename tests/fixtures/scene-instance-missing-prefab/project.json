@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "scene-instance-missing-prefab",
+  "name": "Scene instance refs missing prefab",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}

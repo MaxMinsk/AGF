@@ -19,6 +19,10 @@ export type SceneEnvironmentInput =
       url: string;
       /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
       intensity?: number;
+      /** When true, also assign the HDR as the scene's background sky. Defaults to false. */
+      asBackground?: boolean;
+      /** Optional sky blurriness in [0, 1] when `asBackground` is true. Defaults to 0 (sharp). */
+      backgroundBlurriness?: number;
     }
   | {
       /**
@@ -30,11 +34,26 @@ export type SceneEnvironmentInput =
       faces: readonly [string, string, string, string, string, string];
       /** Optional multiplier on `scene.environmentIntensity`. Defaults to 1. */
       intensity?: number;
+      /** When true, also assign the cube map as the scene's background sky. Defaults to false. */
+      asBackground?: boolean;
+      /** Optional sky blurriness in [0, 1] when `asBackground` is true. Defaults to 0 (sharp). */
+      backgroundBlurriness?: number;
     };
+
+export type SceneInstanceInput = {
+  /** Entity id after expansion; must be unique in the scene. */
+  id: string;
+  /** Project-local prefab id (kebab-case). */
+  prefab: string;
+  /** Shallow per-component override map merged on top of the prefab. */
+  overrides?: Record<string, unknown>;
+};
 
 export type SceneInput = {
   id: string;
   entities: ReadonlyArray<SceneEntityInput>;
   /** Optional image-based-lighting environment for PBR materials. Default = `{ kind: "generated" }` applied at runtime if absent. */
   environment?: SceneEnvironmentInput;
+  /** Optional prefab instances. `expandScenePrefabs` flattens them into regular entities at scene-load time. */
+  instances?: ReadonlyArray<SceneInstanceInput>;
 };

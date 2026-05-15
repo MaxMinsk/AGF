@@ -1,0 +1,7 @@
+{
+  "id": "m3-steel-brushed",
+  "shader": "standard",
+  "color": "#c0c4c8",
+  "roughness": 0.4,
+  "metalness": 1.0
+}

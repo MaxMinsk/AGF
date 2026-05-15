@@ -1,0 +1,31 @@
+{
+  "agfFormatVersion": 1,
+  "id": "beacon",
+  "description": "Repairable salvage beacon. Spins around Y until an energy core is deposited; switches to the repaired material and decays after `Repairable.decayAfter` seconds.",
+  "components": {
+    "Transform": {
+      "rotation": [0, 0, 0],
+      "scale": [0.6, 2.5, 0.6]
+    },
+    "MeshRenderer": {
+      "mesh": "runtime/models/beacon.glb",
+      "material": "runtime/materials/beacon.material.json"
+    },
+    "Spin": {
+      "axis": "y",
+      "speed": 25
+    },
+    "Repairable": {
+      "accepts": "energy-core",
+      "repaired": false,
+      "repairedMaterial": "runtime/materials/beacon-repaired.material.json",
+      "decayAfter": 6
+    },
+    "Networked": {
+      "authority": "server"
+    },
+    "RigidBody3D": { "type": "fixed" },
+    "Collider3D": { "kind": "capsule", "radius": 1.6, "halfHeight": 1.2, "sensor": true }
+  },
+  "tags": ["beacon", "repairable"]
+}

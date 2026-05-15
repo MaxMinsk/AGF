@@ -20,6 +20,11 @@ import {
   formatMaterialSharing,
   type MaterialSharingReport
 } from "./material-sharing";
+import {
+  scanProjectTextures,
+  formatTextureDoctor,
+  type TextureDoctorReport
+} from "./texture-doctor";
 
 export type PerformanceBudget = {
   agfFormatVersion: number;
@@ -138,7 +143,24 @@ export type DoctorReport = {
   materialSharing: MaterialSharingReport;
   /** S52-doctor: shadow config snapshot + cascade cost recommendation. */
   shadows: ShadowConfigReport;
+  /** S54 ASSET-texture-doctor: huge / NPOT / no-transcoder findings. */
+  textures: TextureDoctorReport;
+  /** S54 DOCTOR-prefab-section: declared prefab inventory + instance usage. */
+  prefabs: PrefabsReport;
   recommendations: string[];
+};
+
+export type PrefabsReport = {
+  /** `prefabs/*.prefab.json` ids declared under the project. */
+  declared: ReadonlyArray<string>;
+  /** Total `scene.instances[]` entries across every `scenes/**\/*.scene.json`. */
+  totalInstances: number;
+  /** Top-N most-used prefab ids, descending by instance count. */
+  topUsage: ReadonlyArray<{ prefab: string; instanceCount: number }>;
+  /** Declared prefab ids that no scene instance references. Helps spot dead manifests. */
+  unusedPrefabs: ReadonlyArray<string>;
+  /** Instance refs that point at prefab ids missing from the registry. */
+  missingPrefabRefs: ReadonlyArray<string>;
 };
 
 export type ShadowConfigReport = {
@@ -295,6 +317,30 @@ export function runDoctor(
     bundle?.violation !== "hard" &&
     vendorBundles.every((v) => v.violation !== "hard");
 
+  const textures = scanProjectTextures(projectDir);
+  if (textures.findings.length > 0) {
+    recommendations.push(
+      `${textures.findings.length} texture warning(s) — see the Textures section in the doctor output (run \`npm run engine:doctor -- ${projectDir}\` for details).`
+    );
+  }
+
+  const prefabs = summarizePrefabs(projectDir);
+  if (prefabs.missingPrefabRefs.length > 0) {
+    const refs = prefabs.missingPrefabRefs.slice(0, 5).join(", ");
+    const extra =
+      prefabs.missingPrefabRefs.length > 5
+        ? ` (and ${prefabs.missingPrefabRefs.length - 5} more)`
+        : "";
+    recommendations.push(
+      `Scene instances reference ${prefabs.missingPrefabRefs.length} unknown prefab id(s) [${refs}${extra}] — add a \`prefabs/<id>.prefab.json\` or fix the reference. \`engine check\` already errors on these (AGF_SCENE_INSTANCE_PREFAB_MISSING).`
+    );
+  }
+  if (prefabs.unusedPrefabs.length > 0) {
+    recommendations.push(
+      `${prefabs.unusedPrefabs.length} declared prefab(s) [${prefabs.unusedPrefabs.slice(0, 5).join(", ")}] have no scene instances — confirm they are used elsewhere (runtime spawn?) or delete the manifest.`
+    );
+  }
+
   return {
     projectDir,
     ok,
@@ -307,7 +353,75 @@ export function runDoctor(
     batching,
     materialSharing,
     shadows,
+    textures,
+    prefabs,
     recommendations
+  };
+}
+
+function summarizePrefabs(projectDir: string): PrefabsReport {
+  const declared = new Set<string>();
+  const prefabsDir = resolve(projectDir, "prefabs");
+  if (existsSync(prefabsDir) && statSync(prefabsDir).isDirectory()) {
+    for (const name of readdirSync(prefabsDir)) {
+      if (!name.endsWith(".prefab.json")) continue;
+      try {
+        const data = JSON.parse(readFileSync(resolve(prefabsDir, name), "utf8")) as { id?: unknown };
+        if (typeof data.id === "string") declared.add(data.id);
+      } catch {
+        /* engine check already reports parse errors. */
+      }
+    }
+  }
+
+  const usage = new Map<string, number>();
+  let totalInstances = 0;
+  const scenesDir = resolve(projectDir, "scenes");
+  if (existsSync(scenesDir) && statSync(scenesDir).isDirectory()) {
+    const stack: string[] = [scenesDir];
+    while (stack.length > 0) {
+      const dir = stack.pop();
+      if (dir === undefined) break;
+      for (const name of readdirSync(dir)) {
+        const full = resolve(dir, name);
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (!name.endsWith(".scene.json")) continue;
+        let scene: { instances?: Array<{ prefab?: unknown }> };
+        try {
+          scene = JSON.parse(readFileSync(full, "utf8"));
+        } catch {
+          continue;
+        }
+        for (const instance of scene.instances ?? []) {
+          if (typeof instance.prefab !== "string") continue;
+          totalInstances += 1;
+          usage.set(instance.prefab, (usage.get(instance.prefab) ?? 0) + 1);
+        }
+      }
+    }
+  }
+
+  const topUsage = [...usage.entries()]
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([prefab, instanceCount]) => ({ prefab, instanceCount }));
+
+  const declaredArr = [...declared].sort();
+  const unusedPrefabs = declaredArr.filter((id) => !usage.has(id));
+  const missingPrefabRefs = [...usage.keys()]
+    .filter((id) => !declared.has(id))
+    .sort();
+
+  return {
+    declared: declaredArr,
+    totalInstances,
+    topUsage,
+    unusedPrefabs,
+    missingPrefabRefs
   };
 }
 
@@ -390,7 +504,7 @@ function countShadowCasters(projectDir: string): {
   return { dynamicCasterCount, staticCasterCount };
 }
 
-const PRIMITIVE_MESHES = new Set(["box", "sphere", "plane"]);
+const PRIMITIVE_MESHES = new Set(["box", "sphere", "cylinder", "plane"]);
 
 function summarizeBatching(
   projectDir: string,
@@ -662,9 +776,41 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatMaterialSharing(report.materialSharing));
   lines.push("");
 
+  lines.push(formatTextureDoctor(report.textures));
+  lines.push("");
+
+  lines.push(formatPrefabs(report.prefabs));
+  lines.push("");
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatPrefabs(report: PrefabsReport): string {
+  const lines: string[] = [];
+  lines.push(
+    `Prefabs: ${report.declared.length} declared, ${report.totalInstances} scene instance(s) total.`
+  );
+  if (report.topUsage.length === 0) {
+    lines.push(
+      report.declared.length === 0
+        ? "  (no prefab/*.prefab.json under this project)"
+        : "  (none of the declared prefabs are referenced by a scene's instances[])"
+    );
+  } else {
+    lines.push("  top usage:");
+    for (const { prefab, instanceCount } of report.topUsage) {
+      lines.push(`    ${instanceCount}× ${prefab}`);
+    }
+  }
+  if (report.unusedPrefabs.length > 0) {
+    lines.push(`  unused: ${report.unusedPrefabs.join(", ")}`);
+  }
+  if (report.missingPrefabRefs.length > 0) {
+    lines.push(`  missing refs: ${report.missingPrefabRefs.join(", ")}`);
   }
   return lines.join("\n");
 }

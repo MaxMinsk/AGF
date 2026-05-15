@@ -1,0 +1,7 @@
+{
+  "id": "m12-copper",
+  "shader": "standard",
+  "color": "#d97142",
+  "roughness": 0.3,
+  "metalness": 1.0
+}

@@ -37,6 +37,7 @@ export type ProjectMeta = {
     color?: {
       toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
       exposure?: number;
+      transmissionResolutionScale?: number;
     };
     /**
      * M21-post-pipeline: ordered post-processing chain. The adapter
@@ -74,6 +75,10 @@ export type ProjectMeta = {
       /** S51 bucket path default: `instanced` (default) or `batched`. */
       path?: "instanced" | "batched" | "batched-bvh";
     };
+    /** S54 RUNTIME-idle-rendering: `on-demand` skips renderer.render() on frames where no ECS mutation fired. Default `always`. */
+    idleMode?: "always" | "on-demand";
+    /** S54 RUNTIME-progressive-loading: asset refs that must finish loading before `rendererReady` resolves. */
+    criticalAssets?: ReadonlyArray<string>;
   };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
@@ -124,6 +129,13 @@ export type AppOptions = {
    * does not import from `examples/`.
    */
   bootstrap?: ProjectBootstrap;
+  /**
+   * M3-c-load: prefab registry the runtime uses to expand scene `instances`.
+   * Keyed by prefab id. Pass `undefined` (or omit) for projects without
+   * prefab files — scenes that still declare `instances` will surface
+   * `AGF_SCENE_INSTANCE_PREFAB_MISSING` diagnostics.
+   */
+  prefabs?: ReadonlyMap<string, import("../engine/core/scene/expand-prefabs").PrefabDefinition>;
 };
 
 export type AppHandle = {
@@ -182,6 +194,8 @@ export type AppHandle = {
     batchedBuckets: number;
     batchedBucketInstances: number;
     handleLeak: number;
+    /** S54 RUNTIME-gpu-timing: GPU-side frame ms when `EXT_disjoint_timer_query_webgl2` is available; `undefined` otherwise. */
+    gpuMs?: number;
   };
   /** M21-shadow-static: manual shadow-map controls (no-op when autoUpdate is true, which is the default). */
   renderer: {
@@ -323,6 +337,9 @@ export async function createApp(
   });
 
   const runtimeOptions: RuntimeOptions = { canvas, scene, scheduler, assetRegistry, diagnostics };
+  if (options.prefabs !== undefined) {
+    runtimeOptions.prefabs = options.prefabs;
+  }
   const background = project.render?.background;
   if (background !== undefined) {
     runtimeOptions.background = background;
@@ -342,6 +359,12 @@ export async function createApp(
   runtimeOptions.autoBatchPrimitives = project.render?.batching?.auto !== false;
   if (project.render?.batching?.path !== undefined) {
     runtimeOptions.batchingPath = project.render.batching.path;
+  }
+  if (project.render?.idleMode !== undefined) {
+    runtimeOptions.idleMode = project.render.idleMode;
+  }
+  if (project.render?.criticalAssets !== undefined && project.render.criticalAssets.length > 0) {
+    runtimeOptions.criticalAssets = project.render.criticalAssets;
   }
   if (import.meta.env.DEV) {
     runtimeOptions.devOverlay = true;

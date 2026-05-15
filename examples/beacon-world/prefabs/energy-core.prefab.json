@@ -1,0 +1,25 @@
+{
+  "agfFormatVersion": 1,
+  "id": "energy-core",
+  "description": "Pickup core that a drone can carry to a Repairable beacon. `Pickup.originalPosition` is the respawn point and must be set per instance to match the entity's Transform.position.",
+  "components": {
+    "Transform": {
+      "rotation": [0, 0, 0],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "MeshRenderer": {
+      "mesh": "runtime/models/core.glb",
+      "color": "#4af0a8"
+    },
+    "Pickup": {
+      "kind": "energy-core",
+      "respawnAfter": 4
+    },
+    "Networked": {
+      "authority": "server"
+    },
+    "RigidBody3D": { "type": "fixed" },
+    "Collider3D": { "kind": "sphere", "radius": 1.2, "sensor": true }
+  },
+  "tags": ["pickup", "core"]
+}

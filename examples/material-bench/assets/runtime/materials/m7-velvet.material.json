@@ -1,0 +1,9 @@
+{
+  "id": "m7-velvet",
+  "shader": "physical",
+  "color": "#1b2854",
+  "roughness": 0.85,
+  "metalness": 0,
+  "sheen": 1.0,
+  "sheenColor": "#6e8cff"
+}

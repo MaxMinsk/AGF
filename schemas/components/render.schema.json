@@ -18,6 +18,7 @@
               "enum": [
                 "box",
                 "sphere",
+                "cylinder",
                 "plane"
               ]
             },

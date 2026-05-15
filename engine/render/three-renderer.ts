@@ -255,6 +255,7 @@ export class ThreeRenderer {
     batchedBuckets: number;
     batchedBucketInstances: number;
     handleLeak: number;
+    gpuMs?: number;
   } {
     const adapter = this.adapter.info();
     // agf-allow: world.query — diagnostic, fires once per __agf.rendererInfo() call.

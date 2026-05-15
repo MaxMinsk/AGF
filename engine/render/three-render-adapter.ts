@@ -29,6 +29,7 @@ import {
   CanvasTexture,
   Color,
   DirectionalLight,
+  EquirectangularReflectionMapping,
   HemisphereLight,
   IcosahedronGeometry,
   InstancedBufferAttribute,
@@ -323,6 +324,8 @@ export type MaterialPatch = {
   map?: string;
   normalMap?: string;
   normalScale?: number;
+  bumpMap?: string;
+  bumpScale?: number;
   roughnessMap?: string;
   metalnessMap?: string;
   emissiveMap?: string;
@@ -383,6 +386,13 @@ export type AdapterInfo = {
   batchedBuckets: number;
   /** M17-batched-mesh: live instances inside BatchedMesh buckets. */
   batchedBucketInstances: number;
+  /**
+   * S54 RUNTIME-gpu-timing: latest available GPU-side ms reading from
+   * `EXT_disjoint_timer_query_webgl2`. The first reading lands one or two
+   * frames after boot; stays `undefined` on browsers / contexts without
+   * the extension (Safari, headless WebGL, Firefox in resist-fingerprint).
+   */
+  gpuMs?: number;
 };
 
 export type SkyGradient = {
@@ -434,6 +444,8 @@ export type ToneMappingKind =
 export type ColorPipelineOptions = {
   toneMapping?: ToneMappingKind;
   exposure?: number;
+  /** Multiplier on the resolution of three.js' transmission pre-pass render target. */
+  transmissionResolutionScale?: number;
 };
 
 const TONE_MAPPING_BY_KIND: Record<ToneMappingKind, ToneMapping> = {
@@ -478,7 +490,14 @@ export type PickHit =
 
 export type EnvironmentSpec =
   | { kind: "generated" | "none" }
-  | { kind: "hdr"; url: string; intensity?: number }
+  | {
+      kind: "hdr";
+      url: string;
+      intensity?: number;
+      asBackground?: boolean;
+      /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
+      backgroundBlurriness?: number;
+    }
   | {
       /**
        * M21-env-cube: 6-face cubemap (positive-x, negative-x, positive-y,
@@ -489,6 +508,9 @@ export type EnvironmentSpec =
       kind: "cube";
       faces: readonly [string, string, string, string, string, string];
       intensity?: number;
+      asBackground?: boolean;
+      /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
+      backgroundBlurriness?: number;
     };
 
 const DEFAULT_COLOR = "#cccccc";
@@ -545,6 +567,21 @@ export class ThreeRenderAdapter {
   private readonly scratchRaycaster = new Raycaster();
   private readonly scratchPickNdc = new Vector2();
 
+  // S54 RUNTIME-gpu-timing: optional WebGL2 timer-query state. The extension
+  // (`EXT_disjoint_timer_query_webgl2`) is async — we issue one query per
+  // frame and poll the previous one for availability before reading. When
+  // the extension is missing (every Safari, headless WebGL, some Android)
+  // these all stay `undefined` and `info().gpuMs` returns undefined.
+  private gpuTimerExt: {
+    QUERY_RESULT_AVAILABLE: number;
+    QUERY_RESULT: number;
+    TIME_ELAPSED_EXT: number;
+    GPU_DISJOINT_EXT: number;
+  } | undefined;
+  private gpuTimerCtx: WebGL2RenderingContext | undefined;
+  private gpuTimerPending: WebGLQuery | undefined;
+  private gpuTimerLastMs: number | undefined;
+
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
     this.device = new WebGLRenderer({
@@ -563,6 +600,24 @@ export class ThreeRenderAdapter {
     // `info.render.calls / triangles` accumulate across every pass in
     // the frame.
     this.device.info.autoReset = false;
+    // S54 RUNTIME-gpu-timing: probe for the WebGL2 timer-query extension.
+    // Browsers behind privacy modes (Safari, Firefox-RFP) silently return
+    // null — that's expected and the runtime reports `gpuMs: undefined`.
+    const rawCtx = this.device.getContext();
+    if (typeof WebGL2RenderingContext !== "undefined" && rawCtx instanceof WebGL2RenderingContext) {
+      const ext = rawCtx.getExtension("EXT_disjoint_timer_query_webgl2") as
+        | {
+            QUERY_RESULT_AVAILABLE: number;
+            QUERY_RESULT: number;
+            TIME_ELAPSED_EXT: number;
+            GPU_DISJOINT_EXT: number;
+          }
+        | null;
+      if (ext !== null) {
+        this.gpuTimerCtx = rawCtx;
+        this.gpuTimerExt = ext;
+      }
+    }
     // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
     // Three.js auto-rebuilds GPU resources on restore; the runtime
     // uses these callbacks to emit diagnostics + optionally pause
@@ -603,6 +658,13 @@ export class ThreeRenderAdapter {
     const toneMappingKind = options.color?.toneMapping ?? "none";
     this.device.toneMapping = TONE_MAPPING_BY_KIND[toneMappingKind];
     this.device.toneMappingExposure = options.color?.exposure ?? 1;
+    // Lower the transmission pre-pass resolution when requested. Three.js
+    // renders the whole opaque scene into this RT every frame so refraction
+    // can sample it. At 0.5 the cost halves and refraction stays visually
+    // identical because `roughness` already mip-blurs the result.
+    if (options.color?.transmissionResolutionScale !== undefined) {
+      this.device.transmissionResolutionScale = options.color.transmissionResolutionScale;
+    }
     this.scene = new Scene();
     if (options.skyGradient !== undefined) {
       this.scene.background = createGradientTexture(options.skyGradient);
@@ -685,15 +747,27 @@ export class ThreeRenderAdapter {
     if (normalised.kind === "hdr") {
       const url = normalised.url;
       const intensity = normalised.intensity ?? 1;
+      const asBackground = normalised.asBackground === true;
+      const blur = normalised.backgroundBlurriness;
       new RGBELoader().load(url, (texture) => {
         const pmrem = this.pmrem;
         if (pmrem === undefined) return;
         const rt = pmrem.fromEquirectangular(texture);
-        texture.dispose();
         this.currentEnvironmentTexture?.dispose();
         this.currentEnvironmentTexture = rt.texture;
         this.scene.environment = rt.texture;
         this.scene.environmentIntensity = intensity;
+        if (asBackground) {
+          // EquirectangularReflectionMapping lets three.js render the
+          // equirect HDR as a sky. Re-use the raw RGBE texture for that
+          // (the PMREM cubemap is downsampled and looks soft as a sky).
+          texture.mapping = EquirectangularReflectionMapping;
+          this.scene.background = texture;
+          this.scene.backgroundIntensity = intensity;
+          this.scene.backgroundBlurriness = blur ?? 0;
+        } else {
+          texture.dispose();
+        }
         this.currentEnvironmentKind = "hdr";
       });
       return;
@@ -703,17 +777,25 @@ export class ThreeRenderAdapter {
     // swap-once-ready ordering as the HDR path.
     if (normalised.kind === "cube") {
       const intensity = normalised.intensity ?? 1;
+      const asBackground = normalised.asBackground === true;
+      const blur = normalised.backgroundBlurriness;
       new CubeTextureLoader().load(
         normalised.faces as unknown as string[],
         (cubeTexture) => {
           const pmrem = this.pmrem;
           if (pmrem === undefined) return;
           const rt = pmrem.fromCubemap(cubeTexture);
-          cubeTexture.dispose();
           this.currentEnvironmentTexture?.dispose();
           this.currentEnvironmentTexture = rt.texture;
           this.scene.environment = rt.texture;
           this.scene.environmentIntensity = intensity;
+          if (asBackground) {
+            this.scene.background = cubeTexture;
+            this.scene.backgroundIntensity = intensity;
+            this.scene.backgroundBlurriness = blur ?? 0;
+          } else {
+            cubeTexture.dispose();
+          }
           this.currentEnvironmentKind = "cube";
         }
       );
@@ -1466,6 +1548,8 @@ export class ThreeRenderAdapter {
     ) {
       if (patch.normalMap !== undefined) material.normalMap = this.acquireTexture(patch.normalMap, false);
       if (patch.normalScale !== undefined) material.normalScale.set(patch.normalScale, patch.normalScale);
+      if (patch.bumpMap !== undefined) material.bumpMap = this.acquireTexture(patch.bumpMap, false);
+      if (patch.bumpScale !== undefined) material.bumpScale = patch.bumpScale;
       if (patch.emissiveMap !== undefined) material.emissiveMap = this.acquireTexture(patch.emissiveMap, true);
       if (patch.emissiveIntensity !== undefined) {
         // emissiveIntensity is only on Standard/Physical, not Phong.
@@ -1656,11 +1740,54 @@ export class ThreeRenderAdapter {
     // With `info.autoReset = false` we own the per-frame reset so the
     // counters span every composer pass.
     this.device.info.reset();
+    this.beginGpuTimer();
     if (this.composer !== undefined) {
       this.composer.render();
     } else {
       this.device.render(this.scene, camera);
     }
+    this.endGpuTimer();
+  }
+
+  // S54 RUNTIME-gpu-timing: one outstanding TIME_ELAPSED query at a time.
+  // beginGpuTimer first polls the *previous* query for availability and
+  // pulls its result if ready; only then does it open a new query around
+  // the current frame.
+  private beginGpuTimer(): void {
+    const ext = this.gpuTimerExt;
+    const gl = this.gpuTimerCtx;
+    if (ext === undefined || gl === undefined) return;
+    if (this.gpuTimerPending !== undefined) {
+      const ready = gl.getQueryParameter(this.gpuTimerPending, ext.QUERY_RESULT_AVAILABLE) as boolean;
+      // Discard everything when the driver flags a disjoint period (context
+      // switch, GPU clock scaling) — the elapsed counter is unreliable.
+      const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT) as boolean;
+      if (ready && !disjoint) {
+        const ns = gl.getQueryParameter(this.gpuTimerPending, ext.QUERY_RESULT) as number;
+        this.gpuTimerLastMs = ns / 1_000_000;
+        gl.deleteQuery(this.gpuTimerPending);
+        this.gpuTimerPending = undefined;
+      } else if (disjoint) {
+        gl.deleteQuery(this.gpuTimerPending);
+        this.gpuTimerPending = undefined;
+        this.gpuTimerLastMs = undefined;
+      }
+      // Still pending? Skip starting a new query — overlapping queries are
+      // not allowed on a single target.
+      if (this.gpuTimerPending !== undefined) return;
+    }
+    const query = gl.createQuery();
+    if (query === null) return;
+    gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+    this.gpuTimerPending = query;
+  }
+
+  private endGpuTimer(): void {
+    const ext = this.gpuTimerExt;
+    const gl = this.gpuTimerCtx;
+    if (ext === undefined || gl === undefined) return;
+    if (this.gpuTimerPending === undefined) return;
+    gl.endQuery(ext.TIME_ELAPSED_EXT);
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -2009,7 +2136,7 @@ export class ThreeRenderAdapter {
     for (const entry of this.buckets.values()) bucketInstances += entry.liveSlots.size;
     let batchedBucketInstances = 0;
     for (const entry of this.batchedBuckets.values()) batchedBucketInstances += entry.liveInstances.size;
-    return {
+    const info: AdapterInfo = {
       geometries: memory.geometries ?? 0,
       textures: memory.textures ?? 0,
       programs,
@@ -2023,6 +2150,10 @@ export class ThreeRenderAdapter {
       batchedBuckets: this.batchedBuckets.size(),
       batchedBucketInstances
     };
+    if (this.gpuTimerLastMs !== undefined) {
+      info.gpuMs = this.gpuTimerLastMs;
+    }
+    return info;
   }
 
   dispose(): void {

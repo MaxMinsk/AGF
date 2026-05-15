@@ -172,7 +172,7 @@ export function createBatchingSystem(
   // Built-in primitive set must mirror `createPrimitiveGeometry` in
   // mesh-handle-registry.ts. The auto-batch path falls back to single-
   // Mesh rendering for any mesh that isn't a primitive.
-  const PRIMITIVE_MESHES = new Set(["box", "sphere", "plane"]);
+  const PRIMITIVE_MESHES = new Set(["box", "sphere", "cylinder", "plane"]);
   let cachedWorld: World | undefined;
   let batchableQuery: QueryHandle | undefined;
   const bucketsByKey = new Map<string, BucketRecord>();

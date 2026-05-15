@@ -1,0 +1,7 @@
+{
+  "id": "cement",
+  "shader": "standard",
+  "color": "#9a9690",
+  "roughness": 0.92,
+  "metalness": 0.0
+}

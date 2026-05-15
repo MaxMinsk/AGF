@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "material-bench.procedural-materials",
+      "kind": "material",
+      "runtimeFiles": [
+        "runtime/materials/cement.material.json",
+        "runtime/materials/m0-chrome.material.json",
+        "runtime/materials/m1-plastic-rough.material.json",
+        "runtime/materials/m2-plastic-glossy.material.json",
+        "runtime/materials/m3-steel-brushed.material.json",
+        "runtime/materials/m4-gold-polished.material.json",
+        "runtime/materials/m5-car-paint.material.json",
+        "runtime/materials/m6-glass.material.json",
+        "runtime/materials/m7-velvet.material.json",
+        "runtime/materials/m8-iridescent.material.json",
+        "runtime/materials/m12-copper.material.json"
+      ],
+      "license": "Project-owned",
+      "source": {
+        "type": "original",
+        "notes": "Hand-authored PBR material manifests for the sphere showcase. Values picked to span the standard / physical shader axes (roughness, metalness, clearcoat, transmission, sheen, iridescence)."
+      }
+    },
+    {
+      "id": "material-bench.hardwood-textures",
+      "kind": "texture",
+      "runtimeFiles": [
+        "runtime/materials/m9-hardwood.material.json",
+        "runtime/textures/hardwood2_diffuse.jpg",
+        "runtime/textures/hardwood2_bump.jpg",
+        "runtime/textures/hardwood2_roughness.jpg"
+      ],
+      "license": "CC0",
+      "source": {
+        "type": "cc0",
+        "url": "https://github.com/mrdoob/three.js/tree/dev/examples/textures",
+        "notes": "Vendored from References/three.js/examples/textures/hardwood2_*.jpg — bundled with three.js under MIT, originally CC0 wood textures."
+      }
+    },
+    {
+      "id": "material-bench.brick-textures",
+      "kind": "texture",
+      "runtimeFiles": [
+        "runtime/materials/m10-brick.material.json",
+        "runtime/textures/brick_diffuse.jpg",
+        "runtime/textures/brick_bump.jpg",
+        "runtime/textures/brick_roughness.jpg"
+      ],
+      "license": "CC0",
+      "source": {
+        "type": "cc0",
+        "url": "https://github.com/mrdoob/three.js/tree/dev/examples/textures",
+        "notes": "Vendored from References/three.js/examples/textures/brick_*.jpg — bundled with three.js under MIT."
+      }
+    },
+    {
+      "id": "material-bench.ice-textures",
+      "kind": "texture",
+      "runtimeFiles": [
+        "runtime/materials/m11-ice.material.json",
+        "runtime/textures/Ice002_1K-JPG_Color.jpg",
+        "runtime/textures/Ice002_1K-JPG_NormalGL.jpg",
+        "runtime/textures/Ice002_1K-JPG_Roughness.jpg"
+      ],
+      "license": "CC0",
+      "source": {
+        "type": "cc0",
+        "url": "https://ambientcg.com/view?id=Ice002",
+        "notes": "Vendored from References/three.js examples/textures/ambientcg/Ice002_*. ambientCG releases all assets under CC0 1.0."
+      }
+    },
+    {
+      "id": "material-bench.venice-sunset-hdr",
+      "kind": "texture",
+      "runtimeFiles": ["runtime/hdr/venice_sunset_1k.hdr"],
+      "license": "CC0",
+      "source": {
+        "type": "cc0",
+        "url": "https://polyhaven.com/a/venice_sunset",
+        "notes": "Vendored from References/three.js/examples/textures/equirectangular/venice_sunset_1k.hdr. Released by Poly Haven (HDRI Haven) under CC0."
+      }
+    }
+  ]
+}

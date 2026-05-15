@@ -2,6 +2,7 @@ import { applyCommand } from "../core/commands/command-queue";
 import type { EngineCommand } from "../core/commands/types";
 import type { SceneInput } from "../core/ecs/types";
 import { World } from "../core/ecs/world";
+import { expandScenePrefabs, type PrefabDefinition } from "../core/scene/expand-prefabs";
 import { advanceFixedStep } from "../core/loop/fixed-step";
 import type { TimeContext } from "../core/loop/types";
 import type { SystemScheduler } from "../core/systems/scheduler";
@@ -32,6 +33,7 @@ export type RuntimeOptions = {
   color?: {
     toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
     exposure?: number;
+    transmissionResolutionScale?: number;
   };
   /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
   shadowAlgorithm?: "pcf" | "vsm" | "pcss";
@@ -47,6 +49,22 @@ export type RuntimeOptions = {
    * (per-instance frustum culling) per (material + shadow + group).
    */
   batchingPath?: "instanced" | "batched" | "batched-bvh";
+  /**
+   * S54 RUNTIME-idle-rendering. `"always"` (default) calls renderer.render()
+   * every animation frame. `"on-demand"` skips the call when the world's
+   * mutation counter is unchanged from the previous frame. First frame +
+   * every resize always render; toggling the mode at runtime is not
+   * supported (decided once at boot).
+   */
+  idleMode?: "always" | "on-demand";
+  /**
+   * S54 RUNTIME-progressive-loading: list of asset refs (e.g.
+   * `runtime/materials/hero.material.json`, `runtime/models/hero.glb`)
+   * that must finish loading before `rendererReady` resolves. Every other
+   * asset stays on the existing placeholder-then-swap path. Empty / omitted
+   * → no critical gate, identical to S53 behaviour.
+   */
+  criticalAssets?: ReadonlyArray<string>;
   /** Seconds per fixed step. Defaults to 1/60. */
   fixedDt?: number;
   fixedUpdate?: FixedUpdateFn;
@@ -62,6 +80,13 @@ export type RuntimeOptions = {
   assetRegistry?: AssetRegistry;
   /** Optional diagnostics bus shared across runtime systems. */
   diagnostics?: DiagnosticsBus;
+  /**
+   * M3-c-load: optional prefab registry. When set, `scene.instances` are
+   * expanded into entities before `World.fromScene`. Unknown prefab refs
+   * + duplicate ids surface as `AGF_SCENE_INSTANCE_PREFAB_MISSING` /
+   * `AGF_SCENE_INSTANCE_DUPLICATE_ID` diagnostics.
+   */
+  prefabs?: ReadonlyMap<string, PrefabDefinition>;
   /**
    * Optional persistence config. When set, `RuntimeHandle.save/load/clearSave`
    * are wired to write through `store` using `context` (projectId + profile +
@@ -138,9 +163,62 @@ export type RuntimeHandle = {
 const DEFAULT_FIXED_DT = 1 / 60;
 const METRICS_WINDOW_SECONDS = 0.5;
 
+// S54 RUNTIME-progressive-loading: returns true once every critical asset
+// has reached `applied` or `failed` — anything still `pending` blocks the
+// `rendererReady` promise so dev-bridge / tests don't race the loader.
+// Walks AppliedMaterialRef + AppliedGeometryRef each call; cheap for the
+// handful of refs an agent will ever flag critical.
+export function criticalAssetsReady(
+  world: World,
+  criticalAssets: ReadonlyArray<string>
+): boolean {
+  if (criticalAssets.length === 0) return true;
+  const pending = new Set(criticalAssets);
+  // agf-allow: world.query — diagnostic gate, fires once per frame only
+  // until rendererReady resolves.
+  for (const id of world.query(["AppliedMaterialRef"])) {
+    const applied = world.getComponent<{ ref: string; status: string }>(id, "AppliedMaterialRef");
+    if (applied === undefined) continue;
+    if (applied.status === "pending") continue;
+    pending.delete(applied.ref);
+  }
+  for (const id of world.query(["AppliedGeometryRef"])) {
+    const applied = world.getComponent<{ ref: string; status: string }>(id, "AppliedGeometryRef");
+    if (applied === undefined) continue;
+    if (applied.status === "pending") continue;
+    pending.delete(applied.ref);
+  }
+  return pending.size === 0;
+}
+
 export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHandle> {
-  const world = World.fromScene(options.scene);
   const diagnostics = options.diagnostics ?? createDiagnosticsBus();
+  // M3-c-load: expand `scene.instances` into flat entities via the prefab
+  // registry before building the world. With no instances declared, the
+  // expansion is a no-op clone; with instances and no registry, we still
+  // expand against an empty registry so every reference surfaces as a
+  // diagnostic instead of silently dropping the entity.
+  const flatScene = (() => {
+    if (
+      options.scene.instances === undefined ||
+      options.scene.instances.length === 0
+    ) {
+      return options.scene;
+    }
+    const registry = options.prefabs ?? new Map<string, PrefabDefinition>();
+    const expansion = expandScenePrefabs(options.scene, registry);
+    for (const diagnostic of expansion.diagnostics) {
+      diagnostics.emit({
+        severity: diagnostic.severity,
+        code: diagnostic.code,
+        source: "scene-loader",
+        message: diagnostic.message,
+        details: { instanceIndex: diagnostic.instanceIndex }
+      });
+    }
+    return expansion.scene;
+  })();
+  const world = World.fromScene(flatScene);
   const { ThreeRenderer } = await import("../render/three-renderer");
   // M21-context-loss: route WebGL context events into the diagnostics
   // bus so agents + tests can observe them. Three.js auto-rebuilds GPU
@@ -180,18 +258,41 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   // equirectangular HDR sky, or `{ kind: "cube", faces, intensity? }`
   // for a 6-face cubemap. Both HDR and cube go through PMREMGenerator
   // so they supply IBL, not just a skybox.
-  const envSpec = options.scene.environment;
+  const envSpec = flatScene.environment;
+  // Environment URLs in scenes are project-relative (same shape as
+  // material refs). Resolve through the asset registry so they hit the
+  // project's assetRoot — RGBELoader / CubeTextureLoader would
+  // otherwise resolve against the document URL.
+  const resolveEnvUrl = (ref: string): string =>
+    options.assetRegistry !== undefined ? options.assetRegistry.urlFor(ref) : ref;
   if (envSpec?.kind === "hdr") {
     renderer.adapter.setEnvironment({
       kind: "hdr",
-      url: envSpec.url,
-      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+      url: resolveEnvUrl(envSpec.url),
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {}),
+      ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
+      ...(envSpec.backgroundBlurriness !== undefined
+        ? { backgroundBlurriness: envSpec.backgroundBlurriness }
+        : {})
     });
   } else if (envSpec?.kind === "cube") {
+    const [f0, f1, f2, f3, f4, f5] = envSpec.faces;
+    const resolvedFaces: readonly [string, string, string, string, string, string] = [
+      resolveEnvUrl(f0),
+      resolveEnvUrl(f1),
+      resolveEnvUrl(f2),
+      resolveEnvUrl(f3),
+      resolveEnvUrl(f4),
+      resolveEnvUrl(f5)
+    ];
     renderer.adapter.setEnvironment({
       kind: "cube",
-      faces: envSpec.faces,
-      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {})
+      faces: resolvedFaces,
+      ...(envSpec.intensity !== undefined ? { intensity: envSpec.intensity } : {}),
+      ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
+      ...(envSpec.backgroundBlurriness !== undefined
+        ? { backgroundBlurriness: envSpec.backgroundBlurriness }
+        : {})
     });
   } else {
     renderer.adapter.setEnvironment(envSpec?.kind ?? "generated");
@@ -355,12 +456,20 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     samples: 0
   };
 
+  const idleMode: "always" | "on-demand" = options.idleMode ?? "always";
+  const criticalAssets: ReadonlyArray<string> = options.criticalAssets ?? [];
+  let lastRenderedMutation = -1;
+  // The resize handler bumps this so the next frame re-renders even when
+  // the world hasn't changed (viewport may have, e.g. window resize).
+  let forceRenderNextFrame = false;
+
   const applyCanvasSize = (): void => {
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     const bounds = options.canvas.getBoundingClientRect();
     const width = Math.max(1, Math.floor(bounds.width * ratio));
     const height = Math.max(1, Math.floor(bounds.height * ratio));
     renderer.resize(width, height);
+    forceRenderNextFrame = true;
   };
 
   const tick = (timestampMs: number): void => {
@@ -425,8 +534,25 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const renderPhaseStart = performance.now();
     frameAccumMs += renderPhaseStart - framePhaseStart;
 
-    const drew = renderer.render();
-    if (drew && rendererReadyResolve !== undefined) {
+    // S54 RUNTIME-idle-rendering. In `on-demand` mode the runtime skips
+    // `renderer.render()` for frames where no ECS mutation fired. First
+    // frame after boot + every window resize + every frame any system
+    // wrote ECS state always render.
+    const currentMutation = world.mutationCounter();
+    const idleSkip =
+      idleMode === "on-demand" &&
+      !forceRenderNextFrame &&
+      rendererReadyResolve === undefined &&
+      currentMutation === lastRenderedMutation;
+    let drew = false;
+    if (!idleSkip) {
+      drew = renderer.render();
+      if (drew) {
+        lastRenderedMutation = currentMutation;
+        forceRenderNextFrame = false;
+      }
+    }
+    if (drew && rendererReadyResolve !== undefined && criticalAssetsReady(world, criticalAssets)) {
       rendererReadyResolve();
       rendererReadyResolve = undefined;
     }
@@ -527,7 +653,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       return undefined;
     },
     startRecording(projectId?: string): RecorderHandle {
-      const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: options.scene };
+      // Record the expanded scene — replay should rehydrate the same flat
+      // entity set without re-running prefab expansion.
+      const recorderOptions: Parameters<typeof createRecorder>[0] = { scene: flatScene };
       if (projectId !== undefined) {
         recorderOptions.projectId = projectId;
       }
