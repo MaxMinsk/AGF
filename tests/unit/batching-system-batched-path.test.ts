@@ -239,4 +239,58 @@ describe("BatchingSystem batched path (S51)", () => {
     expect(adapter.acquired[0]?.spec.useBvh).toBeFalsy();
     expect(adapter.bvhBuilt.size).toBe(0);
   });
+
+  it("LOD swap within a batched bucket reassigns geometryId without dropping the instance (S53 M17-lod-batched)", () => {
+    // Simulates LodSelectionSystem flipping the mesh ref on a single
+    // entity: first frame uses `box`, then mutates to `sphere`. The
+    // BatchingSystem should add the new geometry to the same bucket
+    // and call setBatchedInstanceGeometry instead of releasing the
+    // instance and re-acquiring it.
+    const adapter = stubBatchedAdapter();
+    // Track setGeometryAt calls — the existing stub didn't.
+    const setGeometryCalls: Array<{
+      handle: BatchedBucketHandle;
+      instance: InstanceIndex;
+      geometryId: BatchedGeometryId;
+    }> = [];
+    (adapter as unknown as { setBatchedInstanceGeometry: (...args: unknown[]) => void }).setBatchedInstanceGeometry = (
+      handle: BatchedBucketHandle,
+      instance: InstanceIndex,
+      geometryId: BatchedGeometryId
+    ): void => {
+      setGeometryCalls.push({ handle, instance, geometryId });
+    };
+
+    const world = new World();
+    world.addEntity("lod");
+    world.setComponent("lod", "MeshRenderer", { mesh: "box" });
+    world.setComponent("lod", "Batchable", { path: "batched" });
+    world.setComponent("lod", "LocalToWorld", {
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    // After frame 1: one bucket, one geometry (box), one instance.
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.geometriesByBucket.get(adapter.acquired[0]!.handle)).toBe(1);
+    expect(adapter.addedInstances).toHaveLength(1);
+    const initialInstance = adapter.addedInstances[0]!.instance;
+
+    // LOD swap: same entity, new mesh ref.
+    world.setComponent("lod", "MeshRenderer", { mesh: "sphere" });
+    system.frameUpdate?.(ctx(world));
+
+    // No new bucket, no new instance — the existing slot was repointed.
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.addedInstances).toHaveLength(1);
+    // One extra geometry was added to the bucket (the sphere).
+    expect(adapter.geometriesByBucket.get(adapter.acquired[0]!.handle)).toBe(2);
+    // setBatchedInstanceGeometry was called for the swap.
+    expect(setGeometryCalls).toHaveLength(1);
+    expect(setGeometryCalls[0]!.instance).toBe(initialInstance);
+  });
 });
