@@ -56,7 +56,12 @@ describe("DynamicShadowSystem (S52)", () => {
     expect(adapter.invalidate.count).toBe(0);
   });
 
-  it("disables autoUpdate the first frame it sees a dynamic-tagged caster", () => {
+  it("stays a no-op while every tagged caster is idle (S53 follow-up: don't break the initial bake)", () => {
+    // The S53 BEACON follow-up: turning autoUpdate=false before
+    // the first real movement left beacon-world without shadows
+    // at startup. The fix: only take over once an actual LTW
+    // change has been observed. Idle scenes keep three.js's
+    // autoUpdate default the whole time.
     const adapter = stubAdapter();
     const world = new World();
     world.addEntity("car");
@@ -66,14 +71,12 @@ describe("DynamicShadowSystem (S52)", () => {
     });
 
     const sys = createDynamicShadowSystem({ adapter });
-    sys.frameUpdate?.(ctx(world));
-
-    expect(adapter.autoUpdateCalls).toEqual([false]);
-    // First-sighting counts as dirty so the initial bake happens.
-    expect(adapter.invalidate.count).toBe(1);
+    for (let i = 0; i < 5; i++) sys.frameUpdate?.(ctx(world));
+    expect(adapter.autoUpdateCalls).toEqual([]);
+    expect(adapter.invalidate.count).toBe(0);
   });
 
-  it("calls invalidateShadowMap only on frames where a dynamic caster moved", () => {
+  it("takes over on the first real LTW change (disables autoUpdate + invalidates)", () => {
     const adapter = stubAdapter();
     const world = new World();
     world.addEntity("car");
@@ -83,21 +86,28 @@ describe("DynamicShadowSystem (S52)", () => {
     });
 
     const sys = createDynamicShadowSystem({ adapter });
+    // Idle phase — no DSS-side calls.
     sys.frameUpdate?.(ctx(world));
-    expect(adapter.invalidate.count).toBe(1); // initial bake
-
-    // Stationary frame — no movement → no further invalidate.
     sys.frameUpdate?.(ctx(world));
-    expect(adapter.invalidate.count).toBe(1);
+    expect(adapter.autoUpdateCalls).toEqual([]);
+    expect(adapter.invalidate.count).toBe(0);
 
-    // Move the car → invalidate fires.
+    // Move → DSS takes over: autoUpdate off + invalidate.
     world.setComponent("car", "LocalToWorld", {
       position: [1, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1]
     });
     sys.frameUpdate?.(ctx(world));
-    expect(adapter.invalidate.count).toBe(2);
+    expect(adapter.autoUpdateCalls).toEqual([false]);
+    expect(adapter.invalidate.count).toBe(1);
 
-    // Stationary again.
+    // Stationary post-takeover — no further invalidates.
+    sys.frameUpdate?.(ctx(world));
+    expect(adapter.invalidate.count).toBe(1);
+
+    // Another move — invalidate fires.
+    world.setComponent("car", "LocalToWorld", {
+      position: [2, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1]
+    });
     sys.frameUpdate?.(ctx(world));
     expect(adapter.invalidate.count).toBe(2);
   });
@@ -138,10 +148,15 @@ describe("DynamicShadowSystem (S52)", () => {
     });
 
     const sys = createDynamicShadowSystem({ adapter });
+    // Trigger a real movement so DSS engages.
+    sys.frameUpdate?.(ctx(world));
+    world.setComponent("car", "LocalToWorld", {
+      position: [1, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1]
+    });
     sys.frameUpdate?.(ctx(world));
     expect(adapter.autoUpdateCalls).toEqual([false]);
 
-    // Remove the tag.
+    // Remove the tag → restore autoUpdate.
     world.removeComponent("car", "ShadowCaster");
     sys.frameUpdate?.(ctx(world));
     expect(adapter.autoUpdateCalls).toEqual([false, true]);
