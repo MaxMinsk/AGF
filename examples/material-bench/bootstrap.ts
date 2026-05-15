@@ -50,6 +50,14 @@ const STONE_COLUMN_COUNT = 12;
 const STONE_HEIGHT = 4.0;
 const STONE_RADIUS = 0.55;
 
+// Two extra reflection probes flanking the centre on the camera axis:
+// one toward the camera (visible in outer spheres on the camera side
+// of the ring), one behind (visible in outer spheres on the far side).
+// Camera sits at (0, 1.4, 8.5); the front probe goes ~5 units in front
+// of the centre sphere, the back one symmetric behind.
+const SIDE_PROBE_OFFSET_Z = 5.0;
+const SIDE_PROBE_Y = 1.0;
+
 // Centre column dimensions
 const CENTRE_PEDESTAL_HEIGHT = 0.6;
 const CENTRE_PEDESTAL_SCALE_XZ = 2.0; // radius 1.0
@@ -112,7 +120,7 @@ function buildSeedCommands(): EngineCommand[] {
   // see itself). Pedestals + outer spheres stay visible in the cube so
   // the chrome reflects the whole arrangement.
   setComponent(commands, centreSphereId, "ReflectionProbe", {
-    size: 256,
+    size: 128,
     near: 0.1,
     far: 60,
     updateRate: 30,
@@ -159,15 +167,36 @@ function buildSeedCommands(): EngineCommand[] {
       material
     });
     setComponent(commands, sphereId, "ShadowFlags", { cast: true, receive: true });
-    // S57: outer spheres share the centre probe. Reflection has slight
-    // parallax error (probe sits at the centre, not at the sphere) but
-    // the visible improvement vs. only-IBL is significant — they pick
-    // up the stonehenge columns + the other orbit-ring members. For
-    // pixel-perfect reflections each outer sphere would need its own
-    // probe (12× the cost, deferred).
+    // Reflection routing by INITIAL angle around the orbit ring. Front
+    // half (camera-side, sin(angle) > 0) reads probe.front; back half
+    // reads probe.back. Bindings are static, so as the orbit spins each
+    // sphere keeps its probe — visible reflection difference between
+    // sphere groups regardless of where they happen to be at the
+    // moment.
+    const probeRef = Math.sin(angle) >= 0 ? "probe.front" : "probe.back";
     setComponent(commands, sphereId, "EnvmapBinding", {
-      probe: "sphere.centre",
+      probe: probeRef,
       intensity: 0.85
+    });
+  }
+
+  // Two flanking reflection probes on the camera axis (front / back of
+  // the centre sphere). The chrome ball itself uses the centre probe;
+  // these supply outer-ring spheres on the near/far halves of the orbit
+  // with a more local reflection than the centre cubemap.
+  const sideProbes: Array<{ id: string; pos: [number, number, number] }> = [
+    { id: "probe.front", pos: [0, SIDE_PROBE_Y, SIDE_PROBE_OFFSET_Z] },
+    { id: "probe.back", pos: [0, SIDE_PROBE_Y, -SIDE_PROBE_OFFSET_Z] }
+  ];
+  for (const probe of sideProbes) {
+    commands.push({ kind: "entity.create", entityId: probe.id });
+    setComponent(commands, probe.id, "Transform", { position: probe.pos });
+    setComponent(commands, probe.id, "ReflectionProbe", {
+      size: 128,
+      near: 0.1,
+      far: 60,
+      updateRate: 15,
+      excludeEntities: [probe.id]
     });
   }
 

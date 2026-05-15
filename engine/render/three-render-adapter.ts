@@ -54,6 +54,7 @@ import {
   type Object3D,
   ACESFilmicToneMapping,
   AdditiveBlending,
+  LinearMipmapLinearFilter,
   LinearToneMapping,
   NoToneMapping,
   ReinhardToneMapping,
@@ -607,6 +608,7 @@ export class ThreeRenderAdapter {
   } | undefined;
   private gpuTimerCtx: WebGL2RenderingContext | undefined;
   private gpuTimerPending: WebGLQuery | undefined;
+  private gpuTimerActive: boolean = false;
   private gpuTimerLastMs: number | undefined;
 
   constructor(options: AdapterOptions) {
@@ -855,9 +857,24 @@ export class ThreeRenderAdapter {
     near: number;
     far: number;
   }): number {
-    const renderTarget = new WebGLCubeRenderTarget(spec.size, { type: HalfFloatType });
+    // generateMipmaps + LinearMipmapLinearFilter lets MeshStandard/
+    // MeshPhysicalMaterial sample the cube map at roughness > 0 with a
+    // box-filtered mip chain — not full PMREM GGX prefilter, but a
+    // close-enough blurry reflection for moderate-roughness surfaces.
+    // Three.js's CubeCamera.update temporarily flips generateMipmaps off
+    // during the 6 face renders and rebuilds the mip chain after.
+    const renderTarget = new WebGLCubeRenderTarget(spec.size, {
+      type: HalfFloatType,
+      generateMipmaps: true,
+      minFilter: LinearMipmapLinearFilter
+    });
     const cubeCam = new CubeCamera(spec.near, spec.far, renderTarget);
-    this.scene.add(cubeCam);
+    // INTENTIONALLY NOT added to scene. CubeCamera.update() only auto-
+    // refreshes its world matrix when parent === null; if we add it to
+    // the scene the matrixWorld stays one frame behind whatever we set
+    // via setReflectionProbeTransform, and the captured cubemap reads
+    // off-centre. CubeCamera doesn't need to be in the scene graph to
+    // render — it owns its own face cameras + projects directly.
     const handle = this.nextReflectionProbeHandle++;
     this.reflectionProbes.set(handle, { cubeCam, renderTarget });
     return handle;
@@ -886,6 +903,10 @@ export class ThreeRenderAdapter {
       obj.visible = false;
     }
     try {
+      // Force a world-matrix refresh — three.js's CubeCamera.update()
+      // does this only when parent === null, which it is now, but be
+      // explicit so a future "add to scene" doesn't silently break.
+      entry.cubeCam.updateMatrixWorld(true);
       entry.cubeCam.update(this.device, this.scene);
     } finally {
       for (const [obj, was] of restoreVisibility) obj.visible = was;
@@ -959,7 +980,7 @@ export class ThreeRenderAdapter {
     // painted after the opaque sky in the same depth range.
     const catcher = new Mesh(
       new PlaneGeometry(spec.radius * 2, spec.radius * 2),
-      new ShadowMaterial({ opacity: 1.0, transparent: true })
+      new ShadowMaterial({ opacity: 0.6, transparent: true })
     );
     catcher.name = "agf.grounded-skybox-shadow";
     catcher.rotation.x = -Math.PI / 2;
@@ -1931,13 +1952,16 @@ export class ThreeRenderAdapter {
     const ext = this.gpuTimerExt;
     const gl = this.gpuTimerCtx;
     if (ext === undefined || gl === undefined) return;
+    // `QUERY_RESULT` / `QUERY_RESULT_AVAILABLE` are WebGL2 core constants —
+    // they are NOT exposed on the EXT_disjoint_timer_query_webgl2 object.
+    // Reading them off `ext` returns `undefined` → INVALID_ENUM.
     if (this.gpuTimerPending !== undefined) {
-      const ready = gl.getQueryParameter(this.gpuTimerPending, ext.QUERY_RESULT_AVAILABLE) as boolean;
+      const ready = gl.getQueryParameter(this.gpuTimerPending, gl.QUERY_RESULT_AVAILABLE) as boolean;
       // Discard everything when the driver flags a disjoint period (context
       // switch, GPU clock scaling) — the elapsed counter is unreliable.
       const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT) as boolean;
       if (ready && !disjoint) {
-        const ns = gl.getQueryParameter(this.gpuTimerPending, ext.QUERY_RESULT) as number;
+        const ns = gl.getQueryParameter(this.gpuTimerPending, gl.QUERY_RESULT) as number;
         this.gpuTimerLastMs = ns / 1_000_000;
         gl.deleteQuery(this.gpuTimerPending);
         this.gpuTimerPending = undefined;
@@ -1947,21 +1971,24 @@ export class ThreeRenderAdapter {
         this.gpuTimerLastMs = undefined;
       }
       // Still pending? Skip starting a new query — overlapping queries are
-      // not allowed on a single target.
+      // not allowed on a single target. Critically, leave `gpuTimerActive`
+      // false so `endGpuTimer` doesn't try to close a query we never began.
       if (this.gpuTimerPending !== undefined) return;
     }
     const query = gl.createQuery();
     if (query === null) return;
     gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
     this.gpuTimerPending = query;
+    this.gpuTimerActive = true;
   }
 
   private endGpuTimer(): void {
     const ext = this.gpuTimerExt;
     const gl = this.gpuTimerCtx;
     if (ext === undefined || gl === undefined) return;
-    if (this.gpuTimerPending === undefined) return;
+    if (!this.gpuTimerActive) return;
     gl.endQuery(ext.TIME_ELAPSED_EXT);
+    this.gpuTimerActive = false;
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
