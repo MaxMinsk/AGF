@@ -69,6 +69,7 @@ import {
   SpotLight,
   type Texture,
   TextureLoader,
+  NoColorSpace,
   SRGBColorSpace,
   Vector2,
   Vector3,
@@ -314,22 +315,26 @@ export type MaterialPatch = {
   uniforms?: Record<string, ShaderUniformValue>;
   defines?: Record<string, string>;
   /**
-   * M21-mat-textures: texture map URLs. The adapter resolves them
-   * through a process-wide cached TextureLoader and applies them to
-   * the matching Three.js material slot. KTX2-encoded textures
-   * (.ktx2) route through the shared KTX2Loader singleton — when
-   * the renderer has been wired with KTX2 support via the asset
-   * decoders module.
+   * M21-mat-textures: pre-loaded texture objects. As of S57
+   * (ASSET-textures-via-registry) material-binding-system fetches each
+   * texture via `AssetRegistry.get<Texture>(ref)` and hands the loaded
+   * Texture instance directly to the adapter — the adapter no longer
+   * resolves URLs internally, so 404s emit
+   * `AGF_RUNTIME_ASSET_LOAD_FAILED` through the registry's standard
+   * path instead of failing silently inside Three's TextureLoader.
+   * Each Texture's `colorSpace` should already be set; the adapter
+   * re-asserts based on the field's role (`map` / `emissiveMap` → sRGB,
+   * others → linear).
    */
-  map?: string;
-  normalMap?: string;
+  map?: Texture;
+  normalMap?: Texture;
   normalScale?: number;
-  bumpMap?: string;
+  bumpMap?: Texture;
   bumpScale?: number;
-  roughnessMap?: string;
-  metalnessMap?: string;
-  emissiveMap?: string;
-  aoMap?: string;
+  roughnessMap?: Texture;
+  metalnessMap?: Texture;
+  emissiveMap?: Texture;
+  aoMap?: Texture;
 };
 
 export type CameraParams = {
@@ -522,8 +527,7 @@ export class ThreeRenderAdapter {
   private contextRestoredListener: (() => void) | undefined;
   // M21-mat-textures: shared TextureLoader + URL → Texture cache so a
   // map shared across N materials only fetches + decodes once.
-  private readonly textureLoader = new TextureLoader();
-  private readonly textureCache = new Map<string, Texture>();
+  // S57 textureLoader / textureCache removed — see AssetRegistry texture loader.
   private readonly scene: Scene;
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
@@ -1526,10 +1530,12 @@ export class ThreeRenderAdapter {
       material.emissive.set(patch.emissive);
     }
 
-    // M21-mat-textures: apply texture maps for materials that support
-    // them. `map` (base colour) gets sRGB; the rest stay in linear
-    // space per glTF convention. Each setter is no-op-when-already-bound
-    // because we cache textures per URL.
+    // M21-mat-textures + S57 ASSET-textures-via-registry: textures
+    // arrive already loaded via the AssetRegistry. `map` / `emissiveMap`
+    // are colour data (sRGB); the rest stay in linear space per glTF
+    // convention. The adapter re-asserts colorSpace here so a wrong
+    // initial guess in `createTextureLoader()`'s heuristic doesn't
+    // bleed through.
     if (
       material instanceof MeshStandardMaterial ||
       material instanceof MeshPhysicalMaterial ||
@@ -1538,7 +1544,8 @@ export class ThreeRenderAdapter {
       material instanceof MeshBasicMaterial
     ) {
       if (patch.map !== undefined) {
-        material.map = this.acquireTexture(patch.map, true);
+        patch.map.colorSpace = SRGBColorSpace;
+        material.map = patch.map;
       }
     }
     if (
@@ -1546,11 +1553,20 @@ export class ThreeRenderAdapter {
       material instanceof MeshPhysicalMaterial ||
       material instanceof MeshPhongMaterial
     ) {
-      if (patch.normalMap !== undefined) material.normalMap = this.acquireTexture(patch.normalMap, false);
+      if (patch.normalMap !== undefined) {
+        patch.normalMap.colorSpace = NoColorSpace;
+        material.normalMap = patch.normalMap;
+      }
       if (patch.normalScale !== undefined) material.normalScale.set(patch.normalScale, patch.normalScale);
-      if (patch.bumpMap !== undefined) material.bumpMap = this.acquireTexture(patch.bumpMap, false);
+      if (patch.bumpMap !== undefined) {
+        patch.bumpMap.colorSpace = NoColorSpace;
+        material.bumpMap = patch.bumpMap;
+      }
       if (patch.bumpScale !== undefined) material.bumpScale = patch.bumpScale;
-      if (patch.emissiveMap !== undefined) material.emissiveMap = this.acquireTexture(patch.emissiveMap, true);
+      if (patch.emissiveMap !== undefined) {
+        patch.emissiveMap.colorSpace = SRGBColorSpace;
+        material.emissiveMap = patch.emissiveMap;
+      }
       if (patch.emissiveIntensity !== undefined) {
         // emissiveIntensity is only on Standard/Physical, not Phong.
         if (
@@ -1560,39 +1576,32 @@ export class ThreeRenderAdapter {
           material.emissiveIntensity = patch.emissiveIntensity;
         }
       }
-      if (patch.aoMap !== undefined) material.aoMap = this.acquireTexture(patch.aoMap, false);
+      if (patch.aoMap !== undefined) {
+        patch.aoMap.colorSpace = NoColorSpace;
+        material.aoMap = patch.aoMap;
+      }
     }
     if (
       material instanceof MeshStandardMaterial ||
       material instanceof MeshPhysicalMaterial
     ) {
       if (patch.roughnessMap !== undefined) {
-        material.roughnessMap = this.acquireTexture(patch.roughnessMap, false);
+        patch.roughnessMap.colorSpace = NoColorSpace;
+        material.roughnessMap = patch.roughnessMap;
       }
       if (patch.metalnessMap !== undefined) {
-        material.metalnessMap = this.acquireTexture(patch.metalnessMap, false);
+        patch.metalnessMap.colorSpace = NoColorSpace;
+        material.metalnessMap = patch.metalnessMap;
       }
     }
 
     material.needsUpdate = true;
   }
 
-  /**
-   * M21-mat-textures: return a shared Texture for `url`, fetching +
-   * decoding once. Base-colour textures (sRGB) need an explicit
-   * colorSpace assignment; data textures (normal / roughness /
-   * metalness / AO) stay in the default linear space.
-   */
-  private acquireTexture(url: string, isColor: boolean): Texture {
-    const existing = this.textureCache.get(url);
-    if (existing !== undefined) return existing;
-    const texture = this.textureLoader.load(url);
-    if (isColor) {
-      texture.colorSpace = SRGBColorSpace;
-    }
-    this.textureCache.set(url, texture);
-    return texture;
-  }
+  // S57 ASSET-textures-via-registry retired the adapter-side
+  // `acquireTexture(url)` path. Textures arrive pre-loaded via the
+  // `MaterialPatch.{map,normalMap,...}` Texture instances; lifecycle
+  // (cache, invalidation, HMR) lives in the AssetRegistry.
 
   setMeshTransform(handle: MeshHandle, world: ResolvedWorld): void {
     const mesh = this.meshes.get(handle);
@@ -2187,8 +2196,9 @@ export class ThreeRenderAdapter {
       this.canvas.removeEventListener("webglcontextrestored", this.contextRestoredListener);
       this.contextRestoredListener = undefined;
     }
-    for (const texture of this.textureCache.values()) texture.dispose();
-    this.textureCache.clear();
+    // S57: textures are owned by AssetRegistry; the adapter no longer
+    // owns the cache. The renderer disposes its Three.js device which
+    // releases per-material texture bindings.
     this.device.dispose();
   }
 

@@ -3,6 +3,7 @@ import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
 import { AssetRegistry } from "../engine/runtime/asset-registry";
 import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
+import { createTextureLoader } from "../engine/render/texture-loader";
 import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
 import {
@@ -332,7 +333,7 @@ export async function createApp(
 
   const assetRegistry = new AssetRegistry({
     baseUrl: new URL(`examples/${projectId}/assets/`, window.location.href).href,
-    loaders: [createMaterialLoader(), createGlbLoader()],
+    loaders: [createMaterialLoader(), createGlbLoader(), createTextureLoader()],
     diagnostics
   });
 
