@@ -27,16 +27,40 @@ const SHADOW_DEFAULTS: ShadowTunerDefaults = {
   algorithm: "pcss"
 };
 
+// S52 POLISH-shadows-bench-materials: palettes re-tuned for the new
+// ACES tonemap. The old hex values were chosen against linear-clamp
+// rendering and read muddy through the filmic curve — buildings sat
+// in a narrow beige band, trees were close to neutral, roofs were
+// near-black. Wider value ranges + slightly more saturation give the
+// scene its texture back without breaking auto-batch (every entry
+// is still a Standard inline colour, so all box / sphere primitives
+// share one InstancedMesh bucket per mesh).
 const PALETTE_BUILDINGS: ReadonlyArray<string> = [
-  "#c7b893",
-  "#a89373",
-  "#8a7656",
-  "#cdb079",
-  "#9d8862"
+  "#d8c8a4", // warm cream
+  "#b89a78", // sandstone
+  "#8a7656", // muddy tan
+  "#cdb079", // pale ochre
+  "#a08562", // dusty taupe
+  "#e8d7b4"  // bright stucco
 ];
-const PALETTE_ROOFS: ReadonlyArray<string> = ["#7a3b2e", "#5a2a20", "#a85440"];
-const PALETTE_TREES: ReadonlyArray<string> = ["#3a6b3c", "#4f7a4a", "#2f5530"];
-const PALETTE_ROCKS: ReadonlyArray<string> = ["#7d7972", "#8e8a82", "#6a665f"];
+const PALETTE_ROOFS: ReadonlyArray<string> = [
+  "#a8442f", // terracotta
+  "#6a2a1c", // burnt sienna
+  "#c4604a", // light brick
+  "#7d3a2a"  // weathered red
+];
+const PALETTE_TREES: ReadonlyArray<string> = [
+  "#5a8a3a", // fresh leaf
+  "#6fa050", // bright canopy
+  "#4a7038", // shaded foliage
+  "#7fb060"  // sun-lit lime
+];
+const PALETTE_ROCKS: ReadonlyArray<string> = [
+  "#8d8478", // warm stone
+  "#9a9286", // light grey-tan
+  "#736b60", // shaded boulder
+  "#a59c8e"  // weathered chalk
+];
 
 // Deterministic pseudo-random — no Math.random so replays stay stable.
 function lcg(seed: number): () => number {
@@ -201,7 +225,7 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       kind: "component.set",
       entityId: trunkId,
       component: "MeshRenderer",
-      data: { mesh: "box", color: "#5a3a23" }
+      data: { mesh: "box", color: "#6f4a30" }
     });
     commands.push({
       kind: "component.set",
@@ -263,7 +287,7 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       kind: "component.set",
       entityId: road.id,
       component: "MeshRenderer",
-      data: { mesh: "box", color: "#2f3135" }
+      data: { mesh: "box", color: "#3a3c40" }
     });
     commands.push({
       kind: "component.set",

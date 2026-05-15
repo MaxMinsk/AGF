@@ -24,7 +24,7 @@
       "components": {
         "Name": { "label": "Field" },
         "Transform": { "position": [0, -0.25, 0], "scale": [80, 0.5, 80] },
-        "MeshRenderer": { "mesh": "box", "color": "#3e5f44" },
+        "MeshRenderer": { "mesh": "box", "color": "#4f7a4d" },
         "ShadowFlags": { "cast": false, "receive": true }
       }
     }
