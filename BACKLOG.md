@@ -38,6 +38,27 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M17-batch-default-on** — once GLB + manifest batching land, flip `autoBatchPrimitives` (renamed `autoBatch`) on by default and update existing project.json files to opt out only where they need single-Mesh semantics. Goal: agents stop thinking about Batchable for the typical case.
 - **RENDER-bucket-key-architecture** — current bucket key is a hand-rolled string `instanced|<mesh>|<shadow>|<group>`. With GLB + manifests joining the routing logic between InstancedMesh and BatchedMesh paths gets messier. Investigate moving to a typed BucketSpec + Map<hash, BucketRecord>, and revisit the dispatch between bucketer (M17) and batched-mesh-system (M17-b) under a single abstraction.
 
+## Next Sprint: Sprint 52 — shadow perf + shadows-bench polish
+
+Двойной фокус: восстановить визуальный уровень shadows-bench (после S51 fixes картинка стала тусклее — менялись normalBias, autoUpdate, материалы под per-frame shadows) **и** закрыть perf-regression через static-caster tagging (главный приз из S51 deepdive). Плюс пара мелких follow-up'ов из S51, чтобы не оставлять хвосты.
+
+### Stories
+
+1. **POLISH-shadows-bench-lighting** — после S47/S51 ambient/directional/CSM intensity подбирались под статичные тени. С `autoUpdate=true` и шире сценой картинка стала тусклой. Пересмотреть `lightIntensity`, ambient, `shadowNormalBias` (текущий 0.12 при 1024 shadow map — был тюнен под 2048, после drop возможен overshoot). Опционально: включить `render.color.toneMapping: "aces-filmic"` или `agx` (сейчас `"none"`, что даёт линейный clamp и убитые highlights). Acceptance: визуально светлее без потерь по детализации тени; before/after скриншоты в коммит.
+2. **POLISH-shadows-bench-materials** — деревья/здания/дороги выглядят плоско; рefactor material manifest'ов на тёплые building tones, brighter canopy, заметный asphalt для дорог. По возможности оставаться в bucket-batchable-zone (Standard без текстур) чтобы auto-batch не отвалился.
+3. **POLISH-shadows-bench-composition** — добавить разнообразие: вариативность размеров деревьев (±20% scale random), 4-6 фонарных столбов вдоль дорог, пара заборов / декоративных боксов вокруг центральной площади. Цель: убрать ощущение «лего с одинаковыми деталями».
+4. **POLISH-shadows-bench-sky** — solid `background: #3a5066` выглядит дешёво. Попробовать HDR sky (если уже подключён environment loader) или procedural sky gradient. Сейчас environment пустой; первая опция — adapter-level skybox + reflection envmap. Если slot занят (M21-environment пока не до конца готов), оставить gradient.
+5. **M21-shadow-static-caster-tag** — главный perf-приз из S51 deepdive. `ShadowCaster { dynamic: boolean }` (default false). Renderer ставит `shadowMap.autoUpdate = false`; новый `DynamicShadowSystem` слушает LTW changes на dynamic-tagged casters + sets `renderer.shadowMap.needsUpdate = true` when they move. Acceptance: `perf-probe-shadows.mjs --only baseline,static-caster-tag` показывает ≥ 25% drop в renderMs; cars + swaying trees продолжают корректно отбрасывать ездящие тени.
+6. **DOCTOR-shadow-section** — like S51 Batching: section, surface `shadows.algorithm + csm.cascades + csm.shadowMapSize + autoUpdate` в `engine doctor` output. Plus a recommendation: «3 cascades cost ~17% renderMs vs 2; consider downgrading for outdoor scenes». Покажет следующему агенту что мы уже знаем про trade-off.
+7. **M21-fxaa-cost-isolation** — расширить `scripts/perf-probe-shadows.mjs` сценарием `noFXAA` (`render.post = []`). Измерить, дописать в `docs/research/m21-shadows-bench-perf.md`. Hypothesis: < 0.05 ms но quick win если ошибаемся.
+8. **shadow-tuner-persistence** — S48 UI shadow tuner не сохраняет настройки, поэтому tune→reload→lost. Добавить save-to-project.json button (`POST /__agf/project-patch` или прямой fs API в DEV) + load на boot. Делает tuner-workflow реально итеративным.
+9. **render-pool-abstraction** (carried from S48) — unify InstancedMesh / BatchedMesh / Particle pools под общую BucketSpec + dispatcher. Готовит почву под `RENDER-bucket-key-architecture` (typed key) и `M17-bvh-extension` (BVH-augmented bucket variant) которые в backlog'е дальше.
+
+### Out of scope
+
+- `M21-shadow-map-size-real-hw` — нужно прогнать probe **на машине пользователя**, не агент. Перенесено в Next Sprint candidates с пометкой «user-driven measurement».
+- `M17-bvh-extension` — крупная фича, требует отдельного спринта.
+
 ## Current Sprint: Sprint 51 — doctor batching report + agent docs refresh
 
 Small follow-up on S50: the auto-batch flag + per-instance color landed but neither shows up in `engine doctor` or `docs/agent/build-a-game.md`, so an agent inheriting an example can't tell whether batching is engaged or how to opt out. This sprint closes that loop.
