@@ -785,24 +785,22 @@ export class ThreeRenderAdapter {
         this.currentEnvironmentTexture = rt.texture;
         this.scene.environment = rt.texture;
         this.scene.environmentIntensity = intensity;
+        // EquirectangularReflectionMapping lets three.js render the
+        // equirect HDR as a sky (both for `scene.background` and
+        // GroundedSkybox).
+        texture.mapping = EquirectangularReflectionMapping;
         if (asBackground) {
-          // EquirectangularReflectionMapping lets three.js render the
-          // equirect HDR as a sky. Re-use the raw RGBE texture for that
-          // (the PMREM cubemap is downsampled and looks soft as a sky).
-          texture.mapping = EquirectangularReflectionMapping;
           this.scene.background = texture;
           this.scene.backgroundIntensity = intensity;
           this.scene.backgroundBlurriness = blur ?? 0;
-        } else if (groundedSpec === undefined) {
-          texture.dispose();
         }
-        // S57 GROUND-skybox: mount once the prefiltered cubemap exists.
-        // We use `rt.texture` (the PMREM cubemap) so the grounded sky
-        // matches the IBL the materials see. The raw equirect would
-        // look identical at distance but read sharper on the seam line.
-        this.mountGroundedSkybox(groundedSpec, rt.texture);
+        // S57 GROUND-skybox: the helper wants the raw equirect HDR (NOT
+        // the PMREM cubemap — that's mip-filtered for IBL and projects
+        // softly through the helper's geometry). We just made the
+        // equirect available; reuse it.
+        this.mountGroundedSkybox(groundedSpec, texture);
         if (!asBackground && groundedSpec === undefined) {
-          // Already disposed `texture` above.
+          texture.dispose();
         }
         this.currentEnvironmentKind = "hdr";
       });
