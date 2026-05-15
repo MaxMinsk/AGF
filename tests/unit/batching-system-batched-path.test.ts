@@ -153,6 +153,31 @@ describe("BatchingSystem batched path (S51)", () => {
     expect(colours).toContain("#0000ff");
   });
 
+  it("collapses different-colour entities into ONE BatchedMesh bucket without baking colour into the spec", () => {
+    // S51 regression: the BatchedMesh bucketKey used to include
+    // renderer.color (red + blue → two separate buckets) AND the
+    // adapter material colour was set from the first entity's
+    // renderer.color. The per-instance colour then multiplied with
+    // the material colour, squaring the value and darkening the
+    // scene visibly on shadows-bench. The fix is to (a) omit colour
+    // from the key, (b) leave spec.color undefined so the adapter
+    // anchors the material at white.
+    const adapter = stubBatchedAdapter();
+    const world = new World();
+    world.addEntity("red");
+    world.setComponent("red", "MeshRenderer", { mesh: "box", color: "#ff0000" });
+    world.setComponent("red", "Batchable", { path: "batched" });
+    world.addEntity("blue");
+    world.setComponent("blue", "MeshRenderer", { mesh: "box", color: "#0000ff" });
+    world.setComponent("blue", "Batchable", { path: "batched" });
+
+    const system = createBatchingSystem({ adapter });
+    system.frameUpdate?.(ctx(world));
+
+    expect(adapter.acquired).toHaveLength(1);
+    expect(adapter.acquired[0]?.spec.color).toBeUndefined();
+  });
+
   it("respects per-Batchable path override even when defaultPath is 'instanced'", () => {
     const adapter = stubBatchedAdapter();
     const world = new World();

@@ -1066,7 +1066,13 @@ export class ThreeRenderAdapter {
   acquireBatchedBucket(spec: BatchedBucketAcquireSpec): BatchedBucketHandle {
     const handle = this.nextBatchedBucketHandle;
     this.nextBatchedBucketHandle += 1;
-    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    // S51 colour-parity: BatchedMesh always carries per-instance colour
+    // (via `setColorAt` on the instance colours texture). The base
+    // material colour multiplies with that per-instance colour, so we
+    // anchor the material to white — otherwise spec.color or DEFAULT_COLOR
+    // would square against the per-instance value and darken everything
+    // (caught on shadows-bench when path: "batched" was first wired).
+    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? "#ffffff") });
     this.registerWithCsm(material);
     const mesh = new BatchedMesh(spec.maxInstances, spec.maxVertices, spec.maxIndices, material);
     // S51-BatchedMesh-perf: per-instance frustum culling is the headline

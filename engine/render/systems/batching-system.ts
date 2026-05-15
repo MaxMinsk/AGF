@@ -441,15 +441,19 @@ export function createBatchingSystem(
     cast: boolean,
     receive: boolean
   ): void => {
-    // BatchedMesh bucket key omits mesh — varied-geometry, shared-material.
-    const bucketKey = `batched|${renderer.color ?? ""}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    // S51 bugfix: bucket key MUST omit renderer.color — same as the
+    // InstancedMesh path since S50. Per-instance colour is uploaded via
+    // setBatchedInstanceColor below; the bucket material stays white so
+    // BatchedMesh's `_batchColor * material.color` multiply doesn't
+    // square the colour (which made the scene visibly darker on
+    // shadows-bench when path: "batched" was first enabled).
+    const bucketKey = `batched|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
     let record = bucketsByKey.get(bucketKey) as BatchedRecord | undefined;
     if (record === undefined) {
       const handle = deps.adapter.acquireBatchedBucket({
         maxInstances: BATCHED_MAX_INSTANCES,
         maxVertices: BATCHED_MAX_VERTICES,
         maxIndices: BATCHED_MAX_INDICES,
-        ...(renderer.color !== undefined ? { color: renderer.color } : {}),
         castShadow: cast,
         receiveShadow: receive
       });
@@ -457,7 +461,7 @@ export function createBatchingSystem(
         path: "batched",
         handle,
         bucketKey,
-        color: renderer.color,
+        color: undefined,
         shadowCast: cast,
         shadowReceive: receive,
         geometries: new Map(),
