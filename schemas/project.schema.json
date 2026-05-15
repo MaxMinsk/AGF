@@ -128,12 +128,17 @@
         "batching": {
           "type": "object",
           "additionalProperties": false,
-          "description": "S50 batching opt-ins.",
+          "description": "S50/S51 batching opt-ins.",
           "properties": {
             "auto": {
               "type": "boolean",
               "default": false,
               "description": "When true, BatchingSystem treats every entity with a built-in primitive mesh (box / sphere / plane) and no LOD / scene-extension overrides as Batchable without needing an explicit `Batchable` component. Per-entity opt-out: `Batchable: { enabled: false }`."
+            },
+            "path": {
+              "enum": ["instanced", "batched"],
+              "default": "instanced",
+              "description": "S51 project-wide bucket path default. `instanced` (default) — one InstancedMesh per (mesh + material + shadow + group) with whole-bucket frustum culling. `batched` — one BatchedMesh per (material + shadow + group); each geometry registers once and three.js does per-instance frustum culling on the CPU. Trade-off: BatchedMesh wins on big scenes where many instances are off-screen each frame; InstancedMesh wins when every instance is in view. Override per-entity via `Batchable: { path: \"batched\" }`."
             }
           }
         }

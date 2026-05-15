@@ -145,6 +145,14 @@ export type BatchingOptions = {
    * flips it on via `project.json#render.batching.auto: true`.
    */
   autoIncludePrimitives?: boolean;
+  /**
+   * S51 project-wide bucket path default. Entities can still override
+   * per-Batchable via `Batchable: { path: "batched" }`. Setting this
+   * to "batched" routes every auto-batched primitive through
+   * `BatchedMesh` (per-instance frustum culling on, vertex shader
+   * skipped for off-screen instances). Default "instanced".
+   */
+  defaultPath?: "instanced" | "batched";
 };
 
 export function createBatchingSystem(
@@ -153,6 +161,7 @@ export function createBatchingSystem(
 ): BatchingSystemHandle {
   const name = options.name ?? "render.batching";
   const autoIncludePrimitives = options.autoIncludePrimitives === true;
+  const defaultPath: "instanced" | "batched" = options.defaultPath ?? "instanced";
   // Built-in primitive set must mirror `createPrimitiveGeometry` in
   // mesh-handle-registry.ts. The auto-batch path falls back to single-
   // Mesh rendering for any mesh that isn't a primitive.
@@ -516,6 +525,11 @@ export function createBatchingSystem(
         scale: [ltw.scale[0] ?? 1, ltw.scale[1] ?? 1, ltw.scale[2] ?? 1]
       });
     }
+    // S51-BatchedMesh-color: per-instance colour via BatchedMesh.setColorAt
+    // so multi-coloured primitive entities can share one BatchedMesh.
+    if (renderer.color !== undefined) {
+      deps.adapter.setBatchedInstanceColor(record.handle, entry.instance, renderer.color);
+    }
   };
 
   const frameUpdate = (context: SystemContext): void => {
@@ -599,7 +613,7 @@ export function createBatchingSystem(
       const flags = world.getComponent<ShadowFlagsComponent>(entityId, SHADOW_FLAGS);
       const cast = flags?.cast !== false;
       const receive = flags?.receive !== false;
-      const path: "instanced" | "batched" = batchable?.path ?? "instanced";
+      const path: "instanced" | "batched" = batchable?.path ?? defaultPath;
       if (path === "batched") {
         updateBatched(world, entityId, renderer, batchable, cast, receive);
       } else {

@@ -89,6 +89,8 @@ export type VendorBundleStat = {
 export type BatchingConfigReport = {
   /** project.json#render.batching.auto (defaults to false when absent). */
   autoBatch: boolean;
+  /** project.json#render.batching.path — `instanced` (default) or `batched`. */
+  path: "instanced" | "batched";
   /** Renderable entities whose mesh is a built-in primitive (box / sphere / plane). */
   primitiveCount: number;
   /** Distinct bucket keys among the primitive entities (mesh + material profile + shadow flags + group). */
@@ -261,14 +263,18 @@ function summarizeBatching(
 ): BatchingConfigReport {
   const projectPath = resolve(projectDir, "project.json");
   let autoBatch = false;
+  let path: "instanced" | "batched" = "instanced";
   if (existsSync(projectPath)) {
     try {
       const project = JSON.parse(readFileSync(projectPath, "utf8")) as {
-        render?: { batching?: { auto?: boolean } };
+        render?: { batching?: { auto?: boolean; path?: "instanced" | "batched" } };
       };
       autoBatch = project.render?.batching?.auto === true;
+      if (project.render?.batching?.path !== undefined) {
+        path = project.render.batching.path;
+      }
     } catch {
-      // project-check reports malformed project.json; default autoBatch stays false.
+      // project-check reports malformed project.json; defaults stay.
     }
   }
 
@@ -290,6 +296,7 @@ function summarizeBatching(
 
   return {
     autoBatch,
+    path,
     primitiveCount,
     primitiveBucketCount: primitiveBuckets.size,
     externalCount,
@@ -502,7 +509,7 @@ export function formatBatching(report: BatchingConfigReport): string {
   const autoLabel = report.autoBatch
     ? "ON (project.json#render.batching.auto)"
     : "OFF (set render.batching.auto: true in project.json)";
-  lines.push(`Batching: auto=${autoLabel}`);
+  lines.push(`Batching: auto=${autoLabel}, path=${report.path}`);
   if (report.primitiveCount > 0) {
     const savings = report.primitiveCount - report.primitiveBucketCount;
     const verb = report.autoBatch ? "collapse into" : "would collapse into";
