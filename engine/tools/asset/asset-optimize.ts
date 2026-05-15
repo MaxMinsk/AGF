@@ -128,7 +128,14 @@ export async function optimizeProjectAssets(
       if (opts.prune) transforms.push(prune());
       if (opts.weld) transforms.push(weld());
       if (opts.meshopt) transforms.push(meshopt({ encoder: MeshoptEncoder }));
-      if (opts.textures) transforms.push(textureCompress({}));
+      if (opts.textures) {
+        // S54 ASSET-texture-compress: WebP is the right default —
+        // wide browser support, smaller than PNG for the same
+        // perceived quality. KTX2/Basis is a future opt-in once the
+        // basisu host toolchain is committed to; until then keep
+        // texture-compress accessible via a single `--textures` flag.
+        transforms.push(textureCompress({ targetFormat: "webp" }));
+      }
       await document.transform(...transforms);
       mkdirSync(dirname(target), { recursive: true });
       await io.write(target, document);
