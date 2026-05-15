@@ -165,6 +165,15 @@ function tryPickup(
   if (closestId !== undefined) {
     world.setComponent(carrierId, "Carrier", { carrying: closestId });
     applyCarryTint(world, carrierId, closestId);
+    // S47 game-feel: spark burst on the core at the moment of pickup.
+    // Auto-removed after lifetime — no need to clean up.
+    world.setComponent(closestId, "ParticleEmitter", {
+      preset: "spark",
+      lifetime: 0.35,
+      rate: 70,
+      maxParticles: 40,
+      offset: [0, 0.2, 0]
+    });
     if (onEvent !== undefined) {
       const presence = world.getComponent<PresenceComponent>(carrierId, "Presence");
       const event: PickupEvent = { kind: "pickup", carrierId, pickupId: closestId };
@@ -323,6 +332,39 @@ function handleCarry(
       repairedRepair.lastRepairedBy = ownerPlayerId;
     }
     world.setComponent(beaconId, "Repairable", repairedRepair);
+
+    // S47 game-feel: scale-bounce + spark burst on repair.
+    // Tween is replay-deterministic (lives on fixedUpdate). The
+    // ParticleEmitter is visual-only — its `lifetime` auto-removes the
+    // component once the burst is done so it doesn't accumulate.
+    const baseScale = beaconTransform.scale ?? [1, 1, 1];
+    const bounceScale: [number, number, number] = [
+      (baseScale[0] ?? 1) * 1.18,
+      (baseScale[1] ?? 1) * 1.18,
+      (baseScale[2] ?? 1) * 1.18
+    ];
+    const baseScaleTriple: [number, number, number] = [
+      baseScale[0] ?? 1,
+      baseScale[1] ?? 1,
+      baseScale[2] ?? 1
+    ];
+    world.setComponent(beaconId, "Tweens", [
+      {
+        component: "Transform",
+        property: "scale",
+        from: baseScaleTriple,
+        to: bounceScale,
+        duration: 0.36,
+        ease: "pulse"
+      }
+    ]);
+    world.setComponent(beaconId, "ParticleEmitter", {
+      preset: "spark",
+      lifetime: 0.5,
+      rate: 80,
+      maxParticles: 48,
+      offset: [0, 0.6, 0]
+    });
 
     if (ownerPlayerId !== undefined) {
       incrementScoreFor(world, ownerPlayerId);

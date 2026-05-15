@@ -210,6 +210,22 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const { createFollowCameraSystem } = await import("../render/systems/follow-camera-system");
     const follow = createFollowCameraSystem();
     if (!scheduler.has(follow.name)) scheduler.register(follow);
+    // M21-cam-cinematic: scripted camera waypoint playback. Runs in
+    // frame-update before CameraSyncSystem so the cinematic writes land
+    // on the active camera the same frame.
+    const { createCinematicCameraSystem } = await import("../render/systems/cinematic-camera-system");
+    const cinematic = createCinematicCameraSystem();
+    if (!scheduler.has(cinematic.name)) scheduler.register(cinematic);
+    // M19-tween: data-driven tween advance. Runs in fixed-update so the
+    // same elapsed values reproduce across `engine replay`.
+    const { createTweenSystem } = await import("../core/systems/tween-system");
+    const tweens = createTweenSystem();
+    if (!scheduler.has(tweens.name)) scheduler.register(tweens);
+    // M19-particle-preset: emit + advance particles in a renderer-side
+    // pool. Stays in frame-update (visual only, no gameplay impact).
+    const { createParticleEmitterSystem } = await import("../render/systems/particle-emitter-system");
+    const particles = createParticleEmitterSystem({ adapter: renderer.adapter });
+    if (!scheduler.has(particles.name)) scheduler.register(particles);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);
     // M17-lod: runs AFTER CameraSyncSystem (needs ActiveCamera) and

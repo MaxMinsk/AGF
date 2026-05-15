@@ -12,15 +12,17 @@
     ],
     "shadows": {
       "autoUpdate": false,
+      "algorithm": "pcss",
       "csm": {
         "enabled": true,
         "cascades": 3,
-        "maxFar": 60,
+        "maxFar": 120,
         "mode": "practical",
-        "shadowMapSize": 2048,
-        "shadowBias": -0.00015,
-        "lightDirection": [-0.5, -1, -0.3],
-        "lightIntensity": 1.6
+        "shadowMapSize": 1024,
+        "shadowBias": -0.000005,
+        "shadowNormalBias": 0.12,
+        "lightDirection": [-0.45, -1, -0.35],
+        "lightIntensity": 1.55
       }
     }
   },

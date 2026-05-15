@@ -109,6 +109,11 @@
                 "mode": { "enum": ["practical", "uniform", "logarithmic"], "default": "practical" },
                 "shadowMapSize": { "type": "integer", "enum": [512, 1024, 2048, 4096], "default": 2048 },
                 "shadowBias": { "type": "number", "default": -0.0001 },
+                "shadowNormalBias": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Normal-space bias applied to each cascade's DirectionalLightShadow. Counters peter-pan (visible gap between an object and its shadow at the contact point) without growing acne the way a more-negative shadowBias would."
+                },
                 "lightDirection": {
                   "type": "array",
                   "items": { "type": "number" },

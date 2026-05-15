@@ -1,5 +1,6 @@
 {
   "id": "start",
+  "environment": { "kind": "generated" },
   "entities": [
     {
       "id": "camera.main",

@@ -29,6 +29,7 @@ import {
   Color,
   DirectionalLight,
   HemisphereLight,
+  IcosahedronGeometry,
   InstancedMesh,
   type Light,
   LineBasicMaterial,
@@ -44,6 +45,7 @@ import {
   MeshStandardMaterial,
   type Object3D,
   ACESFilmicToneMapping,
+  AdditiveBlending,
   LinearToneMapping,
   NoToneMapping,
   ReinhardToneMapping,
@@ -98,6 +100,25 @@ export type BucketAcquireSpec = {
   color?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
+};
+
+/**
+ * M19-particle-preset: opaque handle for one additive InstancedMesh
+ * pool of particles. The adapter owns the geometry/material/instancedmesh
+ * so gameplay code never sees Three.js objects. Acquire → setParticles →
+ * release lifecycle mirrors the M17 bucket API.
+ */
+export type ParticlePoolHandle = number;
+
+export type ParticlePoolAcquireSpec = {
+  /** Particle color (hex). Drawn with additive blending against the scene. */
+  color: string;
+  /** Maximum simultaneous particles in the pool. */
+  capacity: number;
+  /** Base sphere radius for one particle at scale 1.0. */
+  radius?: number;
+  /** Emissive multiplier baked into the material. Particles are unlit. */
+  emissiveStrength?: number;
 };
 
 /** M17-batched-mesh: one BatchedMesh per bucket. Multiple geometries share a material. */
@@ -263,6 +284,11 @@ export type CsmConfig = {
   mode?: "practical" | "uniform" | "logarithmic";
   shadowMapSize?: number;
   shadowBias?: number;
+  /** M21-shadow-csm: normal-space bias on each cascade. Counters
+   *  peter-pan (visible gap between an object and its shadow at the
+   *  base contact point) without growing acne the way a pure negative
+   *  `shadowBias` would. three.js applies it across all cascades. */
+  shadowNormalBias?: number;
   lightDirection?: readonly [number, number, number];
   lightIntensity?: number;
 };
@@ -402,6 +428,12 @@ export class ThreeRenderAdapter {
   private readonly lights = new Map<LightHandle, Light>();
   private readonly buckets = new Map<BucketHandle, BucketEntry>();
   private readonly batchedBuckets = new Map<BatchedBucketHandle, BatchedBucketEntry>();
+  /** M19-particle: live particle pools (additive InstancedMesh). */
+  private readonly particlePools = new Map<
+    ParticlePoolHandle,
+    { mesh: InstancedMesh; capacity: number }
+  >();
+  private nextParticlePoolHandle = 1;
   private nextBatchedBucketHandle = 1;
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
@@ -873,6 +905,62 @@ export class ThreeRenderAdapter {
 
   hasBucket(handle: BucketHandle): boolean {
     return this.buckets.has(handle);
+  }
+
+  // ---- M19-particle: additive InstancedMesh pools ----
+
+  acquireParticlePool(spec: ParticlePoolAcquireSpec): ParticlePoolHandle {
+    const handle = this.nextParticlePoolHandle;
+    this.nextParticlePoolHandle += 1;
+    const radius = spec.radius ?? 0.05;
+    const geometry = new IcosahedronGeometry(radius, 1);
+    const color = new Color(spec.color);
+    const material = new MeshBasicMaterial({
+      color,
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      toneMapped: false
+    });
+    const mesh = new InstancedMesh(geometry, material, spec.capacity);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    this.scene.add(mesh);
+    this.particlePools.set(handle, { mesh, capacity: spec.capacity });
+    return handle;
+  }
+
+  /**
+   * Set the live particle instances on a pool. `count` particles starting
+   * from slot 0 use `transforms[i]` (matrix4) as their world matrix.
+   * Slots beyond `count` are hidden via `mesh.count`. Caller MUST pass
+   * `count <= capacity`.
+   */
+  setParticleInstances(
+    handle: ParticlePoolHandle,
+    transforms: ReadonlyArray<Matrix4>,
+    count: number
+  ): void {
+    const entry = this.particlePools.get(handle);
+    if (entry === undefined) return;
+    const clamped = Math.max(0, Math.min(count, entry.capacity, transforms.length));
+    for (let i = 0; i < clamped; i += 1) {
+      entry.mesh.setMatrixAt(i, transforms[i]!);
+    }
+    entry.mesh.count = clamped;
+    entry.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  releaseParticlePool(handle: ParticlePoolHandle): void {
+    const entry = this.particlePools.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.mesh);
+    entry.mesh.dispose();
+    entry.mesh.geometry.dispose();
+    disposeMaterial(entry.mesh.material);
+    this.particlePools.delete(handle);
   }
 
   // ---- M17-batched-mesh: BatchedMesh buckets ----
@@ -1373,6 +1461,17 @@ export class ThreeRenderAdapter {
       lightDirection: new Vector3(direction[0], direction[1], direction[2]).normalize(),
       lightIntensity: this.csmConfig.lightIntensity ?? 1.5
     });
+    // S47 — apply per-cascade normalBias when configured. three's CSM
+    // doesn't expose this in its options bag, so we mutate each cascade's
+    // shadow.normalBias after the lights are created. Counters peter-pan
+    // (visible gap between an object and its shadow at the base contact
+    // point) without growing acne the way a pure negative bias would.
+    const normalBias = this.csmConfig.shadowNormalBias;
+    if (normalBias !== undefined) {
+      for (const light of csm.lights) {
+        light.shadow.normalBias = normalBias;
+      }
+    }
     this.csm = csm;
     // Register every material the adapter has already created.
     for (const mesh of this.meshes.values()) {
