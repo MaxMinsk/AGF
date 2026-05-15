@@ -291,6 +291,7 @@
         "near": { "type": "number", "exclusiveMinimum": 0, "default": 0.1 },
         "far": { "type": "number", "exclusiveMinimum": 0, "default": 1000 },
         "updateRate": { "enum": [0, 15, 30, 60], "default": 60, "description": "Hz. 0 = bake once at boot, then never. 60 = every frame. 15 / 30 keep the rate low for non-hero scenes." },
+        "prefilter": { "enum": ["mipmap", "pmrem"], "default": "mipmap", "description": "S59 REFLECTION-prefilter. `mipmap` (default) — three.js auto-mipmap on the cube RT; cheap, visually close enough for roughness ≤ 0.3. `pmrem` — full GGX prefilter via `PMREMGenerator.fromCubemap` after every probe update; required for high-roughness reflective materials to read plausibly blurry environment. PMREM regen is ~4–6× a cube face render — keep `updateRate` low (15 Hz) when enabling." },
         "excludeEntities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true, "description": "Entity ids to hide while the probe renders. Always include the probe owner so the camera doesn't see itself." }
       }
     },

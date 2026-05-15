@@ -78,7 +78,8 @@ import {
   SRGBColorSpace,
   Vector2,
   Vector3,
-  WebGLRenderer
+  WebGLRenderer,
+  WebGLRenderTarget
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -412,6 +413,14 @@ export type AdapterInfo = {
    * the extension (Safari, headless WebGL, Firefox in resist-fingerprint).
    */
   gpuMs?: number;
+  /** S59 PERF-renderer-info: count of live `ReflectionProbe` cube cams. */
+  reflectionProbes: number;
+  /**
+   * S59 PERF-renderer-info: total PMREM regen time across every probe
+   * this frame. Zero when no probe opted into `prefilter: "pmrem"` or
+   * the cadence skipped this frame.
+   */
+  prefilterMs: number;
 };
 
 export type SkyGradient = {
@@ -848,21 +857,36 @@ export class ThreeRenderAdapter {
 
   private readonly reflectionProbes = new Map<
     number,
-    { cubeCam: CubeCamera; renderTarget: WebGLCubeRenderTarget }
+    {
+      cubeCam: CubeCamera;
+      renderTarget: WebGLCubeRenderTarget;
+      // S59 REFLECTION-prefilter: when `prefilter === "pmrem"` we run the
+      // raw cubemap through PMREMGenerator after each cubeCam.update.
+      // `prefilteredTarget` holds the most-recent prefiltered RT (dispose
+      // + replace per regen). `prefilterLastMs` records the regen time.
+      prefilter: "mipmap" | "pmrem";
+      prefilteredTarget: WebGLRenderTarget | undefined;
+      prefilterLastMs: number;
+    }
   >();
   private nextReflectionProbeHandle = 1;
+  // S59 PERF-renderer-info: total PMREM regen time across all probes this
+  // frame, reset at the top of every probe update cycle. Read by
+  // `rendererInfo()` so agents can budget against it.
+  private reflectionPrefilterMsThisFrame = 0;
 
   acquireReflectionProbe(spec: {
     size: 128 | 256 | 512;
     near: number;
     far: number;
+    prefilter?: "mipmap" | "pmrem";
   }): number {
     // generateMipmaps + LinearMipmapLinearFilter lets MeshStandard/
     // MeshPhysicalMaterial sample the cube map at roughness > 0 with a
-    // box-filtered mip chain — not full PMREM GGX prefilter, but a
-    // close-enough blurry reflection for moderate-roughness surfaces.
-    // Three.js's CubeCamera.update temporarily flips generateMipmaps off
-    // during the 6 face renders and rebuilds the mip chain after.
+    // box-filtered mip chain — close-enough blurry reflection for
+    // moderate-roughness surfaces. For physically-accurate PBR-roughness
+    // reflection (rough > 0.3), opt the probe into `prefilter: "pmrem"`
+    // and the runtime will run a GGX prefilter after every cube render.
     const renderTarget = new WebGLCubeRenderTarget(spec.size, {
       type: HalfFloatType,
       generateMipmaps: true,
@@ -876,7 +900,13 @@ export class ThreeRenderAdapter {
     // off-centre. CubeCamera doesn't need to be in the scene graph to
     // render — it owns its own face cameras + projects directly.
     const handle = this.nextReflectionProbeHandle++;
-    this.reflectionProbes.set(handle, { cubeCam, renderTarget });
+    this.reflectionProbes.set(handle, {
+      cubeCam,
+      renderTarget,
+      prefilter: spec.prefilter ?? "mipmap",
+      prefilteredTarget: undefined,
+      prefilterLastMs: 0
+    });
     return handle;
   }
 
@@ -911,10 +941,51 @@ export class ThreeRenderAdapter {
     } finally {
       for (const [obj, was] of restoreVisibility) obj.visible = was;
     }
+    // S59 REFLECTION-prefilter: run GGX prefilter through PMREMGenerator
+    // when the probe asked for it. fromCubemap allocates a new RT every
+    // call; we dispose the previous to bound memory. Cost is ~4–6× a
+    // single face render, so pair with a low `updateRate` (15 Hz).
+    if (entry.prefilter === "pmrem") {
+      if (this.pmrem === undefined) {
+        this.pmrem = new PMREMGenerator(this.device);
+      }
+      const t0 = performance.now();
+      const prev = entry.prefilteredTarget;
+      const next = this.pmrem.fromCubemap(entry.renderTarget.texture);
+      entry.prefilteredTarget = next;
+      if (prev !== undefined) prev.dispose();
+      const ms = performance.now() - t0;
+      entry.prefilterLastMs = ms;
+      this.reflectionPrefilterMsThisFrame += ms;
+    }
+  }
+
+  /**
+   * Reset accumulated probe-prefilter ms — called at the top of every
+   * probe system frame so `rendererInfo().prefilterMs` reflects ONLY the
+   * current frame's PMREM cost.
+   */
+  resetReflectionPrefilterTimings(): void {
+    this.reflectionPrefilterMsThisFrame = 0;
   }
 
   reflectionProbeTexture(handle: number): Texture | undefined {
-    return this.reflectionProbes.get(handle)?.renderTarget.texture;
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return undefined;
+    if (entry.prefilter === "pmrem" && entry.prefilteredTarget !== undefined) {
+      return entry.prefilteredTarget.texture;
+    }
+    return entry.renderTarget.texture;
+  }
+
+  /** S59 PERF-renderer-info — read by `rendererInfo()`. */
+  reflectionProbeCount(): number {
+    return this.reflectionProbes.size;
+  }
+
+  /** S59 PERF-renderer-info — total PMREM regen ms across all probes this frame. */
+  reflectionPrefilterMs(): number {
+    return this.reflectionPrefilterMsThisFrame;
   }
 
   releaseReflectionProbe(handle: number): void {
@@ -922,6 +993,7 @@ export class ThreeRenderAdapter {
     if (entry === undefined) return;
     this.scene.remove(entry.cubeCam);
     entry.renderTarget.dispose();
+    if (entry.prefilteredTarget !== undefined) entry.prefilteredTarget.dispose();
     this.reflectionProbes.delete(handle);
   }
 
@@ -2388,7 +2460,9 @@ export class ThreeRenderAdapter {
       buckets: this.buckets.size(),
       bucketInstances,
       batchedBuckets: this.batchedBuckets.size(),
-      batchedBucketInstances
+      batchedBucketInstances,
+      reflectionProbes: this.reflectionProbes.size,
+      prefilterMs: this.reflectionPrefilterMsThisFrame
     };
     if (this.gpuTimerLastMs !== undefined) {
       info.gpuMs = this.gpuTimerLastMs;

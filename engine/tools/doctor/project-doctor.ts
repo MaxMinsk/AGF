@@ -160,6 +160,8 @@ export type ReflectionProbesReport = {
     sceneFile: string;
     size: number;
     updateRate: number;
+    /** S59 REFLECTION-prefilter: "mipmap" (default cheap mip-cube) or "pmrem" (full GGX prefilter). */
+    prefilter: "mipmap" | "pmrem";
     excludeCount: number;
   }>;
   /** Bindings that reference a probe id not actually declared. */
@@ -400,6 +402,7 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
     sceneFile: string;
     size: number;
     updateRate: number;
+    prefilter: "mipmap" | "pmrem";
     excludeCount: number;
     selfExcluded: boolean;
   }> = [];
@@ -432,7 +435,7 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
       for (const entity of scene.entities ?? []) {
         if (typeof entity.id !== "string" || entity.components === undefined) continue;
         const probeConfig = entity.components["ReflectionProbe"] as
-          | { size?: number; updateRate?: number; excludeEntities?: ReadonlyArray<string> }
+          | { size?: number; updateRate?: number; prefilter?: "mipmap" | "pmrem"; excludeEntities?: ReadonlyArray<string> }
           | undefined;
         if (probeConfig !== undefined) {
           declaredProbeIds.add(entity.id);
@@ -442,6 +445,7 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
             sceneFile: relFile,
             size: probeConfig.size ?? 256,
             updateRate: probeConfig.updateRate ?? 60,
+            prefilter: probeConfig.prefilter ?? "mipmap",
             excludeCount: exclude.length,
             selfExcluded: exclude.includes(entity.id)
           });
@@ -464,11 +468,12 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
     .map((p) => p.entityId);
 
   return {
-    probes: probes.map(({ entityId, sceneFile, size, updateRate, excludeCount }) => ({
+    probes: probes.map(({ entityId, sceneFile, size, updateRate, prefilter, excludeCount }) => ({
       entityId,
       sceneFile,
       size,
       updateRate,
+      prefilter,
       excludeCount
     })),
     missingProbeBindings,
@@ -916,12 +921,17 @@ export function formatReflectionProbes(report: ReflectionProbesReport): string {
     lines.push("  (no scene declares a ReflectionProbe)");
     return lines.join("\n");
   }
-  // Estimated cost = sum over probes of (updateRate * 6 faces).
+  // Estimated cost = sum over probes of (updateRate * 6 faces) + PMREM
+  // regen (~4 face-equivalents per pmrem update).
   let extraRendersPerSecond = 0;
   for (const probe of report.probes) {
     extraRendersPerSecond += probe.updateRate * 6;
+    if (probe.prefilter === "pmrem") {
+      extraRendersPerSecond += probe.updateRate * 4;
+    }
+    const prefilterTag = probe.prefilter === "pmrem" ? " · PMREM" : "";
     lines.push(
-      `  ${probe.entityId} (${probe.sceneFile}) — ${probe.size}² @ ${probe.updateRate} Hz, ${probe.excludeCount} excluded`
+      `  ${probe.entityId} (${probe.sceneFile}) — ${probe.size}² @ ${probe.updateRate} Hz${prefilterTag}, ${probe.excludeCount} excluded`
     );
   }
   lines.push(`  estimated extra renders/sec: ${extraRendersPerSecond}`);
