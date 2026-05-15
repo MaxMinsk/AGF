@@ -177,124 +177,6 @@
       }
     },
     {
-      "id": "beacon.west",
-      "components": {
-        "Name": {
-          "label": "West Beacon"
-        },
-        "Transform": {
-          "position": [-3.5, 1.0, 0],
-          "rotation": [0, 0, 0],
-          "scale": [0.6, 2.5, 0.6]
-        },
-        "MeshRenderer": {
-          "mesh": "runtime/models/beacon.glb",
-          "material": "runtime/materials/beacon.material.json"
-        },
-        "Spin": {
-          "axis": "y",
-          "speed": 25
-        },
-        "Repairable": {
-          "accepts": "energy-core",
-          "repaired": false,
-          "repairedMaterial": "runtime/materials/beacon-repaired.material.json",
-          "decayAfter": 6
-        },
-        "Networked": {
-          "authority": "server"
-        },
-        "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "capsule", "radius": 1.6, "halfHeight": 1.2, "sensor": true }
-      }
-    },
-    {
-      "id": "beacon.east",
-      "components": {
-        "Name": {
-          "label": "East Beacon"
-        },
-        "Transform": {
-          "position": [3.5, 1.0, 0],
-          "rotation": [0, 30, 0],
-          "scale": [0.6, 2.5, 0.6]
-        },
-        "MeshRenderer": {
-          "mesh": "runtime/models/beacon.glb",
-          "material": "runtime/materials/beacon.material.json"
-        },
-        "Spin": {
-          "axis": "y",
-          "speed": -25
-        },
-        "Repairable": {
-          "accepts": "energy-core",
-          "repaired": false,
-          "repairedMaterial": "runtime/materials/beacon-repaired.material.json",
-          "decayAfter": 6
-        },
-        "Networked": {
-          "authority": "server"
-        },
-        "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "capsule", "radius": 1.6, "halfHeight": 1.2, "sensor": true }
-      }
-    },
-    {
-      "id": "core.north",
-      "components": {
-        "Name": {
-          "label": "Energy Core (north)"
-        },
-        "Transform": {
-          "position": [-1.5, 0.4, -2.5],
-          "rotation": [0, 0, 0],
-          "scale": [0.4, 0.4, 0.4]
-        },
-        "MeshRenderer": {
-          "mesh": "runtime/models/core.glb",
-          "color": "#4af0a8"
-        },
-        "Pickup": {
-          "kind": "energy-core",
-          "originalPosition": [-1.5, 0.4, -2.5],
-          "respawnAfter": 4
-        },
-        "Networked": {
-          "authority": "server"
-        },
-        "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "sphere", "radius": 1.2, "sensor": true }
-      }
-    },
-    {
-      "id": "core.south",
-      "components": {
-        "Name": {
-          "label": "Energy Core (south)"
-        },
-        "Transform": {
-          "position": [1.5, 0.4, 2.5],
-          "rotation": [0, 0, 0],
-          "scale": [0.4, 0.4, 0.4]
-        },
-        "MeshRenderer": {
-          "mesh": "runtime/models/core.glb",
-          "color": "#4af0a8"
-        },
-        "Pickup": {
-          "kind": "energy-core",
-          "originalPosition": [1.5, 0.4, 2.5],
-          "respawnAfter": 4
-        },
-        "Networked": {
-          "authority": "server"
-        },
-        "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "sphere", "radius": 1.2, "sensor": true }
-      }
-    },
-    {
       "id": "hazard.center",
       "components": {
         "Name": {
@@ -350,6 +232,68 @@
         },
         "RigidBody3D": { "type": "fixed" },
         "Collider3D": { "kind": "sphere", "radius": 1.3, "sensor": true }
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "beacon.west",
+      "prefab": "beacon",
+      "overrides": {
+        "Name": { "label": "West Beacon" },
+        "Transform": {
+          "position": [-3.5, 1.0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.6, 2.5, 0.6]
+        },
+        "Spin": { "axis": "y", "speed": 25 }
+      }
+    },
+    {
+      "id": "beacon.east",
+      "prefab": "beacon",
+      "overrides": {
+        "Name": { "label": "East Beacon" },
+        "Transform": {
+          "position": [3.5, 1.0, 0],
+          "rotation": [0, 30, 0],
+          "scale": [0.6, 2.5, 0.6]
+        },
+        "Spin": { "axis": "y", "speed": -25 }
+      }
+    },
+    {
+      "id": "core.north",
+      "prefab": "energy-core",
+      "overrides": {
+        "Name": { "label": "Energy Core (north)" },
+        "Transform": {
+          "position": [-1.5, 0.4, -2.5],
+          "rotation": [0, 0, 0],
+          "scale": [0.4, 0.4, 0.4]
+        },
+        "Pickup": {
+          "kind": "energy-core",
+          "originalPosition": [-1.5, 0.4, -2.5],
+          "respawnAfter": 4
+        }
+      }
+    },
+    {
+      "id": "core.south",
+      "prefab": "energy-core",
+      "overrides": {
+        "Name": { "label": "Energy Core (south)" },
+        "Transform": {
+          "position": [1.5, 0.4, 2.5],
+          "rotation": [0, 0, 0],
+          "scale": [0.4, 0.4, 0.4]
+        },
+        "Pickup": {
+          "kind": "energy-core",
+          "originalPosition": [1.5, 0.4, 2.5],
+          "respawnAfter": 4
+        }
       }
     }
   ]
