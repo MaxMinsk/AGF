@@ -41,7 +41,15 @@ export function scanProjectTextures(projectDir: string): TextureDoctorReport {
   if (existsSync(assetsDir) && statSync(assetsDir).isDirectory()) {
     walkTextures(assetsDir, textures);
   }
-  const hasBasisTranscoder = existsSync(resolve(projectDir, "public/basis"));
+  // S54 ASSET-decoder-vendor: the engine ships the Basis transcoder
+  // at `<repoRoot>/public/decoders/basis/` (vendored from
+  // `node_modules/three/examples/jsm/libs/basis/`). Per-project
+  // overrides (older `public/basis/`) are still respected so
+  // legacy fixtures keep working. The repo-root path resolves
+  // relative to the project's parents — walk up looking for it.
+  const hasBasisTranscoder =
+    existsSync(resolve(projectDir, "public/basis")) ||
+    findRepoVendoredBasis(projectDir) !== undefined;
 
   for (const absPath of textures) {
     const rel = absPath.slice(projectDir.length + 1);
@@ -166,6 +174,23 @@ function readJpegDimensions(path: string): { width: number; height: number } | u
 
 function formatKb(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/**
+ * Walks up from `projectDir` looking for a sibling
+ * `public/decoders/basis/` directory — that's where the engine
+ * repository vendors the Basis transcoder. Returns the absolute path
+ * if found, or undefined.
+ */
+function findRepoVendoredBasis(projectDir: string): string | undefined {
+  let dir = projectDir;
+  while (true) {
+    const candidate = resolve(dir, "public/decoders/basis");
+    if (existsSync(candidate)) return candidate;
+    const parent = resolve(dir, "..");
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
 }
 
 export function formatTextureDoctor(report: TextureDoctorReport): string {
