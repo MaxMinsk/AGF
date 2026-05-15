@@ -136,24 +136,29 @@ export function mountShadowTuner(
   };
 
   let applyTimer: number | undefined;
-  // Structural fields require a full setCsm() rebuild (~100 ms of
-  // main-thread work that recompiles every material via
-  // `csm.setupMaterial`). Debounce so slider drags don't freeze the
-  // frame loop.
-  const STRUCTURAL_FIELDS = new Set<keyof FieldState>(["cascades", "maxFar", "shadowMapSize"]);
   function handleFieldChanged(name: keyof FieldState): void {
-    if (STRUCTURAL_FIELDS.has(name)) {
+    // Cascades count actually changes the number of DirectionalLights
+    // inside CSM — only a full setCsm() rebuild can do that, and the
+    // rebuild recompiles every material's shader (~100 ms + GPU
+    // compile stalls on a real GPU because the scene has 250+ meshes).
+    // Debounce so drags don't fire the rebuild on every tick, and apply
+    // on `change` (slider release) too via the timer-flush below.
+    if (name === "cascades") {
       scheduleStructuralApply();
       return;
     }
-    // Cheap in-place mutators on the existing CSM lights — apply on
-    // every input tick. Shadow re-render is triggered by the bias setters.
+    // Everything else has a cheap in-place setter on the adapter — no
+    // material recompile, no light recreation. Apply on every input tick.
     if (name === "shadowBias") {
       runtime.renderer.adapter.setCsmShadowBias(state.shadowBias);
     } else if (name === "shadowNormalBias") {
       runtime.renderer.adapter.setCsmShadowNormalBias(state.shadowNormalBias);
     } else if (name === "lightIntensity") {
       runtime.renderer.adapter.setCsmLightIntensity(state.lightIntensity);
+    } else if (name === "shadowMapSize") {
+      runtime.renderer.adapter.setCsmShadowMapSize(state.shadowMapSize);
+    } else if (name === "maxFar") {
+      runtime.renderer.adapter.setCsmMaxFar(state.maxFar);
     }
   }
   function scheduleStructuralApply(): void {

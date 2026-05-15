@@ -1408,6 +1408,38 @@ export class ThreeRenderAdapter {
   }
 
   /**
+   * Resize cascade shadow maps in-place. three.js can resize a shadow's
+   * RenderTarget by mutating `mapSize` and disposing the old map so the
+   * renderer recreates it on the next pass. Avoids a full CSM rebuild
+   * (~100 ms + 267-material shader recompile in shadows-bench).
+   */
+  setCsmShadowMapSize(value: number): void {
+    if (this.csm === undefined) return;
+    for (const light of this.csm.lights) {
+      light.shadow.mapSize.set(value, value);
+      if (light.shadow.map !== null) {
+        light.shadow.map.dispose();
+        light.shadow.map = null;
+      }
+    }
+    if (this.csmConfig !== undefined)
+      this.csmConfig = { ...this.csmConfig, shadowMapSize: value };
+    this.invalidateShadowMap();
+  }
+
+  /**
+   * Change CSM's far clip in-place. Updates `csm.maxFar` and recomputes
+   * frustum splits without recreating cascades or recompiling shaders.
+   */
+  setCsmMaxFar(value: number): void {
+    if (this.csm === undefined) return;
+    this.csm.maxFar = value;
+    this.csm.updateFrustums();
+    if (this.csmConfig !== undefined) this.csmConfig = { ...this.csmConfig, maxFar: value };
+    this.invalidateShadowMap();
+  }
+
+  /**
    * Switch the shadow filter algorithm at runtime. PCF / VSM swap freely
    * because they only differ in `WebGLRenderer.shadowMap.type` + the
    * sampler bindings three regenerates on the next compile.
