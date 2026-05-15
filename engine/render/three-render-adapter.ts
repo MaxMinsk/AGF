@@ -91,6 +91,7 @@ import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
+import { GpuTimer } from "./gpu-timer";
 
 // S53 M17-bvh-extension: the extension patches BatchedMesh.prototype
 // once at module load. Idempotent — safe to call multiple times across
@@ -604,21 +605,14 @@ export class ThreeRenderAdapter {
   private readonly scratchRaycaster = new Raycaster();
   private readonly scratchPickNdc = new Vector2();
 
-  // S54 RUNTIME-gpu-timing: optional WebGL2 timer-query state. The extension
-  // (`EXT_disjoint_timer_query_webgl2`) is async — we issue one query per
-  // frame and poll the previous one for availability before reading. When
-  // the extension is missing (every Safari, headless WebGL, some Android)
-  // these all stay `undefined` and `info().gpuMs` returns undefined.
-  private gpuTimerExt: {
-    QUERY_RESULT_AVAILABLE: number;
-    QUERY_RESULT: number;
-    TIME_ELAPSED_EXT: number;
-    GPU_DISJOINT_EXT: number;
-  } | undefined;
-  private gpuTimerCtx: WebGL2RenderingContext | undefined;
-  private gpuTimerPending: WebGLQuery | undefined;
-  private gpuTimerActive: boolean = false;
-  private gpuTimerLastMs: number | undefined;
+  // S54 RUNTIME-gpu-timing / S59 GPU-timer-test. The state machine lives in
+  // `engine/render/gpu-timer.ts` so it can be unit-tested against a small
+  // mock WebGL2 context (the original S58 INVALID_ENUM / dangling endQuery
+  // pair would have been caught by that test before reaching DevTools).
+  // Stays `undefined` on browsers / contexts without
+  // `EXT_disjoint_timer_query_webgl2` — every Safari, headless WebGL,
+  // Firefox in resist-fingerprint.
+  private gpuTimer: GpuTimer | undefined;
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -645,15 +639,12 @@ export class ThreeRenderAdapter {
     if (typeof WebGL2RenderingContext !== "undefined" && rawCtx instanceof WebGL2RenderingContext) {
       const ext = rawCtx.getExtension("EXT_disjoint_timer_query_webgl2") as
         | {
-            QUERY_RESULT_AVAILABLE: number;
-            QUERY_RESULT: number;
             TIME_ELAPSED_EXT: number;
             GPU_DISJOINT_EXT: number;
           }
         | null;
       if (ext !== null) {
-        this.gpuTimerCtx = rawCtx;
-        this.gpuTimerExt = ext;
+        this.gpuTimer = new GpuTimer(rawCtx, ext);
       }
     }
     // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
@@ -2007,60 +1998,13 @@ export class ThreeRenderAdapter {
     // With `info.autoReset = false` we own the per-frame reset so the
     // counters span every composer pass.
     this.device.info.reset();
-    this.beginGpuTimer();
+    this.gpuTimer?.begin();
     if (this.composer !== undefined) {
       this.composer.render();
     } else {
       this.device.render(this.scene, camera);
     }
-    this.endGpuTimer();
-  }
-
-  // S54 RUNTIME-gpu-timing: one outstanding TIME_ELAPSED query at a time.
-  // beginGpuTimer first polls the *previous* query for availability and
-  // pulls its result if ready; only then does it open a new query around
-  // the current frame.
-  private beginGpuTimer(): void {
-    const ext = this.gpuTimerExt;
-    const gl = this.gpuTimerCtx;
-    if (ext === undefined || gl === undefined) return;
-    // `QUERY_RESULT` / `QUERY_RESULT_AVAILABLE` are WebGL2 core constants —
-    // they are NOT exposed on the EXT_disjoint_timer_query_webgl2 object.
-    // Reading them off `ext` returns `undefined` → INVALID_ENUM.
-    if (this.gpuTimerPending !== undefined) {
-      const ready = gl.getQueryParameter(this.gpuTimerPending, gl.QUERY_RESULT_AVAILABLE) as boolean;
-      // Discard everything when the driver flags a disjoint period (context
-      // switch, GPU clock scaling) — the elapsed counter is unreliable.
-      const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT) as boolean;
-      if (ready && !disjoint) {
-        const ns = gl.getQueryParameter(this.gpuTimerPending, gl.QUERY_RESULT) as number;
-        this.gpuTimerLastMs = ns / 1_000_000;
-        gl.deleteQuery(this.gpuTimerPending);
-        this.gpuTimerPending = undefined;
-      } else if (disjoint) {
-        gl.deleteQuery(this.gpuTimerPending);
-        this.gpuTimerPending = undefined;
-        this.gpuTimerLastMs = undefined;
-      }
-      // Still pending? Skip starting a new query — overlapping queries are
-      // not allowed on a single target. Critically, leave `gpuTimerActive`
-      // false so `endGpuTimer` doesn't try to close a query we never began.
-      if (this.gpuTimerPending !== undefined) return;
-    }
-    const query = gl.createQuery();
-    if (query === null) return;
-    gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
-    this.gpuTimerPending = query;
-    this.gpuTimerActive = true;
-  }
-
-  private endGpuTimer(): void {
-    const ext = this.gpuTimerExt;
-    const gl = this.gpuTimerCtx;
-    if (ext === undefined || gl === undefined) return;
-    if (!this.gpuTimerActive) return;
-    gl.endQuery(ext.TIME_ELAPSED_EXT);
-    this.gpuTimerActive = false;
+    this.gpuTimer?.end();
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -2464,8 +2408,9 @@ export class ThreeRenderAdapter {
       reflectionProbes: this.reflectionProbes.size,
       prefilterMs: this.reflectionPrefilterMsThisFrame
     };
-    if (this.gpuTimerLastMs !== undefined) {
-      info.gpuMs = this.gpuTimerLastMs;
+    const gpuMs = this.gpuTimer?.read();
+    if (gpuMs !== undefined) {
+      info.gpuMs = gpuMs;
     }
     return info;
   }
