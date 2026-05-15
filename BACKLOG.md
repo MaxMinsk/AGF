@@ -34,7 +34,22 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M17-batch-default-on** — once GLB + manifest batching land, flip `autoBatchPrimitives` (renamed `autoBatch`) on by default and update existing project.json files to opt out only where they need single-Mesh semantics. Goal: agents stop thinking about Batchable for the typical case.
 - **RENDER-bucket-key-architecture** — current bucket key is a hand-rolled string `instanced|<mesh>|<shadow>|<group>`. With GLB + manifests joining the routing logic between InstancedMesh and BatchedMesh paths gets messier. Investigate moving to a typed BucketSpec + Map<hash, BucketRecord>, and revisit the dispatch between bucketer (M17) and batched-mesh-system (M17-b) under a single abstraction.
 
-## Current Sprint: Sprint 50 — auto-batch + per-instance color + perf squeeze
+## Current Sprint: Sprint 51 — doctor batching report + agent docs refresh
+
+Small follow-up on S50: the auto-batch flag + per-instance color landed but neither shows up in `engine doctor` or `docs/agent/build-a-game.md`, so an agent inheriting an example can't tell whether batching is engaged or how to opt out. This sprint closes that loop.
+
+### Stories
+
+1. **DOCTOR-batching-report** ✅ — `engine doctor` gains a top-level `Batching:` section. Reads `project.json#render.batching.auto` and uses the existing batch-candidates walker to break renderable entities into primitives (box / sphere / plane) vs externals (.glb / .gltf). Reports per-class entity count, bucket count, and how many draw calls collapsed (or *would* collapse if auto were on). When auto is OFF but primitives could batch, surfaces a `Auto-batch is off — set render.batching.auto: true` recommendation. Also counts explicit `Batchable` annotations and `Batchable: { enabled: false }` opt-outs. Regression: `tests/unit/doctor-batching.test.ts` (4 cases).
+2. **DOCS-build-a-game-batching** ✅ — added a "Cut draw calls with auto-batch" recipe to `docs/agent/build-a-game.md` covering the one-line opt-in, per-entity opt-out, group hint, and the `engine doctor` verification step.
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npx vitest run tests/unit/doctor-batching.test.ts` ✅ — 4 tests
+- `npm run engine:doctor -- examples/shadows-bench` and `-- examples/beacon-world` print the new `Batching:` section correctly.
+
+## Archived: Sprint 50 — auto-batch + per-instance color + perf squeeze
 
 Three compounding wins for shadows-bench (one project.json flag): **drawCalls 203 → 5** (40×) and **renderMs 3.60 → 0.39** (9×). Plus the perf-squeeze follow-ups landed in the same PR after the first round revealed a static-instance GPU-upload regression.
 
