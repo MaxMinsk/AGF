@@ -55,7 +55,7 @@ const STONE_RADIUS = 0.55;
 // 6 angles (15° / 75° / 135° / 195° / 255° / 315°). Probes sit at
 // radius 8 (between orbit radius 4 and column radius 11) so they
 // capture a distinct angle of the scene.
-const MID_PROBE_RADIUS = 8.0;
+const MID_PROBE_RADIUS = 6.0;
 const MID_PROBE_COUNT = 6;
 const MID_PROBE_Y = 1.0;
 
