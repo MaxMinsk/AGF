@@ -363,7 +363,10 @@ function handleCarry(
       lifetime: 0.5,
       rate: 80,
       maxParticles: 48,
-      offset: [0, 0.6, 0]
+      // Beacon extends from y ≈ -0.25 to y ≈ 2.25 (Transform.position.y 1.0
+      // + scale.y 2.5 → unit-tall beacon.glb). Emit just above the tip so
+      // sparks fountain UP rather than disappearing inside the mesh.
+      offset: [0, 1.4, 0]
     });
 
     if (ownerPlayerId !== undefined) {

@@ -11,6 +11,19 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 import type { EngineCommand } from "../../engine/core/commands/types";
 import { createRtsCameraSystem } from "./src/systems/rts-camera-system";
+import { mountShadowTuner, type ShadowTunerDefaults } from "./src/ui/shadow-tuner";
+
+const SHADOW_DEFAULTS: ShadowTunerDefaults = {
+  cascades: 3,
+  maxFar: 120,
+  shadowMapSize: 1024,
+  shadowBias: -0.000005,
+  shadowNormalBias: 0.12,
+  lightIntensity: 1.55,
+  lightDirection: [-0.45, -1, -0.35],
+  mode: "practical",
+  algorithm: "pcss"
+};
 
 const PALETTE_BUILDINGS: ReadonlyArray<string> = [
   "#c7b893",
@@ -235,10 +248,12 @@ export const shadowsBenchBootstrap: ProjectBootstrap = {
       context.scheduler.register(createRtsCameraSystem());
     }
   },
-  attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
+  attachUi({ runtime, shell }: ProjectUiContext): ProjectUiHandle {
     runtime.applyCommands(buildSeedCommands(resolveSeed()));
+    const tuner = mountShadowTuner(shell, runtime, SHADOW_DEFAULTS);
     return {
       dispose(): void {
+        tuner.dispose();
         // Procedural entities live in the world; world teardown reclaims them.
       }
     };

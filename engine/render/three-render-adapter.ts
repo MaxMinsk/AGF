@@ -1372,6 +1372,46 @@ export class ThreeRenderAdapter {
     this.rebuildCsm();
   }
 
+  /**
+   * Switch the shadow filter algorithm at runtime. PCF / VSM swap freely
+   * because they only differ in `WebGLRenderer.shadowMap.type` + the
+   * sampler bindings three regenerates on the next compile.
+   *
+   * **PCSS is a one-way transition.** The PCSS shader-chunk substitution
+   * mutates the process-wide `ShaderChunk.shadowmap_pars_fragment` and
+   * cannot be cleanly reverted in the same page — switching FROM PCSS
+   * back to PCF/VSM keeps the PCSS helpers compiled into materials but
+   * with a sampler2D binding that won't match the new shadow type, which
+   * produces visual garbage. Callers (UI panels, dev tools) MUST treat
+   * PCSS as a "reload required" toggle in either direction once
+   * `applyPcssShadowChunks()` has fired.
+   */
+  setShadowAlgorithm(kind: "pcf" | "vsm" | "pcss"): void {
+    this.device.shadowMap.type = shadowAlgorithmType(kind);
+    this.device.shadowMap.needsUpdate = true;
+    if (kind === "pcss") {
+      applyPcssShadowChunks();
+    }
+    // Force every active material to recompile so the new sampler binding
+    // matches the new shadow type. Touching `needsUpdate` on the materials
+    // is the cheapest way to do that without rebuilding the scene.
+    const flagDirty = (m: Material | Material[]): void => {
+      if (Array.isArray(m)) {
+        for (const slot of m) slot.needsUpdate = true;
+      } else {
+        m.needsUpdate = true;
+      }
+    };
+    for (const mesh of this.meshes.values()) flagDirty(mesh.material);
+    for (const bucket of this.buckets.values()) flagDirty(bucket.mesh.material);
+    for (const bucket of this.batchedBuckets.values()) flagDirty(bucket.mesh.material);
+    if (this.csm !== undefined) {
+      // CSM keeps its own internal lights — touching their .needsUpdate
+      // wouldn't help; rebuilding the CSM regenerates everything.
+      this.rebuildCsm();
+    }
+  }
+
   // ---- M21-post-pipeline ----
 
   /**
