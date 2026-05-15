@@ -114,16 +114,20 @@ function buildSeedCommands(): EngineCommand[] {
     material: CENTRE_MATERIAL
   });
   setComponent(commands, centreSphereId, "ShadowFlags", { cast: true, receive: true });
-  // S57 REFLECTION-cube-probe: the centre chrome sphere both hosts the
-  // probe and reads its own reflection (the cube camera sits at the
-  // sphere's position, the sphere itself is auto-excluded so it doesn't
-  // see itself). Pedestals + outer spheres stay visible in the cube so
-  // the chrome reflects the whole arrangement.
+  // S57 REFLECTION-cube-probe + S59 REFLECTION-prefilter: the centre
+  // chrome sphere both hosts the probe and reads its own reflection
+  // (cube camera at the sphere's position, sphere itself auto-excluded).
+  // Pedestals + outer spheres stay visible in the cube so the chrome
+  // reflects the whole arrangement. `prefilter: "pmrem"` runs the
+  // capture through PMREMGenerator after every cubeCam update so the
+  // chrome at the v1 roughness (0.35) reads as a plausibly blurry
+  // mirror (vs. mip-cube's box-filtered blur).
   setComponent(commands, centreSphereId, "ReflectionProbe", {
     size: 128,
     near: 0.1,
     far: 60,
-    updateRate: 30,
+    updateRate: 15,
+    prefilter: "pmrem",
     excludeEntities: [centreSphereId, centrePedestalId]
   });
   setComponent(commands, centreSphereId, "EnvmapBinding", { probe: centreSphereId });
