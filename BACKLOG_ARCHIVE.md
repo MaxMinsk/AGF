@@ -2562,3 +2562,41 @@ Status: Completed and archived.
 - **`render.idleMode: "on-demand"` user-input wake-up.** Mouse / keyboard input currently doesn't bump the world's mutation counter unless an input system writes ECS state. For pure-camera-orbit projects in `on-demand` mode the orbit might feel laggy. Either bump mutationCounter from a dev-overlay input system or add an explicit `forceRender()` API.
 - **`transmissionResolutionScale` UI sweep.** AGF exposes the knob through project.json; the shadow-tuner could grow a sibling tile so an agent can A/B perf-vs-quality live.
 - **DOCS-asset-pipeline.** Was on the S54 list; moved into S55's agent-surface refresh sprint because the docs/skills sweep is the natural place for an agent-facing pipeline walkthrough.
+
+## Sprint 55 - Agent surface refresh
+
+Status: Completed and archived.
+
+Single focused pass: every agent-facing doc + skill memo + slash-command reference brought in line with the S52–S54 engine state. No engine code changes. Verification at sprint close = preflight + grep sweep of stale identifiers (none found).
+
+### Completed Work
+
+1. **DOCS-stale-audit** ✅ — `docs/agent/_audit-2026-05-15.md` (deleted at sprint close after being mined). 26-row OK / update / new verdict table plus an ownership map tying each remaining story to its files.
+2. **DOCS-AGENTS-root** ✅ — `AGENTS.md` + `docs/agent/rules.md` + `docs/agent/review-checklist.md` synced. New hard rules: ECS systems by default + documented deviation, reuse engine primitives before scaffolding (Spin > GroupRotator), texture refs always through `AssetRegistry.urlFor`, `MeshRenderer.material` is full path, `Transform.rotation` is degrees, prefab overrides shallow-merge, primitive set is `box / sphere / cylinder / plane`. Review checklist gained Data+Schemas + Diagnostics + Performance Hygiene sections.
+3. **DOCS-build-a-game** ✅ — `docs/agent/build-a-game.md` rewritten. End-to-end walkthrough using material-bench shapes; instantiate-a-prefab recipe; HDR-background + idle-mode + criticalAssets recipes; 6-item common-mistakes checklist; `__agf` table extended with `gpuMs / frameTiming / pick / dev.tuner / shadow controls / physics raycast / recording / project-patch`.
+4. **DOCS-asset-pipeline** ✅ — new `docs/agent/asset-pipeline.md`. Pipeline diagram + per-stage prose: `_sources/` layout, provenance schema (`kind` / `source.type` enums), `engine asset import`, `engine asset optimize` with `--source` / `--textures`, material manifest cheat-sheet (incl. `bumpMap` vs `normalMap`), scene reference rules, HDR env spec, doctor sections, `criticalAssets` gate, diagnostics catalogue, future-work pointers.
+5. **DOCS-scene-authoring-skill** ✅ — `docs/agent/skills/scene-authoring.md` rewritten. Scene shape with `instances` + `environment.hdr.asBackground`; component cheat-sheet incl. MeshRenderer full-path rule, ShadowCaster dynamic flag, Spin / Tween / WaypointMover reuse note; project-local component flow; 5 pitfalls.
+6. **DOCS-system-authoring-skill** ✅ — `docs/agent/skills/system-authoring.md` rewritten. Lead with grep-before-scaffold; canonical cached-`createQuery` template; engine-vs-project boundary table; no per-frame Three.js alloc + no raw event listeners; 5 pitfalls.
+7. **DOCS-playtest-debugging-skill** ✅ — `docs/agent/skills/playtest-debugging.md` rewritten. Full `window.__agf` API table (16 entries incl. `rendererInfo.gpuMs`, `frameTiming`, `pick`, `dev.tuner.*`, shadow controls, physics raycast, recording, save/load). Dev-bridge HTTP endpoint table (12 routes). 6 common debugging patterns.
+8. **DOCS-engine-check-skill** ✅ — `docs/agent/skills/engine-check.md` rewritten with the sibling-command matrix (check / doctor / inspect / docs / list / explain / asset optimize / asset import), symptom→code lookup, and the full list of files `engine check` validates. `docs/diagnostics.md` catalogue brought current — domain enum extended, new per-domain tables, S54 codes documented.
+9. **DOCS-prefab-skill** ✅ — new `docs/agent/skills/prefab-authoring.md`. When-to-extract threshold, manifest shape, `scene.instances[]` syntax with shallow-merge semantics + worked example, per-instance field list, when NOT to extract, diagnostics + doctor section, beacon-world M3-c-beacon worked example.
+10. **DOCS-material-skill** ✅ — new `docs/agent/skills/material-authoring.md`. Shader picking table, full field cheat-sheet, bumpMap-vs-normalMap decision rules with the bump-source pitfall, asset-registry texture resolution, full-path rule for MeshRenderer.material, 7 common pitfalls, doctor + texture warnings.
+11. **DOCS-claude-code-+-subagents** ✅ — `docs/agent/claude-code.md` rewritten. Slash-command matrix + subagent matrix with "when to delegate" lines. Reliability-doc map updated. Sprint-workflow paragraph added. `.claude/agents/*.md` descriptions verified current — no changes needed.
+12. **DOCS-iteration-+-debug-protocol** ✅ — `docs/agent/iteration-loop.md` + `docs/agent/debug-protocol.md` refreshed. Iteration loop gains the sprint-workflow paragraph and three new recipes (screenshot, bug-report, dev-tuner). Debug protocol gains a 17-row failure-taxonomy → first-look-diagnostic lookup table, the dev-bridge route list, and the post-fix verification checklist.
+
+### Deliverables
+
+- 12 docs touched, 2 new skill memos (prefab-authoring, material-authoring), 1 new top-level doc (asset-pipeline.md), audit file consumed and deleted.
+- Diagnostics catalogue (`docs/diagnostics.md`) is now the canonical map of every `AGF_*` code emitted by `engine check` / `engine doctor` / runtime.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 504 tests + build + bundle:check + 11/11 e2e smoke (27.2 s).
+- Cyrillic-in-repo sweep across the touched files — clean.
+- Cross-link sanity: every `docs/agent/skills/<name>.md` referenced from `claude-code.md` exists.
+
+### Follow-Ups
+
+- **ADR audit.** Texture resolution through `AssetRegistry.urlFor`, environment.asBackground, primitive-set extensions and `transmissionResolutionScale` are documented in skill memos but not anchored in any ADR. Spawn a doc-only follow-up sprint if the codebase needs the architectural record.
+- **`engine docs <projectId>` regen.** The auto-generated docs under `docs/generated/<projectId>/` weren't refreshed during S55. They aren't used by agents day-to-day (the hand-written skill memos are), but a follow-up run keeps them aligned with the new schema fields (`asBackground`, `backgroundBlurriness`, `transmissionResolutionScale`, `idleMode`, `criticalAssets`, `bumpMap`, `bumpScale`).
+- **MeshRenderer.material path-validator.** Several docs (build-a-game, asset-pipeline, scene-authoring, material-authoring) call out the bare-id-vs-path pitfall — backlog candidate to make `engine check` enforce it.

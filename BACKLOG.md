@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-15 (Sprint 54 archived)
+Date: 2026-05-15 (Sprint 55 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -33,43 +33,45 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **render-pool-caller-migration** — S53 shipped the typed pool dispatcher + `PoolHandle` union but most call sites still use the per-kind acquire / release methods. A future sprint can migrate the call sites + retire the per-kind methods if the migration delivers measurable maintenance savings.
 - **M17-batched-glb** — `updateBatched` falls back to placeholder geometry when the mesh ref isn't a primitive. Thread the AssetRegistry through so GLB references work inside batched buckets too (same way the instanced path does today).
 - **BATCH-BENCH-bvh-stress** — `examples/batch-bench` is currently 400 in-view cubes (the case where `batched-bvh` doesn't win). Add a scenario knob that frames a narrow camera around a subset, so the BVH crossover can be measured live.
-- **MeshRenderer-material-path-validator** — `engine check` should reject any `MeshRenderer.material` value that doesn't resolve to a real `runtime/.../*.material.json` under `assetRoot`. Surfaced as friction in S54's `material-bench-asset-friction.md`.
-- **PRIMITIVE-set-single-source** — the `box / sphere / cylinder / plane` list lives in 5 places (registry / batcher / project-check / project-doctor / scene-extensions schema). Export one constant; codegen the schema enum.
-- **ASSET-textures-via-registry** — move material-manifest texture refs onto `AssetRegistry.get<TextureAsset>()` so 404s emit `AGF_RUNTIME_ASSET_LOAD_FAILED` and HMR can invalidate one texture without remounting the whole material. Workaround landed in S54 (`assetRegistry.urlFor` resolution).
-- **M26** visual-fidelity polish — see `HIGH_LEVEL_BACKLOG.md`. Low priority; pull only after `M3` runtime work completes.
+- **REFLECTION-prefilter** — re-PMREM each `ReflectionProbe` cubemap at a slower cadence (10 Hz) so `roughness > 0.1` materials get plausibly blurry dynamic reflections. Pairs with `REFLECTION-cube-probe` (lands in this sprint).
+- **REFLECTION-planar** — `three/addons/objects/Reflector.js` vendored helper for planar mirrors (water, lobby floor, picture-frame glass). Pull when a project asks.
+- **POST-bloom** — bloom post-pass is wired through the post pipeline but no project uses it yet. Add a worked example + tuner story when a beacon-world hero moment needs it.
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 55 — Agent surface refresh
+## Current Sprint: Sprint 56 — Engine hygiene + visual-fidelity v0
 
-The engine moved a lot in S52–S54 (typed render pools, BVH-augmented BatchedMesh, ShadowCaster tagging, asset-optimize CLI + texture-doctor, prefab instantiation pipeline, material-bench with HDR-as-background + transmission pre-pass + bumpMap, AssetRegistry-resolved texture refs, `cylinder` primitive, …). The agent-facing docs + slash commands + subagent prompts under `docs/agent/`, `.claude/commands/` and `.claude/agents/` haven't kept up — most were last touched around 2026-05-13 and pre-date the asset pipeline + prefabs + material surfaces shipped this fortnight.
+S52–S54 shipped the production-content layer; S55 brought the agent surface up to date. S56 mixes two threads:
 
-S55 is a single focused pass: bring every agent surface in line with the current engine. No new engine features land here. Verification at sprint close = `engine docs <projectId>` regen + grep sweep of stale identifiers (`createPrimitiveGeometry` enum, deprecated material fields, removed APIs).
+1. Three carry-over engine-hygiene items the asset-pipeline friction note flagged (`MeshRenderer-material-path-validator`, `PRIMITIVE-set-single-source`, `ASSET-textures-via-registry`).
+2. The high-ROI half of the `M26` visual-fidelity epic — GroundedSkybox + CubeCamera-based reflection probe + SSAO + LUT colour grade — plus an ADR audit catching up on the S53–S54 architectural decisions that never got an ADR.
 
 12 stories — sized to the **10–15** floor per [[feedback-sprint-size]].
 
 ### Stories
 
-1. **DOCS-stale-audit** — single-pass sweep of every `docs/agent/*.md`, `docs/agent/skills/*.md`, `AGENTS.md`, `docs/agent/claude-code.md`, `docs/ARCHITECTURE.md`, `docs/STRUCTURE.md`, `docs/DEVELOPMENT.md`, `docs/QUALITY_AXES.md`, `docs/diagnostics.md`, `docs/GLOSSARY.md`. Output: a single ordered list in this story's verification section — per file, the verdict is `OK` / `update` / `delete` / `merge into <other>` plus the concrete drift (named API, missing diagnostic code, stale command, etc.). All later stories cite this list as their input. Cap each row at one sentence so the audit stays scannable.
-2. **DOCS-AGENTS-root** — refresh the three rule-level documents together so they don't drift apart: `AGENTS.md` (root, loaded by every agent), `docs/agent/rules.md`, `docs/agent/review-checklist.md`. Cover the rules added in S52–S54: prefer ECS systems by default (deviation must be documented inline); reuse engine primitives before writing project-local clones (`Spin` over `GroupRotator` lesson); texture refs always go through `AssetRegistry.urlFor`; `Transform.rotation` is degrees; prefab instances merge shallow; primitive set is `box / sphere / cylinder / plane`. Update commit / branch / PR policy if drifted from [[feedback-workflow]].
-3. **DOCS-build-a-game** — `docs/agent/build-a-game.md` recipe collection rewrite. New end-to-end walkthrough using material-bench shapes: drop CC0 asset → `engine asset optimize --textures` → material manifest with `bumpMap` + `roughnessMap` → reference from `MeshRenderer.material` (full path, not id). Add a "common mistakes" checklist (raw-string material id without path, custom system when engine has it, transmissive material with `auto: true` batching, HDR without `asBackground`).
-4. **DOCS-asset-pipeline** *(carried over from S54)* — `docs/agent/asset-pipeline.md`. Full loop: `_sources/` layout → `engine asset import` → `engine asset optimize <path> [--textures]` → `asset-sources.json` provenance → runtime `<asset>.material.json` / `<mesh>.glb` → `MeshRenderer.mesh` + `MeshRenderer.material`. Document the `_sources/asset-sources.json` schema's `kind` and `source.type` enums (the material-bench friction note flagged that "environment" / "third-party" aren't accepted). Reference `material-bench-asset-friction.md` for the failure modes.
-5. **DOCS-scene-authoring-skill** — `docs/agent/skills/scene-authoring.md` refresh. Cover scene `instances` + prefab refs (S54 M3-c-load), `Transform.parent` hierarchy (S30 M16), `environment: { kind: "hdr", asBackground, backgroundBlurriness }` (S54), shadow config + `ShadowCaster { dynamic }` tag (S52), `Spin` for orbit / rotation behaviours (don't author a custom system).
-6. **DOCS-system-authoring-skill** — `docs/agent/skills/system-authoring.md` refresh. Lead with **reuse before new** (grep `engine/core/systems/` + `schemas/components/` first); cached `createQuery` handles, not raw `world.query()`; profile-gated registration; project-local vs engine systems boundary; deviation rule for the "prefer ECS" non-negotiable.
-7. **DOCS-playtest-debugging-skill** — `docs/agent/skills/playtest-debugging.md` refresh. Document the current `window.__agf` surface in full: `snapshot` / `applyCommands` / `diagnostics` / `clearDiagnostics` / `copyDiagnostics` / `rendererInfo` / `frameTiming` / `pick` / `physics.{setDebugOverlay,raycast}` / `renderer.{invalidateShadowMap,setShadowMapAutoUpdate}` / `dev.tuner.{add,remove,list}` / `save` / `load`. Pair with the dev-bridge endpoints in `engine/dev/` (project-patch, recording, asset-invalidate).
-8. **DOCS-engine-check-skill** — `docs/agent/skills/engine-check.md` refresh. Updated diagnostic table: every `AGF_*` code currently emitted by `engine check` / `engine doctor` / runtime. Include `AGF_LOD_*` (S54), `AGF_TEXTURE_HUGE / _NPOT / _NO_TRANSCODER` (S54), `AGF_SCENE_INSTANCE_PREFAB_MISSING / _DUPLICATE_ID` (S54), `AGF_SHADOW_CSM_DIRECTIONAL_CONFLICT` (S47), `AGF_RUNTIME_ASSET_LOAD_FAILED / _NO_LOADER` (S5+).
-9. **DOCS-prefab-skill** *(new)* — `docs/agent/skills/prefab-authoring.md`. When to extract a prefab (≥2 entities sharing ≥3 components); `prefabs/<id>.prefab.json` schema; `scene.instances` overrides shallow-merge rules; `AGF_SCENE_INSTANCE_*` diagnostics; the beacon-world M3-c-beacon adoption as worked example.
-10. **DOCS-material-skill** *(new)* — `docs/agent/skills/material-authoring.md`. Standard vs Physical shader; clearcoat / transmission / sheen / iridescence ranges; `bumpMap` vs `normalMap` (height-map vs tangent-space) decision; `normalScale` / `bumpScale` typical values; `AssetRegistry.urlFor` texture resolution; common pitfalls (raw string id without path; texture file in repo but not registered in `asset-sources.json`; `transmission > 0` with `batching.auto: true`).
-11. **DOCS-claude-code-+-subagents** — `docs/agent/claude-code.md` refresh against current `.claude/commands/*.md` (`adr-new`, `archive-sprint`, `asset-pipeline`, `check-docs`, `implement-story`, `review-agent`, `sample-game`, `start-next`) and current `.claude/agents/*.md` (`asset-pipeline`, `backend-planner`, `engine-architect`, `playtest-runner`, `schema-guardian`). Verify each subagent description still matches its current responsibilities; correct tool lists.
-12. **DOCS-iteration-+-debug-protocol** — `docs/agent/iteration-loop.md` + `docs/agent/debug-protocol.md` refresh. Iteration loop covers preflight gates, branch+PR policy, /implement-story → /archive-sprint flow. Debug protocol covers the dev bridge endpoints, recording start/stop, diagnostics bus, `__agf.copyDiagnostics()`, project-patch.
+1. **MESHRENDERER-material-path-validator** — `engine check` rejects `MeshRenderer.material` values that aren't a `runtime/**/*.material.json` path under `assetRoot`. Bare manifest ids (`"m1-brick"`) emit `AGF_MATERIAL_REF_INVALID` with a `suggestion` pointing at the full path. Fixture pair + unit test. Acceptance: every shipped example still validates clean.
+2. **PRIMITIVE-set-single-source** — `engine/core/primitives.ts` exports a single `PRIMITIVE_MESHES: ReadonlySet<string>`; `engine/render/mesh-handle-registry.ts`, `engine/render/systems/batching-system.ts`, `engine/tools/check/project-check.ts`, `engine/tools/doctor/project-doctor.ts`, and the scene-extensions schema's primitive enum all import / generate from that constant. Adding a primitive becomes a one-place change.
+3. **ASSET-textures-via-registry** — texture refs inside material manifests resolve through `AssetRegistry.get<TextureAsset>()` instead of `assetRegistry.urlFor()` + raw `TextureLoader`. 404s emit `AGF_RUNTIME_ASSET_LOAD_FAILED`; HMR can invalidate one texture without remounting the material. Includes a dedicated `createTextureLoader()` that the registry registers like the existing material / glb loaders. Material-bench texture references survive unchanged.
+4. **GROUND-skybox** — `three/addons/objects/GroundedSkybox.js` vendored helper added to the renderer adapter. New scene env shape: `environment.groundedSkybox: { height, radius }`. When set, the renderer mounts a GroundedSkybox mesh in place of (or alongside) the regular `scene.background`. Material-bench adopts it so the HDR meets the cement plinth instead of dropping straight to the horizon.
+5. **REFLECTION-cube-probe** — new `engine/core/components/reflection-probe.ts` + `engine/runtime/components/envmap-binding.ts` schemas. New `ReflectionProbeSystem` runs before the main render: hides excluded entities, calls `cubeCam.update(renderer, scene)`, restores. `MaterialBindingSystem` reads `EnvmapBinding` and sets `material.envMap = probeRT.texture`. Material-bench centre chrome sphere adopts a 256² probe @ 60 Hz so it visibly reflects the orbiting outer ring.
+6. **POST-ssao** — `three/addons/postprocessing/SSAOPass.js` vendored. Wired into the existing composer via `project.json#render.post: [{ kind: "ssao", radius?, intensity? }]`. Schema updated; one playtest screenshot guards the look.
+7. **POST-color-lut** — `three/addons/postprocessing/LUTPass.js` + a vendored `.cube` loader. `project.json#render.post: [{ kind: "color-lut", file }]`. Schema updated. Material-bench gets one warm-ish LUT to demo.
+8. **ADR-S52-shadow-static-caster** — new `docs/adr/0009-shadow-caster-dynamic-tag.md`. Architectural anchor for the `ShadowCaster { dynamic }` tag + `DynamicShadowSystem` — currently documented in the skill memo and the implementation, not in an ADR.
+9. **ADR-S53-typed-render-pool** — new `docs/adr/0010-typed-render-pool.md`. Anchor `BucketSpec` + `PoolHandle` discriminated unions + `RenderPoolRegistry`. Pairs with the existing perf research note.
+10. **ADR-S54-prefab-instantiation** — new `docs/adr/0011-prefab-instantiation.md`. Anchor the `expandScenePrefabs` + `scene.instances[]` flow + shallow-merge semantics + the diagnostics contract.
+11. **ADR-S54-asset-registry-textures** — new `docs/adr/0012-asset-registry-texture-resolution.md`. Anchor the texture-refs-through-AssetRegistry rule + the `urlFor` workaround / `get<TextureAsset>()` future state. Stays accurate even after Story 3 lands (Story 3 will note the ADR moved to "Done").
+12. **REFLECTION-prefilter** — re-PMREM each `ReflectionProbe` cubemap at a 10 Hz cadence (instead of every frame) so `roughness > 0.1` materials get plausibly blurry dynamic reflections. Material-bench centre sphere keeps its slight roughness; the surrounding spheres in `m5-car-paint` / `m6-glass` actually see blurry environment colour from the probe. Acceptance: visible `roughness > 0.2` test in material-bench reflects the probe colour, not just mip 0.
 
-### Out of scope (Sprint 55)
+### Out of scope (Sprint 56)
 
-- ADR-level changes (texture-resolution, asBackground, primitive set, transmission scale) — separate ADR audit story, parked in Next Sprint candidates after S55 if needed.
-- `docs/generated/<projectId>/` rebuilds — verification step inside DOCS-engine-check-skill, not a story of its own.
-- New skills under `.claude/skills/` (none today). Promote a memo only if it's invoked routinely — explicit non-goal for this sprint.
-- The `M26` visual fidelity epic — parked low-priority; not pulled forward.
+- Planar mirror (`REFLECTION-planar`) — wait for a water / lobby-floor scene.
+- SSR — needs G-buffer rework, parked.
+- BPCEM — WebGPU-only today.
+- `LightProbeGrid` 3D irradiance volume — heavy bake, indoor-level epic.
+- Motion blur / DOF — cinematics-specific, parked.
+- `engine docs <projectId>` regen for `docs/generated/<id>/` — agents read the hand-written skill memos; defer until a doc consumer needs it.
 
 ## Next Sprint (placeholder)
 
-To be detailed at S55 close. Likely candidates: ADR audit, `MeshRenderer.material` path validator, `PRIMITIVE-set-single-source` consolidation, `ASSET-textures-via-registry`, and pulling forward one or two of the `M26` visual-fidelity stories if perf budgets allow.
+To be detailed at S56 close. Likely candidates: `REFLECTION-planar` + first water scene, `M16-cache-e` allocation-bench polish, `M17-batched-glb` parity work, `BATCH-BENCH-bvh-stress`.
