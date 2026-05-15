@@ -25,15 +25,26 @@
 // `PCFShadowMap`. Plain `algorithm: "pcf"` stays on the modern
 // PCFShadowMap path.
 //
-// `M21-shadow-pcss-csm` still tracks extending the substitution into
-// `CSMShader.js` so cascade-shadow scenes pick PCSS up too.
+// **CSM coverage (M21-shadow-pcss-csm — S47):** `three/addons/csm/CSMShader.js`
+// only overrides `lights_fragment_begin` and keeps calling the standard
+// `getShadow(...)` symbol from `shadowmap_pars_fragment`. So once
+// `applyPcssShadowChunks()` mutates the basic-variant getShadow inside
+// the standard chunk, CSM cascades inherit PCSS for free — no separate
+// CSMShader patch needed. Tests assert the substitution actually fires
+// (a whitespace drift in three.js made the historical S41/S44 string
+// match silently no-op until the regex-based replace landed in S47).
 
 import { ShaderChunk } from "three";
 
-// Free parameters baked into the GLSL. Reasonable defaults for outdoor
-// scenes with a sun-like directional light + a 10–30m world.
+// Free parameters baked into the GLSL. Tuned for outdoor scenes with a
+// sun-like directional light + a 10–30 m world. `LIGHT_WORLD_SIZE`
+// controls the penumbra: 0.005 = mid-soft (the three.js example default),
+// 0.0025 = a tighter penumbra closer to PCF that still preserves
+// distance-aware blur. Future work: expose this as a project config
+// (`shadows.pcss.lightWorldSize`) so per-project scenes can opt back into
+// softer penumbras.
 const PCSS_PARS = `
-#define LIGHT_WORLD_SIZE 0.005
+#define LIGHT_WORLD_SIZE 0.0025
 #define LIGHT_FRUSTUM_WIDTH 3.75
 #define LIGHT_SIZE_UV (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH)
 #define NEAR_PLANE 9.5
@@ -122,15 +133,26 @@ export function applyPcssShadowChunks(): void {
     "#ifdef USE_SHADOWMAP",
     `#ifdef USE_SHADOWMAP\n${PCSS_PARS}`
   );
-  // Replace the inner getShadow flow's first read so it routes through
-  // PCSS() instead of the default texture2D fetch. Pattern is taken
-  // straight from three's `webgl_shadowmap_pcss.html` example; if the
-  // upstream chunk text changes the match falls through silently and
-  // the project falls back to PCF.
+  // Replace the BASIC-variant getShadow's first read so it routes through
+  // PCSS() instead of the default texture2D fetch. We match the
+  // `if ( frustumTest ) {` block tolerating any whitespace before the
+  // `float depth = texture2D(...)` line — three.js bumps the surrounding
+  // whitespace between releases (the r184 source has an empty line
+  // between `{` and the assignment, the r170 source doesn't).
+  const before = source;
   source = source.replace(
-    "\t\t\tif ( frustumTest ) {\n\t\t\t\tfloat depth = texture2D( shadowMap, shadowCoord.xy ).r;",
-    `\t\t\tif ( frustumTest ) {\n${PCSS_GET_SHADOW}\n\t\t\t\tfloat depth = texture2D( shadowMap, shadowCoord.xy ).r;`
+    /(if \( frustumTest \) \{)([\s\S]{0,80}?)(float depth = texture2D\( shadowMap, shadowCoord\.xy \)\.r;)/,
+    (_match, openBrace: string, gap: string, depthLine: string) =>
+      `${openBrace}${gap}${PCSS_GET_SHADOW}\n${depthLine}`
   );
+  if (source === before) {
+    // The upstream chunk text drifted out from under us. Surface a
+    // console warning so an agent triaging "PCSS looks like PCF" finds
+    // the cause quickly instead of guessing.
+    console.warn(
+      "[agf:shadow-pcss] BASIC-variant `getShadow` substitution did not match `shadowmap_pars_fragment` — PCSS will silently no-op. Check three.js version drift."
+    );
+  }
   ShaderChunk.shadowmap_pars_fragment = source;
   applied = true;
 }

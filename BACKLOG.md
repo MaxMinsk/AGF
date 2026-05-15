@@ -21,7 +21,45 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 46 — CI e2e stabilization
+## Current Sprint: Sprint 47 — Game-feel pass (tween / particles / cinematic / PCSS / shadows-bench polish)
+
+Visible feedback layer + shadow polish. Adds 3 ECS-native game-feel primitives, fixes the S41 PCSS substitution that was silently no-op'ing, and tunes the shadows-bench scene to look alive.
+
+### Stories
+
+1. **M19-tween** ✅ — `Tweens` component (array of tween specs) + `TweenSystem` (fixedUpdate, replay-deterministic). Easing kinds: linear / easeIn / easeOut / easeInOut / `pulse` (sin(πt) for one-shot bounces). Loop modes: none / loop / ping-pong. 6 unit tests.
+2. **M19-particle-preset** ✅ — `ParticleEmitter` component + `ParticleEmitterSystem` + adapter `ParticlePool` API (additive InstancedMesh). Built-in presets: spark / glow / pulse. Auto-removed when emitter lifetime expires and particles drain.
+3. **M21-cam-cinematic** ✅ — `CinematicCamera` component (waypoint list + per-segment ease + loop) + `CinematicCameraSystem`. Replay-safe via `elapsed` on the component.
+4. **M21-shadow-pcss-csm + bug fix** ✅ — discovered the S41/S44 PCSS shader-chunk substitution silently no-op'd because three.js bumped whitespace inside `shadowmap_pars_fragment`. Replaced the literal match with a regex that tolerates whitespace + emits a console warning if upstream drifts. Added a regression test asserting the chunk actually contains `PCSS(` after `applyPcssShadowChunks()`. CSMShader uses the same `getShadow` symbol so cascades inherit PCSS automatically — no separate patch needed.
+5. **beacon-world adoption** ✅ — pickup: spark burst on the core at the moment of pickup. Repair: `pulse`-ease Tween bounces beacon scale × 1.18 over 0.36 s + a 0.5 s spark burst. Both auto-remove themselves.
+6. **shadows-bench polish** ✅ — fixed tree crown hovering above trunk (sphere primitive's radius is 0.5, not 1; corrected the canopy y offset). Added `pulse`-loop Tween on every trunk's X rotation (1.6–2.8° sway, staggered phase) so the forest sways in the wind. Tuned shadows: PCSS algorithm + 3 cascades + 1024 maps + `shadowNormalBias: 0.12` + near-zero shadowBias to kill the peter-pan gap and stay 120 fps at max zoom. Reduced PCSS `LIGHT_WORLD_SIZE` from 0.005 → 0.0025 for a tighter penumbra. Plumbed `shadowNormalBias` through CSM config + project schema + adapter.
+7. **shadows-bench shadow tuner** ✅ — project-local UI panel under the FPS overlay (top-right). Sliders for cascades (2–4) / maxFar / shadowMapSize / shadowBias / shadowNormalBias / lightIntensity, picker for algorithm (PCF / VSM / PCSS), Reset button restores project.json defaults. Plumbs through new `adapter.setShadowAlgorithm(kind)` which recompiles existing materials so the new sampler binding takes effect; PCSS is treated as a one-way transition (the shader-chunk substitution is process-wide), surfaced as a "reload required" note that locks the picker. Beacon-world repair particles raised from `offset y=0.6` → `y=1.4` so sparks fountain above the beacon tip instead of inside the mesh.
+
+### Deliverables
+
+- `engine/core/systems/tween-system.ts` (new)
+- `engine/render/systems/cinematic-camera-system.ts` (new)
+- `engine/render/systems/particle-emitter-system.ts` (new)
+- `engine/render/three-render-adapter.ts` — `ParticlePool` API, `CsmConfig.shadowNormalBias`, per-cascade normalBias apply
+- `engine/render/shadow-pcss.ts` — regex-based substitution + console warning + tighter LIGHT_WORLD_SIZE
+- `engine/runtime/start.ts` — registers tween + particle + cinematic systems
+- `schemas/scene.schema.json` — Tweens / ParticleEmitter / CinematicCamera defs + `pulse` ease
+- `schemas/project.schema.json` — `shadows.csm.shadowNormalBias`
+- `tests/unit/tween-system.test.ts` (new) + `shadow-pcss-algorithm.test.ts` regression
+- `examples/beacon-world/src/systems/pickup-system.ts` — game-feel hooks
+- `examples/shadows-bench/bootstrap.ts` + `project.json` — tree fix, sway, shadow tune
+- `docs/research/scene-schema-split-notes.md` (new — for S48 follow-up)
+- `THIRD_PARTY_NOTICES.md` — removed stale References/ block (those folders are gitignored)
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 68 files, 429 tests (+9 from S46).
+- `npm run engine:check:examples` ✅
+- `npm run test:e2e:smoke` ✅ — 11/11 in 25 s
+- Visual: beacon repair bounces + sparkles; pickup sparkles on core; trees sway; shadow gap under buildings closed; 120 fps maintained at max zoom in shadows-bench
+
+## Archived: Sprint 46 — CI e2e stabilization
 
 Narrow-focus sprint: the new `e2e.yml` workflow added in Sprint 44 fails the same ~10 specs on every CI run while the same specs pass locally on macOS in 5–15s each. Closing that gap is a blocker for treating the e2e workflow as a useful PR gate.
 

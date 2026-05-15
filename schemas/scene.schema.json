@@ -147,6 +147,15 @@
             },
             "FollowCamera": {
               "$ref": "#/definitions/followCameraComponent"
+            },
+            "Tweens": {
+              "$ref": "#/definitions/tweensComponent"
+            },
+            "ParticleEmitter": {
+              "$ref": "#/definitions/particleEmitterComponent"
+            },
+            "CinematicCamera": {
+              "$ref": "#/definitions/cinematicCameraComponent"
             }
           }
         }
@@ -631,6 +640,76 @@
           }
         }
       ]
+    },
+    "tweensComponent": {
+      "description": "M19-tween: array of in-progress tweens on this entity. Each tween writes `from→to` into another component's field over `duration` seconds using `ease`. `loop: \"none\"` removes the tween on completion; `\"loop\"` resets `elapsed`; `\"ping-pong\"` flips from/to. Replay-safe: TweenSystem runs in fixedUpdate so the same elapsed value is reproduced across `engine replay`.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/tween" }
+    },
+    "tween": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "property", "from", "to", "duration"],
+      "properties": {
+        "component": { "type": "string", "minLength": 1, "description": "Sibling component name to write into, e.g. 'Transform' or 'MeshRenderer'." },
+        "property": { "type": "string", "minLength": 1, "description": "Field name on the target component, e.g. 'scale' or 'opacity'." },
+        "from": {
+          "oneOf": [{ "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 4 }]
+        },
+        "to": {
+          "oneOf": [{ "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 4 }]
+        },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "ease": {
+          "enum": ["linear", "easeIn", "easeOut", "easeInOut", "pulse"],
+          "default": "linear",
+          "description": "`pulse` uses sin(π·t) so a one-shot tween animates base → peak → base and auto-removes on completion (one-shot bounces / glints / damage flashes)."
+        },
+        "loop": { "enum": ["none", "loop", "ping-pong"], "default": "none" },
+        "elapsed": { "type": "number", "minimum": 0, "default": 0, "description": "Time accumulated so far. TweenSystem advances this each fixed step." }
+      }
+    },
+    "particleEmitterComponent": {
+      "description": "M19-particle-preset: spawn particles from a project-declared preset. Renderer adapter draws via additive InstancedMesh of small quads; particle data stays ECS-side so save/load survives. `preset` references `examples/<project>/particles/<id>.particle.json`. `lifetime: 0` keeps the emitter alive indefinitely (manual stop via applyCommands removing the component).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preset"],
+      "properties": {
+        "preset": { "type": "string", "minLength": 1, "description": "Preset id matching a project particle manifest." },
+        "lifetime": { "type": "number", "minimum": 0, "default": 0.5, "description": "Seconds the emitter stays alive; the component is removed once elapsed >= lifetime. 0 = forever." },
+        "elapsed": { "type": "number", "minimum": 0, "default": 0 },
+        "rate": { "type": "number", "exclusiveMinimum": 0, "default": 20, "description": "Particles emitted per second." },
+        "maxParticles": { "type": "integer", "minimum": 1, "default": 64 },
+        "offset": { "$ref": "#/definitions/vec3", "default": [0, 0, 0] }
+      }
+    },
+    "cinematicCameraComponent": {
+      "description": "M21-cam-cinematic: scripted camera waypoint playback. Each waypoint declares a camera position + look-at target + duration. CinematicCameraSystem interpolates Transform.position + rotation through the chain. `autoplay: true` starts on scene load; gameplay can pause/skip via applyCommands flipping `playing` or seeking `elapsed`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["waypoints"],
+      "properties": {
+        "waypoints": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["position", "lookAt", "duration"],
+            "properties": {
+              "position": { "$ref": "#/definitions/vec3" },
+              "lookAt": { "$ref": "#/definitions/vec3" },
+              "duration": { "type": "number", "exclusiveMinimum": 0, "description": "Seconds to traverse from the previous waypoint to this one." },
+              "ease": { "enum": ["linear", "easeIn", "easeOut", "easeInOut"], "default": "easeInOut" }
+            }
+          }
+        },
+        "loop": { "type": "boolean", "default": false },
+        "autoplay": { "type": "boolean", "default": true },
+        "playing": { "type": "boolean", "default": true },
+        "elapsed": { "type": "number", "minimum": 0, "default": 0, "description": "Time accumulated since the start of the current cycle." }
+      }
     },
     "followCameraComponent": {
       "description": "M21-cam-follow: anchor the camera to a target entity. Each frame FollowCameraSystem reads the target's world position, places the camera at `targetPosition + offset`, and orients it toward `targetPosition + lookAtOffset`. `smoothing` blends the previous camera position toward the new target per-frame (1 = snap, 0 = frozen).",

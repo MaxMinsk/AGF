@@ -22,6 +22,20 @@ describe("PCSS algorithm + shader-chunk wiring", () => {
     expect(pcssChunksApplied()).toBe(true);
   });
 
+  it("mutates ShaderChunk.shadowmap_pars_fragment with the PCSS helpers + getShadow redirect", async () => {
+    applyPcssShadowChunks();
+    const { ShaderChunk } = await import("three");
+    // The substitution should have injected both the helper functions
+    // (`PCSS_PARS` adds `findBlocker`, `PCF_Filter`, `PCSS`) and the
+    // basic-variant getShadow redirect (`return PCSS( shadowMap, ...`).
+    // If either is missing, PCSS would silently no-op — the M21-shadow-
+    // pcss-csm regression we caught in Sprint 47 was exactly this case
+    // (a whitespace drift in three.js made the substitution miss).
+    expect(ShaderChunk.shadowmap_pars_fragment).toContain("float PCSS");
+    expect(ShaderChunk.shadowmap_pars_fragment).toContain("findBlocker");
+    expect(ShaderChunk.shadowmap_pars_fragment).toContain("return PCSS( shadowMap, shadowCoord )");
+  });
+
   it("three.js exposes the three shadow map types AGF maps from algorithm strings", () => {
     // Smoke guard: if any of these constants disappears from upstream we want
     // a failing unit test, not a deferred runtime error inside the adapter.

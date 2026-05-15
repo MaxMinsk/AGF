@@ -11,6 +11,19 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 import type { EngineCommand } from "../../engine/core/commands/types";
 import { createRtsCameraSystem } from "./src/systems/rts-camera-system";
+import { mountShadowTuner, type ShadowTunerDefaults } from "./src/ui/shadow-tuner";
+
+const SHADOW_DEFAULTS: ShadowTunerDefaults = {
+  cascades: 3,
+  maxFar: 120,
+  shadowMapSize: 1024,
+  shadowBias: -0.000005,
+  shadowNormalBias: 0.12,
+  lightIntensity: 1.55,
+  lightDirection: [-0.45, -1, -0.35],
+  mode: "practical",
+  algorithm: "pcss"
+};
 
 const PALETTE_BUILDINGS: ReadonlyArray<string> = [
   "#c7b893",
@@ -114,7 +127,15 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
 
   // Trees — vertical box trunk + sphere canopy. Scattered uniformly with
   // a deterministic offset so two seeds produce the same layout. Kept
-  // away from the central streets so buildings stay legible.
+  // away from the central streets so buildings stay legible. Each tree
+  // sways gently via a Tween on the trunk's X rotation; the canopy is
+  // attached as a child so it follows the trunk's sway.
+  //
+  // Note on canopy y offset: AGF's `sphere` primitive is a SphereGeometry
+  // with radius 0.5 (not 1.0). With scale = canopyR the canopy's actual
+  // radius is 0.5 * canopyR. To seat the canopy bottom flush with the
+  // trunk top we put the canopy center at `trunkH + 0.5*canopyR - small
+  // overlap` so it visually sinks into the trunk by a few %.
   for (let i = 0; i < spec.trees; i++) {
     const id = `tree.${i}`;
     const angle = rand() * Math.PI * 2;
@@ -123,6 +144,8 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     const z = Math.sin(angle) * radius;
     const trunkH = 0.8 + rand() * 0.8;
     const canopyR = 0.7 + rand() * 0.7;
+    const swayAmp = 1.6 + rand() * 1.2; // degrees
+    const swayDur = 2.4 + rand() * 1.8; // seconds per cycle
     const trunkId = `${id}.trunk`;
     commands.push({ kind: "entity.create", entityId: trunkId });
     commands.push({
@@ -143,12 +166,35 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
       component: "ShadowFlags",
       data: { cast: true, receive: true }
     });
+    // S47 — tween trunk rotation around X by a few degrees; `pulse` ease
+    // with `loop: "loop"` gives a smooth back-and-forth oscillation.
+    commands.push({
+      kind: "component.set",
+      entityId: trunkId,
+      component: "Tweens",
+      data: [
+        {
+          component: "Transform",
+          property: "rotation",
+          from: [-swayAmp, 0, 0],
+          to: [swayAmp, 0, 0],
+          duration: swayDur,
+          ease: "pulse",
+          loop: "loop",
+          // Stagger the phase so the forest doesn't sway in lockstep.
+          elapsed: (i * 0.137) % swayDur
+        }
+      ]
+    });
     commands.push({ kind: "entity.create", entityId: id });
     commands.push({
       kind: "component.set",
       entityId: id,
       component: "Transform",
-      data: { position: [x, trunkH + canopyR * 0.7, z], scale: [canopyR, canopyR, canopyR] }
+      data: {
+        position: [x, trunkH + canopyR * 0.4, z],
+        scale: [canopyR, canopyR, canopyR]
+      }
     });
     commands.push({
       kind: "component.set",
@@ -202,10 +248,12 @@ export const shadowsBenchBootstrap: ProjectBootstrap = {
       context.scheduler.register(createRtsCameraSystem());
     }
   },
-  attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
+  attachUi({ runtime, shell }: ProjectUiContext): ProjectUiHandle {
     runtime.applyCommands(buildSeedCommands(resolveSeed()));
+    const tuner = mountShadowTuner(shell, runtime, SHADOW_DEFAULTS);
     return {
       dispose(): void {
+        tuner.dispose();
         // Procedural entities live in the world; world teardown reclaims them.
       }
     };

@@ -62,6 +62,7 @@ export type ProjectMeta = {
         mode?: "practical" | "uniform" | "logarithmic";
         shadowMapSize?: number;
         shadowBias?: number;
+        shadowNormalBias?: number;
         lightDirection?: ReadonlyArray<number>;
         lightIntensity?: number;
       };
@@ -427,6 +428,7 @@ export async function createApp(
     if (csmConfig.mode !== undefined) csmSpec.mode = csmConfig.mode;
     if (csmConfig.shadowMapSize !== undefined) csmSpec.shadowMapSize = csmConfig.shadowMapSize;
     if (csmConfig.shadowBias !== undefined) csmSpec.shadowBias = csmConfig.shadowBias;
+    if (csmConfig.shadowNormalBias !== undefined) csmSpec.shadowNormalBias = csmConfig.shadowNormalBias;
     if (direction !== undefined && direction.length >= 3) {
       csmSpec.lightDirection = [direction[0] ?? -0.5, direction[1] ?? -1, direction[2] ?? -0.3] as const;
     }

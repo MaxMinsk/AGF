@@ -92,3 +92,85 @@ body {
   font-weight: 700;
 }
 
+/* Project-local panels (e.g. shadows-bench shadow tuner). Mounted on
+   `.app-shell` so they share the dev-overlay coordinate system. The
+   shadow tuner specifically sits under `.engine-dev-overlay` on the
+   top-right edge — keep the offset in sync with `.engine-dev-overlay`. */
+.shadow-tuner {
+  position: absolute;
+  right: 24px;
+  top: 76px;
+  width: 240px;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(150, 212, 255, 0.28);
+  background: rgba(4, 10, 16, 0.62);
+  backdrop-filter: blur(12px);
+  color: rgba(234, 244, 255, 0.86);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 5;
+}
+
+.shadow-tuner header {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: #9cd0ff;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(150, 212, 255, 0.18);
+  margin-bottom: 4px;
+}
+
+.shadow-tuner .row {
+  display: grid;
+  grid-template-columns: 70px 1fr 60px;
+  align-items: center;
+  gap: 6px;
+}
+
+.shadow-tuner .row label {
+  color: rgba(234, 244, 255, 0.72);
+}
+
+.shadow-tuner .row input[type="range"] {
+  width: 100%;
+}
+
+.shadow-tuner .row output {
+  font-size: 11px;
+  text-align: right;
+  color: #c8dcf4;
+}
+
+.shadow-tuner .algorithm-row {
+  grid-template-columns: 70px 1fr;
+}
+
+.shadow-tuner .algorithm-badge {
+  grid-column: 2;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #9cd0ff;
+}
+
+.shadow-tuner .reset {
+  margin-top: 6px;
+  align-self: flex-end;
+  background: rgba(8, 16, 24, 0.7);
+  color: #eaf4ff;
+  border: 1px solid rgba(150, 212, 255, 0.36);
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.shadow-tuner .reset:hover {
+  border-color: rgba(150, 212, 255, 0.65);
+}
+
