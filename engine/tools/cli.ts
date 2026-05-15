@@ -71,6 +71,10 @@ type ParsedArgs = {
   assetLicense: string | undefined;
   assetNotes: string | undefined;
   assetSubdir: string | undefined;
+  /** S54: --source <path> for `engine asset optimize` per-file mode. */
+  assetSource: string | undefined;
+  /** S54: --textures for `engine asset optimize` to include WebP texture compression. */
+  assetTextures: boolean;
   expectPath: string | undefined;
   write: boolean;
   build: boolean;
@@ -185,14 +189,19 @@ if (parsedArgs.command === "check") {
   } else if (sub === "optimize") {
     const projectDir = positional[1];
     if (projectDir === undefined) {
-      console.error("Usage: engine asset optimize <projectDir>");
+      console.error(
+        "Usage: engine asset optimize <projectDir> [--source <path>] [--textures]"
+      );
       process.exitCode = 2;
     } else {
       void (async (): Promise<void> => {
         const { optimizeProjectAssets, formatAssetOptimizeReport } = await import(
           "./asset/asset-optimize.js"
         );
-        const report = await optimizeProjectAssets(projectDir);
+        const optOptions: Parameters<typeof optimizeProjectAssets>[1] = {};
+        if (parsedArgs.assetSource !== undefined) optOptions.source = parsedArgs.assetSource;
+        if (parsedArgs.assetTextures) optOptions.textures = true;
+        const report = await optimizeProjectAssets(projectDir, optOptions);
         emitResult(report, parsedArgs, () => formatAssetOptimizeReport(report));
         process.exitCode = 0;
       })();
@@ -455,6 +464,8 @@ function parseArgs(args: string[]): ParsedArgs {
     assetLicense: undefined,
     assetNotes: undefined,
     assetSubdir: undefined,
+    assetSource: undefined,
+    assetTextures: false,
     expectPath: undefined,
     write: false,
     build: false,
@@ -585,6 +596,17 @@ function parseArgs(args: string[]): ParsedArgs {
       if (value !== undefined && value.length > 0) {
         result.assetSubdir = value;
       }
+      continue;
+    }
+    if (current === "--source") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) {
+        result.assetSource = value;
+      }
+      continue;
+    }
+    if (current === "--textures") {
+      result.assetTextures = true;
       continue;
     }
     if (current === "--expect") {

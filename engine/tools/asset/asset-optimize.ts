@@ -58,15 +58,23 @@ export type AssetOptimizeOptions = {
    * CLI. Opt in once the host has it.
    */
   textures?: boolean;
+  /**
+   * S54: when set, process ONLY the given file path (relative to
+   * `<projectDir>` or absolute) instead of every `.glb` under
+   * `assets/_sources/`. The file still has to live under
+   * `assets/_sources/` so the output target lands at the matching
+   * `assets/runtime/` mirror path.
+   */
+  source?: string;
 };
 
-const DEFAULT_OPTIONS: Required<AssetOptimizeOptions> = {
+const DEFAULT_OPTIONS = {
   dedup: true,
   prune: true,
   weld: true,
   meshopt: true,
   textures: false
-};
+} as const;
 
 export async function optimizeProjectAssets(
   projectDir: string,
@@ -79,8 +87,27 @@ export async function optimizeProjectAssets(
     return { entries: [], totalBytesSaved: 0 };
   }
   const sources: string[] = [];
-  for (const file of walkGlbs(sourcesDir)) sources.push(file);
-  sources.sort();
+  if (options.source !== undefined) {
+    // S54: per-file mode. Resolve against projectDir if relative; the
+    // file MUST land under `assets/_sources/` so the runtime mirror
+    // path stays well-defined.
+    const sourcePath = resolve(projectDir, options.source);
+    if (!existsSync(sourcePath) || !statSync(sourcePath).isFile()) {
+      throw new Error(`asset optimize: source "${options.source}" not found.`);
+    }
+    if (!sourcePath.startsWith(sourcesDir + "/") && sourcePath !== sourcesDir) {
+      throw new Error(
+        `asset optimize: source "${options.source}" must live under assets/_sources/.`
+      );
+    }
+    if (!sourcePath.toLowerCase().endsWith(".glb")) {
+      throw new Error(`asset optimize: only .glb files are supported (got "${options.source}").`);
+    }
+    sources.push(sourcePath);
+  } else {
+    for (const file of walkGlbs(sourcesDir)) sources.push(file);
+    sources.sort();
+  }
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({
