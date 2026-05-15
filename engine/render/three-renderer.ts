@@ -341,13 +341,16 @@ export class ThreeRenderer {
   }
 
   private refreshMeshes(resolved: Map<EntityId, ResolvedTransform>): void {
-    // BatchingSystem (M17) owns the visual for Batchable entities — their
-    // matrix lives in an InstancedMesh slot, not a per-entity Mesh. Skip
-    // them here so the renderer's standalone fallback matches the
-    // MeshLifecycleSystem path and avoids double-acquiring handles.
+    // BatchingSystem (M17) owns the visual for batched entities — their
+    // matrix lives in an InstancedMesh slot, not a per-entity Mesh.
+    // Skip both the explicit Batchable path AND the S50 auto-batch path
+    // (BatchedMeshHandle set by BatchingSystem on entities it placed in
+    // a bucket) so this fallback doesn't double-acquire handles.
     const renderable = new Set<EntityId>();
     for (const id of this.world.query(["MeshRenderer"])) {
-      if (!this.world.hasComponent(id, "Batchable")) renderable.add(id);
+      if (this.world.hasComponent(id, "Batchable")) continue;
+      if (this.world.hasComponent(id, "BatchedMeshHandle")) continue;
+      renderable.add(id);
     }
 
     // Release entities that left the renderable set. When MeshLifecycleSystem

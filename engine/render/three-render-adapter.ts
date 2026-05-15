@@ -30,6 +30,7 @@ import {
   DirectionalLight,
   HemisphereLight,
   IcosahedronGeometry,
+  InstancedBufferAttribute,
   InstancedMesh,
   type Light,
   LineBasicMaterial,
@@ -96,10 +97,21 @@ export type BucketAcquireSpec = {
   geometry: BufferGeometry;
   /** Initial slot count for the InstancedMesh. Grow via `resizeBucket`; can't shrink. */
   capacity: number;
-  /** Initial material color (per-bucket; per-instance color via setInstanceColor). */
+  /** Initial / fallback material color when `useInstanceColor` is off. */
   color?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
+  /**
+   * M17-batchable-color-variants (S50): when true, the bucket allocates
+   * an `instanceColor` InstancedBufferAttribute so each slot can carry
+   * its own color. Three.js's MeshStandardMaterial picks the attribute
+   * up automatically and modulates the base color per instance. Use
+   * `setBucketInstanceColor(handle, index, color)` to write per-slot.
+   *
+   * Default false to keep older call sites (batch-bench, physics-bench)
+   * one-bucket-per-color so their existing fixtures stay deterministic.
+   */
+  useInstanceColor?: boolean;
 };
 
 /**
@@ -457,6 +469,7 @@ export class ThreeRenderAdapter {
   private rectAreaUniformsReady = false;
   private readonly scratchMatrix = new Matrix4();
   private readonly scratchPosition = new Vector3();
+  private readonly scratchColor = new Color();
   private readonly scratchScale = new Vector3();
   private readonly scratchQuat = new Quaternion();
   private readonly scratchRaycaster = new Raycaster();
@@ -811,13 +824,24 @@ export class ThreeRenderAdapter {
   acquireBucket(spec: BucketAcquireSpec): BucketHandle {
     const handle = this.nextBucketHandle;
     this.nextBucketHandle += 1;
-    const material = new MeshStandardMaterial({ color: new Color(spec.color ?? DEFAULT_COLOR) });
+    // When `useInstanceColor` is on, the material's base color stays white
+    // and each instance modulates via its own `instanceColor` attribute.
+    // Material is compiled once with the attribute attached.
+    const baseColor = spec.useInstanceColor === true ? "#ffffff" : spec.color ?? DEFAULT_COLOR;
+    const material = new MeshStandardMaterial({ color: new Color(baseColor) });
     this.registerWithCsm(material);
     const mesh = new InstancedMesh(spec.geometry, material, spec.capacity);
     mesh.count = 0;
     mesh.frustumCulled = false;
     mesh.castShadow = spec.castShadow !== false;
     mesh.receiveShadow = spec.receiveShadow !== false;
+    if (spec.useInstanceColor === true) {
+      // Pre-fill with white so freshly-added instances render neutrally
+      // until the first `setBucketInstanceColor` writes a real colour.
+      const colors = new Float32Array(spec.capacity * 3);
+      colors.fill(1);
+      mesh.instanceColor = new InstancedBufferAttribute(colors, 3);
+    }
     this.scene.add(mesh);
     this.buckets.set(handle, { mesh, capacity: spec.capacity, liveSlots: new Set() });
     return handle;
@@ -849,6 +873,14 @@ export class ThreeRenderAdapter {
       newMesh.setMatrixAt(slot, this.scratchMatrix);
     }
     newMesh.instanceMatrix.needsUpdate = true;
+    // Preserve per-instance colour when the bucket carries one.
+    if (oldMesh.instanceColor !== null && oldMesh.instanceColor !== undefined) {
+      const newColors = new Float32Array(newCapacity * 3);
+      newColors.fill(1);
+      const oldArray = oldMesh.instanceColor.array as Float32Array;
+      newColors.set(oldArray.subarray(0, Math.min(oldArray.length, newColors.length)));
+      newMesh.instanceColor = new InstancedBufferAttribute(newColors, 3);
+    }
     this.scene.remove(oldMesh);
     oldMesh.dispose();
     // Don't dispose geometry/material — newMesh shares them.
@@ -904,6 +936,21 @@ export class ThreeRenderAdapter {
     this.scratchMatrix.compose(this.scratchPosition, this.scratchQuat, this.scratchScale);
     entry.mesh.setMatrixAt(index, this.scratchMatrix);
     entry.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * M17-batchable-color-variants: stamp a per-instance colour on a
+   * bucket slot. No-op if the bucket was acquired without
+   * `useInstanceColor`. Three's InstancedMesh.setColorAt + needsUpdate
+   * uploads the colour on the next draw.
+   */
+  setBucketInstanceColor(handle: BucketHandle, index: InstanceIndex, color: string): void {
+    const entry = this.buckets.get(handle);
+    if (entry === undefined || !entry.liveSlots.has(index)) return;
+    const mesh = entry.mesh;
+    if (mesh.instanceColor === null || mesh.instanceColor === undefined) return;
+    mesh.setColorAt(index, this.scratchColor.set(color));
+    mesh.instanceColor.needsUpdate = true;
   }
 
   bucketLiveCount(handle: BucketHandle): number {

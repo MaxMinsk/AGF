@@ -21,7 +21,38 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
-## Current Sprint: Sprint 49 — rendererInfo accuracy + hygiene tidy
+## Next Sprint candidates
+
+- **M17-batch-glb-meshes** — today the BatchingSystem only batches entities whose `MeshRenderer.mesh` is a built-in primitive (box/sphere/plane). Any GLB / asset-path mesh falls through to single-Mesh rendering even when many entities share the same `runtime/models/<name>.glb`. The renderer already loads geometry once via `AssetRegistry`; the batcher needs to promote the bucket key to include arbitrary mesh refs + cache the loaded `BufferGeometry` so multiple instances share one InstancedMesh. Acceptance: beacon-world's beacon + core glb instances collapse to 2 buckets (one per (model + shadow + group)) instead of 8 single Meshes.
+- **M17-batch-material-manifests** — entities with `MeshRenderer.material = "runtime/materials/<x>.material.json"` also fall through today. With per-instance color now available (S50), texture-less manifests (Standard with only color/roughness/metalness) could route through the same InstancedMesh path. Texture-bearing manifests need a separate bucket per manifest (texture uniforms can't vary per-instance without atlasing — defer). Acceptance: shadows-bench + beacon-world manifest-material entities batch when textures are absent.
+- **M17-batch-default-on** — once GLB + manifest batching land, flip `autoBatchPrimitives` (renamed `autoBatch`) on by default and update existing project.json files to opt out only where they need single-Mesh semantics. Goal: agents stop thinking about Batchable for the typical case.
+- **RENDER-bucket-key-architecture** — current bucket key is a hand-rolled string `instanced|<mesh>|<shadow>|<group>`. With GLB + manifests joining the routing logic between InstancedMesh and BatchedMesh paths gets messier. Investigate moving to a typed BucketSpec + Map<hash, BucketRecord>, and revisit the dispatch between bucketer (M17) and batched-mesh-system (M17-b) under a single abstraction.
+
+## Current Sprint: Sprint 50 — auto-batch + per-instance color
+
+Two compounding wins for shadows-bench: drawCalls drops **203 → 5** (40×) and frame time **5.4 ms → 1.4 ms** (4×) with one project.json flag.
+
+### Stories
+
+1. **M17-batchable-color-variants** ✅ — adapter `acquireBucket({ useInstanceColor: true })` allocates the `instanceColor` InstancedBufferAttribute on the InstancedMesh + `setBucketInstanceColor(handle, index, color)` writes per-slot colour. Three's MeshStandardMaterial picks the attribute up automatically. `BatchingSystem.updateInstanced` drops `renderer.color` from the bucket key so entities with different colours collapse into one InstancedMesh and call setBucketInstanceColor after each transform write.
+2. **M17-auto-batch-primitives** ✅ — new `BatchingOptions.autoIncludePrimitives` (plumbed through `RuntimeOptions.autoBatchPrimitives` + `project.json#render.batching.auto`). When on, BatchingSystem treats every entity with a built-in primitive mesh (box/sphere/plane), no LOD, no manifest material as auto-batched without needing an explicit `Batchable` component. Per-entity opt-out via `Batchable: { enabled: false }`.
+3. **M17-system-ordering** ✅ — moved BatchingSystem BEFORE MeshLifecycleSystem in start.ts so `BatchedMeshHandle` is set before mesh-lifecycle runs. Both `MeshLifecycleSystem.frameUpdate` AND `ThreeRenderer.refreshMeshes` (the fallback path called every frame from `render()`) now skip entities with `BatchedMeshHandle` too — the historical filter only looked at `Batchable`, so auto-batched entities were double-acquired as both single Meshes and InstancedMesh slots (the 310-draw / 27 ms-frame slowness reported during S50 development).
+4. **shadows-bench adoption** ✅ — `project.json#render.batching.auto: true`; trees + rocks repositioned to clear the road corridors (small helper that shifts |x| or |z| out to 2.5 m when either coordinate lands inside the 4 m-wide road).
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 69 files, 433 tests (one existing batching test rewritten for the new colour-variant semantics)
+- shadows-bench live probe with `batching.auto: true`:
+  - drawCalls: **203 → 5** (40× fewer)
+  - frame time: **5.4 ms → 1.4 ms** (4× faster)
+  - `meshes: 0`, `buckets: 3`, `bucketInstances: 305`, `handleLeak: 0`
+
+### Notes for Sprint 51+
+
+`Next Sprint candidates` covers the remaining batching work: GLB mesh batching, material-manifest batching, default-on once those land, and a cleaner BucketSpec abstraction over the InstancedMesh + BatchedMesh paths.
+
+## Archived: Sprint 49 — rendererInfo accuracy + hygiene tidy
 
 Small follow-ups noticed after S48 landed:
 

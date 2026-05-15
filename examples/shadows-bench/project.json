@@ -10,6 +10,7 @@
     "post": [
       { "kind": "fxaa" }
     ],
+    "batching": { "auto": true },
     "shadows": {
       "autoUpdate": false,
       "algorithm": "pcss",

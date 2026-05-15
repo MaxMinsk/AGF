@@ -52,12 +52,19 @@ export function createMeshLifecycleSystem(
       renderableQuery = world.createQuery([MESH_RENDERER]);
       cachedWorld = world;
     }
-    // BatchingSystem (M17-bucketer) owns Batchable entities; their visual
+    // BatchingSystem (M17-bucketer) owns batched entities; their visual
     // is an InstancedMesh slot, not a per-entity Mesh. Skip them here so
-    // the two systems don't double-up.
+    // the two systems don't double-up. Two signals matter:
+    //   1. explicit `Batchable` component — opt-in from the historical
+    //      tagged path;
+    //   2. `BatchedMeshHandle` set by BatchingSystem after it placed the
+    //      entity in a bucket — covers the S50 auto-batch path where the
+    //      entity has no Batchable tag.
     const renderable = new Set<EntityId>();
     for (const id of renderableQuery!.run()) {
-      if (!world.hasComponent(id, BATCHABLE)) renderable.add(id);
+      if (world.hasComponent(id, BATCHABLE)) continue;
+      if (world.hasComponent(id, "BatchedMeshHandle")) continue;
+      renderable.add(id);
     }
 
     // Release departed (also entities that became Batchable since last frame).

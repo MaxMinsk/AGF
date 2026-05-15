@@ -112,11 +112,32 @@ export type BatchingSystemHandle = System & {
   totalInstances(): number;
 };
 
+export type BatchingOptions = {
+  name?: string;
+  /**
+   * S50 auto-batch: when true, every entity with a built-in primitive
+   * mesh (box / sphere / plane) is implicitly treated as Batchable
+   * even without a `Batchable` component. The opt-out for individual
+   * entities is `Batchable: { enabled: false }`. GLB / external meshes,
+   * material-manifest meshes, LOD entities and explicitly-disabled
+   * entities are skipped regardless.
+   *
+   * Default false to preserve historical behaviour. shadows-bench
+   * flips it on via `project.json#render.batching.auto: true`.
+   */
+  autoIncludePrimitives?: boolean;
+};
+
 export function createBatchingSystem(
   deps: BatchingDeps,
-  options: { name?: string } = {}
+  options: BatchingOptions = {}
 ): BatchingSystemHandle {
   const name = options.name ?? "render.batching";
+  const autoIncludePrimitives = options.autoIncludePrimitives === true;
+  // Built-in primitive set must mirror `createPrimitiveGeometry` in
+  // mesh-handle-registry.ts. The auto-batch path falls back to single-
+  // Mesh rendering for any mesh that isn't a primitive.
+  const PRIMITIVE_MESHES = new Set(["box", "sphere", "plane"]);
   let cachedWorld: World | undefined;
   let batchableQuery: QueryHandle | undefined;
   const bucketsByKey = new Map<string, BucketRecord>();
@@ -165,14 +186,20 @@ export function createBatchingSystem(
     cast: boolean,
     receive: boolean
   ): void => {
-    const bucketKey = `instanced|${renderer.mesh}|${renderer.color ?? ""}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
+    // M17-batchable-color-variants (S50): bucket key intentionally omits
+    // `renderer.color` so entities with different colours share a
+    // bucket. Per-instance colour is stamped via
+    // `adapter.setBucketInstanceColor` below; the bucket is allocated
+    // with `useInstanceColor: true` so the InstancedMesh carries the
+    // instanceColor attribute from compile time.
+    const bucketKey = `instanced|${renderer.mesh}|${cast ? "1" : "0"}:${receive ? "1" : "0"}|${batchable?.group ?? ""}`;
     let record = bucketsByKey.get(bucketKey) as InstancedRecord | undefined;
     if (record === undefined) {
       const geometry = createPrimitiveGeometry(renderer.mesh) ?? createPlaceholderGeometry();
       const handle = deps.adapter.acquireBucket({
         geometry,
         capacity: DEFAULT_BUCKET_CAPACITY,
-        ...(renderer.color !== undefined ? { color: renderer.color } : {}),
+        useInstanceColor: true,
         castShadow: cast,
         receiveShadow: receive
       });
@@ -227,6 +254,9 @@ export function createBatchingSystem(
         scale: [ltw.scale[0] ?? 1, ltw.scale[1] ?? 1, ltw.scale[2] ?? 1]
       });
     }
+    // Stamp per-instance colour. Falls back to white when the renderer
+    // didn't declare one (matches the pre-S50 default-color behaviour).
+    deps.adapter.setBucketInstanceColor(record.handle, instance, renderer.color ?? "#ffffff");
   };
 
   const updateBatched = (
@@ -326,7 +356,13 @@ export function createBatchingSystem(
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
     if (world !== cachedWorld) {
-      batchableQuery = world.createQuery([BATCHABLE, MESH_RENDERER]);
+      // S50: when auto-include is on, the candidate set is every entity
+      // with a MeshRenderer; the per-entity filter below decides which
+      // ones actually get batched. Otherwise we keep the historical
+      // explicit-Batchable contract.
+      batchableQuery = autoIncludePrimitives
+        ? world.createQuery([MESH_RENDERER])
+        : world.createQuery([BATCHABLE, MESH_RENDERER]);
       cachedWorld = world;
       // World swap (HMR / scene change). Drop in-flight state; the adapter
       // dispose path or the new frame will rebuild.
@@ -349,6 +385,26 @@ export function createBatchingSystem(
     for (const entityId of currentBatchable) {
       const renderer = world.getComponent<MeshRendererComponent>(entityId, MESH_RENDERER);
       if (renderer === undefined) continue;
+      const batchable = world.getComponent<BatchableComponent>(entityId, BATCHABLE);
+      // Explicit opt-out: `Batchable: { enabled: false }` keeps the
+      // entity on the single-Mesh path even when auto-batch is on.
+      if (batchable !== undefined && (batchable as { enabled?: boolean }).enabled === false) {
+        releaseEntity(world, entityId);
+        continue;
+      }
+      // Auto-batch mode only batches primitive meshes — anything that
+      // resolves to a glb / manifest / LOD chain falls back to the
+      // single-Mesh path.
+      if (autoIncludePrimitives && batchable === undefined) {
+        if (!PRIMITIVE_MESHES.has(renderer.mesh)) {
+          releaseEntity(world, entityId);
+          continue;
+        }
+        if (world.hasComponent(entityId, "LOD")) {
+          releaseEntity(world, entityId);
+          continue;
+        }
+      }
       if (isExternalMeshRef(renderer.mesh)) {
         // GLB mesh batching is deferred — async geometry loading still
         // belongs to MeshLifecycle until M25 ASSET-compression lands.
@@ -360,7 +416,6 @@ export function createBatchingSystem(
         releaseEntity(world, entityId);
         continue;
       }
-      const batchable = world.getComponent<BatchableComponent>(entityId, BATCHABLE);
       const flags = world.getComponent<ShadowFlagsComponent>(entityId, SHADOW_FLAGS);
       const cast = flags?.cast !== false;
       const receive = flags?.receive !== false;

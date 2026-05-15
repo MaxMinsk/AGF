@@ -140,8 +140,9 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     const id = `tree.${i}`;
     const angle = rand() * Math.PI * 2;
     const radius = 12 + rand() * 26;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
+    const rawX = Math.cos(angle) * radius;
+    const rawZ = Math.sin(angle) * radius;
+    const [x, z] = clearRoadCorridor(rawX, rawZ);
     const trunkH = 0.8 + rand() * 0.8;
     const canopyR = 0.7 + rand() * 0.7;
     const swayAmp = 1.8 + rand() * 1.5; // degrees
@@ -454,8 +455,9 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
     const id = `rock.${i}`;
     const angle = rand() * Math.PI * 2;
     const radius = 8 + rand() * 30;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
+    const rawX = Math.cos(angle) * radius;
+    const rawZ = Math.sin(angle) * radius;
+    const [x, z] = clearRoadCorridor(rawX, rawZ);
     const s = 0.4 + rand() * 0.9;
     commands.push({ kind: "entity.create", entityId: id });
     commands.push({
@@ -479,6 +481,21 @@ function buildSeedCommands(spec: SeedSpec): EngineCommand[] {
   }
 
   return commands;
+}
+
+/**
+ * Roads run along x=0 and z=0, each 4 m wide. Trees + rocks must not
+ * spawn on top of them — shift their positions away from the nearest
+ * road centreline so the props sit just off the kerb instead of in the
+ * middle of traffic.
+ */
+function clearRoadCorridor(x: number, z: number): [number, number] {
+  const HALF_ROAD = 2.5; // road half-width + small buffer
+  let ax = x;
+  let az = z;
+  if (Math.abs(az) < HALF_ROAD) az = (az === 0 ? 1 : Math.sign(az)) * HALF_ROAD;
+  if (Math.abs(ax) < HALF_ROAD) ax = (ax === 0 ? 1 : Math.sign(ax)) * HALF_ROAD;
+  return [ax, az];
 }
 
 export const shadowsBenchBootstrap: ProjectBootstrap = {
