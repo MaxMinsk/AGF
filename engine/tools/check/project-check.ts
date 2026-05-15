@@ -449,39 +449,114 @@ function validateSceneAssetReferences(
     }
 
     const meshRenderer = components["MeshRenderer"];
-    if (!isJsonObject(meshRenderer)) {
-      return;
+    if (isJsonObject(meshRenderer)) {
+      const mesh = meshRenderer["mesh"];
+      if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+        diagnostics.push(
+          ...validateAssetReference({
+            projectDir,
+            assetRoot,
+            scenePath,
+            jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.mesh`,
+            reference: mesh,
+            referenceKind: "mesh"
+          })
+        );
+      }
+
+      const material = meshRenderer["material"];
+      if (typeof material === "string") {
+        diagnostics.push(
+          ...validateAssetReference({
+            projectDir,
+            assetRoot,
+            scenePath,
+            jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
+            reference: material,
+            referenceKind: "material"
+          })
+        );
+      }
     }
 
-    const mesh = meshRenderer["mesh"];
-    if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+    // S54 ASSET-lod-metadata: per-level structural checks the JSON
+    // schema can't express on its own — ascending distances and
+    // mesh refs that point at real assets / primitives.
+    const lod = components["LOD"];
+    if (isJsonObject(lod) && Array.isArray(lod["levels"])) {
       diagnostics.push(
-        ...validateAssetReference({
+        ...validateLodComponent(lod["levels"], {
           projectDir,
           assetRoot,
           scenePath,
-          jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.mesh`,
-          reference: mesh,
-          referenceKind: "mesh"
-        })
-      );
-    }
-
-    const material = meshRenderer["material"];
-    if (typeof material === "string") {
-      diagnostics.push(
-        ...validateAssetReference({
-          projectDir,
-          assetRoot,
-          scenePath,
-          jsonPath: `$.entities[${entityIndex}].components.MeshRenderer.material`,
-          reference: material,
-          referenceKind: "material"
+          entityIndex
         })
       );
     }
   });
 
+  return diagnostics;
+}
+
+function validateLodComponent(
+  levels: JsonValue[],
+  ctx: {
+    projectDir: string;
+    assetRoot: string;
+    scenePath: string;
+    entityIndex: number;
+  }
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const seenDistances = new Set<number>();
+  let previousDistance = -Infinity;
+  levels.forEach((level, levelIndex) => {
+    if (!isJsonObject(level)) return;
+    const distance = level["maxDistance"];
+    const mesh = level["mesh"];
+    const basePath = `$.entities[${ctx.entityIndex}].components.LOD.levels[${levelIndex}]`;
+    if (typeof distance === "number") {
+      if (seenDistances.has(distance)) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_LOD_DISTANCE_DUPLICATE",
+          file: toProjectRelativeFile(ctx.scenePath, ctx.projectDir),
+          path: `${basePath}.maxDistance`,
+          message: `LOD level ${levelIndex} reuses maxDistance ${distance}; each level needs a unique threshold.`,
+          suggestion: "Adjust the distance so every LOD level has a distinct fall-off point."
+        });
+      }
+      seenDistances.add(distance);
+      if (distance <= previousDistance) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_LOD_DISTANCES_OUT_OF_ORDER",
+          file: toProjectRelativeFile(ctx.scenePath, ctx.projectDir),
+          path: `${basePath}.maxDistance`,
+          message: `LOD level ${levelIndex} maxDistance ${distance} is not strictly greater than the previous level (${previousDistance}). LodSelectionSystem expects ascending order.`,
+          suggestion: "Reorder the levels so maxDistance ascends and each level is the cheapest mesh that still looks acceptable up to that range."
+        });
+      }
+      previousDistance = distance;
+    }
+    if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+      const refDiagnostics = validateAssetReference({
+        projectDir: ctx.projectDir,
+        assetRoot: ctx.assetRoot,
+        scenePath: ctx.scenePath,
+        jsonPath: `${basePath}.mesh`,
+        reference: mesh,
+        referenceKind: "mesh"
+      });
+      // Re-tag the diagnostics so the agent sees an LOD-specific code.
+      for (const diag of refDiagnostics) {
+        diagnostics.push({
+          ...diag,
+          code: "AGF_LOD_MESH_MISSING"
+        });
+      }
+    }
+  });
   return diagnostics;
 }
 
