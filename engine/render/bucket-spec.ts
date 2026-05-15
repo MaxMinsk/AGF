@@ -49,6 +49,24 @@ export type BatchedBvhBucketSpec = {
 };
 
 /**
+ * S53 RENDER-pool-handle-union. Tagged handle returned by
+ * `ThreeRenderAdapter.acquirePool(spec, opts)`. Wraps the raw numeric
+ * handle so downstream readers (story 11's doctor section, story 13's
+ * BatchingSystem migration) can dispatch on `kind` without consulting
+ * a separate Map.
+ *
+ * Particle pools deliberately stay outside `BucketSpec` for now —
+ * their identity is per-emitter, not per-mesh-class, and they have no
+ * shadow-flag / group key. Once a use case for unified pool-iteration
+ * appears (e.g., a future "release every pool on context loss" path),
+ * `PoolHandle` can grow a `particle` variant.
+ */
+export type PoolHandle =
+  | { kind: "instanced"; handle: number }
+  | { kind: "batched"; handle: number }
+  | { kind: "batched-bvh"; handle: number };
+
+/**
  * Stable string hash for use as a `Map<string, BucketRecord>` key.
  *
  * Format matches the legacy hand-rolled keys exactly so:

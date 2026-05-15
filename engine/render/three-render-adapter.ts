@@ -80,6 +80,7 @@ import { CubeTextureLoader } from "three";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
+import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -151,6 +152,34 @@ export type ParticlePoolAcquireSpec = {
 /** M17-batched-mesh: one BatchedMesh per bucket. Multiple geometries share a material. */
 export type BatchedBucketHandle = number;
 export type BatchedGeometryId = number;
+
+/**
+ * S53 RENDER-pool-handle-union: construction-only options for
+ * `acquirePool`. Identity options (`shadowCast` / `shadowReceive` /
+ * `materialProfile` / `group`) come in via `BucketSpec`; this carries
+ * the per-kind GL allocation params that the underlying
+ * `acquireBucket` / `acquireBatchedBucket` methods need.
+ */
+export type PoolAcquireOptions =
+  | {
+      kind: "instanced";
+      geometry: BufferGeometry;
+      capacity: number;
+      useInstanceColor?: boolean;
+      color?: string;
+      materialParams?: {
+        roughness?: number;
+        metalness?: number;
+        emissive?: string;
+      };
+    }
+  | {
+      kind: "batched";
+      maxInstances: number;
+      maxVertices: number;
+      maxIndices: number;
+      color?: string;
+    };
 
 export type BatchedBucketAcquireSpec = {
   /** Maximum instances the BatchedMesh ring will hold. Grow with resize (not supported in v0). */
@@ -1176,6 +1205,107 @@ export class ThreeRenderAdapter {
 
   batchedBucketLiveCount(handle: BatchedBucketHandle): number {
     return this.batchedBuckets.get(handle)?.liveInstances.size ?? 0;
+  }
+
+  // ---- S53 RENDER-pool-handle-union: typed dispatcher ----
+
+  /**
+   * Acquire a pool by `BucketSpec` identity + per-kind construction
+   * options. Returns a tagged `PoolHandle` so downstream readers
+   * (story 11's doctor, story 13's BatchingSystem migration) can
+   * dispatch on `kind` without consulting a separate Map.
+   *
+   * The kinds map to existing pool methods:
+   * - `instanced` → `acquireBucket` (BVH-free InstancedMesh path).
+   * - `batched`   → `acquireBatchedBucket` (BatchedMesh, per-instance
+   *   frustum culling via three.js' `perObjectFrustumCulled`).
+   * - `batched-bvh` → reserved for story 5. Currently routes to
+   *   `acquireBatchedBucket`; the BVH adapter swap lands when
+   *   `@three.ez/batched-mesh-extensions` is wired in.
+   *
+   * Construction-only options (`geometry`, `capacity`, `useInstanceColor`,
+   * `materialParams`, `maxInstances`, `maxVertices`, `maxIndices`) come
+   * in via `opts`. Identity options (`shadowCast`, `shadowReceive`,
+   * `materialProfile`, `group`) come from `spec` and are forwarded so
+   * the underlying acquire call gets a fully-populated spec.
+   *
+   * Existing per-kind methods (`acquireBucket`, `acquireBatchedBucket`)
+   * stay public for back-compat — call sites can adopt the dispatcher
+   * incrementally.
+   */
+  acquirePool(spec: BucketSpec, opts: PoolAcquireOptions): PoolHandle {
+    switch (spec.kind) {
+      case "instanced": {
+        if (opts.kind !== "instanced") {
+          throw new Error(
+            `acquirePool: spec.kind "instanced" requires opts.kind "instanced" (got "${opts.kind}").`
+          );
+        }
+        const bucketSpec: BucketAcquireSpec = {
+          geometry: opts.geometry,
+          capacity: opts.capacity,
+          castShadow: spec.shadowCast,
+          receiveShadow: spec.shadowReceive
+        };
+        if (opts.useInstanceColor !== undefined) bucketSpec.useInstanceColor = opts.useInstanceColor;
+        if (opts.materialParams !== undefined) bucketSpec.materialParams = opts.materialParams;
+        if (spec.materialProfile !== undefined) bucketSpec.materialProfile = spec.materialProfile;
+        if (opts.color !== undefined) bucketSpec.color = opts.color;
+        return { kind: "instanced", handle: this.acquireBucket(bucketSpec) };
+      }
+      case "batched":
+      case "batched-bvh": {
+        if (opts.kind !== "batched") {
+          throw new Error(
+            `acquirePool: spec.kind "${spec.kind}" requires opts.kind "batched" (got "${opts.kind}").`
+          );
+        }
+        const batchedSpec: BatchedBucketAcquireSpec = {
+          maxInstances: opts.maxInstances,
+          maxVertices: opts.maxVertices,
+          maxIndices: opts.maxIndices,
+          castShadow: spec.shadowCast,
+          receiveShadow: spec.shadowReceive
+        };
+        if (opts.color !== undefined) batchedSpec.color = opts.color;
+        // S53 BVH variant lands in story 5; this kind stays compatible
+        // with the vanilla BatchedMesh path until then.
+        return { kind: spec.kind, handle: this.acquireBatchedBucket(batchedSpec) };
+      }
+    }
+  }
+
+  /**
+   * Live instance count for a pool by typed handle. Maps to the
+   * existing per-kind counters (`bucketLiveCount` /
+   * `batchedBucketLiveCount`) without forcing callers to know which
+   * to use. New in S53 alongside the typed `PoolHandle`.
+   */
+  poolLiveCount(handle: PoolHandle): number {
+    switch (handle.kind) {
+      case "instanced":
+        return this.bucketLiveCount(handle.handle);
+      case "batched":
+      case "batched-bvh":
+        return this.batchedBucketLiveCount(handle.handle);
+    }
+  }
+
+  /**
+   * Release a pool by typed handle. Routes to `releaseBucket` or
+   * `releaseBatchedBucket` based on `kind`. Mirrors the symmetry of
+   * `acquirePool`.
+   */
+  releasePool(handle: PoolHandle): void {
+    switch (handle.kind) {
+      case "instanced":
+        this.releaseBucket(handle.handle);
+        return;
+      case "batched":
+      case "batched-bvh":
+        this.releaseBatchedBucket(handle.handle);
+        return;
+    }
   }
 
   resize(width: number, height: number): void {
