@@ -253,11 +253,13 @@ describe("BatchingSystem batched path (S51)", () => {
       instance: InstanceIndex;
       geometryId: BatchedGeometryId;
     }> = [];
-    (adapter as unknown as { setBatchedInstanceGeometry: (...args: unknown[]) => void }).setBatchedInstanceGeometry = (
-      handle: BatchedBucketHandle,
-      instance: InstanceIndex,
-      geometryId: BatchedGeometryId
-    ): void => {
+    (adapter as unknown as {
+      setBatchedInstanceGeometry: (
+        handle: BatchedBucketHandle,
+        instance: InstanceIndex,
+        geometryId: BatchedGeometryId
+      ) => void;
+    }).setBatchedInstanceGeometry = (handle, instance, geometryId): void => {
       setGeometryCalls.push({ handle, instance, geometryId });
     };
 
