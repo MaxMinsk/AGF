@@ -21,6 +21,17 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - Each story should include tasks, acceptance criteria and verification.
 - Documentation, code comments, identifiers, diagnostics and in-app text must be English.
 
+## Next Sprint candidates
+
+- **M17-batchable-color-variants** — shadows-bench reports `drawCalls: 194` after S49, but the scene is overwhelmingly box + sphere primitives. They don't batch today because `BatchingSystem`'s bucket key is `instanced|<mesh>|<color>|<shadow>|<group>` — every distinct color forks a new bucket. Three.js `InstancedMesh` supports **per-instance color** via `setColorAt(i, color)` (the `instanceColor` attribute) without recompiling the material, so we can drop color from the bucket key and stamp the color per-instance.
+  - Adapter: enable per-instance color on `acquireBucket` (set `instancedMesh.instanceColor = new InstancedBufferAttribute(...)`) + add `setBucketInstanceColor(handle, instance, color)`.
+  - `BatchingSystem.updateInstanced`: drop `renderer.color` from the bucket key; track per-instance color in the `InstancedRecord.members` map; call the new adapter setter after `setBucketInstanceTransform`.
+  - Scale variation already works (transforms compose non-uniform scale via `setMatrixAt`) — no schema change needed.
+  - `examples/shadows-bench/bootstrap.ts`: add `Batchable {}` to buildings + tree.* + rocks + car body/cabin/wheels. Even a one-line tag per entity is enough; the bucketer groups by mesh + shadow + group.
+  - Expected: drawCalls drops from ~194 to ~30-50 in shadows-bench (handful of buckets × cascade shadow passes). batch-bench should be unaffected — already same-colored, already batched.
+  - Risk: material recompilation cost when first promoting a Mesh material to `instanceColor` mode. Mitigation: opt into the per-instance attribute at bucket creation, not at per-instance set, so the material compiles once with the right defines.
+  - Acceptance: shadows-bench live probe shows `drawCalls < 80` with the same visual output (same shadow look, same per-entity colors visible) + the unit suite stays green.
+
 ## Current Sprint: Sprint 49 — rendererInfo accuracy + hygiene tidy
 
 Small follow-ups noticed after S48 landed:
