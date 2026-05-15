@@ -26,6 +26,7 @@ import {
   BatchedMesh,
   BufferAttribute,
   BufferGeometry,
+  CanvasTexture,
   Color,
   DirectionalLight,
   HemisphereLight,
@@ -337,9 +338,16 @@ export type AdapterInfo = {
   batchedBucketInstances: number;
 };
 
+export type SkyGradient = {
+  top: string;
+  bottom: string;
+};
+
 export type AdapterOptions = {
   canvas: HTMLCanvasElement;
   background?: string;
+  /** S52 POLISH-shadows-bench-sky: optional vertical gradient skybox. Overrides `background`. */
+  skyGradient?: SkyGradient;
   /**
    * M21-context-loss: fires when the WebGL context is lost or
    * restored. Three.js's WebGLRenderer auto-re-uploads GPU resources
@@ -547,7 +555,9 @@ export class ThreeRenderAdapter {
     this.device.toneMapping = TONE_MAPPING_BY_KIND[toneMappingKind];
     this.device.toneMappingExposure = options.color?.exposure ?? 1;
     this.scene = new Scene();
-    if (options.background !== undefined) {
+    if (options.skyGradient !== undefined) {
+      this.scene.background = createGradientTexture(options.skyGradient);
+    } else if (options.background !== undefined) {
       this.scene.background = new Color(options.background);
     }
     // Fallback lighting until LightLifecycleSystem (or the user's scene)
@@ -1937,6 +1947,36 @@ function disposeMaterial(material: Mesh["material"]): void {
     return;
   }
   material.dispose();
+}
+
+/**
+ * S52 POLISH-shadows-bench-sky: build a vertical 2-stop gradient as a
+ * 4×256 CanvasTexture. The narrow width is enough because three.js
+ * stretches the background texture to fill the viewport; the 256 px
+ * height covers every screen-y interpolation step without banding.
+ */
+function createGradientTexture(spec: SkyGradient): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 4;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (ctx === null) {
+    // Canvas2D is universally supported in dev/prod browsers we target;
+    // returning a 1×1 placeholder is fine for the unlikely null case.
+    return new CanvasTexture(canvas);
+  }
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, spec.top);
+  gradient.addColorStop(1, spec.bottom);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const texture = new CanvasTexture(canvas);
+  // Background textures bypass the colour-space pipeline three.js
+  // would otherwise apply to data textures; explicit sRGB keeps the
+  // hex values readable on output (otherwise tonemapping would double-
+  // process them).
+  texture.colorSpace = "srgb";
+  return texture;
 }
 
 function materialMatchesKind(material: Material | Material[], kind: MaterialKind): boolean {

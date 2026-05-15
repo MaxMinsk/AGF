@@ -26,6 +26,8 @@ export type RuntimeOptions = {
   canvas: HTMLCanvasElement;
   scene: SceneInput;
   background?: string;
+  /** S52 POLISH-shadows-bench-sky: vertical gradient skybox; overrides `background` when present. */
+  skyGradient?: { top: string; bottom: string };
   /** M21-color: output color pipeline. Forwarded to the renderer adapter. */
   color?: {
     toneMapping?: "none" | "linear" | "reinhard" | "cineon" | "aces-filmic" | "agx";
@@ -151,6 +153,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     {
       ...(options.color !== undefined ? { color: options.color } : {}),
       ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
+      ...(options.skyGradient !== undefined ? { skyGradient: options.skyGradient } : {}),
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",

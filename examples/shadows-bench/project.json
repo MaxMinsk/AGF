@@ -7,6 +7,10 @@
   "render": {
     "mode": "webgl",
     "background": "#5d7d9b",
+    "skyGradient": {
+      "top": "#3f6589",
+      "bottom": "#bdc8d2"
+    },
     "post": [
       {
         "kind": "fxaa"
