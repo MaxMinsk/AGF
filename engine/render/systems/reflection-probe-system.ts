@@ -150,6 +150,7 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
         }
       }
 
+
       // 2. Stamp the probe texture onto every entity with an EnvmapBinding.
       // Re-binds every frame; cheap because MaterialBinding handles the
       // setMeshMaterialPatch idempotently.
