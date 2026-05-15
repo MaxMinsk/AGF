@@ -1,10 +1,12 @@
-name: E2E (Playwright)
+name: E2E (Playwright smoke)
 
-# Browser smoke + multiplayer + HMR scenarios live here. They are heavier and
-# more retry-prone than the unit suite, so they run on a dedicated workflow
-# that is required on PRs to `main` but excluded from the main hygiene matrix.
-# A separate workflow means GPU/timing flakes don't block unrelated PRs while
-# we iterate on stability (see Sprint 44 OSS-e2e-stability story).
+# PR-required browser gate. Runs ONLY the smoke project — a small, reliable
+# subset that must be green on every change. The full Playwright suite
+# (including HMR-stress + multiclient + dev-bridge gameplay) lives in
+# `e2e-nightly.yml` and runs on a cron + workflow_dispatch.
+#
+# Sprint 46 CI-e2e-required-smoke / CI-e2e-full-nightly. See
+# docs/research/e2e-ci-investigation.md for the root-cause analysis.
 
 on:
   push:
@@ -13,10 +15,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  playwright:
-    name: Playwright smoke + e2e
+  smoke:
+    name: Playwright smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,12 +29,19 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: Run Playwright
-        run: npm run test:e2e
+      - name: Run smoke project
+        run: npm run test:e2e:smoke
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report
+          retention-days: 7
+      - name: Upload test-results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results
           retention-days: 7

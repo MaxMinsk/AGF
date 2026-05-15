@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAgfReady } from "./_shared/agf";
 
 // Sprint 31 / `M16-end-to-end-hello-3d`. The hello-3d scene now declares a
 // 7-entity hierarchy (arena.root + 6 descendants). Lock the runtime path:
@@ -11,6 +12,11 @@ test("hello-3d renders the full hierarchy showcase without runtime diagnostics",
 
   const canvas = page.getByTestId("engine-canvas");
   await expect(canvas).toBeVisible();
+
+  // S46 OSS-e2e-helpers — gate on rendererReady + first scene-load
+  // + first frame tick. Replaces the historical inline `{ timeout: 5_000 }`
+  // that was too tight for ubuntu-latest cold-boot.
+  await waitForAgfReady(page);
 
   // The snapshot is available after the first frame. Poll briefly so the
   // scene-load command has applied + the renderer has built every mesh.
@@ -25,7 +31,7 @@ test("hello-3d renders the full hierarchy showcase without runtime diagnostics",
           const snap = api.snapshot() as { entities: Array<{ id: string }> };
           return snap.entities.map((entity) => entity.id).sort();
         }),
-      { timeout: 5_000 }
+      { timeout: 15_000 }
     )
     .toEqual(
       [
@@ -62,10 +68,7 @@ test("hello-3d renders the full hierarchy showcase without runtime diagnostics",
 test("Spin on parented entities propagates through the hierarchy (dynamic demo)", async ({ page }) => {
   await page.goto("/?project=hello-3d");
   await expect(page.getByTestId("engine-canvas")).toBeVisible();
-  await page.waitForFunction(
-    () => Boolean((window as unknown as { __agf?: { snapshot?: () => unknown } }).__agf?.snapshot),
-    { timeout: 5_000 }
-  );
+  await waitForAgfReady(page);
 
   const readRotations = async (): Promise<Record<string, [number, number, number]>> =>
     page.evaluate(() => {
