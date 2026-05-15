@@ -88,7 +88,11 @@ export function mountShadowTuner(
       <label>algorithm</label>
       <span class="algorithm-badge" data-testid="shadow-algorithm">${defaults.algorithm.toUpperCase()}</span>
     </div>
-    <button type="button" class="reset">Reset to defaults</button>
+    <div class="row tuner-actions">
+      <button type="button" class="reset">Reset to defaults</button>
+      <button type="button" class="save-project" title="POST /__agf/project-patch — DEV only">Save to project.json</button>
+    </div>
+    <output class="save-status" data-testid="save-status"></output>
   `;
 
   const PERSIST_KEY = "agf.shadows-bench.shadow-tuner";
@@ -260,6 +264,56 @@ export function mountShadowTuner(
     runtime.renderer.adapter.setCsmShadowBias(state.shadowBias);
     runtime.renderer.adapter.setCsmShadowNormalBias(state.shadowNormalBias);
     runtime.renderer.adapter.setCsmLightIntensity(state.lightIntensity);
+  });
+
+  // S53 shadow-tuner-project-save: POST the current state to
+  // /__agf/project-patch so the values graduate from localStorage to
+  // the committed project.json. DEV-only — the endpoint doesn't exist
+  // in production builds.
+  const saveBtn = panel.querySelector<HTMLButtonElement>(".save-project");
+  const saveStatus = panel.querySelector<HTMLOutputElement>(".save-status");
+  saveBtn?.addEventListener("click", () => {
+    if (saveStatus !== null) saveStatus.textContent = "saving…";
+    const patch = {
+      render: {
+        shadows: {
+          csm: {
+            cascades: state.cascades,
+            maxFar: state.maxFar,
+            shadowMapSize: state.shadowMapSize,
+            shadowBias: state.shadowBias,
+            shadowNormalBias: state.shadowNormalBias,
+            lightIntensity: state.lightIntensity
+          }
+        }
+      }
+    };
+    fetch("/__agf/project-patch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectDir: "examples/shadows-bench", patch })
+    })
+      .then(async (response) => {
+        const json = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: { message?: string } };
+        if (response.ok && json.ok === true) {
+          if (saveStatus !== null) saveStatus.textContent = "saved ✓";
+          // The committed config is now authoritative — clear the
+          // localStorage shadow so we don't carry double-writes on
+          // the next reload.
+          clearPersisted();
+        } else {
+          const message = json.error?.message ?? `HTTP ${response.status}`;
+          if (saveStatus !== null) saveStatus.textContent = `save failed: ${message}`;
+        }
+      })
+      .catch((err: unknown) => {
+        // Endpoint absent (production build, dev-bridge plugin off) →
+        // be explicit so the agent knows localStorage is still in play.
+        const message = err instanceof Error ? err.message : String(err);
+        if (saveStatus !== null) {
+          saveStatus.textContent = `endpoint unavailable (${message}); state stays in localStorage`;
+        }
+      });
   });
 
   function formatFor(name: keyof FieldState, value: number): string {
