@@ -1,18 +1,21 @@
 // Project-local shadow tuner for shadows-bench. Lives under the engine
 // dev overlay on the top-right of the screen. Lets you scrub CSM cascades
 // + maxFar + shadow map size + shadowBias + shadowNormalBias + light
-// intensity at runtime, swap the filter algorithm (PCF / VSM / PCSS), and
-// reset back to the project.json defaults.
+// intensity at runtime, and reset back to the project.json defaults.
 //
-// All shadow controls call `runtime.renderer.adapter.setCsm(...)` /
-// `setShadowAlgorithm(...)`. PCSS is one-way — once the chunk is mutated,
-// switching back to PCF/VSM in the same page leaves materials with stale
-// sampler bindings. The picker surfaces that with a "reload required"
-// note + disables the toggle once you've picked PCSS in-session.
+// Algorithm is shown as a read-only badge: switching it at runtime is
+// unreliable (PCSS shader-chunk substitution is process-wide and not
+// cleanly reversible without a page reload) and the tuner has no
+// persistence across reload anyway. Change
+// `project.json#render.shadows.algorithm` and reload to compare.
+//
+// All other controls call cheap in-place mutators on the CSM adapter
+// (`setCsmShadowBias`, `setCsmShadowNormalBias`, `setCsmLightIntensity`,
+// `setCsmShadowMapSize`, `setCsmMaxFar`). Only `cascades` triggers a
+// full setCsm() rebuild — kept behind a 120 ms debounce because the
+// rebuild recompiles every material's shader.
 
 import type { RuntimeHandle } from "../../../../engine/runtime/start";
-
-type Algorithm = "pcf" | "vsm" | "pcss";
 
 export type ShadowTunerDefaults = {
   cascades: number;
@@ -23,7 +26,8 @@ export type ShadowTunerDefaults = {
   lightIntensity: number;
   lightDirection: readonly [number, number, number];
   mode: "practical" | "uniform" | "logarithmic";
-  algorithm: Algorithm;
+  /** Read-only label only; see header comment. */
+  algorithm: "pcf" | "vsm" | "pcss";
 };
 
 export type ShadowTunerHandle = {
@@ -80,15 +84,10 @@ export function mountShadowTuner(
       <input type="range" min="0.3" max="3" step="0.05" />
       <output></output>
     </div>
-    <div class="row" data-row="algorithm">
+    <div class="row algorithm-row">
       <label>algorithm</label>
-      <select>
-        <option value="pcf">PCF</option>
-        <option value="vsm">VSM</option>
-        <option value="pcss">PCSS</option>
-      </select>
+      <span class="algorithm-badge" data-testid="shadow-algorithm">${defaults.algorithm.toUpperCase()}</span>
     </div>
-    <p class="pcss-warning" hidden>PCSS is one-way — reload to switch back.</p>
     <button type="button" class="reset">Reset to defaults</button>
   `;
 
@@ -100,8 +99,6 @@ export function mountShadowTuner(
     shadowNormalBias: defaults.shadowNormalBias,
     lightIntensity: defaults.lightIntensity
   };
-  let algorithm: Algorithm = defaults.algorithm;
-  let pcssEverPicked = algorithm === "pcss";
 
   const sizeSteps: ShadowTunerDefaults["shadowMapSize"][] = [512, 1024, 2048, 4096];
 
@@ -176,27 +173,11 @@ export function mountShadowTuner(
   rangeRow("shadowNormalBias", (v) => v.toFixed(3));
   rangeRow("lightIntensity", (v) => v.toFixed(2));
 
-  const select = panel.querySelector<HTMLSelectElement>('[data-row="algorithm"] select');
-  const pcssWarning = panel.querySelector<HTMLParagraphElement>(".pcss-warning");
-  if (select !== null) {
-    select.value = algorithm;
-    if (algorithm === "pcss" && pcssWarning !== null) pcssWarning.hidden = false;
-    select.addEventListener("change", () => {
-      const next = select.value as Algorithm;
-      if (pcssEverPicked && next !== "pcss") {
-        // Switching back after picking PCSS = reload required (the chunk
-        // substitution is process-wide). Reflect that in the picker.
-        select.value = "pcss";
-        return;
-      }
-      algorithm = next;
-      if (algorithm === "pcss") {
-        pcssEverPicked = true;
-        if (pcssWarning !== null) pcssWarning.hidden = false;
-      }
-      runtime.renderer.adapter.setShadowAlgorithm(algorithm);
-    });
-  }
+  // Algorithm is intentionally read-only — switching it at runtime is
+  // unreliable (PCSS shader-chunk substitution is process-wide and not
+  // cleanly reversible without a page reload), and the picker had no
+  // persistence across reload anyway. Set `project.json#render.shadows.algorithm`
+  // and reload to change algorithms.
 
   const resetBtn = panel.querySelector<HTMLButtonElement>(".reset");
   resetBtn?.addEventListener("click", () => {
