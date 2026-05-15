@@ -2089,5 +2089,298 @@ Status: Completed and archived.
 - `M15-i` optional `engine connect` CLI.
 - `M2b-seed` deterministic RNG wire-up still waiting.
 
+## Sprint 43 — Open-source readiness
 
+Status: Completed and archived.
+
+Triggered by `Notes/codex_review_2.md` (open-source readiness audit, 2026-05-14). The review flagged release-hygiene blockers — missing LICENSE, stale README/DEVELOPMENT/backend docs, doctor vs bundle:check budget mismatch, one Cyrillic phrase in a research doc. Sprint 43 closes those gates so AGF can be presented as a pre-alpha engine without confusing first-time readers.
+
+### Completed Work
+
+1. **OSS-cyrillic-fix** ✅ — Replaced the Russian phrase meaning "almost like Unity" with `"almost Unity-class"` in `docs/research/renderer-ecs-split-investigation.md`.
+2. **OSS-hygiene-local** ✅ — `scripts/check-repo-hygiene.mjs` + `npm run repo:hygiene` script + prepended to `preflight`. Local mirror of `.github/workflows/repo-hygiene.yml`.
+3. **OSS-license-metadata** ✅ — `LICENSE` (Apache-2.0), `THIRD_PARTY_NOTICES.md` (Draco / Basis Universal / Three.js / Rapier / AJV provenance), `package.json` gets `license`, `repository`, `bugs`, `homepage`, `keywords`, `description`.
+4. **OSS-community** ✅ — `CONTRIBUTING.md` (preflight contract + agent rules), `SECURITY.md` (DEV-only `__agf` boundary, vulnerability reporting).
+5. **OSS-readme-refresh** ✅ — Replaced Sprint-1-era README with pre-alpha status, quickstart, what-works-today list, examples, agent workflow, limitations, roadmap, license.
+6. **OSS-docs-sync** ✅ — `docs/DEVELOPMENT.md` drops "wired during Sprint 1", lists actual command surface; `examples/backends/README.md` documents Node WebSocket `--serve` mode; `examples/backends/node-world-server/README.md` documents serve mode + threat model.
+7. **OSS-doctor-budget-align** ✅ — `engine doctor` now splits main-chunk budgets from vendor-chunk budgets matching `scripts/check-bundle-size.mjs`. `DEFAULT_VENDOR_BUDGETS` default for `rapier-` / `three-`. Per-project `bundle.vendors` overrides. 4 unit tests (`tests/unit/doctor-vendor-budgets.test.ts`).
+8. **OSS-backlog-cleanup** ✅ — `HIGH_LEVEL_BACKLOG.md` "Sequencing the M-list" updated to mark steps 1–6 done, list real outstanding work.
+
+### Verification
+
+- `npm run repo:hygiene` ✅ — 431 tracked files, no Cyrillic.
+- `npm run typecheck` ✅.
+- `npm run engine:check:examples` ✅ — 5 projects.
+- `npm run imports:check` / `systems:check` ✅.
+- `npm run test` ✅ — 65 files, 412 tests.
+- `npm run engine:doctor -- examples/hello-3d` / `-- examples/beacon-world` — both clean, vendor chunks reported separately within their budgets.
+
+### Follow-Ups
+
+Renderer / asset-pipeline openers originally pencilled for Sprint 43 moved to Sprint 44 (PCSS-modern, PCSS-CSM, ASSET-texture-compress, cam-cinematic, env-cube, webgpu-spike, M17-lod-batched, ASSET-decoder-vendor verification) alongside the remaining OSS-readiness work (CI parity, e2e stability). Parking lot recorded at sprint close: `M21-shadow-pcss-modern` / `-pcss-csm` / `-webgpu-spike` / `-env-cube` / `-cam-cinematic` / `-shadow-soft` / `-shadow-glb-acne`; `ASSET-optimize-command` / `-lod-metadata` / `-texture-doctor`; `M17-lod-batched` / `-static-merge-spike`; `M3-c-load` / `-beacon`; `M16-cache-e`; `RUNTIME-progressive-loading` / `-idle-rendering` / `-gpu-timing`; `M20-a..l`, `M2b-seed`, `13.13` audio, `10.5+` C# WS transport.
+
+## Sprint 44 — CI parity + renderer follow-ups
+
+Status: Completed and archived.
+
+Follows Sprint 43's open-source readiness work. Closes the remaining `Notes/codex_review_2.md` gates (CI parity + e2e stability) and lands the renderer follow-ups deferred from S43.
+
+### Completed Work
+
+1. **OSS-ci-parity** ✅ — Extended `.github/workflows/repo-hygiene.yml` with `imports:check` + `systems:check` in the typecheck job, plus two new jobs: `node-backend-smoke` (`npm run backend:node`) and `dotnet-backend-build` (Release build). New `.github/workflows/e2e.yml` runs Playwright in its own workflow + uploads the playwright-report artifact on failure.
+2. **OSS-e2e-stability** ✅ — Playwright config gains a `serial-heavy` project for `hmr-stress` + `multiclient-roundtrip` (serial, 90s timeout, retries=2). `hmr-stress` alternates the material body each cycle so Vite's watcher doesn't coalesce identical-bytes writes. `app.spec.ts` + `score-pulse.spec.ts` await `__agf.rendererReady` before pixel sampling / gameplay applyCommands so they don't race the renderer warm-up.
+3. **M21-shadow-pcss-modern** ✅ — Root-cause fix for the S41 PCSS no-op. The substitution targets the BASIC `getShadow` variant (texture2D + raw depth); modern `PCFShadowMap` uses `sampler2DShadow` which only returns 0/1, so the substitution silently does nothing. Adapter now maps `algorithm: "pcss"` → `BasicShadowMap` (matching three's own `webgl_shadowmap_pcss.html`). `algorithm: "pcf"` stays on modern `PCFShadowMap`. New `tests/unit/shadow-pcss-algorithm.test.ts` guards the mapping.
+4. **M21-env-cube** ✅ — `scene.environment.kind: "cube"` with a 6-face URL array `[+x, -x, +y, -y, +z, -z]` via `CubeTextureLoader` + `PMREMGenerator.fromCubemap` (IBL-ready, not just a skybox). Schema gains `faces` + an `allOf/if/then` requiring it when `kind: "cube"`. `tests/unit/scene-environment-schema.test.ts` adds 4 cube cases.
+
+### Verification
+
+- `npm run repo:hygiene` ✅
+- `npm run typecheck` ✅
+- `npm run imports:check` / `systems:check` ✅
+- `npm run test` ✅ — `tests/unit/scene-environment-schema.test.ts` + `shadow-pcss-algorithm.test.ts` + `doctor-vendor-budgets.test.ts` + preexisting suite all green (412+ tests).
+
+### Follow-Ups
+
+Agent-authoring helpers from `Notes/codex_review_2.md`'s "should fix soon" list deferred to Sprint 45: `engine new --template`, `engine list components`, `engine explain component`, `engine screenshot`, `docs/agents/build-a-game.md`.
+
+## Sprint 45 — Agent authoring helpers
+
+Status: Completed and archived.
+
+Closes the "should fix soon" list from `Notes/codex_review_2.md` — give an agent a discoverable authoring CLI so the `engine new → engine list → engine explain → engine check → engine run → engine screenshot` loop is one command per step.
+
+### Completed Work
+
+1. **AGENT-cli-list-components** ✅ — `engine list components [projectDir]` enumerates every built-in component declared on `scene.schema.json` + every project-local component in `<projectDir>/project-local-components.schema.json`. Reads `description` straight from the schema. `engine list examples` lists every project under `examples/` (`hello-3d`, `beacon-world`, batch/physics/shadows-bench).
+2. **AGENT-cli-explain** ✅ — `engine explain component <Name> [projectDir]` resolves the schema definition, lists required + optional fields with their types + descriptions, and prints a derived authoring example (required-only object).
+3. **AGENT-cli-new** ✅ — `engine new <name> --template hello-3d [--target <dir>]` copies the template tree, rewrites `project.json` + `template.json` for the new id, runs `engine check` on the result. Skips `node_modules` / `dist` / `_sources`. 4 unit tests cover the happy path, invalid name, destination collision, missing template.
+4. **AGENT-cli-screenshot** ✅ — `engine screenshot <projectId> --out <path>` boots a headless Chromium via `@playwright/test`'s low-level API, navigates to `?project=<id>`, awaits `__agf.rendererReady`, settles 250ms, writes the PNG. Auto-boots a transient Vite dev server when one isn't already listening; `--reuse-server` opts out.
+5. **AGENT-docs-build-a-game** ✅ — `docs/agent/build-a-game.md`: one-page contract covering the mental model, the discover → edit → validate → inspect → run → playtest loop, common recipes (add entity, project-local component, custom system, asset import, screenshot), hard rules, the dev-bridge surface table, the "stop" criteria.
+
+### Deliverables
+
+- `engine/tools/components/list-components.ts` (new)
+- `engine/tools/components/explain-component.ts` (new)
+- `engine/tools/new/project-new.ts` (new)
+- `engine/tools/screenshot/project-screenshot.ts` (new)
+- `engine/tools/cli.ts` — wired `list` / `explain` / `new` / `screenshot` subcommands + usage block
+- `package.json` — `engine:list`, `engine:explain`, `engine:new`, `engine:screenshot` scripts
+- `tests/unit/project-new.test.ts` (new)
+- `docs/agent/build-a-game.md` (new)
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run engine:list -- components` ✅ — 17 built-ins printed with descriptions.
+- `npm run engine:explain -- component Transform` ✅
+- `npm run engine:list -- examples` ✅
+- `npm run test` ✅ — 67 files, **422 tests** (was 412; +4 project-new tests + 4 cube schema tests + 2 PCSS tests).
+
+### Follow-Ups
+
+`list/explain` initially pointed at non-existent `project-local-components.schema.json`; corrected in Sprint 48 to use `<projectDir>/schemas/scene-extensions.schema.json`.
+
+## Sprint 46 — CI e2e stabilization
+
+Status: Completed and archived.
+
+Narrow-focus sprint: the new `e2e.yml` workflow added in Sprint 44 fails the same ~10 specs on every CI run while the same specs pass locally on macOS in 5–15s each. Closing that gap is a blocker for treating the e2e workflow as a useful PR gate.
+
+### Research
+
+- **`docs/research/e2e-ci-investigation.md`** ✅ — Root cause: 5s inline `waitForFunction` budgets calibrated for local macOS frame pacing; ubuntu-latest's SwiftShader software-WebGL + cold Vite transform push the first physics tick past that budget. No production regressions — every failure is a timeout, never a wrong value.
+
+### Completed Work
+
+1. **CI-e2e-artifacts** ✅ — `tests/e2e/_shared/artifacts.ts` Playwright fixture that on test failure attaches console log + `__agf.diagnostics()` + `rendererInfo()` + `frameTiming()`. Workflow uploads `playwright-report/` and `test-results/` as artifacts.
+2. **CI-e2e-helpers** ✅ — `tests/e2e/_shared/agf.ts` exports `waitForAgfReady(page)` (gates on `__agf` exists → `rendererReady` → first scene-load → first frame tick) and `waitForAgfPredicate(page, fn)` (snapshot predicate poll with consistent 30s default). Replaces the historical inline `{ timeout: 5_000 }` pattern.
+3. **CI-e2e-preview-mode** ✅ — `playwright.preview.config.ts` runs gameplay + rendering specs against `vite build` + `vite preview` instead of the dev server. Avoids per-request TypeScript transform + HMR overhead. New scripts `test:e2e:smoke`, `test:e2e:preview`, `test:e2e:full-dev`.
+4. **CI-e2e-required-smoke** ✅ — 14-test smoke project (app, project-switcher×3, hello-3d-hierarchy×2, dev-bridge×5, playtest-runner×3). All pass locally in 32s. `preflight` now runs `test:e2e:smoke`, not the full suite.
+5. **CI-e2e-full-nightly** ✅ — `.github/workflows/e2e.yml` becomes a smoke-only PR gate. New `.github/workflows/e2e-nightly.yml` runs the full dev-server matrix + preview-mode matrix on cron (04:00 UTC) + workflow_dispatch + pushes to main.
+
+### Migrated specs
+
+`hello-3d-hierarchy.spec.ts` + `project-switcher.spec.ts` use the new `waitForAgfReady` helper. Other specs keep their existing waits — they live in the nightly chromium/preview projects and don't block PRs.
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test:e2e:smoke` ✅ — 14/14 passed in 32s locally.
+- `npm run test` ✅ — 422 unit tests still pass.
+
+## Sprint 47 — Game-feel pass (tween / particles / cinematic / PCSS / shadows-bench polish)
+
+Status: Completed and archived.
+
+Visible feedback layer + shadow polish. Adds 3 ECS-native game-feel primitives, fixes the S41 PCSS substitution that was silently no-op'ing, and tunes the shadows-bench scene to look alive.
+
+### Completed Work
+
+1. **M19-tween** ✅ — `Tweens` component (array of tween specs) + `TweenSystem` (fixedUpdate, replay-deterministic). Easing kinds: linear / easeIn / easeOut / easeInOut / `pulse` (sin(πt) for one-shot bounces). Loop modes: none / loop / ping-pong. 6 unit tests.
+2. **M19-particle-preset** ✅ — `ParticleEmitter` component + `ParticleEmitterSystem` + adapter `ParticlePool` API (additive InstancedMesh). Built-in presets: spark / glow / pulse. Auto-removed when emitter lifetime expires and particles drain.
+3. **M21-cam-cinematic** ✅ — `CinematicCamera` component (waypoint list + per-segment ease + loop) + `CinematicCameraSystem`. Replay-safe via `elapsed` on the component.
+4. **M21-shadow-pcss-csm + bug fix** ✅ — discovered the S41/S44 PCSS shader-chunk substitution silently no-op'd because three.js bumped whitespace inside `shadowmap_pars_fragment`. Replaced the literal match with a regex that tolerates whitespace + emits a console warning if upstream drifts. Added a regression test asserting the chunk actually contains `PCSS(` after `applyPcssShadowChunks()`. CSMShader uses the same `getShadow` symbol so cascades inherit PCSS automatically — no separate patch needed.
+5. **beacon-world adoption** ✅ — pickup: spark burst on the core at the moment of pickup. Repair: `pulse`-ease Tween bounces beacon scale × 1.18 over 0.36 s + a 0.5 s spark burst. Both auto-remove themselves.
+6. **shadows-bench polish** ✅ — fixed tree crown hovering above trunk (sphere primitive's radius is 0.5, not 1; corrected the canopy y offset). Added `pulse`-loop Tween on every trunk's X rotation (1.6–2.8° sway, staggered phase) so the forest sways in the wind. Tuned shadows: PCSS algorithm + 3 cascades + 1024 maps + `shadowNormalBias: 0.12` + near-zero shadowBias to kill the peter-pan gap and stay 120 fps at max zoom. Reduced PCSS `LIGHT_WORLD_SIZE` from 0.005 → 0.0025 for a tighter penumbra. Plumbed `shadowNormalBias` through CSM config + project schema + adapter.
+7. **shadows-bench shadow tuner** ✅ — project-local UI panel under the FPS overlay (top-right). Sliders for cascades (2–4) / maxFar / shadowMapSize / shadowBias / shadowNormalBias / lightIntensity, picker for algorithm (PCF / VSM / PCSS), Reset button restores project.json defaults. Plumbs through new `adapter.setShadowAlgorithm(kind)` which recompiles existing materials so the new sampler binding takes effect; PCSS is treated as a one-way transition (the shader-chunk substitution is process-wide), surfaced as a "reload required" note that locks the picker. Beacon-world repair particles raised from `offset y=0.6` → `y=1.4` so sparks fountain above the beacon tip instead of inside the mesh.
+
+### Deliverables
+
+- `engine/core/systems/tween-system.ts` (new)
+- `engine/render/systems/cinematic-camera-system.ts` (new)
+- `engine/render/systems/particle-emitter-system.ts` (new)
+- `engine/render/three-render-adapter.ts` — `ParticlePool` API, `CsmConfig.shadowNormalBias`, per-cascade normalBias apply
+- `engine/render/shadow-pcss.ts` — regex-based substitution + console warning + tighter LIGHT_WORLD_SIZE
+- `engine/runtime/start.ts` — registers tween + particle + cinematic systems
+- `schemas/scene.schema.json` — Tweens / ParticleEmitter / CinematicCamera defs + `pulse` ease
+- `schemas/project.schema.json` — `shadows.csm.shadowNormalBias`
+- `tests/unit/tween-system.test.ts` (new) + `shadow-pcss-algorithm.test.ts` regression
+- `examples/beacon-world/src/systems/pickup-system.ts` — game-feel hooks
+- `examples/shadows-bench/bootstrap.ts` + `project.json` — tree fix, sway, shadow tune
+- `docs/research/scene-schema-split-notes.md` (new — for S48 follow-up)
+- `THIRD_PARTY_NOTICES.md` — removed stale References/ block (those folders are gitignored)
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 68 files, 429 tests (+9 from S46).
+- `npm run engine:check:examples` ✅
+- `npm run test:e2e:smoke` ✅ — 11/11 in 25 s
+- Visual: beacon repair bounces + sparkles; pickup sparkles on core; trees sway; shadow gap under buildings closed; 120 fps maintained at max zoom in shadows-bench
+
+## Sprint 48 — Schema split + shadows-bench cars
+
+Status: Completed and archived.
+
+Two heavy-lift items: a structural refactor (scene.schema.json was 800 lines; agents drowned opening it cold) plus a visible feature (shadows-bench gains roads + cars on the wind-swept village). Plus a fix for the S45 list/explain bug that pointed at the wrong project-local schema filename.
+
+### Completed Work
+
+1. **SCHEMA-scene-split** ✅ — `scene.schema.json` shrinks from 798 → 210 lines. Component definitions move to `schemas/components/{core,render,camera,physics-3d,gamefeel,network}.schema.json` (75-352 lines each). Shared types (`vec3`) move to `schemas/common.schema.json`. New `engine/tools/schemas/load-scene-schema.ts` bundler walks external `$ref`s, inlines them back into a single in-memory schema for AJV — no cross-file AJV machinery, all 7 consumers (project-check, list-components, explain-component, the 4 scene-* unit tests) call the same loader. 429 unit tests still green.
+2. **list/explain fix** ✅ — `engine list components <projectDir>` and `engine explain component <Name> <projectDir>` were pointing at the non-existent `project-local-components.schema.json`. Now read `<projectDir>/schemas/scene-extensions.schema.json` (the file `engine check` actually uses) and resolve `$ref`s through it. Verified: shadows-bench's `RtsCamera` shows up in the catalog.
+3. **M19-WaypointMover** ✅ — generic `WaypointMover { waypoints[], loop, elapsed, faceForward }` component + `WaypointMoverSystem`. Sibling of CinematicCamera but for any Transform (not just the active camera) + derives yaw from velocity when `faceForward: true`. Replay-safe via fixed-update. 4 unit tests.
+4. **shadows-bench roads + cars** ✅ — 2 cross-shaped roads (EW + NS) sit just above the ground. 6 cars ping-pong along them, each on its own lane (±1.2 / 0.0) so traffic never collides. Each car is a parent entity (WaypointMover-driven) with child body + cabin + 4 wheels — proper car shape, not a cube. `pulse`-loop Tween on each body provides a subtle ~0.6° roll wobble with staggered phase.
+5. **shadows-bench trees actually sway** ✅ — the S47 wind-sway tween wasn't visible because the canopy was a sibling entity, not parented to the trunk. Restructured each tree as a root + child trunk + child canopy hierarchy parented to a sway-tweened root, so the whole tree pivots from the base.
+
+### Deliverables
+
+- `schemas/scene.schema.json` (798 → 210 lines)
+- `schemas/common.schema.json` + `schemas/components/*.schema.json` (new)
+- `engine/tools/schemas/load-scene-schema.ts` (new — bundler)
+- `engine/core/systems/waypoint-mover-system.ts` (new)
+- `engine/runtime/start.ts` — register WaypointMoverSystem
+- `examples/shadows-bench/bootstrap.ts` — roads + 6 cars (parent/child hierarchy) + tree hierarchy rewrite for visible sway
+- `tests/unit/waypoint-mover-system.test.ts` (new) + 4 scene-* tests now use `loadBundledSceneSchema`
+- `engine/tools/components/{list,explain}-component.ts` — fixed scene-extensions path
+- `SECURITY.md` — slimmed down, dropped maintainer's personal email
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 69 files, 433 tests
+- `npm run engine:check:examples` ✅ — 5 projects OK
+- `npm run engine:list -- components examples/shadows-bench` ✅ — 20 built-ins + `RtsCamera` (project-local)
+- Live probe: trees sway (tree.0 X rotation oscillates), cars move on dedicated lanes (car.0 traverses -34→-21 in 1.5s), zero page errors
+
+### Follow-Ups
+
+- `render-pool-abstraction` — unify InstancedMesh / BatchedMesh / Particle pools under one BucketSpec + dispatcher. Carried into Sprint 52 candidates.
+
+## Sprint 49 — rendererInfo accuracy + hygiene tidy
+
+Status: Completed and archived.
+
+Small follow-ups noticed after S48 landed.
+
+### Completed Work
+
+1. **RENDERER-info-autoReset** ✅ — `__agf.rendererInfo().drawCalls` reported `1` for shadows-bench despite the scene having 300+ meshes. Root cause: `WebGLRenderer.info` resets its counters at the start of every `.render()` call, and the EffectComposer (FXAA + OutputPass in shadows-bench) issues 3 render passes per frame — so the values we read after composer.render() reflected only the final OutputPass, a single full-screen quad. Disabled `device.info.autoReset` + reset manually at the start of `draw()` so counters accumulate across every pass. shadows-bench now reports `drawCalls: 194, triangles: 70 274`.
+2. **HYGIENE-backlog-cyrillic** ✅ — Removed a stray Russian phrase from `BACKLOG.md`'s S43 archive entry (`repo:hygiene` ignores it because it's already on `main`, but cleaning it up now means no future scanning surprise).
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 433 tests
+- Live probe shadows-bench: `drawCalls: 194` (was `1`), `triangles: 70 274` (was `1`), zero page errors.
+
+## Sprint 50 — auto-batch + per-instance color + perf squeeze
+
+Status: Completed and archived.
+
+Three compounding wins for shadows-bench (one project.json flag): **drawCalls 203 → 5** (40×) and **renderMs 3.60 → 0.39** (9×). Plus the perf-squeeze follow-ups landed in the same PR after the first round revealed a static-instance GPU-upload regression.
+
+### Completed Work
+
+1. **M17-batchable-color-variants** ✅ — adapter `acquireBucket({ useInstanceColor: true })` allocates the `instanceColor` InstancedBufferAttribute on the InstancedMesh + `setBucketInstanceColor(handle, index, color)` writes per-slot colour. `BatchingSystem.updateInstanced` drops `renderer.color` from the bucket key so different-coloured entities collapse into one InstancedMesh.
+2. **M17-auto-batch-primitives** ✅ — `BatchingOptions.autoIncludePrimitives` plumbed through `RuntimeOptions.autoBatchPrimitives` + `project.json#render.batching.auto`. When on, every entity with a built-in primitive mesh, no LOD, no manifest material is auto-batched without `Batchable`. Per-entity opt-out: `Batchable: { enabled: false }`. All 5 example projects (hello-3d, beacon-world, batch-bench, physics-bench, shadows-bench) have the flag on.
+3. **M17-system-ordering** ✅ — BatchingSystem moved BEFORE MeshLifecycleSystem so `BatchedMeshHandle` is set first. `MeshLifecycleSystem.frameUpdate` AND `ThreeRenderer.refreshMeshes` (the fallback path called every frame from `render()`) both now skip entities with `BatchedMeshHandle` — the historical filter only looked at `Batchable`, so auto-batched entities were double-rendered (the 310-draw / 27 ms-frame regression caught during S50 development).
+4. **M17-perf-ltw-cache** ✅ — `BatchingSystem.InstancedRecord.lastWorld` caches the last-written `[px,py,pz,rx,ry,rz,sx,sy,sz]` per instance. `updateInstanced` skips both `setBucketInstanceTransform` AND `instanceMatrix.needsUpdate` when the LTW is bit-identical. Static buildings / rocks / roads no longer force a full 305 × 16 float GPU re-upload every frame.
+5. **M17-perf-color-cache** ✅ — Same idea for `setBucketInstanceColor` — cached per-instance colour means a frame with no colour changes doesn't dirty the instanceColor attribute.
+6. **M17-perf-bucket-frustum-culling** ✅ — InstancedMesh buckets now ship with `frustumCulled = true`. `recomputeBucketBoundingSphere(handle)` is called once per frame per dirty bucket (tracked by `dirtyInstancedBuckets: Set<BucketHandle>` populated by the LTW cache misses + instance add/remove). Three.js then skips the whole bucket per camera-pass when its sphere is outside the frustum.
+7. **shadows-bench adoption** ✅ — `project.json#render.batching.auto: true`; trees + rocks + **buildings** repositioned to clear the road corridors via `clearRoadCorridor(x, z, buffer)` (now per-entity buffer; buildings use `max(w, d)/2 + 0.5` so their footprint never crosses the kerb).
+8. **Three.js batching research note** ✅ — `docs/research/m17-three-batching-references.md` summarises the relevant `References/three.js/examples/*.html` (`webgl_mesh_batch`, `webgl_instancing_dynamic`, `webgl_batch_lod_bvh`, etc.) and sequences the follow-up perf work into Sprint 51 candidates: BatchedMesh primary path with `perObjectFrustumCulled`, BVH extension, LOD-batched geometry.
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 69 files, 433 tests (one existing batching test rewritten for the new colour-variant semantics)
+- shadows-bench live probe with `batching.auto: true`:
+  - drawCalls: **203 → 5** (40× fewer)
+  - frame time: **5.4 ms → 1.4 ms** (4× faster)
+  - `meshes: 0`, `buckets: 3`, `bucketInstances: 305`, `handleLeak: 0`
+
+### Follow-Ups
+
+GLB mesh batching, material-manifest batching, default-on once those land, and a cleaner BucketSpec abstraction over the InstancedMesh + BatchedMesh paths — picked up across S51 (GLB + manifest + BatchedMesh primary path) and Sprint 52 candidates (RENDER-bucket-key-architecture, M17-batch-default-on).
+
+## Sprint 51 — BatchedMesh perf path + shadows-bench shadow deep-dive
+
+Status: Completed and archived.
+
+### Completed Work
+
+1. **DOCTOR-batching-report** ✅ — `engine doctor` gains a top-level `Batching:` section reading `project.json#render.batching.auto/path` + breaking renderables into primitives vs externals + reporting collapsed/available draw-call savings + surfacing a "flip the switch" recommendation when auto is off. Counts explicit `Batchable` annotations and `enabled: false` opt-outs.
+2. **DOCS-build-a-game-batching** ✅ — "Cut draw calls with auto-batch" recipe in `docs/agent/build-a-game.md` covering opt-in, per-entity opt-out, group hint, doctor verification.
+3. **M17-batched-mesh-primary** ✅ — BatchedMesh adapter path: `perObjectFrustumCulled = true` explicit, geometries get `computeBoundingBox()` + `computeBoundingSphere()` on add, new `setBatchedInstanceColor` for per-instance colour parity. `BatchingOptions.defaultPath` plumbed through `RuntimeOptions.batchingPath` ← `project.json#render.batching.path`. Doctor surfaces `path=...`.
+4. **M17-batched-colour-squaring fix** ✅ — bucket key + material colour both carried `renderer.color` so per-instance × material colour squared → darker scene. Fix mirrors S50: drop colour from key, anchor material at white.
+5. **M17-batched-vs-instanced measurement** ✅ — wrote `scripts/perf-probe-batching.mjs` (Playwright A/B, patches project.json, reloads, samples for N seconds, restores on SIGINT). shadows-bench result: `batched` saves 36 % draw calls + 17.9 % triangles via per-instance culling, but `renderMs` rises +63.5 % (multi-draw command overhead on small scene with most instances in view). Decision: shadows-bench reverts to `instanced`; `batched` plumbing stays. Findings: `docs/research/m17-batched-vs-instanced-shadows-bench.md`.
+6. **SHADOWS-bench-perf-deepdive** ✅ — wrote `scripts/perf-probe-shadows.mjs` (sister probe, fresh browser per scenario so PCSS's one-way substitution can't leak). 6 scenarios measured. Findings: cascade count is the dominant lever (3 → 2 = −17.1 % renderMs); PCSS cost only +6.5 % (smaller than expected); shadowMapSize 1024 → 512 just −3.8 % in software-WebGL; programs counter flat (no shader churn). Combined `pcf + 2c + 512` saves 15.2 % renderMs at moderate visual cost. shadows-bench config left as-is (visual decision). Three follow-ups filed: `M21-shadow-static-caster-tag` (main perf win), `M21-shadow-map-size-real-hw`, `M21-fxaa-cost-isolation`. Notes: `docs/research/m21-shadows-bench-perf.md`.
+7. **shadow autoUpdate hotfix** ✅ — `examples/shadows-bench/project.json` dropped `shadows.autoUpdate: false`. The flag was left from the previously-static scene; after S48 added moving cars + swaying trees the per-frame shadow map needed to refresh.
+8. **e2e fix at sprint close** ✅ — hello-3d smoke assertion `info.meshes > 0` failed under auto-batch (everything in buckets, `meshes` reads 0). Sum `meshes + bucketInstances + batchedBucketInstances` so either path counts.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts` — BatchedMesh: `perObjectFrustumCulled = true`, geometry bounding-box compute on add, `setBatchedInstanceColor`, material anchored at white.
+- `engine/render/systems/batching-system.ts` — `BatchingOptions.defaultPath`, per-instance colour stamping in batched path, bucket key drops `renderer.color`.
+- `engine/runtime/start.ts` — `RuntimeOptions.batchingPath` plumbing.
+- `engine/tools/doctor/project-doctor.ts` — new `Batching:` section + `formatBatching` helper + `BatchingConfigReport` type.
+- `schemas/project.schema.json` — `render.batching.path: "instanced" | "batched"` declared.
+- `src/app.ts` — project.json `render.batching.path` → `runtimeOptions.batchingPath`.
+- `examples/shadows-bench/project.json` — dropped `shadows.autoUpdate: false`; kept `batching.auto: true`, path stays default (instanced).
+- `tests/e2e/app.spec.ts` — sums bucket instances when asserting "rendered something".
+- `tests/unit/doctor-batching.test.ts` (new) — 4 cases.
+- `tests/unit/batching-system-batched-path.test.ts` (new) — 4 cases incl. colour-squaring regression.
+- `scripts/perf-probe-batching.mjs` (new) — reusable instanced ↔ batched A/B.
+- `scripts/perf-probe-shadows.mjs` (new) — reusable named-scenario shadow probe.
+- `docs/research/m17-batched-vs-instanced-shadows-bench.md` (new) — A/B numbers + crossover analysis.
+- `docs/research/m21-shadows-bench-perf.md` (new) — 6-scenario deep-dive + follow-up story list.
+- `docs/agent/build-a-game.md` — "Cut draw calls with auto-batch" recipe.
+
+### Verification
+
+- `npm run typecheck` ✅
+- `npm run test` ✅ — 71 files / 440+ tests (incl. 8 new batching-doctor + batched-path cases).
+- `npm run preflight` ✅ at sprint close — 11/11 e2e smoke green after the `meshes`-counter fix.
+- `npm run engine:doctor -- examples/{shadows-bench, beacon-world}` ✅ — prints new `Batching:` section correctly.
+- `node scripts/perf-probe-batching.mjs` ✅ — A/B numbers reproducible.
+- `node scripts/perf-probe-shadows.mjs --durationMs 4000` ✅ — 6 scenarios reproducible.
+- Merged via PR [#54](https://github.com/MaxMinsk/AGF/pull/54).
+
+### Follow-Ups
+
+- `M21-shadow-static-caster-tag` (Sprint 52, highest-impact perf follow-up — tagged dynamic vs static casters, restore `autoUpdate=false` for ~290 static entities while keeping cars + swaying trees correct).
+- `M21-shadow-map-size-real-hw` — user-driven measurement, software-WebGL undersells fill-rate savings.
+- `M21-fxaa-cost-isolation` — quick probe extension.
+- `M17-bvh-extension` — `@three.ez/batched-mesh-extensions` may flip the `batched` crossover toward smaller scenes; own sprint when prioritised.
+- shadows-bench picture got dimmer after S51's autoUpdate/bias changes — picked up as `POLISH-shadows-bench-*` in Sprint 52.
 
