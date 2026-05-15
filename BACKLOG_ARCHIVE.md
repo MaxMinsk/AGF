@@ -2692,3 +2692,41 @@ Status: Completed and archived. Eleven of twelve planned stories shipped; `REFLE
 - **REFLECTION-planar (parking lot)** — vendored `Reflector.js` for water / lobby-floor surfaces.
 - **DOCTOR-reflection scans bootstrap entities** — today the doctor only scans scene JSON; material-bench's probe is invisible to it. Adding a runtime probe inventory via the dev bridge would close that gap.
 - **`engine doctor` Reflections cost estimate** is naive (probes × 6 × updateRate). A real perf-probe would account for view-frustum culling and the actual scene draw cost per cube face.
+
+## Sprint 58 — Multi-probe reflection + GroundedSkybox shipping bugfixes
+
+Status: Completed and archived. Follow-up to S57; three groups of work — GroundedSkybox shipping bugs caught live in material-bench, reflection-probe correctness + multi-probe layout, and an unrelated GPU-timer WebGL error pair surfaced during the live-tuning sessions.
+
+### Completed Work
+
+1. **REFLECTION-cube-cam-world-matrix** — `ReflectionProbeSystem` no longer adds its `CubeCamera`s to the scene graph (three.js's `CubeCamera.update()` only auto-refreshes the world matrix when `parent === null`). Explicit `cubeCam.updateMatrixWorld(true)` added in `updateReflectionProbe` so any future re-parent doesn't silently break the capture.
+2. **GROUNDED-skybox-shipping-fixes** — `GroundedSkybox` now built with a positive projection factor `radius / 6` (matches three.js docs example ≈ 6.6); the mesh is externally positioned at `projectionHeight + spec.height` so AGF's `height: -0.75` still works as "world Y of the floor". Raw RGBE equirect feeds both `scene.background` and the helper (was the PMREM cubemap — soft / blurred projection). Shadow-catcher lifted 10 mm above the sky's bottom disc + `renderOrder = 1` + `opacity 0.6` for natural shadow weight.
+3. **REFLECTION-cube-mipmaps** — `WebGLCubeRenderTarget` constructed with `generateMipmaps: true, minFilter: LinearMipmapLinearFilter` so `MeshStandardMaterial.envMap` sampling at `roughness > 0` reads a box-filtered mip chain. Mip regen runs once per `CubeCamera.update`. Not full PMREM GGX prefilter (parked as `REFLECTION-prefilter`), but visually close enough for moderate roughness (≤ 0.3).
+4. **MATERIAL-bench-multi-probe** — three reflection probes: `sphere.centre` (chrome ball's own probe, 128² @ 30 Hz), `probe.front` at (0, 1, +5), `probe.back` at (0, 1, −5). Outer-ring spheres bind by initial angle hemisphere: `sin(angle) ≥ 0` → `probe.front`, else `probe.back`. Static bindings — each sphere keeps its probe ref as the ring spins so the reflection difference between sphere groups stays visible regardless of where they orbit.
+5. **MATERIAL-bench-stonehenge** — 12 stone-textured cylindrical columns at radius 11 around the orbit. New `stone.material.json` reuses `brick_bump` (`bumpMap`, scale 2.5) + `brick_roughness` (`roughnessMap`) over `#7e7468`. Shadow camera frustum widened to ±14 / far 40 so columns cast onto the grounded floor.
+6. **REFLECTION-cube-cam-shadow-opacity-tune** — live tuning loop with the user: shadow-catcher opacity 1.0 → 0.6 (more natural shadow weight), chrome roughness sweep 0.18 → 0.02 (proved probe correctness, since mirror reflection of an offset cubemap is obviously wrong) → 0.12 → 0.22 (proved mip-cube blur works).
+7. **ADR-0013-reflection-probe-system** — `docs/adr/0013-reflection-probe-system.md` anchors the CubeCamera-per-entity design, the parent-null world-matrix gotcha, the mipmap-cube-RT vs PMREM tradeoff, multi-probe layout decision for material-bench, and self-reflection avoidance.
+8. **DOCS-vfx-skill-update** — `docs/agent/skills/vfx-authoring.md` pitfalls section picks up four new entries from the shipping bugs: `groundedSkybox.height <= 0`, PMREM-vs-equirect for the helper, CubeCamera world-matrix gotcha, and `roughness > 0` needing the mip-cube chain.
+9. **GPU-timer-webgl-errors** — `ext.QUERY_RESULT_AVAILABLE` and `ext.QUERY_RESULT` are `undefined` (the extension exposes only `TIME_ELAPSED_EXT`, `TIMESTAMP_EXT`, `GPU_DISJOINT_EXT`; the rest are core WebGL2 constants on the rendering context). Reading them off `ext` produced `INVALID_ENUM: getQueryParameter`. The companion `INVALID_OPERATION: endQuery: target query is not active` came from `gpuTimerPending` staying set when `beginGpuTimer` early-returned on an in-flight query. Tracked `gpuTimerActive` separately so `endQuery` only fires when `beginQuery` actually fired this frame.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts` — cube cam parent-null + explicit world matrix; GroundedSkybox projection factor + position split; raw equirect passed to helper; shadow-catcher z-fight fix; WebGLCubeRenderTarget mipmap config; GPU timer query parameter fix + `gpuTimerActive` gate.
+- `examples/material-bench/bootstrap.ts` — 3-probe layout, outer-sphere hemisphere binding, 12 stonehenge columns.
+- `examples/material-bench/scenes/start.scene.json` — dark plinth removed, `groundedSkybox: { height: -0.75, radius: 60 }`, shadow camera widened.
+- `examples/material-bench/assets/runtime/materials/m0-chrome.material.json` — roughness 0.22.
+- `examples/material-bench/assets/runtime/materials/stone.material.json` (new).
+- `docs/adr/0013-reflection-probe-system.md` (new).
+- `docs/agent/skills/vfx-authoring.md` — pitfalls section updated.
+
+### Verification
+
+- `npm run preflight` at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 505 tests + build + bundle:check + 11/11 e2e smoke (37.0 s).
+- User live-verified across the tuning loop: centre chrome reflects columns + orbit ring; front/back probes give visible reflection diff between orbit halves even as the ring spins; shadows land on the grounded floor; chrome roughness 0.22 reads as a softly blurred mirror; no more `INVALID_ENUM` / `INVALID_OPERATION` from the GPU timer in DevTools console.
+
+### Follow-Ups
+
+- **REFLECTION-prefilter (still parked)** — three.js auto-mipmap on the cube RT is fine through `roughness ≤ 0.3`. Once a project needs a `roughness > 0.3` reflective material that reads correct PBR-blurry environment, vendor `PMREMGenerator.fromCubemap` and run it on each probe update.
+- **REFLECTION-cube cam re-parenting** — runtime path keeps the cube cam outside the scene graph; if a future feature wants to parent the probe to a moving entity, the per-frame `setReflectionProbeTransform(LocalToWorld)` already covers that; re-parenting is not actually needed.
+- **DOCTOR-reflection scans bootstrap entities** (carried from S57) — material-bench's runtime-created probes still don't show up in `engine doctor`. Add a runtime probe inventory via the dev bridge to close the gap.
+- **GPU-timer test coverage** — the WebGL timer path has no unit-test coverage. A headless test against a mock WebGL2 ctx would have caught the `ext.QUERY_RESULT_*` bug before it reached the console.
