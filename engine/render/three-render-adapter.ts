@@ -46,6 +46,11 @@ import {
   MeshPhongMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
+  PlaneGeometry,
+  ShadowMaterial,
+  CubeCamera,
+  WebGLCubeRenderTarget,
+  HalfFloatType,
   type Object3D,
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -68,7 +73,7 @@ import {
   Scene,
   SpotLight,
   type Texture,
-  TextureLoader,
+  NoColorSpace,
   SRGBColorSpace,
   Vector2,
   Vector3,
@@ -78,6 +83,7 @@ import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLigh
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CubeTextureLoader } from "three";
+import { GroundedSkybox } from "three/examples/jsm/objects/GroundedSkybox.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
@@ -95,6 +101,9 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
+import { LUTPass } from "three/examples/jsm/postprocessing/LUTPass.js";
+import { LUTCubeLoader } from "three/examples/jsm/loaders/LUTCubeLoader.js";
 
 export type MeshHandle = number;
 export type CameraHandle = number;
@@ -314,22 +323,29 @@ export type MaterialPatch = {
   uniforms?: Record<string, ShaderUniformValue>;
   defines?: Record<string, string>;
   /**
-   * M21-mat-textures: texture map URLs. The adapter resolves them
-   * through a process-wide cached TextureLoader and applies them to
-   * the matching Three.js material slot. KTX2-encoded textures
-   * (.ktx2) route through the shared KTX2Loader singleton — when
-   * the renderer has been wired with KTX2 support via the asset
-   * decoders module.
+   * M21-mat-textures: pre-loaded texture objects. As of S57
+   * (ASSET-textures-via-registry) material-binding-system fetches each
+   * texture via `AssetRegistry.get<Texture>(ref)` and hands the loaded
+   * Texture instance directly to the adapter — the adapter no longer
+   * resolves URLs internally, so 404s emit
+   * `AGF_RUNTIME_ASSET_LOAD_FAILED` through the registry's standard
+   * path instead of failing silently inside Three's TextureLoader.
+   * Each Texture's `colorSpace` should already be set; the adapter
+   * re-asserts based on the field's role (`map` / `emissiveMap` → sRGB,
+   * others → linear).
    */
-  map?: string;
-  normalMap?: string;
+  map?: Texture;
+  normalMap?: Texture;
   normalScale?: number;
-  bumpMap?: string;
+  bumpMap?: Texture;
   bumpScale?: number;
-  roughnessMap?: string;
-  metalnessMap?: string;
-  emissiveMap?: string;
-  aoMap?: string;
+  roughnessMap?: Texture;
+  metalnessMap?: Texture;
+  emissiveMap?: Texture;
+  aoMap?: Texture;
+  /** S57 REFLECTION-cube-probe: optional per-object envmap override (CubeTexture). Falls back to `scene.environment` when undefined. */
+  envMap?: Texture;
+  envMapIntensity?: number;
 };
 
 export type CameraParams = {
@@ -348,7 +364,9 @@ export type CameraParams = {
  */
 export type PostPassConfig =
   | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
-  | { kind: "fxaa" };
+  | { kind: "fxaa" }
+  | { kind: "ssao"; radius?: number; intensity?: number; kernelSize?: number }
+  | { kind: "color-lut"; file: string; intensity?: number };
 
 /**
  * M21-shadow-csm — config for the Cascade Shadow Maps adapter. The
@@ -497,6 +515,8 @@ export type EnvironmentSpec =
       asBackground?: boolean;
       /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
       backgroundBlurriness?: number;
+      /** S57 GROUND-skybox config; applied after the IBL load completes. */
+      groundedSkybox?: { height: number; radius: number };
     }
   | {
       /**
@@ -511,6 +531,8 @@ export type EnvironmentSpec =
       asBackground?: boolean;
       /** When `asBackground` is true, optional blur factor in [0, 1] for the sky. */
       backgroundBlurriness?: number;
+      /** S57 GROUND-skybox config; applied after the IBL load completes. */
+      groundedSkybox?: { height: number; radius: number };
     };
 
 const DEFAULT_COLOR = "#cccccc";
@@ -522,8 +544,7 @@ export class ThreeRenderAdapter {
   private contextRestoredListener: (() => void) | undefined;
   // M21-mat-textures: shared TextureLoader + URL → Texture cache so a
   // map shared across N materials only fetches + decodes once.
-  private readonly textureLoader = new TextureLoader();
-  private readonly textureCache = new Map<string, Texture>();
+  // S57 textureLoader / textureCache removed — see AssetRegistry texture loader.
   private readonly scene: Scene;
   private readonly meshes = new Map<MeshHandle, Mesh>();
   private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
@@ -545,6 +566,12 @@ export class ThreeRenderAdapter {
   private pmrem: PMREMGenerator | undefined;
   private currentEnvironmentTexture: Texture | undefined;
   private currentEnvironmentKind: EnvironmentKind = "none";
+  // S57 GROUND-skybox: optional helpers + an invisible shadow-catcher
+  // plane underneath. The shadow-catcher uses `ShadowMaterial`, which is
+  // unlit + transparent except for whatever shadow projects on it — the
+  // HDR background underneath shows through everywhere else.
+  private groundedSkyboxMesh: Mesh | undefined;
+  private groundedShadowMesh: Mesh | undefined;
   private activeCameraHandle: CameraHandle | undefined;
   private debugOverlay: LineSegments | undefined;
   private csm: CSM | undefined;
@@ -749,6 +776,7 @@ export class ThreeRenderAdapter {
       const intensity = normalised.intensity ?? 1;
       const asBackground = normalised.asBackground === true;
       const blur = normalised.backgroundBlurriness;
+      const groundedSpec = normalised.groundedSkybox;
       new RGBELoader().load(url, (texture) => {
         const pmrem = this.pmrem;
         if (pmrem === undefined) return;
@@ -757,15 +785,21 @@ export class ThreeRenderAdapter {
         this.currentEnvironmentTexture = rt.texture;
         this.scene.environment = rt.texture;
         this.scene.environmentIntensity = intensity;
+        // EquirectangularReflectionMapping lets three.js render the
+        // equirect HDR as a sky (both for `scene.background` and
+        // GroundedSkybox).
+        texture.mapping = EquirectangularReflectionMapping;
         if (asBackground) {
-          // EquirectangularReflectionMapping lets three.js render the
-          // equirect HDR as a sky. Re-use the raw RGBE texture for that
-          // (the PMREM cubemap is downsampled and looks soft as a sky).
-          texture.mapping = EquirectangularReflectionMapping;
           this.scene.background = texture;
           this.scene.backgroundIntensity = intensity;
           this.scene.backgroundBlurriness = blur ?? 0;
-        } else {
+        }
+        // S57 GROUND-skybox: the helper wants the raw equirect HDR (NOT
+        // the PMREM cubemap — that's mip-filtered for IBL and projects
+        // softly through the helper's geometry). We just made the
+        // equirect available; reuse it.
+        this.mountGroundedSkybox(groundedSpec, texture);
+        if (!asBackground && groundedSpec === undefined) {
           texture.dispose();
         }
         this.currentEnvironmentKind = "hdr";
@@ -779,6 +813,7 @@ export class ThreeRenderAdapter {
       const intensity = normalised.intensity ?? 1;
       const asBackground = normalised.asBackground === true;
       const blur = normalised.backgroundBlurriness;
+      const groundedSpec = normalised.groundedSkybox;
       new CubeTextureLoader().load(
         normalised.faces as unknown as string[],
         (cubeTexture) => {
@@ -793,9 +828,10 @@ export class ThreeRenderAdapter {
             this.scene.background = cubeTexture;
             this.scene.backgroundIntensity = intensity;
             this.scene.backgroundBlurriness = blur ?? 0;
-          } else {
+          } else if (groundedSpec === undefined) {
             cubeTexture.dispose();
           }
+          this.mountGroundedSkybox(groundedSpec, rt.texture);
           this.currentEnvironmentKind = "cube";
         }
       );
@@ -804,6 +840,136 @@ export class ThreeRenderAdapter {
 
   currentEnvironment(): EnvironmentKind {
     return this.currentEnvironmentKind;
+  }
+
+  // ---- S57 REFLECTION-cube-probe ----
+
+  private readonly reflectionProbes = new Map<
+    number,
+    { cubeCam: CubeCamera; renderTarget: WebGLCubeRenderTarget }
+  >();
+  private nextReflectionProbeHandle = 1;
+
+  acquireReflectionProbe(spec: {
+    size: 128 | 256 | 512;
+    near: number;
+    far: number;
+  }): number {
+    const renderTarget = new WebGLCubeRenderTarget(spec.size, { type: HalfFloatType });
+    const cubeCam = new CubeCamera(spec.near, spec.far, renderTarget);
+    this.scene.add(cubeCam);
+    const handle = this.nextReflectionProbeHandle++;
+    this.reflectionProbes.set(handle, { cubeCam, renderTarget });
+    return handle;
+  }
+
+  setReflectionProbeTransform(
+    handle: number,
+    position: readonly [number, number, number]
+  ): void {
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return;
+    entry.cubeCam.position.set(position[0], position[1], position[2]);
+  }
+
+  updateReflectionProbe(
+    handle: number,
+    hiddenObjects: ReadonlyArray<Object3D>
+  ): void {
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return;
+    // Hide the excluded entities for the duration of the cube render so
+    // the camera doesn't see itself or its owner.
+    const restoreVisibility = new Map<Object3D, boolean>();
+    for (const obj of hiddenObjects) {
+      restoreVisibility.set(obj, obj.visible);
+      obj.visible = false;
+    }
+    try {
+      entry.cubeCam.update(this.device, this.scene);
+    } finally {
+      for (const [obj, was] of restoreVisibility) obj.visible = was;
+    }
+  }
+
+  reflectionProbeTexture(handle: number): Texture | undefined {
+    return this.reflectionProbes.get(handle)?.renderTarget.texture;
+  }
+
+  releaseReflectionProbe(handle: number): void {
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.cubeCam);
+    entry.renderTarget.dispose();
+    this.reflectionProbes.delete(handle);
+  }
+
+  /** Look up the Three.js mesh for an entity — needed by `ReflectionProbeSystem` to hide excluded entities. */
+  meshForHandle(handle: number): Object3D | undefined {
+    return this.meshes.get(handle);
+  }
+
+  /**
+   * S57 GROUND-skybox. Mounts (or replaces) the curved-bottom sky mesh
+   * plus an invisible shadow-catcher plane at the same height. The
+   * shadow-catcher uses ShadowMaterial — fully transparent except for
+   * incoming shadow contribution — so light writes a soft falloff on
+   * the virtual ground while the HDR shows through everywhere else.
+   *
+   * Pass `undefined` to remove both meshes.
+   */
+  private mountGroundedSkybox(
+    spec: { height: number; radius: number } | undefined,
+    envCubemap: Texture
+  ): void {
+    if (this.groundedSkyboxMesh !== undefined) {
+      this.scene.remove(this.groundedSkyboxMesh);
+      (this.groundedSkyboxMesh.material as Material).dispose();
+      this.groundedSkyboxMesh.geometry.dispose();
+      this.groundedSkyboxMesh = undefined;
+    }
+    if (this.groundedShadowMesh !== undefined) {
+      this.scene.remove(this.groundedShadowMesh);
+      (this.groundedShadowMesh.material as Material).dispose();
+      this.groundedShadowMesh.geometry.dispose();
+      this.groundedShadowMesh = undefined;
+    }
+    if (spec === undefined) return;
+    // GroundedSkybox's `height` constructor arg controls the HDR
+    // projection — larger values magnify the downward part of the
+    // sky-sphere into the flat floor disk. The three.js docs example
+    // pairs `height: 15` with `radius: 100` (ratio ≈ 6.6); the same
+    // ratio reads well across project scales. AGF's `spec.height`
+    // means "world Y where the virtual floor sits" (so it can be
+    // negative); the projection magnitude is derived from radius.
+    // Per the docs the mesh is positioned so its internal -height
+    // floor line lands at world Y = mesh.position.y - height; we
+    // want that to equal spec.height.
+    const projectionHeight = Math.max(spec.radius / 6, 1);
+    const sky = new GroundedSkybox(envCubemap, projectionHeight, spec.radius) as unknown as Mesh;
+    sky.position.y = projectionHeight + spec.height;
+    sky.name = "agf.grounded-skybox";
+    this.scene.add(sky);
+    this.groundedSkyboxMesh = sky;
+
+    // Shadow-catcher: a large flat plane laid 1 mm above the grounded
+    // sky mesh's floor line, using ShadowMaterial so it only contributes
+    // the shadow lookup. The y-lift avoids z-fighting with the
+    // skybox surface; `renderOrder = 1` keeps the transparent catcher
+    // painted after the opaque sky in the same depth range.
+    const catcher = new Mesh(
+      new PlaneGeometry(spec.radius * 2, spec.radius * 2),
+      new ShadowMaterial({ opacity: 1.0, transparent: true })
+    );
+    catcher.name = "agf.grounded-skybox-shadow";
+    catcher.rotation.x = -Math.PI / 2;
+    // 10 mm above the sky's flat-bottom disc avoids z-fighting on
+    // GPUs with low depth precision at this scene scale.
+    catcher.position.y = spec.height + 0.01;
+    catcher.receiveShadow = true;
+    catcher.renderOrder = 1;
+    this.scene.add(catcher);
+    this.groundedShadowMesh = catcher;
   }
 
   acquireLight(spec: LightAcquireSpec): LightHandle {
@@ -1526,10 +1692,12 @@ export class ThreeRenderAdapter {
       material.emissive.set(patch.emissive);
     }
 
-    // M21-mat-textures: apply texture maps for materials that support
-    // them. `map` (base colour) gets sRGB; the rest stay in linear
-    // space per glTF convention. Each setter is no-op-when-already-bound
-    // because we cache textures per URL.
+    // M21-mat-textures + S57 ASSET-textures-via-registry: textures
+    // arrive already loaded via the AssetRegistry. `map` / `emissiveMap`
+    // are colour data (sRGB); the rest stay in linear space per glTF
+    // convention. The adapter re-asserts colorSpace here so a wrong
+    // initial guess in `createTextureLoader()`'s heuristic doesn't
+    // bleed through.
     if (
       material instanceof MeshStandardMaterial ||
       material instanceof MeshPhysicalMaterial ||
@@ -1538,7 +1706,8 @@ export class ThreeRenderAdapter {
       material instanceof MeshBasicMaterial
     ) {
       if (patch.map !== undefined) {
-        material.map = this.acquireTexture(patch.map, true);
+        patch.map.colorSpace = SRGBColorSpace;
+        material.map = patch.map;
       }
     }
     if (
@@ -1546,11 +1715,20 @@ export class ThreeRenderAdapter {
       material instanceof MeshPhysicalMaterial ||
       material instanceof MeshPhongMaterial
     ) {
-      if (patch.normalMap !== undefined) material.normalMap = this.acquireTexture(patch.normalMap, false);
+      if (patch.normalMap !== undefined) {
+        patch.normalMap.colorSpace = NoColorSpace;
+        material.normalMap = patch.normalMap;
+      }
       if (patch.normalScale !== undefined) material.normalScale.set(patch.normalScale, patch.normalScale);
-      if (patch.bumpMap !== undefined) material.bumpMap = this.acquireTexture(patch.bumpMap, false);
+      if (patch.bumpMap !== undefined) {
+        patch.bumpMap.colorSpace = NoColorSpace;
+        material.bumpMap = patch.bumpMap;
+      }
       if (patch.bumpScale !== undefined) material.bumpScale = patch.bumpScale;
-      if (patch.emissiveMap !== undefined) material.emissiveMap = this.acquireTexture(patch.emissiveMap, true);
+      if (patch.emissiveMap !== undefined) {
+        patch.emissiveMap.colorSpace = SRGBColorSpace;
+        material.emissiveMap = patch.emissiveMap;
+      }
       if (patch.emissiveIntensity !== undefined) {
         // emissiveIntensity is only on Standard/Physical, not Phong.
         if (
@@ -1560,39 +1738,35 @@ export class ThreeRenderAdapter {
           material.emissiveIntensity = patch.emissiveIntensity;
         }
       }
-      if (patch.aoMap !== undefined) material.aoMap = this.acquireTexture(patch.aoMap, false);
+      if (patch.aoMap !== undefined) {
+        patch.aoMap.colorSpace = NoColorSpace;
+        material.aoMap = patch.aoMap;
+      }
     }
     if (
       material instanceof MeshStandardMaterial ||
       material instanceof MeshPhysicalMaterial
     ) {
       if (patch.roughnessMap !== undefined) {
-        material.roughnessMap = this.acquireTexture(patch.roughnessMap, false);
+        patch.roughnessMap.colorSpace = NoColorSpace;
+        material.roughnessMap = patch.roughnessMap;
       }
       if (patch.metalnessMap !== undefined) {
-        material.metalnessMap = this.acquireTexture(patch.metalnessMap, false);
+        patch.metalnessMap.colorSpace = NoColorSpace;
+        material.metalnessMap = patch.metalnessMap;
       }
+      // S57 REFLECTION-cube-probe: per-object envmap override.
+      if (patch.envMap !== undefined) material.envMap = patch.envMap;
+      if (patch.envMapIntensity !== undefined) material.envMapIntensity = patch.envMapIntensity;
     }
 
     material.needsUpdate = true;
   }
 
-  /**
-   * M21-mat-textures: return a shared Texture for `url`, fetching +
-   * decoding once. Base-colour textures (sRGB) need an explicit
-   * colorSpace assignment; data textures (normal / roughness /
-   * metalness / AO) stay in the default linear space.
-   */
-  private acquireTexture(url: string, isColor: boolean): Texture {
-    const existing = this.textureCache.get(url);
-    if (existing !== undefined) return existing;
-    const texture = this.textureLoader.load(url);
-    if (isColor) {
-      texture.colorSpace = SRGBColorSpace;
-    }
-    this.textureCache.set(url, texture);
-    return texture;
-  }
+  // S57 ASSET-textures-via-registry retired the adapter-side
+  // `acquireTexture(url)` path. Textures arrive pre-loaded via the
+  // `MaterialPatch.{map,normalMap,...}` Texture instances; lifecycle
+  // (cache, invalidation, HMR) lives in the AssetRegistry.
 
   setMeshTransform(handle: MeshHandle, world: ResolvedWorld): void {
     const mesh = this.meshes.get(handle);
@@ -1961,10 +2135,49 @@ export class ThreeRenderAdapter {
         composer.addPass(bloom);
       } else if (pass.kind === "fxaa") {
         composer.addPass(new FXAAPass());
+      } else if (pass.kind === "ssao") {
+        // S57 POST-ssao: vendored SSAOPass. Requires a camera, which we
+        // already gated above via `activeCamera()`. The pass renders an AO
+        // buffer in screen space + blends it back; cost ~5–10 % of base
+        // render at default kernel size 32.
+        const ssao = new SSAOPass(
+          this.scene,
+          camera,
+          size.width,
+          size.height,
+          pass.kernelSize ?? 32
+        );
+        if (pass.radius !== undefined) ssao.kernelRadius = pass.radius;
+        composer.addPass(ssao);
+      } else if (pass.kind === "color-lut") {
+        // S57 POST-color-lut: vendored LUTPass + LUTCubeLoader. The LUT
+        // load is async — we add the pass with a placeholder identity
+        // LUT first so the composer stays valid, then swap in the real
+        // 3D texture when it arrives.
+        const lutPass = new LUTPass();
+        if (pass.intensity !== undefined) lutPass.intensity = pass.intensity;
+        composer.addPass(lutPass);
+        const url = this.resolveLutUrl(pass.file);
+        new LUTCubeLoader().load(url, (result) => {
+          lutPass.lut = result.texture3D;
+        });
       }
     }
     composer.addPass(new OutputPass());
     this.composer = composer;
+  }
+
+  /**
+   * S57 POST-color-lut: hook for the asset-path resolution that lives
+   * in `engine/runtime/start.ts` — the adapter doesn't own the registry,
+   * so the runtime overrides this when wiring the adapter together.
+   * Default falls back to the raw ref (matches the pre-S54 behaviour for
+   * texture refs).
+   */
+  lutUrlResolver: ((ref: string) => string) | undefined;
+  private resolveLutUrl(ref: string): string {
+    if (this.lutUrlResolver !== undefined) return this.lutUrlResolver(ref);
+    return ref;
   }
 
   private disposeComposer(): void {
@@ -2187,8 +2400,9 @@ export class ThreeRenderAdapter {
       this.canvas.removeEventListener("webglcontextrestored", this.contextRestoredListener);
       this.contextRestoredListener = undefined;
     }
-    for (const texture of this.textureCache.values()) texture.dispose();
-    this.textureCache.clear();
+    // S57: textures are owned by AssetRegistry; the adapter no longer
+    // owns the cache. The renderer disposes its Three.js device which
+    // releases per-material texture bindings.
     this.device.dispose();
   }
 

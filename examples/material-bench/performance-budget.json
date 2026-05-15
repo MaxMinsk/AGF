@@ -2,16 +2,16 @@
   "agfFormatVersion": 1,
   "renderer": {
     "soft": {
-      "geometries": 6,
-      "textures": 24,
-      "programs": 16,
-      "meshes": 32
+      "geometries": 10,
+      "textures": 36,
+      "programs": 20,
+      "meshes": 48
     },
     "hard": {
-      "geometries": 10,
-      "textures": 40,
-      "programs": 28,
-      "meshes": 48
+      "geometries": 16,
+      "textures": 60,
+      "programs": 32,
+      "meshes": 72
     }
   },
   "bundle": {

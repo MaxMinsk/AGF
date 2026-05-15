@@ -72,6 +72,16 @@
           "maximum": 1,
           "default": 0,
           "description": "Optional sky blur factor in [0, 1] when `asBackground: true`. 0 keeps the sky sharp; 0.3 reads as a noticeable defocus; 1.0 turns the sky into broad colour fields."
+        },
+        "groundedSkybox": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["height", "radius"],
+          "description": "S57 GROUND-skybox: vendored `three/addons/objects/GroundedSkybox.js` mounted in the scene. Projects the HDR onto a curved-bottom sky mesh so the horizon meets a virtual ground plane at `height` (world Y) with the given `radius`.",
+          "properties": {
+            "height": { "type": "number", "description": "World Y of the virtual ground plane." },
+            "radius": { "type": "number", "exclusiveMinimum": 0, "description": "Sphere radius. Must comfortably exceed the camera's far plane projected onto the ground." }
+          }
         }
       },
       "allOf": [
@@ -186,6 +196,12 @@
             },
             "ShadowCaster": {
               "$ref": "components/render.schema.json#/definitions/shadowCasterComponent"
+            },
+            "ReflectionProbe": {
+              "$ref": "components/render.schema.json#/definitions/reflectionProbeComponent"
+            },
+            "EnvmapBinding": {
+              "$ref": "components/render.schema.json#/definitions/envmapBindingComponent"
             },
             "Batchable": {
               "$ref": "components/render.schema.json#/definitions/batchableComponent"

@@ -16,7 +16,7 @@ import type { QueryHandle, World } from "../../core/ecs/world";
 import type { System, SystemContext } from "../../core/systems/types";
 import type { AssetRegistry } from "../../runtime/asset-registry";
 import type { MaterialManifest } from "../../runtime/asset-loaders/material-loader";
-import type { Mesh } from "three";
+import type { Mesh, Texture } from "three";
 
 import type { GlbAsset } from "../glb-loader";
 import { isExternalMeshRef } from "../mesh-handle-registry";
@@ -188,23 +188,23 @@ function reconcileMaterial(
       if (manifest.iridescence !== undefined) patch.iridescence = manifest.iridescence;
       if (manifest.shininess !== undefined) patch.shininess = manifest.shininess;
       if (manifest.specular !== undefined) patch.specular = manifest.specular;
-      // M21-mat-textures: texture refs are project-relative (same shape as
-      // the material ref itself, e.g. "runtime/textures/foo.jpg"). Resolve
-      // them through the asset registry so they hit the project's
-      // assetRoot — three.js TextureLoader would otherwise resolve them
-      // against the document URL and miss the project subdirectory.
-      const resolveTexture = (ref: string): string =>
-        deps.assetRegistry !== undefined ? deps.assetRegistry.urlFor(ref) : ref;
-      if (manifest.map !== undefined) patch.map = resolveTexture(manifest.map);
-      if (manifest.normalMap !== undefined) patch.normalMap = resolveTexture(manifest.normalMap);
+      // S57 ASSET-textures-via-registry: each texture ref goes through
+      // `assetRegistry.get<Texture>()` like every other asset. Failures
+      // emit `AGF_RUNTIME_ASSET_LOAD_FAILED` through the registry's
+      // standard path; HMR can invalidate one texture without
+      // remounting the whole material.
+      const registry = deps.assetRegistry;
+      const textureRefs: Array<{ ref: string; slot: "map" | "normalMap" | "bumpMap" | "roughnessMap" | "metalnessMap" | "emissiveMap" | "aoMap" }> = [];
+      if (manifest.map !== undefined) textureRefs.push({ ref: manifest.map, slot: "map" });
+      if (manifest.normalMap !== undefined) textureRefs.push({ ref: manifest.normalMap, slot: "normalMap" });
+      if (manifest.bumpMap !== undefined) textureRefs.push({ ref: manifest.bumpMap, slot: "bumpMap" });
+      if (manifest.roughnessMap !== undefined) textureRefs.push({ ref: manifest.roughnessMap, slot: "roughnessMap" });
+      if (manifest.metalnessMap !== undefined) textureRefs.push({ ref: manifest.metalnessMap, slot: "metalnessMap" });
+      if (manifest.emissiveMap !== undefined) textureRefs.push({ ref: manifest.emissiveMap, slot: "emissiveMap" });
+      if (manifest.aoMap !== undefined) textureRefs.push({ ref: manifest.aoMap, slot: "aoMap" });
       if (manifest.normalScale !== undefined) patch.normalScale = manifest.normalScale;
-      if (manifest.bumpMap !== undefined) patch.bumpMap = resolveTexture(manifest.bumpMap);
       if (manifest.bumpScale !== undefined) patch.bumpScale = manifest.bumpScale;
-      if (manifest.roughnessMap !== undefined) patch.roughnessMap = resolveTexture(manifest.roughnessMap);
-      if (manifest.metalnessMap !== undefined) patch.metalnessMap = resolveTexture(manifest.metalnessMap);
-      if (manifest.emissiveMap !== undefined) patch.emissiveMap = resolveTexture(manifest.emissiveMap);
       if (manifest.emissiveIntensity !== undefined) patch.emissiveIntensity = manifest.emissiveIntensity;
-      if (manifest.aoMap !== undefined) patch.aoMap = resolveTexture(manifest.aoMap);
       // M21-mat-custom + M21-mat-shader-files: when an external shader
       // ref is set, fetch the text + use it instead of the inline
       // string. Refs run in parallel so the patch lands as soon as
@@ -214,6 +214,24 @@ function reconcileMaterial(
       if (manifest.uniforms !== undefined) patch.uniforms = manifest.uniforms;
       if (manifest.defines !== undefined) patch.defines = manifest.defines;
       const refsToLoad: Promise<void>[] = [];
+      // Texture fetches (S57). Each ref goes through the registry; one
+      // failure logs + marks the slot undefined, the rest of the patch
+      // still lands. Whole-material failure goes through the outer
+      // material.then(reject).
+      if (registry !== undefined) {
+        for (const { ref, slot } of textureRefs) {
+          refsToLoad.push(
+            registry.get<Texture>(ref).then(
+              (texture) => {
+                patch[slot] = texture;
+              },
+              (error) => {
+                console.error(`[agf] texture load failed for "${entityId}" → "${ref}":`, error);
+              }
+            )
+          );
+        }
+      }
       if (manifest.vertexShaderRef !== undefined) {
         const ref = manifest.vertexShaderRef;
         refsToLoad.push(

@@ -273,7 +273,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
       ...(envSpec.backgroundBlurriness !== undefined
         ? { backgroundBlurriness: envSpec.backgroundBlurriness }
-        : {})
+        : {}),
+      ...(envSpec.groundedSkybox !== undefined ? { groundedSkybox: envSpec.groundedSkybox } : {})
     });
   } else if (envSpec?.kind === "cube") {
     const [f0, f1, f2, f3, f4, f5] = envSpec.faces;
@@ -292,7 +293,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(envSpec.asBackground !== undefined ? { asBackground: envSpec.asBackground } : {}),
       ...(envSpec.backgroundBlurriness !== undefined
         ? { backgroundBlurriness: envSpec.backgroundBlurriness }
-        : {})
+        : {}),
+      ...(envSpec.groundedSkybox !== undefined ? { groundedSkybox: envSpec.groundedSkybox } : {})
     });
   } else {
     renderer.adapter.setEnvironment(envSpec?.kind ?? "generated");
@@ -413,6 +415,16 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const dss = createDynamicShadowSystem({ adapter: renderer.adapter });
     if (!scheduler.has(dss.name)) scheduler.register(dss);
 
+    // S57 REFLECTION-cube-probe: each frame, render the scene into the
+    // probe's CubeRenderTarget + bind the resulting texture as envMap
+    // on every entity tagged `EnvmapBinding { probe }`. Dormant when no
+    // scene declares a `ReflectionProbe`.
+    const { createReflectionProbeSystem } = await import("../render/systems/reflection-probe-system");
+    const rps = createReflectionProbeSystem({
+      adapter: renderer.adapter,
+      registry: renderer.meshRegistry()
+    });
+    if (!scheduler.has(rps.name)) scheduler.register(rps);
   }
 
   const time: TimeContext = {

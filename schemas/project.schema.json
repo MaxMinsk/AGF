@@ -72,6 +72,29 @@
                 "properties": {
                   "kind": { "const": "fxaa" }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "description": "S57 POST-ssao: screen-space ambient occlusion via `three/addons/postprocessing/SSAOPass`. Adds a deferred-style AO pre-pass; cost roughly 5–10 % of base render at default settings.",
+                "properties": {
+                  "kind": { "const": "ssao" },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 },
+                  "intensity": { "type": "number", "minimum": 0, "default": 1 },
+                  "kernelSize": { "type": "integer", "minimum": 8, "maximum": 64, "default": 32 }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "file"],
+                "description": "S57 POST-color-lut: final-pass colour grading via a 3D `.cube` LUT loaded by `three/addons/postprocessing/LUTPass`. The lookup runs in linear space before tone-mapping.",
+                "properties": {
+                  "kind": { "const": "color-lut" },
+                  "file": { "type": "string", "minLength": 1, "description": "Project-relative path to a `.cube` LUT file under `assetRoot`." },
+                  "intensity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }
+                }
               }
             ]
           }

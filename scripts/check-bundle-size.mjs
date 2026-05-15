@@ -32,7 +32,10 @@ const VENDOR_BUDGETS = [
   },
   {
     prefix: "three-",
-    budget: 300 * 1024,
+    // S57 raised from 300 → 320 KB after pulling in SSAOPass + LUTPass +
+    // LUTCubeLoader + GroundedSkybox + CubeCamera + ShadowMaterial +
+    // PlaneGeometry. Net gain ~5 KB gzipped over S56.
+    budget: 320 * 1024,
     label: "Three.js (auto-split renderer vendor chunk)"
   }
 ];

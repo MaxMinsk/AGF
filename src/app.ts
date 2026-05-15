@@ -3,6 +3,7 @@ import { SystemScheduler } from "../engine/core/systems/scheduler";
 import { createSpinSystem } from "../engine/core/systems/spin-system";
 import { AssetRegistry } from "../engine/runtime/asset-registry";
 import { createMaterialLoader } from "../engine/runtime/asset-loaders/material-loader";
+import { createTextureLoader } from "../engine/render/texture-loader";
 import { createPlayerInputSystem } from "../engine/runtime/player-input-system";
 import { createGlbLoader } from "../engine/render/glb-loader";
 import {
@@ -46,6 +47,8 @@ export type ProjectMeta = {
     post?: ReadonlyArray<
       | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
       | { kind: "fxaa" }
+      | { kind: "ssao"; radius?: number; intensity?: number; kernelSize?: number }
+      | { kind: "color-lut"; file: string; intensity?: number }
     >;
     /**
      * M21-shadow-csm: opt in to cascade shadow maps. When enabled, the
@@ -332,7 +335,7 @@ export async function createApp(
 
   const assetRegistry = new AssetRegistry({
     baseUrl: new URL(`examples/${projectId}/assets/`, window.location.href).href,
-    loaders: [createMaterialLoader(), createGlbLoader()],
+    loaders: [createMaterialLoader(), createGlbLoader(), createTextureLoader()],
     diagnostics
   });
 
@@ -451,7 +454,11 @@ export async function createApp(
   }
 
   // M21-post-pipeline: opt in to the post-processing chain. Adapter
-  // defers composer construction until an active camera exists.
+  // defers composer construction until an active camera exists. S57
+  // POST-color-lut needs the AssetRegistry to resolve the LUT path
+  // through the project's assetRoot, so we hand the resolver to the
+  // adapter before we set the pipeline.
+  runtime.renderer.adapter.lutUrlResolver = (ref) => assetRegistry.urlFor(ref);
   if (project.render?.post !== undefined && project.render.post.length > 0) {
     runtime.renderer.adapter.setPostPipeline(project.render.post);
   }

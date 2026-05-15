@@ -282,6 +282,28 @@
         }
       }
     },
+    "reflectionProbeComponent": {
+      "description": "S57 REFLECTION-cube-probe: per-entity dynamic envmap. The runtime mounts a `THREE.CubeCamera` at this entity's LocalToWorld position and renders the scene into a `WebGLCubeRenderTarget` at the configured cadence. Other entities reference the probe via `EnvmapBinding { probe: <this-entity-id> }`; their materials' `envMap` slot binds to the probe's cube texture. Pair every probe with `excludeEntities: [<probe-owner-id>, …]` so the camera doesn't pick up the owner (or other near objects you want excluded from the reflection).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": { "enum": [128, 256, 512], "default": 256, "description": "Per-face render-target resolution. 256² is the sweet spot for a single hero probe; 128 is a clear perf win when the reflection only needs to feel right, not look pixel-perfect." },
+        "near": { "type": "number", "exclusiveMinimum": 0, "default": 0.1 },
+        "far": { "type": "number", "exclusiveMinimum": 0, "default": 1000 },
+        "updateRate": { "enum": [0, 15, 30, 60], "default": 60, "description": "Hz. 0 = bake once at boot, then never. 60 = every frame. 15 / 30 keep the rate low for non-hero scenes." },
+        "excludeEntities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true, "description": "Entity ids to hide while the probe renders. Always include the probe owner so the camera doesn't see itself." }
+      }
+    },
+    "envmapBindingComponent": {
+      "description": "S57 REFLECTION-cube-probe: bind this entity's material `envMap` slot to a `ReflectionProbe`'s render target. The probe entity referenced by `probe` must declare `ReflectionProbe`; otherwise the binding is a no-op until that entity appears.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["probe"],
+      "properties": {
+        "probe": { "type": "string", "minLength": 1, "description": "Entity id of the `ReflectionProbe`-bearing entity." },
+        "intensity": { "type": "number", "minimum": 0, "default": 1, "description": "Three.js `material.envMapIntensity`. Useful for clearcoat / non-metallic surfaces that want a softer environment contribution." }
+      }
+    },
     "shadowCasterComponent": {
       "description": "M21-shadow-static-caster-tag (S52): opt a single entity into the dynamic-caster set. When ANY entity in the world carries `ShadowCaster { dynamic: true }`, `DynamicShadowSystem` flips `renderer.shadowMap.autoUpdate = false` and only triggers a shadow re-bake when one of those entities' LocalToWorld actually changes. Entities without a `ShadowCaster` component (or with `dynamic: false`) are treated as static — they cast shadows once on first bake and the cache holds. Useful when most casters are stationary (buildings, terrain, rocks) and only a handful (player, enemies, animated props) need per-frame shadow updates.",
       "type": "object",

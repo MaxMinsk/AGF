@@ -5,7 +5,8 @@
     "url": "runtime/hdr/venice_sunset_1k.hdr",
     "intensity": 1.0,
     "asBackground": true,
-    "backgroundBlurriness": 0.35
+    "backgroundBlurriness": 0.35,
+    "groundedSkybox": { "height": -0.75, "radius": 60 }
   },
   "entities": [
     {
@@ -38,18 +39,9 @@
             "mapSize": 2048,
             "bias": -0.00002,
             "normalBias": 0.004,
-            "camera": { "left": -8, "right": 8, "top": 6, "bottom": -4, "near": 0.5, "far": 24 }
+            "camera": { "left": -14, "right": 14, "top": 14, "bottom": -14, "near": 0.5, "far": 40 }
           }
         }
-      }
-    },
-    {
-      "id": "ground",
-      "components": {
-        "Name": { "label": "Plinth" },
-        "Transform": { "position": [0, -0.8, 0], "scale": [16, 0.1, 8] },
-        "MeshRenderer": { "mesh": "box", "color": "#1c2530" },
-        "ShadowFlags": { "cast": false, "receive": true }
       }
     },
     {
