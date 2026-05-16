@@ -229,6 +229,8 @@ export type AppHandle = {
   pick(spec: { x: number; y: number }):
     | { readonly entityId: string; readonly point: readonly [number, number, number]; readonly distance: number }
     | undefined;
+  /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — returns a `{ [className]: count }` map of every material instance the next render frame will touch. */
+  __auditMaterials(): Record<string, number>;
   /** M21-frame-timing — window-averaged per-phase tick timings in milliseconds. */
   frameTiming(): {
     fixedUpdateMs: number;
@@ -586,6 +588,13 @@ export async function createApp(
     },
     rendererInfo() {
       return runtime.renderer.info();
+    },
+    // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
+    // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`
+    // rejects. Returns a `{ [class]: count }` map of every material
+    // class participating in the next render frame.
+    __auditMaterials(): Record<string, number> {
+      return runtime.renderer.adapter.auditMaterialClasses();
     },
     frameTiming() {
       return runtime.frameTiming();

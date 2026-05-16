@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 65 archived)
+Date: 2026-05-16 (Sprint 66 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,27 +38,26 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 66 — WebGPU ShaderMaterial audit (unblocking post-passes)
+## Current Sprint: Sprint 67 — WebGPU ShaderMaterial stack-trace + port
 
-S65 hit a hard wall on WebGPU post-passes — TSL `PostProcessing` rejected the scene with `Material "ShaderMaterial" is not compatible` even after isolating env / probe / shadow. AGF (or three.js internals AGF uses) keeps at least one `ShaderMaterial` in the render frame; until that's identified and ported to node-material, NONE of the post-pass / CSM / PCSS work on WebGPU. S66 is the unblock sprint.
+S66 shipped the audit tool + research; the offender is somewhere inside three.js (`StandardNodeLibrary` has no entry for vanilla `ShaderMaterial`; the error originates in `NodeBuilder.js:2985`). Audit on webgpu-spike shows zero ShaderMaterials in our scene traversal, so the offender must be internal three.js code lazily creating one. S67 traces it and ports it.
 
 ### Stories
 
-1. **WEBGPU-shadermaterial-audit** — instrument the renderer to log every distinct material class participating in each frame's render. Run on the webgpu-spike at minimum scene complexity (no env, no probe, no shadow); the offender(s) here are baseline. Repeat with env=generated → identifies RoomEnvironment's ShaderMaterial; with shadow=on → identifies MeshDepthMaterial; with reflection probe → identifies anything in the probe's render pass. Output: `docs/research/m21-webgpu-shadermaterial-audit.md` listing each ShaderMaterial source + the node-material equivalent + the porting cost. Status: Not yet implemented.
-2. **WEBGPU-shadow-depth-material** — if shadow's `MeshDepthMaterial` is on the list (likely), swap to `MeshDepthNodeMaterial` (already exported from `three/webgpu`) on WebGPU mode via `renderer.overrideMaterial` or per-light override. Status: Not yet implemented.
-3. **WEBGPU-pmrem-room-env** — if RoomEnvironment internals are on the list, either replace RoomEnvironment with a node-material-friendly equivalent or skip the room-env path entirely on WebGPU (fall back to a flat ambient env). Status: Not yet implemented.
-4. **WEBGPU-post-bloom (re-attempt)** — after the audit + ports, retry the bloom path. Status: Not yet implemented.
-5. **WEBGPU-spike-bloom** — once bloom renders cleanly, enable it in webgpu-spike for visual verification. Status: Not yet implemented.
-6. **DOCS-webgpu-skill-update** — flip post-bloom from "blocked on ShaderMaterial" to "supported". Status: Not yet implemented.
-
-### S65-deferred stories rolling into S67+
-
-`WEBGPU-gpu-timer`, remaining post-passes (ssao / lut / fxaa), `WEBGPU-csm`, `WEBGPU-planar-mirror`, `WEBGPU-pcss`, `WEBGPU-lazy-import`, `MIGRATE-examples-to-webgpu`, `WEBGPU-default-flip`. None can ship cleanly until the ShaderMaterial audit closes — even features unrelated to post-passes may hit similar walls when they integrate.
+1. **WEBGPU-shadermaterial-stacktrace** — monkey-patch `THREE.ShaderMaterial.prototype.constructor` (via an opt-in adapter flag, e.g. `?debug-shadermaterial=1` URL param) to capture a stack trace at every instantiation. Run webgpu-spike + bloom-enabled config. Output: identified offender + stack pointing at the three.js internal that triggers it. Status: Not yet implemented.
+2. **WEBGPU-shadermaterial-port** — port the offender to a node-material equivalent OR replace it with an alternative API that doesn't construct `ShaderMaterial`. Possible flavors depending on what Story 1 reveals:
+   - If PMREM equirect pingpong: skip on WebGPU (already done in S62), audit the helper paths.
+   - If shadow internal: use `renderer.shadowMap.type = ShadowMaterial` override or set `customDepthMaterial: MeshDepthNodeMaterial` on every shadow caster.
+   - If a `Pass`-derived class: skip on WebGPU path (verify removed).
+   - If three.js internal lazy helper: file an upstream issue + pin a workaround. Status: Not yet implemented.
+3. **WEBGPU-post-bloom (re-attempt)** — retry the S65 bloom code after Story 2 lands. Capability flag `supportsPostProcessing` flips true (for bloom only initially). Status: Not yet implemented.
+4. **WEBGPU-spike-bloom** — enable bloom on webgpu-spike for visual verification once Story 3 lands. Status: Not yet implemented.
+5. **DOCS-webgpu-skill-update** — flip "post-bloom blocked" → "supported" in the skill memo. Status: Not yet implemented.
 
 ### Honest scope note
 
-The WebGPU push has consistently been one-story-per-sprint since S63. Continue that pattern. The audit (Story 1) alone is the right deliverable for S66; the ports (Stories 2–5) follow once findings are concrete. Don't bundle.
+S66 found the ShaderMaterial offender lives in three.js internals (not AGF code). S67 needs to identify exactly which one via monkey-patch trace. If it turns out to be unfixable from the AGF side (e.g. a three.js bug), the WebGPU post-pipeline path is genuinely blocked until three.js publishes a fix — and we should pin a known-working version OR work around with a custom pass that doesn't use `PostProcessing`.
 
 ## Next Sprint (placeholder)
 
-S67 — likely the bloom re-attempt + first post-pass shipping, after S66's audit unblocks the WebGPU post-pipeline path.
+S68 — depends on S67 outcome. If S67 unblocks bloom: ship remaining post-passes (ssao / lut / fxaa) + start CSM / PCSS port. If S67 reveals an upstream block: pivot to non-post-processing work (GPU timer, planar mirror via Reflector audit, migrations of feature-light examples to webgpu).
