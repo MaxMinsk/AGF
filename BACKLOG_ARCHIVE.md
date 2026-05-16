@@ -3021,3 +3021,38 @@ The bloom port turned out to be blocked on a deeper issue than the surface "swap
 ### Follow-Ups
 
 - **S66** — start with the ShaderMaterial audit. Once we know which paths need node-material ports, the remaining feature parity stories (post-passes, CSM, planar mirror, etc) become tractable mechanical ports. Without it, every port is blocked by the same wall.
+
+## Sprint 66 — WebGPU ShaderMaterial audit (tool + research)
+
+Status: Completed and archived as an audit-tool + research sprint. The S65 bloom block prompted a deep investigation; S66 delivers the diagnostic tooling and a research write-up but not the actual unblock — the offender turned out to be an internal three.js code path that needs further investigation with a monkey-patch.
+
+### Completed Work
+
+1. **WEBGPU-shadermaterial-audit (tool)** — adapter method `auditMaterialClasses()` walks every scene object's `.material` + `.customDepthMaterial` + `.customDistanceMaterial`, plus shadow-pass occurrences for castShadow lights + composer passes. Exposed via `window.__agf.__auditMaterials()` for headed playwright probes. Lives in `engine/render/three-render-adapter.ts`.
+2. **Research doc** — `docs/research/m21-webgpu-shadermaterial-audit.md`. Documents:
+   - Audit results on webgpu-spike (only 4 `MeshStandardMaterial` + 1 shadow pass; **no `ShaderMaterial` in scene traversal**).
+   - The exact error origin in `three/src/nodes/core/NodeBuilder.js:2985`.
+   - `StandardNodeLibrary` registry: it maps `MeshStandard / Basic / Lambert / Phong / Toon / Physical / Normal / Matcap / LineBasic / LineDashed / Points / Sprite / ShadowMaterial` → node-material equivalents, but has **no entry for vanilla `ShaderMaterial`**.
+   - Bisection results: removing env / probe / shadow each in isolation does NOT clear the error. The offender is in something always present on the WebGPU path, possibly an internal helper material created lazily during first `renderAsync` when `PostProcessing` is wired up.
+
+### What S66 did NOT solve
+
+Identifying *which* `ShaderMaterial` instance fires the error. The audit tool doesn't catch internal three.js construction. Next step is a monkey-patch on `ShaderMaterial.prototype.constructor` that captures stack traces — that's the S67 first story.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts` — `auditMaterialClasses()` debug method.
+- `src/app.ts` — `__auditMaterials()` on `AppHandle`.
+- `src/main.ts` — `__auditMaterials` exposed on `window.__agf`.
+- `docs/research/m21-webgpu-shadermaterial-audit.md` (new) — investigation findings.
+
+### Verification
+
+- typecheck + 511 unit tests pass.
+- `engine doctor` clean on all 9 example projects.
+- 11 / 11 e2e smoke; webgpu-spike unchanged (scene renders correctly, `renderer: "webgpu"`).
+
+### Follow-Ups
+
+- **S67 — monkey-patch ShaderMaterial constructor** to capture stack traces of every ShaderMaterial instantiation during webgpu-spike boot + bloom attempt. Identifies offender. Then port that offender to a node-material equivalent.
+- **Honest schedule revision**: each WebGPU feature port may need its own ShaderMaterial-audit cycle. The default-flip is more distant than the S60 spike sketch suggested.

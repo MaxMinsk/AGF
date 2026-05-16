@@ -773,6 +773,52 @@ export class ThreeRenderAdapter {
   }
 
   /**
+   * S66 WEBGPU-shadermaterial-audit. Walks the scene + every light's
+   * shadowMap material + the scene.environment + composer passes and
+   * returns a per-class count of every material instance the next
+   * render frame will touch. Used to identify which `ShaderMaterial`
+   * instances `three/webgpu`'s `PostProcessing` (TSL `NodeBuilder`)
+   * rejects.
+   */
+  auditMaterialClasses(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    const add = (mat: { type?: string } | { type?: string }[] | undefined): void => {
+      if (mat === undefined) return;
+      if (Array.isArray(mat)) {
+        for (const m of mat) add(m);
+        return;
+      }
+      const name = mat.type ?? "<unknown>";
+      counts[name] = (counts[name] ?? 0) + 1;
+    };
+    this.scene.traverse((obj) => {
+      const m = (obj as { material?: unknown }).material as { type?: string } | undefined;
+      if (m !== undefined) add(m as never);
+      // ShadowMaterial swap on shadow casters via customDepthMaterial:
+      const cdm = (obj as { customDepthMaterial?: unknown }).customDepthMaterial;
+      const cdrm = (obj as { customDistanceMaterial?: unknown }).customDistanceMaterial;
+      if (cdm) add(cdm as never);
+      if (cdrm) add(cdrm as never);
+    });
+    // Lights with shadow maps own internal depth materials reachable
+    // via shadow.camera but the actual MeshDepthMaterial / MeshDistance
+    // is constructed per-pass inside three.js — not on the light
+    // object. Document this gap separately.
+    for (const light of this.lights.values()) {
+      if (light.castShadow) {
+        counts[`<shadow-pass-for:${light.type}>`] = (counts[`<shadow-pass-for:${light.type}>`] ?? 0) + 1;
+      }
+    }
+    // Composer passes (WebGL path only).
+    if (this.composer !== undefined) {
+      for (const pass of this.composer.passes) {
+        counts[`<composer:${pass.constructor.name}>`] = (counts[`<composer:${pass.constructor.name}>`] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  /**
    * S61 WEBGPU-init-async. WebGPURenderer's `init()` asks for a
    * `GPUAdapter` + `GPUDevice` asynchronously; the runtime must `await
    * adapter.init()` before any `acquireMesh` / `draw` call. Resolves

@@ -143,6 +143,8 @@ declare global {
         /** S60 PERF-renderer-info-renderer-kind: which renderer the adapter is backed by. Always `"webgl"` today; flips once `WebGpuRenderAdapter` ships. */
         readonly renderer: "webgl" | "webgpu";
       };
+      /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
+      __auditMaterials?(): Record<string, number>;
       /**
        * M21-frame-timing — window-averaged per-phase tick timings in
        * milliseconds. `samples` is the frame count the window was
@@ -418,6 +420,7 @@ void (async (): Promise<void> => {
       rendererReady: app.rendererReady,
       pick: (spec) => app.pick(spec),
       rendererInfo: () => app.rendererInfo(),
+      __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,
       ...(app.physics !== undefined ? { physics: app.physics } : {}),
