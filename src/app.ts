@@ -29,6 +29,8 @@ import type { SaveBlob } from "../engine/runtime/persistence/save-load";
 export type ProjectMeta = {
   name: string;
   render?: {
+    /** S61 RENDER-mode. `webgl` (default) → `WebGLRenderer`; `webgpu` → `WebGPURenderer` from `three/webgpu`. */
+    mode?: "webgl" | "webgpu";
     background?: string;
     skyGradient?: { top: string; bottom: string };
     /**
@@ -363,6 +365,10 @@ export async function createApp(
   }
   if (project.render?.shadows?.algorithm !== undefined) {
     runtimeOptions.shadowAlgorithm = project.render.shadows.algorithm;
+  }
+  // S61 RENDER-mode: opt into WebGPU per project.
+  if (project.render?.mode === "webgpu") {
+    runtimeOptions.rendererMode = "webgpu";
   }
   // S53 M17-batch-default-on: auto-batch defaults to true. Setting
   // `render.batching.auto: false` explicitly keeps the legacy

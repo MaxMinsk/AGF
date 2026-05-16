@@ -372,6 +372,12 @@ export function runDoctor(
       `${reflectionProbes.probesWithoutSelfExclude.length} ReflectionProbe(s) [${reflectionProbes.probesWithoutSelfExclude.join(", ")}] have no excludeEntities — the cube camera will see its own owner. Add the owner id to excludeEntities.`
     );
   }
+  // S61 DOCTOR-webgpu-readiness-actionable. When a project explicitly
+  // opts into `render.mode: "webgpu"` and uses a feature that the
+  // WebGPU adapter doesn't implement yet (post-processing, CSM, PCSS,
+  // reflection probes, planar mirrors), surface it as a recommendation
+  // so the agent / user can either revert the mode or wait for the
+  // feature port (S62 / S63).
 
   const prefabs = summarizePrefabs(projectDir);
   if (prefabs.missingPrefabRefs.length > 0) {
@@ -405,7 +411,21 @@ export function runDoctor(
     textures,
     prefabs,
     reflectionProbes,
-    webgpuReadiness: summarizeWebGpuReadiness(projectDir, reflectionProbes),
+    webgpuReadiness: (() => {
+      const wgpu = summarizeWebGpuReadiness(projectDir, reflectionProbes);
+      // S61 DOCTOR-webgpu-readiness-actionable: when a project actually
+      // declares webgpu mode AND uses an unsupported feature, surface a
+      // recommendation so an agent reading the doctor output gets a
+      // direct prompt to fix it (revert mode or wait for the port).
+      if (wgpu.declaredMode === "webgpu" && wgpu.blockers.length > 0) {
+        const list = wgpu.blockers.map((b) => b.feature).slice(0, 3).join(", ");
+        const extra = wgpu.blockers.length > 3 ? ` (and ${wgpu.blockers.length - 3} more)` : "";
+        recommendations.push(
+          `project.render.mode = "webgpu" + ${wgpu.blockers.length} unsupported feature(s) [${list}${extra}]. The WebGPU adapter will silently skip these; revert mode to "webgl" or wait for the S62 / S63 feature port.`
+        );
+      }
+      return wgpu;
+    })(),
     recommendations
   };
 }

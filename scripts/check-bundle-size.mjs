@@ -35,7 +35,15 @@ const VENDOR_BUDGETS = [
     // S57 raised from 300 → 320 KB after pulling in SSAOPass + LUTPass +
     // LUTCubeLoader + GroundedSkybox + CubeCamera + ShadowMaterial +
     // PlaneGeometry. Net gain ~5 KB gzipped over S56.
-    budget: 320 * 1024,
+    //
+    // S61 raised from 320 → 480 KB. The new `WebGpuRenderAdapter` imports
+    // `three/webgpu` at module top-level so `WebGPURenderer` instantiation
+    // is synchronous from the adapter constructor. The node-material /
+    // TSL runtime that backs WebGPURenderer adds ~145 KB gzipped to the
+    // three-vendor chunk. Eaten by every project — even WebGL-mode ones —
+    // until S64 ships the lazy-import refactor (`await import("three/webgpu")`
+    // inside `adapter.init()` so the cost moves into a webgpu-only chunk).
+    budget: 480 * 1024,
     label: "Three.js (auto-split renderer vendor chunk)"
   }
 ];

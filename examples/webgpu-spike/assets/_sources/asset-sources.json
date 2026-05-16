@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "webgpu-spike.procedural-primitives",
+      "kind": "procedural",
+      "runtimeFiles": [],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "All meshes are built-in primitives (box / sphere / cylinder). No external assets."
+      }
+    }
+  ]
+}

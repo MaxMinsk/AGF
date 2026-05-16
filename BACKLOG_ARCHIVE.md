@@ -2823,3 +2823,53 @@ Status: Completed and archived. **User-driven pivot** — replaced the parked pe
 - **S62 / S63 / S64**: post-processing port, CSM / PCSS / probe / mirror port, example migrations + re-bench.
 - **S65 default-flip**: `webgpu` becomes the default, `webgl` legacy opt-in.
 - **WebGL stutter follow-up**: capture chrome devtools Performance traces during a known stutter frame so we can attribute the ~2 ms over-budget frames to specific browser task categories. Current measurement says *how often*, not *what*. Lands when a user actually needs to chase a specific stutter.
+
+## Sprint 61 — WebGPU adapter core (opt-in path)
+
+Status: Completed and archived. 9 of 11 planned stories shipped + the deferred `BASELINE-rebench-pre-webgpu` re-deferred to S64 (comparison anchor not needed until post-passes / probes land) and `WEBGPU-renderer-import-boundary` deferred to S62 (the `three/webgpu` import stays inside `engine/render/three-render-adapter.ts` for now, so the existing boundary test still covers it).
+
+### Completed Work
+
+1. **RENDER-adapter-interface** — `engine/render/render-adapter.ts` with `RenderAdapterCapabilities` + `WEBGL_CAPABILITIES` / `WEBGPU_CAPABILITIES` constants. Single source of truth for which features a renderer supports (supportsGpuTimer / supportsCsm / supportsPcss / supportsPostProcessing / supportsReflectionProbe / supportsPlanarMirror).
+2. **WEBGPU-adapter-core** — `ThreeRenderAdapter` constructor branches on `mode`: `WebGLRenderer` (default) or `WebGPURenderer` from `three/webgpu`. Single class with capability gating, not a parallel class — kept the refactor surface minimal. Environment IBL (PMREMGenerator) skipped on WebGPU until S63 (WebGL PMREM crashes on WebGPURenderer).
+3. **WEBGPU-init-async** — `adapter.init()` awaited in start.ts before the first frame. No-op on WebGL; awaits `WebGPURenderer.init()` (GPUAdapter + GPUDevice request) on WebGPU.
+4. **RENDER-mode-schema** — `project.json#render.mode` enum extended from `["webgl"]` to `["webgl", "webgpu"]`. `ProjectMeta.render.mode` typed in src/app.ts; runtime threads it through `ThreeRenderer` constructor.
+5. **WEBGPU-spike-project** — `examples/webgpu-spike/` (cube + sphere + cylinder + floor + sun + hemi, spinning hero cube). Boots end-to-end on WebGPU; registered with project switcher; passes engine:check.
+6. **WEBGPU-rendererinfo-flip** — `info().renderer` returns the actual capability kind. `__agf.rendererInfo().renderer === "webgpu"` when running the spike, `"webgl"` everywhere else.
+7. **DOCTOR-webgpu-readiness-actionable** — when `mode = "webgpu"` AND the project uses an unsupported feature, doctor surfaces a recommendation. Walks project.json + every scene .json.
+8. **WEBGPU-e2e-smoke** — `tests/e2e/webgpu-spike.spec.ts`. Self-skips on browsers without `navigator.gpu`; tagged into the smoke project so developer machines exercise it but CI Linux smoke stays green.
+9. **DOCS-webgpu-skill-update** — `docs/agent/skills/webgpu-rendering.md` flips from "no adapter" → "adapter shipped"; documents the opt-in path, what works on WebGPU core today, what's still deferred.
+10. **HIGH_LEVEL-update-webgpu** (from S60 carry-over) — `HIGH_LEVEL_BACKLOG.md` M21 row already records the spike + promoted adapter epic at S60 close; no S61 changes needed.
+
+### Deferred to S62 / S64
+
+- 7 **BASELINE-rebench-pre-webgpu** — re-run perf-probe-shadows + perf-probe-batching on current main + on the WebGPU spike for a comparison anchor. Doesn't block S61 conclusion; lands at S64 (the re-bench sprint before default-flip).
+- 8 **WEBGPU-renderer-import-boundary** — `three/webgpu` is imported from `engine/render/three-render-adapter.ts`. The existing `tests/unit/renderer-import-boundary.test.ts` scopes the import to `engine/render/**` which still holds. Will revisit when a dedicated `engine/render/webgpu/` directory lands (likely S64 alongside the lazy-import refactor).
+
+### Deliverables
+
+- `engine/render/render-adapter.ts` (new) — capability interface.
+- `engine/render/three-render-adapter.ts` — `mode` branch in constructor, async `init()`, `capabilities` field, PMREM gate, `info()` returns `renderer: this.capabilities.kind`.
+- `engine/render/three-renderer.ts` + `engine/runtime/start.ts` — `rendererMode` threaded through; `await renderer.adapter.init()` before first frame.
+- `engine/tools/doctor/project-doctor.ts` — actionable recommendation when `mode = "webgpu"` + unsupported features.
+- `examples/webgpu-spike/` (new) — opt-in WebGPU project: project.json + scene + bootstrap + README + asset-sources.
+- `schemas/project.schema.json` — `render.mode` enum extended.
+- `scripts/check-bundle-size.mjs` — three-vendor budget raised 320 → 480 KB (justified inline).
+- `src/app.ts` — `ProjectMeta.render.mode` typed; threads to runtime.
+- `src/main.ts` — project switcher registers `?project=webgpu-spike`.
+- `tests/e2e/webgpu-spike.spec.ts` (new) — smoke that self-skips without WebGPU.
+- `docs/agent/skills/webgpu-rendering.md` — flipped from "no adapter" to "adapter shipped".
+- `playwright.config.ts` — `webgpu-spike.spec.ts` added to SMOKE_TESTS.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — typecheck + 511 unit tests + repo:hygiene + 8 / 8 engine:check + 11 / 11 e2e smoke (1 webgpu spike skipped on headless).
+- Live playwright probe on headed chromium with `--enable-unsafe-webgpu` reports `renderer: "webgpu"`, 4 meshes, 2 lights, 1 shadow caster, zero pageerrors.
+- Verified other projects still boot cleanly: hello-3d / material-bench / water-bench all report `renderer: "webgl"` with their normal mesh + draw counts.
+
+### Follow-Ups
+
+- **S62 — post-processing port**: `WebGPUPostProcessing` (`three/addons/postprocessing/PostProcessing.js`) wrapper for Bloom / SSAO / LUT / FXAA. Match the existing `project.render.post[]` schema.
+- **S63 — feature parity**: CSM (`CSMNode`), PCSS (TSL rewrite), reflection probes + PMREM (`WebGPUCubeRenderTarget`), planar mirror (`ReflectorNode`), GPU timer (`GPUQuerySet`), HDR IBL.
+- **S64 — lazy import of `three/webgpu`**: move the import inside `await adapter.init()` so the WebGL-only bundle path doesn't pay the 145 KB node-material cost. Pre-default-flip housekeeping.
+- **S65 — default-flip**: `render.mode` defaults to `"webgpu"`; `webgl` becomes the explicit legacy opt-in.

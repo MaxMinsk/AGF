@@ -307,6 +307,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.waterBenchBootstrap
     };
+  },
+  "webgpu-spike": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/webgpu-spike/project.json"),
+      import("../examples/webgpu-spike/scenes/start.scene.json"),
+      import("../examples/webgpu-spike/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.webgpuSpikeBootstrap
+    };
   }
 };
 

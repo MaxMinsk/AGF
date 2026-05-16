@@ -24,7 +24,10 @@ const SMOKE_TESTS = [
   /app\.spec\.ts/,
   /project-switcher\.spec\.ts/,
   /hello-3d-hierarchy\.spec\.ts/,
-  /dev-bridge\.spec\.ts/
+  /dev-bridge\.spec\.ts/,
+  // S61 WEBGPU-e2e-smoke — skips on browsers without `navigator.gpu`;
+  // runs the assertions on developer machines where WebGPU is exposed.
+  /webgpu-spike\.spec\.ts/
 ];
 // playtest-runner.spec.ts intentionally NOT in smoke. Beacon's playtests
 // chain pickup → carry → deposit through Rapier physics + the scoring
