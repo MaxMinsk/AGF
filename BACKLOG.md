@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 59 archived)
+Date: 2026-05-16 (Sprint 60 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,33 +38,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 60 — WebGPU spike + measurement
+## Current Sprint: Sprint 61 — WebGPU adapter core (opt-in path)
 
-Spike to answer: should AGF's renderer plan to migrate from `WebGLRenderer` to `WebGPURenderer`? Three.js's WebGPU path is no longer experimental on paper (every major browser shipped it stable by 2025) but is still tied to the node-material / TSL system, which is structurally different from AGF's current GLSL + `onBeforeCompile` patches. The point of this sprint is to get **real FPS / draw-call / gpuMs numbers** before committing the engine to the migration, not to ship a fully-integrated WebGPU adapter.
-
-Sprint deliverable: a `docs/research/m21-webgpu-spike.md` write-up with measured numbers + a recommendation on whether (and how) the WebGPU adapter should land in a follow-up sprint.
+S60 spike landed the verdict: WebGPU is decisively better at AGF's realistic workloads (+34 % fps medium, +278 % fps light, p99/p50 variance 3.6× → 2.0×). Now we ship the actual `WebGpuRenderAdapter` as an opt-in renderer, gated by `project.json#render.mode: "webgpu"`. Existing projects keep using WebGL; only `examples/webgpu-spike-project/` opts in for the smoke trail. Sequence is the S61 → S65 plan from the adapter sketch: this sprint = core path only (mesh / light / shadow / transmission). Post-passes / CSM / PCSS / probes / mirror port land S62–S63.
 
 ### Stories
 
-1. **WEBGPU-comparison-page** — standalone three.js comparison harness at `tests/manual/webgpu-vs-webgl/`. Same scene (N boxes, M spheres, a directional light, a ground plane, optional shadow-casting toggle), one HTML page that switches renderer via `?renderer=webgl|webgpu`. Per-frame on-screen FPS counter + `__webgpuSpike` global with running averages. Status: Implemented.
-2. **WEBGPU-measure-script** — `scripts/perf-probe-webgpu.mjs` drives the comparison page at light/medium/heavy/extreme complexity under both renderers, dumps to `docs/research/perf/webgpu-spike-*.json`. `--headed` + `--no-vsync` flags for real-hardware uncapped runs. Status: Implemented.
-3. **WEBGPU-feature-audit** — table of every AGF render feature vs WebGPU support, included as a section in `docs/research/m21-webgpu-spike.md`. Three states (✅ works / ⚠️ needs rewrite / ❌ no equivalent). 14 features as-is, 11 cleanup, 4 full rewrites (post-passes, PCSS, GPU timer, CSM). Status: Implemented.
-4. **WEBGPU-adapter-sketch** — `docs/research/m21-webgpu-adapter-sketch.md`. Lays out the `RenderAdapter` interface extraction, `WebGpuRenderAdapter` sibling class, capability flags, adapter selection from `project.json#render.mode`, and the backwards-compat strategy. Not an implementation. Status: Implemented.
-5. **WEBGPU-research-writeup** — `docs/research/m21-webgpu-spike.md` with measurement numbers + realistic-workload calibration + feature audit + recommendation (opt-in S61, default-flip S65). Status: Implemented.
-6. **PERF-renderer-info-renderer-kind** — `AdapterInfo.renderer: "webgl" | "webgpu"` + `__agf.rendererInfo().renderer` + propagated through `three-renderer.ts.info()` + `src/app.ts` typed surface + `src/main.ts` `__agf` typing. Today always `"webgl"`; flips when `WebGpuRenderAdapter` ships. Status: Implemented.
-7. **DOCTOR-webgpu-readiness** — `engine doctor` `WebGPU readiness:` section lists declared `render.mode` + features that block migration (post-passes, CSM, reflection probes, planar mirrors). Walks `project.json` + every `scenes/**/*.scene.json`. Status: Implemented.
-8. **DOCS-webgpu-skill** — `docs/agent/skills/webgpu-rendering.md` with current status, wins/blockers summary, roadmap, doctor surface, pitfalls. Status: Implemented.
-9. **BASELINE-rebench-pre-webgpu** — re-run `perf-probe-shadows` + `perf-probe-batching` on current main, snapshot baseline numbers. Status: Deferred to Sprint 61 — the WebGPU adapter doesn't land until S61, so the comparison anchor isn't needed before then.
-10. **HIGH_LEVEL-update-webgpu** — `HIGH_LEVEL_BACKLOG.md` M21 row records the S60 spike results and promotes `M21-webgpu-adapter` from parked to the active phase-2 remaining work (S61 → S65 sequencing). Status: Implemented.
-11. **WEBGL-stutter-investigation** — user reports micro-stutters on hello-3d at 60 Hz. Profiled with playwright harness: JS frame work = 0.47 ms, render = 0.29 ms, dt = 16.7 ms — engine takes 3 % of vsync budget, stutters are vsync-boundary scheduling jitter not engine work. Concrete fix: `applyCanvasSize()` was running `renderer.resize()` + `composer.setSize()` + `camera.updateProjectionMatrix()` every frame regardless of whether the canvas actually changed; now short-circuits on (width, height) match. After fix: stutter rate 4.67 % → 3.78 %, p99 19.4 ms → 18.7 ms. Remaining ~3.8 % is V8 GC + browser compositor jitter, structurally addressed by the WebGPU migration (S60 spike confirms WebGPU's p99/p50 ratio is half of WebGL's at light/medium load). Status: Implemented.
+1. **RENDER-adapter-interface** — extract `RenderAdapter` interface from current `ThreeRenderAdapter` (`engine/render/render-adapter.ts`). Define `RenderAdapterCapabilities` flags (kind / supportsCsm / supportsPcss / supportsPostProcessing / supportsPlanarMirror / supportsReflectionProbe / etc.). `ThreeRenderAdapter` moves to `engine/render/webgl/three-render-adapter.ts` (just file relocation + `implements RenderAdapter` + capabilities = `{ kind: "webgl", … }`); systems re-import from the interface. Status: Not yet implemented.
+2. **WEBGPU-adapter-core** — new `engine/render/webgpu/webgpu-render-adapter.ts` implementing `RenderAdapter` via `WebGPURenderer` from `three/webgpu`. Core path only: mesh / light / shadow / transmission / MSAA / InstancedMesh / BatchedMesh / `MeshStandardMaterial`. Capability flags expose post-processing / CSM / PCSS / probe / mirror as `false` for now; systems that need those become no-ops on the WebGPU adapter. Status: Not yet implemented.
+3. **WEBGPU-init-async** — start.ts awaits `adapter.init()` before the first `acquireMesh` / draw. `WebGPURenderer.init()` is async (asks for `GPUAdapter` + `GPUDevice`); the runtime's start path becomes async-aware. Status: Not yet implemented.
+4. **RENDER-mode-schema** — `project.json#render.mode: "webgl" | "webgpu"` (already a reserved field; expand schema to accept both values). Default stays `webgl`. Adapter selection from project meta. Status: Not yet implemented.
+5. **WEBGPU-spike-project** — new `examples/webgpu-spike/` (hello-3d clone, no Spin or anything cute) that sets `render.mode: "webgpu"`. Registered with the project switcher. Continuously-running smoke that catches three.js WebGPU regressions between minor versions. Status: Not yet implemented.
+6. **WEBGPU-rendererinfo-flip** — `WebGpuRenderAdapter.info()` returns `renderer: "webgpu"` plus correct `drawCalls` (read `frameCalls` or `drawCalls`, not the cumulative `calls`). `__agf.rendererInfo().renderer` flips for the opt-in project. Status: Not yet implemented.
+7. **BASELINE-rebench-pre-webgpu** (carried from S60) — run `perf-probe-shadows` + `perf-probe-batching` on current main, snapshot baseline numbers under `docs/research/perf/baseline-{date}.json`. Then re-run on the new WebGPU spike project at sprint close so we have a same-machine WebGL vs WebGPU comparison anchor for the doctor / writeup. Status: Not yet implemented.
+8. **WEBGPU-renderer-import-boundary** — extend `tests/unit/renderer-import-boundary.test.ts` to allow `three/webgpu` from `engine/render/webgpu/**` only. Keep `engine/core` clean of WebGPU + node-material imports. Status: Not yet implemented.
+9. **DOCS-webgpu-skill-update** — `docs/agent/skills/webgpu-rendering.md` flips from "no adapter yet" to "adapter shipped (opt-in)" + records how to opt-in + lists the remaining feature gaps (post-passes, CSM, PCSS, probes, mirror). Status: Not yet implemented.
+10. **DOCTOR-webgpu-readiness-actionable** — extend the doctor section so when a project declares `render.mode: "webgpu"` AND uses an unsupported feature, it's an error not just a warning. Status: Not yet implemented.
+11. **WEBGPU-e2e-smoke** — Playwright smoke test that loads `?project=webgpu-spike`, asserts the canvas renders, asserts `__agf.rendererInfo().renderer === "webgpu"`, asserts zero console errors. Tagged `[smoke]`. Status: Not yet implemented.
 
-### Out of scope (Sprint 60)
+### Out of scope (Sprint 61)
 
-- Actual `WebGpuRenderAdapter` implementation — that's a follow-up sprint *if* this spike's recommendation is "go". Sketch only here.
-- Migrating any existing project (hello-3d / material-bench / shadows-bench) to WebGPU. The spike is a standalone harness.
-- Compute-shader work (particle physics on GPU, terrain GPGPU, skinning) — those become interesting *after* the WebGPU adapter lands and is the place where WebGPU's real win shows up.
-- SSR / BPCEM / LightProbeGrid — same as S58/S59 out-of-scope.
+- **Post-processing chain on WebGPU** (Bloom / SSAO / LUT / FXAA) — S62. The composer rewrite onto `three/addons/postprocessing/PostProcessing.js` is its own sprint.
+- **CSM, PCSS, reflection probes, planar mirror on WebGPU** — S63. Each has feature gaps in three.js's WebGPU backend.
+- **`GpuTimer` on WebGPU** — needs a `WebGpuTimer` wrapping `GPUQuerySet` timestamp queries. Lands when the post-processing port stabilises (S62 or S63).
+- **Migrating existing projects** to WebGPU — S64. Until the feature gap closes, only `webgpu-spike` opts in.
+- **Default flip** — S65. After re-bench + every example migrated.
 
 ## Next Sprint (placeholder)
 
-To be detailed at S60 close. If the spike recommends "go": Sprint 61 will be the WebGPU adapter implementation. If "defer": pick up the parked S60-perf-cleanup-followups plan (`M17-batched-glb`, `BATCH-BENCH-bvh-stress`, `M16-cache-e`, `render-pool-caller-migration`, `DOCTOR-reflection-runtime`, `M21-shadow-soft` re-eval).
+To be detailed at S61 close. Likely S62 = WebGPU post-processing chain port (Bloom / SSAO / LUT / FXAA onto `three/addons/postprocessing/PostProcessing.js`). If S61 reveals blocking three.js WebGPU regressions, S62 might pivot to upstream PRs / version pinning + the parked `M17-batched-glb` / `M16-cache-e` cleanup stories.

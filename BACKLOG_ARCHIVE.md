@@ -2730,3 +2730,96 @@ Status: Completed and archived. Follow-up to S57; three groups of work — Groun
 - **REFLECTION-cube cam re-parenting** — runtime path keeps the cube cam outside the scene graph; if a future feature wants to parent the probe to a moving entity, the per-frame `setReflectionProbeTransform(LocalToWorld)` already covers that; re-parenting is not actually needed.
 - **DOCTOR-reflection scans bootstrap entities** (carried from S57) — material-bench's runtime-created probes still don't show up in `engine doctor`. **Picked up as S59 Story 6.**
 - **GPU-timer test coverage** — the WebGL timer path has no unit-test coverage. A headless test against a mock WebGL2 ctx would have caught the `ext.QUERY_RESULT_*` bug before it reached the console. **Picked up as S59 Story 5.**
+
+## Sprint 59 — Visual fidelity v1 (PMREM + planar mirror + bloom + GPU-timer test)
+
+Status: Completed and archived. 9 of 10 planned stories shipped; `DOCTOR-reflection-runtime` deferred to S60 (wiring doctor as a dev-bridge client is a substantial cross-tool change; PERF-renderer-info already gives agents a live count via `__agf.rendererInfo()`).
+
+### Completed Work
+
+1. **REFLECTION-prefilter** — `ReflectionProbe { prefilter: "mipmap" | "pmrem" }`. PMREM regen via `PMREMGenerator.fromCubemap` after every cube capture; bounded memory via dispose-on-replace.
+2. **REFLECTION-planar** — vendored `Reflector.js`. `PlanarMirror { width, height, resolution, color }` component + adapter API + system.
+3. **WATER-bench** — `examples/water-bench/` ships a 30×30 PlanarMirror + floating primitives + HDR sky (the water-visibility hotfix landed as PR #65 — mirror was getting a 4-element quaternion for what should have been a 3-element Euler rotation, plus the scene used `kind: "generated"` IBL with no visible sky).
+4. **POST-bloom worked example** — material-bench's `project.json#render.post` picks up `[{ kind: "bloom", strength: 0.35, radius: 0.55, threshold: 0.92 }]`.
+5. **GPU-timer-test** — `engine/render/gpu-timer.ts` extracted; 6 unit tests against a mock WebGL2 ctx covering both S58 regressions + surrounding invariants.
+6. **DOCS-vfx-skill-v1** — `docs/agent/skills/vfx-authoring.md` updated with PMREM / Reflector / bloom worked examples + three new pitfalls.
+7. **DOCS-material-bench-readme** — `examples/material-bench/README.md` documenting the v1 surface + FPS knob table.
+8. **PERF-renderer-info** — `AdapterInfo` + `__agf.rendererInfo()` pick up `reflectionProbes`, `prefilterMs`, `planarMirrors`.
+9. **MATERIAL-bench-vfx-v1-adopt** — centre chrome `prefilter: "pmrem"`, updateRate 30 → 15 Hz, roughness 0.22 → 0.35.
+
+### Deferred to Sprint 60
+
+- 6 **DOCTOR-reflection-runtime** — doctor as dev-bridge client. PERF-renderer-info covers the live-inventory ask; full doctor wiring waits for a different sprint.
+
+### Deliverables
+
+- `engine/render/gpu-timer.ts` (new) + `engine/render/systems/planar-mirror-system.ts` (new).
+- `engine/render/three-render-adapter.ts` — PMREM probe path, Reflector probe API, mip-cube RT, AdapterInfo extensions.
+- `engine/runtime/start.ts` — `PlanarMirrorSystem` registration.
+- `examples/water-bench/` (new) + `examples/material-bench/` v1 polish (PMREM chrome, bloom, README).
+- `schemas/components/render.schema.json` + `schemas/scene.schema.json` — `prefilter` + `planarMirrorComponent`.
+- `tests/unit/gpu-timer.test.ts` (new) — 6 tests.
+- `docs/agent/skills/vfx-authoring.md` v1 update.
+
+### Verification
+
+- `npm run preflight` ✅ at sprint close — 511 / 511 unit, 11 / 11 e2e smoke, all 7 example projects engine:check clean.
+- Live playwright probes of water-bench + material-bench v1 clean, no console errors.
+- Water-visibility hotfix (PR #65) shipped after a follow-up user report.
+
+### Follow-Ups
+
+- **DOCTOR-reflection-runtime** — picked up in S60 as story candidate; ultimately re-deferred to S61+ since the WebGPU adapter rewrite will redo doctor's renderer-facing surface anyway.
+- **Reflector + transmission ordering** — not exercised in water-bench (no transmissive material there). Confirm rendering order behaves once a transmissive prop lands in a scene with a planar mirror.
+
+## Sprint 60 — WebGPU spike + measurement
+
+Status: Completed and archived. **User-driven pivot** — replaced the parked perf-cleanup S60 plan with a WebGPU spike + measurement run. 10 of 11 stories shipped (Story 9 `BASELINE-rebench-pre-webgpu` deferred to S61 since the comparison anchor isn't needed until the adapter lands). Plus a user-reported `WEBGL-stutter-investigation` (Story 11) landed inline.
+
+### Completed Work
+
+1. **WEBGPU-comparison-page** — `tests/manual/webgpu-vs-webgl/` standalone three.js harness, `?renderer=webgl|webgpu` switch, scene scale via `?boxes=N&spheres=N`. Two rotating ring groups + gentle Y-bob. Canvas pinned via explicit CSS so high-DPR Chromes don't render to a corner. WebGPU `info.render.frameCalls` vs WebGL `calls` reconciled.
+2. **WEBGPU-measure-script** — `scripts/perf-probe-webgpu.mjs` drives the comparison page at light / medium / heavy / extreme scenes under both renderers. `--headed` + `--no-vsync` flags for real-hw uncapped runs. Dumps to `docs/research/perf/webgpu-spike-{date}.json`.
+3. **WEBGPU-feature-audit** — 14 features work as-is, 11 cleanup, 4 full rewrites (post-processing chain, PCSS via onBeforeCompile, GPU timer, CSM). Embedded in the research writeup.
+4. **WEBGPU-adapter-sketch** — `docs/research/m21-webgpu-adapter-sketch.md`. `RenderAdapter` interface extraction plan, sibling `WebGpuRenderAdapter` class, capability flags, `project.json#render.mode` selector.
+5. **WEBGPU-research-writeup** — `docs/research/m21-webgpu-spike.md`. Real-hw uncapped numbers: light +278 % / medium +34 % / heavy −31 % fps; p99/p50 variance 3.6× (WebGL) → 2.0× (WebGPU). Recommendation: opt-in S61, default-flip S65.
+6. **PERF-renderer-info-renderer-kind** — `AdapterInfo.renderer: "webgl" | "webgpu"` + `__agf.rendererInfo().renderer` + typed surface in src/app.ts + src/main.ts.
+7. **DOCTOR-webgpu-readiness** — `engine doctor` `WebGPU readiness:` section. Walks `project.json` + scenes, lists declared `render.mode` + features that block migration.
+8. **DOCS-webgpu-skill** — `docs/agent/skills/webgpu-rendering.md` (status, wins/blockers summary, S61-S65 roadmap, pitfalls).
+9. **HIGH_LEVEL-update-webgpu** — `HIGH_LEVEL_BACKLOG.md` M21 row records S60 results + promotes `M21-webgpu-adapter` from parked to active phase-2 work with S61 → S65 story sequencing.
+11. **WEBGL-stutter-investigation** — investigated user-reported hello-3d stutters. Verdict (`docs/research/m21-hello3d-stutter-investigation.md`): hello-3d at 1.4 % real-lateness (>20 ms) matches the no-AGF harness at 0.9 % — within noise. Material-bench at 14.4 % over-budget IS engine-bound (probe + bloom + transmission stack vs 16.67 ms budget). Shipped fix: `applyCanvasSize()` short-circuit (was running renderer.resize / composer.setSize / projection update every frame regardless). Dropped hello-3d stutters 4.67 % → 3.78 % at >18 ms, p99 19.4 → 18.7 ms. Material-bench probe / post-pass tuning deferred to S61+ per user (fix on WebGPU rather than baking in current WebGL assumptions).
+
+### Deferred to Sprint 61
+
+- 9 **BASELINE-rebench-pre-webgpu** — re-run perf-probe-shadows + perf-probe-batching on current main for the comparison anchor. Doesn't block S60 conclusion; lands when the WebGPU adapter actually ships and we need to A/B against it.
+- Material-bench probe / post-pass tuning. The WebGPU adapter changes per-render cost enough that re-baking these knobs against the new backend is the right time.
+
+### Deliverables
+
+- `tests/manual/webgpu-vs-webgl/{index.html, main.js}` (new) — comparison harness.
+- `scripts/perf-probe-webgpu.mjs` (new) — playwright measurement.
+- `docs/research/m21-webgpu-spike.md` (new) — research writeup.
+- `docs/research/m21-webgpu-adapter-sketch.md` (new) — integration plan.
+- `docs/research/m21-hello3d-stutter-investigation.md` (new) — multi-threshold stutter findings.
+- `docs/research/perf/webgpu-spike-*.json` (new) — raw measurement dumps.
+- `docs/agent/skills/webgpu-rendering.md` (new) — skill memo.
+- `engine/render/three-render-adapter.ts` — `AdapterInfo.renderer` field, info() returns `"webgl"`.
+- `engine/render/three-renderer.ts` + `src/app.ts` + `src/main.ts` — typed surface for `__agf.rendererInfo().renderer`.
+- `engine/tools/doctor/project-doctor.ts` — `WebGpuReadinessReport` + `summarizeWebGpuReadiness` + `formatWebGpuReadiness`.
+- `engine/runtime/start.ts` — `applyCanvasSize()` short-circuit when canvas size unchanged.
+- `src/app.ts` — `?overlay=0` query param for stutter A/B probes.
+- `HIGH_LEVEL_BACKLOG.md` — M21 row records spike + promotes `M21-webgpu-adapter` epic.
+
+### Verification
+
+- `npm run preflight` at sprint close (this commit).
+- Headed playwright probes on real GPU at 3 scene scales × 2 renderers; raw numbers in `docs/research/perf/webgpu-spike-*.json`.
+- engine doctor surfaces the WebGPU readiness section on every project (material-bench correctly flags the bloom post-pass blocker).
+- User live-verified the comparison harness on their real-hw Chrome after the canvas + draws-field fix.
+
+### Follow-Ups
+
+- **`M21-webgpu-adapter` epic — Sprint 61**: extract `RenderAdapter` interface + ship `WebGpuRenderAdapter` core path (mesh / light / shadow / transmission). Opt-in via `project.render.mode = "webgpu"`.
+- **S62 / S63 / S64**: post-processing port, CSM / PCSS / probe / mirror port, example migrations + re-bench.
+- **S65 default-flip**: `webgpu` becomes the default, `webgl` legacy opt-in.
+- **WebGL stutter follow-up**: capture chrome devtools Performance traces during a known stutter frame so we can attribute the ~2 ms over-budget frames to specific browser task categories. Current measurement says *how often*, not *what*. Lands when a user actually needs to chase a specific stutter.
