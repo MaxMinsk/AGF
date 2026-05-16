@@ -1033,8 +1033,13 @@ export class ThreeRenderAdapter {
   ): void {
     const entry = this.planarMirrors.get(handle);
     if (entry === undefined) return;
+    // LocalToWorld.rotation is 3-element XYZ Euler (radians) — matches the
+    // shape `applyTransform` consumes for meshes / lights / cameras. Earlier
+    // S59 impl read 4 values as a quaternion → undefined `w` → scrambled
+    // orientation → mirror normal pointed roughly behind the camera, so the
+    // water plane reflected nothing and read as black.
     entry.mirror.position.set(ltw.position[0]!, ltw.position[1]!, ltw.position[2]!);
-    entry.mirror.quaternion.set(ltw.rotation[0]!, ltw.rotation[1]!, ltw.rotation[2]!, ltw.rotation[3]!);
+    entry.mirror.rotation.set(ltw.rotation[0]!, ltw.rotation[1]!, ltw.rotation[2]!);
     entry.mirror.scale.set(ltw.scale[0]!, ltw.scale[1]!, ltw.scale[2]!);
     entry.mirror.updateMatrixWorld(true);
   }

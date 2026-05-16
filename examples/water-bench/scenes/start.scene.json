@@ -1,6 +1,12 @@
 {
   "id": "start",
-  "environment": { "kind": "generated" },
+  "environment": {
+    "kind": "hdr",
+    "url": "runtime/hdr/venice_sunset_1k.hdr",
+    "intensity": 1.0,
+    "asBackground": true,
+    "backgroundBlurriness": 0.0
+  },
   "entities": [
     {
       "id": "camera.main",

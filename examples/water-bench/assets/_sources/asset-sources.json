@@ -8,7 +8,18 @@
       "license": "Project-owned",
       "source": {
         "type": "procedural",
-        "notes": "All meshes are built-in primitives (sphere / box / cylinder / plane). No external assets."
+        "notes": "All meshes are built-in primitives (sphere / box / cylinder / plane)."
+      }
+    },
+    {
+      "id": "water-bench.venice-sunset-hdr",
+      "kind": "texture",
+      "runtimeFiles": ["runtime/hdr/venice_sunset_1k.hdr"],
+      "license": "CC0",
+      "source": {
+        "type": "cc0",
+        "url": "https://polyhaven.com/a/venice_sunset",
+        "notes": "1K equirect HDR drives IBL + sky background. Same file also shipped under examples/material-bench/."
       }
     }
   ]
