@@ -2327,6 +2327,16 @@ export class ThreeRenderAdapter {
       return;
     }
     this.postConfig = passes;
+    // S65 WEBGPU-post-pipeline: still WebGL-only. The WebGPU
+    // `PostProcessing` (TSL node graph) path needs every material in
+    // the scene to be node-material-compatible; AGF's current setup
+    // (PMREM RoomEnvironment, shadow MeshDepthMaterial, possibly more)
+    // includes vanilla `ShaderMaterial` instances that `NodeBuilder`
+    // rejects with `Material "ShaderMaterial" is not compatible`.
+    // Parked until those code paths port to node materials (S66+).
+    if (this.capabilities.kind === "webgpu") {
+      return;
+    }
     this.rebuildComposer();
   }
 

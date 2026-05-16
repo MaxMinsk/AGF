@@ -37,6 +37,17 @@ Use when an AGF user / agent is considering WebGPU, asks how to switch a project
 
 - **HDR + generated IBL on WebGPU** — the adapter now routes through `three/webgpu`'s `PMREMGenerator` when `mode = "webgpu"` (different class than the WebGL one; takes the new Renderer base). `scene.environment` works on both renderers; HDR equirect skies prefilter correctly.
 
+### S65 investigation: post-processing on WebGPU blocked
+
+Attempted to wire `three/webgpu` `PostProcessing` + `BloomNode` (from `three/addons/tsl/display/BloomNode.js`) into the adapter as a parallel path to the WebGL `EffectComposer`. The TSL node graph build succeeded; first frame threw `THREE.NodeBuilder: Material "ShaderMaterial" is not compatible` repeatedly and the scene rendered pure black. Removing `environment.kind: "generated"`, the reflection probe, and `castShadow` from the spike each in isolation did NOT clear the error — meaning AGF's render path contains at least one `ShaderMaterial` instance that the TSL `NodeBuilder` doesn't auto-convert. Candidates: three.js internal shadow `MeshDepthMaterial` (extends `ShaderMaterial`), PMREM `RoomEnvironment` shader materials, or our `GroundedSkybox` / `ShadowMaterial` plumbing.
+
+Bloom port reverted; capability flags stay `supportsPostProcessing: false` on WebGPU. Real fix needs:
+1. Audit every `ShaderMaterial` AGF or three.js creates during a render frame.
+2. Either swap them for node-material equivalents (`MeshDepthNodeMaterial`, etc) when in WebGPU mode, OR find the TSL escape-hatch that lets a node graph tolerate vanilla `ShaderMaterial` (if one exists).
+3. Re-attempt bloom with the audit in place.
+
+Tracked for a follow-up sprint. Lesson: each WebGPU feature port may surface a new "this AGF code uses a legacy material" issue — porting is not as mechanical as it looked in the S60 spike sketch.
+
 ### Live-discovered gotchas
 
 - **`HemisphereLight` at world origin (0, 0, 0) doesn't contribute on WebGPU (three.js r0.184).** Three.js's WebGPU `HemisphereLightNode` derives its "up" direction from the light's world position; WebGL ignores position and always uses +Y. A `HemisphereLight` placed at the origin produces a zero-length direction vector and silently emits no light. The AGF adapter forces `light.position.y = 1` for any HemisphereLight whose `y <= 0` on WebGPU (S63). Net effect: scene authors can place HemisphereLight at the origin (same shape as WebGL) and it just works on both renderers. Confirmed root cause via headed playwright probe — moving the hemisphere up by 5 units fixed the original "all materials render black" symptom; everything else was a red herring.
