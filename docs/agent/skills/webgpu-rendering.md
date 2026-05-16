@@ -23,16 +23,19 @@ Use when an AGF user / agent is considering WebGPU, asks how to switch a project
 - Tone mapping (`aces-filmic`, `agx`, etc.) + exposure.
 - `__agf.rendererInfo()` reports `renderer`, `meshes`, `lights`, `drawCalls`, `triangles`.
 
-### What does NOT work yet (deferred to S62 / S63)
+### What does NOT work yet (deferred to S63 / S64)
 
-- Post-processing chain (`project.render.post`: bloom / SSAO / LUT / FXAA) — silently skipped.
+- Post-processing chain (`project.render.post`: bloom / SSAO / LUT / FXAA) — silently skipped. WebGPU's `RenderPipeline` (rename of `PostProcessing` in r0.183+) uses TSL nodes instead of `EffectComposer` `Pass` classes; the port is its own sprint (S63).
 - CSM cascade shadow maps (`project.render.shadows.csm`) — silently skipped.
 - PCSS shadow algorithm (`project.render.shadows.algorithm: "pcss"`) — silently skipped, falls back to basic.
-- `ReflectionProbe` + `EnvmapBinding` — silently skipped (no envmap).
+- `ReflectionProbe` + `EnvmapBinding` — silently skipped (no envmap; the WebGPU CubeRenderTarget port lands with probes in S63).
 - `PlanarMirror` (Reflector) — silently skipped (no mirror surface).
-- GPU timer (`gpuMs` reading) — undefined on WebGPU until `GPUQuerySet` port lands.
-- HDR / generated IBL — environment IBL is skipped because the WebGL PMREMGenerator crashes on WebGPURenderer (PMREM WebGPU port comes with reflection probes in S63).
+- GPU timer (`gpuMs` reading) — undefined on WebGPU until `GPUQuerySet { type: "timestamp" }` port lands.
 - Batching (`InstancedMesh` + `BatchedMesh`) — adapter methods return -1 and the bucket falls back to per-entity Mesh. Set `render.batching.auto: false` in the project.json to silence the noise.
+
+### What landed in S62
+
+- **HDR + generated IBL on WebGPU** — the adapter now routes through `three/webgpu`'s `PMREMGenerator` when `mode = "webgpu"` (different class than the WebGL one; takes the new Renderer base). `scene.environment` works on both renderers; HDR equirect skies prefilter correctly.
 
 The doctor section flags every feature the project uses that doesn't have a WebGPU implementation; check before opting in.
 
@@ -74,9 +77,9 @@ The runtime awaits `WebGPURenderer.init()` (asks for `GPUAdapter` + `GPUDevice`)
 | Sprint | Goal |
 | --- | --- |
 | S60 | Spike + research + adapter sketch (no implementation). ✅ |
-| S61 (this sprint) | Adapter core path shipped — mesh / light / shadow / transmission / spike project. ✅ |
-| S62 | Port post-processing chain (Bloom / SSAO / LUT / FXAA) onto WebGPU `PostProcessing`. |
-| S63 | Port CSM (`CSMNode`), PCSS (TSL rewrite), reflection probes + PMREM (`WebGPUCubeRenderTarget`), planar mirror (`ReflectorNode`), GPU timer (`GPUQuerySet`), HDR IBL. |
+| S61 | Adapter core path shipped — mesh / light / shadow / transmission / spike project. ✅ |
+| S62 (this sprint) | HDR + generated IBL via `three/webgpu` `PMREMGenerator`. ✅ |
+| S63 | Port CSM (`CSMNode`), PCSS (TSL rewrite), reflection probes + cube probes (`WebGPUCubeRenderTarget`), planar mirror (`ReflectorNode`), GPU timer (`GPUQuerySet`), post-processing chain (Bloom / SSAO / LUT / FXAA via `RenderPipeline` + TSL nodes). |
 | S64 | Re-bench, fix three.js WebGPU regressions, migrate every example to opt-in webgpu. |
 | S65 | Default-flip: `webgpu` becomes the default, `webgl` becomes the legacy explicit opt-in. |
 

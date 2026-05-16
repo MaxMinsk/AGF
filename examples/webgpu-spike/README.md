@@ -26,9 +26,12 @@ Open DevTools and run `__agf.rendererInfo().renderer` — should report `"webgpu
 
 ## What's intentionally absent
 
-- No HDR environment / generated IBL — the WebGL PMREMGenerator crashes on WebGPURenderer, so environment is skipped in the WebGPU path until S63. Scene looks slightly flatter than hello-3d as a result; that's expected.
-- No reflection probes / planar mirrors / post-processing / CSM / PCSS — those features silently no-op on the WebGPU adapter pending S62 / S63 port.
+- No reflection probes / planar mirrors / post-processing / CSM / PCSS — those features silently no-op on the WebGPU adapter pending S63 port.
 - Batching disabled in project.json — the bucket path falls back to per-entity Mesh on WebGPU.
+
+## What S62 added
+
+- **HDR + generated IBL** — the adapter now routes through `three/webgpu`'s `PMREMGenerator` (different class than the WebGL one). `environment.kind: "generated"` (RoomEnvironment) and `environment.kind: "hdr"` both work now. The spike's scene uses `"generated"`; flip to `"hdr"` + add an HDR file under `assets/runtime/hdr/` to see image-based lighting come through on metallic / glossy materials.
 
 ## Doctor
 
