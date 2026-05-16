@@ -64,3 +64,31 @@ If the offending `ShaderMaterial` turns out to be in a three.js internal we can'
 ## Status
 
 S66 ships the audit tool + this writeup; no actual fix. S67 picks up the monkey-patch investigation. Realistic expectation: each WebGPU feature port may need a similar deep-dive; the path to default-flip is longer than the S60 spike sketch suggested.
+
+## S67 stack-trace investigation — UPSTREAM BLOCK CONFIRMED
+
+Approach: re-enabled the S65 bloom code path, captured `console.error` stacks via playwright `page.addInitScript`. Five identical stacks captured during first frame:
+
+```
+THREE.NodeBuilder: Material "ShaderMaterial" is not compatible.
+  at WGSLNodeBuilder.prebuild (three_webgpu.js:36757)
+  at WGSLNodeBuilder.build (three_webgpu.js:36769)
+  at NodeManager.getForRender (three_webgpu.js:37867)
+  at RenderObject.getNodeBuilderState (three_webgpu.js:20295)
+  at RenderObject.getMonitor (three_webgpu.js:20303)
+  at NodeManager.needsRefresh (three_webgpu.js:38246)
+  at WebGPURenderer._renderObjectDirect (three_webgpu.js:42328)
+```
+
+**Verdict:** The offending `RenderObject` is rendered by `WebGPURenderer._renderObjectDirect` — meaning it's a Mesh in the pipeline's draw list. The error fires per-mesh. Stack confirms: the offender comes from INSIDE three.js's bloom orchestration, not from AGF code.
+
+Specifically, `BloomNode`'s internal pingpong render-targets render fullscreen quads. Some of those quads use vanilla `ShaderMaterial` (instead of `NodeMaterial`) — this is a known limitation in three.js's WebGPU post-processing surface as of r0.184.
+
+**Not fixable from AGF**. Workarounds:
+- Pin a different three.js version that has the fix (TBD if any).
+- Wait for upstream three.js to publish `RenderPipeline`-compatible TSL `BloomNode` (likely r0.185+; the project is actively reworking post-processing).
+- Fork `BloomNode` to use `NodeMaterial` for its internal quads (large maintenance burden).
+
+**Recommendation:** park the WebGPU post-processing path entirely until three.js publishes the fix. Continue WebGPU feature parity on the non-post-processing axes (CSM-fallback / planar mirror / GPU timer / migrations). Track three.js's WebGPU TSL post-pipeline maturity each minor release.
+
+S67 reverted the bloom code. `supportsPostProcessing: false` on WebGPU stays. Research finding ships as the deliverable.

@@ -772,6 +772,7 @@ export class ThreeRenderAdapter {
     this.enableFallbackLighting();
   }
 
+
   /**
    * S66 WEBGPU-shadermaterial-audit. Walks the scene + every light's
    * shadowMap material + the scene.environment + composer passes and
@@ -2373,13 +2374,12 @@ export class ThreeRenderAdapter {
       return;
     }
     this.postConfig = passes;
-    // S65 WEBGPU-post-pipeline: still WebGL-only. The WebGPU
-    // `PostProcessing` (TSL node graph) path needs every material in
-    // the scene to be node-material-compatible; AGF's current setup
-    // (PMREM RoomEnvironment, shadow MeshDepthMaterial, possibly more)
-    // includes vanilla `ShaderMaterial` instances that `NodeBuilder`
-    // rejects with `Material "ShaderMaterial" is not compatible`.
-    // Parked until those code paths port to node materials (S66+).
+    // S67 WEBGPU-post-bloom upstream block confirmed: stack capture
+    // shows the error originates from `WebGPURenderer._renderObjectDirect`
+    // when the bloom node's internal pingpong quads (which use vanilla
+    // `ShaderMaterial`) reach `WGSLNodeBuilder.prebuild`. Not fixable
+    // from AGF without forking three.js. See
+    // `docs/research/m21-webgpu-shadermaterial-audit.md` for details.
     if (this.capabilities.kind === "webgpu") {
       return;
     }
