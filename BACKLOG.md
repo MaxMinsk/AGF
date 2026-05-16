@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 58 archived)
+Date: 2026-05-16 (Sprint 59 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,34 +38,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 59 — Visual fidelity v1 (PMREM, planar mirror, bloom, agent-surface tightening)
+## Current Sprint: Sprint 60 — WebGPU spike + measurement
 
-Follow-up to S58's reflection-probe correctness sprint. Two themes:
+Spike to answer: should AGF's renderer plan to migrate from `WebGLRenderer` to `WebGPURenderer`? Three.js's WebGPU path is no longer experimental on paper (every major browser shipped it stable by 2025) but is still tied to the node-material / TSL system, which is structurally different from AGF's current GLSL + `onBeforeCompile` patches. The point of this sprint is to get **real FPS / draw-call / gpuMs numbers** before committing the engine to the migration, not to ship a fully-integrated WebGPU adapter.
 
-1. **Visual fidelity v1** — close the obvious gaps S58 left open: full PMREM prefilter so high-roughness reflective materials read plausibly blurry; vendor `Reflector.js` so we can ship a planar mirror / water surface; add a bloom worked example with HDR-driven sub-pixel sparkles.
-2. **Agent-surface tightening** — the live debugging session for S58 made three gaps obvious: GPU timer had no test coverage (would have caught the `QUERY_RESULT_*` typo before it reached the console); `engine doctor` Reflections section misses runtime-spawned probes; vfx skill needs PMREM + Reflector + bloom worked examples once those land.
+Sprint deliverable: a `docs/research/m21-webgpu-spike.md` write-up with measured numbers + a recommendation on whether (and how) the WebGPU adapter should land in a follow-up sprint.
 
 ### Stories
 
-1. **REFLECTION-prefilter** — full GGX PMREM prefilter per probe via `PMREMGenerator.fromCubemap`, gated by an opt-in `prefilter: "pmrem"` field on `ReflectionProbe` (default `"mipmap"` keeps S58's cheap mip-cube). Material-bench centre chrome opted into PMREM at `roughness: 0.35` so the difference is visible. Status: Not yet implemented.
-2. **REFLECTION-planar** — vendor `three/addons/objects/Reflector.js`. New `PlanarMirror { resolution, near, far, intensity }` component + adapter API parallel to ReflectionProbe. Doctor section reports planar mirrors alongside probes. Status: Not yet implemented.
-3. **WATER-bench** — new `examples/water-bench/` project: HDR sky + a single planar `Reflector` surface + 3 floating geometric props above to show reflection. Scene + project schemas wired; build, engine:check, smoke clean. Status: Not yet implemented.
-4. **POST-bloom** — worked example. `project.render.post: [{ kind: "bloom", strength?, radius?, threshold? }]`. Schema enum + `PostPassConfig` extended. Material-bench picks up a modest bloom on the chrome highlights. Status: Not yet implemented.
-5. **GPU-timer-test** — unit test against a mock WebGL2 ctx covering the three states (no prior query, prior pending, prior ready) so the `QUERY_RESULT_*` regression and the `endQuery` balance regression can't sneak back. Status: Not yet implemented.
-6. **DOCTOR-reflection-runtime** — `engine doctor` Reflections section reads the runtime probe inventory through the dev-bridge `__agf/snapshot` path so bootstrap-spawned probes (material-bench) show up; falls back to scene JSON when the project isn't running. Status: Deferred to S60 — wiring doctor as a dev-bridge client is a substantial cross-tool change; the v1 surface ships `__agf.rendererInfo().reflectionProbes / prefilterMs / planarMirrors` (PERF-renderer-info, Story 9) which already gives an agent a live count + cost reading without doctor in the loop.
-7. **DOCS-vfx-skill-v1** — `docs/agent/skills/vfx-authoring.md` adds PMREM-prefilter worked example, Reflector planar-mirror worked example, bloom worked example. Common pitfalls expands with `prefilter: "pmrem"` cost-per-update, Reflector + transmission render-order, bloom needing an HDR-bright source. Status: Not yet implemented.
-8. **DOCS-material-bench-readme** — `examples/material-bench/README.md` covers the v1 surface (3 probes + prefilter / mirror feed, bloom, FPS knobs). Status: Not yet implemented.
-9. **PERF-renderer-info** — `__agf.rendererInfo()` now reports `probeCount`, `prefilterMs` (when a PMREM regen ran this frame), `planarMirrorCount`, `bloomMs`. Existing `gpuMs` numbers stay; the WebGL2 query path is now under test. Status: Not yet implemented.
-10. **MATERIAL-bench-vfx-v1-adopt** — material-bench picks up PMREM prefilter on the centre chrome (`roughness 0.35` to actually show the diff), one Reflector mirror tile to one side of the ring (visible-from-camera) showing the orbiting ring reflected, modest bloom on the HDR. Performance budget rebaked. Status: Not yet implemented.
+1. **WEBGPU-comparison-page** — standalone three.js comparison harness at `tests/manual/webgpu-vs-webgl/`. Same scene (N boxes, M spheres, a directional light, a ground plane, optional shadow-casting toggle), one HTML page that switches renderer via `?renderer=webgl|webgpu`. Per-frame on-screen FPS counter + `__webgpuSpike` global with running averages. Status: Not yet implemented.
+2. **WEBGPU-measure-script** — playwright-based measurement: load the comparison page under each renderer at three scene complexities (light / medium / heavy), sample ~5 seconds of stable FPS, dump JSON to `docs/research/perf/webgpu-spike-{date}.json`. Status: Not yet implemented.
+3. **WEBGPU-feature-audit** — markdown table of every AGF render feature (CSM, PCSS, EffectComposer + SSAO/LUT/Bloom/FXAA, GroundedSkybox, Reflector, CubeCamera + ReflectionProbe + PMREM, EXT_disjoint_timer_query, BatchedMesh + BVH, MeshStandardMaterial `onBeforeCompile` patches, etc) vs WebGPU support in three.js r184. Three states: works as-is / works with rewrite / no equivalent. Status: Not yet implemented.
+4. **WEBGPU-adapter-sketch** — design-doc draft of how a `WebGpuRenderAdapter` would slot in alongside the existing `ThreeRenderAdapter`. Goes under `docs/research/m21-webgpu-adapter-sketch.md`. NOT an implementation — just the integration plan + ADR-draft pointer (eventually ADR-0014 if the spike says go). Status: Not yet implemented.
+5. **WEBGPU-research-writeup** — `docs/research/m21-webgpu-spike.md`. Bundles the measurement numbers from Story 2 + the feature audit from Story 3 + the adapter sketch from Story 4 + a recommendation: ship now / spike-only / defer to vN. Status: Not yet implemented.
+6. **PERF-renderer-info-renderer-kind** — `__agf.rendererInfo().renderer` reports `"webgl" | "webgpu"` so future probes can branch on which renderer is active. Today's adapter is always webgl; the field is a small forward-compat hook. Status: Not yet implemented.
+7. **DOCTOR-webgpu-readiness** — `engine doctor` scans a project's features (post-passes, reflection probes, planar mirrors, PCSS, etc.) and prints a `WebGPU readiness:` section listing what would need to be re-authored. No hard error; informational only. Status: Not yet implemented.
+8. **DOCS-webgpu-skill** — new `docs/agent/skills/webgpu-rendering.md` covering: current status (today: WebGL-only); recommended path for compute-heavy gameplay (defer until adapter ships); how to read `__agf.rendererInfo().renderer`. Status: Not yet implemented.
+9. **BASELINE-rebench-pre-webgpu** — re-run perf-probe-shadows + perf-probe-batching on current main, save numbers under `docs/research/perf/baseline-{date}.json` so any future WebGPU adapter has a comparison anchor. Status: Not yet implemented.
+10. **HIGH_LEVEL-update-webgpu** — depending on the spike outcome, update `HIGH_LEVEL_BACKLOG.md` to either keep `M21-webgpu-spike` parked or promote a `M21-webgpu-adapter` epic with story-level subtasks. Status: Not yet implemented.
 
-### Out of scope (Sprint 59)
+### Out of scope (Sprint 60)
 
-- SSR / BPCEM / LightProbeGrid — own epics. SSR especially is parked behind G-buffer work; BPCEM needs WebGPU node-material path.
-- Motion blur / DOF — cinematic-specific, parked.
-- `M17-batched-glb` — thread AssetRegistry through `updateBatched` so GLB references work inside batched buckets; carries to S60 (a batching / perf-focused sprint).
-- `BATCH-BENCH-bvh-stress` — same.
-- `M16-cache-e` — pooled scratch buffers in LTW cache; same.
+- Actual `WebGpuRenderAdapter` implementation — that's a follow-up sprint *if* this spike's recommendation is "go". Sketch only here.
+- Migrating any existing project (hello-3d / material-bench / shadows-bench) to WebGPU. The spike is a standalone harness.
+- Compute-shader work (particle physics on GPU, terrain GPGPU, skinning) — those become interesting *after* the WebGPU adapter lands and is the place where WebGPU's real win shows up.
+- SSR / BPCEM / LightProbeGrid — same as S58/S59 out-of-scope.
 
 ## Next Sprint (placeholder)
 
-To be detailed at S59 close. Likely candidates: `M17-batched-glb`, `BATCH-BENCH-bvh-stress`, `M16-cache-e`, `render-pool-caller-migration`, `M21-shadow-soft` re-eval. A batching / perf-focused sprint following the visual-fidelity track.
+To be detailed at S60 close. If the spike recommends "go": Sprint 61 will be the WebGPU adapter implementation. If "defer": pick up the parked S60-perf-cleanup-followups plan (`M17-batched-glb`, `BATCH-BENCH-bvh-stress`, `M16-cache-e`, `render-pool-caller-migration`, `DOCTOR-reflection-runtime`, `M21-shadow-soft` re-eval).
