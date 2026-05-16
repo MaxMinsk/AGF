@@ -93,7 +93,7 @@ import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
-import { WebGPURenderer } from "three/webgpu";
+import { WebGPURenderer, PMREMGenerator as WebGpuPMREMGenerator } from "three/webgpu";
 import {
   type RenderAdapterCapabilities,
   type RenderAdapterKind,
@@ -832,22 +832,20 @@ export class ThreeRenderAdapter {
       this.currentEnvironmentKind = "none";
       return;
     }
-    // S61 WEBGPU-adapter-core: the WebGL `PMREMGenerator` expects
-    // `WebGLRenderer.properties` etc. and crashes on `WebGPURenderer`.
-    // Until the WebGPU PMREM path lands (S63 feature parity), skip env
-    // IBL on the WebGPU adapter — the scene loses image-based lighting
-    // but renders correctly with direct lights only.
-    if (this.capabilities.kind === "webgpu") {
-      if (this.currentEnvironmentKind !== "none") {
-        this.scene.environment = null;
-        this.currentEnvironmentTexture?.dispose();
-        this.currentEnvironmentTexture = undefined;
-        this.currentEnvironmentKind = "none";
-      }
-      return;
-    }
+    // S62 WEBGPU-hdr-ibl / WEBGPU-generated-env. `three/webgpu` ships its
+    // own `PMREMGenerator` that drives the WebGPU node-material runtime;
+    // we lazy-construct the right one depending on the adapter mode so
+    // both `generated` (RoomEnvironment) and `hdr` paths produce real
+    // IBL on either renderer.
     if (this.pmrem === undefined) {
-      this.pmrem = new PMREMGenerator(this.device);
+      // S62 WEBGPU-hdr-ibl: `three/webgpu` ships its own PMREMGenerator
+      // that takes the new Renderer base class — pass the WebGPURenderer
+      // through `unknown` because TypeScript doesn't see the structural
+      // overlap with WebGLRenderer.
+      this.pmrem =
+        this.capabilities.kind === "webgpu"
+          ? (new WebGpuPMREMGenerator(this.device as unknown as never) as unknown as PMREMGenerator)
+          : new PMREMGenerator(this.device);
       this.pmrem.compileEquirectangularShader();
     }
     if (normalised.kind === "generated") {
