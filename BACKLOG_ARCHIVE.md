@@ -2730,3 +2730,48 @@ Status: Completed and archived. Follow-up to S57; three groups of work — Groun
 - **REFLECTION-cube cam re-parenting** — runtime path keeps the cube cam outside the scene graph; if a future feature wants to parent the probe to a moving entity, the per-frame `setReflectionProbeTransform(LocalToWorld)` already covers that; re-parenting is not actually needed.
 - **DOCTOR-reflection scans bootstrap entities** (carried from S57) — material-bench's runtime-created probes still don't show up in `engine doctor`. **Picked up as S59 Story 6.**
 - **GPU-timer test coverage** — the WebGL timer path has no unit-test coverage. A headless test against a mock WebGL2 ctx would have caught the `ext.QUERY_RESULT_*` bug before it reached the console. **Picked up as S59 Story 5.**
+
+## Sprint 59 — Visual fidelity v1 (PMREM + planar mirror + bloom + GPU-timer test)
+
+Status: Completed and archived. 8 of 10 planned stories shipped; `DOCTOR-reflection-runtime` deferred to S60 (wiring doctor as a dev-bridge client is a bigger cross-tool change; PERF-renderer-info already gives agents the live count via `__agf.rendererInfo()`).
+
+### Completed Work
+
+1. **REFLECTION-prefilter** — `ReflectionProbe { prefilter: "mipmap" | "pmrem" }`. PMREM regen via `PMREMGenerator.fromCubemap` after every cube capture; bounded memory via dispose-on-replace. Adapter API: `acquireReflectionProbe({ ..., prefilter })`, `resetReflectionPrefilterTimings()`, `reflectionPrefilterMs()`. Doctor formatter tags PMREM probes inline and adds their ~4× per-update cost to the extra-renders-per-second total.
+2. **REFLECTION-planar** — vendored `three/addons/objects/Reflector.js`. `PlanarMirror { width, height, resolution, color }` component + `acquirePlanarMirror / setPlanarMirrorTransform / releasePlanarMirror` adapter API. `engine/render/systems/planar-mirror-system.ts` acquires + transform-syncs Reflector meshes per `PlanarMirror` entity.
+3. **WATER-bench** — new `examples/water-bench/`. 30×30 PlanarMirror @ y=0 + 3 floating primitives (sphere / cube / cylinder) above. Procedural-primitives only, no external assets. Generated environment.
+4. **POST-bloom worked example** — material-bench's `project.json#render.post` picks up `[{ kind: "bloom", strength: 0.35, radius: 0.55, threshold: 0.92 }]`. Hero-highlight-only bloom (threshold > 0.9).
+5. **GPU-timer-test** — `engine/render/gpu-timer.ts` extracts the EXT_disjoint_timer_query state machine; 6 unit tests cover the S58 regressions (INVALID_ENUM via `ext.QUERY_RESULT_*` typo, dangling endQuery via `pending` vs `active` confusion) plus the surrounding invariants (disjoint discard, no overlap on TIME_ELAPSED, createQuery=null tolerance).
+6. **DOCS-vfx-skill-v1** — `docs/agent/skills/vfx-authoring.md` picks up PMREM / planar-mirror / bloom feature rows, three worked examples, three new pitfalls (PMREM cost, Reflector normal direction, high-resolution mirror cost).
+7. **DOCS-material-bench-readme** — new `examples/material-bench/README.md` documenting the v1 surface, the FPS knob table, and links to ADR-0013 + vfx-authoring.md.
+8. **PERF-renderer-info** — `AdapterInfo` + `__agf.rendererInfo()` pick up `reflectionProbes`, `prefilterMs`, `planarMirrors`.
+9. **MATERIAL-bench-vfx-v1-adopt** — centre chrome `ReflectionProbe.prefilter: "pmrem"`, updateRate 30 → 15 Hz, roughness 0.22 → 0.35 so the prefilter's value is visible. Bloom on chrome highlights.
+
+### Deferred to Sprint 60
+
+- 6 **DOCTOR-reflection-runtime** — doctor reads runtime probe inventory through `__agf/snapshot`. Deferred because doctor is a CLI tool and doesn't currently talk to a dev bridge; wiring it would touch both project-doctor.ts and dev-bridge. PERF-renderer-info already gives agents a live count + cost without doctor in the loop.
+
+### Deliverables
+
+- `engine/render/gpu-timer.ts` (new) — testable state machine.
+- `engine/render/systems/planar-mirror-system.ts` (new).
+- `engine/render/three-render-adapter.ts` — PMREM path on probes, Reflector probe API, `Adapter.info()` picks up the new metrics, GPU timer now wraps `GpuTimer`.
+- `engine/runtime/start.ts` — `PlanarMirrorSystem` registered after `ReflectionProbeSystem`.
+- `engine/tools/doctor/project-doctor.ts` — `ReflectionProbesReport.probes[].prefilter`; PMREM cost in the per-second estimate.
+- `examples/water-bench/` (new).
+- `examples/material-bench/` — PMREM on centre chrome, roughness 0.35, bloom in project.json, new README.
+- `schemas/components/render.schema.json` — `prefilter` on probe, `planarMirrorComponent` definition.
+- `schemas/scene.schema.json` — `PlanarMirror` registered.
+- `tests/unit/gpu-timer.test.ts` (new) — 6 tests.
+- `docs/agent/skills/vfx-authoring.md` — v1 update.
+
+### Verification
+
+- `npm run preflight` at sprint close — 511 / 511 unit tests, 11 / 11 e2e smoke, all 7 example projects engine:check clean.
+- Live playwright probes of water-bench (`planarMirrors: 1`, zero console errors) + material-bench v1 (`reflectionProbes: 3, prefilterMs ~0.4`, zero console errors).
+
+### Follow-Ups
+
+- **DOCTOR-reflection-runtime** — picked up as the first story of S60.
+- **Reflector + transmission ordering** — not exercised in water-bench (no transmissive material). Confirm rendering order behaves once a transmissive prop is placed in a scene with a planar mirror.
+- **`__agf.rendererInfo().bloomMs`** — PERF-renderer-info covers probe metrics but not bloom timing. The composer doesn't surface per-pass timings; a more comprehensive renderer perf hook would.

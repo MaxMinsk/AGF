@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 58 archived)
+Date: 2026-05-16 (Sprint 59 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,34 +38,34 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 59 — Visual fidelity v1 (PMREM, planar mirror, bloom, agent-surface tightening)
+## Current Sprint: Sprint 60 — Perf + cleanup follow-ups (batching, pools, doctor-runtime)
 
-Follow-up to S58's reflection-probe correctness sprint. Two themes:
+Follow-up after two back-to-back visual-fidelity sprints (S58 + S59). Three themes:
 
-1. **Visual fidelity v1** — close the obvious gaps S58 left open: full PMREM prefilter so high-roughness reflective materials read plausibly blurry; vendor `Reflector.js` so we can ship a planar mirror / water surface; add a bloom worked example with HDR-driven sub-pixel sparkles.
-2. **Agent-surface tightening** — the live debugging session for S58 made three gaps obvious: GPU timer had no test coverage (would have caught the `QUERY_RESULT_*` typo before it reached the console); `engine doctor` Reflections section misses runtime-spawned probes; vfx skill needs PMREM + Reflector + bloom worked examples once those land.
+1. **Perf cleanups long parked** — `M17-batched-glb` (thread AssetRegistry through `updateBatched`), `BATCH-BENCH-bvh-stress` (narrow-camera knob), `M16-cache-e` (pooled scratch buffers in LTW cache), `render-pool-caller-migration` (retire the per-kind adapter pool methods now that `acquirePool` dispatches uniformly).
+2. **Doctor → runtime bridge** — `DOCTOR-reflection-runtime` (carried from S59): teach `engine doctor` to read live probe inventory from a running dev server when one is available, fall back to static scene-JSON scan otherwise. Also adds a Reflections+Mirrors runtime section to `__agf.rendererInfo()` summaries.
+3. **Skill / docs catch-up** — write a `perf-tuning.md` skill memo that consolidates the FPS-knob references scattered across material-bench README, vfx-authoring, batching docs, and shadows-bench. Re-evaluate `M21-shadow-soft` (PCFSoft vs VSM vs PCF) on the current three.js version and write up the result.
 
 ### Stories
 
-1. **REFLECTION-prefilter** — full GGX PMREM prefilter per probe via `PMREMGenerator.fromCubemap`, gated by an opt-in `prefilter: "pmrem"` field on `ReflectionProbe` (default `"mipmap"` keeps S58's cheap mip-cube). Material-bench centre chrome opted into PMREM at `roughness: 0.35` so the difference is visible. Status: Not yet implemented.
-2. **REFLECTION-planar** — vendor `three/addons/objects/Reflector.js`. New `PlanarMirror { resolution, near, far, intensity }` component + adapter API parallel to ReflectionProbe. Doctor section reports planar mirrors alongside probes. Status: Not yet implemented.
-3. **WATER-bench** — new `examples/water-bench/` project: HDR sky + a single planar `Reflector` surface + 3 floating geometric props above to show reflection. Scene + project schemas wired; build, engine:check, smoke clean. Status: Not yet implemented.
-4. **POST-bloom** — worked example. `project.render.post: [{ kind: "bloom", strength?, radius?, threshold? }]`. Schema enum + `PostPassConfig` extended. Material-bench picks up a modest bloom on the chrome highlights. Status: Not yet implemented.
-5. **GPU-timer-test** — unit test against a mock WebGL2 ctx covering the three states (no prior query, prior pending, prior ready) so the `QUERY_RESULT_*` regression and the `endQuery` balance regression can't sneak back. Status: Not yet implemented.
-6. **DOCTOR-reflection-runtime** — `engine doctor` Reflections section reads the runtime probe inventory through the dev-bridge `__agf/snapshot` path so bootstrap-spawned probes (material-bench) show up; falls back to scene JSON when the project isn't running. Status: Deferred to S60 — wiring doctor as a dev-bridge client is a substantial cross-tool change; the v1 surface ships `__agf.rendererInfo().reflectionProbes / prefilterMs / planarMirrors` (PERF-renderer-info, Story 9) which already gives an agent a live count + cost reading without doctor in the loop.
-7. **DOCS-vfx-skill-v1** — `docs/agent/skills/vfx-authoring.md` adds PMREM-prefilter worked example, Reflector planar-mirror worked example, bloom worked example. Common pitfalls expands with `prefilter: "pmrem"` cost-per-update, Reflector + transmission render-order, bloom needing an HDR-bright source. Status: Not yet implemented.
-8. **DOCS-material-bench-readme** — `examples/material-bench/README.md` covers the v1 surface (3 probes + prefilter / mirror feed, bloom, FPS knobs). Status: Not yet implemented.
-9. **PERF-renderer-info** — `__agf.rendererInfo()` now reports `probeCount`, `prefilterMs` (when a PMREM regen ran this frame), `planarMirrorCount`, `bloomMs`. Existing `gpuMs` numbers stay; the WebGL2 query path is now under test. Status: Not yet implemented.
-10. **MATERIAL-bench-vfx-v1-adopt** — material-bench picks up PMREM prefilter on the centre chrome (`roughness 0.35` to actually show the diff), one Reflector mirror tile to one side of the ring (visible-from-camera) showing the orbiting ring reflected, modest bloom on the HDR. Performance budget rebaked. Status: Not yet implemented.
+1. **DOCTOR-reflection-runtime** — `engine doctor` checks for a running `localhost:5173/__agf/renderer-info` endpoint; if present, supplements the scene-JSON probe list with the runtime inventory (handle, position, prefilter mode, prefilter ms). Fall-through to static when offline. Status: Not yet implemented.
+2. **RENDERER-info-runtime-probes** — extend `engine/render/three-render-adapter.ts#info()` with `probeDetails: Array<{ handle, position, prefilter, ms }>` so dev-bridge clients see per-probe data, not just counts. Status: Not yet implemented.
+3. **M17-batched-glb** — thread `AssetRegistry` through `BatchingSystem.updateBatched()` so GLB-mesh-keyed buckets resolve their geometry the same way M17 InstancedMesh buckets do. Unit test under `tests/unit/batching-system-batched-path.test.ts`. Status: Not yet implemented.
+4. **BATCH-BENCH-bvh-stress** — add a narrow-camera knob (`?camera=narrow|wide`) to `examples/batch-bench/` so the BVH-vs-frustum-cull crossover can be measured live. Update `scripts/perf-probe-batching.mjs` accordingly. Status: Not yet implemented.
+5. **M16-cache-e** — pool a small ring of `Matrix4` + `Vector3` + `Quaternion` scratch instances inside `transform-resolve-cached.ts`; profile against the current per-entity allocs (probably 5–10 % win at 1k+ entities). Status: Not yet implemented.
+6. **render-pool-caller-migration** — retire the per-kind methods (`acquireInstancedBucket`, `acquireBatchedBucket`, `acquireParticleBucket`) in favour of the unified `acquirePool` dispatcher landed in S52. Update `BatchingSystem`, `ParticleEmitterSystem`, `MeshLifecycleSystem` callers; remove the dead methods. Status: Not yet implemented.
+7. **M21-shadow-soft-reeval** — research-only story. Run shadows-bench with `BasicShadowMap` / `PCFShadowMap` / `PCFSoftShadowMap` / `VSMShadowMap` on the dev machine; capture screenshots + `gpuMs` for each. Write up findings under `docs/research/m21-shadow-soft-reeval.md`; pick a default per project profile if any clear winner emerges. Status: Not yet implemented.
+8. **DOCS-perf-tuning-skill** — new `docs/agent/skills/perf-tuning.md` consolidating the FPS-knob references scattered across material-bench README, shadows-bench README, vfx-authoring, batching docs. Status: Not yet implemented.
+9. **DOCS-water-bench-readme** — `examples/water-bench/README.md` mirroring the material-bench README shape (what it shows, FPS knobs, what to look at). Status: Not yet implemented.
+10. **GPU-timer-test-extend** — additional cases for the GPU-timer state machine: createQuery returning null mid-stream, ext disappearing mid-frame (context loss), getQueryParameter throwing. Belt-and-suspenders since S59 only covered the happy paths + S58 regressions. Status: Not yet implemented.
 
-### Out of scope (Sprint 59)
+### Out of scope (Sprint 60)
 
-- SSR / BPCEM / LightProbeGrid — own epics. SSR especially is parked behind G-buffer work; BPCEM needs WebGPU node-material path.
-- Motion blur / DOF — cinematic-specific, parked.
-- `M17-batched-glb` — thread AssetRegistry through `updateBatched` so GLB references work inside batched buckets; carries to S60 (a batching / perf-focused sprint).
-- `BATCH-BENCH-bvh-stress` — same.
-- `M16-cache-e` — pooled scratch buffers in LTW cache; same.
+- SSR / BPCEM / LightProbeGrid — own epics. Same as S59 out-of-scope.
+- M17-static-merge-spike — opt-in static merge with reverse EntityId lookup for picking. Deferred until a 10k+ static-prop project asks.
+- M21-webgpu-spike — own sprint behind a profile flag.
+- M20-* netcode rework — own sprint.
 
 ## Next Sprint (placeholder)
 
-To be detailed at S59 close. Likely candidates: `M17-batched-glb`, `BATCH-BENCH-bvh-stress`, `M16-cache-e`, `render-pool-caller-migration`, `M21-shadow-soft` re-eval. A batching / perf-focused sprint following the visual-fidelity track.
+To be detailed at S60 close. Likely candidates: `M17-static-merge-spike`, `M20-*` netcode, `M21-webgpu-spike` if shadows-bench eval reveals a WebGL ceiling, beacon-world gameplay loop primitives.
