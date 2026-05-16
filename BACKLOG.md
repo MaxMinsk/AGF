@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 66 archived)
+Date: 2026-05-16 (Sprint 67 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,26 +38,40 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 67 — WebGPU ShaderMaterial stack-trace + port
+## Current Sprint: Sprint 68 — Migrate post-processing-free projects to WebGPU
 
-S66 shipped the audit tool + research; the offender is somewhere inside three.js (`StandardNodeLibrary` has no entry for vanilla `ShaderMaterial`; the error originates in `NodeBuilder.js:2985`). Audit on webgpu-spike shows zero ShaderMaterials in our scene traversal, so the offender must be internal three.js code lazily creating one. S67 traces it and ports it.
+S67 confirmed WebGPU post-processing is **blocked upstream** in three.js r0.184. Pivot: migrate the example projects that DON'T need post-passes / CSM / planar mirror to WebGPU now, proving the WebGPU core path is mature enough for real-world projects. Track three.js minors for an upstream post-processing fix; flip the remaining projects when it lands.
+
+Eligible projects (no blocking features):
+- `hello-3d` — primitives + shadows + Spin → WebGPU core path covers this.
+- `physics-bench` — Rapier + primitives → should work; verify physics-runtime interaction.
+- `batch-bench` — InstancedMesh + BatchedMesh; the adapter stubs these return -1 on WebGPU, so the bench would fall back to per-mesh. Skip for now.
+- `webgpu-light-test` — already on WebGPU; no migration needed.
+
+Blocked (need post-passes / CSM / planar mirror):
+- `material-bench` (bloom + transmission pre-pass + multi-probe + PMREM-prefilter)
+- `shadows-bench` (CSM)
+- `water-bench` (PlanarMirror)
 
 ### Stories
 
-1. **WEBGPU-shadermaterial-stacktrace** — monkey-patch `THREE.ShaderMaterial.prototype.constructor` (via an opt-in adapter flag, e.g. `?debug-shadermaterial=1` URL param) to capture a stack trace at every instantiation. Run webgpu-spike + bloom-enabled config. Output: identified offender + stack pointing at the three.js internal that triggers it. Status: Not yet implemented.
-2. **WEBGPU-shadermaterial-port** — port the offender to a node-material equivalent OR replace it with an alternative API that doesn't construct `ShaderMaterial`. Possible flavors depending on what Story 1 reveals:
-   - If PMREM equirect pingpong: skip on WebGPU (already done in S62), audit the helper paths.
-   - If shadow internal: use `renderer.shadowMap.type = ShadowMaterial` override or set `customDepthMaterial: MeshDepthNodeMaterial` on every shadow caster.
-   - If a `Pass`-derived class: skip on WebGPU path (verify removed).
-   - If three.js internal lazy helper: file an upstream issue + pin a workaround. Status: Not yet implemented.
-3. **WEBGPU-post-bloom (re-attempt)** — retry the S65 bloom code after Story 2 lands. Capability flag `supportsPostProcessing` flips true (for bloom only initially). Status: Not yet implemented.
-4. **WEBGPU-spike-bloom** — enable bloom on webgpu-spike for visual verification once Story 3 lands. Status: Not yet implemented.
-5. **DOCS-webgpu-skill-update** — flip "post-bloom blocked" → "supported" in the skill memo. Status: Not yet implemented.
+1. **MIGRATE-hello-3d-webgpu** — flip `examples/hello-3d/project.json#render.mode` to `"webgpu"`. Verify scene + shadows render correctly. Smoke test passes. Status: Not yet implemented.
+2. **MIGRATE-physics-bench-webgpu** — same. Confirms physics + WebGPU coexist. Status: Not yet implemented.
+3. **WEBGPU-fallback-policy** — when `mode = "webgpu"` is requested but `navigator.gpu` is missing, currently the page errors out. Add a `render.fallback: "webgl"` option that auto-falls back. Saves users from "page is black" if they open a webgpu project in an unsupported browser. Status: Not yet implemented.
+4. **DOCS-webgpu-state-doc** — single page summarising which AGF features work on WebGPU today (S62-67 results), which are blocked, which are upstream blockers. Lives at `docs/research/m21-webgpu-state.md`. Replaces a chunk of the scattered skill memo content. Status: Not yet implemented.
+5. **THREE-version-tracker** — note in the skill memo to re-test bloom on each three.js minor; auto-flip `supportsPostProcessing` once upstream fixes the ShaderMaterial issue in `BloomNode` pingpong materials. Status: Not yet implemented.
 
-### Honest scope note
+### Blocked, not in S68 scope
 
-S66 found the ShaderMaterial offender lives in three.js internals (not AGF code). S67 needs to identify exactly which one via monkey-patch trace. If it turns out to be unfixable from the AGF side (e.g. a three.js bug), the WebGPU post-pipeline path is genuinely blocked until three.js publishes a fix — and we should pin a known-working version OR work around with a custom pass that doesn't use `PostProcessing`.
+- **WEBGPU-post-bloom / ssao / lut / fxaa** — blocked upstream in three.js. Track for r0.185+.
+- **WEBGPU-csm** — needs `CSMNode` port or upstream fix.
+- **WEBGPU-planar-mirror** — needs `ReflectorNode` integration (different API).
+- **WEBGPU-pcss** — needs TSL rewrite.
+- **WEBGPU-gpu-timer** — `GPUQuerySet` work, sprint-sized on its own.
+- **WEBGPU-lazy-import** — 145 KB bundle win, sprint-sized constructor refactor.
+- **MIGRATE-material-bench / shadows-bench / water-bench** — gated on the upstream / port stories above.
+- **WEBGPU-default-flip** — gated on at least 50 % of the examples migrating cleanly.
 
 ## Next Sprint (placeholder)
 
-S68 — depends on S67 outcome. If S67 unblocks bloom: ship remaining post-passes (ssao / lut / fxaa) + start CSM / PCSS port. If S67 reveals an upstream block: pivot to non-post-processing work (GPU timer, planar mirror via Reflector audit, migrations of feature-light examples to webgpu).
+S69 — likely picks up `WEBGPU-gpu-timer` (small, well-understood, non-post-processing) and/or `WEBGPU-lazy-import` (bundle win). Tracks upstream three.js minor releases for the post-processing fix.

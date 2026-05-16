@@ -3056,3 +3056,38 @@ Identifying *which* `ShaderMaterial` instance fires the error. The audit tool do
 
 - **S67 — monkey-patch ShaderMaterial constructor** to capture stack traces of every ShaderMaterial instantiation during webgpu-spike boot + bloom attempt. Identifies offender. Then port that offender to a node-material equivalent.
 - **Honest schedule revision**: each WebGPU feature port may need its own ShaderMaterial-audit cycle. The default-flip is more distant than the S60 spike sketch suggested.
+
+## Sprint 67 — WebGPU bloom upstream-block confirmed
+
+Status: Completed and archived as a research sprint. The S65 bloom blocker has been traced to its origin via `console.error` stack capture; verdict is "upstream three.js bug / limitation in r0.184", not fixable from AGF without forking three.js.
+
+### Completed Work
+
+1. **WEBGPU-shadermaterial-stacktrace** — re-enabled the S65 bloom path under controlled probe + patched `console.error` via playwright `page.addInitScript` to capture stacks. Five identical stacks during first frame, all from `WebGPURenderer._renderObjectDirect` → `NodeManager.needsRefresh` → `RenderObject.getMonitor` / `getNodeBuilderState` → `WGSLNodeBuilder.build` → `prebuild` → `error()`. Confirms the offending `RenderObject` is a Mesh in the rendered draw list. Source: three.js's internal bloom orchestration (BloomNode's pingpong quads use vanilla `ShaderMaterial`).
+2. **Bloom revert (clean)** — reverted the temporary bloom code; webgpu-spike preserved working (env=generated, probe, castShadow).
+3. **Research doc update** — `docs/research/m21-webgpu-shadermaterial-audit.md` extended with the stack trace + verdict. Workarounds + upstream-tracking guidance.
+
+### Verdict
+
+WebGPU post-processing is **blocked upstream** in three.js r0.184. Workarounds:
+1. Pin a different three.js version once a working post-processing path lands (likely r0.185+).
+2. Fork `BloomNode` to use `NodeMaterial` for internal quads (large maintenance burden, not recommended).
+3. Park WebGPU post-processing entirely until upstream publishes the fix.
+
+S68 takes path 3 — continue WebGPU feature parity on axes that DON'T touch post-processing.
+
+### Deliverables
+
+- `docs/research/m21-webgpu-shadermaterial-audit.md` extended with stack trace + verdict.
+- Bloom code reverted cleanly. `supportsPostProcessing: false` on WebGPU stays.
+
+### Verification
+
+- typecheck + 511 unit tests pass.
+- `engine:check` clean on 9 projects.
+- webgpu-spike: `renderer=webgpu`, 4 meshes, 3 draws, scene renders, zero pageerrors.
+
+### Follow-Ups
+
+- **S68 — migrate post-processing-free projects to WebGPU** (hello-3d, physics-bench, batch-bench, webgpu-light-test as a sanity baseline). Confirms the WebGPU core path is mature enough for real migrations on projects that don't need post-passes / CSM / planar mirror.
+- **Periodic three.js minor check** — every minor release, re-run the bloom test; flip `supportsPostProcessing: true` once upstream fixes the ShaderMaterial issue.
