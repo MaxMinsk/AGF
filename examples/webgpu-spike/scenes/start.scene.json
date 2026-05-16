@@ -65,7 +65,9 @@
         },
         "MeshRenderer": { "mesh": "box", "color": "#ff5a8a" },
         "ShadowFlags": { "cast": true, "receive": true },
-        "Spin": { "axis": "y", "speed": 45 }
+        "Spin": { "axis": "y", "speed": 45 },
+        "ReflectionProbe": { "size": 128, "updateRate": 0, "excludeEntities": ["cube.hero"] },
+        "EnvmapBinding": { "probe": "cube.hero", "intensity": 0.8 }
       }
     },
     {

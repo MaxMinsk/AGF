@@ -93,7 +93,11 @@ import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
-import { WebGPURenderer, PMREMGenerator as WebGpuPMREMGenerator } from "three/webgpu";
+import {
+  WebGPURenderer,
+  PMREMGenerator as WebGpuPMREMGenerator,
+  CubeRenderTarget as WebGpuCubeRenderTarget
+} from "three/webgpu";
 import {
   type RenderAdapterCapabilities,
   type RenderAdapterKind,
@@ -967,11 +971,23 @@ export class ThreeRenderAdapter {
     // moderate-roughness surfaces. For physically-accurate PBR-roughness
     // reflection (rough > 0.3), opt the probe into `prefilter: "pmrem"`
     // and the runtime will run a GGX prefilter after every cube render.
-    const renderTarget = new WebGLCubeRenderTarget(spec.size, {
-      type: HalfFloatType,
-      generateMipmaps: true,
-      minFilter: LinearMipmapLinearFilter
-    });
+    //
+    // S64 WEBGPU-reflection-probe: `three/webgpu` ships its own
+    // `CubeRenderTarget` (different class than WebGL's
+    // `WebGLCubeRenderTarget`) compatible with `WebGPURenderer`.
+    // CubeCamera works on both renderers and reads `.texture` from
+    // either RT class.
+    const renderTarget = this.capabilities.kind === "webgpu"
+      ? (new WebGpuCubeRenderTarget(spec.size, {
+          type: HalfFloatType,
+          generateMipmaps: true,
+          minFilter: LinearMipmapLinearFilter
+        }) as unknown as WebGLCubeRenderTarget)
+      : new WebGLCubeRenderTarget(spec.size, {
+          type: HalfFloatType,
+          generateMipmaps: true,
+          minFilter: LinearMipmapLinearFilter
+        });
     const cubeCam = new CubeCamera(spec.near, spec.far, renderTarget);
     // INTENTIONALLY NOT added to scene. CubeCamera.update() only auto-
     // refreshes its world matrix when parent === null; if we add it to
