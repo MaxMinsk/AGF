@@ -140,6 +140,8 @@ declare global {
         readonly prefilterMs: number;
         /** S59 REFLECTION-planar: count of live `PlanarMirror` Reflector meshes. */
         readonly planarMirrors: number;
+        /** S60 PERF-renderer-info-renderer-kind: which renderer the adapter is backed by. Always `"webgl"` today; flips once `WebGpuRenderAdapter` ships. */
+        readonly renderer: "webgl" | "webgpu";
       };
       /**
        * M21-frame-timing — window-averaged per-phase tick timings in

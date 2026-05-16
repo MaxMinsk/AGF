@@ -1,0 +1,236 @@
+{
+  "capturedAt": "2026-05-16T06:13:59.863Z",
+  "sampleSeconds": 4,
+  "headed": true,
+  "noVsync": true,
+  "runs": [
+    {
+      "level": "light",
+      "renderer": "webgl",
+      "params": {
+        "boxes": 50,
+        "spheres": 50,
+        "shadows": true
+      },
+      "result": {
+        "ok": true,
+        "frames": 1938,
+        "duration": 3.880699999988079,
+        "fpsAvg": 499.39443914911055,
+        "frameMsMean": 2.00381836945612,
+        "frameMsP50": 2.199999988079071,
+        "frameMsP90": 4.800000011920929,
+        "frameMsP95": 6.0999999940395355,
+        "frameMsP99": 7.9000000059604645,
+        "frameMsMax": 10.099999994039536,
+        "stutters18": 0,
+        "stutters30": 0,
+        "rendererInfo": {
+          "renderer": "webgl",
+          "ready": true,
+          "framesRendered": 2293,
+          "fpsAvg": 500.9980039920162,
+          "frameMsAvg": 1.9960159362549792,
+          "drawCalls": 101,
+          "triangles": 30602,
+          "spheres": 50,
+          "boxes": 50,
+          "shadows": true
+        },
+        "errors": [
+          "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ]
+      }
+    },
+    {
+      "level": "light",
+      "renderer": "webgpu",
+      "params": {
+        "boxes": 50,
+        "spheres": 50,
+        "shadows": true
+      },
+      "result": {
+        "ok": true,
+        "frames": 7484,
+        "duration": 3.966800000011921,
+        "fpsAvg": 1886.6592719515754,
+        "frameMsMean": 0.5301175841803796,
+        "frameMsP50": 0.5,
+        "frameMsP90": 0.7000000178813934,
+        "frameMsP95": 0.800000011920929,
+        "frameMsP99": 1,
+        "frameMsMax": 6.5999999940395355,
+        "stutters18": 0,
+        "stutters30": 0,
+        "rendererInfo": {
+          "renderer": "webgpu",
+          "ready": true,
+          "framesRendered": 8718,
+          "fpsAvg": 1854.6290741851633,
+          "frameMsAvg": 0.5391913746630727,
+          "drawCalls": 26151,
+          "triangles": 0,
+          "spheres": 50,
+          "boxes": 50,
+          "shadows": true
+        },
+        "errors": [
+          "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ]
+      }
+    },
+    {
+      "level": "medium",
+      "renderer": "webgl",
+      "params": {
+        "boxes": 200,
+        "spheres": 200,
+        "shadows": true
+      },
+      "result": {
+        "ok": true,
+        "frames": 1671,
+        "duration": 3.8760999999940395,
+        "fpsAvg": 431.10342870477274,
+        "frameMsMean": 2.3220825852889777,
+        "frameMsP50": 1.899999976158142,
+        "frameMsP90": 4.800000011920929,
+        "frameMsP95": 5.9000000059604645,
+        "frameMsP99": 7.300000011920929,
+        "frameMsMax": 12.099999994039536,
+        "stutters18": 0,
+        "stutters30": 0,
+        "rendererInfo": {
+          "renderer": "webgl",
+          "ready": true,
+          "framesRendered": 1983,
+          "fpsAvg": 429.8280687724912,
+          "frameMsAvg": 2.3265116279069757,
+          "drawCalls": 401,
+          "triangles": 122402,
+          "spheres": 200,
+          "boxes": 200,
+          "shadows": true
+        },
+        "errors": [
+          "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ]
+      }
+    },
+    {
+      "level": "medium",
+      "renderer": "webgpu",
+      "params": {
+        "boxes": 200,
+        "spheres": 200,
+        "shadows": true
+      },
+      "result": {
+        "ok": true,
+        "frames": 2256,
+        "duration": 3.896199999988079,
+        "fpsAvg": 579.0257173674099,
+        "frameMsMean": 1.7276152482269505,
+        "frameMsP50": 1.7000000178813934,
+        "frameMsP90": 2.0999999940395355,
+        "frameMsP95": 2.199999988079071,
+        "frameMsP99": 2.4000000059604645,
+        "frameMsMax": 2.9000000059604645,
+        "stutters18": 0,
+        "stutters30": 0,
+        "rendererInfo": {
+          "renderer": "webgpu",
+          "ready": true,
+          "framesRendered": 2628,
+          "fpsAvg": 572.1989215098861,
+          "frameMsAvg": 1.7476439790575917,
+          "drawCalls": 7881,
+          "triangles": 0,
+          "spheres": 200,
+          "boxes": 200,
+          "shadows": true
+        },
+        "errors": [
+          "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ]
+      }
+    },
+    {
+      "level": "heavy",
+      "renderer": "webgl",
+      "params": {
+        "boxes": 600,
+        "spheres": 600,
+        "shadows": true
+      },
+      "result": {
+        "ok": true,
+        "frames": 1117,
+        "duration": 3.7858000000119207,
+        "fpsAvg": 295.04992339703176,
+        "frameMsMean": 3.3917636526623474,
+        "frameMsP50": 3.4000000059604645,
+        "frameMsP90": 3.800000011920929,
+        "frameMsP95": 4,
+        "frameMsP99": 4.199999988079071,
+        "frameMsMax": 4.5,
+        "stutters18": 0,
+        "stutters30": 0,
+        "rendererInfo": {
+          "renderer": "webgl",
+          "ready": true,
+          "framesRendered": 1358,
+          "fpsAvg": 292.82430541674984,
+          "frameMsAvg": 3.4150170648464178,
+          "drawCalls": 1047,
+          "triangles": 318314,
+          "spheres": 600,
+          "boxes": 600,
+          "shadows": true
+        },
+        "errors": [
+          "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ]
+      }
+    },
+    {
+      "level": "heavy",
+      "renderer": "webgpu",
+      "params": {
+        "boxes": 600,
+        "spheres": 600,
+        "shadows": true
+      },
+      "result": {
+        "ok": true,
+        "frames": 760,
+        "duration": 3.725800000011921,
+        "fpsAvg": 203.98303719941174,
+        "frameMsMean": 4.908815789497212,
+        "frameMsP50": 4.9000000059604645,
+        "frameMsP90": 5.5999999940395355,
+        "frameMsP95": 5.800000011920929,
+        "frameMsP99": 6.199999988079071,
+        "frameMsMax": 7,
+        "stutters18": 0,
+        "stutters30": 0,
+        "rendererInfo": {
+          "renderer": "webgpu",
+          "ready": true,
+          "framesRendered": 955,
+          "fpsAvg": 203.34928229665076,
+          "frameMsAvg": 4.917647058823529,
+          "drawCalls": 2862,
+          "triangles": 0,
+          "spheres": 600,
+          "boxes": 600,
+          "shadows": true
+        },
+        "errors": [
+          "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ]
+      }
+    }
+  ]
+}
