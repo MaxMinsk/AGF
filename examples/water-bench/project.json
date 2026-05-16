@@ -1,19 +1,15 @@
 {
   "agfFormatVersion": 1,
-  "id": "material-bench",
-  "name": "Material Bench",
+  "id": "water-bench",
+  "name": "Water Bench",
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {
     "mode": "webgl",
     "color": {
       "toneMapping": "aces-filmic",
-      "exposure": 1.0,
-      "transmissionResolutionScale": 0.5
+      "exposure": 1.0
     },
-    "post": [
-      { "kind": "bloom", "strength": 0.35, "radius": 0.55, "threshold": 0.92 }
-    ],
     "batching": {
       "auto": false
     }

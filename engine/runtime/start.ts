@@ -425,6 +425,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       registry: renderer.meshRegistry()
     });
     if (!scheduler.has(rps.name)) scheduler.register(rps);
+
+    // S59 REFLECTION-planar: drives every `PlanarMirror` entity by
+    // acquiring + transform-syncing a three.js `Reflector` mesh per
+    // probe. Reflector renders the scene through its plane internally
+    // on every WebGLRenderer.render() call.
+    const { createPlanarMirrorSystem } = await import("../render/systems/planar-mirror-system");
+    const pms = createPlanarMirrorSystem({ adapter: renderer.adapter });
+    if (!scheduler.has(pms.name)) scheduler.register(pms);
   }
 
   const time: TimeContext = {

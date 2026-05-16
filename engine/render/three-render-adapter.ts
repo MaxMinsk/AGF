@@ -78,18 +78,21 @@ import {
   SRGBColorSpace,
   Vector2,
   Vector3,
-  WebGLRenderer
+  WebGLRenderer,
+  WebGLRenderTarget
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { CubeTextureLoader } from "three";
 import { GroundedSkybox } from "three/examples/jsm/objects/GroundedSkybox.js";
+import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
 import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
+import { GpuTimer } from "./gpu-timer";
 
 // S53 M17-bvh-extension: the extension patches BatchedMesh.prototype
 // once at module load. Idempotent — safe to call multiple times across
@@ -412,6 +415,16 @@ export type AdapterInfo = {
    * the extension (Safari, headless WebGL, Firefox in resist-fingerprint).
    */
   gpuMs?: number;
+  /** S59 PERF-renderer-info: count of live `ReflectionProbe` cube cams. */
+  reflectionProbes: number;
+  /**
+   * S59 PERF-renderer-info: total PMREM regen time across every probe
+   * this frame. Zero when no probe opted into `prefilter: "pmrem"` or
+   * the cadence skipped this frame.
+   */
+  prefilterMs: number;
+  /** S59 REFLECTION-planar: live planar-mirror Reflector meshes. */
+  planarMirrors: number;
 };
 
 export type SkyGradient = {
@@ -595,21 +608,14 @@ export class ThreeRenderAdapter {
   private readonly scratchRaycaster = new Raycaster();
   private readonly scratchPickNdc = new Vector2();
 
-  // S54 RUNTIME-gpu-timing: optional WebGL2 timer-query state. The extension
-  // (`EXT_disjoint_timer_query_webgl2`) is async — we issue one query per
-  // frame and poll the previous one for availability before reading. When
-  // the extension is missing (every Safari, headless WebGL, some Android)
-  // these all stay `undefined` and `info().gpuMs` returns undefined.
-  private gpuTimerExt: {
-    QUERY_RESULT_AVAILABLE: number;
-    QUERY_RESULT: number;
-    TIME_ELAPSED_EXT: number;
-    GPU_DISJOINT_EXT: number;
-  } | undefined;
-  private gpuTimerCtx: WebGL2RenderingContext | undefined;
-  private gpuTimerPending: WebGLQuery | undefined;
-  private gpuTimerActive: boolean = false;
-  private gpuTimerLastMs: number | undefined;
+  // S54 RUNTIME-gpu-timing / S59 GPU-timer-test. The state machine lives in
+  // `engine/render/gpu-timer.ts` so it can be unit-tested against a small
+  // mock WebGL2 context (the original S58 INVALID_ENUM / dangling endQuery
+  // pair would have been caught by that test before reaching DevTools).
+  // Stays `undefined` on browsers / contexts without
+  // `EXT_disjoint_timer_query_webgl2` — every Safari, headless WebGL,
+  // Firefox in resist-fingerprint.
+  private gpuTimer: GpuTimer | undefined;
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -636,15 +642,12 @@ export class ThreeRenderAdapter {
     if (typeof WebGL2RenderingContext !== "undefined" && rawCtx instanceof WebGL2RenderingContext) {
       const ext = rawCtx.getExtension("EXT_disjoint_timer_query_webgl2") as
         | {
-            QUERY_RESULT_AVAILABLE: number;
-            QUERY_RESULT: number;
             TIME_ELAPSED_EXT: number;
             GPU_DISJOINT_EXT: number;
           }
         | null;
       if (ext !== null) {
-        this.gpuTimerCtx = rawCtx;
-        this.gpuTimerExt = ext;
+        this.gpuTimer = new GpuTimer(rawCtx, ext);
       }
     }
     // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
@@ -848,21 +851,36 @@ export class ThreeRenderAdapter {
 
   private readonly reflectionProbes = new Map<
     number,
-    { cubeCam: CubeCamera; renderTarget: WebGLCubeRenderTarget }
+    {
+      cubeCam: CubeCamera;
+      renderTarget: WebGLCubeRenderTarget;
+      // S59 REFLECTION-prefilter: when `prefilter === "pmrem"` we run the
+      // raw cubemap through PMREMGenerator after each cubeCam.update.
+      // `prefilteredTarget` holds the most-recent prefiltered RT (dispose
+      // + replace per regen). `prefilterLastMs` records the regen time.
+      prefilter: "mipmap" | "pmrem";
+      prefilteredTarget: WebGLRenderTarget | undefined;
+      prefilterLastMs: number;
+    }
   >();
   private nextReflectionProbeHandle = 1;
+  // S59 PERF-renderer-info: total PMREM regen time across all probes this
+  // frame, reset at the top of every probe update cycle. Read by
+  // `rendererInfo()` so agents can budget against it.
+  private reflectionPrefilterMsThisFrame = 0;
 
   acquireReflectionProbe(spec: {
     size: 128 | 256 | 512;
     near: number;
     far: number;
+    prefilter?: "mipmap" | "pmrem";
   }): number {
     // generateMipmaps + LinearMipmapLinearFilter lets MeshStandard/
     // MeshPhysicalMaterial sample the cube map at roughness > 0 with a
-    // box-filtered mip chain — not full PMREM GGX prefilter, but a
-    // close-enough blurry reflection for moderate-roughness surfaces.
-    // Three.js's CubeCamera.update temporarily flips generateMipmaps off
-    // during the 6 face renders and rebuilds the mip chain after.
+    // box-filtered mip chain — close-enough blurry reflection for
+    // moderate-roughness surfaces. For physically-accurate PBR-roughness
+    // reflection (rough > 0.3), opt the probe into `prefilter: "pmrem"`
+    // and the runtime will run a GGX prefilter after every cube render.
     const renderTarget = new WebGLCubeRenderTarget(spec.size, {
       type: HalfFloatType,
       generateMipmaps: true,
@@ -876,7 +894,13 @@ export class ThreeRenderAdapter {
     // off-centre. CubeCamera doesn't need to be in the scene graph to
     // render — it owns its own face cameras + projects directly.
     const handle = this.nextReflectionProbeHandle++;
-    this.reflectionProbes.set(handle, { cubeCam, renderTarget });
+    this.reflectionProbes.set(handle, {
+      cubeCam,
+      renderTarget,
+      prefilter: spec.prefilter ?? "mipmap",
+      prefilteredTarget: undefined,
+      prefilterLastMs: 0
+    });
     return handle;
   }
 
@@ -911,10 +935,51 @@ export class ThreeRenderAdapter {
     } finally {
       for (const [obj, was] of restoreVisibility) obj.visible = was;
     }
+    // S59 REFLECTION-prefilter: run GGX prefilter through PMREMGenerator
+    // when the probe asked for it. fromCubemap allocates a new RT every
+    // call; we dispose the previous to bound memory. Cost is ~4–6× a
+    // single face render, so pair with a low `updateRate` (15 Hz).
+    if (entry.prefilter === "pmrem") {
+      if (this.pmrem === undefined) {
+        this.pmrem = new PMREMGenerator(this.device);
+      }
+      const t0 = performance.now();
+      const prev = entry.prefilteredTarget;
+      const next = this.pmrem.fromCubemap(entry.renderTarget.texture);
+      entry.prefilteredTarget = next;
+      if (prev !== undefined) prev.dispose();
+      const ms = performance.now() - t0;
+      entry.prefilterLastMs = ms;
+      this.reflectionPrefilterMsThisFrame += ms;
+    }
+  }
+
+  /**
+   * Reset accumulated probe-prefilter ms — called at the top of every
+   * probe system frame so `rendererInfo().prefilterMs` reflects ONLY the
+   * current frame's PMREM cost.
+   */
+  resetReflectionPrefilterTimings(): void {
+    this.reflectionPrefilterMsThisFrame = 0;
   }
 
   reflectionProbeTexture(handle: number): Texture | undefined {
-    return this.reflectionProbes.get(handle)?.renderTarget.texture;
+    const entry = this.reflectionProbes.get(handle);
+    if (entry === undefined) return undefined;
+    if (entry.prefilter === "pmrem" && entry.prefilteredTarget !== undefined) {
+      return entry.prefilteredTarget.texture;
+    }
+    return entry.renderTarget.texture;
+  }
+
+  /** S59 PERF-renderer-info — read by `rendererInfo()`. */
+  reflectionProbeCount(): number {
+    return this.reflectionProbes.size;
+  }
+
+  /** S59 PERF-renderer-info — total PMREM regen ms across all probes this frame. */
+  reflectionPrefilterMs(): number {
+    return this.reflectionPrefilterMsThisFrame;
   }
 
   releaseReflectionProbe(handle: number): void {
@@ -922,12 +987,71 @@ export class ThreeRenderAdapter {
     if (entry === undefined) return;
     this.scene.remove(entry.cubeCam);
     entry.renderTarget.dispose();
+    if (entry.prefilteredTarget !== undefined) entry.prefilteredTarget.dispose();
     this.reflectionProbes.delete(handle);
   }
 
   /** Look up the Three.js mesh for an entity — needed by `ReflectionProbeSystem` to hide excluded entities. */
   meshForHandle(handle: number): Object3D | undefined {
     return this.meshes.get(handle);
+  }
+
+  // S59 REFLECTION-planar: per-entity planar mirror via three.js's
+  // `Reflector` helper. Unlike ReflectionProbe (cube capture, works on
+  // any geometry), Reflector renders the scene through a portal-style
+  // RTT for a single flat surface — perfect for water / lobby floor /
+  // smooth glass tile. Cost is one extra full-scene render per mirror
+  // per frame.
+  private readonly planarMirrors = new Map<number, { mirror: Reflector }>();
+  private nextPlanarMirrorHandle = 1;
+
+  acquirePlanarMirror(spec: {
+    width: number;
+    height: number;
+    resolution: number;
+    color?: string;
+  }): number {
+    const geometry = new PlaneGeometry(spec.width, spec.height);
+    const mirror = new Reflector(geometry, {
+      textureWidth: spec.resolution,
+      textureHeight: spec.resolution,
+      color: new Color(spec.color ?? "#88aaff"),
+      clipBias: 0.003
+    });
+    // Reflector geometry is a PlaneGeometry on the XY plane facing +Z;
+    // matrix updates via setPlanarMirrorTransform put it where the
+    // entity's LocalToWorld says.
+    this.scene.add(mirror);
+    const handle = this.nextPlanarMirrorHandle++;
+    this.planarMirrors.set(handle, { mirror });
+    return handle;
+  }
+
+  setPlanarMirrorTransform(
+    handle: number,
+    ltw: { position: readonly number[]; rotation: readonly number[]; scale: readonly number[] }
+  ): void {
+    const entry = this.planarMirrors.get(handle);
+    if (entry === undefined) return;
+    entry.mirror.position.set(ltw.position[0]!, ltw.position[1]!, ltw.position[2]!);
+    entry.mirror.quaternion.set(ltw.rotation[0]!, ltw.rotation[1]!, ltw.rotation[2]!, ltw.rotation[3]!);
+    entry.mirror.scale.set(ltw.scale[0]!, ltw.scale[1]!, ltw.scale[2]!);
+    entry.mirror.updateMatrixWorld(true);
+  }
+
+  releasePlanarMirror(handle: number): void {
+    const entry = this.planarMirrors.get(handle);
+    if (entry === undefined) return;
+    this.scene.remove(entry.mirror);
+    entry.mirror.geometry.dispose();
+    // Reflector materials are internal; dispose-on-remove is the helper's
+    // documented teardown. The wrapping object3d is what matters.
+    (entry.mirror.material as Material).dispose();
+    this.planarMirrors.delete(handle);
+  }
+
+  planarMirrorCount(): number {
+    return this.planarMirrors.size;
   }
 
   /**
@@ -1935,60 +2059,13 @@ export class ThreeRenderAdapter {
     // With `info.autoReset = false` we own the per-frame reset so the
     // counters span every composer pass.
     this.device.info.reset();
-    this.beginGpuTimer();
+    this.gpuTimer?.begin();
     if (this.composer !== undefined) {
       this.composer.render();
     } else {
       this.device.render(this.scene, camera);
     }
-    this.endGpuTimer();
-  }
-
-  // S54 RUNTIME-gpu-timing: one outstanding TIME_ELAPSED query at a time.
-  // beginGpuTimer first polls the *previous* query for availability and
-  // pulls its result if ready; only then does it open a new query around
-  // the current frame.
-  private beginGpuTimer(): void {
-    const ext = this.gpuTimerExt;
-    const gl = this.gpuTimerCtx;
-    if (ext === undefined || gl === undefined) return;
-    // `QUERY_RESULT` / `QUERY_RESULT_AVAILABLE` are WebGL2 core constants —
-    // they are NOT exposed on the EXT_disjoint_timer_query_webgl2 object.
-    // Reading them off `ext` returns `undefined` → INVALID_ENUM.
-    if (this.gpuTimerPending !== undefined) {
-      const ready = gl.getQueryParameter(this.gpuTimerPending, gl.QUERY_RESULT_AVAILABLE) as boolean;
-      // Discard everything when the driver flags a disjoint period (context
-      // switch, GPU clock scaling) — the elapsed counter is unreliable.
-      const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT) as boolean;
-      if (ready && !disjoint) {
-        const ns = gl.getQueryParameter(this.gpuTimerPending, gl.QUERY_RESULT) as number;
-        this.gpuTimerLastMs = ns / 1_000_000;
-        gl.deleteQuery(this.gpuTimerPending);
-        this.gpuTimerPending = undefined;
-      } else if (disjoint) {
-        gl.deleteQuery(this.gpuTimerPending);
-        this.gpuTimerPending = undefined;
-        this.gpuTimerLastMs = undefined;
-      }
-      // Still pending? Skip starting a new query — overlapping queries are
-      // not allowed on a single target. Critically, leave `gpuTimerActive`
-      // false so `endGpuTimer` doesn't try to close a query we never began.
-      if (this.gpuTimerPending !== undefined) return;
-    }
-    const query = gl.createQuery();
-    if (query === null) return;
-    gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
-    this.gpuTimerPending = query;
-    this.gpuTimerActive = true;
-  }
-
-  private endGpuTimer(): void {
-    const ext = this.gpuTimerExt;
-    const gl = this.gpuTimerCtx;
-    if (ext === undefined || gl === undefined) return;
-    if (!this.gpuTimerActive) return;
-    gl.endQuery(ext.TIME_ELAPSED_EXT);
-    this.gpuTimerActive = false;
+    this.gpuTimer?.end();
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -2388,10 +2465,14 @@ export class ThreeRenderAdapter {
       buckets: this.buckets.size(),
       bucketInstances,
       batchedBuckets: this.batchedBuckets.size(),
-      batchedBucketInstances
+      batchedBucketInstances,
+      reflectionProbes: this.reflectionProbes.size,
+      prefilterMs: this.reflectionPrefilterMsThisFrame,
+      planarMirrors: this.planarMirrors.size
     };
-    if (this.gpuTimerLastMs !== undefined) {
-      info.gpuMs = this.gpuTimerLastMs;
+    const gpuMs = this.gpuTimer?.read();
+    if (gpuMs !== undefined) {
+      info.gpuMs = gpuMs;
     }
     return info;
   }

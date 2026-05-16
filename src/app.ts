@@ -199,6 +199,12 @@ export type AppHandle = {
     handleLeak: number;
     /** S54 RUNTIME-gpu-timing: GPU-side frame ms when `EXT_disjoint_timer_query_webgl2` is available; `undefined` otherwise. */
     gpuMs?: number;
+    /** S59 PERF-renderer-info: count of live `ReflectionProbe` cube cams. */
+    reflectionProbes: number;
+    /** S59 PERF-renderer-info: total PMREM regen ms across all probes this frame. Zero unless a probe opted into `prefilter: "pmrem"`. */
+    prefilterMs: number;
+    /** S59 REFLECTION-planar: count of live `PlanarMirror` Reflector meshes. */
+    planarMirrors: number;
   };
   /** M21-shadow-static: manual shadow-map controls (no-op when autoUpdate is true, which is the default). */
   renderer: {

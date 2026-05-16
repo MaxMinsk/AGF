@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-15 (Sprint 56 archived)
+Date: 2026-05-16 (Sprint 58 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,31 +38,34 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 58 — Multi-probe reflection + GroundedSkybox shipping bugfixes
+## Current Sprint: Sprint 59 — Visual fidelity v1 (PMREM, planar mirror, bloom, agent-surface tightening)
 
-Follow-up sprint to S57. Three groups of work:
+Follow-up to S58's reflection-probe correctness sprint. Two themes:
 
-1. **GroundedSkybox shipping fixes** the user caught live in material-bench: the helper crashed silently on `height <= 0` (swallowed inside RGBELoader.onload, so sky + shadow-catcher never mounted), the constructor's `height` was being misused as world-Y instead of HDR projection factor, the PMREM cubemap was fed instead of the raw equirect, and the catcher z-fought the sky's flat-bottom disc.
-2. **Reflection-probe correctness + multi-probe layout.** Initial cube cam was added to the scene graph (wrong — three.js `update()` skips `updateMatrixWorld()` when `parent !== null`), so the captured cubemap trailed our set-transform call by one frame; visually all probes looked like the centre. Fix: don't add to scene + explicit `updateMatrixWorld(true)`. Then expand from 1 probe → 7 (centre + 6 mid-ring) → 3 (centre + front + back) per user feedback. Cube RT now ships with `generateMipmaps: true, minFilter: LinearMipmapLinearFilter` so `roughness > 0` materials get box-filtered blur (close-enough stand-in for PMREM until the proper prefilter lands).
-3. **ADR + skill memo** anchoring the reflection-probe + envmap-binding contract.
+1. **Visual fidelity v1** — close the obvious gaps S58 left open: full PMREM prefilter so high-roughness reflective materials read plausibly blurry; vendor `Reflector.js` so we can ship a planar mirror / water surface; add a bloom worked example with HDR-driven sub-pixel sparkles.
+2. **Agent-surface tightening** — the live debugging session for S58 made three gaps obvious: GPU timer had no test coverage (would have caught the `QUERY_RESULT_*` typo before it reached the console); `engine doctor` Reflections section misses runtime-spawned probes; vfx skill needs PMREM + Reflector + bloom worked examples once those land.
 
 ### Stories
 
-1. **REFLECTION-cube-cam-world-matrix** — `ReflectionProbeSystem` no longer adds its `CubeCamera`s to the scene graph (parent === null lets three.js auto-refresh world matrix in update); added explicit `cubeCam.updateMatrixWorld(true)` in `updateReflectionProbe` so any future re-parent doesn't silently break. Status: Implemented.
-2. **GROUNDED-skybox-shipping-fixes** — `three/addons/objects/GroundedSkybox.js` now passes a positive projection factor `radius/6` (per three.js docs); mesh externally positioned at `projectionHeight + spec.height`. Raw RGBE equirect is reused for both `scene.background` and the GroundedSkybox helper (was PMREM cubemap before — soft / distorted). Shadow-catcher lifted 10mm above sky's bottom disc, `renderOrder = 1`, opacity 0.6 to match the per-mesh shadow weight. Status: Implemented.
-3. **REFLECTION-cube-mipmaps** — `WebGLCubeRenderTarget` constructed with `generateMipmaps: true, minFilter: LinearMipmapLinearFilter` so `MeshStandardMaterial.envMap` sampling at `roughness > 0` reads from a box-filtered mip chain (not full PMREM GGX prefilter — that's still parked as `REFLECTION-prefilter` — but visually close enough for moderate roughness ≤ 0.3). Status: Implemented.
-4. **MATERIAL-bench-multi-probe** — material-bench now ships three reflection probes: `sphere.centre` (chrome ball's own probe, 128² @ 30 Hz), `probe.front` at (0, 1, +5), `probe.back` at (0, 1, −5). Outer-ring spheres bind by initial angle: `sin(angle) >= 0 → probe.front`, else `probe.back`. Visible reflection diff between sphere halves even as the ring spins. Bootstrap and probe sizes / cadence tuned for FPS. Status: Implemented.
-5. **MATERIAL-bench-stonehenge** — 12 stone-textured cylindrical columns at radius 11; new `stone.material.json` reuses brick `bumpMap` + `roughnessMap` over a grey base colour. Shadow camera frustum widened to ±14 / far 40 so the columns actually cast. Status: Implemented.
-6. **REFLECTION-cube-cam-shadow-opacity-tune** — material-bench tuning loop with the user: shadow-catcher opacity 1.0 → 0.6, chrome roughness sweep 0.18 → 0.02 (proved probe correctness) → 0.12 → 0.22 (proved mip-cube blur works). Status: Implemented.
-7. **ADR-0013-reflection-probe-system** — new `docs/adr/0013-reflection-probe-system.md` anchors the CubeCamera-per-entity design, the not-in-scene-graph fix, the mipmap-cube-RT decision (vs PMREM), and the multi-probe layout used in material-bench. Status: Implemented.
-8. **DOCS-vfx-skill-update** — `docs/agent/skills/vfx-authoring.md` pitfalls section gains: `groundedSkybox.height <= 0`, PMREM-vs-equirect for the helper, CubeCamera world-matrix gotcha, roughness > 0 mip-cube vs PMREM. Status: Implemented.
-9. **GPU-timer-webgl-errors** — two console errors found live: `INVALID_ENUM: getQueryParameter` (`ext.QUERY_RESULT_AVAILABLE` / `ext.QUERY_RESULT` are `undefined` — those are core WebGL2 constants, not on the disjoint-timer extension object) and `INVALID_OPERATION: endQuery: target query is not active` (when a prior frame's query is still in-flight, `beginGpuTimer` early-returned without starting a new one but `gpuTimerPending` stayed set, so `endGpuTimer` closed nothing). Fix: read availability/result off `gl.QUERY_RESULT_AVAILABLE` / `gl.QUERY_RESULT`, track `gpuTimerActive` to gate `endQuery`. Status: Implemented.
+1. **REFLECTION-prefilter** — full GGX PMREM prefilter per probe via `PMREMGenerator.fromCubemap`, gated by an opt-in `prefilter: "pmrem"` field on `ReflectionProbe` (default `"mipmap"` keeps S58's cheap mip-cube). Material-bench centre chrome opted into PMREM at `roughness: 0.35` so the difference is visible. Status: Not yet implemented.
+2. **REFLECTION-planar** — vendor `three/addons/objects/Reflector.js`. New `PlanarMirror { resolution, near, far, intensity }` component + adapter API parallel to ReflectionProbe. Doctor section reports planar mirrors alongside probes. Status: Not yet implemented.
+3. **WATER-bench** — new `examples/water-bench/` project: HDR sky + a single planar `Reflector` surface + 3 floating geometric props above to show reflection. Scene + project schemas wired; build, engine:check, smoke clean. Status: Not yet implemented.
+4. **POST-bloom** — worked example. `project.render.post: [{ kind: "bloom", strength?, radius?, threshold? }]`. Schema enum + `PostPassConfig` extended. Material-bench picks up a modest bloom on the chrome highlights. Status: Not yet implemented.
+5. **GPU-timer-test** — unit test against a mock WebGL2 ctx covering the three states (no prior query, prior pending, prior ready) so the `QUERY_RESULT_*` regression and the `endQuery` balance regression can't sneak back. Status: Not yet implemented.
+6. **DOCTOR-reflection-runtime** — `engine doctor` Reflections section reads the runtime probe inventory through the dev-bridge `__agf/snapshot` path so bootstrap-spawned probes (material-bench) show up; falls back to scene JSON when the project isn't running. Status: Deferred to S60 — wiring doctor as a dev-bridge client is a substantial cross-tool change; the v1 surface ships `__agf.rendererInfo().reflectionProbes / prefilterMs / planarMirrors` (PERF-renderer-info, Story 9) which already gives an agent a live count + cost reading without doctor in the loop.
+7. **DOCS-vfx-skill-v1** — `docs/agent/skills/vfx-authoring.md` adds PMREM-prefilter worked example, Reflector planar-mirror worked example, bloom worked example. Common pitfalls expands with `prefilter: "pmrem"` cost-per-update, Reflector + transmission render-order, bloom needing an HDR-bright source. Status: Not yet implemented.
+8. **DOCS-material-bench-readme** — `examples/material-bench/README.md` covers the v1 surface (3 probes + prefilter / mirror feed, bloom, FPS knobs). Status: Not yet implemented.
+9. **PERF-renderer-info** — `__agf.rendererInfo()` now reports `probeCount`, `prefilterMs` (when a PMREM regen ran this frame), `planarMirrorCount`, `bloomMs`. Existing `gpuMs` numbers stay; the WebGL2 query path is now under test. Status: Not yet implemented.
+10. **MATERIAL-bench-vfx-v1-adopt** — material-bench picks up PMREM prefilter on the centre chrome (`roughness 0.35` to actually show the diff), one Reflector mirror tile to one side of the ring (visible-from-camera) showing the orbiting ring reflected, modest bloom on the HDR. Performance budget rebaked. Status: Not yet implemented.
 
-### Out of scope (Sprint 58)
+### Out of scope (Sprint 59)
 
-- `REFLECTION-prefilter` — full GGX PMREM filter per probe at 10 Hz. Mip-cube is a workable v0 for ≤ 0.3 roughness; PMREM lands when a high-roughness reflective material asks for it.
-- All other VFX epics from `M26` — Reflector (planar mirror), SSR, BPCEM, LightProbeGrid, motion blur, DOF.
+- SSR / BPCEM / LightProbeGrid — own epics. SSR especially is parked behind G-buffer work; BPCEM needs WebGPU node-material path.
+- Motion blur / DOF — cinematic-specific, parked.
+- `M17-batched-glb` — thread AssetRegistry through `updateBatched` so GLB references work inside batched buckets; carries to S60 (a batching / perf-focused sprint).
+- `BATCH-BENCH-bvh-stress` — same.
+- `M16-cache-e` — pooled scratch buffers in LTW cache; same.
 
 ## Next Sprint (placeholder)
 
-To be detailed at S58 close. Likely candidates: `REFLECTION-prefilter`, `REFLECTION-planar` + first water scene, `M17-batched-glb`, `BATCH-BENCH-bvh-stress`, `M16-cache-e`, render-pool-caller-migration.
+To be detailed at S59 close. Likely candidates: `M17-batched-glb`, `BATCH-BENCH-bvh-stress`, `M16-cache-e`, `render-pool-caller-migration`, `M21-shadow-soft` re-eval. A batching / perf-focused sprint following the visual-fidelity track.

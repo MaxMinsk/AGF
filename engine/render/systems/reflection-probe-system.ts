@@ -27,6 +27,7 @@ type ReflectionProbeComponent = {
   near?: number;
   far?: number;
   updateRate?: 0 | 15 | 30 | 60;
+  prefilter?: "mipmap" | "pmrem";
   excludeEntities?: ReadonlyArray<string>;
 };
 
@@ -39,6 +40,7 @@ type ProbeState = {
   handle: number;
   size: 128 | 256 | 512;
   updateRate: 0 | 15 | 30 | 60;
+  prefilter: "mipmap" | "pmrem";
   excludeEntities: ReadonlyArray<string>;
   /** seconds since last update; gates the per-frame `cubeCam.update`. */
   accumSeconds: number;
@@ -71,6 +73,11 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
         probes.clear();
       }
 
+      // Zero the frame's PMREM-regen accumulator before any probe runs
+      // — `rendererInfo().prefilterMs` should reflect only this frame's
+      // cost.
+      deps.adapter.resetReflectionPrefilterTimings();
+
       // 1. Acquire / update / dispose probe entries.
       const seen = new Set<EntityId>();
       for (const id of probeQuery!.run()) {
@@ -79,33 +86,39 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
         if (config === undefined) continue;
         const size = config.size ?? 256;
         const updateRate = config.updateRate ?? 60;
+        const prefilter = config.prefilter ?? "mipmap";
         const excludeEntities = config.excludeEntities ?? [];
         let state = probes.get(id);
         if (state === undefined) {
           const handle = deps.adapter.acquireReflectionProbe({
             size,
             near: config.near ?? 0.1,
-            far: config.far ?? 1000
+            far: config.far ?? 1000,
+            prefilter
           });
           state = {
             handle,
             size,
             updateRate,
+            prefilter,
             excludeEntities,
             accumSeconds: 0,
             baked: false
           };
           probes.set(id, state);
-        } else if (state.size !== size || state.updateRate !== updateRate) {
-          // Re-acquire if size changed; otherwise just update cadence.
-          if (state.size !== size) {
+        } else if (state.size !== size || state.updateRate !== updateRate || state.prefilter !== prefilter) {
+          // Re-acquire when size or prefilter mode changed; otherwise just
+          // update cadence.
+          if (state.size !== size || state.prefilter !== prefilter) {
             deps.adapter.releaseReflectionProbe(state.handle);
             state.handle = deps.adapter.acquireReflectionProbe({
               size,
               near: config.near ?? 0.1,
-              far: config.far ?? 1000
+              far: config.far ?? 1000,
+              prefilter
             });
             state.size = size;
+            state.prefilter = prefilter;
             state.baked = false;
           }
           state.updateRate = updateRate;

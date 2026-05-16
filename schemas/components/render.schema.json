@@ -291,6 +291,7 @@
         "near": { "type": "number", "exclusiveMinimum": 0, "default": 0.1 },
         "far": { "type": "number", "exclusiveMinimum": 0, "default": 1000 },
         "updateRate": { "enum": [0, 15, 30, 60], "default": 60, "description": "Hz. 0 = bake once at boot, then never. 60 = every frame. 15 / 30 keep the rate low for non-hero scenes." },
+        "prefilter": { "enum": ["mipmap", "pmrem"], "default": "mipmap", "description": "S59 REFLECTION-prefilter. `mipmap` (default) — three.js auto-mipmap on the cube RT; cheap, visually close enough for roughness ≤ 0.3. `pmrem` — full GGX prefilter via `PMREMGenerator.fromCubemap` after every probe update; required for high-roughness reflective materials to read plausibly blurry environment. PMREM regen is ~4–6× a cube face render — keep `updateRate` low (15 Hz) when enabling." },
         "excludeEntities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true, "description": "Entity ids to hide while the probe renders. Always include the probe owner so the camera doesn't see itself." }
       }
     },
@@ -302,6 +303,17 @@
       "properties": {
         "probe": { "type": "string", "minLength": 1, "description": "Entity id of the `ReflectionProbe`-bearing entity." },
         "intensity": { "type": "number", "minimum": 0, "default": 1, "description": "Three.js `material.envMapIntensity`. Useful for clearcoat / non-metallic surfaces that want a softer environment contribution." }
+      }
+    },
+    "planarMirrorComponent": {
+      "description": "S59 REFLECTION-planar: turn this entity into a planar mirror via three.js's `Reflector` helper. The runtime spawns an internal Reflector mesh (a PlaneGeometry of `width × height`) at the entity's LocalToWorld, renders the scene reflected across it into a private render target each frame, and composites the result back onto the mirror surface. Unlike `ReflectionProbe` the projection is planar — no parallax compensation — so place the mirror where reflections of the camera-side scene look correct (water, lobby floor, smooth glass tile). Cost is one extra full-scene render per mirror per frame; keep the resolution modest (512–1024).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0, "default": 10, "description": "World-space width of the mirror plane along its local X." },
+        "height": { "type": "number", "exclusiveMinimum": 0, "default": 10, "description": "World-space height along its local Y. The mirror normal is +Z in local space." },
+        "resolution": { "enum": [256, 512, 1024, 2048], "default": 512, "description": "Per-side render-target resolution. 512 reads as smooth water; 1024+ is sharper but doubles VRAM + fill cost." },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#88aaff", "description": "Tint applied to the reflected colour. Use sparingly — large deviations from neutral break the mirror illusion." }
       }
     },
     "shadowCasterComponent": {
