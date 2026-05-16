@@ -205,6 +205,8 @@ export type AppHandle = {
     prefilterMs: number;
     /** S59 REFLECTION-planar: count of live `PlanarMirror` Reflector meshes. */
     planarMirrors: number;
+    /** S60 PERF-renderer-info-renderer-kind: which renderer the adapter is backed by. Always `"webgl"` today; flips once `WebGpuRenderAdapter` ships. */
+    renderer: "webgl" | "webgpu";
   };
   /** M21-shadow-static: manual shadow-map controls (no-op when autoUpdate is true, which is the default). */
   renderer: {
@@ -376,8 +378,14 @@ export async function createApp(
     runtimeOptions.criticalAssets = project.render.criticalAssets;
   }
   if (import.meta.env.DEV) {
-    runtimeOptions.devOverlay = true;
-    runtimeOptions.devOverlayParent = shell;
+    // S60 stutter investigation. Allow disabling the dev overlay via
+    // `?overlay=0` so we can A/B the stutter rate with and without the
+    // per-window innerHTML rebuild.
+    const overlayOff = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("overlay") === "0";
+    if (!overlayOff) {
+      runtimeOptions.devOverlay = true;
+      runtimeOptions.devOverlayParent = shell;
+    }
   }
   if (project.persistence !== undefined && project.persistence.components.length > 0) {
     let store: LocalStore;

@@ -150,7 +150,20 @@ export type DoctorReport = {
   prefabs: PrefabsReport;
   /** S57 DOCTOR-reflection-section: declared reflection probes + cadence summary. */
   reflectionProbes: ReflectionProbesReport;
+  /** S60 DOCTOR-webgpu-readiness: list of features that don't yet have a WebGPU equivalent. Informational only; doesn't fail the project. */
+  webgpuReadiness: WebGpuReadinessReport;
   recommendations: string[];
+};
+
+export type WebGpuReadinessReport = {
+  /** Declared renderer mode from `project.json#render.mode`. Today always reads "webgl" until S61 ships the adapter. */
+  declaredMode: "webgl" | "webgpu" | "unspecified";
+  /** Features the project uses that don't yet have a WebGPU equivalent in the runtime. */
+  blockers: ReadonlyArray<{
+    feature: string;
+    where: string;
+    note: string;
+  }>;
 };
 
 export type ReflectionProbesReport = {
@@ -392,8 +405,81 @@ export function runDoctor(
     textures,
     prefabs,
     reflectionProbes,
+    webgpuReadiness: summarizeWebGpuReadiness(projectDir, reflectionProbes),
     recommendations
   };
+}
+
+function summarizeWebGpuReadiness(
+  projectDir: string,
+  reflectionProbes: ReflectionProbesReport
+): WebGpuReadinessReport {
+  const blockers: Array<{ feature: string; where: string; note: string }> = [];
+  let declaredMode: "webgl" | "webgpu" | "unspecified" = "unspecified";
+  const projectJsonPath = resolve(projectDir, "project.json");
+  if (existsSync(projectJsonPath)) {
+    try {
+      const meta = JSON.parse(readFileSync(projectJsonPath, "utf8")) as {
+        render?: { mode?: string; post?: ReadonlyArray<{ kind?: string }>; shadows?: { csm?: unknown }; color?: { transmissionResolutionScale?: number } };
+      };
+      declaredMode = meta.render?.mode === "webgpu" ? "webgpu" : meta.render?.mode === "webgl" ? "webgl" : "unspecified";
+      // Post-processing chain: no WebGPU equivalent until the post path ports.
+      const passes = meta.render?.post ?? [];
+      for (const pass of passes) {
+        if (typeof pass?.kind === "string") {
+          blockers.push({
+            feature: `post-pass: ${pass.kind}`,
+            where: "project.json#render.post",
+            note: "EffectComposer chain has no WebGPU equivalent in AGF yet; planned for S62."
+          });
+        }
+      }
+      if (meta.render?.shadows?.csm !== undefined) {
+        blockers.push({
+          feature: "CSM (cascade shadow maps)",
+          where: "project.json#render.shadows.csm",
+          note: "three.js's `CSM.js` is WebGL-only; CSMNode equivalent planned for S62."
+        });
+      }
+    } catch {
+      // Malformed JSON is reported elsewhere.
+    }
+  }
+  if (reflectionProbes.probes.length > 0) {
+    blockers.push({
+      feature: `reflection probes (${reflectionProbes.probes.length})`,
+      where: "scenes/*.scene.json (ReflectionProbe component)",
+      note: "WebGPU equivalent for CubeCamera + WebGLCubeRenderTarget needs porting (S63)."
+    });
+  }
+  // Planar mirrors — scan scene JSON.
+  const scenesDir = resolve(projectDir, "scenes");
+  if (existsSync(scenesDir) && statSync(scenesDir).isDirectory()) {
+    const stack = [scenesDir];
+    let planarMirrorEntities = 0;
+    while (stack.length > 0) {
+      const dir = stack.pop()!;
+      for (const name of readdirSync(dir)) {
+        const full = resolve(dir, name);
+        if (statSync(full).isDirectory()) { stack.push(full); continue; }
+        if (!name.endsWith(".scene.json")) continue;
+        try {
+          const scene = JSON.parse(readFileSync(full, "utf8")) as { entities?: Array<{ components?: Record<string, unknown> }> };
+          for (const ent of scene.entities ?? []) {
+            if (ent.components?.["PlanarMirror"] !== undefined) planarMirrorEntities += 1;
+          }
+        } catch { /* malformed JSON reported elsewhere */ }
+      }
+    }
+    if (planarMirrorEntities > 0) {
+      blockers.push({
+        feature: `planar mirrors (${planarMirrorEntities})`,
+        where: "scenes/*.scene.json (PlanarMirror component)",
+        note: "WebGPU Reflector port planned for S63."
+      });
+    }
+  }
+  return { declaredMode, blockers };
 }
 
 function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
@@ -907,6 +993,9 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatReflectionProbes(report.reflectionProbes));
   lines.push("");
 
+  lines.push(formatWebGpuReadiness(report.webgpuReadiness));
+  lines.push("");
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
@@ -941,6 +1030,22 @@ export function formatReflectionProbes(report: ReflectionProbesReport): string {
         .map((b) => `${b.bindingEntityId} → ${b.probeId}`)
         .join(", ")}`
     );
+  }
+  return lines.join("\n");
+}
+
+export function formatWebGpuReadiness(report: WebGpuReadinessReport): string {
+  const lines: string[] = [];
+  const modeLabel = report.declaredMode === "unspecified" ? "unspecified (defaults to webgl)" : report.declaredMode;
+  lines.push(`WebGPU readiness: project.render.mode = ${modeLabel}.`);
+  if (report.blockers.length === 0) {
+    lines.push("  (no features that block migration to a WebGPU adapter)");
+    return lines.join("\n");
+  }
+  lines.push(`  ${report.blockers.length} feature(s) need a WebGPU port before this project can run on the upcoming WebGpuRenderAdapter:`);
+  for (const blocker of report.blockers) {
+    lines.push(`    - ${blocker.feature} (${blocker.where})`);
+    lines.push(`        ${blocker.note}`);
   }
   return lines.join("\n");
 }

@@ -425,6 +425,14 @@ export type AdapterInfo = {
   prefilterMs: number;
   /** S59 REFLECTION-planar: live planar-mirror Reflector meshes. */
   planarMirrors: number;
+  /**
+   * S60 PERF-renderer-info-renderer-kind. Identifies which renderer
+   * backed this AdapterInfo. Today always `"webgl"`; the future
+   * `WebGpuRenderAdapter` will set `"webgpu"`. Agent probes can branch
+   * on this when interpreting other fields (e.g. `drawCalls` counts
+   * differently between renderers).
+   */
+  renderer: "webgl" | "webgpu";
 };
 
 export type SkyGradient = {
@@ -2473,7 +2481,8 @@ export class ThreeRenderAdapter {
       batchedBucketInstances,
       reflectionProbes: this.reflectionProbes.size,
       prefilterMs: this.reflectionPrefilterMsThisFrame,
-      planarMirrors: this.planarMirrors.size
+      planarMirrors: this.planarMirrors.size,
+      renderer: "webgl"
     };
     const gpuMs = this.gpuTimer?.read();
     if (gpuMs !== undefined) {

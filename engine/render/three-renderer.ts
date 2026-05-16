@@ -259,6 +259,7 @@ export class ThreeRenderer {
     reflectionProbes: number;
     prefilterMs: number;
     planarMirrors: number;
+    renderer: "webgl" | "webgpu";
   } {
     const adapter = this.adapter.info();
     // agf-allow: world.query — diagnostic, fires once per __agf.rendererInfo() call.
