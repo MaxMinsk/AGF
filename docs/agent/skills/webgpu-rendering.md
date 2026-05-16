@@ -37,6 +37,11 @@ Use when an AGF user / agent is considering WebGPU, asks how to switch a project
 
 - **HDR + generated IBL on WebGPU** — the adapter now routes through `three/webgpu`'s `PMREMGenerator` when `mode = "webgpu"` (different class than the WebGL one; takes the new Renderer base). `scene.environment` works on both renderers; HDR equirect skies prefilter correctly.
 
+### Live-discovered gotchas
+
+- **`HemisphereLight` does not contribute on WebGPU (three.js r0.184).** Even at extreme intensity (5+), the light's diffuse contribution is zero on objects with `MeshStandardMaterial`; the directional sun lights the floor but no hemisphere fill reaches the cubes. AmbientLight works as a substitute (just no separate sky / ground colors). Investigation + upstream-bug tracking is a S63 story (`WEBGPU-light-investigation`).
+- **`__agf.rendererInfo().drawCalls` was reading the cumulative `info.render.calls` on WebGPU** (never reset by `Info.reset()` in r0.184 — verified). Patched to read `info.render.frameCalls` on the WebGPU path so the counter shows per-frame draws, matching WebGL semantics. If you see a `drawCalls` value monotonically growing in older builds, that's the same bug.
+
 The doctor section flags every feature the project uses that doesn't have a WebGPU implementation; check before opting in.
 
 ## Why an agent / user might want WebGPU
