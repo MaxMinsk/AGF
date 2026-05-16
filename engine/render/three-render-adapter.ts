@@ -2548,7 +2548,16 @@ export class ThreeRenderAdapter {
       geometries: memory.geometries ?? 0,
       textures: memory.textures ?? 0,
       programs,
-      drawCalls: renderStats.calls ?? 0,
+      // S62 hotfix: on WebGPU `info.render.calls` is a CUMULATIVE counter
+      // (never reset by Info.reset() — confirmed in three.js r0.184). Read
+      // the per-frame `frameCalls` field instead so `__agf.rendererInfo()`
+      // shows draws-this-frame on either renderer. On WebGL `calls` IS
+      // per-frame so the existing path is preserved.
+      drawCalls: this.capabilities.kind === "webgpu"
+        ? ((renderStats as { frameCalls?: number; drawCalls?: number }).frameCalls
+            ?? (renderStats as { frameCalls?: number; drawCalls?: number }).drawCalls
+            ?? 0)
+        : (renderStats.calls ?? 0),
       triangles: renderStats.triangles ?? 0,
       meshes: this.meshes.size,
       lights: this.lights.size,
