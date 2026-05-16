@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 67 archived)
+Date: 2026-05-16 (Sprint 68 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,7 +38,27 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 68 — Migrate post-processing-free projects to WebGPU
+## Current Sprint: Sprint 69 — WebGPU GPU timer + lazy import + remaining migrations
+
+S68 closed cleanly with hello-3d + physics-bench migrated. WebGPU adapter + WebGL2-fallback through three.js cover the basic case. S69 picks up the next contained pieces: GPU timer via `GPUQuerySet`, lazy import of `three/webgpu` (saves 145 KB on WebGL bundle), and migrating beacon-world (gameplay-heavy project; needs verification of physics + persistence + dev-bridge on WebGPU).
+
+### Stories
+
+1. **WEBGPU-gpu-timer** — wrap `GPUQuerySet { type: "timestamp" }` in a `WebGpuTimer` parallel to `engine/render/gpu-timer.ts`. `__agf.rendererInfo().gpuMs` populates on WebGPU. Status: Not yet implemented.
+2. **WEBGPU-lazy-import** — move `import { WebGPURenderer, PMREMGenerator, CubeRenderTarget } from "three/webgpu"` out of the synchronous top-level import in `three-render-adapter.ts` and into an `await import()` inside `adapter.init()` when `mode === "webgpu"`. Saves ~145 KB gzipped from the WebGL-only bundle; budgets in `scripts/check-bundle-size.mjs` drop back to 320 KB. Constructor refactor required (defer device creation to init; affects info.autoReset / GPU timer probe / shadow algorithm / color / fallback lighting paths). Status: Not yet implemented.
+3. **MIGRATE-beacon-world-webgpu** — flip `examples/beacon-world/project.json#render.mode` to `"webgpu"`. Verify gameplay loop + physics + persistence + dev-bridge all work. Probably also needs `batching: { auto: false }`. Status: Not yet implemented.
+4. **WEBGPU-renderer-import-boundary** (carried) — once `engine/render/webgpu/` directory exists (will happen with the gpu-timer port), extend `tests/unit/renderer-import-boundary.test.ts` to allow `three/webgpu` from there only. Status: Not yet implemented.
+5. **DOCS-webgpu-skill-update** — flip migrated projects from "blocked" to "on webgpu" in the skill memo + add the fallback policy + auto-WebGL2-fallback note. Status: Not yet implemented.
+
+### Blocked, not in S69 scope
+
+- `material-bench`, `shadows-bench`, `water-bench` migrations — wait for upstream three.js post-processing / CSM / Reflector fixes.
+- `batch-bench` migration — wait for WebGPU bucket / instanced / batched port.
+- **WEBGPU-default-flip** — gated on enough examples on WebGPU AND post-processing unblocked.
+
+## Next Sprint (placeholder)
+
+S70 — likely the WebGPU bucket / instanced / batched port (unblocks batch-bench, material-bench's outer ring, shadows-bench's village). Sets up shadows-bench / material-bench migrations once the post-processing upstream block lifts.
 
 S67 confirmed WebGPU post-processing is **blocked upstream** in three.js r0.184. Pivot: migrate the example projects that DON'T need post-passes / CSM / planar mirror to WebGPU now, proving the WebGPU core path is mature enough for real-world projects. Track three.js minors for an upstream post-processing fix; flip the remaining projects when it lands.
 

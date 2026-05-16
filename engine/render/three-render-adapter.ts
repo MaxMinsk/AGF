@@ -659,7 +659,19 @@ export class ThreeRenderAdapter {
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
-    const mode: RenderAdapterKind = options.mode ?? "webgl";
+    let mode: RenderAdapterKind = options.mode ?? "webgl";
+    // S68 WEBGPU-fallback-policy. If the runtime requested WebGPU but
+    // `navigator.gpu` is unavailable (headless CI, older browsers), fall
+    // back to WebGL automatically so the page still renders. Apps that
+    // *require* WebGPU should check `__agf.rendererInfo().renderer`
+    // after boot to detect the fallback. Without this, mode="webgpu" on
+    // a browser without WebGPU support produces a black canvas + console
+    // error — surprising failure mode for users opting in.
+    if (mode === "webgpu" && typeof navigator !== "undefined" && (navigator as { gpu?: unknown }).gpu === undefined) {
+      // eslint-disable-next-line no-console
+      console.warn("[AGF] project.render.mode = 'webgpu' but navigator.gpu is undefined — falling back to WebGL.");
+      mode = "webgl";
+    }
     this.capabilities = mode === "webgpu" ? WEBGPU_CAPABILITIES : WEBGL_CAPABILITIES;
     if (mode === "webgpu") {
       // S61 WEBGPU-adapter-core. `three/webgpu` is published as a separate
