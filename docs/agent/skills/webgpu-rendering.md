@@ -4,12 +4,37 @@
 
 Use when an AGF user / agent is considering WebGPU, asks how to switch a project to it, or is investigating renderer-level perf where WebGPU might be relevant. Pair with [`vfx-authoring.md`](vfx-authoring.md) for the renderer features themselves and [`perf-tuning.md`](perf-tuning.md) for general FPS work.
 
-## Current status (Sprint 60)
+## Current status (Sprint 61)
 
-- AGF runs exclusively on `WebGLRenderer` today. There is no `WebGpuRenderAdapter` yet — the spike data lives in [`docs/research/m21-webgpu-spike.md`](../../research/m21-webgpu-spike.md) and the integration plan in [`docs/research/m21-webgpu-adapter-sketch.md`](../../research/m21-webgpu-adapter-sketch.md).
-- `project.json#render.mode` is reserved for `"webgl" | "webgpu"` (today only `"webgl"` is accepted). `__agf.rendererInfo().renderer` already returns `"webgl"` so probes can branch when the adapter ships.
-- `engine doctor` reports a `WebGPU readiness:` section listing features in a project that block a hypothetical WebGPU migration (post-processing passes, CSM, reflection probes, planar mirrors).
-- The standalone comparison harness lives at `tests/manual/webgpu-vs-webgl/` — open `http://localhost:5173/tests/manual/webgpu-vs-webgl/?renderer=webgl` or `?renderer=webgpu` to see both renderers side-by-side.
+- **AGF now ships an opt-in WebGPU adapter.** Set `project.json#render.mode: "webgpu"` and the runtime creates `WebGPURenderer` from `three/webgpu` instead of `WebGLRenderer`. Default stays `"webgl"`.
+- `examples/webgpu-spike/` is the canonical opt-in project — hello-3d-shaped scene (cube + sphere + cylinder + floor, sun + hemi light, spinning hero cube) that boots end-to-end on WebGPU. Use it as the template when adding WebGPU to a new project.
+- `__agf.rendererInfo().renderer` returns `"webgl"` or `"webgpu"` so probes / overlays / dev-bridge clients can branch.
+- `engine doctor` reports a `WebGPU readiness:` section per project. When `mode = "webgpu"` AND the project uses a feature without a WebGPU implementation, doctor surfaces it as a recommendation (revert or wait for S62 / S63 feature port).
+- The standalone comparison harness lives at `tests/manual/webgpu-vs-webgl/` — open `http://localhost:5173/tests/manual/webgpu-vs-webgl/?renderer=webgl|webgpu` to see both renderers side-by-side.
+- The spike numbers + integration plan: [`m21-webgpu-spike.md`](../../research/m21-webgpu-spike.md), [`m21-webgpu-adapter-sketch.md`](../../research/m21-webgpu-adapter-sketch.md).
+
+### What works on the WebGPU adapter today (S61 core path)
+
+- `MeshRenderer` with built-in primitives (`box`, `sphere`, `cylinder`, `plane`).
+- `MeshStandardMaterial` / `MeshPhysicalMaterial` (direct-light path).
+- All light kinds: `directional`, `point`, `spot`, `ambient`, `hemisphere`, `rect-area`.
+- Directional + spot shadow maps with basic PCF filtering.
+- Transmission (`material.transmission`) + MSAA antialias.
+- Tone mapping (`aces-filmic`, `agx`, etc.) + exposure.
+- `__agf.rendererInfo()` reports `renderer`, `meshes`, `lights`, `drawCalls`, `triangles`.
+
+### What does NOT work yet (deferred to S62 / S63)
+
+- Post-processing chain (`project.render.post`: bloom / SSAO / LUT / FXAA) — silently skipped.
+- CSM cascade shadow maps (`project.render.shadows.csm`) — silently skipped.
+- PCSS shadow algorithm (`project.render.shadows.algorithm: "pcss"`) — silently skipped, falls back to basic.
+- `ReflectionProbe` + `EnvmapBinding` — silently skipped (no envmap).
+- `PlanarMirror` (Reflector) — silently skipped (no mirror surface).
+- GPU timer (`gpuMs` reading) — undefined on WebGPU until `GPUQuerySet` port lands.
+- HDR / generated IBL — environment IBL is skipped because the WebGL PMREMGenerator crashes on WebGPURenderer (PMREM WebGPU port comes with reflection probes in S63).
+- Batching (`InstancedMesh` + `BatchedMesh`) — adapter methods return -1 and the bucket falls back to per-entity Mesh. Set `render.batching.auto: false` in the project.json to silence the noise.
+
+The doctor section flags every feature the project uses that doesn't have a WebGPU implementation; check before opting in.
 
 ## Why an agent / user might want WebGPU
 
@@ -29,14 +54,29 @@ The compute-shader story (GPU-side skinning, particle physics, terrain GPGPU) on
 
 If you're an agent helping a user pick a renderer today, the answer is: **WebGL, default**. The migration plan is in place; users don't need to make a choice yet.
 
+## How to opt-in
+
+```jsonc
+// examples/<project>/project.json
+"render": {
+  "mode": "webgpu",
+  "batching": { "auto": false },  // batching path falls back to per-entity Mesh until S63
+  "color": { "toneMapping": "aces-filmic", "exposure": 1.0 }
+  // Avoid `post`, `shadows.csm`, `shadows.algorithm: "pcss"`, `environment.kind: "hdr"` —
+  // those silently skip on WebGPU. Doctor will flag them.
+}
+```
+
+The runtime awaits `WebGPURenderer.init()` (asks for `GPUAdapter` + `GPUDevice`) before the first frame draws. If `navigator.gpu` is absent, the page errors out — there's no automatic fallback to WebGL today. Future stories can add a `mode: "webgpu-or-webgl"` policy.
+
 ## Roadmap (read-only here; canonical in `HIGH_LEVEL_BACKLOG.md`)
 
 | Sprint | Goal |
 | --- | --- |
-| S60 (this sprint) | Spike + research + adapter sketch (no implementation). |
-| S61 | `RenderAdapter` interface extract + `WebGpuRenderAdapter` core path (mesh / light / shadow / transmission). Opt-in via `project.render.mode = "webgpu"`. |
+| S60 | Spike + research + adapter sketch (no implementation). ✅ |
+| S61 (this sprint) | Adapter core path shipped — mesh / light / shadow / transmission / spike project. ✅ |
 | S62 | Port post-processing chain (Bloom / SSAO / LUT / FXAA) onto WebGPU `PostProcessing`. |
-| S63 | Port CSM (`CSMNode`), PCSS (TSL rewrite), reflection probes (`WebGPUCubeRenderTarget`), planar mirror (`ReflectorNode`), GPU timer (`GPUQuerySet`). |
+| S63 | Port CSM (`CSMNode`), PCSS (TSL rewrite), reflection probes + PMREM (`WebGPUCubeRenderTarget`), planar mirror (`ReflectorNode`), GPU timer (`GPUQuerySet`), HDR IBL. |
 | S64 | Re-bench, fix three.js WebGPU regressions, migrate every example to opt-in webgpu. |
 | S65 | Default-flip: `webgpu` becomes the default, `webgl` becomes the legacy explicit opt-in. |
 

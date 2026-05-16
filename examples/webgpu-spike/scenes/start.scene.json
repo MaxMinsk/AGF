@@ -1,0 +1,96 @@
+{
+  "id": "start",
+  "environment": { "kind": "generated" },
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Main Camera" },
+        "Transform": {
+          "position": [0, 3, 8],
+          "rotation": [-12, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Camera": { "kind": "perspective", "active": true, "fov": 55, "near": 0.1, "far": 100 }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Name": { "label": "Sun" },
+        "Transform": { "position": [5, 10, 7] },
+        "Light": {
+          "kind": "directional",
+          "color": "#fff5dc",
+          "intensity": 1.3,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 1024,
+            "bias": -0.0005,
+            "normalBias": 0.02,
+            "camera": { "left": -10, "right": 10, "top": 10, "bottom": -10, "near": 0.1, "far": 40 }
+          }
+        }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Name": { "label": "Hemi Fill" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "hemisphere", "color": "#cfe9ff", "groundColor": "#1b2238", "intensity": 0.45 }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Name": { "label": "Floor" },
+        "Transform": {
+          "position": [0, -0.55, 0],
+          "rotation": [0, 0, 0],
+          "scale": [8, 0.1, 8]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#1f6f8b" },
+        "ShadowFlags": { "cast": false, "receive": true }
+      }
+    },
+    {
+      "id": "cube.hero",
+      "components": {
+        "Name": { "label": "Hero Cube" },
+        "Transform": {
+          "position": [0, 0.4, 0],
+          "rotation": [0, 25, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": { "mesh": "box", "color": "#ff5a8a" },
+        "ShadowFlags": { "cast": true, "receive": true },
+        "Spin": { "axis": "y", "speed": 45 }
+      }
+    },
+    {
+      "id": "sphere.left",
+      "components": {
+        "Name": { "label": "Left Sphere" },
+        "Transform": {
+          "position": [-1.8, 0.55, -0.4],
+          "scale": [0.9, 0.9, 0.9]
+        },
+        "MeshRenderer": { "mesh": "sphere", "color": "#7ad8ff" },
+        "ShadowFlags": { "cast": true, "receive": true }
+      }
+    },
+    {
+      "id": "cylinder.right",
+      "components": {
+        "Name": { "label": "Right Cylinder" },
+        "Transform": {
+          "position": [1.9, 0.6, -0.2],
+          "scale": [0.8, 1.4, 0.8]
+        },
+        "MeshRenderer": { "mesh": "cylinder", "color": "#f6d27a" },
+        "ShadowFlags": { "cast": true, "receive": true }
+      }
+    }
+  ]
+}

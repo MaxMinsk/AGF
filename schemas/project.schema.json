@@ -33,7 +33,8 @@
       "required": ["mode"],
       "properties": {
         "mode": {
-          "enum": ["webgl"]
+          "enum": ["webgl", "webgpu"],
+          "description": "Renderer backend. `webgl` (default) creates a three.js WebGLRenderer. `webgpu` (S61+) creates `WebGPURenderer` from `three/webgpu`. WebGPU-mode projects lose post-processing / CSM / PCSS / reflection-probe / planar-mirror until the feature port lands (S62 / S63)."
         },
         "background": {
           "type": "string",

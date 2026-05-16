@@ -38,6 +38,13 @@ export type RuntimeOptions = {
   /** M21-shadow-algorithm: shadow-map filtering type. Defaults to PCF. */
   shadowAlgorithm?: "pcf" | "vsm" | "pcss";
   /**
+   * S61 RENDER-mode. `"webgl"` (default) creates a `WebGLRenderer`;
+   * `"webgpu"` creates `WebGPURenderer` from `three/webgpu`. The runtime
+   * awaits `adapter.init()` before the first frame either way (no-op on
+   * webgl, async on webgpu).
+   */
+  rendererMode?: "webgl" | "webgpu";
+  /**
    * S50 auto-batch: when true, BatchingSystem treats every entity with a
    * built-in primitive mesh as Batchable without an explicit tag. Per-
    * entity opt-out via `Batchable: { enabled: false }`. Defaults to false.
@@ -223,6 +230,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   // M21-context-loss: route WebGL context events into the diagnostics
   // bus so agents + tests can observe them. Three.js auto-rebuilds GPU
   // resources on restore, so no further runtime action is needed today.
+  // S61 WEBGPU-init-async. WebGPU mode needs the GPUAdapter / GPUDevice
+  // request to settle before the first frame can draw. Awaiting here keeps
+  // the rest of the start sequence synchronous — the WebGL path returns
+  // immediately because its `init()` resolves synchronously.
   const renderer = new ThreeRenderer(
     world,
     options.canvas,
@@ -232,6 +243,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(options.color !== undefined ? { color: options.color } : {}),
       ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
       ...(options.skyGradient !== undefined ? { skyGradient: options.skyGradient } : {}),
+      ...(options.rendererMode !== undefined ? { mode: options.rendererMode } : {}),
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
@@ -250,6 +262,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       }
     }
   );
+  await renderer.adapter.init();
 
   // M21-env-generated + M21-env-hdr + M21-env-cube: apply image-based-
   // lighting environment for PBR materials. Default = "generated"
