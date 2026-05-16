@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "webgpu-light-test.procedural-primitives",
+      "kind": "procedural",
+      "runtimeFiles": [],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "All meshes are built-in primitives (sphere / plane). No external assets."
+      }
+    }
+  ]
+}

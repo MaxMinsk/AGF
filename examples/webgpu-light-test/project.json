@@ -1,0 +1,19 @@
+{
+  "agfFormatVersion": 1,
+  "id": "webgpu-light-test",
+  "name": "WebGPU Light Test",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgpu",
+    "background": "#0a0d12",
+    "color": {
+      "toneMapping": "aces-filmic",
+      "exposure": 1.0
+    },
+    "batching": {
+      "auto": false
+    }
+  },
+  "profiles": ["static"]
+}

@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-16 (Sprint 62 archived)
+Date: 2026-05-16 (Sprint 63 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,35 +38,32 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 63 — WebGPU feature parity II (post-passes + probes + shadows)
+## Current Sprint: Sprint 64 — WebGPU feature parity (re-attempted) + lazy import
 
-S62 closed HDR / generated IBL on WebGPU via `three/webgpu`'s PMREMGenerator. S63 is the bigger feature-parity sprint: port the remaining WebGL-only render features so existing projects (material-bench, shadows-bench) can opt into WebGPU without losing visible features.
+S63 closed on a single critical-bug story (HemisphereLight position fix); the original feature-parity scope rolls forward here. **Pick the highest-value subset** — each story is realistically a half-sprint of focused effort and three.js's WebGPU surface still has shifting APIs (`PostProcessing` → `RenderPipeline` rename in r0.183, TSL node graph different per minor). Suggested order: reflection probe (smallest, biggest user-visible win for material-bench), then GPU timer (small, well-understood), then ONE post-pass (bloom) end-to-end, then defer the rest to S65-pre-default-flip work.
 
-This is sized as a "pick the highest-value subset" sprint rather than "ship everything". Suggested priority order: post-passes (touches the most projects) → reflection probes → CSM → planar mirror → PCSS → GPU timer. If some features prove harder than expected, defer the tail to S64 alongside the lazy-import refactor.
+### Stories (priority-ordered)
 
-### Stories
+1. **WEBGPU-reflection-probe** — port `acquireReflectionProbe` etc. to `three/webgpu`'s `CubeRenderTarget` (rename of `WebGLCubeRenderTarget`) + `CubeCamera`. PMREM prefilter already works (S62). Flip `WEBGPU_CAPABILITIES.supportsReflectionProbe` to `true`. Verify on material-bench style scene (centre chrome). Status: Not yet implemented.
+2. **WEBGPU-gpu-timer** — wrap `GPUQuerySet { type: "timestamp" }` in a `WebGpuTimer` parallel to `engine/render/gpu-timer.ts`. `__agf.rendererInfo().gpuMs` populates on WebGPU. Status: Not yet implemented.
+3. **WEBGPU-post-pipeline** — wrap `three/webgpu` `RenderPipeline` orchestration in `engine/render/webgpu/post.ts`. Adapter's `setPostPipeline()` branches on `capabilities.kind`. Status: Not yet implemented.
+4. **WEBGPU-post-bloom** — `three/addons/tsl/display/BloomNode.js` attached to the pipeline. First worked example. Other post-passes follow same pattern. Status: Not yet implemented.
+5. **WEBGPU-lazy-import** — move `import { WebGPURenderer } from "three/webgpu"` out of the synchronous top-level import in `three-render-adapter.ts` and into an `await import()` inside `adapter.init()` when `mode === "webgpu"`. Saves ~145 KB gzipped from the WebGL-only bundle; budgets in `scripts/check-bundle-size.mjs` drop back to 320 KB. Status: Not yet implemented.
+6. **WEBGPU-renderer-import-boundary** — once `engine/render/webgpu/` directory exists with the post-pipeline + gpu-timer files, extend `tests/unit/renderer-import-boundary.test.ts` to allow `three/webgpu` from `engine/render/webgpu/**` only. Status: Not yet implemented.
+7. **WEBGPU-spike-features** — extend `examples/webgpu-spike/` to exercise whatever lands (probe + bloom + GPU timer). Update README + e2e smoke. Status: Not yet implemented.
+8. **DOCS-webgpu-skill-update** — flip every story that lands from "deferred" to "supported" in `docs/agent/skills/webgpu-rendering.md`. Status: Not yet implemented.
+9. **DOCTOR-webgpu-flags-up-to-date** — `engine doctor` capability-driven flagging stays in sync automatically. Status: Not yet implemented.
 
-1. **WEBGPU-post-pipeline** — wrap `three/webgpu`'s `RenderPipeline` (rename of `PostProcessing` in r0.183) in a new `engine/render/webgpu/post.ts`. Adapter's existing `setPostPipeline()` branches on `capabilities.kind` and routes to the WebGPU node graph instead of `EffectComposer`. Each pass becomes a TSL node attached to the pipeline's `outputNode`. Status: Not yet implemented.
-2. **WEBGPU-post-bloom** — `three/addons/tsl/display/BloomNode.js` wired into the WebGPU pipeline. Match the existing `project.render.post: [{ kind: "bloom", strength?, radius?, threshold? }]` schema. Status: Not yet implemented.
-3. **WEBGPU-post-ssao** — `three/addons/tsl/display/GTAONode.js` (GTAO is the WebGPU SSAO equivalent in three.js's TSL set). Status: Not yet implemented.
-4. **WEBGPU-post-lut** — TSL ColorLUT (`three/addons/tsl/display/`). Status: Not yet implemented.
-5. **WEBGPU-post-fxaa** — `three/addons/tsl/display/FXAANode.js`. Status: Not yet implemented.
-6. **WEBGPU-reflection-probe** — port `acquireReflectionProbe / setReflectionProbeTransform / updateReflectionProbe / reflectionProbeTexture / releaseReflectionProbe` to use `three/webgpu`'s `CubeRenderTarget` + `CubeCamera`. PMREM prefilter already works (S62). Flip `WEBGPU_CAPABILITIES.supportsReflectionProbe` to `true`. Status: Not yet implemented.
-7. **WEBGPU-csm** — three.js's WebGL `CSM.js` doesn't work on WebGPURenderer. Two options: (a) port to `three/addons/tsl/CSMNode.js` (which exists for WebGPU); (b) fall back to single-cascade DirectionalLight shadow on WebGPU until CSMNode matures. Pick based on three.js r0.184 CSMNode status. Status: Not yet implemented.
-8. **WEBGPU-planar-mirror** — port `acquirePlanarMirror / setPlanarMirrorTransform / releasePlanarMirror` to `three/webgpu`'s `ReflectorNode`. Flip `WEBGPU_CAPABILITIES.supportsPlanarMirror` to `true`. Status: Not yet implemented.
-9. **WEBGPU-pcss** — rewrite the WebGL `onBeforeCompile` PCSS shader patches as a TSL node so it works on both renderers. Status: Not yet implemented.
-10. **WEBGPU-gpu-timer** — wrap `GPUQuerySet { type: "timestamp" }` in a `WebGpuTimer` parallel to the existing `GpuTimer`. `__agf.rendererInfo().gpuMs` populates on WebGPU. Status: Not yet implemented.
-11. **WEBGPU-spike-features** — extend `examples/webgpu-spike/` to exercise whatever lands (bloom + a probe + maybe a mirror). Update README + e2e smoke. Status: Not yet implemented.
-12. **WEBGPU-renderer-import-boundary** (carried from S61 / S62) — once `engine/render/webgpu/` actually exists with the new files, extend `tests/unit/renderer-import-boundary.test.ts` to allow `three/webgpu` from there only; keep `engine/core` clean of node-material imports. Status: Not yet implemented.
-13. **DOCS-webgpu-skill-update** — flip every story that lands from "deferred" to "supported" in `docs/agent/skills/webgpu-rendering.md`. Status: Not yet implemented.
-14. **DOCTOR-webgpu-flags-up-to-date** — `engine doctor` doesn't flag features the WebGPU adapter now supports. Capability-driven so it stays in sync automatically. Status: Not yet implemented.
+### Deferred to S65
 
-### Out of scope (Sprint 63)
+- **WEBGPU-post-ssao / WEBGPU-post-lut / WEBGPU-post-fxaa** — the remaining three post-passes. Bloom alone proves the pattern; the rest are mechanical follow-ons. Lands during the re-bench / default-flip sprint.
+- **WEBGPU-csm**, **WEBGPU-planar-mirror**, **WEBGPU-pcss** — heavier feature ports. CSM needs research on `CSMNode` maturity; PCSS needs a TSL rewrite of GLSL shader chunks; ReflectorNode for planar mirror is mid-weight. None are blockers for `webgpu-spike`-class projects.
 
-- **Migrating existing projects** (hello-3d / material-bench / shadows-bench / beacon-world) to WebGPU — S64.
-- **Default flip** — S65 (after re-bench + migrations).
-- **Lazy `three/webgpu` import** — S64 pre-default-flip housekeeping. Today the WebGL bundle eats 145 KB extra.
+### Out of scope (Sprint 64)
+
+- **Migrating existing projects** (material-bench, shadows-bench, beacon-world) to WebGPU — S65 (depends on feature parity + re-bench).
+- **Default flip** — S65 (after migrations + re-bench).
 
 ## Next Sprint (placeholder)
 
-S64 — re-bench + migrations + lazy import. (1) Run `perf-probe-webgpu.mjs` + `perf-probe-shadows.mjs` + `perf-probe-batching.mjs` against the WebGPU-enabled spike + each migrated example so we have same-machine WebGL vs WebGPU numbers for the S60 spike doc. (2) Flip `examples/{hello-3d, material-bench, shadows-bench, water-bench, beacon-world}` to `render.mode: "webgpu"`; gate per-feature regressions through the capability flags. (3) Move the `three/webgpu` import inside `await adapter.init()` so the WebGL-only bundle path doesn't pay the 145 KB node-material cost. Sets up S65 default-flip.
+S65 — re-bench + remaining feature ports + migrate examples + default-flip prep. After S64 lands the highest-value features, S65 (a) ports the remaining post-passes (SSAO / LUT / FXAA) + planar mirror + CSM + PCSS as the gating work for migrating existing projects, (b) re-runs `perf-probe-webgpu.mjs` + perf-probe-shadows / batching for an updated WebGL-vs-WebGPU anchor, (c) migrates `examples/{hello-3d, material-bench, shadows-bench, water-bench, beacon-world}` to `render.mode: "webgpu"`, (d) flips the engine default to `webgpu`. Hardest sprint of the WebGPU push.

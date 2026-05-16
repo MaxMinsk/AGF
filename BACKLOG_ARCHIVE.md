@@ -2908,3 +2908,50 @@ Status: Completed and archived as a single-story sprint. The original plan cover
 
 - **S63 — feature parity II**: Bloom / SSAO / LUT / FXAA via `three/webgpu` `RenderPipeline` + TSL nodes; CSM via `CSMNode`; PCSS rewritten as TSL node; reflection probes via WebGPU CubeRenderTarget + `three/webgpu` PMREM (already wired by S62); planar mirror via `ReflectorNode`; GPU timer via `GPUQuerySet`. All of these are individually sprint-sized; S63 may pick the highest-value subset.
 - **HDR sky file shipped on the spike** — the spike still uses `environment.kind: "generated"` so the visual win is subtle (RoomEnvironment ambient). A real HDR like `venice_sunset_1k.hdr` (already in `material-bench`) would make the IBL improvement obvious.
+
+## Sprint 63 — WebGPU light investigation + HemisphereLight position fix
+
+Status: Completed and archived as a single-story sprint. Originally planned as a 14-story feature-parity push (post-processing chain + reflection probes + CSM + PCSS + planar mirror + GPU timer); the user reported a critical visual bug (black-screen on webgpu-spike) mid-sprint and asked to investigate light sources explicitly. The investigation found and fixed the root cause — turned out to be the cause of multiple downstream symptoms — so the sprint closed on Story 1 and the remaining feature-parity work moved to S64.
+
+### Completed Work
+
+1. **WEBGPU-light-investigation + HemisphereLight position fix** — three.js's WebGPU `HemisphereLightNode` (r0.184) derives its "up" direction from the light's world position; a HemisphereLight at world origin produces a zero-length direction vector and silently contributes no light. WebGL ignores light position so the same scene works fine there. Root cause traced via systematic test scenes (`examples/webgpu-light-test/` — five spheres each lit by a different `Light.kind`); investigation steps documented in commit history. Fix: `setLightTransform` clamps any HemisphereLight's `position.y` to `>= 1` regardless of mode (harmless on WebGL, makes WebGPU work). User insight ("maybe the hemisphere position is wrong?") was the breakthrough.
+2. **Diagnostic project `examples/webgpu-light-test/`** — permanent diagnostic for future WebGPU light bugs. Five spheres lit by ambient / hemisphere / directional / point / spot in isolation + a shadow-casting directional. Registered with the project switcher; passes engine:check.
+
+### Re-deferred to S64 (was originally S63 scope)
+
+- **WEBGPU-post-pipeline** — `three/webgpu` `RenderPipeline` orchestration for the post-pass chain.
+- **WEBGPU-post-bloom / WEBGPU-post-ssao / WEBGPU-post-lut / WEBGPU-post-fxaa** — TSL node ports for each post pass.
+- **WEBGPU-reflection-probe** — `WebGPUCubeRenderTarget` port for cube probes. PMREM prefilter already works (S62).
+- **WEBGPU-csm** — `CSMNode` (or single-cascade DirectionalLight shadow fallback).
+- **WEBGPU-planar-mirror** — `ReflectorNode`.
+- **WEBGPU-pcss** — TSL rewrite of GLSL shader-chunk PCSS.
+- **WEBGPU-gpu-timer** — `GPUQuerySet { type: "timestamp" }`.
+- **WEBGPU-spike-features** — extend webgpu-spike to exercise the new code paths.
+- **WEBGPU-renderer-import-boundary** — once `engine/render/webgpu/` directory exists.
+- **DOCS-webgpu-skill-update**, **DOCTOR-webgpu-flags-up-to-date** — both update as features land.
+
+### Why this sprint was scoped to one story
+
+The light investigation was a user-tagged blocker — the entire webgpu-spike project rendered as black silhouettes, making any subsequent feature work impossible to verify visually. Closing the sprint here records the fix cleanly + doesn't pretend to bundle the remaining feature-parity work that's much larger. Each remaining story is realistically a half-sprint to a sprint on its own. S64 pulls them in as a coherent package.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts` — `setLightTransform` clamps HemisphereLight `position.y` to `>=1`.
+- `examples/webgpu-light-test/` (new) — full diagnostic project with five lights.
+- `src/main.ts` — project switcher entry for `?project=webgpu-light-test`.
+- `docs/agent/skills/webgpu-rendering.md` — "Live-discovered gotchas" entry for HemisphereLight position behavior.
+- (Inherited from earlier hotfix #69) — `examples/webgpu-spike/scenes/start.scene.json` reverted to the original config (HemisphereLight at origin) now that the adapter handles it; `drawCalls` reads `frameCalls` on WebGPU.
+
+### Verification
+
+- typecheck + 511 unit tests pass.
+- Headed playwright probe of `?project=webgpu-spike` on chromium with `--enable-unsafe-webgpu`: scene renders correctly with the original HemisphereLight at origin config (pink cube, blue sphere, yellow cylinder, blue floor, shadows). `drawCalls` steady at 3.
+- `?project=webgpu-light-test`: all five light kinds light their respective spheres.
+- WebGL projects (hello-3d, material-bench) unchanged (`renderer: "webgl"`, normal mesh + draw counts).
+
+### Follow-Ups
+
+- **S64 — feature parity (full)**: pull in all the re-deferred stories. Realistically still won't fit in one sprint; pick highest-value subset (probably post-bloom + reflection probe — those are most visually impactful for material-bench / beacon-world migration).
+- **Verify other light kinds on WebGPU** — only HemisphereLight had the position bug per investigation, but worth a regression e2e test that exercises all five kinds before S65 default-flip.
+- **Upstream three.js**: the HemisphereLight position dependency looks like an unintended difference between WebGL and WebGPU; possibly worth reporting / PR'ing on three.js's tracker.
