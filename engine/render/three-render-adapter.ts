@@ -1298,6 +1298,17 @@ export class ThreeRenderAdapter {
     if (light === undefined) return;
     // Ambient lights ignore position; pushing it anyway is harmless and keeps the call site uniform.
     applyTransform(light, world);
+    // S63 WEBGPU-light-investigation: three.js's WebGPU
+    // HemisphereLightNode (r0.184) uses the light's world position to
+    // derive its "up" direction — a HemisphereLight at world origin
+    // (0, 0, 0) contributes nothing to material lighting on WebGPU,
+    // unlike WebGL which always treats hemisphere direction as +Y
+    // regardless of position. Force a small positive Y so the light
+    // works on both renderers. Doesn't matter visually on WebGL since
+    // position is ignored there.
+    if (light instanceof HemisphereLight && light.position.y <= 0) {
+      light.position.y = 1;
+    }
   }
 
   setLightCastShadow(handle: LightHandle, cast: boolean, params: LightShadowParams = {}): void {

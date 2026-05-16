@@ -1,0 +1,111 @@
+{
+  "id": "start",
+  "environment": { "kind": "none" },
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Main Camera" },
+        "Transform": { "position": [0, 1.5, 6], "rotation": [-5, 0, 0] },
+        "Camera": { "kind": "perspective", "active": true, "fov": 60, "near": 0.1, "far": 50 }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": { "position": [0, -0.5, 0], "scale": [10, 0.1, 4] },
+        "MeshRenderer": { "mesh": "box", "color": "#aaaaaa" }
+      }
+    },
+    {
+      "id": "sphere.ambient",
+      "components": {
+        "Transform": { "position": [-4, 0.3, 0] },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffffff" }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Transform": { "position": [-4, 0, 0] },
+        "Light": { "kind": "ambient", "color": "#ffffff", "intensity": 1.0 }
+      }
+    },
+    {
+      "id": "sphere.hemi",
+      "components": {
+        "Transform": { "position": [-2, 0.3, 0] },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffffff" },
+        "ShadowFlags": { "cast": true, "receive": true }
+      }
+    },
+    {
+      "id": "light.hemi",
+      "components": {
+        "Transform": { "position": [-2, 0, 0] },
+        "Light": { "kind": "hemisphere", "color": "#ffffff", "groundColor": "#222222", "intensity": 1.0 }
+      }
+    },
+    {
+      "id": "light.shadow-caster",
+      "components": {
+        "Name": { "label": "Shadow Sun" },
+        "Transform": { "position": [10, 10, 5] },
+        "Light": {
+          "kind": "directional",
+          "color": "#ffffff",
+          "intensity": 0.5,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 1024,
+            "bias": -0.0005,
+            "normalBias": 0.02,
+            "camera": { "left": -10, "right": 10, "top": 10, "bottom": -10, "near": 0.1, "far": 40 }
+          }
+        }
+      }
+    },
+    {
+      "id": "sphere.directional",
+      "components": {
+        "Transform": { "position": [0, 0.3, 0] },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffffff" }
+      }
+    },
+    {
+      "id": "light.directional",
+      "components": {
+        "Transform": { "position": [0, 2, 2] },
+        "Light": { "kind": "directional", "color": "#ffffff", "intensity": 1.0 }
+      }
+    },
+    {
+      "id": "sphere.point",
+      "components": {
+        "Transform": { "position": [2, 0.3, 0] },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffffff" }
+      }
+    },
+    {
+      "id": "light.point",
+      "components": {
+        "Transform": { "position": [2, 1.0, 0.8] },
+        "Light": { "kind": "point", "color": "#ffffff", "intensity": 5.0 }
+      }
+    },
+    {
+      "id": "sphere.spot",
+      "components": {
+        "Transform": { "position": [4, 0.3, 0] },
+        "MeshRenderer": { "mesh": "sphere", "color": "#ffffff" }
+      }
+    },
+    {
+      "id": "light.spot",
+      "components": {
+        "Transform": { "position": [4, 1.5, 1.5] },
+        "Light": { "kind": "spot", "color": "#ffffff", "intensity": 8.0, "distance": 5, "angle": 0.6, "penumbra": 0.2 }
+      }
+    }
+  ]
+}

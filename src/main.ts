@@ -319,6 +319,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.webgpuSpikeBootstrap
     };
+  },
+  "webgpu-light-test": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/webgpu-light-test/project.json"),
+      import("../examples/webgpu-light-test/scenes/start.scene.json"),
+      import("../examples/webgpu-light-test/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.webgpuLightTestBootstrap
+    };
   }
 };
 
