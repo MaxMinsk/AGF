@@ -89,42 +89,67 @@ function buildScene(params) {
   const hemi = new THREE.HemisphereLight(0xc9e1ff, 0x202435, 0.45);
   scene.add(hemi);
 
-  // Boxes — opaque, varied colours.
+  // Two rotating groups so the user sees continuous motion + the perf
+  // numbers reflect a real draw-each-frame load (no static-scene caching
+  // wins). Box ring rotates CCW around Y; sphere ring rotates CW around
+  // a tilted axis so the two layers slide past each other.
+  const boxGroup = new THREE.Group();
+  scene.add(boxGroup);
+  const sphereGroup = new THREE.Group();
+  scene.add(sphereGroup);
+
+  // Boxes — opaque, varied colours, distributed evenly on concentric rings.
+  // Ring radius grows logarithmically so high counts still fit on screen.
   const boxGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+  const boxesPerRing = Math.max(8, Math.ceil(Math.sqrt(params.boxes) * 2));
   for (let i = 0; i < params.boxes; i++) {
+    const ring = Math.floor(i / boxesPerRing);
+    const slot = i % boxesPerRing;
+    const r = 3 + ring * 1.4;
+    const a = (slot / boxesPerRing) * Math.PI * 2 + ring * 0.27;
     const m = new THREE.MeshStandardMaterial({
-      color: new THREE.Color().setHSL((i / params.boxes), 0.55, 0.5),
+      color: new THREE.Color().setHSL(i / params.boxes, 0.55, 0.5),
       roughness: 0.65,
       metalness: 0
     });
     const mesh = new THREE.Mesh(boxGeo, m);
-    const r = 4 + Math.sqrt(i) * 0.85;
-    const a = i * 0.61;
     mesh.position.set(Math.cos(a) * r, 0.4, Math.sin(a) * r);
     mesh.rotation.y = a;
+    // Store the slot's base parameters so the frame loop can add a
+    // gentle Y-bobbing without per-frame allocations.
+    mesh.userData.phase = i * 0.21;
+    mesh.userData.baseY = 0.4;
     mesh.castShadow = params.shadows;
     mesh.receiveShadow = params.shadows;
-    scene.add(mesh);
+    boxGroup.add(mesh);
   }
 
-  // Spheres — metallic-ish, varied roughness.
+  // Spheres — metallic-ish, varied roughness, evenly distributed on concentric rings.
   const sphereGeo = new THREE.SphereGeometry(0.45, 20, 16);
+  const spheresPerRing = Math.max(8, Math.ceil(Math.sqrt(params.spheres) * 2));
   for (let i = 0; i < params.spheres; i++) {
+    const ring = Math.floor(i / spheresPerRing);
+    const slot = i % spheresPerRing;
+    const r = 3.5 + ring * 1.4;
+    const a = (slot / spheresPerRing) * Math.PI * 2 - ring * 0.27;
     const m = new THREE.MeshStandardMaterial({
       color: new THREE.Color().setHSL(((i / params.spheres) + 0.5) % 1, 0.5, 0.55),
       roughness: 0.2 + (i % 8) * 0.08,
       metalness: 0.5 + (i % 3) * 0.15
     });
     const mesh = new THREE.Mesh(sphereGeo, m);
-    const r = 4 + Math.sqrt(i) * 0.85;
-    const a = (i * 0.61) + Math.PI / 4;
-    mesh.position.set(Math.cos(a) * r, 1.2, Math.sin(a) * r);
+    mesh.position.set(Math.cos(a) * r, 1.6, Math.sin(a) * r);
+    mesh.userData.phase = i * 0.17 + Math.PI / 3;
+    mesh.userData.baseY = 1.6;
     mesh.castShadow = params.shadows;
     mesh.receiveShadow = params.shadows;
-    scene.add(mesh);
+    sphereGroup.add(mesh);
   }
 
-  return scene;
+  // Slight tilt on the sphere ring so the two layers visually separate.
+  sphereGroup.rotation.x = 0.18;
+
+  return { scene, boxGroup, sphereGroup };
 }
 
 async function main() {
@@ -132,11 +157,23 @@ async function main() {
   const canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
 
+  // Stretch the canvas to fill the viewport via CSS — without explicit
+  // styles a dynamically-created <canvas> defaults to 300×150 and the
+  // render lands in a corner on high-DPR monitors.
+  canvas.style.position = "fixed";
+  canvas.style.inset = "0";
+  canvas.style.width = "100vw";
+  canvas.style.height = "100vh";
+
   const setSize = (renderer) => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(w, h, false);
+    // `true` (default) makes three.js write `canvas.style.{width,height}`
+    // alongside the WebGL drawing-buffer resize. We already pinned the
+    // CSS size above so the renderer's writes are no-ops; pass true so
+    // future viewport changes don't drift.
+    renderer.setSize(w, h, true);
   };
 
   let rendererPair;
@@ -161,9 +198,11 @@ async function main() {
     camera.updateProjectionMatrix();
   });
 
-  const scene = buildScene(params);
+  const { scene, boxGroup, sphereGroup } = buildScene(params);
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
-  camera.position.set(0, 12, 28);
+  // Camera looks straight down the +Z axis at the origin so the rotating
+  // rings stay centred in frame regardless of scene scale.
+  camera.position.set(0, 10, 22);
   camera.lookAt(0, 1, 0);
 
   const stats = {
@@ -206,7 +245,26 @@ async function main() {
       ? () => renderer.renderAsync(scene, camera)
       : () => { renderer.render(scene, camera); return Promise.resolve(); };
 
+  // `WebGPURenderer.info.render.calls` accumulates across `.render()`
+  // calls — unlike `WebGLRenderer` it does not auto-reset per render in
+  // r0.184. Call `renderer.info.reset()` per frame so the HUD shows
+  // per-frame draw counts on both renderers. (WebGL also exposes
+  // `reset()` and supports manual control via `info.autoReset = false`;
+  // we use the explicit reset to keep both paths identical.)
+  const startTime = performance.now();
+
   async function frame(now) {
+    const elapsed = (now - startTime) / 1000;
+    // Animate: counter-rotating rings + gentle bob.
+    boxGroup.rotation.y = elapsed * 0.35;
+    sphereGroup.rotation.y = -elapsed * 0.25;
+    for (const m of boxGroup.children) {
+      m.position.y = m.userData.baseY + Math.sin(elapsed * 1.6 + m.userData.phase) * 0.15;
+    }
+    for (const m of sphereGroup.children) {
+      m.position.y = m.userData.baseY + Math.sin(elapsed * 1.4 + m.userData.phase) * 0.20;
+    }
+
     const dt = now - lastFrameTime;
     lastFrameTime = now;
     samples.push({ tNow: now, dt });
@@ -218,12 +276,18 @@ async function main() {
       stats.frameMsAvg = totalDt / (samples.length - 1);
     }
     stats.framesRendered += 1;
+    await renderOnce();
+    // Read draw counters AFTER the render call so the field actually
+    // contains this frame's work. Three.js renames the per-frame draw
+    // counter between renderers (`calls` is per-frame on WebGL but
+    // cumulative on WebGPU; `frameCalls` is per-frame on WebGPU's new
+    // Info class but doesn't exist on WebGLRenderer's old info shape).
     if (renderer.info?.render !== undefined) {
-      stats.drawCalls = renderer.info.render.calls ?? 0;
-      stats.triangles = renderer.info.render.triangles ?? 0;
+      const r = renderer.info.render;
+      stats.drawCalls = mode === "webgpu" ? (r.frameCalls ?? r.drawCalls ?? 0) : (r.calls ?? 0);
+      stats.triangles = r.triangles ?? 0;
     }
     updateHud();
-    await renderOnce();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
