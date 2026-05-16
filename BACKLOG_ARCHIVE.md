@@ -2955,3 +2955,38 @@ The light investigation was a user-tagged blocker — the entire webgpu-spike pr
 - **S64 — feature parity (full)**: pull in all the re-deferred stories. Realistically still won't fit in one sprint; pick highest-value subset (probably post-bloom + reflection probe — those are most visually impactful for material-bench / beacon-world migration).
 - **Verify other light kinds on WebGPU** — only HemisphereLight had the position bug per investigation, but worth a regression e2e test that exercises all five kinds before S65 default-flip.
 - **Upstream three.js**: the HemisphereLight position dependency looks like an unintended difference between WebGL and WebGPU; possibly worth reporting / PR'ing on three.js's tracker.
+
+## Sprint 64 — WebGPU reflection probe port
+
+Status: Completed and archived as a single-story sprint. Same pattern as S63: priority-ordered S64 plan was 9 stories, shipped the highest-value one (reflection probe — the most user-visible feature with the smallest delta), deferred the rest to S65 alongside default-flip prep. Honest scope: each remaining story (post-passes, CSM, PCSS, planar mirror, GPU timer, lazy import) is a half-sprint of focused work.
+
+### Completed Work
+
+1. **WEBGPU-reflection-probe** — three.js's WebGPU build ships its own `CubeRenderTarget` (renamed from `WebGLCubeRenderTarget`) that runs through the WebGPU pipeline. `CubeCamera` is renderer-agnostic. PMREM prefilter wired in S62. Adapter `acquireReflectionProbe` branches on `capabilities.kind` to pick the right RT class. `WEBGPU_CAPABILITIES.supportsReflectionProbe: false → true`. Webgpu-spike updated with a probe on the hero cube (bake-once via `updateRate: 0`) to verify the path; live probe confirms `reflectionProbes: 1` with zero console errors.
+2. **Reflection probe + spinning shadow-caster interaction documented.** User caught a shadow-map flicker on the spike's spinning cube when the probe ran at `updateRate > 0`. Root cause: probe pass hides the cube → directional shadow re-bakes without it → next main render reads a stale shadow map. WebGL's pass ordering happens to mask this. Workaround documented in the skill memo: `updateRate: 0` for moving probe owners. Proper engine-side fix needs probe-pass / shadow-pass ordering work, parked.
+
+### Deferred to S65
+
+- **WEBGPU-gpu-timer** — wrap `GPUQuerySet { type: "timestamp" }` in a `WebGpuTimer` parallel to `engine/render/gpu-timer.ts`.
+- **WEBGPU-post-pipeline + WEBGPU-post-bloom + WEBGPU-post-ssao + WEBGPU-post-lut + WEBGPU-post-fxaa** — `three/webgpu` `RenderPipeline` + TSL nodes for each pass.
+- **WEBGPU-csm / WEBGPU-pcss / WEBGPU-planar-mirror** — heavier feature ports.
+- **WEBGPU-lazy-import** — move `three/webgpu` import inside `await adapter.init()` so the WebGL bundle drops ~145 KB. Constructor refactor (defer device creation to init); affects many constructor-side init paths (`info.autoReset`, GPU timer probe, shadow algorithm, color, fallback lighting).
+- **Migrating existing projects** to WebGPU.
+- **Default-flip** to WebGPU.
+
+### Deliverables
+
+- `engine/render/three-render-adapter.ts` — `acquireReflectionProbe` branches on capabilities to pick `WebGpuCubeRenderTarget` vs `WebGLCubeRenderTarget`.
+- `engine/render/render-adapter.ts` — `WEBGPU_CAPABILITIES.supportsReflectionProbe = true`.
+- `examples/webgpu-spike/scenes/start.scene.json` — hero cube gains `ReflectionProbe` + `EnvmapBinding` at `updateRate: 0`.
+- `docs/agent/skills/webgpu-rendering.md` — reflection probe gotcha + S62-era HemisphereLight gotcha both documented.
+
+### Verification
+
+- typecheck + 511 unit tests pass.
+- Headed playwright probe of `?project=webgpu-spike` with `--enable-unsafe-webgpu`: `renderer: "webgpu"`, `reflectionProbes: 1`, `meshes: 4`, `drawCalls: 3` steady, zero pageerrors. Scene renders correctly with reflection probe baked once at startup.
+- material-bench WebGL path verified unchanged: `renderer: "webgl"`, 3 probes, 139 draws.
+
+### Follow-Ups
+
+- **S65** — the heaviest sprint of the WebGPU push. Brings the remaining feature parity (post-passes, CSM, PCSS, planar mirror, GPU timer) + lazy `three/webgpu` import + re-bench + migrate `examples/*` to WebGPU + flip the engine default. Realistically may itself need to be a multi-sprint epic.
