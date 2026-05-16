@@ -49,7 +49,10 @@ export const WEBGPU_CAPABILITIES: RenderAdapterCapabilities = {
   supportsCsm: false,
   supportsPcss: false,
   supportsPostProcessing: false,
-  supportsReflectionProbe: false,
+  // S64 WEBGPU-reflection-probe: shipped — `CubeRenderTarget` from
+  // `three/webgpu` paired with `CubeCamera` runs through the WebGPU
+  // pipeline; PMREM prefilter already wired via S62.
+  supportsReflectionProbe: true,
   supportsPlanarMirror: false,
   supportsTextureBinding: true
 };
