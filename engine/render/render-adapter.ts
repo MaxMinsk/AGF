@@ -22,7 +22,7 @@ export type RenderAdapterCapabilities = {
   readonly supportsCsm: boolean;
   /** M21-shadow-pcss — GLSL chunks via `onBeforeCompile`; no equivalent on WebGPU. */
   readonly supportsPcss: boolean;
-  /** S57 POST-pipeline — `EffectComposer` chain (SSAO / Bloom / LUT / FXAA). WebGPU uses a different `PostProcessing` class; not wired yet. */
+  /** S57 POST-pipeline — `EffectComposer` chain (SSAO / Bloom / LUT / FXAA). WebGL: full chain. WebGPU: still no support until the AGF render setup ports off `ShaderMaterial` (the `PostProcessing` TSL node graph rejects vanilla `ShaderMaterial` — affects PMREM RoomEnvironment + shadow MeshDepthMaterial paths). */
   readonly supportsPostProcessing: boolean;
   /** S57 REFLECTION-cube-probe — `CubeCamera` + `WebGLCubeRenderTarget`. WebGPU equivalent is parked. */
   readonly supportsReflectionProbe: boolean;
