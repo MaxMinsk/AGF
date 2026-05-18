@@ -45,6 +45,7 @@ Sprint 0 is archived. Sprint 1 is active: project/scene validation, the first re
 - `docs/research/README.md` for implementation research notes.
 - `docs/QUALITY_AXES.md` for how AGF defines "works" beyond build success.
 - `docs/agent/debug-protocol.md` for debugging workflow.
+- `docs/diagnostics-policy.md` for the AGF logging / diagnostics rules (severity scale, code naming, CI gates).
 - `SAMPLE_GAME_IDEAS.md` for the dogfood game direction.
 
 ## Architecture Summary

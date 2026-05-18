@@ -1,3 +1,8 @@
+// agf-allow:console-file renderer-side async geometry/material binding —
+// the renderer adapter doesn't yet carry the diagnostics bus through
+// to these systems; warnings/errors stay on console pending the
+// renderer-diagnostics integration follow-up (S084).
+//
 // M21-e: own the async geometry + material asset binding for renderable
 // entities. Reads `MeshRenderer` (mesh/material/color fields) and the
 // `RenderMeshHandle` (the handle MeshLifecycleSystem wrote); writes

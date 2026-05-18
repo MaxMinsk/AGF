@@ -149,6 +149,7 @@ export function applyPcssShadowChunks(): void {
     // The upstream chunk text drifted out from under us. Surface a
     // console warning so an agent triaging "PCSS looks like PCF" finds
     // the cause quickly instead of guessing.
+    // agf-allow:console pre-runtime shader-patch path; no diagnostics bus reachable from this module.
     console.warn(
       "[agf:shadow-pcss] BASIC-variant `getShadow` substitution did not match `shadowmap_pars_fragment` — PCSS will silently no-op. Check three.js version drift."
     );

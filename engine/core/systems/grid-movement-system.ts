@@ -144,21 +144,47 @@ export function createGridMovementSystem(options: GridMovementSystemOptions): Sy
       const lerpStep = dt * mover.speed; // cells per second × dt = fraction of a cell
       const nextLerp = (mover.currentLerp ?? 0) + lerpStep;
       if (nextLerp >= 1) {
-        // Snap to the target cell. Pull queuedDirection forward — if
-        // still set + still passable, continue moving without a stop.
-        world.setComponent(entityId, GRID_POSITION, { gx: target.gx, gz: target.gz });
-        const [tx, , tz] = gridToWorld(grid, target.gx, target.gz);
+        // Cell boundary: snap GridPosition to the target. Carry the
+        // overshoot (nextLerp - 1) into a new tween if the next move
+        // is still queued + passable — that prevents a one-frame
+        // micro-stutter where the entity stops on the cell boundary
+        // before the next direction is picked up. The carried lerp
+        // value lives entirely inside this same fixed step, so the
+        // pose written below already reflects the head start.
+        const overshoot = Math.min(nextLerp - 1, 0.999);
+        const carriedPos: GridPositionComponent = { gx: target.gx, gz: target.gz };
+        world.setComponent(entityId, GRID_POSITION, carriedPos);
+
+        // Probe for a next tween from the new cell.
+        const nextTarget = startMotion(grid, world, entityId, mover, carriedPos);
         const transform = world.getComponent<TransformComponent>(entityId, TRANSFORM) ?? {};
-        world.setComponent(entityId, TRANSFORM, {
-          ...transform,
-          position: [tx, transform.position?.[1] ?? 0, tz]
-        });
-        world.setComponent(entityId, GRID_MOVER, {
-          ...mover,
-          currentLerp: 0,
-          targetGx: undefined,
-          targetGz: undefined
-        });
+        const y = transform.position?.[1] ?? 0;
+        if (nextTarget !== undefined) {
+          const [sx, , sz] = gridToWorld(grid, carriedPos.gx, carriedPos.gz);
+          const [tx, , tz] = gridToWorld(grid, nextTarget.gx, nextTarget.gz);
+          world.setComponent(entityId, TRANSFORM, {
+            ...transform,
+            position: [sx + (tx - sx) * overshoot, y, sz + (tz - sz) * overshoot]
+          });
+          world.setComponent(entityId, GRID_MOVER, {
+            ...mover,
+            currentLerp: overshoot,
+            targetGx: nextTarget.gx,
+            targetGz: nextTarget.gz
+          });
+        } else {
+          // No next move — settle on the cell. This is the existing
+          // "stationary" path: align Transform to the cell centre and
+          // clear targetGx/targetGz.
+          const [tx, , tz] = gridToWorld(grid, target.gx, target.gz);
+          world.setComponent(entityId, TRANSFORM, { ...transform, position: [tx, y, tz] });
+          world.setComponent(entityId, GRID_MOVER, {
+            ...mover,
+            currentLerp: 0,
+            targetGx: undefined,
+            targetGz: undefined
+          });
+        }
         continue;
       }
 

@@ -1,4 +1,5 @@
 import type { System, SystemContext } from "./types";
+import type { DiagnosticsBus } from "../../runtime/diagnostics/diagnostics-bus";
 
 export type SystemRegistrationOptions = {
   /**
@@ -12,15 +13,24 @@ export type SystemRegistrationOptions = {
 export type SystemSchedulerOptions = {
   /** Profile names that systems can opt into. Defaults to an empty set. */
   activeProfiles?: ReadonlyArray<string>;
+  /**
+   * Optional diagnostics bus for AGF-LOG-LIFECYCLE-TRACES — emits
+   * `AGF_SCHEDULER_SYSTEM_REGISTERED` / `_DEREGISTERED` info events when
+   * supplied. Stays optional so unit tests can use the scheduler
+   * without wiring a bus.
+   */
+  diagnostics?: DiagnosticsBus;
 };
 
 export class SystemScheduler {
   private readonly order: System[] = [];
   private readonly index = new Map<string, number>();
   private readonly activeProfiles: ReadonlySet<string>;
+  private readonly diagnostics: DiagnosticsBus | undefined;
 
   constructor(options: SystemSchedulerOptions = {}) {
     this.activeProfiles = new Set(options.activeProfiles ?? []);
+    this.diagnostics = options.diagnostics;
   }
 
   /**
@@ -40,6 +50,13 @@ export class SystemScheduler {
     }
     this.index.set(system.name, this.order.length);
     this.order.push(system);
+    this.diagnostics?.emit({
+      severity: "info",
+      code: "AGF_SCHEDULER_SYSTEM_REGISTERED",
+      source: "scheduler",
+      message: `system "${system.name}" registered`,
+      details: { name: system.name, total: this.order.length }
+    });
     return true;
   }
 
@@ -61,6 +78,13 @@ export class SystemScheduler {
         this.index.set(remaining.name, i);
       }
     }
+    this.diagnostics?.emit({
+      severity: "info",
+      code: "AGF_SCHEDULER_SYSTEM_DEREGISTERED",
+      source: "scheduler",
+      message: `system "${name}" deregistered`,
+      details: { name, total: this.order.length }
+    });
   }
 
   has(name: string): boolean {

@@ -1,3 +1,5 @@
+// agf-allow:console-file renderer pipeline — same renderer-side
+// rationale as three-render-adapter.ts; bus injection follow-up.
 import { MathUtils, type Mesh, type Object3D } from "three";
 import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
@@ -281,6 +283,28 @@ export class ThreeRenderer {
     // agf-allow: world.query — diagnostic, fires once per __agf.rendererInfo() call.
     const tracked = this.world.query(["RenderMeshHandle"]).length;
     return { ...adapter, handleLeak: this.registry.size() - tracked };
+  }
+
+  /**
+   * S83 AGF-AGENT-RENDERER-PROBE. Compact JSON dump for agent
+   * inspection: every renderer-internal counter from `info()` plus
+   * the explicit list of entity ids currently holding mesh handles.
+   * That handle list was the missing piece in the S82 restart
+   * bug-hunt — `handleLeak: 8` told us something was wrong, but not
+   * WHICH entities. Surface it here so agents grep on a fresh JSON
+   * blob instead of writing throwaway probes.
+   */
+  inspect(): {
+    info: ReturnType<ThreeRenderer["info"]>;
+    handles: { count: number; entityIds: string[] };
+  } {
+    return {
+      info: this.info(),
+      handles: {
+        count: this.registry.size(),
+        entityIds: [...this.registry.entityIds()]
+      }
+    };
   }
 
   /**

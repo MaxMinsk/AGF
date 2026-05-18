@@ -654,6 +654,15 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
 
   let recorder: RecorderHandle | undefined;
 
+  // S83 AGF-LOG-LIFECYCLE-TRACES.
+  diagnostics.emit({
+    severity: "info",
+    code: "AGF_RUNTIME_STARTED",
+    source: "runtime",
+    message: "runtime started",
+    details: { systemCount: scheduler?.size() ?? 0 }
+  });
+
   return {
     world,
     renderer,
@@ -747,6 +756,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       overlay?.dispose();
       hud.dispose();
       renderer.dispose();
+      // S83 AGF-LOG-LIFECYCLE-TRACES. Emit before tearing down so the
+      // diagnostics buffer still captures the event for a final read.
+      diagnostics.emit({
+        severity: "info",
+        code: "AGF_RUNTIME_STOPPED",
+        source: "runtime",
+        message: "runtime stopped"
+      });
     }
   };
 }

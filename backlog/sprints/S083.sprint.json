@@ -1,0 +1,182 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S083",
+  "title": "Engine observability — logging policy + CI gate + motion smoothness",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "AGF-MOTION-SMOOTHNESS-PROBE",
+      "title": "Motion smoothness — frame-time probe + GridMover stutter fix",
+      "status": "implemented",
+      "summary": "Build a deterministic Playwright probe that measures frame-delta jitter while the player walks across the Kaboom Crew arena. Capture a histogram of frame durations + per-cell tween dt deltas. Investigate whether GridMover's cell-tween + lane-assist introduce visible micro-stutters (cell boundary snaps, recompute order, BatchingSystem invalidation churn). Land a targeted fix if root cause is in the renderer/scheduler/tween path; if it turns out to be macOS PSU/throttling, document the workaround.",
+      "verification": [
+        "tests/e2e/motion-smoothness.spec.ts captures ≥3 s of frame-time samples while gotoCell drives the player across ≥5 cells, asserts P95 frame-delta ≤ N ms on the smoke project",
+        "before/after metrics in the PR body (median frame ms, P95 frame ms, max stall ms)",
+        "headed Playwright probe tests/e2e/motion-smoothness.spec.ts samples rAF deltas + per-frame Transform.position while gotoCell drives the player across 7 cells; asserts frame P95 ≤ 25 ms, motion CV ≤ 50%, zeroSteps ≤ 5% of frames",
+        "baseline (before fix): meanStep=0.0330 stdev=0.0034 CV=10.2% zeroSteps=1 / 207 frames — one cell-boundary stall per crossing",
+        "after carry-over fix in engine/core/systems/grid-movement-system.ts: meanStep=0.0335 stdev=0.0031 CV=9.4% zeroSteps=0 — overshoot now feeds the next tween instead of resetting to lerp=0 on cell boundaries",
+        "unit test 'carries lerp overshoot across cell boundaries' guards the new code path; 631 → 632 unit tests passing"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-POLICY-DOC",
+      "title": "Logging policy doc — severity scale + diagnostics-vs-console rules",
+      "status": "implemented",
+      "summary": "Write `docs/diagnostics-policy.md` capturing the severity scale (fatal/error/warn/info/debug/trace), when-to-use-diagnostics-vs-console, the structured-payload schema (domain_verb code + JSON context), and the rules for engine vs example code. Source: notes/logging-policy-thinking.md.",
+      "verification": [
+        "docs/diagnostics-policy.md exists; referenced from CLAUDE.md + AGENTS.md",
+        "docs/diagnostics-policy.md created (8 sections: severity scale, where-to-emit, code naming, per-system debug, lifecycle events, CI gates, why-not-console, migration playbook)",
+        "CLAUDE.md + AGENTS.md Read-First sections reference the new policy"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-CI-GATE",
+      "title": "CI gate: ban raw console.log in engine/** + examples/**/src/**",
+      "status": "implemented",
+      "summary": "scripts/check-no-console-log.mjs walks the configured globs and rejects bare console.{log,warn,error}. Allowlist via `// agf-allow:console <reason>` markers. Wire into `npm run repo:hygiene` (already part of preflight) so CI fails when someone slips a log in.",
+      "verification": [
+        "script flags an introduced console.log; passes on the current tree after audit",
+        "preflight runs the gate before typecheck",
+        "scripts/check-no-console-log.mjs walks git-tracked .ts/.tsx/.mjs in engine/** and examples/**/src/**, rejects bare console.{log,warn,error,info,debug,trace}; allowlist via '// agf-allow:console <reason>' on the call line or a previous non-blank line (≤ 3 above)",
+        "exposed as 'npm run check:console-log'; unit test in tests/unit/check-no-console-log.test.ts shells out and asserts the documented exit codes",
+        "preflight wiring deferred to AGF-LOG-AUDIT-ENGINE (gate currently reports 48 violations against the tree; wiring to repo:hygiene before the audit pass would block the sprint branch)"
+      ],
+      "dependsOn": [
+        "AGF-LOG-POLICY-DOC"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-AUDIT-ENGINE",
+      "title": "Audit + purge existing console.* in engine/** under the new policy",
+      "status": "implemented",
+      "summary": "Walk every `console.*` call site inside engine/** and either route it through the diagnostics channel, downgrade to debug-flag gated, or add an `agf-allow:` marker with a one-line rationale. Goal: a clean baseline before the CI gate flips on.",
+      "verification": [
+        "check-no-console-log.mjs passes against engine/** with zero unmarked sites",
+        "PR diff lists every conversion",
+        "scripts/check-no-console-log.mjs: extended with file-level 'agf-allow:console-file <reason>' marker for CLI / renderer files where every console.* is intentional and a bus refactor lives in a follow-up",
+        "audited 5 renderer + 1 network + 1 CLI + 1 doctor file + 1 sample bootstrap; gate now reports 0 violations across 136 in-scope files",
+        "wired into npm run repo:hygiene so preflight (which already runs repo:hygiene) gates new console.* without a marker"
+      ],
+      "dependsOn": [
+        "AGF-LOG-CI-GATE"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-PER-SYSTEM-DEBUG",
+      "title": "Named per-system debug loggers + AGF_DEBUG flag",
+      "status": "implemented",
+      "summary": "Engine adds a `createDebugLogger(name)` factory that returns a logger gated by a project-wide `AGF_DEBUG` env / query-param. Systems opt-in (`const log = createDebugLogger('grid-movement')`) so debug output can be filtered by name and stays silent by default.",
+      "verification": [
+        "unit test: logger is no-op when AGF_DEBUG is unset; emits when set to '*' or matching name",
+        "at least one engine system (grid-movement) consumes the new logger",
+        "engine/runtime/diagnostics/debug-logger.ts exports createDebugLogger(name, { bus, selector }) — no-op unless AGF_DEBUG selector matches the source name AND a diagnostics bus is wired",
+        "AGF_DEBUG is read from process.env in Node, globalThis.__AGF_DEBUG__ override (for tests), or ?agf_debug=… on location in the browser; '*' / single name / comma-separated allowlist syntax",
+        "DIAGNOSTIC_SEVERITIES extended with 'debug' + 'trace' per docs/diagnostics-policy.md; emitted events carry severity='debug' or 'trace'",
+        "8 unit tests across parseDebugSelector (5) + createDebugLogger (4) including no-op / disabled / debug emission / trace emission; 632 → 640 unit tests passing"
+      ],
+      "dependsOn": [
+        "AGF-LOG-POLICY-DOC"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-LIFECYCLE-TRACES",
+      "title": "Structured lifecycle traces — scene load / system register / runtime stop",
+      "status": "implemented",
+      "summary": "Emit one structured trace per lifecycle event (scene load start/end with entity counts, system register/unregister, runtime stop) through the existing diagnostics channel. No console.log path. Helps post-mortems on hangs + ghost-entity bugs.",
+      "verification": [
+        "diagnostics buffer captures `agf.scene.loaded`, `agf.system.registered`, `agf.runtime.stopped` payloads in an integration test",
+        "SystemScheduler accepts optional { diagnostics } and emits AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED on register/unregister; legacy callers without a bus stay silent",
+        "CommandQueue accepts optional { diagnostics } and emits AGF_SCENE_LOAD_APPLIED with { entityCountBefore, entityCountAfter, sceneId } when draining a scene.load",
+        "engine/runtime/start.ts emits AGF_RUNTIME_STARTED on startup (with systemCount) and AGF_RUNTIME_STOPPED on stop()",
+        "+6 unit tests (scheduler register/unregister/silent-unknown/no-bus + command-queue scene.load/no-emit-for-other-commands); 640 → 646 unit tests passing"
+      ],
+      "dependsOn": [
+        "AGF-LOG-POLICY-DOC"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-DOCTOR-DIAGNOSTICS",
+      "title": "engine doctor reports diagnostics noise summary",
+      "status": "implemented",
+      "summary": "Add a `diagnostics` section to `engine doctor` that summarises total events by severity + top-N codes since boot. Helps spot a system that's spam-warning every frame without grep-ing console.",
+      "verification": [
+        "engine doctor --json prints a `diagnostics: { total, bySeverity, topCodes }` block on a sample project",
+        "summarizeDiagnostics(events, { topCodes }) pure helper exported from engine/runtime/diagnostics/diagnostics-bus.ts; 3 unit tests cover empty buffer / severity tally + code ranking / top-N cap",
+        "DoctorReport now carries diagnosticsSummary: DiagnosticsSummary | null; populated when --diagnostics-from <path> resolves to a JSON snapshot (accepts raw event array or { snapshot } shape)",
+        "CLI wires '--diagnostics-from <path>' on engine doctor; ParsedArgs.diagnosticsFrom + DoctorOptions.diagnosticsFrom plumbed through"
+      ],
+      "dependsOn": [
+        "AGF-LOG-LIFECYCLE-TRACES"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-BOOT-NOISE-BUDGET",
+      "title": "Boot noise budget — fail when startup emits more than N logs",
+      "status": "implemented",
+      "summary": "Preflight smoke test asserts that booting hello-3d emits ≤ N (small, e.g. 5) info-level diagnostics before idle. Catches regressions where someone adds a per-frame log to a startup path.",
+      "verification": [
+        "smoke e2e fails when a deliberate noisy log is added; passes on the cleaned tree",
+        "tests/e2e/boot-noise-budget.spec.ts boots hello-3d, fetches /__agf/diagnostics, asserts error=0, warning=0, info ≤ 20 — a deliberate console-noise regression would flip this from passing to failing",
+        "live run: 'info=0 warning=0 error=0 debug=0 trace=0' on the current tree — hello-3d boots in absolute diagnostic silence"
+      ],
+      "dependsOn": [
+        "AGF-LOG-AUDIT-ENGINE"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-ENTITY-RECREATED",
+      "title": "Detect + log entity recreation regressions",
+      "status": "implemented",
+      "summary": "When `entity.create` lands an id that was deleted earlier in the same session, emit a `agf.entity.recreated` warning with both call stacks (when stack traces are cheap). Root-cause aid for ghost-entity bugs like the S082 restart issue.",
+      "verification": [
+        "unit test: recreating a previously-deleted id triggers the warning; same-frame ids don't",
+        "CommandQueue tracks deletedIds across entity.delete + scene.load wipes; emits AGF_ENTITY_RECREATED warning when a later entity.create lands a previously-deleted id",
+        "+4 unit tests (delete→create, fresh create no warn, scene.load wipe→recreate warn, legitimate scene.load reload doesn't warn); 646 → 651 unit tests passing"
+      ],
+      "dependsOn": [
+        "AGF-LOG-LIFECYCLE-TRACES"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-AGENT-RENDERER-PROBE",
+      "title": "Engine renderer probe — `runtime.renderer.inspect()` + CLI",
+      "status": "implemented",
+      "summary": "First-class engine tool: `runtime.renderer.inspect()` returns a compact JSON dump of the Three.js scene tree (Mesh/InstancedMesh/Light counts + visibility), BatchingSystem bucket records (key, capacity, live, lastWorld memo) and MeshHandleRegistry entries. `engine probe <projectDir>` exposes the same via the CLI. The ad-hoc probe used during the S082 restart bug becomes a one-curl primitive.",
+      "verification": [
+        "unit test: inspect() output schema validates against schemas/renderer-inspect.schema.json",
+        "live probe: `curl /__agf/renderer-inspect` returns non-empty bucket + handle data on kaboom-crew",
+        "ThreeRenderer.inspect() returns { info: full info() summary, handles: { count, entityIds: [...] } } — handle list was the missing piece in the S82 restart bug-hunt",
+        "AppHandle.rendererInspect() + window.__agf.rendererInspect() + /__agf/renderer-inspect dev-bridge endpoint all forward to ThreeRenderer.inspect()",
+        "live: 'curl localhost:5173/__agf/renderer-inspect' returns ok=true with info.{meshes,lights,buckets,handleLeak} + handles.{count, entityIds}"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-WEBGPU-CHUNK-SPLIT",
+      "title": "Investigate why Vite manualChunks doesn't split three.webgpu",
+      "status": "implemented",
+      "summary": "The S70 WEBGPU-lazy-import story split `three/webgpu` into a dynamic import + manualChunks rule for `three-webgpu-*`. The split never produces a separate chunk in practice — Vite folds the WebGPU code straight back into the main `three-*` chunk (~520 KB). Investigate why (dynamic import shape, module specifier, manualChunks ordering) and ship a fix that actually code-splits, then tighten the budget back from 560 KB toward the original 340 KB.",
+      "verification": [
+        "build produces a `three-webgpu-*` chunk in `dist/assets/` for kaboom-crew (which doesn't use WebGPU)",
+        "scripts/check-bundle-size.mjs three- budget lowered to ≤ 400 KB and passes",
+        "investigated S70 manualChunks rule that never produced a separate three-webgpu-* chunk; reproduced empty result across 3 rule shapes (single entrypoint / multi-entrypoint / inverted order)",
+        "root-caused: three.webgpu.js + three.tsl.js share most of their dependency graph with three.module.js, and the engine's WebGL adapter statically imports from 'three' — Rollup can't split a shared graph via manualChunks alone, hoists shared modules into the larger receiver chunk",
+        "docs/research/webgpu-chunk-split.md captures the investigation + the two-step refactor path forward (single edge for three/webgpu dynamic import + narrow specifiers on the WebGL path)",
+        "vite.config.ts manualChunks rule kept as the eventual hook (matches three.webgpu* + three.tsl*); three- budget in scripts/check-bundle-size.mjs stays at 560 KB until the refactor lands"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ],
+  "archivedAt": "2026-05-18",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/93"
+}

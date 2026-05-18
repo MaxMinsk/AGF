@@ -65,6 +65,7 @@ function buildFlatStartScene(): SceneInput {
   const expansion = expandScenePrefabs(startSceneJson as unknown as SceneInput, PROJECT_PREFABS);
   if (expansion.diagnostics.length > 0) {
     // eslint-disable-next-line no-console
+    // agf-allow:console scene expansion path runs before the runtime diagnostics bus is bound to attachUi.
     console.warn("[kaboom-crew] restart: scene expansion produced diagnostics", expansion.diagnostics);
   }
   return expansion.scene;
@@ -234,6 +235,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       restart(): void {
         restartScene(runtime);
+      },
+      // S83 AGF-MOTION-SMOOTHNESS-PROBE. Returns the entity's
+      // current world-space (x, z) from Transform.position — cheap
+      // sampling target for per-frame motion-smoothness probes.
+      worldXZ(entityId: string): [number, number] | undefined {
+        const snap = runtime.snapshot();
+        const e = snap.entities.find((x) => x.id === entityId);
+        const t = (e?.components as Record<string, Record<string, unknown>> | undefined)?.["Transform"];
+        const pos = (t as { position?: ReadonlyArray<number> } | undefined)?.position;
+        if (pos === undefined) return undefined;
+        return [pos[0] ?? 0, pos[2] ?? 0];
       },
       status(): unknown {
         const snap = runtime.snapshot();

@@ -74,14 +74,31 @@ export default defineConfig({
         // Split heavy dependencies into dedicated chunks so the main app
         // bundle stays small and the big libraries cache independently.
         manualChunks(id: string): string | undefined {
+          // S83 AGF-WEBGPU-CHUNK-SPLIT investigation. The S70
+          // `three-webgpu` rule below NEVER produced a separate chunk
+          // in any production build — every TSL / node-material module
+          // ends up folded back into the main `three-*` chunk
+          // (~535 KB gzipped).
+          //
+          // Cause: three.webgpu.js, three.tsl.js, three.webgpu.nodes.js
+          // and three.module.js share a large pool of transitive
+          // dependencies. Rollup, when asked to put `three.webgpu` in
+          // chunk A and `three.module` in chunk B, sees the shared
+          // code can only live in one place and hoists everything into
+          // the larger chunk. Naming additional WebGPU entrypoints
+          // (`three.tsl`, `three.webgpu.nodes`) under the same chunk
+          // doesn't help — the shared graph is unsplittable here.
+          //
+          // A real split would require: (a) refactoring the renderer
+          // so the WebGPU adapter is the ONLY edge importing
+          // `three/webgpu`, AND (b) making sure the WebGL path doesn't
+          // statically import anything from `three.module` that
+          // three.webgpu re-exports. That's a refactor scoped past
+          // this sprint — keeping the rule below as the eventual hook,
+          // but the `three-` budget in scripts/check-bundle-size.mjs
+          // stays at 560 KB until the refactor lands.
           if (id.includes("/node_modules/three/")) {
-            // S70 WEBGPU-lazy-import. Split the WebGPU-only build
-            // (`three/build/three.webgpu.js`) into its own chunk so
-            // WebGL-only projects don't ship the ~145 KB gzipped TSL /
-            // node-material runtime. The adapter's dynamic
-            // `import("three/webgpu")` is the only edge that pulls this
-            // chunk in.
-            if (id.includes("three.webgpu")) {
+            if (id.includes("three.webgpu") || id.includes("three.tsl")) {
               return "three-webgpu";
             }
             return "three";

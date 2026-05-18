@@ -1,0 +1,15 @@
+{
+  "agfFormatVersion": 1,
+  "id": "AGF-ENGINE-OBSERVABILITY",
+  "title": "Engine observability — diagnostics, logging, motion + renderer probes",
+  "status": "active",
+  "category": "engine",
+  "summary": "Cross-cutting engine work that makes runtime + render-side bugs diagnosable in one curl. Spans logging policy + CI gate, structured lifecycle traces, named per-system debug loggers, doctor diagnostics section, boot noise budget, entity-recreated detection, the first-class renderer/scene probe, the manualChunks investigation for the WebGPU lazy split, and a motion-smoothness probe with targeted fixes for tween / lane-assist micro-stutters.",
+  "doneCriteria": [
+    "console.log is banned in engine/** and examples/**/src/** (CI gate)",
+    "every engine system that emits diagnostics uses a named debug logger gated by AGF_DEBUG",
+    "engine doctor surfaces a diagnostics + renderer-probe section",
+    "Vite manualChunks actually splits three.webgpu — main `three-*` chunk budget back ≤ 400 KB",
+    "motion-smoothness e2e probe asserts a frame-delta P95 threshold + ships a fix when it regresses"
+  ]
+}
