@@ -192,6 +192,30 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       restartScene(runtime);
     };
 
+    // S85 AGF-POOL-WARMUP-PARTICLES. The first KABOOM-BLAST-PARTICLES
+    // burst stalled visibly because the renderer compiles the
+    // ParticleEmitter shader program lazily on the first emit + uploads
+    // an InstancedMesh + IcosahedronGeometry pair to the GPU. Spawn a
+    // single-particle, short-lived 'spark' emitter offscreen during
+    // attachUi so the shader is compiled + the pool is hot well before
+    // a real blast.
+    runtime.applyCommands([
+      {
+        kind: "entity.create",
+        entityId: "kaboom.warmup-particles",
+        components: {
+          Transform: { position: [-100, -100, -100], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          ParticleEmitter: {
+            preset: "spark",
+            lifetime: 0.05,
+            elapsed: 0,
+            rate: 60,
+            maxParticles: 12
+          }
+        }
+      }
+    ]);
+
     // S84 KABOOM-TITLE-SCREEN. Before the first round, mount the
     // GamePaused singleton so bot AI / bomb fuse / bomb placement
     // freeze. The title-screen HUD overlay listens for Space to

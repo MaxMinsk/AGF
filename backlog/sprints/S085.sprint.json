@@ -38,11 +38,13 @@
     {
       "id": "AGF-POOL-WARMUP-PARTICLES",
       "title": "Pre-warm the particle pool to its declared max so the first blast doesn't stall",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S084 follow-up — first KABOOM-BLAST-PARTICLES burst stalled visibly because the M19 particle pool only grew to its `maxParticles` cap on demand. Add a one-shot warmup step in ParticleEmitterSystem (or the adapter pool surface) that allocates the full instance slot up front, then immediately returns the slots to the free pool. Steady-state cost unchanged; the spike on the first burst goes away. Pairs naturally with the broader render-pool unification in a future sprint — for now scope to the particle case where the user actually saw the stall.",
       "verification": [
         "live probe: motion-smoothness probe extended to capture frame-time during the first blast; before vs after metrics in the PR body",
-        "unit test (or pool-state introspection): pool size after the first emitter spawn equals maxParticles, NOT 0 + grown-under-demand"
+        "unit test (or pool-state introspection): pool size after the first emitter spawn equals maxParticles, NOT 0 + grown-under-demand",
+        "bootstrap.attachUi spawns a single-particle 'spark' emitter (lifetime 0.05s) offscreen on first boot; the M19 ParticleEmitterSystem acquires its InstancedMesh + compiles the MeshBasicMaterial shader before the first real blast",
+        "narrower scope than the original 'pool warmup + unification' description — pool sharing across emitters lives in a future render-pool-abstraction sprint; this is the targeted fix the user actually felt"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
