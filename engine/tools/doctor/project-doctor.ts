@@ -174,6 +174,12 @@ export type DoctorReport = {
    * --diagnostics-from path is supplied.
    */
   diagnosticsSummary: import("../../runtime/diagnostics/diagnostics-bus").DiagnosticsSummary | null;
+  /**
+   * S84 AGF-DOCTOR-RENDERER-INSPECT-SECTION. Compact summary of a
+   * renderer-inspect dump (info counters + handle leak + entity-id
+   * sample). Null when no --renderer-inspect-from path is supplied.
+   */
+  rendererInspect: RendererInspectReport | null;
   recommendations: string[];
 };
 
@@ -316,6 +322,19 @@ export type DoctorOptions = {
    * events and reports them under DoctorReport.diagnosticsSummary.
    */
   diagnosticsFrom?: string;
+  /**
+   * S84 AGF-DOCTOR-RENDERER-INSPECT-SECTION. Optional path to a
+   * JSON dump from `/__agf/renderer-inspect`. When supplied, doctor
+   * reports the info counters + handle list under
+   * DoctorReport.rendererInspect.
+   */
+  rendererInspectFrom?: string;
+};
+
+export type RendererInspectReport = {
+  info: Record<string, unknown>;
+  handles: { count: number; entityIds: ReadonlyArray<string>; sample: ReadonlyArray<string> };
+  handleLeak: number;
 };
 
 export function runDoctor(
@@ -544,6 +563,35 @@ export function runDoctor(
         const parsed = JSON.parse(raw) as { snapshot?: unknown[] } | unknown[];
         const events = (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.snapshot) ? parsed.snapshot : [])) as import("../../runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic[];
         return summarizeDiagnostics(events);
+      } catch {
+        return null;
+      }
+    })(),
+    rendererInspect: ((): RendererInspectReport | null => {
+      const path = options.rendererInspectFrom;
+      if (path === undefined) return null;
+      const absolute = resolve(path);
+      if (!existsSync(absolute)) return null;
+      try {
+        const raw = readFileSync(absolute, "utf8");
+        // Accept either the raw inspect() output OR the dev-bridge
+        // envelope `{ ok, payload: { … } }`.
+        const parsed = JSON.parse(raw) as
+          | { payload?: { info?: Record<string, unknown>; handles?: { count?: number; entityIds?: ReadonlyArray<string> } } }
+          | { info?: Record<string, unknown>; handles?: { count?: number; entityIds?: ReadonlyArray<string> } };
+        const body = "payload" in parsed && parsed.payload !== undefined ? parsed.payload : parsed;
+        const info = (body as { info?: Record<string, unknown> }).info ?? {};
+        const handles = (body as { handles?: { count?: number; entityIds?: ReadonlyArray<string> } }).handles ?? {};
+        const entityIds = handles.entityIds ?? [];
+        return {
+          info,
+          handles: {
+            count: handles.count ?? entityIds.length,
+            entityIds,
+            sample: entityIds.slice(0, 8)
+          },
+          handleLeak: typeof info["handleLeak"] === "number" ? (info["handleLeak"] as number) : 0
+        };
       } catch {
         return null;
       }

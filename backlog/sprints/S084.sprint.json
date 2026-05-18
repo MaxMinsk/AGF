@@ -121,11 +121,14 @@
     {
       "id": "AGF-DOCTOR-RENDERER-INSPECT-SECTION",
       "title": "engine doctor — Renderer probe section from rendererInspect()",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Follow-on to S83 AGF-AGENT-RENDERER-PROBE. `engine doctor --renderer-inspect-from <path>` reads a snapshot dumped from `/__agf/renderer-inspect` and renders a 'Renderer:' section in the doctor report — info counters + handle leak callout + entity-id sample. Mirrors the AGF-LOG-DOCTOR-DIAGNOSTICS flag pattern.",
       "verification": [
         "DoctorReport.rendererInspect populated from the supplied JSON; null otherwise",
-        "unit test: sample input → expected report shape (info.handleLeak + handles.entityIds.length surface in the report)"
+        "unit test: sample input → expected report shape (info.handleLeak + handles.entityIds.length surface in the report)",
+        "DoctorReport gains rendererInspect: { info, handles: { count, entityIds, sample(<=8) }, handleLeak } | null",
+        "runDoctor accepts options.rendererInspectFrom path; accepts raw inspect() payload or dev-bridge envelope { ok, payload }",
+        "engine doctor CLI accepts --renderer-inspect-from <path>; +4 unit tests covering null / raw / envelope / malformed"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
