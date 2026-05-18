@@ -31,6 +31,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[BEACON-WORLD-SAMPLE](backlog/epics/BEACON-WORLD-SAMPLE.epic.json)** — Beacon World sample | active | engine | 1 / 0 / 1 |  |
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
+| **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 0 / 0 / 0 | → MVP-0 |
 | **[M10](backlog/epics/M10.epic.json)** — M10 Security / trust boundary for agent-authored projects | active | engine | 0 / 0 / 0 |  |
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
@@ -48,6 +49,8 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M18](backlog/epics/M18.epic.json)** — M18 Picking / raycast interaction | planned | engine | 0 / 0 / 0 |  |
 | **[M19](backlog/epics/M19.epic.json)** — M19 Game-feel polish (tween + particles) | planned | engine | 3 / 0 / 3 |  |
 | **[M26](backlog/epics/M26.epic.json)** — M26 Visual fidelity polish (probes + post-FX) | planned | engine | 12 / 0 / 12 |  |
+| **[M27-DECAL-LAYER](backlog/epics/M27-DECAL-LAYER.epic.json)** — M27 Decal-on-grid renderer primitive | planned | engine | 0 / 0 / 0 | → MVP-2 |
+| **[M28-REGION-RULES](backlog/epics/M28-REGION-RULES.epic.json)** — M28 Region / sector modifier primitive | planned | engine | 0 / 0 / 0 | → MVP-2 |
 | **[PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY](backlog/epics/PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY.epic.json)** — Patch-based agent writes (validate → diff → apply) | planned | research | 0 / 0 / 0 |  |
 | **[PROCEDURAL-CHARACTER-GENERATOR](backlog/epics/PROCEDURAL-CHARACTER-GENERATOR.epic.json)** — Procedural Character Generator | planned | engine | 1 / 0 / 1 |  |
 | **[REMOTE-CDN-ASSET-DELIVERY](backlog/epics/REMOTE-CDN-ASSET-DELIVERY.epic.json)** — Remote/CDN asset delivery | planned | engine | 0 / 0 / 0 |  |
@@ -90,7 +93,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[THREE-JS-RENDERER](backlog/epics/THREE-JS-RENDERER.epic.json)** — Three.js renderer | done | engine | 1 / 0 / 1 |  |
 | **[TOOLCHAIN-AND-TESTS](backlog/epics/TOOLCHAIN-AND-TESTS.epic.json)** — Toolchain and tests | done | engine | 0 / 0 / 0 |  |
 
-**Promotion candidates** (planned + dependencies satisfied): AUDIO, BENCHMARK-STYLE-REPORTS, EXAMPLES-FEATURE-LAB-SANDBOX, EXECUTABLE-AGENT-SKILLS, M18, M19, M26, PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY, PROCEDURAL-CHARACTER-GENERATOR, REMOTE-CDN-ASSET-DELIVERY, TINY-FAST-REGRESSION-2D-SAMPLE-PONG-CLASS, WORKSPACE-PACKAGE-SPLIT.
+**Promotion candidates** (planned + dependencies satisfied): AUDIO, BENCHMARK-STYLE-REPORTS, EXAMPLES-FEATURE-LAB-SANDBOX, EXECUTABLE-AGENT-SKILLS, M18, M19, M26, M27-DECAL-LAYER, M28-REGION-RULES, PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY, PROCEDURAL-CHARACTER-GENERATOR, REMOTE-CDN-ASSET-DELIVERY, TINY-FAST-REGRESSION-2D-SAMPLE-PONG-CLASS, WORKSPACE-PACKAGE-SPLIT.
 
 <!-- backlog:render:end -->
 

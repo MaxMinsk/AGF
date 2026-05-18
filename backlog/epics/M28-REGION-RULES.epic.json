@@ -1,0 +1,22 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M28-REGION-RULES",
+  "title": "M28 Region / sector modifier primitive",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Generic 'a rule that applies to entities inside a region' primitive. Components: `Region { shape: rect | polygon | disc, layer? }` + `RegionTag` (which entities are affected) + `RegionRule` (what changes inside the region — fuse-time multiplier, gravity scale, damage mask, minimap visibility, etc.). Required by Kaboom Crew's sector modifiers (fast-fuse zones, reactor reflect zones, storm-disables-minimap zones — see §14 of the readiness analysis) and the network-relevance / fog-of-war queries that need exactly the same shape primitives. Project games declare specific rules; the engine ships the region-membership query + the tag-injection system.",
+  "targetMilestone": "MVP-2",
+  "dependsOn": ["M16", "M22"],
+  "sourceDoc": "notes/dynabomber-readiness-analysis.md",
+  "doneCriteria": [
+    "`schemas/components/region.schema.json` ships (Region + RegionRule shapes).",
+    "Engine `RegionMembershipSystem` maintains a sparse `entity → region[]` index updated on Transform/Region change.",
+    "`runtime.queryRegion(regionId)` returns the entities currently inside — Pickable / Networked / VFX systems consume it without re-deriving membership.",
+    "Doctor warns on overlapping region layers + per-frame region-query cost.",
+    "Kaboom Crew level uses two distinct regions (fast-fuse + reflect)."
+  ],
+  "notes": [
+    "Source: §14 of notes/dynabomber-readiness-analysis.md (consolidates the sector-modifier and run-time-mutation rows).",
+    "Sister epic for fog-of-war / network relevance: same region primitive, different consumers — explicit goal is to NOT build three near-identical region implementations."
+  ]
+}
