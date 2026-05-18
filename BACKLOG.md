@@ -30,7 +30,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S082.sprint.js
 - **KABOOM-RESTART** — Round restart command — R key resets the scene + RoundState _(implemented)_
   Project-local input maps the `R` key to a `RoundRestartRequest` transient on a singleton control entity. `RoundResolveSystem` consumes it: applies the inverse-of-scene command chain (re-runs `scene.load` against examples/kaboom-crew/scenes/start.scene.json, or re-rolls a procedural seed). Lives entirely as data + commands so the same path serves agent replay scripts. No imperative renderer reset needed.
   Depends on: KABOOM-DAMAGE-AND-DEATH.
-- **KABOOM-HUD-PANEL** — HUD: round timer + bomber stats + win/loss banner _(pending)_
+- **KABOOM-HUD-PANEL** — HUD: round timer + bomber stats + win/loss banner _(implemented)_
   Three HUD widgets wired into the runtime.hud surface from S081: (a) topLeft — bomber stats (active bombs / range / speed icons + numbers); (b) topRight — minimap with player + bot + bomb markers (driven by createMinimapWidget); (c) center — win/loss banner driven by RoundState. Project queries the ECS each frame and pushes the data via runtime.hud.update — engine HUD primitive stays project-agnostic.
   Depends on: KABOOM-PICKUPS-AND-STATS, KABOOM-DAMAGE-AND-DEATH.
 - **KABOOM-AGENT-CONTROLS** — Agent-friendly control surface: `runtime.kaboom = { gotoCell, placeBomb, status }` _(implemented)_

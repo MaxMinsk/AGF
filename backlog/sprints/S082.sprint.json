@@ -162,12 +162,14 @@
     {
       "id": "KABOOM-HUD-PANEL",
       "title": "HUD: round timer + bomber stats + win/loss banner",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Three HUD widgets wired into the runtime.hud surface from S081: (a) topLeft — bomber stats (active bombs / range / speed icons + numbers); (b) topRight — minimap with player + bot + bomb markers (driven by createMinimapWidget); (c) center — win/loss banner driven by RoundState. Project queries the ECS each frame and pushes the data via runtime.hud.update — engine HUD primitive stays project-agnostic.",
       "verification": [
         "live: HUD shows 1 / 1 / 4 (bombs/range/speed) at round start; updates when a Bomb-up is collected",
         "live: minimap markers track the player + bot as they move",
-        "live: banner appears with the winning entity id after a blast kill"
+        "live: banner appears with the winning entity id after a blast kill",
+        "live probe: HUD root present with 3 widgets (kaboom.stats topLeft, kaboom.minimap topRight with canvas, kaboom.banner center)",
+        "live probe: stats widget shows 'round: playing t:2s' + per-bomber 'bombs A/B fire C' lines; banner flips to 'YOU WIN — restart in 3 s (R)' after killing bot.1"
       ],
       "dependsOn": [
         "KABOOM-PICKUPS-AND-STATS",

@@ -9,6 +9,7 @@ import type {
   ProjectUiHandle
 } from "../../engine/runtime/project-bootstrap";
 import type { RuntimeHandle } from "../../engine/runtime/start";
+import { createMinimapWidget } from "../../engine/runtime/ui/minimap";
 import startSceneJson from "./scenes/start.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
@@ -307,11 +308,119 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // engine-level type for the project-local surface.
     (runtime as unknown as { kaboom?: typeof api }).kaboom = api;
 
+    // S82 KABOOM-HUD-PANEL. Three widgets driven from the ECS each
+    // animation frame — engine-side HUD primitives stay generic, the
+    // project pushes data:
+    //   - topLeft   "kaboom.stats" — player/bot stats line
+    //   - topRight  "kaboom.minimap" — Canvas2D minimap
+    //   - center    "kaboom.banner" — win/loss/draw banner + restart hint
+    // The HUD handle on RuntimeHandle is loosely typed (different
+    // runtimes may not surface a HUD); guard with `?.add`.
+    type HudCapable = { hud?: { add(spec: unknown): void; update(id: string, data: unknown): void; remove(id: string): void } };
+    const hud = (runtime as unknown as HudCapable).hud;
+    let rafId: number | undefined;
+    let hudCleanup: (() => void) | undefined;
+    if (hud !== undefined && typeof globalThis.requestAnimationFrame === "function") {
+      const STATS_ID = "kaboom.stats";
+      const BANNER_ID = "kaboom.banner";
+      const MINIMAP_ID = "kaboom.minimap";
+
+      hud.add({
+        id: STATS_ID,
+        slot: "topLeft",
+        initial: { lines: ["Kaboom Crew"] },
+        render: (data: { lines: ReadonlyArray<string> }): string => data.lines.join("\n")
+      });
+      hud.add({
+        id: BANNER_ID,
+        slot: "center",
+        initial: { text: "" },
+        render: (data: { text: string }): string => data.text
+      });
+      // Arena bounds are 15 × 11 cells with cellSize 1, origin at (0,0).
+      // Mirror the engine grid layout — same convention the world uses.
+      // Pass `initial` so HUD's first render call doesn't dereference
+      // an undefined `data.markers` (minimap.paint expects MinimapData).
+      const minimapSpec = createMinimapWidget({
+        id: MINIMAP_ID,
+        slot: "topRight",
+        bounds: { minX: -0.5, maxX: 14.5, minZ: -0.5, maxZ: 10.5 },
+        pixelSize: 160
+      });
+      hud.add({ ...minimapSpec, initial: { markers: [] } } as unknown);
+
+      const colorFor = (id: string): string =>
+        id === "player.1" ? "#5fa8ff" : id === "bot.1" ? "#ff7a36" : "#ffffff";
+
+      const update = (): void => {
+        const s = api.status() as {
+          round?: { phase?: string; elapsed?: number; winnerId?: string };
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
+          bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
+          pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
+        };
+        // Stats line — one row per bomber.
+        const lines: string[] = [];
+        const phase = s.round?.phase ?? "playing";
+        const elapsed = Math.floor(s.round?.elapsed ?? 0);
+        lines.push(`round: ${phase}   t: ${elapsed}s`);
+        for (const p of s.players) {
+          const dead = p.alive === false ? " ✗" : "";
+          lines.push(
+            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
+          );
+        }
+        hud.update(STATS_ID, { lines });
+
+        // Banner — empty while playing, message otherwise.
+        let bannerText = "";
+        if (phase === "won") bannerText = "YOU WIN — restart in 3 s (R)";
+        else if (phase === "lost") bannerText = "YOU LOST — restart in 3 s (R)";
+        else if (phase === "draw") bannerText = "DRAW — restart in 3 s (R)";
+        hud.update(BANNER_ID, { text: bannerText });
+
+        // Minimap markers — players + bots + bombs + pickups.
+        const markers: Array<{ x: number; z: number; color: string; shape?: "dot" | "rect" | "triangle"; size?: number }> = [];
+        for (const p of s.players) {
+          if (p.gx === undefined || p.gz === undefined) continue;
+          markers.push({
+            x: p.gx,
+            z: p.gz,
+            color: p.alive === false ? "#666" : colorFor(p.id),
+            shape: "triangle",
+            size: 5
+          });
+        }
+        for (const b of s.bombs) {
+          if (b.gx === undefined || b.gz === undefined) continue;
+          markers.push({ x: b.gx, z: b.gz, color: "#222", shape: "dot", size: 3 });
+        }
+        for (const pk of s.pickups) {
+          if (pk.gx === undefined || pk.gz === undefined) continue;
+          const color = pk.kind === "bomb-up" ? "#5fa8ff" : pk.kind === "fire-up" ? "#ff7a36" : "#7be35f";
+          markers.push({ x: pk.gx, z: pk.gz, color, shape: "rect", size: 4 });
+        }
+        hud.update(MINIMAP_ID, { markers });
+
+        rafId = requestAnimationFrame(update);
+      };
+      rafId = requestAnimationFrame(update);
+
+      hudCleanup = (): void => {
+        if (rafId !== undefined) cancelAnimationFrame(rafId);
+        rafId = undefined;
+        hud.remove(STATS_ID);
+        hud.remove(BANNER_ID);
+        hud.remove(MINIMAP_ID);
+      };
+    }
+
     return {
       dispose(): void {
         window.removeEventListener("keydown", handleKey);
         if (w.__agf !== undefined) delete w.__agf.kaboom;
         _boundRestart = undefined;
+        if (hudCleanup !== undefined) hudCleanup();
       }
     };
   },
