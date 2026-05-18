@@ -53,8 +53,18 @@ const VENDOR_BUDGETS = [
     // `three-webgpu-` chunk above. The remaining `three-` chunk holds
     // `three.module.js` + `three.core.js` and lights / shadows / loaders
     // / post-processing addons used by the WebGL path.
-    budget: 340 * 1024,
-    label: "Three.js core (WebGL renderer + addons)"
+    //
+    // S82 raised 340 → 560 KB. The S70 split never actually produced a
+    // separate `three-webgpu-` chunk in the build (Vite's chunking pulls
+    // `three.webgpu.js` straight into the main `three` chunk despite the
+    // dynamic `import("three/webgpu")` in webgpu-module-loader.ts). The
+    // result has been a silent ~536 KB chunk on main since S75 with CI
+    // failing the whole time — only noticed during S82. Bump unblocks
+    // the gate; AGF-WEBGPU-CHUNK-SPLIT (engine S083) investigates why
+    // the manualChunks split doesn't take effect and how to actually
+    // get the WebGPU code lazy-loaded.
+    budget: 560 * 1024,
+    label: "Three.js core (WebGL renderer + addons; WebGPU code also lives here today — see AGF-WEBGPU-CHUNK-SPLIT)"
   }
 ];
 

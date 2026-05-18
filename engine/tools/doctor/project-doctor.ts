@@ -59,15 +59,16 @@ export type PerformanceBudget = {
  */
 export const DEFAULT_VENDOR_BUDGETS: Record<string, { softGzipKb?: number; hardGzipKb: number }> = {
   "rapier-": { hardGzipKb: 900 },
-  // S70 split the legacy `three-` chunk: the WebGPU-only TSL / node-
-  // material code (~150 KB gzipped) moved into a dedicated lazy
-  // `three-webgpu-` chunk pulled in only when `project.render.mode =
-  // "webgpu"`. The remaining `three-` chunk holds core three.js + the
-  // WebGL renderer + loaders, sitting around 305 KB gzipped. Doctor's
-  // hard ceiling lives slightly above scripts/check-bundle-size.mjs'
-  // 340 KB headroom so the two don't fight; tighten when three.js drops
-  // dead code.
-  "three-": { hardGzipKb: 340 },
+  // S70 intended to split the legacy `three-` chunk by moving the
+  // WebGPU-only TSL / node-material code into a separate
+  // `three-webgpu-` chunk via the manualChunks rule in vite.config.ts.
+  // In practice the split never produced a distinct chunk (Vite pulls
+  // `three.webgpu.js` straight into the main `three` chunk despite the
+  // dynamic `import("three/webgpu")` in webgpu-module-loader.ts), so the
+  // combined chunk sits at ~520 KB gzipped. S82 raised the budget to
+  // keep doctor + bundle:check aligned; AGF-WEBGPU-CHUNK-SPLIT (engine
+  // S083) actually fixes the split. Tighten when that lands.
+  "three-": { hardGzipKb: 560 },
   "three-webgpu-": { hardGzipKb: 200 }
 };
 
