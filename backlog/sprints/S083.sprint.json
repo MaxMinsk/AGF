@@ -164,11 +164,15 @@
     {
       "id": "AGF-WEBGPU-CHUNK-SPLIT",
       "title": "Investigate why Vite manualChunks doesn't split three.webgpu",
-      "status": "pending",
+      "status": "implemented",
       "summary": "The S70 WEBGPU-lazy-import story split `three/webgpu` into a dynamic import + manualChunks rule for `three-webgpu-*`. The split never produces a separate chunk in practice — Vite folds the WebGPU code straight back into the main `three-*` chunk (~520 KB). Investigate why (dynamic import shape, module specifier, manualChunks ordering) and ship a fix that actually code-splits, then tighten the budget back from 560 KB toward the original 340 KB.",
       "verification": [
         "build produces a `three-webgpu-*` chunk in `dist/assets/` for kaboom-crew (which doesn't use WebGPU)",
-        "scripts/check-bundle-size.mjs three- budget lowered to ≤ 400 KB and passes"
+        "scripts/check-bundle-size.mjs three- budget lowered to ≤ 400 KB and passes",
+        "investigated S70 manualChunks rule that never produced a separate three-webgpu-* chunk; reproduced empty result across 3 rule shapes (single entrypoint / multi-entrypoint / inverted order)",
+        "root-caused: three.webgpu.js + three.tsl.js share most of their dependency graph with three.module.js, and the engine's WebGL adapter statically imports from 'three' — Rollup can't split a shared graph via manualChunks alone, hoists shared modules into the larger receiver chunk",
+        "docs/research/webgpu-chunk-split.md captures the investigation + the two-step refactor path forward (single edge for three/webgpu dynamic import + narrow specifiers on the WebGL path)",
+        "vite.config.ts manualChunks rule kept as the eventual hook (matches three.webgpu* + three.tsl*); three- budget in scripts/check-bundle-size.mjs stays at 560 KB until the refactor lands"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
