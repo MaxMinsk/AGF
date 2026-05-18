@@ -5,9 +5,13 @@
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {
-    "mode": "webgl",
+    "mode": "webgpu",
     "background": "#0a1118",
-    "batching": { "auto": true }
+    "batching": {
+      "auto": true
+    }
   },
-  "profiles": ["static"]
+  "profiles": [
+    "static"
+  ]
 }
