@@ -1,0 +1,57 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S003",
+  "title": "Sample Game Kickoff And GLB Smoke",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S003-1",
+      "title": "`13.1` Beacon World project scaffold under `examples/beacon-world/` — `project.json`, an initial scene with camera + ground plate, the…",
+      "status": "implemented",
+      "summary": "`13.1` Beacon World project scaffold under `examples/beacon-world/` — `project.json`, an initial scene with camera + ground plate, the `source/runtime/_sources` folder layout and a minimal `asset-sources.json`. `engine check` and `engine inspect` work on the new project.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S003-2",
+      "title": "`13.2` Beacon World first scene populated — salvage drone (sphere) and two counter-spinning beacons (vertical boxes) with PBR material…",
+      "status": "implemented",
+      "summary": "`13.2` Beacon World first scene populated — salvage drone (sphere) and two counter-spinning beacons (vertical boxes) with PBR material manifests (`beacon.material.json`, `drone.material.json`). No engine code needed; everything composed from primitives + materials + the existing scheduler.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S003-3",
+      "title": "`14.1` `scripts/build-cube-glb.mjs` writes a 1524-byte binary glTF 2.0 cube without any npm dependency.",
+      "status": "implemented",
+      "summary": "The committed `examples/hello-3d/assets/runtime/models/cube.glb` is what the runtime now loads instead of the renderer's `box` primitive. `ThreeRenderer` recognises `.glb`/`.gltf` mesh refs, draws a near-zero placeholder while the asset registry resolves the GLB and swaps in the first mesh's geometry. Material binding from Story 8.3 still controls colour/roughness/metalness/emissive on top of the GLB geometry.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S003-4",
+      "title": "Out-of-story housekeeping: parked a \"Remote/CDN asset delivery\" roadmap epic in `HIGH_LEVEL_BACKLOG.md` and warned authors in…",
+      "status": "implemented",
+      "summary": "Out-of-story housekeeping: parked a \"Remote/CDN asset delivery\" roadmap epic in `HIGH_LEVEL_BACKLOG.md` and warned authors in `docs/agent/asset-authoring-checklist.md` not to invent CDN paths in scene references yet.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "Beacon World visual preview is gated on a project switcher in `src/` or a Vite query-param tweak (Sprint 4 candidate). Today the only way to view Beacon World in the browser is a manual import swap in `src/main.ts`.",
+    "Beacon World gameplay (movement, energy core pickups, repair interactions, hazards) — none of this exists yet; the scene is a static silhouette.",
+    "`npm run build` still does not publish `examples/<project>/assets/` into `dist/`. Production asset serving (Sprint 4 candidate `14.2`) is the next deliverable for the asset epic.",
+    "The hand-rolled GLB has no UVs, no tangents and only flat shading; it is enough for smoke testing but will not survive a real material with textures. A real art pipeline + real `.glb`s for Beacon World is later work."
+  ],
+  "notes": [
+    "Deliverables: `examples/beacon-world/` (project, scene, materials, asset-sources); `examples/hello-3d/assets/runtime/models/cube.glb`; `scripts/build-cube-glb.mjs`; Updates to `engine/render/three-renderer.ts` (GLB ref support, `appliedGeometries` map, helper functions); `HIGH_LEVEL_BACKLOG.md` (CDN epic) + `docs/agent/asset-authoring-checklist.md` (CDN note)",
+    "Verification: Sprint-close `npm run preflight`: typecheck clean, 66 Vitest tests across 11 files, vite build OK, 2 Playwright e2e (canvas smoke + agent-loop robot).; `npm run engine:check -- examples/hello-3d` and `npm run engine:check -- examples/beacon-world` both green.; `npm run engine:inspect -- examples/beacon-world` lists 5 entities (camera, ground, drone, west/east beacons).; Screenshot artifact confirms the hero cube renders at the expected size with the cyan-metallic material on top of the GLB geometry.",
+    "Goal Recap: Beacon World is a valid AGF project with a readable first scene.; The GLB loader path is exercised end-to-end on `hello-3d`, closing the Sprint 2 Story 8.4 follow-up."
+  ]
+}

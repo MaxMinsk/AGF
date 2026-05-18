@@ -1,0 +1,59 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S045",
+  "title": "Agent authoring helpers",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S045-1",
+      "title": "**AGENT-cli-list-components** ✅ — `engine list components [projectDir]` enumerates every built-in component declared on `scene.schema.json`…",
+      "status": "implemented",
+      "summary": "**AGENT-cli-list-components** ✅ — `engine list components [projectDir]` enumerates every built-in component declared on `scene.schema.json` + every project-local component in `<projectDir>/project-local-components.schema.json`. Reads `description` straight from the schema. `engine list examples` lists every project under `examples/` (`hello-3d`, `beacon-world`, batch/physics/shadows-bench).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S045-2",
+      "title": "**AGENT-cli-explain** ✅ — `engine explain component <Name> [projectDir]` resolves the schema definition, lists required + optional fields…",
+      "status": "implemented",
+      "summary": "**AGENT-cli-explain** ✅ — `engine explain component <Name> [projectDir]` resolves the schema definition, lists required + optional fields with their types + descriptions, and prints a derived authoring example (required-only object).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S045-3",
+      "title": "**AGENT-cli-new** ✅ — `engine new <name> --template hello-3d [--target <dir>]` copies the template tree, rewrites `project.json` +…",
+      "status": "implemented",
+      "summary": "**AGENT-cli-new** ✅ — `engine new <name> --template hello-3d [--target <dir>]` copies the template tree, rewrites `project.json` + `template.json` for the new id, runs `engine check` on the result. Skips `node_modules` / `dist` / `_sources`. 4 unit tests cover the happy path, invalid name, destination collision, missing template.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S045-4",
+      "title": "**AGENT-cli-screenshot** ✅ — `engine screenshot <projectId> --out <path>` boots a headless Chromium via `@playwright/test`'s low-level API,…",
+      "status": "implemented",
+      "summary": "**AGENT-cli-screenshot** ✅ — `engine screenshot <projectId> --out <path>` boots a headless Chromium via `@playwright/test`'s low-level API, navigates to `?project=<id>`, awaits `__agf.rendererReady`, settles 250ms, writes the PNG. Auto-boots a transient Vite dev server when one isn't already listening; `--reuse-server` opts out.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S045-5",
+      "title": "**AGENT-docs-build-a-game** ✅ — `docs/agent/build-a-game.md`: one-page contract covering the mental model, the discover → edit → validate →…",
+      "status": "implemented",
+      "summary": "**AGENT-docs-build-a-game** ✅ — `docs/agent/build-a-game.md`: one-page contract covering the mental model, the discover → edit → validate → inspect → run → playtest loop, common recipes (add entity, project-local component, custom system, asset import, screenshot), hard rules, the dev-bridge surface table, the \"stop\" criteria.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "notes": [
+    "Deliverables: `engine/tools/components/list-components.ts` (new); `engine/tools/components/explain-component.ts` (new); `engine/tools/new/project-new.ts` (new); `engine/tools/screenshot/project-screenshot.ts` (new); `engine/tools/cli.ts` — wired `list` / `explain` / `new` / `screenshot` subcommands + usage block; `package.json` — `engine:list`, `engine:explain`, `engine:new`, `engine:screenshot` scripts; `tests/unit/project-new.test.ts` (new); `docs/agent/build-a-game.md` (new)",
+    "Verification: `npm run typecheck` ✅; `npm run engine:list -- components` ✅ — 17 built-ins printed with descriptions.; `npm run engine:explain -- component Transform` ✅; `npm run engine:list -- examples` ✅; `npm run test` ✅ — 67 files, **422 tests** (was 412; +4 project-new tests + 4 cube schema tests + 2 PCSS tests)."
+  ]
+}

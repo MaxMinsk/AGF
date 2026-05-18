@@ -1,0 +1,46 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S062",
+  "title": "WebGPU feature parity I (HDR / generated IBL)",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S062-1",
+      "title": "**WEBGPU-hdr-ibl** + **WEBGPU-generated-env** — the adapter routes through `three/webgpu`'s `PMREMGenerator` when `mode = \"webgpu\"`.",
+      "status": "implemented",
+      "summary": "It's a different class than the WebGL one (takes the new `Renderer` base instead of `WebGLRenderer`); cast through `unknown` because TS doesn't see the structural overlap. Both `environment.kind: \"generated\"` (RoomEnvironment + PMREM) and `environment.kind: \"hdr\"` work end-to-end on the WebGPU spike — confirmed via headed playwright probe: geometries 5 → 18 (PMREM cube probes), textures 5 → 9 (PMREM RTs), zero errors.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S062-2",
+      "title": "**DOCS-webgpu-skill-update** — skill memo `docs/agent/skills/webgpu-rendering.md` moves HDR IBL out of the \"deferred\" list into \"what S62…",
+      "status": "implemented",
+      "summary": "**DOCS-webgpu-skill-update** — skill memo `docs/agent/skills/webgpu-rendering.md` moves HDR IBL out of the \"deferred\" list into \"what S62 landed\"; roadmap row for S62 marked ✅; S63 row now bundles post-passes + CSM + PCSS + probes + mirror + GPU timer.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S062-3",
+      "title": "**DOCS-webgpu-spike-readme** — `examples/webgpu-spike/README.md` notes the new HDR / IBL capability + how to flip the spike's environment to…",
+      "status": "implemented",
+      "summary": "**DOCS-webgpu-spike-readme** — `examples/webgpu-spike/README.md` notes the new HDR / IBL capability + how to flip the spike's environment to `hdr` for visual verification.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**S63 — feature parity II**: Bloom / SSAO / LUT / FXAA via `three/webgpu` `RenderPipeline` + TSL nodes; CSM via `CSMNode`; PCSS rewritten as TSL node; reflection probes via WebGPU CubeRenderTarget + `three/webgpu` PMREM (already wired by S62); planar mirror via `ReflectorNode`; GPU timer via `GPUQuerySet`. All of these are individually sprint-sized; S63 may pick the highest-value subset.",
+    "**HDR sky file shipped on the spike** — the spike still uses `environment.kind: \"generated\"` so the visual win is subtle (RoomEnvironment ambient). A real HDR like `venice_sunset_1k.hdr` (already in `material-bench`) would make the IBL improvement obvious."
+  ],
+  "notes": [
+    "Deliverables: `engine/render/three-render-adapter.ts` — `PMREMGenerator` from `three/webgpu` imported as `WebGpuPMREMGenerator`; `setEnvironment()` branches on `capabilities.kind` to pick the right PMREMGenerator class.; `docs/agent/skills/webgpu-rendering.md` — S62 row marked ✅; deferred list updated.; `examples/webgpu-spike/README.md` — \"What S62 added\" section.",
+    "Verification: typecheck + unit tests + engine:check all clean.; Headed playwright probe of `?project=webgpu-spike` with `--enable-unsafe-webgpu`: `renderer: \"webgpu\"`, geometries 5 → 18 (PMREM cube probes), textures 5 → 9 (PMREM RTs), zero pageerrors. RoomEnvironment IBL feeds the spike's metallic / glossy materials.; Verified existing WebGL projects still work (hello-3d / material-bench / water-bench all keep their WebGL paths via the capability check).",
+    "Re-deferred to S63: **WEBGPU-post-bloom / WEBGPU-post-ssao / WEBGPU-post-lut / WEBGPU-post-fxaa** — Bloom / SSAO / LUT / FXAA on `RenderPipeline` (three/webgpu) with TSL nodes (`three/addons/tsl/display/{BloomNode, FXAANode, GTAONode}`). Different API than the WebGL composer; `setPostPipeline()` needs a webgpu branch that builds a TSL node graph instead of attaching EffectComposer passes.; **DOCTOR-webgpu-post-aware** — doctor stops flagging post-passes once Story above lands.; **WEBGPU-info-bloomMs** — `__agf.rendererInfo().postProcessingMs` from the WebGPU `RenderPipeline` execution.; **WEBGPU-renderer-import-boundary** — re-deferred (no `engine/render/webgpu/` directory yet; lands with the post-pass / probe ports when files actually start landing there).; **WEBGPU-spike-post** — spike picks up bloom + ssao + HDR once Stories above ship."
+  ]
+}

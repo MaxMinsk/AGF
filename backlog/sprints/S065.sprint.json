@@ -1,0 +1,37 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S065",
+  "title": "WebGPU post-bloom investigation (blocked on ShaderMaterial)",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S065-1",
+      "title": "**WEBGPU-post-bloom investigation** — wired `three/webgpu` `PostProcessing` + `three/addons/tsl/display/BloomNode.js` as a parallel pipeline…",
+      "status": "implemented",
+      "summary": "**WEBGPU-post-bloom investigation** — wired `three/webgpu` `PostProcessing` + `three/addons/tsl/display/BloomNode.js` as a parallel pipeline alongside the existing WebGL `EffectComposer`. Capability flag `supportsPostBloom` proposed. Implementation typecheck'd and the build wired up; first runtime probe surfaced the `ShaderMaterial` incompatibility. Bisected — removing `environment.kind: \"generated\"`, the reflection probe, and `castShadow` in isolation each did NOT clear the error. Concluded: AGF's render path contains at least one `ShaderMaterial` instance the TSL `NodeBuilder` can't auto-convert; candidates include three.js's internal shadow `MeshDepthMaterial` (extends `ShaderMaterial`), PMREM `RoomEnvironment` shader materials, and AGF's `GroundedSkybox` / `ShadowMaterial`. Reverted all bloom code; capability flags stay `supportsPostProcessing: false` on WebGPU.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S065-2",
+      "title": "**Skill memo update** — `docs/agent/skills/webgpu-rendering.md` gains an \"S65 investigation: post-processing on WebGPU blocked\" section…",
+      "status": "implemented",
+      "summary": "**Skill memo update** — `docs/agent/skills/webgpu-rendering.md` gains an \"S65 investigation: post-processing on WebGPU blocked\" section documenting the failure mode + the audit plan needed to unblock future post-pass ports.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**S66** — start with the ShaderMaterial audit. Once we know which paths need node-material ports, the remaining feature parity stories (post-passes, CSM, planar mirror, etc) become tractable mechanical ports. Without it, every port is blocked by the same wall."
+  ],
+  "notes": [
+    "Deliverables: `docs/agent/skills/webgpu-rendering.md` — investigation findings + audit plan.",
+    "Verification: typecheck + 511 unit tests pass.; Headed playwright probe of `?project=webgpu-spike` with `--enable-unsafe-webgpu`: scene renders correctly (no post-pipeline active), `renderer: \"webgpu\"`, `meshes: 4`, `drawCalls: 3` steady, zero pageerrors. WebGPU spike state preserved.",
+    "Why this sprint scoped to one investigation: ",
+    "Deferred to S66: **WEBGPU-shadermaterial-audit (new)** — audit every `ShaderMaterial` AGF or three.js creates during a render frame; either swap to node-material equivalents in WebGPU mode (`MeshDepthNodeMaterial`, etc) or find a TSL escape-hatch.; All previously-listed S65 stories (post-passes, CSM, PCSS, planar mirror, GPU timer, lazy import, migrations, default-flip) — gated on the audit above for any feature that touches the PostProcessing pipeline."
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S018",
+  "title": "Multi-Client e2e + Stable Inspect + Recipe Doc + Round Reset",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S018-1",
+      "title": "`10.11` Multi-client e2e — new `tests/e2e/multiclient-roundtrip.spec.ts`.",
+      "status": "implemented",
+      "summary": "The test spawns `tsx examples/backends/node-world-server/src/index.ts --serve` on a random port, opens two browser contexts at `?project=beacon-world&server=ws://...&networked=1&playerId=alpha|bravo`, and proves: (1) each page's `__agf.snapshot()` lists `player.alpha` and `player.bravo`; (2) when `alpha` presses `KeyD`, `bravo`'s snapshot for `player.alpha` shows `Transform.position[0] > 0.1`. The backend is started fresh per test and torn down via `SIGTERM`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S018-2",
+      "title": "`E.7` Stable inspect JSON — new `toStableInspectResult` reduces `projectDir` to its basename and re-emits the result with top-level keys…",
+      "status": "implemented",
+      "summary": "`E.7` Stable inspect JSON — new `toStableInspectResult` reduces `projectDir` to its basename and re-emits the result with top-level keys sorted alphabetically. `engine inspect --save` writes the stable form so a diff between two runs on different machines is byte-meaningful. Component values were already alphabetically sorted by `inspectProject`. Three unit tests cover the rename, byte-stability, and filter/project/scene preservation paths.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S018-3",
+      "title": "`E.8` Agent test recipe doc — new `docs/agent/test-recipe.md`.",
+      "status": "implemented",
+      "summary": "One page of pinned commands and URL flags walking through the canonical verification recipe: edit JSON → `engine check` → before/after `engine inspect --save --diff [--tail N]` → `npm run test` → `npm run playtest` → browser dev + `window.__agf` → `npm run test:e2e` → optional WS round-trip → sprint-close `preflight`. Linked from `docs/agent/claude-code.md`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S018-4",
+      "title": "`13.15` Round reset — new `examples/beacon-world/src/round-reset.ts` exports `resetBeaconRound(world)` that re-arms all `Repairable` beacons…",
+      "status": "implemented",
+      "summary": "`13.15` Round reset — new `examples/beacon-world/src/round-reset.ts` exports `resetBeaconRound(world)` that re-arms all `Repairable` beacons (restoring `originalMaterial`/`originalColor` the same way decay does), respawns every consumed `Pickup` to its `originalPosition` and flips `RoundState` back to `\"active\"` with `holdProgress = 0`. `src/app.ts` binds `window`-level `KeyR` (skipping input fields) when the project is Beacon World and exposes `AppHandle.resetRound()`. `src/main.ts` re-exports it on `window.__agf.resetRound()` (DEV only). Four unit tests cover the beacon path, the pickup path, the round-state path and the no-op / mutation-count path.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`10.5` C#/.NET reference skeleton still pending.",
+    "`10.10` Authority hand-off (hide local drone when networked) still pending.",
+    "`13.12` Sound pings still pending.",
+    "HUD does not yet say \"Press R to restart\" when phase === \"complete\"; the affordance is documented but not on-screen. Trivial follow-up."
+  ],
+  "notes": [
+    "Deliverables: `engine/tools/inspect/project-inspect.ts` (`toStableInspectResult`); `engine/tools/cli.ts` (uses stable form for `--save` on inspect); `examples/beacon-world/src/round-reset.ts`; `examples/beacon-world/tests/unit/round-reset.test.ts`; `src/app.ts` (`AppHandle.resetRound`, `KeyR` keyboard binding), `src/main.ts` (`__agf.resetRound`); `tests/e2e/multiclient-roundtrip.spec.ts`; `tests/unit/project-inspect-stable.test.ts`; `docs/agent/test-recipe.md`, `docs/agent/claude-code.md` (link)",
+    "Verification: `engine check examples/hello-3d` and `examples/beacon-world`: green.; Sprint-close `npm run preflight`: typecheck clean, 146 Vitest tests across 22 files, vite build OK, 11 Playwright e2e tests (including the new multi-client backend round-trip).",
+    "Goal Recap: The networking stack now has end-to-end coverage that genuinely uses the WS server, two real browser contexts, and asserts on cross-client visibility. Anyone (or any agent) can rerun it with one `npm run test:e2e`.; `engine inspect --save` produces output that diffs cleanly across machines, so an agent saving snapshots in CI and locally gets the same bytes.; The recipe doc collapses the right command chain into one page, so a fresh agent doesn't have to grep for which script to run.; Beacon World now has an explicit \"play again\" gesture (`KeyR`, `__agf.resetRound()`, or `AppHandle.resetRound()`), so post-completion the world is in a known clean state without a page reload."
+  ]
+}

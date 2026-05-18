@@ -159,65 +159,30 @@ function renderArchiveBlock(archivedSprints) {
       ""
     ].join("\n");
   }
+  // Compact view: one bullet per sprint with title + link to the source
+  // JSON file. The full body lives in the JSON; rendering everything
+  // inline blows BACKLOG_ARCHIVE.md to thousands of lines.
   const lines = [];
   lines.push("");
-  for (const sprint of archivedSprints.sort((a, b) => a.id.localeCompare(b.id))) {
-    lines.push(`## ${sprint.id} — ${sprint.title}`);
-    lines.push("");
-    const dates = [];
-    if (sprint.startedAt) dates.push(`started ${sprint.startedAt}`);
-    if (sprint.archivedAt) dates.push(`archived ${sprint.archivedAt}`);
-    if (dates.length > 0) lines.push(`Status: **archived** (${dates.join(", ")}).`);
-    else lines.push(`Status: **archived**.`);
-    if (sprint.prUrl) lines.push(`PR: ${sprint.prUrl}`);
-    lines.push("");
-    lines.push("### Completed Work");
-    lines.push("");
-    const implemented = (sprint.stories ?? []).filter((s) => s.status === "implemented");
-    const deferred = (sprint.stories ?? []).filter((s) => s.status === "deferred");
-    if (implemented.length === 0) {
-      lines.push("_No implemented stories recorded._");
-    } else {
-      for (const story of implemented) {
-        lines.push(`- **${story.id}** — ${story.title}`);
-        if (story.summary) lines.push(`  ${oneLine(story.summary)}`);
-        if (story.verification && story.verification.length > 0) {
-          lines.push(`  Verification: ${story.verification.map((v) => `\`${v}\``).join(", ")}.`);
-        }
-        if (story.deliverables && story.deliverables.length > 0) {
-          lines.push(`  Deliverables: ${story.deliverables.map((d) => `\`${d}\``).join(", ")}.`);
-        }
-      }
-    }
-    if (deferred.length > 0) {
-      lines.push("");
-      lines.push("### Deferred");
-      lines.push("");
-      for (const story of deferred) {
-        lines.push(`- **${story.id}** — ${story.title}`);
-        if (story.deferredReason) lines.push(`  Reason: ${oneLine(story.deferredReason)}`);
-      }
-    }
-    if (sprint.outOfScope && sprint.outOfScope.length > 0) {
-      lines.push("");
-      lines.push("### Out of scope");
-      lines.push("");
-      for (const item of sprint.outOfScope) lines.push(`- ${oneLine(item)}`);
-    }
-    if (sprint.followUps && sprint.followUps.length > 0) {
-      lines.push("");
-      lines.push("### Follow-ups");
-      lines.push("");
-      for (const item of sprint.followUps) lines.push(`- ${oneLine(item)}`);
-    }
-    if (sprint.notes && sprint.notes.length > 0) {
-      lines.push("");
-      lines.push("### Notes");
-      lines.push("");
-      for (const item of sprint.notes) lines.push(`- ${oneLine(item)}`);
-    }
-    lines.push("");
+  lines.push("## Archived sprints (JSON source of truth)");
+  lines.push("");
+  lines.push("Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for completed-work bullets, verification, deliverables, follow-ups.");
+  lines.push("");
+  const sorted = [...archivedSprints].sort((a, b) => a.id.localeCompare(b.id));
+  for (const sprint of sorted) {
+    const stories = sprint.stories ?? [];
+    const implemented = stories.filter((s) => s.status === "implemented").length;
+    const deferred = stories.filter((s) => s.status === "deferred").length;
+    const archivedAt = sprint.archivedAt ? ` · archived ${sprint.archivedAt}` : "";
+    const counts = [];
+    if (implemented > 0) counts.push(`${implemented} implemented`);
+    if (deferred > 0) counts.push(`${deferred} deferred`);
+    const countStr = counts.length > 0 ? ` — ${counts.join(", ")}` : "";
+    lines.push(
+      `- **[${sprint.id}](backlog/sprints/${sprint.id}.sprint.json)** — ${oneLine(sprint.title)}${countStr}${archivedAt}`
+    );
   }
+  lines.push("");
   return lines.join("\n");
 }
 

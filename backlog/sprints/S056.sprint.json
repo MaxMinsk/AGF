@@ -1,0 +1,72 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S056",
+  "title": "Engine hygiene + ADR catch-up",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S056-1",
+      "title": "**MESHRENDERER-material-path-validator** ✅ — new `AGF_MATERIAL_REF_INVALID` error in `engine check` when `MeshRenderer.material` isn't a…",
+      "status": "implemented",
+      "summary": "**MESHRENDERER-material-path-validator** ✅ — new `AGF_MATERIAL_REF_INVALID` error in `engine check` when `MeshRenderer.material` isn't a `.material.json` path under `assetRoot`. Closes the bare-id silent-fail flagged in `material-bench-asset-friction.md`. Fixture pair + 1 unit test. Diagnostics catalogue updated.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S056-2",
+      "title": "**PRIMITIVE-set-single-source** ✅ — new `engine/core/primitives.ts` exports `PRIMITIVE_MESHES: ReadonlySet<string>`, `PRIMITIVE_MESH_NAMES:…",
+      "status": "implemented",
+      "summary": "**PRIMITIVE-set-single-source** ✅ — new `engine/core/primitives.ts` exports `PRIMITIVE_MESHES: ReadonlySet<string>`, `PRIMITIVE_MESH_NAMES: ReadonlyArray<PrimitiveMeshName>`, `isPrimitiveMesh()` helper. Five hand-rolled Sets across the engine collapse into one source of truth; the JSON-schema enum keeps a paired comment pointing at the TS source.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S056-3",
+      "title": "**ADR-0009-shadow-caster-dynamic-tag** ✅ — anchors `ShadowCaster { dynamic }` + `DynamicShadowSystem` with the S53 audit-trail of the…",
+      "status": "implemented",
+      "summary": "**ADR-0009-shadow-caster-dynamic-tag** ✅ — anchors `ShadowCaster { dynamic }` + `DynamicShadowSystem` with the S53 audit-trail of the first-version visual regression.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S056-4",
+      "title": "**ADR-0010-typed-render-pool** ✅ — anchors `BucketSpec` discriminated union, `PoolHandle` union, `RenderPoolRegistry<Entry>` (S53).",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S056-5",
+      "title": "**ADR-0011-prefab-instantiation** ✅ — anchors `expandScenePrefabs` + shallow-merge override semantics + the `AGF_SCENE_INSTANCE_*`…",
+      "status": "implemented",
+      "summary": "**ADR-0011-prefab-instantiation** ✅ — anchors `expandScenePrefabs` + shallow-merge override semantics + the `AGF_SCENE_INSTANCE_*` diagnostics + \"no nested deep merge\" rule (S54).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S056-6",
+      "title": "**ADR-0012-asset-registry-texture-resolution** ✅ — anchors the texture-refs-through-AssetRegistry rule; records the `urlFor` workaround…",
+      "status": "implemented",
+      "summary": "**ADR-0012-asset-registry-texture-resolution** ✅ — anchors the texture-refs-through-AssetRegistry rule; records the `urlFor` workaround (S54) and the planned `get<TextureAsset>()` integration (S57).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "The six visual-fidelity stories carry into S57 with their original numbering. S57 also picks up `ASSET-textures-via-registry` as its lead non-visual story.",
+    "ADR-0012 is technically \"Decision: workaround shipped, integration planned\" — once the S57 Story 3 lands, the ADR will be updated to \"Decision: full integration shipped\" without changing the rule."
+  ],
+  "notes": [
+    "Deliverables: `engine/core/primitives.ts` (new) — single-source primitive set.; `engine/tools/check/project-check.ts` — new `AGF_MATERIAL_REF_INVALID` path validator + imports the primitives.; `engine/render/systems/batching-system.ts`, `engine/tools/doctor/project-doctor.ts` — import from `engine/core/primitives.ts`.; `schemas/components/render.schema.json` — paired-comment on the primitive enum.; `docs/diagnostics.md` — new code documented.; `docs/adr/0009-0012-*.md` (4 new files).; `tests/fixtures/material-ref-bare-id/` (new fixture) + 1 new unit test in `project-check.test.ts`.",
+    "Verification: `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 505 tests + build + bundle:check + 11/11 e2e smoke (24.9 s).",
+    "Deferred to Sprint 57: 3 `ASSET-textures-via-registry`; 4 `GROUND-skybox`; 5 `REFLECTION-cube-probe`; 6 `POST-ssao`; 7 `POST-color-lut`; 12 `REFLECTION-prefilter` (depends on 5)"
+  ]
+}

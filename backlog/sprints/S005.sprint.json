@@ -1,0 +1,57 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S005",
+  "title": "Backend Contracts",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S005-1",
+      "title": "`10.1` `schemas/protocol.schema.json` — discriminated-union JSON Schema for client/server messages.",
+      "status": "implemented",
+      "summary": "Four v0 kinds: `world.snapshot`, `player.join`, `player.leave`, `intent.move`. Envelope-level `sequence` (monotonic integer) is optional. ADR-0007 records the choice.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S005-2",
+      "title": "`10.2` `examples/backends/node-world-server/` runnable skeleton — loads the protocol schema, compiles it with AJV and validates four sample…",
+      "status": "implemented",
+      "summary": "`10.2` `examples/backends/node-world-server/` runnable skeleton — loads the protocol schema, compiles it with AJV and validates four sample messages on boot. New `npm run backend:node` script. `tsconfig.json` extended to typecheck backend code. `examples/backends/README.md` documents the engine ↔ backend boundary.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S005-3",
+      "title": "`10.3` `Networked` (`authority: server | client`, optional `channel`) and `Presence` (`playerId` matching the protocol player-id pattern)…",
+      "status": "implemented",
+      "summary": "`10.3` `Networked` (`authority: server | client`, optional `channel`) and `Presence` (`playerId` matching the protocol player-id pattern) components added to `schemas/scene.schema.json`. Beacon World drone gets `Presence + Networked { client }`; both beacons get `Networked { server }`. A new fixture covers invalid authority and a malformed playerId.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S005-4",
+      "title": "Hot fix: scheduler now exposes a `runFrame(context)` phase alongside `runFixedStep`, so input-style systems can run at the real render-frame…",
+      "status": "implemented",
+      "summary": "Hot fix: scheduler now exposes a `runFrame(context)` phase alongside `runFixedStep`, so input-style systems can run at the real render-frame delta. `PlayerInputSystem` moved to `frameUpdate`; SpinSystem stays on `fixedUpdate`. Drone movement is visibly smooth now.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "The Node skeleton has no transport yet. Picking SignalR for the C# reference or raw WebSockets for the Node skeleton is the next deliverable when an actual interactive client wants to connect.",
+    "The C#/.NET reference backend is still unstaffed. ADR-0001 and ADR-0006 cover the intent, but no folder exists under `examples/backends/dotnet-world-server/` yet.",
+    "`Networked.channel` is declared in the schema but not consumed anywhere. Decide how the runtime maps `channel` to network adapters when the first real transport lands.",
+    "`frameUpdate` is now a public API surface but is used by exactly one system. Document the fixed-vs-frame split in `docs/agent/` or `docs/ARCHITECTURE.md` once the third system on either phase appears."
+  ],
+  "notes": [
+    "Deliverables: `schemas/protocol.schema.json`, `docs/adr/0007-protocol-schema-v0.md`; `examples/backends/README.md`, `examples/backends/node-world-server/{README.md,src/index.ts}`; `engine/core/systems/{types.ts,scheduler.ts}` (new `runFrame` phase + `frameUpdate` hook); `engine/runtime/player-input-system.ts` (renamed hook to `frameUpdate`); `engine/runtime/start.ts` (frame-phase invocation after the fixed loop); `schemas/scene.schema.json` (Networked + Presence); `engine/tools/check/project-check.ts` (suggested component list update); `examples/beacon-world/scenes/start.scene.json` (Networked/Presence usage); `tests/fixtures/invalid-network-component/`; `tests/unit/{protocol-schema,system-scheduler,player-input-system,project-check}.test.ts` updates",
+    "Verification: Sprint-close `npm run preflight`: typecheck clean, 84 Vitest tests across 13 files, vite build OK, 5 Playwright e2e tests.; `npm run backend:node` prints `valid` for all four sample messages and exits 0.; `npm run engine:check -- examples/beacon-world` green; `engine inspect` shows `Networked` and `Presence` on the expected entities.; Manual: hold KeyD in the browser at `?project=beacon-world` — drone slides smoothly across the ground plate.",
+    "Goal Recap: A backend-agnostic wire schema exists and is enforced by AJV at every entry point.; A reference Node backend skeleton runs against the schema and demonstrates the boundary.; Scene data carries enough metadata (`Networked`, `Presence`) for a future network adapter to act on, without forcing it into the engine yet."
+  ]
+}

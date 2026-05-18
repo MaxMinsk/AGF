@@ -1,0 +1,31 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S049",
+  "title": "rendererInfo accuracy + hygiene tidy",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S049-1",
+      "title": "**RENDERER-info-autoReset** ✅ — `__agf.rendererInfo().drawCalls` reported `1` for shadows-bench despite the scene having 300+ meshes.",
+      "status": "implemented",
+      "summary": "Root cause: `WebGLRenderer.info` resets its counters at the start of every `.render()` call, and the EffectComposer (FXAA + OutputPass in shadows-bench) issues 3 render passes per frame — so the values we read after composer.render() reflected only the final OutputPass, a single full-screen quad. Disabled `device.info.autoReset` + reset manually at the start of `draw()` so counters accumulate across every pass. shadows-bench now reports `drawCalls: 194, triangles: 70 274`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S049-2",
+      "title": "**HYGIENE-backlog-cyrillic** ✅ — Removed a stray Russian phrase from `BACKLOG.md`'s S43 archive entry (`repo:hygiene` ignores it because…",
+      "status": "implemented",
+      "summary": "**HYGIENE-backlog-cyrillic** ✅ — Removed a stray Russian phrase from `BACKLOG.md`'s S43 archive entry (`repo:hygiene` ignores it because it's already on `main`, but cleaning it up now means no future scanning surprise).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "notes": [
+    "Verification: `npm run typecheck` ✅; `npm run test` ✅ — 433 tests; Live probe shadows-bench: `drawCalls: 194` (was `1`), `triangles: 70 274` (was `1`), zero page errors."
+  ]
+}

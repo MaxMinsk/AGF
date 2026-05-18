@@ -1,0 +1,57 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S017",
+  "title": "Lifecycle Timeout + Profile Gating + Inspect Tail + Round Summary",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S017-1",
+      "title": "`10.9` Server-side player timeout — `ServerWorld` now records `lastActivity` on each player (bumped on join and on `intent.move`) and…",
+      "status": "implemented",
+      "summary": "`10.9` Server-side player timeout — `ServerWorld` now records `lastActivity` on each player (bumped on join and on `intent.move`) and exposes `expiredPlayers(timeoutSeconds)`. The WS transport accepts a `playerTimeoutSeconds` option (default 30 s; pass 0 to disable) and on every tick disconnects any player whose intent hasn't arrived within the window, logging `timeout playerId=...`. New unit test boots the transport with a 0.2 s timeout and proves the player is dropped and logged without further activity.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S017-2",
+      "title": "`E.5` Profile gating — `SystemScheduler` now accepts `activeProfiles` in its constructor and `register(system, { profiles })` skips…",
+      "status": "implemented",
+      "summary": "`E.5` Profile gating — `SystemScheduler` now accepts `activeProfiles` in its constructor and `register(system, { profiles })` skips registration unless at least one of the named profiles is in the active set. `createApp` reads `project.profiles[0]` (or `?profile=...`) as the active profile and gates the Beacon Pickup / Hazard / WorldSignal / Round systems on `\"static\"`. The runtime branching that previously asked `if (projectId === \"beacon-world\")` now layers a profile filter on top so adding a `\"connected\"` system family is a one-line registration. Two new scheduler tests cover the skip / register paths.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S017-3",
+      "title": "`E.6` `engine inspect --tail N` — new `tailSnapshotDiff` helper truncates a `SnapshotDiffResult` to the last N entries and records the…",
+      "status": "implemented",
+      "summary": "`E.6` `engine inspect --tail N` — new `tailSnapshotDiff` helper truncates a `SnapshotDiffResult` to the last N entries and records the hidden count in a new `truncated` field. `engine inspect --diff prev.json next.json --tail N` propagates the option through `cli.ts` and `formatDiff` annotates the human output with `Changes: X (showing last N, M hidden by --tail)`. Four new tests cover undefined / N / 0 / format-string paths.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S017-4",
+      "title": "`13.14` Win condition / round summary — new `RoundState { phase, thresholdHealth, holdSeconds, holdProgress, completedAt }` component on the…",
+      "status": "implemented",
+      "summary": "`13.14` Win condition / round summary — new `RoundState { phase, thresholdHealth, holdSeconds, holdProgress, completedAt }` component on the singleton `world.signal` entity. `examples/beacon-world/src/systems/round-system.ts` runs every frame: while `WorldSignal.health >= thresholdHealth` it accumulates `holdProgress`; on reaching `holdSeconds` it flips to `phase = \"complete\"` and stamps `completedAt = time.elapsed`. Phase never regresses. HUD adds a third line that shows `HOLD x.x/X.Xs` while the threshold is held and `ROUND COMPLETE` once it locks. Five new unit tests cover the ramp-up, completion, hold-reset, no-regression and missing-singleton paths.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`10.5` C#/.NET reference skeleton still pending.",
+    "`10.10` Authority hand-off for the Beacon drone still pending; networked profile still renders the local + server drone side by side.",
+    "The round resets automatically only by decay; there is no explicit \"new round\" action yet. Future story can add a `round.reset` command.",
+    "`13.12` Sound pings still pending."
+  ],
+  "notes": [
+    "Deliverables: `examples/backends/node-world-server/src/world.ts` (`lastActivity`, `expiredPlayers`, `elapsedSeconds`); `examples/backends/node-world-server/src/transport-ws.ts` (`playerTimeoutSeconds`, per-player socket map, idle drop); `engine/core/systems/scheduler.ts` (`SystemSchedulerOptions`, `SystemRegistrationOptions`, profile filter, `getActiveProfiles`); `engine/tools/inspect/snapshot-diff.ts` (`tailSnapshotDiff`, `truncated`); `engine/tools/cli.ts` (`--tail N` flag, usage); `examples/beacon-world/schemas/scene-extensions.schema.json` (`RoundState`); `examples/beacon-world/scenes/start.scene.json` (`RoundState` on `world.signal`); `examples/beacon-world/src/systems/round-system.ts`; `examples/beacon-world/src/ui/health-hud.ts` (round summary + `HOLD` line); `src/app.ts` (active profile resolution, profile-gated beacon registrations), `src/main.ts` (`?profile=`); Tests: `tests/unit/node-world-server.test.ts` (+1 timeout), `tests/unit/system-scheduler.test.ts` (+2 profile cases), `tests/unit/snapshot-diff.test.ts` (+4 tail cases), `examples/beacon-world/tests/unit/round-system.test.ts` (5 cases)",
+    "Verification: `engine check examples/hello-3d` and `examples/beacon-world`: green.; Sprint-close `npm run preflight`: typecheck clean, 139 Vitest tests across 20 files, vite build OK, 10 Playwright e2e tests.",
+    "Goal Recap: Idle clients no longer pile up on the server; the close-handler path is reinforced by an explicit activity timeout with a clear log line.; Project system wiring is now declarative w.r.t. profiles, so a future `\"connected\"` story can opt entities in or out without touching `src/app.ts` branching.; `engine inspect --tail N` keeps agent context windows manageable when scenes evolve into many entities; the truncation is honest about how much is hidden.; The Beacon World gameplay loop has a visible terminal: hold all beacons repaired for 3 s and the HUD locks to `ROUND COMPLETE`. The state is data, so an agent can poll for it through `window.__agf.snapshot()`."
+  ]
+}

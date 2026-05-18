@@ -1,0 +1,141 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S054",
+  "title": "Asset pipeline + prefabs + runtime loading",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S054-1",
+      "title": "**ASSET-optimize-command** ✅ — `engine asset optimize <projectDir> [path]` CLI invoking `@gltf-transform/functions` with the project's…",
+      "status": "implemented",
+      "summary": "**ASSET-optimize-command** ✅ — `engine asset optimize <projectDir> [path]` CLI invoking `@gltf-transform/functions` with the project's preset (dedup → prune → weld → meshopt). Writes `<asset>.opt.glb` + prints before/after byte counts. Added `--source <path>` for per-file mode and `--textures` flag (locked WebP target).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-2",
+      "title": "**ASSET-lod-metadata** ✅ — `schemas/lod.schema.json` covering `levels: [{ maxDistance, mesh, material?, color?",
+      "status": "implemented",
+      "summary": "}]` + `fallback: \"last\" | \"hide\"`. `engine check` validates ascending distances, mesh refs resolve, duplicates flagged. Diagnostic codes `AGF_LOD_DISTANCES_OUT_OF_ORDER` / `AGF_LOD_DISTANCE_DUPLICATE` / `AGF_LOD_MESH_MISSING`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-3",
+      "title": "**ASSET-texture-doctor** ✅ — `engine doctor` warnings: `AGF_TEXTURE_HUGE` (>1 MB uncompressed PNG/JPEG), `AGF_TEXTURE_NPOT`…",
+      "status": "implemented",
+      "summary": "**ASSET-texture-doctor** ✅ — `engine doctor` warnings: `AGF_TEXTURE_HUGE` (>1 MB uncompressed PNG/JPEG), `AGF_TEXTURE_NPOT` (non-power-of-two map dims), `AGF_TEXTURE_NO_TRANSCODER` (`.ktx2` ref without decoder).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-4",
+      "title": "**ASSET-texture-compress** ✅ — `engine asset optimize --textures` flag runs `@gltf-transform/functions#textureCompress` with WebP target.",
+      "status": "implemented",
+      "summary": "Skips already-compressed files; updates material manifests in place.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-5",
+      "title": "**ASSET-decoder-vendor** ✅ — Draco / Basis / Meshopt decoder paths verified for production builds; e2e smoke loads a `.ktx2` texture from…",
+      "status": "implemented",
+      "summary": "**ASSET-decoder-vendor** ✅ — Draco / Basis / Meshopt decoder paths verified for production builds; e2e smoke loads a `.ktx2` texture from beacon-world without falling back.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-6",
+      "title": "**M3-c-load** ✅ — `SceneInput.instances` flow.",
+      "status": "implemented",
+      "summary": "`engine/runtime/start.ts` calls `expandScenePrefabs` before `World.fromScene` whenever a scene declares instances; expansion diagnostics route to the bus. `src/main.ts` glob-imports `examples/<id>/prefabs/*.prefab.json` per project into a `Map<id, PrefabDefinition>` and passes through `AppOptions.prefabs`. `engine check` cross-validates `scene.instances[].prefab` against `prefabs/<id>.prefab.json`; instance id collisions surface as `AGF_SCENE_INSTANCE_DUPLICATE_ID`. The expander now preserves top-level scene fields (`environment`, etc.) — previously dropped.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-7",
+      "title": "**M3-c-beacon** ✅ — `examples/beacon-world/prefabs/{beacon,energy-core}.prefab.json` declared.",
+      "status": "implemented",
+      "summary": "Four hand-rolled `beacon.*` / `core.*` entities collapsed into a `scene.instances` block with per-instance `Name` / `Transform` / `Spin` / `Pickup.originalPosition` overrides. scenes/start.scene.json: 356 → 300 lines. Entity ids preserved so light + tests resolve.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-8",
+      "title": "**RUNTIME-progressive-loading** ✅ — `project.json#render.criticalAssets: string[]` declares the asset refs that must finish loading before…",
+      "status": "implemented",
+      "summary": "**RUNTIME-progressive-loading** ✅ — `project.json#render.criticalAssets: string[]` declares the asset refs that must finish loading before `rendererReady` resolves; every other asset stays on the existing placeholder-then-swap path. Helper `criticalAssetsReady(world, refs)` exported for tests + tooling.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-9",
+      "title": "**RUNTIME-idle-rendering** ✅ — `World.mutationCounter()` (monotonic, bumps on every add/remove/setComponent/removeComponent).",
+      "status": "implemented",
+      "summary": "`startRuntime` honours `project.json#render.idleMode: \"always\" | \"on-demand\"`: in `on-demand` it skips `renderer.render()` when the counter is unchanged from the previous frame. First frame, resize, and any mutation always render.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-10",
+      "title": "**RUNTIME-gpu-timing** ✅ — `ThreeRenderAdapter.draw()` wraps the frame in a `EXT_disjoint_timer_query_webgl2` `TIME_ELAPSED` query when the…",
+      "status": "implemented",
+      "summary": "**RUNTIME-gpu-timing** ✅ — `ThreeRenderAdapter.draw()` wraps the frame in a `EXT_disjoint_timer_query_webgl2` `TIME_ELAPSED` query when the extension is available. `AdapterInfo.gpuMs` carries the latest ms reading (1–2 frame lag) through to `window.__agf.rendererInfo().gpuMs`. Stays `undefined` on Safari / RFP-Firefox / non-WebGL2.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-11",
+      "title": "**DOCS-asset-pipeline** — Deferred into S55's agent-surface refresh; tracked there.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-12",
+      "title": "**DOCTOR-prefab-section** ✅ — `engine doctor` `Prefabs:` section: declared count, total scene-instance count, top-3 ids by usage, plus…",
+      "status": "implemented",
+      "summary": "**DOCTOR-prefab-section** ✅ — `engine doctor` `Prefabs:` section: declared count, total scene-instance count, top-3 ids by usage, plus diagnostics for unused declared prefabs + scene refs to unknown prefab ids.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S054-13",
+      "title": "**BENCH-material-bench** ✅ (added mid-sprint) — new `examples/material-bench/` showcase.",
+      "status": "implemented",
+      "summary": "Centre chrome sphere + 12 outer spheres on cement cylinder pedestals parented to a `Spin`-rotated root; HDR sky (`venice_sunset_1k.hdr`) drives IBL + acts as a blurred background; 12 material slots span standard / physical shader axes. Pulled engine work into the same commit: `cylinder` primitive added to the shared list; `material-binding-system` resolves texture refs through `AssetRegistry.urlFor`; `runtime/start.ts` does the same for HDR / cube env URLs; `bumpMap` + `bumpScale` added to material manifests; HDR env gained `asBackground` + `backgroundBlurriness`; `project.render.color.transmissionResolutionScale` exposes WebGLRenderer transmission pre-pass scale; sphere primitive bumped 24×16 → 32×20 segments. Friction notes in `docs/research/material-bench-asset-friction.md`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**Texture refs through the asset registry (deferred).** Workaround landed in this PR: `material-binding-system` calls `assetRegistry.urlFor()` before forwarding texture refs to `TextureLoader`. Better fix is to move textures onto `AssetRegistry.get<TextureAsset>()` so 404s emit diagnostics and HMR can invalidate one texture without remounting the material.",
+    "**`MeshRenderer.material` validator.** `engine check` should reject anything that isn't a `runtime/.../*.material.json` path under `assetRoot`. Today the schema accepts any non-empty string.",
+    "**Single source of truth for primitive mesh names.** `box / sphere / cylinder / plane` is hand-maintained across 5 places (registry / batcher / project-check / project-doctor / scene-extensions schema). Export one constant.",
+    "**`asset-sources.schema` enrichment.** Add `kind: \"environment\"`, `source.type: \"vendored\"`, optional `source.vendor` / `source.attribution`. Material-bench had to use `kind: \"texture\"` for the HDR — works, loses intent.",
+    "**`engine asset import --textures` companion.** Today the only way to land vendored textures is to copy them by hand into `runtime/textures/` and write the asset-sources entry manually.",
+    "**`bumpMap` story for tangent-space normals.** `m11-ice` correctly uses `normalMap` (NormalGL source); brick + hardwood use `bumpMap` because the source files are height maps stored as RGB. A future texture-doctor warning could flag a `_bump`-suffixed file pointed at `normalMap`.",
+    "**`render.idleMode: \"on-demand\"` user-input wake-up.** Mouse / keyboard input currently doesn't bump the world's mutation counter unless an input system writes ECS state. For pure-camera-orbit projects in `on-demand` mode the orbit might feel laggy. Either bump mutationCounter from a dev-overlay input system or add an explicit `forceRender()` API.",
+    "**`transmissionResolutionScale` UI sweep.** AGF exposes the knob through project.json; the shadow-tuner could grow a sibling tile so an agent can A/B perf-vs-quality live.",
+    "**DOCS-asset-pipeline.** Was on the S54 list; moved into S55's agent-surface refresh sprint because the docs/skills sweep is the natural place for an agent-facing pipeline walkthrough."
+  ],
+  "notes": [
+    "Deliverables: `engine/tools/asset/asset-optimize.ts` — per-file source mode + textureCompress (WebP target).; `engine/tools/asset/asset-import.ts`, `engine/render/asset-decoders/decoders.ts` — vendored decoder verification path.; `schemas/lod.schema.json` (new) + LOD validation in `engine/tools/check/project-check.ts`.; `engine/tools/doctor/{project-doctor,texture-doctor}.ts` — Texture warnings + Prefabs section + new recommendations.; `engine/core/ecs/types.ts` — `SceneInput.instances` + `SceneEnvironmentInput.asBackground` / `backgroundBlurriness`.; `engine/core/scene/expand-prefabs.ts` — now preserves top-level scene fields.; `engine/runtime/start.ts` — prefab expansion hook + idle-mode skip + critical-asset gate + env URL resolution through asset registry.; `engine/core/ecs/world.ts` — `mutationCounter()`.; `engine/render/three-render-adapter.ts` — GPU timer queries + `EquirectangularReflectionMapping` background + `bumpMap` / `bumpScale` + `transmissionResolutionScale` knob + cylinder primitive.; `engine/render/mesh-handle-registry.ts` — `cylinder` primitive added.; `engine/render/systems/material-binding-system.ts` — texture refs resolve through `AssetRegistry.urlFor`.; `engine/runtime/asset-loaders/material-loader.ts`, `schemas/material.schema.json` — `bumpMap` + `bumpScale`.; `schemas/project.schema.json` — `render.idleMode`, `render.criticalAssets`, `render.color.transmissionResolutionScale`.; `schemas/scene.schema.json` — `environment.asBackground` + `backgroundBlurriness`.; `schemas/components/render.schema.json` — `cylinder` added to the `mesh` enum.; `examples/beacon-world/prefabs/{beacon,energy-core}.prefab.json` (new) + 56-line scene shrink.; `examples/material-bench/` (new project) — project.json + scenes + 13 material manifests + bootstrap.ts + template.json + template_context.md + performance-budget.json + asset-sources.json + 9 textures + 1 HDR.; `src/{app,main}.ts` — `AppOptions.prefabs`, glob import of per-project prefabs, idle-mode + criticalAssets pipes, `rendererInfo.gpuMs` global declaration, material-bench wired into project loader.; Six new test files (`scene-load-prefabs`, `runtime-critical-assets`, `world-mutation-counter`, `doctor-prefabs`, plus expansions of `project-check` + `expand-prefabs`).; Three new test fixtures (`scene-instance-valid`, `scene-instance-missing-prefab`, `scene-instance-duplicate-id`).; `docs/research/material-bench-asset-friction.md` (new) — agent friction log.; `docs/research/reflection-probes-investigation.md` (new) — probe / dynamic-reflection investigation + vfx priority list.; `HIGH_LEVEL_BACKLOG.md` — new `M26` visual-fidelity epic (low priority).",
+    "Verification: `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 504 tests + build + bundle:check + 11/11 e2e smoke (24.2 s).; `npm run engine:doctor -- examples/beacon-world` ✅ — `Prefabs: 2 declared, 4 scene instance(s) total. top usage: 2× beacon, 2× energy-core`.; `npm run engine:check -- examples/material-bench` ✅ + `examples/beacon-world` ✅ + every other example clean."
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S016",
+  "title": "Networked Drone + Reconnect + Cached Query Adoption + Schema Diagnostics",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S016-1",
+      "title": "`10.7` Networked Beacon drone — `PlayerInputSystem` gains an optional `onIntent(direction)` callback.",
+      "status": "implemented",
+      "summary": "When set, the system stops mutating the local `Transform` and forwards the normalised direction every frame the player is moving. `src/app.ts` gains `AppOptions.networked` and, when both `serverUrl` and `networked` are set, builds the input system with `onIntent` wired to `network.sendIntent`. `src/main.ts` reads `?networked=1` from the URL. The server's authoritative `player.<playerId>` entity appears in the snapshot as a separate entity alongside the local drone; pickup / hazard / signal systems still see the local drone unchanged. Two new tests cover the intent forwarding path (`onIntent` fires with the normalised direction; no `Transform` write) and the no-op idle path.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S016-2",
+      "title": "`10.8` Connection lifecycle hardening — `WsNetworkAdapter` accepts `reconnect: boolean | { initialDelayMs, maxDelayMs, maxAttempts }`…",
+      "status": "implemented",
+      "summary": "`10.8` Connection lifecycle hardening — `WsNetworkAdapter` accepts `reconnect: boolean | { initialDelayMs, maxDelayMs, maxAttempts }` (defaults: 250 ms initial, 5 s cap, unlimited attempts). On an unexpected `close`, server-owned entities are flushed from the local world and a reconnect is scheduled with exponential backoff. On open, the adapter re-sends `player.join` automatically. `readyState()` returns `-1` while a reconnect is pending. `reconnectCount()` exposes the attempt counter for tests. `setTimeoutFn` / `clearTimeoutFn` hooks make backoff deterministic under vitest. New integration test runs the full server-down → server-up cycle and proves the adapter rejoins and the server-owned entity reappears in the client `World`. `src/app.ts` enables reconnect by default when `serverUrl` is provided.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S016-3",
+      "title": "`E.3` Adopt cached query handles in built-in systems — `spin-system`, `pickup-system`, `hazard-system` and `world-signal-system` now lazily…",
+      "status": "implemented",
+      "summary": "`E.3` Adopt cached query handles in built-in systems — `spin-system`, `pickup-system`, `hazard-system` and `world-signal-system` now lazily build `world.createQuery(...)` handles on first tick (or whenever the bound `world` reference changes) and reuse them across frames. Component-data overwrites no longer trigger a full re-scan; only structural changes do. Existing unit and e2e suites unchanged in behaviour and still green.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S016-4",
+      "title": "`E.4` Schema-driven diagnostics — `project-check.ts` now emits a dedicated `AGF_SCHEMA_UNKNOWN_COMPONENT` code (with message `Unknown…",
+      "status": "implemented",
+      "summary": "`E.4` Schema-driven diagnostics — `project-check.ts` now emits a dedicated `AGF_SCHEMA_UNKNOWN_COMPONENT` code (with message `Unknown component \"Foo\".`) when the schema rejects an unknown property at the `components` slot. The suggestion lists every component the project actually has access to (built-ins + scene-extensions) and includes a Levenshtein-based \"Did you mean ...\" line when the unknown name is a near-match. New `tests/fixtures/component-typo/` proves `Trnasform` → `Transform`. Updated `engine-cli.test.ts` and `project-check.test.ts` to expect the new code.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`10.5` C#/.NET reference skeleton still pending.",
+    "Server-side player timeout (drop a player whose snapshot tick has not seen activity in N seconds) is still on the to-do list; the close-event path already drops them when the WS shuts down.",
+    "`13.12` Sound pings still pending.",
+    "The networked profile does not yet hide / swap the local drone with the server-owned one; both render simultaneously. A future story can fold them when authority hand-off is wired up."
+  ],
+  "notes": [
+    "Deliverables: `engine/runtime/player-input-system.ts` (`onIntent`); `engine/runtime/network/ws-network-adapter.ts` (`reconnect`, `reconnectCount`, `setTimeoutFn`/`clearTimeoutFn` hooks); `src/app.ts` (`networked` option, reconnect-on by default), `src/main.ts` (`?networked=`); `engine/core/systems/spin-system.ts`, `examples/beacon-world/src/systems/{pickup,hazard,world-signal}-system.ts` (cached queries); `engine/tools/check/project-check.ts` (`AGF_SCHEMA_UNKNOWN_COMPONENT`, Levenshtein); `tests/fixtures/component-typo/`; Tests: `tests/unit/player-input-system.test.ts` (+2), `tests/unit/ws-network-adapter.test.ts` (+1 reconnect), `tests/unit/project-check.test.ts` (+1 typo), `tests/unit/engine-cli.test.ts` (code update)",
+    "Verification: `engine check examples/hello-3d` and `examples/beacon-world`: green.; Sprint-close `npm run preflight`: typecheck clean, 127 Vitest tests across 19 files, vite build OK, 10 Playwright e2e tests.",
+    "Goal Recap: Keyboard input crosses the wire when `?networked=1` is on; the server is authoritative for the networked player's position. Local gameplay systems (pickup, hazard, signal) keep operating on the local entity unchanged, so the local single-player loop is unaffected.; The client survives a server restart: server-owned entities are removed cleanly on disconnect and re-appear on reconnect, with exponential backoff bounded by `maxDelayMs`.; Built-in systems no longer pay for per-frame `world.query(...)` allocation; the cached handles invalidate only on structural changes, so steady-state scenes hit the memo path every frame.; An agent that types `\"Trnasform\"` (or `\"Camear\"`) gets a one-line diagnostic that names the nearest known component and points at `<projectDir>/schemas/scene-extensions.schema.json` for genuinely new components."
+  ]
+}

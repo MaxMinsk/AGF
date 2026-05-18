@@ -1,0 +1,95 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S059",
+  "title": "Visual fidelity v1 (PMREM + planar mirror + bloom + GPU-timer test)",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S059-1",
+      "title": "**REFLECTION-prefilter** — `ReflectionProbe { prefilter: \"mipmap\" | \"pmrem\" }`.",
+      "status": "implemented",
+      "summary": "PMREM regen via `PMREMGenerator.fromCubemap` after every cube capture; bounded memory via dispose-on-replace.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-2",
+      "title": "**REFLECTION-planar** — vendored `Reflector.js`. `PlanarMirror { width, height, resolution, color }` component + adapter API + system.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-3",
+      "title": "**WATER-bench** — `examples/water-bench/` ships a 30×30 PlanarMirror + floating primitives + HDR sky (the water-visibility hotfix landed as…",
+      "status": "implemented",
+      "summary": "**WATER-bench** — `examples/water-bench/` ships a 30×30 PlanarMirror + floating primitives + HDR sky (the water-visibility hotfix landed as PR #65 — mirror was getting a 4-element quaternion for what should have been a 3-element Euler rotation, plus the scene used `kind: \"generated\"` IBL with no visible sky).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-4",
+      "title": "**POST-bloom worked example** — material-bench's `project.json#render.post` picks up `[{ kind: \"bloom\", strength: 0.35, radius: 0.55,…",
+      "status": "implemented",
+      "summary": "**POST-bloom worked example** — material-bench's `project.json#render.post` picks up `[{ kind: \"bloom\", strength: 0.35, radius: 0.55, threshold: 0.92 }]`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-5",
+      "title": "**GPU-timer-test** — `engine/render/gpu-timer.ts` extracted; 6 unit tests against a mock WebGL2 ctx covering both S58 regressions +…",
+      "status": "implemented",
+      "summary": "**GPU-timer-test** — `engine/render/gpu-timer.ts` extracted; 6 unit tests against a mock WebGL2 ctx covering both S58 regressions + surrounding invariants.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-6",
+      "title": "**DOCS-vfx-skill-v1** — `docs/agent/skills/vfx-authoring.md` updated with PMREM / Reflector / bloom worked examples + three new pitfalls.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-7",
+      "title": "**DOCS-material-bench-readme** — `examples/material-bench/README.md` documenting the v1 surface + FPS knob table.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-8",
+      "title": "**PERF-renderer-info** — `AdapterInfo` + `__agf.rendererInfo()` pick up `reflectionProbes`, `prefilterMs`, `planarMirrors`.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S059-9",
+      "title": "**MATERIAL-bench-vfx-v1-adopt** — centre chrome `prefilter: \"pmrem\"`, updateRate 30 → 15 Hz, roughness 0.22 → 0.35.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**DOCTOR-reflection-runtime** — picked up in S60 as story candidate; ultimately re-deferred to S61+ since the WebGPU adapter rewrite will redo doctor's renderer-facing surface anyway.",
+    "**Reflector + transmission ordering** — not exercised in water-bench (no transmissive material there). Confirm rendering order behaves once a transmissive prop lands in a scene with a planar mirror."
+  ],
+  "notes": [
+    "Deliverables: `engine/render/gpu-timer.ts` (new) + `engine/render/systems/planar-mirror-system.ts` (new).; `engine/render/three-render-adapter.ts` — PMREM probe path, Reflector probe API, mip-cube RT, AdapterInfo extensions.; `engine/runtime/start.ts` — `PlanarMirrorSystem` registration.; `examples/water-bench/` (new) + `examples/material-bench/` v1 polish (PMREM chrome, bloom, README).; `schemas/components/render.schema.json` + `schemas/scene.schema.json` — `prefilter` + `planarMirrorComponent`.; `tests/unit/gpu-timer.test.ts` (new) — 6 tests.; `docs/agent/skills/vfx-authoring.md` v1 update.",
+    "Verification: `npm run preflight` ✅ at sprint close — 511 / 511 unit, 11 / 11 e2e smoke, all 7 example projects engine:check clean.; Live playwright probes of water-bench + material-bench v1 clean, no console errors.; Water-visibility hotfix (PR #65) shipped after a follow-up user report.",
+    "Deferred to Sprint 60: 6 **DOCTOR-reflection-runtime** — doctor as dev-bridge client. PERF-renderer-info covers the live-inventory ask; full doctor wiring waits for a different sprint."
+  ]
+}

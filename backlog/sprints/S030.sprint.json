@@ -1,0 +1,114 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S030",
+  "title": "Transform hierarchy, persistence v0, dev-server investigation",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S030-1",
+      "title": "`E.80` Engine dev-server investigation — produced `docs/research/engine-dev-server-investigation.md` settling **M15** as a Vite plugin…",
+      "status": "implemented",
+      "summary": "`E.80` Engine dev-server investigation — produced `docs/research/engine-dev-server-investigation.md` settling **M15** as a Vite plugin (`apply: \"serve\"`) + page-side bootstrap that exposes `/__agf/*` HTTP + WS endpoints. Architecture decision (option A), endpoint surface (snapshot / diagnostics / renderer-info / bug-report / recording / commands / events SSE / asset-invalidate), security stance (localhost-only, DEV-only), and a 9-story sequenced implementation plan (M15-a → M15-i). Explicit non-goals: no clipboard / download / \"Copy bug report\" buttons.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-2",
+      "title": "`M16-a` Transform hierarchy schema + diagnostics — `Transform.parent` added to `schemas/scene.schema.json` (optional, entity-id pattern).",
+      "status": "implemented",
+      "summary": "`engine/tools/check/project-check.ts` emits `AGF_TRANSFORM_PARENT_MISSING`, `AGF_TRANSFORM_PARENT_SELF`, `AGF_TRANSFORM_PARENT_CYCLE`. New fixture `tests/fixtures/transform-hierarchy` exercises all three failure paths plus a valid cart/wheel chain.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-3",
+      "title": "`M16-b` Pure hierarchy resolver — `engine/core/transform/resolve.ts` exports `resolveHierarchy(inputs)` and `resolveWorldHierarchy(world)`.",
+      "status": "implemented",
+      "summary": "Topo-sorts entities and composes 4x4 column-major transform matrices (XYZ Euler in radians, decomposed back to Euler XYZ). 9 unit tests cover flat, single parent, deep chain (order-independent), scale composition, rotation-via-child-position, self-ref / missing / cycle errors.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-4",
+      "title": "`M16-c` Renderer consumes the resolver — `ThreeRenderer.render()` builds resolved transforms once per frame (degrees → radians applied…",
+      "status": "implemented",
+      "summary": "`M16-c` Renderer consumes the resolver — `ThreeRenderer.render()` builds resolved transforms once per frame (degrees → radians applied upfront) and applies world transforms to camera + meshes. Renderer no longer reads `Transform` directly past the resolver call. Defensive fallback: if resolution fails, identity-per-entity instead of a crash.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-5",
+      "title": "`M16-d` `engine inspect` surfaces hierarchy — `InspectEntity` now carries optional `parent` and `worldPosition`.",
+      "status": "implemented",
+      "summary": "`formatInspection` renders inline: `- cart.wheel: Transform (parent: cart.root) worldPosition=[10.000, 0.000, 1.000]`. Decoration short-circuits when a scene has no parent links. New fixture `tests/fixtures/valid-hierarchy` + 2 unit tests.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-6",
+      "title": "`M3-b` Scene-instance expander — `instances: [{ id, prefab, overrides?",
+      "status": "implemented",
+      "summary": "}]` added to `schemas/scene.schema.json`. `engine/core/scene/expand-prefabs.ts` is a pure function: given a scene + a `Map<id, PrefabDefinition>` it returns a flat entity list with per-instance shallow override merge. Two new diagnostics: `AGF_SCENE_INSTANCE_PREFAB_MISSING`, `AGF_SCENE_INSTANCE_DUPLICATE_ID`. 6 unit tests. No engine-side scene-load integration yet — pure function only.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-7",
+      "title": "`M13-c` `engine patch` post-apply validation — `applyPatch` now accepts `validateAfter: true` (default for the CLI).",
+      "status": "implemented",
+      "summary": "On `--check`, copies the project to a tmp scratch, writes in-memory results, runs `checkProject` against the scratch, returns diagnostics in `result.postCheck`. On `--write`, validates the live dir after writing. `result.ok` flips to false on post-check failure. A new unit test patches `project.json#startScene` to a missing path: op-level diagnostics empty, postCheck.ok false, `AGF_PROJECT_START_SCENE_MISSING` reported.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-8",
+      "title": "`M4-a` Persistence primitives — `engine/runtime/persistence/local-store.ts` defines the `LocalStore` interface with `createMemoryStore()`…",
+      "status": "implemented",
+      "summary": "`M4-a` Persistence primitives — `engine/runtime/persistence/local-store.ts` defines the `LocalStore` interface with `createMemoryStore()` (tests / headless) and `createIndexedDbStore(dbName)` (browser). `saveKey(projectId, profile, slot?)` builds the canonical `agf/<projectId>/<profile>/<slot>` key. `engine/runtime/persistence/save-load.ts` implements per-entity allowlisted persistence (no implicit \"save everything\"), format-versioned blob, projectId guard on load, scene-authoritative entity lifetime. 6 unit tests cover the round trip + edge cases.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-9",
+      "title": "`M4-b` Runtime / AppHandle / window.__agf wiring — `RuntimeOptions.persistence`, `RuntimeHandle.save / load / clearSave` (throws when…",
+      "status": "implemented",
+      "summary": "`M4-b` Runtime / AppHandle / window.__agf wiring — `RuntimeOptions.persistence`, `RuntimeHandle.save / load / clearSave` (throws when persistence isn't wired). `src/app.ts` constructs the IndexedDB store (falls back to memory in non-browser) from `ProjectMeta.persistence`. `window.__agf.save / load / clearSave` exposed under the existing DEV gate.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S030-10",
+      "title": "`M4-c` Beacon World persistence proof — `examples/beacon-world/project.json` carries `persistence.components = [\"Repairable\", \"WorldSignal\",…",
+      "status": "implemented",
+      "summary": "`M4-c` Beacon World persistence proof — `examples/beacon-world/project.json` carries `persistence.components = [\"Repairable\", \"WorldSignal\", \"Scoreboard\"]`. New `schemas/project.schema.json#persistence` definition. Integration test `tests/unit/persistence-beacon.test.ts` round-trips a repaired beacon + degraded world signal through save/load and verifies non-allowlisted components are NOT persisted. Full-page-reload e2e proof is deferred to Sprint 31.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`M15-a` plugin scaffold + health endpoint (start of dev-server implementation).",
+    "`M16-cascade` Cascade-delete commands when a parent is removed; current path leaves orphan transforms in the world (engine check catches them next run, but runtime should handle it inline).",
+    "`M16-renderer-optim` The resolver runs every frame; for large scenes a dirty-flag-driven cache would help. Premature for current entity counts.",
+    "`M3-c` Beacon adopts prefabs once `expandScenePrefabs` is wired into scene load (still pure-function-only as of Sprint 30).",
+    "`M4-reload-e2e` Playwright spec that reloads the page and asserts persisted Beacon state survives.",
+    "`M2b-seed` deterministic RNG wire-up (still waiting for a system that rolls dice).",
+    "`10.5+` C# WS transport and the rest of 10.x."
+  ],
+  "notes": [
+    "Deliverables: `docs/research/engine-dev-server-investigation.md`; `schemas/scene.schema.json` (`Transform.parent`, `instances`); `schemas/project.schema.json` (`persistence`); `engine/tools/check/project-check.ts` (`validateTransformHierarchy`); `engine/tools/check/diagnostic-codes.ts` (3 new transform codes); `engine/core/transform/resolve.ts`; `engine/core/scene/expand-prefabs.ts`; `engine/render/three-renderer.ts` (resolver wiring); `engine/tools/inspect/project-inspect.ts` (hierarchy decoration); `engine/tools/patch/project-patch.ts` (`validateAfter` + postCheck plumbing); `engine/runtime/persistence/{local-store,save-load}.ts`; `engine/runtime/start.ts` (`RuntimeHandle.save/load/clearSave`); `src/app.ts`, `src/main.ts` (`AppHandle` + `window.__agf` persistence surface); `examples/beacon-world/project.json` (persistence config); `tests/fixtures/transform-hierarchy/`, `tests/fixtures/valid-hierarchy/`; `tests/unit/transform-resolve.test.ts`; `tests/unit/inspect-hierarchy.test.ts`; `tests/unit/expand-prefabs.test.ts`; `tests/unit/persistence.test.ts`, `tests/unit/persistence-beacon.test.ts`; `tests/unit/project-check.test.ts`, `tests/unit/diagnostic-codes.test.ts`, `tests/unit/patch.test.ts` (extended)",
+    "Verification: Sprint-close `npm run preflight`: typecheck clean, **259 Vitest tests across 41 files**, vite build OK (`three` chunk 144 KB gzip under 250 KB), `bundle:check` green, all **15 Playwright e2e tests** green.; Manual: `npm run engine:check -- examples/beacon-world` accepts the new `persistence` field; rejecting a malformed prefab still emits `AGF_PREFAB_INVALID`; `Transform.parent` cycles still report.",
+    "Goal Recap: **Composition is now unblocked.** Hierarchy went from \"would need to retrofit later\" to a schema + resolver + renderer + inspect surface that everyone uses. The hard schema bump is paid; future stories (cascade delete, prefab parent rewiring) layer on top without touching the format.; **Persistence v0** opens local save/load with an explicit allowlist. The agent loop now has a deterministic way to test save-state assumptions even before a full Playwright reload proof lands.; **Patch validation closes the loop** the patch contract opened — an agent learns *immediately* whether a patch leaves the project well-formed, before the file write.; **The dev-server epic is sequenced.** Sprint 31 starts from a concrete plan instead of a sketch."
+  ]
+}

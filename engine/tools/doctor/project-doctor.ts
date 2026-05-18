@@ -161,7 +161,33 @@ export type DoctorReport = {
   reflectionProbes: ReflectionProbesReport;
   /** S60 DOCTOR-webgpu-readiness: list of features that don't yet have a WebGPU equivalent. Informational only; doesn't fail the project. */
   webgpuReadiness: WebGpuReadinessReport;
+  /** S79 BACKLOG-DOCTOR: snapshot of the JSON-first backlog at repo root. Informational across projects (one backlog per repo). */
+  backlog: BacklogReport;
   recommendations: string[];
+};
+
+export type BacklogReport = {
+  /** Number of *.sprint.json files discovered under `backlog/sprints/`. */
+  sprintFiles: number;
+  /** Active sprint summary (status === "active"). Absent if none is active. */
+  active:
+    | {
+        id: string;
+        title: string;
+        pending: number;
+        inProgress: number;
+        implemented: number;
+        deferred: number;
+        /** Story ids that are pending/in_progress but blocked by unfinished deps. */
+        blocked: ReadonlyArray<{ storyId: string; missing: ReadonlyArray<string> }>;
+        /** Implemented stories with empty `verification[]` — schema rejects this, but list for visibility. */
+        implementedWithoutVerification: ReadonlyArray<string>;
+      }
+    | undefined;
+  /** When more than one sprint has status:"active" — `backlog:check` already errors, but surface it too. */
+  multipleActive: ReadonlyArray<string>;
+  /** Total archived sprints in JSON form. */
+  archivedCount: number;
 };
 
 export type WebGpuReadinessReport = {
@@ -420,6 +446,28 @@ export function runDoctor(
     );
   }
 
+  const backlog = summarizeBacklog(root);
+  if (backlog.multipleActive.length > 1) {
+    recommendations.push(
+      `AGF_BACKLOG_MULTIPLE_ACTIVE: ${backlog.multipleActive.length} sprints have status:"active" [${backlog.multipleActive.join(", ")}] — flip all but one to "archived" or "pending".`
+    );
+  }
+  if (backlog.active !== undefined && backlog.active.blocked.length > 0) {
+    const sample = backlog.active.blocked
+      .slice(0, 3)
+      .map((b) => `${b.storyId} ← [${b.missing.join(", ")}]`)
+      .join("; ");
+    const extra = backlog.active.blocked.length > 3 ? ` (and ${backlog.active.blocked.length - 3} more)` : "";
+    recommendations.push(
+      `AGF_BACKLOG_BLOCKED: ${backlog.active.blocked.length} story/ies in ${backlog.active.id} cannot start — ${sample}${extra}.`
+    );
+  }
+  if (backlog.active !== undefined && backlog.active.implementedWithoutVerification.length > 0) {
+    recommendations.push(
+      `AGF_BACKLOG_NO_VERIFICATION: implemented stories without verification[] — ${backlog.active.implementedWithoutVerification.join(", ")}. Add verification entries or revert to pending.`
+    );
+  }
+
   return {
     projectDir,
     ok,
@@ -435,6 +483,7 @@ export function runDoctor(
     textures,
     prefabs,
     reflectionProbes,
+    backlog,
     webgpuReadiness: (() => {
       const wgpu = summarizeWebGpuReadiness(projectDir, reflectionProbes);
       // S61 DOCTOR-webgpu-readiness-actionable: when a project actually
@@ -1048,6 +1097,9 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatWebGpuReadiness(report.webgpuReadiness));
   lines.push("");
 
+  lines.push(formatBacklog(report.backlog));
+  lines.push("");
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
@@ -1198,6 +1250,131 @@ export function formatShadows(report: ShadowConfigReport): string {
     );
   } else {
     lines.push(`  ShadowCaster tags: (none) — every caster re-bakes every frame`);
+  }
+  return lines.join("\n");
+}
+
+function summarizeBacklog(repoRoot: string): BacklogReport {
+  const sprintsDir = resolve(repoRoot, "backlog/sprints");
+  if (!existsSync(sprintsDir)) {
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0 };
+  }
+  let names: string[];
+  try {
+    names = readdirSync(sprintsDir).filter((n) => n.endsWith(".sprint.json"));
+  } catch {
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0 };
+  }
+  type StoryLite = {
+    id: string;
+    status: string;
+    dependsOn?: string[];
+    verification?: string[];
+  };
+  type SprintLite = {
+    id: string;
+    title: string;
+    status: string;
+    stories?: StoryLite[];
+  };
+  const sprints: SprintLite[] = [];
+  for (const name of names) {
+    try {
+      sprints.push(JSON.parse(readFileSync(resolve(sprintsDir, name), "utf8")));
+    } catch {
+      // surfaced by backlog:check; skip here
+    }
+  }
+  const storyById = new Map<string, { story: StoryLite }>();
+  for (const sprint of sprints) {
+    for (const story of sprint.stories ?? []) {
+      storyById.set(story.id, { story });
+    }
+  }
+  const activeSprints = sprints.filter((s) => s.status === "active");
+  const archivedCount = sprints.filter((s) => s.status === "archived").length;
+  const active = activeSprints[0];
+  let activeReport: BacklogReport["active"];
+  if (active !== undefined) {
+    let pending = 0;
+    let inProgress = 0;
+    let implemented = 0;
+    let deferred = 0;
+    const blocked: Array<{ storyId: string; missing: string[] }> = [];
+    const implementedWithoutVerification: string[] = [];
+    for (const story of active.stories ?? []) {
+      if (story.status === "pending") pending += 1;
+      else if (story.status === "in_progress") inProgress += 1;
+      else if (story.status === "implemented") implemented += 1;
+      else if (story.status === "deferred") deferred += 1;
+      if (story.status === "pending" || story.status === "in_progress") {
+        const missing: string[] = [];
+        for (const dep of story.dependsOn ?? []) {
+          const target = storyById.get(dep);
+          // missing dep id OR unfinished dep both block
+          if (target === undefined || target.story.status !== "implemented") {
+            missing.push(dep);
+          }
+        }
+        if (missing.length > 0) blocked.push({ storyId: story.id, missing });
+      }
+      if (story.status === "implemented" && (story.verification ?? []).length === 0) {
+        implementedWithoutVerification.push(story.id);
+      }
+    }
+    activeReport = {
+      id: active.id,
+      title: active.title,
+      pending,
+      inProgress,
+      implemented,
+      deferred,
+      blocked,
+      implementedWithoutVerification
+    };
+  }
+  return {
+    sprintFiles: sprints.length,
+    active: activeReport,
+    multipleActive: activeSprints.length > 1 ? activeSprints.map((s) => s.id) : [],
+    archivedCount
+  };
+}
+
+export function formatBacklog(report: BacklogReport): string {
+  const lines: string[] = [];
+  if (report.sprintFiles === 0) {
+    lines.push("Backlog: no `backlog/sprints/*.sprint.json` files found.");
+    return lines.join("\n");
+  }
+  if (report.active === undefined) {
+    lines.push(`Backlog: ${report.sprintFiles} sprint file(s), ${report.archivedCount} archived. No sprint is currently active.`);
+    if (report.multipleActive.length > 1) {
+      lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
+    }
+    return lines.join("\n");
+  }
+  const a = report.active;
+  lines.push(`Backlog: ${a.id} — ${a.title}`);
+  lines.push(
+    `  stories: ${a.pending} pending, ${a.inProgress} in_progress, ${a.implemented} implemented, ${a.deferred} deferred`
+  );
+  if (a.blocked.length > 0) {
+    lines.push(`  AGF_BACKLOG_BLOCKED: ${a.blocked.length} blocked`);
+    for (const b of a.blocked.slice(0, 5)) {
+      lines.push(`    - ${b.storyId} ← needs [${b.missing.join(", ")}]`);
+    }
+    if (a.blocked.length > 5) lines.push(`    - ... and ${a.blocked.length - 5} more`);
+  } else {
+    lines.push(`  AGF_BACKLOG_BLOCKED: 0`);
+  }
+  if (a.implementedWithoutVerification.length > 0) {
+    lines.push(
+      `  AGF_BACKLOG_NO_VERIFICATION: ${a.implementedWithoutVerification.join(", ")}`
+    );
+  }
+  if (report.multipleActive.length > 1) {
+    lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
   }
   return lines.join("\n");
 }
