@@ -66,11 +66,13 @@
     {
       "id": "AGF-DOCTOR-RECENT-COMMITS",
       "title": "engine doctor — Recent commits section (last 10 git log entries)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Add a recent-commits block to DoctorReport sourced from `git log --oneline -10` (one-time, captured at doctor invocation). Useful when the agent's bug-hunt needs context for 'what changed lately'. Silently empty when git is unavailable.",
       "verification": [
         "DoctorReport.recentCommits: { hash, subject }[] populated when run inside a git repo; empty array when git command fails",
-        "format pass renders a 'Recent commits:' section"
+        "format pass renders a 'Recent commits:' section",
+        "BacklogReport.recentCommits populated via spawnSync('git', ['log', '--oneline', '-10']); empty array when git is missing / not a repo",
+        "formatBacklog renders a 'Recent commits:' section with hash + 120-char subject preview"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
