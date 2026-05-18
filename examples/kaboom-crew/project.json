@@ -1,0 +1,13 @@
+{
+  "agfFormatVersion": 1,
+  "id": "kaboom-crew",
+  "name": "Kaboom Crew",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgpu",
+    "background": "#0a0e1c",
+    "batching": { "auto": true }
+  },
+  "profiles": ["static"]
+}

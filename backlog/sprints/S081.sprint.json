@@ -2,9 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S081",
   "title": "Kaboom Crew pre-game platform — orthographic camera, damped follow, 2D HUD, grid primitives, generator framework",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-18",
-  "archivedAt": null,
+  "archivedAt": "2026-05-18",
   "stories": [
     {
       "id": "KABOOM-ORTHO-CAMERA",
@@ -115,56 +115,86 @@
     {
       "id": "KABOOM-GRID-OCCUPANCY",
       "title": "`GridOccupancySystem` — sparse cell → entity index",
-      "status": "pending",
+      "status": "implemented",
       "summary": "ECS system that maintains a `Map<cellKey, EntityId[]>` derived from every entity with both `GridPosition` and `GridOccupant`. Invalidates on add / remove / move. Exposes `runtime.grid.occupants(gx, gz, layer?)` for project code (Kaboom Crew bomb placement, blast propagation, AI danger-map all hit this). Cache lifetime survives HMR; `world.query` style cached handle. Authoring rule: project gameplay never calls `world.query()` over GridPosition entities — always hit `runtime.grid.occupants`.",
       "verification": [
         "unit test: moving an entity updates both old and new cell occupancy",
-        "incremental index matches a from-scratch rebuild (parity test similar to M16-cache-parity)"
+        "incremental index matches a from-scratch rebuild (parity test similar to M16-cache-parity)",
+        "GridOccupancySystem maintains a Map<cellKey, Entry[]> rebuilt per frameUpdate; cached QueryHandle resets on world swap (HMR-safe)",
+        "occupants(gx,gz,layer?) + blocked(gx,gz, movement|blast) public query API exposed on the system handle",
+        "moving an entity updates both old + new cell; removeEntity clears occupancy; layer filter works; parity test passes — 7 unit tests, 553 total"
       ],
       "dependsOn": [
         "KABOOM-GRID-POSITION"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/core/systems/grid-occupancy-system.ts",
+        "tests/unit/grid-occupancy-system.test.ts"
+      ]
     },
     {
       "id": "KABOOM-GRID-MOVER",
       "title": "`GridMover` component + `GridMovementSystem` (smooth tween between cells)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Component shape: `GridMover { speed, queuedDirection: { dx, dz }, currentLerp: 0..1 }`. System interpolates the entity's render Transform between the start cell (gx,gz) and the target cell over `1 / speed` seconds, then snaps to the new GridPosition and pulls the next queuedDirection. Plays well with `GridOccupancySystem` (movement only commits to the new cell when free + not blocked). Lane-assist: if the queuedDirection's target is blocked, the system tries the perpendicular cardinal first (so you don't get stuck on a corner). Lives under `engine/core/systems/grid-movement-system.ts`. Project code (Kaboom Crew player controller, bot AI) writes `queuedDirection` from input; system does the rest.",
       "verification": [
         "playtest moves a Capsule across a 5×5 grid hitting blocked cells; visits 4 distinct cells with no NaN transforms",
-        "unit test: blocked queued direction triggers lane-assist (perpendicular fallback)"
+        "unit test: blocked queued direction triggers lane-assist (perpendicular fallback)",
+        "GridMover tweens Transform between cells at configured speed; snaps GridPosition + Transform on arrival; pulls queuedDirection forward for continuous motion",
+        "lane-assist falls back to perpendicular cardinals when the queued cell is blocked; cornered (no fallback) leaves the mover stationary",
+        "no Grid singleton ⇒ no-op (engine boot stays robust); 7 unit tests, 560 total"
       ],
       "dependsOn": [
         "KABOOM-GRID-POSITION",
         "KABOOM-GRID-OCCUPANCY"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/core/systems/grid-movement-system.ts",
+        "schemas/components/grid.schema.json (GridMover fields)",
+        "schemas/scene.schema.json (GridMover ref)",
+        "tests/unit/grid-movement-system.test.ts"
+      ]
     },
     {
       "id": "KABOOM-GENERATOR-FRAMEWORK",
       "title": "Seed-driven procedural generator framework + first Kaboom Crew level template",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Generator framework lives under `engine/tools/generators/`. Surface: `generateScene({ seed, template, params }): SceneFile` where `template` is a registered generator function in a project's `bootstrap.ts`. Generators are pure functions (Mulberry32 PRNG) → JSON scene. Engine ships: (a) the PRNG primitive (already in `engine/core/random.ts`?  check; add if missing), (b) a `validateGenerated(scene): Diagnostic[]` pass that runs the same `engine check` rules as static scenes, (c) one CLI: `engine generate <projectDir> --template <name> --seed <int> --out <file>`. First Kaboom Crew template: `kaboom-arena-small` — soft-blocks scattered around hard walls in a 15×11 grid with 1 player spawn + 1 bot spawn. The template generator lives under `examples/kaboom-crew/generators/`.",
       "verification": [
         "`engine generate examples/kaboom-crew --template kaboom-arena-small --seed 1` writes a JSON scene; `engine check` on it passes",
         "same seed yields a byte-identical scene (deterministic)",
-        "different seeds yield different scenes (a quick diff prints ≥10 differing entity ids)"
+        "different seeds yield different scenes (a quick diff prints ≥10 differing entity ids)",
+        "runGenerator is deterministic — same seed produces byte-identical scenes",
+        "engine generate CLI: --template + --seed + --out wired; loads <projectDir>/generators/<name>.gen.mjs|.gen.ts default export; 8 unit tests covering happy path + missing-module + dup-id + out-of-bounds validation",
+        "framework validates duplicate entity ids, multiple Grid singletons, out-of-bounds GridPosition before writing to disk",
+        "568 unit tests total; the first Kaboom Crew kaboom-arena-small generator lands as part of KABOOM-PROJECT-SCAFFOLD"
       ],
       "dependsOn": [
         "KABOOM-GRID-POSITION"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/tools/generators/types.ts",
+        "engine/tools/generators/generate.ts",
+        "engine/tools/generators/cli.ts",
+        "engine/tools/cli.ts (engine generate command)",
+        "tests/fixtures/generator-demo/"
+      ]
     },
     {
       "id": "KABOOM-PROJECT-SCAFFOLD",
       "title": "`examples/kaboom-crew/` project scaffold",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Scaffold `examples/kaboom-crew/` as an AGF project: `project.json` (id `kaboom-crew`, agfFormatVersion 1, render.mode webgpu, performance budget), `bootstrap.ts` (registers the generator + a Kaboom-Crew-local set of placeholder components for upcoming bomb / block work), `scenes/start.scene.json` (small primitive-only test arena loaded by the runtime), `assets/_sources/asset-sources.json`, `prefabs/` skeleton (one player capsule, one bot capsule, one soft-block cube, one hard-block cube). README points to `notes/DynaBomber.md` for the codename history + Kaboom Crew memory entry. `engine:check examples/kaboom-crew` passes. No gameplay code yet — that lands as S082+ stories.",
       "verification": [
         "npm run engine:check -- examples/kaboom-crew exits 0",
         "npm run engine:summarize -- examples/kaboom-crew lists ≥4 declared prefabs",
-        "npm run dev with the project selector lands on a primitive Kaboom Crew start scene with the player capsule + 3-4 soft / hard blocks visible"
+        "npm run dev with the project selector lands on a primitive Kaboom Crew start scene with the player capsule + 3-4 soft / hard blocks visible",
+        "npm run engine:check -- examples/kaboom-crew exits 0",
+        "npm run engine:summarize -- examples/kaboom-crew lists 4 prefabs (bot, player, soft-block, hard-block)",
+        "engine generate examples/kaboom-crew --template kaboom-arena-small --seed N produces byte-identical scenes for the same seed; different seeds differ"
       ],
       "dependsOn": [
         "KABOOM-ORTHO-CAMERA",
@@ -172,7 +202,11 @@
         "KABOOM-HUD-RUNTIME",
         "KABOOM-GRID-POSITION"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/ (project.json + bootstrap.ts + scenes/start.scene.json + 4 prefabs + assets skeleton)",
+        "examples/kaboom-crew/generators/kaboom-arena-small.gen.mjs"
+      ]
     }
   ],
   "followUps": [

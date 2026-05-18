@@ -50,6 +50,41 @@
         }
       }
     },
+    "gridMoverComponent": {
+      "description": "S81 KABOOM-GRID-MOVER. Smoothly tweens an entity between grid cells. Project gameplay code writes `queuedDirection` from input / AI; GridMovementSystem owns `currentLerp`, `targetGx`, `targetGz` and writes Transform.position. `speed` is cells per second.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["speed"],
+      "properties": {
+        "speed": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 4
+        },
+        "queuedDirection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dx": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "dz": { "type": "integer", "minimum": -1, "maximum": 1 }
+          }
+        },
+        "currentLerp": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "targetGx": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "targetGz": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "gridOccupantComponent": {
       "description": "Declares how an entity participates in grid queries. `layer` lets multiple entities share a cell on different layers (floor / wall / blast). `blocksMovement` and `blocksBlast` are sample-game-agnostic predicates GridOccupancySystem exposes via runtime.grid.occupants(...) and runtime.grid.blocked(...).",
       "type": "object",
