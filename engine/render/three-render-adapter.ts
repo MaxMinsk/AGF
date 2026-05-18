@@ -507,6 +507,14 @@ export type AdapterOptions = {
    * those methods become no-ops on the WebGPU path.
    */
   mode?: RenderAdapterKind;
+  /**
+   * S84 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE. Optional diagnostics bus.
+   * When supplied, the adapter routes renderer-side warnings + errors
+   * through `bus.emit({ severity, code: 'AGF_RENDER_*', ... })` instead
+   * of `console.warn`. Stays optional so unit tests / pre-runtime call
+   * sites keep working without wiring a bus.
+   */
+  diagnostics?: import("../runtime/diagnostics/diagnostics-bus").DiagnosticsBus;
 };
 
 export type ToneMappingKind =
@@ -597,6 +605,8 @@ const DEFAULT_COLOR = "#cccccc";
 
 export class ThreeRenderAdapter {
   private readonly canvas: HTMLCanvasElement;
+  // S84 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE.
+  private readonly diagnostics: import("../runtime/diagnostics/diagnostics-bus").DiagnosticsBus | undefined;
   // S61 RENDER-mode. Typed as `WebGLRenderer` for backwards-compat with
   // every existing method; when `mode === "webgpu"` the runtime field
   // holds a `WebGPURenderer` instance which exposes the same `.render() /
@@ -719,6 +729,7 @@ export class ThreeRenderAdapter {
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
+    this.diagnostics = options.diagnostics;
     let mode: RenderAdapterKind = options.mode ?? "webgl";
     // S68 WEBGPU-fallback-policy. If the runtime requested WebGPU but
     // `navigator.gpu` is unavailable (headless CI, older browsers), fall
@@ -728,8 +739,22 @@ export class ThreeRenderAdapter {
     // a browser without WebGPU support produces a black canvas + console
     // error — surprising failure mode for users opting in.
     if (mode === "webgpu" && typeof navigator !== "undefined" && (navigator as { gpu?: unknown }).gpu === undefined) {
-      // eslint-disable-next-line no-console
-      console.warn("[AGF] project.render.mode = 'webgpu' but navigator.gpu is undefined — falling back to WebGL.");
+      // S84 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE. Route the fallback notice
+      // through the diagnostics bus when wired so agents can detect the
+      // downgrade without grep'ing console output. Falls back to
+      // console.warn when no bus is available (pre-runtime, tests).
+      if (this.diagnostics !== undefined) {
+        this.diagnostics.emit({
+          severity: "warning",
+          code: "AGF_RENDER_WEBGPU_FALLBACK_WEBGL",
+          source: "three-render-adapter",
+          message: "project.render.mode = 'webgpu' but navigator.gpu is undefined — falling back to WebGL.",
+          details: { requestedMode: "webgpu", effectiveMode: "webgl" }
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn("[AGF] project.render.mode = 'webgpu' but navigator.gpu is undefined — falling back to WebGL.");
+      }
       mode = "webgl";
     }
     this.capabilities = mode === "webgpu" ? WEBGPU_CAPABILITIES : WEBGL_CAPABILITIES;

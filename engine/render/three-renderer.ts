@@ -87,6 +87,7 @@ export class ThreeRenderer {
       shadowAlgorithm?: "pcf" | "vsm" | "pcss";
       skyGradient?: import("./three-render-adapter").SkyGradient;
       mode?: "webgl" | "webgpu";
+      diagnostics?: import("../runtime/diagnostics/diagnostics-bus").DiagnosticsBus;
     }
   ) {
     this.world = world;
@@ -110,6 +111,9 @@ export class ThreeRenderer {
     }
     if (extraOptions?.mode !== undefined) {
       options.mode = extraOptions.mode;
+    }
+    if (extraOptions?.diagnostics !== undefined) {
+      options.diagnostics = extraOptions.diagnostics;
     }
     this.adapter = new ThreeRenderAdapter(options);
     this.registry = createMeshHandleRegistry(this.adapter);

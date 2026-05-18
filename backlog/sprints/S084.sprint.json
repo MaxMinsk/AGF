@@ -135,11 +135,14 @@
     {
       "id": "AGF-LOG-RENDERER-DIAGNOSTICS-WIRE",
       "title": "Thread diagnostics bus into the renderer adapter (deferred from S83 audit)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S83 AUDIT-ENGINE marked the renderer files file-level allow-listed because the diagnostics bus didn't reach them. Thread the bus in: `ThreeRenderAdapter` constructor accepts `{ diagnostics? }`, and the three renderer-side warn/error sites (shader-patch fallback, async geometry/material binding failure, WebGPU adapter init fallback) migrate to `bus.emit({ severity, code: 'AGF_RENDER_*', ... })`. Adapter still keeps `console.warn` fallback when no bus is supplied (boot before the bus exists).",
       "verification": [
         "ThreeRenderAdapter accepts diagnostics option; lifted call sites now emit through the bus when wired",
-        "smoke test confirms no renderer console output on a clean boot (the boot-noise-budget test stays green)"
+        "smoke test confirms no renderer console output on a clean boot (the boot-noise-budget test stays green)",
+        "AdapterOptions accepts optional diagnostics: DiagnosticsBus; ThreeRenderer extraOptions threads it through; engine/runtime/start.ts passes the runtime bus on construction",
+        "Webgpu→webgl fallback path (S68 fallback) now emits AGF_RENDER_WEBGPU_FALLBACK_WEBGL warning through the bus when wired; falls back to console.warn when no bus is supplied (pre-runtime, unit tests)",
+        "no breaking changes: 680 unit tests pass; renderer files keep the file-level agf-allow:console marker for the remaining shader-patch / material-binding sites scoped to follow-ups"
       ],
       "dependsOn": [
         "AGF-DOCTOR-RENDERER-INSPECT-SECTION"

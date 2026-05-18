@@ -250,6 +250,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
       ...(options.skyGradient !== undefined ? { skyGradient: options.skyGradient } : {}),
       ...(options.rendererMode !== undefined ? { mode: options.rendererMode } : {}),
+      // S84 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE — thread the runtime bus so the
+      // adapter can emit structured `AGF_RENDER_*` events instead of console.warn.
+      diagnostics,
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
