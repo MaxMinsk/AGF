@@ -1,0 +1,25 @@
+{
+  "agfFormatVersion": 1,
+  "id": "bomb",
+  "description": "Live bomb. Spawned by BombPlacementSystem on a bomber's cell. BombFuseSystem ticks fuseRemaining down each fixedUpdate; at zero the bomb emits a BlastEvent and self-deletes.",
+  "components": {
+    "Transform": {
+      "rotation": [0, 0, 0],
+      "scale": [0.35, 0.35, 0.35]
+    },
+    "MeshRenderer": {
+      "mesh": "sphere",
+      "color": "#1a1a1a"
+    },
+    "GridOccupant": {
+      "layer": "bomb",
+      "blocksMovement": false,
+      "blocksBlast": false
+    },
+    "Bomb": {
+      "fuseRemaining": 2.5,
+      "range": 2,
+      "ownerId": "player.1"
+    }
+  }
+}

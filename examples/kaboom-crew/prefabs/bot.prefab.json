@@ -18,6 +18,16 @@
     },
     "GridMover": {
       "speed": 3
+    },
+    "BomberStats": {
+      "maxBombs": 1,
+      "range": 2,
+      "activeBombs": 0,
+      "alive": true
+    },
+    "BotBrain": {
+      "aggression": 0.4,
+      "nextDecisionIn": 0
     }
   }
 }

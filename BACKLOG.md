@@ -15,16 +15,16 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S082.sprint.js
 - **KABOOM-BOT-AI** — Bot AI v0 — wander + bomb-avoidance _(pending)_
   Project-local `BotAISystem` reads `BotBrain` component (project schema fragment under examples/kaboom-crew/schemas) and writes `GridMover.queuedDirection`. Two behaviours: (1) wander — pick a random cardinal that is passable + not in the current danger map; (2) flee — when the current cell is in the danger map, prefer the direction with the lowest danger value. Danger map is derived from active bomb fuses + reachable blast cells through GridOccupancySystem; computed once per second (TimeBased component drives the cadence). Personality dial: `aggression` (0..1) — higher values reduce flee threshold.
   Depends on: KABOOM-PLAYER-INPUT.
-- **KABOOM-BOMB-PLACE** — Place-bomb action: space key spawns a Bomb entity on the player's cell _(pending)_
+- **KABOOM-BOMB-PLACE** — Place-bomb action: space key spawns a Bomb entity on the player's cell _(implemented)_
   Project-local `BombPlacementSystem` consumes a `PlaceBombRequest` transient component on the player. The transient is written by `PlayerInputSystem` on space key; system reads it, checks `BomberStats.activeBombs < BomberStats.maxBombs`, checks `GridOccupancySystem` for an existing bomb on the cell, then issues an `entity.create` command for a bomb prefab. Removes the transient at the end of the frame. Bots get their own `PlaceBombRequest` writer via BotAISystem so the same pipeline serves both.
   Depends on: KABOOM-PLAYER-INPUT.
-- **KABOOM-BOMB-FUSE-BLAST** — Bomb fuse → blast propagation → block destruction _(pending)_
+- **KABOOM-BOMB-FUSE-BLAST** — Bomb fuse → blast propagation → block destruction _(implemented)_
   `BombFuseSystem` decrements `Bomb.fuseRemaining` each fixedUpdate; at zero, it emits a `BlastEvent` transient + deletes the bomb entity. `BlastPropagationSystem` walks the four cardinals up to `Bomb.range` cells through `GridOccupancySystem`, stopping at the first cell that blocks blast (hard wall) and destroying any `soft-block` on the way. Chain reactions: a blast that overlaps another bomb's cell triggers that bomb early (fuse → 0). Visuals: each blast cell spawns a short-lived `BlastTile` entity carrying a `Tween` so the renderer paints a flash + fade — re-uses the existing Tween system.
   Depends on: KABOOM-BOMB-PLACE.
 - **KABOOM-PICKUPS-AND-STATS** — Power-up pickups: Bomb-up / Fire-up / Speed-up _(pending)_
   Soft blocks roll a deterministic-by-cell pickup table on destruction (small `r = seededRng(cellKey)` so the same arena always seeds the same pickups). `PickupCollectSystem` detects player/bot entering a pickup-occupied cell, applies the effect to `BomberStats`, deletes the pickup. Visual: pickups use 3 distinct primitive shapes + colours; HUD shows the bomber's current stats via the existing HUD widget API.
   Depends on: KABOOM-BOMB-FUSE-BLAST.
-- **KABOOM-DAMAGE-AND-DEATH** — Damage + death: blast tiles kill bombers; round ends when only one is alive _(pending)_
+- **KABOOM-DAMAGE-AND-DEATH** — Damage + death: blast tiles kill bombers; round ends when only one is alive _(implemented)_
   BlastPropagationSystem additionally checks every `BomberStats`-carrying entity at the blast cell and sets `BomberStats.alive = false`. Project-local `RoundResolveSystem` watches surviving bombers each frame; when ≤ 1 remain alive (or 0 — draw), it flips a singleton `RoundState { phase: 'playing' | 'won' | 'lost' | 'draw', winnerId? }` and pauses every GridMover. The HUD watches `RoundState` and shows a win/loss banner.
   Depends on: KABOOM-BOMB-FUSE-BLAST.
 - **KABOOM-RESTART** — Round restart command — R key resets the scene + RoundState _(pending)_

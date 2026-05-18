@@ -21,6 +21,12 @@
     },
     "PlayerControlled": {
       "speed": 4
+    },
+    "BomberStats": {
+      "maxBombs": 1,
+      "range": 2,
+      "activeBombs": 0,
+      "alive": true
     }
   }
 }

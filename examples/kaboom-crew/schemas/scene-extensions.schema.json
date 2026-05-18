@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/examples/kaboom-crew/schemas/scene-extensions.schema.json",
+  "title": "Kaboom Crew Scene Extensions",
+  "description": "Project-local component types for Kaboom Crew (S082+). Bomb / blast / bomber-stats / bot-brain / round-state primitives live here so engine schemas stay sample-agnostic. The engine recognises this file because it sits at <projectDir>/schemas/scene-extensions.schema.json.",
+  "components": {
+    "BomberStats": { "$ref": "#/definitions/bomberStatsComponent" },
+    "Bomb": { "$ref": "#/definitions/bombComponent" },
+    "PlaceBombRequest": { "$ref": "#/definitions/placeBombRequestComponent" },
+    "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
+    "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
+    "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
+    "RoundState": { "$ref": "#/definitions/roundStateComponent" },
+    "RoundRestartRequest": { "$ref": "#/definitions/roundRestartRequestComponent" },
+    "Pickup": { "$ref": "#/definitions/pickupComponent" }
+  },
+  "definitions": {
+    "bomberStatsComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-bomber gameplay stats. `maxBombs` caps simultaneous active bombs; `range` is blast distance in cells; `speed` is GridMover speed override; `activeBombs` is the runtime counter. `alive=false` flips on blast hit + locks GridMover.",
+      "required": ["maxBombs", "range"],
+      "properties": {
+        "maxBombs": { "type": "integer", "minimum": 1, "default": 1 },
+        "range": { "type": "integer", "minimum": 1, "default": 2 },
+        "speed": { "type": "number", "exclusiveMinimum": 0 },
+        "activeBombs": { "type": "integer", "minimum": 0, "default": 0 },
+        "alive": { "type": "boolean", "default": true }
+      }
+    },
+    "bombComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Live bomb. `fuseRemaining` ticks down each fixedUpdate; at zero the bomb emits a BlastEvent and gets deleted. `range` is the blast distance from the bomb cell. `ownerId` is who placed it (so kill credit + activeBombs decrement land on the right BomberStats).",
+      "required": ["fuseRemaining", "range", "ownerId"],
+      "properties": {
+        "fuseRemaining": { "type": "number", "minimum": 0 },
+        "range": { "type": "integer", "minimum": 1 },
+        "ownerId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "placeBombRequestComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Transient input request. PlayerInputSystem + BotAISystem write this on the bomber entity; BombPlacementSystem consumes + removes it the same frame.",
+      "properties": {}
+    },
+    "blastEventComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Transient event written by BombFuseSystem when a bomb detonates. BlastPropagationSystem consumes + removes it the same frame.",
+      "required": ["originGx", "originGz", "range", "ownerId"],
+      "properties": {
+        "originGx": { "type": "integer", "minimum": 0 },
+        "originGz": { "type": "integer", "minimum": 0 },
+        "range": { "type": "integer", "minimum": 1 },
+        "ownerId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "blastTileComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Short-lived visual marker on a blast cell. Tween system fades it out + a `lifetimeRemaining` timer deletes the entity when zero. Damages bombers that share the cell while alive.",
+      "required": ["lifetimeRemaining"],
+      "properties": {
+        "lifetimeRemaining": { "type": "number", "minimum": 0 },
+        "ownerId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "botBrainComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Bot AI tuning + scratch state. `aggression` 0..1 drives the flee-vs-bomb tradeoff; `nextDecisionIn` is a fixed-update countdown to the bot's next direction decision; `lastDecision` caches the chosen cardinal so we can prefer continuing instead of zigzagging.",
+      "required": ["aggression"],
+      "properties": {
+        "aggression": { "type": "number", "minimum": 0, "maximum": 1 },
+        "nextDecisionIn": { "type": "number", "minimum": 0 },
+        "lastDecisionDx": { "type": "integer", "minimum": -1, "maximum": 1 },
+        "lastDecisionDz": { "type": "integer", "minimum": -1, "maximum": 1 }
+      }
+    },
+    "roundStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Singleton round state. RoundResolveSystem flips `phase` to 'won' / 'lost' / 'draw' when ≤ 1 bombers remain alive. `elapsed` is wall-clock seconds since the round started; useful for the HUD timer.",
+      "required": ["phase"],
+      "properties": {
+        "phase": { "type": "string", "enum": ["playing", "won", "lost", "draw"] },
+        "winnerId": { "type": "string", "minLength": 1 },
+        "elapsed": { "type": "number", "minimum": 0 }
+      }
+    },
+    "roundRestartRequestComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Transient input request. PlayerInputSystem writes this on R key; RoundResolveSystem consumes it + emits a scene.load command.",
+      "properties": {}
+    },
+    "pickupComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed).",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["bomb-up", "fire-up", "speed-up"]
+        }
+      }
+    }
+  }
+}

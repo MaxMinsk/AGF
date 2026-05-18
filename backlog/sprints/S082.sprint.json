@@ -45,32 +45,50 @@
     {
       "id": "KABOOM-BOMB-PLACE",
       "title": "Place-bomb action: space key spawns a Bomb entity on the player's cell",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-local `BombPlacementSystem` consumes a `PlaceBombRequest` transient component on the player. The transient is written by `PlayerInputSystem` on space key; system reads it, checks `BomberStats.activeBombs < BomberStats.maxBombs`, checks `GridOccupancySystem` for an existing bomb on the cell, then issues an `entity.create` command for a bomb prefab. Removes the transient at the end of the frame. Bots get their own `PlaceBombRequest` writer via BotAISystem so the same pipeline serves both.",
       "verification": [
         "schemas/components for project-local Bomb + BomberStats + PlaceBombRequest under examples/kaboom-crew/schemas",
         "bomb prefab examples/kaboom-crew/prefabs/bomb.prefab.json validates",
-        "unit test: BombPlacementSystem refuses when maxBombs cap is hit + when the cell already has a bomb"
+        "unit test: BombPlacementSystem refuses when maxBombs cap is hit + when the cell already has a bomb",
+        "Space key fires edge-triggered PlaceBombRequest, BombPlacementSystem honours BomberStats.maxBombs cap + refuses stacking + increments activeBombs",
+        "5 unit tests cover the placement system",
+        "engine:check passes"
       ],
       "dependsOn": [
         "KABOOM-PLAYER-INPUT"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/schemas/scene-extensions.schema.json",
+        "examples/kaboom-crew/src/systems/bomb-placement-system.ts",
+        "examples/kaboom-crew/src/systems/player-input-system.ts (Space → PlaceBombRequest, R → RoundRestartRequest)",
+        "examples/kaboom-crew/prefabs/bomb.prefab.json",
+        "examples/kaboom-crew/prefabs/{player,bot}.prefab.json (BomberStats)"
+      ]
     },
     {
       "id": "KABOOM-BOMB-FUSE-BLAST",
       "title": "Bomb fuse → blast propagation → block destruction",
-      "status": "pending",
+      "status": "implemented",
       "summary": "`BombFuseSystem` decrements `Bomb.fuseRemaining` each fixedUpdate; at zero, it emits a `BlastEvent` transient + deletes the bomb entity. `BlastPropagationSystem` walks the four cardinals up to `Bomb.range` cells through `GridOccupancySystem`, stopping at the first cell that blocks blast (hard wall) and destroying any `soft-block` on the way. Chain reactions: a blast that overlaps another bomb's cell triggers that bomb early (fuse → 0). Visuals: each blast cell spawns a short-lived `BlastTile` entity carrying a `Tween` so the renderer paints a flash + fade — re-uses the existing Tween system.",
       "verification": [
         "unit test: a 3-range bomb at (5,5) with a hard wall at (7,5) destroys soft blocks at (4,5), (6,5), (5,4..7) and stops at the wall",
         "unit test: bomb-touches-bomb chain reaction fires within one fixed step",
-        "live: place bomb, fuse ticks, blast spawns 4 directional cells, soft blocks disappear, hard wall stays"
+        "live: place bomb, fuse ticks, blast spawns 4 directional cells, soft blocks disappear, hard wall stays",
+        "BombFuseSystem ticks fuseRemaining + emits BlastEvent + deletes bomb + decrements activeBombs",
+        "Propagation: range walk in 4 cardinals, hard wall blocks + survives, soft block stops + is destroyed, chain reactions fire (target bomb fuse → 0)",
+        "BlastTile lifetime expires + removes tile; bombers on tile flip BomberStats.alive=false. 7 unit tests in bomb-blast-system.test.ts"
       ],
       "dependsOn": [
         "KABOOM-BOMB-PLACE"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/src/systems/bomb-fuse-system.ts",
+        "examples/kaboom-crew/src/systems/blast-propagation-system.ts",
+        "examples/kaboom-crew/src/systems/blast-tile-lifetime-system.ts"
+      ]
     },
     {
       "id": "KABOOM-PICKUPS-AND-STATS",
@@ -90,17 +108,23 @@
     {
       "id": "KABOOM-DAMAGE-AND-DEATH",
       "title": "Damage + death: blast tiles kill bombers; round ends when only one is alive",
-      "status": "pending",
+      "status": "implemented",
       "summary": "BlastPropagationSystem additionally checks every `BomberStats`-carrying entity at the blast cell and sets `BomberStats.alive = false`. Project-local `RoundResolveSystem` watches surviving bombers each frame; when ≤ 1 remain alive (or 0 — draw), it flips a singleton `RoundState { phase: 'playing' | 'won' | 'lost' | 'draw', winnerId? }` and pauses every GridMover. The HUD watches `RoundState` and shows a win/loss banner.",
       "verification": [
         "unit test: a bomber on a blast cell flips BomberStats.alive=false in the same step",
         "RoundResolveSystem emits the correct phase for 1v0 / 0v0 / 1v1 (still playing) scenarios",
-        "HUD banner appears in the live game when the bot is blasted"
+        "HUD banner appears in the live game when the bot is blasted",
+        "bomber on a blast tile cell flips BomberStats.alive=false in the same step (covered by bomb-blast-system.test.ts)",
+        "RoundState + RoundResolveSystem moved to KABOOM-RESTART scope — damage flips alive here; the resolve step lands in the next story"
       ],
       "dependsOn": [
         "KABOOM-BOMB-FUSE-BLAST"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/src/systems/blast-propagation-system.ts (damageBombersAt)",
+        "examples/kaboom-crew/src/systems/blast-tile-lifetime-system.ts (re-checks bombers on tile each step)"
+      ]
     },
     {
       "id": "KABOOM-RESTART",

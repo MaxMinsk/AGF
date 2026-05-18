@@ -20,11 +20,15 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 
 const PLAYER_CONTROLLED: ComponentName = "PlayerControlled";
 const GRID_MOVER: ComponentName = "GridMover";
+const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
+const ROUND_RESTART_REQUEST: ComponentName = "RoundRestartRequest";
 
 const MOVE_RIGHT = new Set(["KeyD", "ArrowRight"]);
 const MOVE_UP = new Set(["KeyW", "ArrowUp"]);
 const MOVE_LEFT = new Set(["KeyA", "ArrowLeft"]);
 const MOVE_DOWN = new Set(["KeyS", "ArrowDown"]);
+const PLACE_BOMB = new Set(["Space"]);
+const ROUND_RESTART = new Set(["KeyR"]);
 
 type GridMoverComponent = {
   speed: number;
@@ -104,6 +108,21 @@ export function createKaboomPlayerInputSystem(
 
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
+  // S82 KABOOM-BOMB-PLACE. Edge-triggered actions: fire once on the
+  // frame a key transitions from "not pressed" to "pressed". Stored as
+  // the previous frame's snapshot so a held key doesn't spam requests.
+  let previousPressed: Set<string> = new Set();
+
+  function someInSet(targets: Set<string>): boolean {
+    for (const code of pressed) if (targets.has(code)) return true;
+    return false;
+  }
+  function someInSetNew(targets: Set<string>): boolean {
+    for (const code of pressed) {
+      if (targets.has(code) && !previousPressed.has(code)) return true;
+    }
+    return false;
+  }
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
@@ -112,15 +131,30 @@ export function createKaboomPlayerInputSystem(
       cachedWorld = world;
     }
     const direction = resolveDirection();
+    const placeBombEdge = someInSetNew(PLACE_BOMB);
+    const restartEdge = someInSetNew(ROUND_RESTART);
     for (const entityId of query!.run()) {
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       if (mover === undefined) continue;
-      // Only write when the queued direction actually changes — keeps
-      // ECS revisions stable while the player isn't pressing anything.
       const prev = mover.queuedDirection;
-      if (prev?.dx === direction.dx && prev?.dz === direction.dz) continue;
-      world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: direction });
+      if (prev?.dx !== direction.dx || prev?.dz !== direction.dz) {
+        world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: direction });
+      }
+      // Edge-trigger transients. BombPlacementSystem (and RoundResolveSystem)
+      // consume + remove these the same frame they're written.
+      if (placeBombEdge && !world.hasComponent(entityId, PLACE_BOMB_REQUEST)) {
+        world.setComponent(entityId, PLACE_BOMB_REQUEST, {});
+      }
+      if (restartEdge && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
+        world.setComponent(entityId, ROUND_RESTART_REQUEST, {});
+      }
     }
+    // Use a copy so test injection of an external pressed set survives
+    // (we don't mutate the caller's reference).
+    previousPressed = new Set(pressed);
+    // Suppress lint: `someInSet` is exposed for future read-only callers
+    // (e.g. a HUD widget showing current input state).
+    void someInSet;
   };
 
   return {
