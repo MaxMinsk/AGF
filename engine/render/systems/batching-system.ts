@@ -406,6 +406,16 @@ export function createBatchingSystem(
       memberToBucket.set(entityId, record);
       world.setComponent(entityId, BATCHED_MESH_HANDLE, { bucket: record.handle, instance });
       dirtyInstancedBuckets.add(record.handle);
+    } else if (!world.hasComponent(entityId, BATCHED_MESH_HANDLE)) {
+      // S82 restart bug: scene.load wipes every component on an entity
+      // (including renderer-internal markers like BatchedMeshHandle) and
+      // then re-adds the entity with the same id. The bucket record
+      // still has the slot from the previous lifetime, so we reuse it
+      // here — but without re-writing the marker, MeshLifecycleSystem
+      // sees the entity as "not batched" and spawns a parallel single-
+      // Mesh that ghosts the batched instance. Re-stamping the marker
+      // on the reuse path keeps the two pipelines in sync.
+      world.setComponent(entityId, BATCHED_MESH_HANDLE, { bucket: record.handle, instance });
     }
     const ltw = world.getComponent<LocalToWorldComponent>(entityId, LOCAL_TO_WORLD);
     if (ltw !== undefined) {
