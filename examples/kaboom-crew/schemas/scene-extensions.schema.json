@@ -13,6 +13,7 @@
     "RoundState": { "$ref": "#/definitions/roundStateComponent" },
     "RoundRestartRequest": { "$ref": "#/definitions/roundRestartRequestComponent" },
     "Pickup": { "$ref": "#/definitions/pickupComponent" },
+    "SoftBlockDestroyedEvent": { "$ref": "#/definitions/softBlockDestroyedEventComponent" },
     "AgentGoto": { "$ref": "#/definitions/agentGotoComponent" },
     "AgentGotoResult": { "$ref": "#/definitions/agentGotoResultComponent" }
   },
@@ -131,6 +132,16 @@
           "type": "string",
           "enum": ["bomb-up", "fire-up", "speed-up"]
         }
+      }
+    },
+    "softBlockDestroyedEventComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S82 KABOOM-PICKUPS-AND-STATS. Transient event written by BlastPropagationSystem when a soft block is destroyed. PickupSpawnSystem consumes + removes it the same fixedUpdate, rolls a deterministic-by-cell RNG, and may spawn a Pickup at the cleared cell.",
+      "required": ["gx", "gz"],
+      "properties": {
+        "gx": { "type": "integer", "minimum": 0 },
+        "gz": { "type": "integer", "minimum": 0 }
       }
     }
   }

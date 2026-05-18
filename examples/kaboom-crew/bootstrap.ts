@@ -25,6 +25,8 @@ import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-li
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
+import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
+import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
@@ -91,6 +93,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
+
+    // S82 KABOOM-PICKUPS-AND-STATS. Spawn runs in fixedUpdate AFTER
+    // blast-propagation so it sees the SoftBlockDestroyedEvent
+    // transients from this step. Collect runs alongside in fixedUpdate
+    // so a bomber walking onto a pickup is picked up on the same step.
+    scheduler.register(createKaboomPickupSpawnSystem({ seed: 0xc0ffee }), { profiles: ["static"] });
+    scheduler.register(createKaboomPickupCollectSystem({ occupancy }), { profiles: ["static"] });
 
     // Bot AI runs in fixedUpdate so per-frame variance doesn't change
     // decisions; seeded RNG keeps replay recordings reproducible.
@@ -259,7 +268,18 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           });
         const tiles = snap.entities
           .filter((e) => (e.components as Record<string, unknown> | undefined)?.["BlastTile"] !== undefined).length;
-        return { round, players, bombs, tiles };
+        const pickups = snap.entities
+          .filter((e) => (e.components as Record<string, unknown> | undefined)?.["Pickup"] !== undefined)
+          .map((e) => {
+            const c = e.components as Record<string, Record<string, unknown>>;
+            return {
+              id: e.id,
+              gx: (c["GridPosition"] as { gx?: number })?.gx,
+              gz: (c["GridPosition"] as { gz?: number })?.gz,
+              kind: (c["Pickup"] as { kind?: string })?.kind
+            };
+          });
+        return { round, players, bombs, tiles, pickups };
       }
     };
 

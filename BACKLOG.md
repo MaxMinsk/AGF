@@ -21,7 +21,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S082.sprint.js
 - **KABOOM-BOMB-FUSE-BLAST** — Bomb fuse → blast propagation → block destruction _(implemented)_
   `BombFuseSystem` decrements `Bomb.fuseRemaining` each fixedUpdate; at zero, it emits a `BlastEvent` transient + deletes the bomb entity. `BlastPropagationSystem` walks the four cardinals up to `Bomb.range` cells through `GridOccupancySystem`, stopping at the first cell that blocks blast (hard wall) and destroying any `soft-block` on the way. Chain reactions: a blast that overlaps another bomb's cell triggers that bomb early (fuse → 0). Visuals: each blast cell spawns a short-lived `BlastTile` entity carrying a `Tween` so the renderer paints a flash + fade — re-uses the existing Tween system.
   Depends on: KABOOM-BOMB-PLACE.
-- **KABOOM-PICKUPS-AND-STATS** — Power-up pickups: Bomb-up / Fire-up / Speed-up _(pending)_
+- **KABOOM-PICKUPS-AND-STATS** — Power-up pickups: Bomb-up / Fire-up / Speed-up _(implemented)_
   Soft blocks roll a deterministic-by-cell pickup table on destruction (small `r = seededRng(cellKey)` so the same arena always seeds the same pickups). `PickupCollectSystem` detects player/bot entering a pickup-occupied cell, applies the effect to `BomberStats`, deletes the pickup. Visual: pickups use 3 distinct primitive shapes + colours; HUD shows the bomber's current stats via the existing HUD widget API.
   Depends on: KABOOM-BOMB-FUSE-BLAST.
 - **KABOOM-DAMAGE-AND-DEATH** — Damage + death: blast tiles kill bombers; round ends when only one is alive _(implemented)_

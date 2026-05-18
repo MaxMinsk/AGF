@@ -27,6 +27,7 @@ const MESH_RENDERER: ComponentName = "MeshRenderer";
 const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const BOMBER_STATS: ComponentName = "BomberStats";
+const SOFT_BLOCK_DESTROYED_EVENT: ComponentName = "SoftBlockDestroyedEvent";
 
 type BlastEvent = { originGx: number; originGz: number; range: number; ownerId: EntityId };
 type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId };
@@ -46,12 +47,18 @@ export type BlastPropagationSystemOptions = {
   occupancy: GridOccupancyQuery;
   name?: string;
   nextTileId?: (gx: number, gz: number) => EntityId;
+  /** Counter base for `soft-block-destroyed.N` event ids — exposed for deterministic tests. */
+  nextEventId?: (gx: number, gz: number) => EntityId;
 };
 
 export function createKaboomBlastPropagationSystem(options: BlastPropagationSystemOptions): System {
   const name = options.name ?? "kaboom.blast-propagation";
   let counter = 0;
   const nextTileId = options.nextTileId ?? ((gx: number, gz: number): EntityId => `blast-tile.${++counter}.${gx}.${gz}`);
+  let eventCounter = 0;
+  const nextEventId =
+    options.nextEventId ??
+    ((gx: number, gz: number): EntityId => `soft-block-destroyed.${++eventCounter}.${gx}.${gz}`);
 
   let cachedWorld: World | undefined;
   let events: QueryHandle | undefined;
@@ -74,7 +81,7 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
       chainBombsAt(world, options.occupancy, event.originGx, event.originGz);
       // Soft blocks at origin (rare, but a bomb could land beside a wall
       // and immediately blow it up via chain) are destroyed too.
-      destroySoftBlocksAt(world, options.occupancy, event.originGx, event.originGz);
+      destroySoftBlocksAt(world, options.occupancy, event.originGx, event.originGz, nextEventId);
 
       for (const direction of DIRECTIONS) {
         for (let step = 1; step <= event.range; step += 1) {
@@ -87,9 +94,12 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
             // after destroy" pass below.
             const softHere = softBlockIdsAt(world, options.occupancy, gx, gz);
             if (softHere.length > 0) {
-              // Soft block: spawn tile here, destroy the block, stop.
+              // Soft block: spawn tile here, destroy the block, emit
+              // SoftBlockDestroyedEvent so PickupSpawnSystem can roll
+              // a pickup at this cell, then stop.
               spawnBlastTile(world, gx, gz, event.ownerId, nextTileId);
               for (const id of softHere) world.removeEntity(id);
+              emitSoftBlockDestroyed(world, gx, gz, nextEventId);
             }
             break;
           }
@@ -148,8 +158,29 @@ function cellBlocksBlast(world: World, occupancy: GridOccupancyQuery, gx: number
   return softBlockIdsAt(world, occupancy, gx, gz).length > 0;
 }
 
-function destroySoftBlocksAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): void {
-  for (const id of softBlockIdsAt(world, occupancy, gx, gz)) world.removeEntity(id);
+function destroySoftBlocksAt(
+  world: World,
+  occupancy: GridOccupancyQuery,
+  gx: number,
+  gz: number,
+  nextEventId: (gx: number, gz: number) => EntityId
+): void {
+  const ids = softBlockIdsAt(world, occupancy, gx, gz);
+  if (ids.length === 0) return;
+  for (const id of ids) world.removeEntity(id);
+  emitSoftBlockDestroyed(world, gx, gz, nextEventId);
+}
+
+function emitSoftBlockDestroyed(
+  world: World,
+  gx: number,
+  gz: number,
+  nextEventId: (gx: number, gz: number) => EntityId
+): void {
+  const id = nextEventId(gx, gz);
+  if (world.hasEntity(id)) return;
+  world.addEntity(id);
+  world.setComponent(id, SOFT_BLOCK_DESTROYED_EVENT, { gx, gz });
 }
 
 function damageBombersAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): void {

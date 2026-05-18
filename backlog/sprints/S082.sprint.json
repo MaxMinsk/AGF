@@ -102,12 +102,15 @@
     {
       "id": "KABOOM-PICKUPS-AND-STATS",
       "title": "Power-up pickups: Bomb-up / Fire-up / Speed-up",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Soft blocks roll a deterministic-by-cell pickup table on destruction (small `r = seededRng(cellKey)` so the same arena always seeds the same pickups). `PickupCollectSystem` detects player/bot entering a pickup-occupied cell, applies the effect to `BomberStats`, deletes the pickup. Visual: pickups use 3 distinct primitive shapes + colours; HUD shows the bomber's current stats via the existing HUD widget API.",
       "verification": [
         "schemas/components/Pickup + BomberStats under examples/kaboom-crew/schemas",
         "unit test: collecting Bomb-up increments BomberStats.maxBombs by 1",
-        "live: destroy a soft block, walk into the spawned pickup, see HUD widget update"
+        "live: destroy a soft block, walk into the spawned pickup, see HUD widget update",
+        "schemas: extends scene-extensions.schema.json with SoftBlockDestroyedEvent + Pickup definitions",
+        "unit tests: 10 across pickup-spawn-system + pickup-collect-system (bomb-up/fire-up/speed-up effect, caps, dead-bomber ignore, deterministic seed)",
+        "live probe: manually-spawned bomb-up pickup at (3,1), gotoCell('player.1', 3, 1) walked over it, BomberStats.maxBombs went 1→2 + pickup entity gone"
       ],
       "dependsOn": [
         "KABOOM-BOMB-FUSE-BLAST"
