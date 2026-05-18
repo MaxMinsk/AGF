@@ -23,10 +23,12 @@
     {
       "id": "AGF-LOG-POLICY-DOC",
       "title": "Logging policy doc — severity scale + diagnostics-vs-console rules",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Write `docs/diagnostics-policy.md` capturing the severity scale (fatal/error/warn/info/debug/trace), when-to-use-diagnostics-vs-console, the structured-payload schema (domain_verb code + JSON context), and the rules for engine vs example code. Source: notes/logging-policy-thinking.md.",
       "verification": [
-        "docs/diagnostics-policy.md exists; referenced from CLAUDE.md + AGENTS.md"
+        "docs/diagnostics-policy.md exists; referenced from CLAUDE.md + AGENTS.md",
+        "docs/diagnostics-policy.md created (8 sections: severity scale, where-to-emit, code naming, per-system debug, lifecycle events, CI gates, why-not-console, migration playbook)",
+        "CLAUDE.md + AGENTS.md Read-First sections reference the new policy"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

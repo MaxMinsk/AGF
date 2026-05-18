@@ -12,7 +12,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S083.sprint.js
 
 - **AGF-MOTION-SMOOTHNESS-PROBE** — Motion smoothness — frame-time probe + GridMover stutter fix _(implemented)_
   Build a deterministic Playwright probe that measures frame-delta jitter while the player walks across the Kaboom Crew arena. Capture a histogram of frame durations + per-cell tween dt deltas. Investigate whether GridMover's cell-tween + lane-assist introduce visible micro-stutters (cell boundary snaps, recompute order, BatchingSystem invalidation churn). Land a targeted fix if root cause is in the renderer/scheduler/tween path; if it turns out to be macOS PSU/throttling, document the workaround.
-- **AGF-LOG-POLICY-DOC** — Logging policy doc — severity scale + diagnostics-vs-console rules _(pending)_
+- **AGF-LOG-POLICY-DOC** — Logging policy doc — severity scale + diagnostics-vs-console rules _(implemented)_
   Write `docs/diagnostics-policy.md` capturing the severity scale (fatal/error/warn/info/debug/trace), when-to-use-diagnostics-vs-console, the structured-payload schema (domain_verb code + JSON context), and the rules for engine vs example code. Source: notes/logging-policy-thinking.md.
 - **AGF-LOG-CI-GATE** — CI gate: ban raw console.log in engine/** + examples/**/src/** _(pending)_
   scripts/check-no-console-log.mjs walks the configured globs and rejects bare console.{log,warn,error}. Allowlist via `// agf-allow:console <reason>` markers. Wire into `npm run repo:hygiene` (already part of preflight) so CI fails when someone slips a log in.

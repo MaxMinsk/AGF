@@ -52,7 +52,9 @@ Every validation error should include:
 - `message`
 - `suggestion` when possible
 
-See `docs/diagnostics.md` for the canonical code catalogue.
+See `docs/diagnostics.md` for the canonical code catalogue and
+`docs/diagnostics-policy.md` for the logging policy (severity scale,
+code naming, CI gates banning `console.log` in engine + project src).
 
 ## Expected Verification
 
