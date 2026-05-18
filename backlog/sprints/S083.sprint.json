@@ -120,10 +120,12 @@
     {
       "id": "AGF-LOG-BOOT-NOISE-BUDGET",
       "title": "Boot noise budget — fail when startup emits more than N logs",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Preflight smoke test asserts that booting hello-3d emits ≤ N (small, e.g. 5) info-level diagnostics before idle. Catches regressions where someone adds a per-frame log to a startup path.",
       "verification": [
-        "smoke e2e fails when a deliberate noisy log is added; passes on the cleaned tree"
+        "smoke e2e fails when a deliberate noisy log is added; passes on the cleaned tree",
+        "tests/e2e/boot-noise-budget.spec.ts boots hello-3d, fetches /__agf/diagnostics, asserts error=0, warning=0, info ≤ 20 — a deliberate console-noise regression would flip this from passing to failing",
+        "live run: 'info=0 warning=0 error=0 debug=0 trace=0' on the current tree — hello-3d boots in absolute diagnostic silence"
       ],
       "dependsOn": [
         "AGF-LOG-AUDIT-ENGINE"
