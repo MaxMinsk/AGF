@@ -53,6 +53,9 @@ export const WEBGPU_CAPABILITIES: RenderAdapterCapabilities = {
   // `three/webgpu` paired with `CubeCamera` runs through the WebGPU
   // pipeline; PMREM prefilter already wired via S62.
   supportsReflectionProbe: true,
-  supportsPlanarMirror: false,
+  // S72 WEBGPU-planar-mirror: shipped — adapter routes
+  // `acquirePlanarMirror` through TSL `reflector()` +
+  // `MeshBasicNodeMaterial` on the WebGPU path.
+  supportsPlanarMirror: true,
   supportsTextureBinding: true
 };

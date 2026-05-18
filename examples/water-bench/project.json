@@ -5,7 +5,7 @@
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {
-    "mode": "webgl",
+    "mode": "webgpu",
     "color": {
       "toneMapping": "aces-filmic",
       "exposure": 1.0
