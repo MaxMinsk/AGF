@@ -4,49 +4,44 @@
 
 Use when an AGF user / agent is considering WebGPU, asks how to switch a project to it, or is investigating renderer-level perf where WebGPU might be relevant. Pair with [`vfx-authoring.md`](vfx-authoring.md) for the renderer features themselves and [`perf-tuning.md`](perf-tuning.md) for general FPS work.
 
-## Current status (Sprint 61)
+## Current status (Sprint 70)
 
-- **AGF now ships an opt-in WebGPU adapter.** Set `project.json#render.mode: "webgpu"` and the runtime creates `WebGPURenderer` from `three/webgpu` instead of `WebGLRenderer`. Default stays `"webgl"`.
-- `examples/webgpu-spike/` is the canonical opt-in project — hello-3d-shaped scene (cube + sphere + cylinder + floor, sun + hemi light, spinning hero cube) that boots end-to-end on WebGPU. Use it as the template when adding WebGPU to a new project.
+- **AGF ships an opt-in WebGPU adapter.** Set `project.json#render.mode: "webgpu"` and the runtime creates `WebGPURenderer` from `three/webgpu` instead of `WebGLRenderer`. Default stays `"webgl"`.
+- **5 of 9 example projects are on WebGPU**: `webgpu-spike`, `webgpu-light-test`, `hello-3d`, `physics-bench`, `beacon-world`. The remaining four (`material-bench`, `shadows-bench`, `water-bench`, `batch-bench`) are blocked on upstream three.js issues or the in-progress bucket port — see the deferred list below.
 - `__agf.rendererInfo().renderer` returns `"webgl"` or `"webgpu"` so probes / overlays / dev-bridge clients can branch.
-- `engine doctor` reports a `WebGPU readiness:` section per project. When `mode = "webgpu"` AND the project uses a feature without a WebGPU implementation, doctor surfaces it as a recommendation (revert or wait for S62 / S63 feature port).
+- `__agf.rendererInfo().gpuMs` is populated on **both** renderers (S70: WebGPU via `GPUQuerySet { type: "timestamp" }` + throttled `resolveTimestampsAsync`, undefined on devices without the feature).
+- **Auto-fallback to WebGL**: opening a `mode: "webgpu"` project in a browser without `navigator.gpu` now warns and falls back to WebGL instead of black-screening (S68).
+- **Three.js's WebGPURenderer has its own WebGL2 fallback backend.** Headless CI / older browsers stay on WebGL2 transparently — smoke tests pass on either path.
+- `engine doctor` reports a `WebGPU readiness:` section per project. When `mode = "webgpu"` AND the project uses a feature without a WebGPU implementation, doctor surfaces it as a recommendation.
 - The standalone comparison harness lives at `tests/manual/webgpu-vs-webgl/` — open `http://localhost:5173/tests/manual/webgpu-vs-webgl/?renderer=webgl|webgpu` to see both renderers side-by-side.
 - The spike numbers + integration plan: [`m21-webgpu-spike.md`](../../research/m21-webgpu-spike.md), [`m21-webgpu-adapter-sketch.md`](../../research/m21-webgpu-adapter-sketch.md).
 
-### What works on the WebGPU adapter today (S61 core path)
+### What works on the WebGPU adapter today
 
 - `MeshRenderer` with built-in primitives (`box`, `sphere`, `cylinder`, `plane`).
 - `MeshStandardMaterial` / `MeshPhysicalMaterial` (direct-light path).
 - All light kinds: `directional`, `point`, `spot`, `ambient`, `hemisphere`, `rect-area`.
 - Directional + spot shadow maps with basic PCF filtering.
+- HDR + generated IBL (`scene.environment` via `three/webgpu`'s `PMREMGenerator`).
+- `ReflectionProbe` + `EnvmapBinding` (S64 via `three/webgpu`'s `CubeRenderTarget`).
 - Transmission (`material.transmission`) + MSAA antialias.
 - Tone mapping (`aces-filmic`, `agx`, etc.) + exposure.
-- `__agf.rendererInfo()` reports `renderer`, `meshes`, `lights`, `drawCalls`, `triangles`.
+- Auto-fallback to WebGL when `navigator.gpu` is missing.
+- `__agf.rendererInfo()` reports `renderer`, `meshes`, `lights`, `drawCalls` (per-frame on either backend), `triangles`, `gpuMs`.
 
-### What does NOT work yet (deferred to S63 / S64)
+### What does NOT work yet
 
-- Post-processing chain (`project.render.post`: bloom / SSAO / LUT / FXAA) — silently skipped. WebGPU's `RenderPipeline` (rename of `PostProcessing` in r0.183+) uses TSL nodes instead of `EffectComposer` `Pass` classes; the port is its own sprint (S63).
-- CSM cascade shadow maps (`project.render.shadows.csm`) — silently skipped.
-- PCSS shadow algorithm (`project.render.shadows.algorithm: "pcss"`) — silently skipped, falls back to basic.
-- `ReflectionProbe` + `EnvmapBinding` — silently skipped (no envmap; the WebGPU CubeRenderTarget port lands with probes in S63).
-- `PlanarMirror` (Reflector) — silently skipped (no mirror surface).
-- GPU timer (`gpuMs` reading) — undefined on WebGPU until `GPUQuerySet { type: "timestamp" }` port lands.
-- Batching (`InstancedMesh` + `BatchedMesh`) — adapter methods return -1 and the bucket falls back to per-entity Mesh. Set `render.batching.auto: false` in the project.json to silence the noise.
+- **Post-processing chain** (`project.render.post`: bloom / SSAO / LUT / FXAA) — **blocked upstream** in three.js r0.184. Stack-trace investigation confirmed `BloomNode`'s internal pingpong quads use vanilla `ShaderMaterial`, which `StandardNodeLibrary` doesn't have an entry for. Audit tool: `__agf.__auditMaterials()`. Tracked for upstream minor releases.
+- **CSM cascade shadow maps** (`project.render.shadows.csm`) — silently skipped. Needs `CSMNode` port or upstream patch.
+- **PCSS shadow algorithm** (`project.render.shadows.algorithm: "pcss"`) — silently skipped, falls back to basic. Uses `onBeforeCompile` which is WebGL-only; needs TSL rewrite.
+- **`PlanarMirror`** (`three/addons/objects/Reflector.js`) — silently skipped. TSL equivalent (`ReflectorNode`) has a different API (node attaches to material, not Mesh).
+- **Batching** (`InstancedMesh` + `BatchedMesh` buckets) — adapter methods return `-1` and the bucket falls back to per-entity Mesh. Set `render.batching.auto: false` in the project.json. **In-progress in S70** (stories 3 + 4 port both bucket paths to WebGPU).
 
-### What landed in S62
+### Post-processing on WebGPU — blocked upstream (S65 → S67)
 
-- **HDR + generated IBL on WebGPU** — the adapter now routes through `three/webgpu`'s `PMREMGenerator` when `mode = "webgpu"` (different class than the WebGL one; takes the new Renderer base). `scene.environment` works on both renderers; HDR equirect skies prefilter correctly.
+S65 attempted to wire `three/webgpu` `PostProcessing` + `BloomNode` (from `three/addons/tsl/display/BloomNode.js`) into the adapter. The TSL node graph build succeeded; first frame threw `THREE.NodeBuilder: Material "ShaderMaterial" is not compatible` and rendered pure black. S67 ran a stack-trace audit (`auditMaterialClasses()` on the adapter) and confirmed the offending `ShaderMaterial` instances are **inside `BloomNode` itself** (its pingpong full-screen quads), not in AGF code. Not fixable from AGF — needs an upstream change to either swap the BloomNode quads for node materials or extend `StandardNodeLibrary` to tolerate vanilla `ShaderMaterial`.
 
-### S65 investigation: post-processing on WebGPU blocked
-
-Attempted to wire `three/webgpu` `PostProcessing` + `BloomNode` (from `three/addons/tsl/display/BloomNode.js`) into the adapter as a parallel path to the WebGL `EffectComposer`. The TSL node graph build succeeded; first frame threw `THREE.NodeBuilder: Material "ShaderMaterial" is not compatible` repeatedly and the scene rendered pure black. Removing `environment.kind: "generated"`, the reflection probe, and `castShadow` from the spike each in isolation did NOT clear the error — meaning AGF's render path contains at least one `ShaderMaterial` instance that the TSL `NodeBuilder` doesn't auto-convert. Candidates: three.js internal shadow `MeshDepthMaterial` (extends `ShaderMaterial`), PMREM `RoomEnvironment` shader materials, or our `GroundedSkybox` / `ShadowMaterial` plumbing.
-
-Bloom port reverted; capability flags stay `supportsPostProcessing: false` on WebGPU. Real fix needs:
-1. Audit every `ShaderMaterial` AGF or three.js creates during a render frame.
-2. Either swap them for node-material equivalents (`MeshDepthNodeMaterial`, etc) when in WebGPU mode, OR find the TSL escape-hatch that lets a node graph tolerate vanilla `ShaderMaterial` (if one exists).
-3. Re-attempt bloom with the audit in place.
-
-Tracked for a follow-up sprint. Lesson: each WebGPU feature port may surface a new "this AGF code uses a legacy material" issue — porting is not as mechanical as it looked in the S60 spike sketch.
+Capability flag stays `supportsPostProcessing: false` on WebGPU. Re-test on every three.js minor release; **THREE-version-tracker** is the lightweight check to run when bumping `three`.
 
 ### Live-discovered gotchas
 
@@ -67,12 +62,12 @@ The compute-shader story (GPU-side skinning, particle physics, terrain GPGPU) on
 
 ## Why NOT to migrate yet
 
-- **No WebGPU adapter implementation** — there is nothing to opt into. Story-level work lands in S61 + S62 + S63 under the `M21-webgpu-adapter` epic.
-- **40 % of AGF's render surface needs porting** to WebGPU equivalents — post-processing chain (Bloom/SSAO/LUT/FXAA), CSM cascade shadow maps, PCSS shader patches (`onBeforeCompile`), reflection probe cube-camera path, planar mirror Reflector, GPU timer (`EXT_disjoint_timer_query` → `GPUQuerySet`).
-- **Three.js's WebGPU backend regresses at high draw counts** (1200+ draws) in r0.184 — currently 30 % *slower* than WebGL there. Three.js is closing the gap each minor; we re-bench per release.
-- **The default flip is planned for S65** — until then, opting into webgpu means losing post-processing on any project that uses it.
+- **Post-processing is upstream-blocked** — any project that uses `project.render.post` (bloom / SSAO / LUT / FXAA) can't migrate until three.js fixes `BloomNode`'s pingpong quads.
+- **Batching is a stub on WebGPU** — `InstancedMesh` / `BatchedMesh` buckets return `-1` until S70's port lands. Projects that depend on auto-batching (`batch-bench`, `material-bench`'s outer ring) should wait.
+- **CSM cascade shadow maps and PCSS** aren't ported — `shadows-bench`-style projects stay on WebGL.
+- **`PlanarMirror`** isn't available — `water-bench` stays on WebGL.
 
-If you're an agent helping a user pick a renderer today, the answer is: **WebGL, default**. The migration plan is in place; users don't need to make a choice yet.
+For projects that don't touch any of the above (primitives + standard materials + direct lights + basic shadows + IBL + reflection probes), WebGPU is now the recommended path.
 
 ## How to opt-in
 
@@ -80,25 +75,29 @@ If you're an agent helping a user pick a renderer today, the answer is: **WebGL,
 // examples/<project>/project.json
 "render": {
   "mode": "webgpu",
-  "batching": { "auto": false },  // batching path falls back to per-entity Mesh until S63
+  "batching": { "auto": false },  // until S70 bucket port lands
   "color": { "toneMapping": "aces-filmic", "exposure": 1.0 }
-  // Avoid `post`, `shadows.csm`, `shadows.algorithm: "pcss"`, `environment.kind: "hdr"` —
+  // Avoid `post`, `shadows.csm`, `shadows.algorithm: "pcss"`, planar mirrors —
   // those silently skip on WebGPU. Doctor will flag them.
 }
 ```
 
-The runtime awaits `WebGPURenderer.init()` (asks for `GPUAdapter` + `GPUDevice`) before the first frame draws. If `navigator.gpu` is absent, the page errors out — there's no automatic fallback to WebGL today. Future stories can add a `mode: "webgpu-or-webgl"` policy.
+The runtime `await`s `WebGPURenderer.init()` (asks for `GPUAdapter` + `GPUDevice`) before the first frame draws. If `navigator.gpu` is absent, the adapter warns and falls back to WebGL automatically (S68); apps that *require* WebGPU should check `__agf.rendererInfo().renderer === "webgpu"` after boot.
 
 ## Roadmap (read-only here; canonical in `HIGH_LEVEL_BACKLOG.md`)
 
 | Sprint | Goal |
 | --- | --- |
-| S60 | Spike + research + adapter sketch (no implementation). ✅ |
-| S61 | Adapter core path shipped — mesh / light / shadow / transmission / spike project. ✅ |
-| S62 (this sprint) | HDR + generated IBL via `three/webgpu` `PMREMGenerator`. ✅ |
-| S63 | Port CSM (`CSMNode`), PCSS (TSL rewrite), reflection probes + cube probes (`WebGPUCubeRenderTarget`), planar mirror (`ReflectorNode`), GPU timer (`GPUQuerySet`), post-processing chain (Bloom / SSAO / LUT / FXAA via `RenderPipeline` + TSL nodes). |
-| S64 | Re-bench, fix three.js WebGPU regressions, migrate every example to opt-in webgpu. |
-| S65 | Default-flip: `webgpu` becomes the default, `webgl` becomes the legacy explicit opt-in. |
+| S60 | Spike + research + adapter sketch. ✅ |
+| S61 | Adapter core path — mesh / light / shadow / transmission. ✅ |
+| S62 | HDR + generated IBL via `three/webgpu` PMREMGenerator. ✅ |
+| S63 | Five-light diagnostic project + HemisphereLight position fix. ✅ |
+| S64 | Reflection probes + WebGPU `CubeRenderTarget`. ✅ |
+| S65–67 | Post-processing port attempt → blocked upstream (BloomNode pingpong ShaderMaterial). |
+| S68 | Auto-fallback policy + migrate `hello-3d` + `physics-bench`. ✅ |
+| S69 | Migrate `beacon-world` (gameplay + persistence on WebGPU). ✅ |
+| S70 (this sprint) | GPU timer (`GPUQuerySet`), lazy-import of `three/webgpu`, InstancedMesh + BatchedMesh bucket port → unblocks `batch-bench`. |
+| Future | CSMNode port + PCSS TSL rewrite + ReflectorNode integration; default-flip once 6+ examples are clean. |
 
 ## Reading `__agf.rendererInfo().renderer`
 
@@ -116,8 +115,8 @@ if (info.renderer === "webgpu") {
 
 `engine doctor <projectDir>` includes a `WebGPU readiness:` block per project. It lists:
 
-- `project.render.mode` (today always reads `webgl` or `unspecified`).
-- Features the project uses that don't have a WebGPU equivalent yet (post-passes, CSM, reflection probes, planar mirrors).
+- `project.render.mode` (`webgl`, `webgpu`, or `unspecified`).
+- Features the project uses that don't have a WebGPU equivalent yet (post-passes, CSM, planar mirrors).
 
 Run before considering an opt-in to see what would break.
 
