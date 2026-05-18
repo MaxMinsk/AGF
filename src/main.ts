@@ -333,6 +333,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.webgpuLightTestBootstrap
     };
+  },
+  "kaboom-crew": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/kaboom-crew/project.json"),
+      import("../examples/kaboom-crew/scenes/start.scene.json"),
+      import("../examples/kaboom-crew/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.kaboomCrewBootstrap
+    };
   }
 };
 
@@ -494,6 +506,8 @@ void (async (): Promise<void> => {
       import.meta.hot.accept("../examples/hello-3d/scenes/start.scene.json", applySceneUpdate);
     } else if (selectedId === "beacon-world") {
       import.meta.hot.accept("../examples/beacon-world/scenes/start.scene.json", applySceneUpdate);
+    } else if (selectedId === "kaboom-crew") {
+      import.meta.hot.accept("../examples/kaboom-crew/scenes/start.scene.json", applySceneUpdate);
     }
 
     import.meta.hot.on("agf:asset-changed", (payload: unknown) => {
