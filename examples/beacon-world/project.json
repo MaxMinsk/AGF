@@ -5,11 +5,11 @@
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {
-    "mode": "webgl",
+    "mode": "webgpu",
     "background": "#0a1118",
-    "batching": { "auto": true },
+    "batching": { "auto": false },
     "shadows": {
-      "algorithm": "pcss"
+      "algorithm": "pcf"
     }
   },
   "profiles": ["static", "connected"],
