@@ -21,11 +21,13 @@
     {
       "id": "AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC",
       "title": "Auto-emit AGF_FRAME_SPIKE warning when frame > 50 ms",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Engine-side passive perf gate. The runtime already samples per-phase frame timing into a window (M21-frame-timing). Add a guard that emits `severity: 'warning', code: 'AGF_FRAME_SPIKE'` once per spike — defined as totalFrameMs > spikeMs (default 50). Cooldown 1 s between emissions so a stuck frame doesn't spam the bus. Configurable via `RuntimeOptions.spikeMs`. Stays off when set to 0.",
       "verification": [
         "unit test: synthetic frame-timing sequence with a spike triggers one emission; sustained spikes throttle to ≤ 1/sec",
-        "boot-noise-budget smoke test still green on hello-3d (steady-state has no spikes)"
+        "boot-noise-budget smoke test still green on hello-3d (steady-state has no spikes)",
+        "RuntimeOptions { spikeMs?: number = 50; spikeCooldownMs?: number = 1000 } threaded into the main tick; spikeMs=0 disables",
+        "AGF_FRAME_SPIKE warning emitted with { totalMs, threshold } in details; cooldown rate-limits a stuck frame to ≤ 1/sec"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
