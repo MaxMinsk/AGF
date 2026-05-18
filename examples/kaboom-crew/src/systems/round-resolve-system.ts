@@ -30,6 +30,8 @@ type RoundState = {
   elapsed?: number;
   roundNumber?: number;
   tally?: Tally;
+  /** S85 KABOOM-ROUND-TIMER. Seconds before the round auto-draws. 0 / undefined → no limit. */
+  timeLimit?: number;
 };
 
 type BomberStats = { alive?: boolean };
@@ -130,6 +132,16 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
             : { ...tally, bot: tally.bot + 1 };
         world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase, winnerId: winner, tally: bumped });
       } else if (alive.length === 0) {
+        const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
+        const bumped: Tally = { ...tally, draws: tally.draws + 1 };
+        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped });
+      } else if (
+        // S85 KABOOM-ROUND-TIMER: time-limit reached with both bombers
+        // alive → auto-draw. Avoid the loop where both bots play it safe.
+        next.timeLimit !== undefined &&
+        next.timeLimit > 0 &&
+        (next.elapsed ?? 0) >= next.timeLimit
+      ) {
         const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
         const bumped: Tally = { ...tally, draws: tally.draws + 1 };
         world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped });

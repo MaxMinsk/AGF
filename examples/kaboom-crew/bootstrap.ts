@@ -32,6 +32,21 @@ import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/syste
 import { createKaboomAudioFx } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
+const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
+function readRoundTimeLimit(): number {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+  try {
+    const value = new URLSearchParams(search).get("roundTimeLimit");
+    if (value === null) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+    return parsed;
+  } catch {
+    return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+  }
+}
+
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
  *
@@ -99,7 +114,7 @@ function restartScene(runtime: RuntimeHandle): number {
       kind: "entity.create",
       entityId: "kaboom.round-state",
       components: {
-        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally }
+        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit() }
       }
     },
     { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
@@ -234,6 +249,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         entityId: "kaboom.game-state",
         components: {
           GamePaused: { reason: "title-screen" }
+        }
+      },
+      // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
+      // present from frame 0 — RoundResolveSystem's ensureRoundState would
+      // otherwise create a singleton without it.
+      {
+        kind: "entity.create",
+        entityId: "kaboom.round-state",
+        components: {
+          RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit() }
         }
       },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
@@ -569,6 +594,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             winnerId?: string;
             roundNumber?: number;
             tally?: { player: number; bot: number; draws: number };
+            timeLimit?: number;
           };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
@@ -581,7 +607,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         const roundNumber = s.round?.roundNumber ?? 1;
         const tally = s.round?.tally ?? { player: 0, bot: 0, draws: 0 };
         lines.push(`Round ${roundNumber}   W:${tally.player} L:${tally.bot} D:${tally.draws}`);
-        lines.push(`phase: ${phase}   t: ${elapsed}s`);
+        const timeLimit = s.round?.timeLimit;
+        const timeStr = timeLimit !== undefined && timeLimit > 0 ? `t: ${elapsed}s / ${Math.floor(timeLimit)}s` : `t: ${elapsed}s`;
+        lines.push(`phase: ${phase}   ${timeStr}`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
           lines.push(

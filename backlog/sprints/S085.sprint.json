@@ -51,12 +51,14 @@
     {
       "id": "KABOOM-ROUND-TIMER",
       "title": "Per-round time limit + auto-draw when nobody dies in time",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promote RoundState with a `timeLimit: number` field (default 90 s, query-param overridable). RoundResolveSystem flips phase to 'draw' when elapsed >= timeLimit + no winner. HUD timer line shows `t: 47s / 90s` instead of bare elapsed. Stops a game where both bombers play it safe from looping forever.",
       "verification": [
         "schema: RoundState.timeLimit optional + default 90",
         "unit test: round with both bombers alive at elapsed === timeLimit flips to 'draw' + bumps tally.draws",
-        "HUD shows 'X s / Y s' once timeLimit is set"
+        "HUD shows 'X s / Y s' once timeLimit is set",
+        "RoundState.timeLimit (optional number, default 90 s) drains RoundResolveSystem to a draw when both bombers are still alive at elapsed >= timeLimit; +2 unit tests",
+        "bootstrap reads ?roundTimeLimit= off the URL, seeds RoundState with the value on initial boot AND each restart; HUD timer renders 'X s / Y s' when limit > 0"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
