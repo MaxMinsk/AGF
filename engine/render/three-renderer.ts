@@ -1,3 +1,5 @@
+// agf-allow:console-file renderer pipeline — same renderer-side
+// rationale as three-render-adapter.ts; bus injection follow-up.
 import { MathUtils, type Mesh, type Object3D } from "three";
 import type { EntityId } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";

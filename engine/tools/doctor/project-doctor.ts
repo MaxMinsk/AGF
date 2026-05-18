@@ -1,3 +1,6 @@
+// agf-allow:console-file `engine doctor` is a CLI that writes its
+// scorecard to stdout/stderr. See docs/diagnostics-policy.md §2.
+//
 // `engine doctor <projectDir>` — agent scorecard.
 //
 // Combines: `engine check` diagnostics, `engine summarize` output, optional

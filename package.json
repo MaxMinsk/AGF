@@ -70,7 +70,7 @@
     "bundle:check": "node scripts/check-bundle-size.mjs",
     "imports:check": "node scripts/check-import-boundaries.mjs",
     "systems:check": "node scripts/check-system-queries.mjs",
-    "repo:hygiene": "node scripts/check-repo-hygiene.mjs",
+    "repo:hygiene": "node scripts/check-repo-hygiene.mjs && node scripts/check-no-console-log.mjs",
     "check:console-log": "node scripts/check-no-console-log.mjs",
     "preflight": "npm run repo:hygiene && npm run engine:check:examples && npm run imports:check && npm run systems:check && npm run typecheck && npm run test && npm run build && npm run bundle:check && npm run test:e2e:smoke"
   },

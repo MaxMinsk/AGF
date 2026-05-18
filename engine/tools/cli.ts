@@ -1,3 +1,7 @@
+// agf-allow:console-file `engine` CLI tools write terminal output through
+// console.log / console.error by design. See docs/diagnostics-policy.md
+// §2 — `console.*` is allowed in scripts + CLI surfaces where the
+// runtime diagnostics bus is unavailable (no in-process world).
 import { spawn } from "node:child_process";
 import {
   writeFileSync,

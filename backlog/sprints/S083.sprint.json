@@ -52,11 +52,14 @@
     {
       "id": "AGF-LOG-AUDIT-ENGINE",
       "title": "Audit + purge existing console.* in engine/** under the new policy",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Walk every `console.*` call site inside engine/** and either route it through the diagnostics channel, downgrade to debug-flag gated, or add an `agf-allow:` marker with a one-line rationale. Goal: a clean baseline before the CI gate flips on.",
       "verification": [
         "check-no-console-log.mjs passes against engine/** with zero unmarked sites",
-        "PR diff lists every conversion"
+        "PR diff lists every conversion",
+        "scripts/check-no-console-log.mjs: extended with file-level 'agf-allow:console-file <reason>' marker for CLI / renderer files where every console.* is intentional and a bus refactor lives in a follow-up",
+        "audited 5 renderer + 1 network + 1 CLI + 1 doctor file + 1 sample bootstrap; gate now reports 0 violations across 136 in-scope files",
+        "wired into npm run repo:hygiene so preflight (which already runs repo:hygiene) gates new console.* without a marker"
       ],
       "dependsOn": [
         "AGF-LOG-CI-GATE"

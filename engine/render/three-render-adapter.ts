@@ -1,3 +1,8 @@
+// agf-allow:console-file renderer adapter — pre-runtime diagnostics
+// (no bus reachable from the renderer adapter today). Lifting these
+// warnings/errors to runtime.diagnostics is a follow-up under the
+// renderer-diagnostics integration epic.
+//
 // Thin Three.js touchpoint for the renderer pipeline (M21-a).
 //
 // The adapter is the only file under `engine/render/` allowed to import

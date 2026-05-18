@@ -65,6 +65,7 @@ function buildFlatStartScene(): SceneInput {
   const expansion = expandScenePrefabs(startSceneJson as unknown as SceneInput, PROJECT_PREFABS);
   if (expansion.diagnostics.length > 0) {
     // eslint-disable-next-line no-console
+    // agf-allow:console scene expansion path runs before the runtime diagnostics bus is bound to attachUi.
     console.warn("[kaboom-crew] restart: scene expansion produced diagnostics", expansion.diagnostics);
   }
   return expansion.scene;

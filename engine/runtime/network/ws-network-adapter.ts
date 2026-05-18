@@ -165,6 +165,7 @@ const DEFAULT_RECONNECT: Required<WsReconnectOptions> = {
 };
 
 export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetworkAdapterHandle {
+  // agf-allow:console fallback log sink — production hosts supply options.log; this is the dev-time default.
   const log = options.log ?? ((line: string) => console.log(line));
   const diagnostics = options.diagnostics;
   const emitDiag = (

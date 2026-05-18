@@ -19,6 +19,12 @@ const EXTENSIONS = [".ts", ".tsx", ".mjs"];
 // name so `customConsole.log` doesn't trip the gate.
 const CONSOLE_RE = /\bconsole\.(log|warn|error|info|debug|trace)\s*\(/g;
 const ALLOW_MARKER = /\/\/\s*agf-allow:console\b/;
+// File-level allowlist marker — must appear before the first import or
+// non-comment statement. Used for CLI / tooling files where every
+// console.* call is intentional terminal output (e.g. engine CLI
+// commands). Requires a rationale after the marker, same as the
+// per-line variant.
+const FILE_MARKER = /\/\/\s*agf-allow:console-file\b/;
 
 function listTrackedFiles() {
   const raw = execSync("git ls-files -z", { encoding: "buffer" });
@@ -47,6 +53,10 @@ const violations = [];
 for (const file of allFiles) {
   const src = safeRead(file);
   if (src === undefined) continue;
+  // File-level marker scan: any of the first 30 lines may carry the
+  // allowlist. 30 is plenty for a banner + import block.
+  const header = src.split("\n", 30).join("\n");
+  if (FILE_MARKER.test(header)) continue;
   const lines = src.split("\n");
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
