@@ -169,7 +169,7 @@ Doctor sections relevant to assets:
 - **Textures.** Reports `AGF_TEXTURE_HUGE` (uncompressed PNG/JPEG > 1 MB), `AGF_TEXTURE_NPOT` (non-power-of-two map used as a material texture), `AGF_TEXTURE_NO_TRANSCODER` (`.ktx2` ref without a vendored decoder).
 - **Batching.** Auto-batch state + per-class entity counts. Transmissive materials force the transmission pre-pass — costly when `auto: true` is on a primitive-rich scene.
 - **Shadows.** Shadow algorithm + autoUpdate + CSM cascade count + `ShadowCaster { dynamic }` tag counts.
-- **Prefabs.** Declared / used / unused / missing-ref counts.
+- **Prefabs.** Declared / used / unused / missing-ref counts, plus per-prefab component summary (which components each prefab declares) and override hotspots (instances customising the prefab via `instance.components`). The override-hotspot view is the cleanest place to spot prefabs that should absorb their overrides into the base.
 
 ## 9. Critical assets gate
 
