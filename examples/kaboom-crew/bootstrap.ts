@@ -180,6 +180,29 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       restartScene(runtime);
     };
 
+    // S84 KABOOM-TITLE-SCREEN. Before the first round, mount the
+    // GamePaused singleton so bot AI / bomb fuse / bomb placement
+    // freeze. The title-screen HUD overlay listens for Space to
+    // remove the marker + dismiss the overlay.
+    runtime.applyCommands([
+      {
+        kind: "entity.create",
+        entityId: "kaboom.game-state",
+        components: {
+          GamePaused: { reason: "title-screen" }
+        }
+      }
+    ]);
+    let titleScreenMounted = false;
+    let gameStarted = false;
+    const startGame = (): void => {
+      if (gameStarted) return;
+      gameStarted = true;
+      runtime.applyCommands([
+        { kind: "component.remove", entityId: "kaboom.game-state", component: "GamePaused" }
+      ]);
+    };
+
     // S84 KABOOM-AUDIO-WIRE. Register the 4 clips (placeholder URLs;
     // CC0 WAVs will land under examples/kaboom-crew/assets/audio/ in
     // a follow-up). Audio bus is undefined on headless hosts —
@@ -203,6 +226,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     };
 
     const handleKey = (event: KeyboardEvent): void => {
+      // S84 KABOOM-TITLE-SCREEN — Space dismisses the title screen on
+      // the first press; subsequent Space presses fall through to the
+      // bomb-place handler (PlayerInputSystem).
+      if (event.code === "Space" && !gameStarted) {
+        startGame();
+        return;
+      }
       if (event.code !== "KeyR") return;
       restartScene(runtime);
     };
@@ -432,6 +462,24 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           return el;
         }
       });
+      // S84 KABOOM-TITLE-SCREEN. Title overlay piggy-backs on the
+      // banner spec — same slot, different copy. We add it
+      // immediately on attachUi (before bannerMounted toggling
+      // begins) and remove it the first time gameStarted flips true.
+      const TITLE_ID = "kaboom.title";
+      hud.add({
+        id: TITLE_ID,
+        slot: "center" as const,
+        initial: { text: "Kaboom Crew\nPress SPACE to start" },
+        render: (data: { text: string }): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "font-size:24px;font-weight:600;text-align:center;padding:6px 12px;white-space:pre-line;");
+          el.textContent = data.text;
+          return el;
+        }
+      });
+      titleScreenMounted = true;
+
       // Banner widget is added on demand because the engine's HUD
       // WIDGET_STYLE always paints a dark pill around the slot — even
       // an empty render leaves a visible dot in the centre of the
@@ -465,6 +513,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       let bannerMounted = false;
 
       const update = (): void => {
+        // S84 KABOOM-TITLE-SCREEN — drop the overlay once Space flips gameStarted.
+        if (titleScreenMounted && gameStarted) {
+          hud.remove(TITLE_ID);
+          titleScreenMounted = false;
+        }
+
         const s = api.status() as {
           round?: {
             phase?: string;
@@ -539,6 +593,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         rafId = undefined;
         hud.remove(STATS_ID);
         if (bannerMounted) hud.remove(BANNER_ID);
+        if (titleScreenMounted) hud.remove(TITLE_ID);
         hud.remove(MINIMAP_ID);
       };
     }

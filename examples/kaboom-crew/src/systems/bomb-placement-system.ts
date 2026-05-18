@@ -62,6 +62,15 @@ export function createKaboomBombPlacementSystem(
       requests = world.createQuery([PLACE_BOMB_REQUEST, BOMBER_STATS, GRID_POSITION]);
       cachedWorld = world;
     }
+    // S84 KABOOM-TITLE-SCREEN — drop any in-flight place requests while
+    // the title screen is up so a stray bot decision doesn't spawn a
+    // bomb before the player has even started.
+    if (world.hasComponent("kaboom.game-state", "GamePaused")) {
+      for (const entityId of requests!.run()) {
+        world.removeComponent(entityId, PLACE_BOMB_REQUEST);
+      }
+      return;
+    }
     for (const entityId of requests!.run()) {
       const stats = world.getComponent<BomberStats>(entityId, BOMBER_STATS);
       const pos = world.getComponent<GridPos>(entityId, GRID_POSITION);
