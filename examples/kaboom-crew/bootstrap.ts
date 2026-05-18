@@ -291,10 +291,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // falling back to localStorage and then the default. Scale the
     // existing 0.4 baseline by the dial so masterGain stays in the
     // tuned-for-SFX range.
-    const w = globalThis as unknown as { location?: { search?: string }; localStorage?: typeof localStorage };
+    const audioGlobals = globalThis as unknown as { location?: { search?: string }; localStorage?: typeof localStorage };
     const dial = resolveAudioVolume({
-      search: w.location?.search,
-      storage: w.localStorage
+      search: audioGlobals.location?.search,
+      storage: audioGlobals.localStorage
     });
     const audioFx = createKaboomAudioFx({ masterGain: 0.4 * dial });
     _audioLog = [];
