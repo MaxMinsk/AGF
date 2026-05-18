@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-18 (Sprint 69 archived)
+Date: 2026-05-18 (Sprint 70 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -38,25 +38,21 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 70 — WebGPU GPU timer + lazy import + bucket/batching port
+## Current Sprint: Sprint 71 — TBD
 
-S69 closed with beacon-world migrated. 5 of 9 example projects on WebGPU now. S70 picks up the remaining contained stories from the carry list + starts on the bucket port (the single largest blocker for the remaining 4 projects' migrations).
+S70 cleared the WebGPU carry list and migrated batch-bench. 6 of 9 example projects on WebGPU; remaining three (material-bench, shadows-bench, water-bench) are blocked upstream — no contained WebGPU stories left until either three.js minors lift the BloomNode `ShaderMaterial` issue or someone ports `CSMNode` / `ReflectorNode`. Pivot to a non-WebGPU sprint or pick up the carried S54 asset/runtime stories.
+
+### Candidate sprint shapes (pick at session start)
+
+- **Asset pipeline polish** — pick up the S54 carry list: `ASSET-prefab pipeline`, `DOCTOR-prefab section`, `RUNTIME-progressive-loading`, `DOCS-asset-pipeline`. Contained, agent-shaped, no upstream dependency.
+- **Material-bench polish** — push more authored content through `material-bench` so the WebGL path is in a place where the WebGPU migration would be visibly net-positive once upstream unblocks (this front-loads the dogfood story for when post-processing unblocks).
+- **Beacon-world gameplay** — back to the dogfood game; whatever the next gameplay slice is.
+- **WebGPU CSMNode spike** — multi-sprint port of CSM to TSL. Big lift; only do this if shadows-bench is high-priority and the team is OK with a feature-by-feature WebGPU forward push instead of waiting for upstream.
 
 ### Stories
 
-1. **WEBGPU-gpu-timer** — wrap `GPUQuerySet { type: "timestamp" }` in a `WebGpuTimer` parallel to `engine/render/gpu-timer.ts`. `__agf.rendererInfo().gpuMs` populates on WebGPU. Status: Not yet implemented.
-2. **WEBGPU-lazy-import** — move `import { WebGPURenderer, PMREMGenerator, CubeRenderTarget } from "three/webgpu"` out of the synchronous top-level import in `three-render-adapter.ts` and into an `await import()` inside `adapter.init()` when `mode === "webgpu"`. Saves ~145 KB gzipped from the WebGL-only bundle; budgets in `scripts/check-bundle-size.mjs` drop back to 320 KB. Constructor refactor required (defer device creation to init; affects info.autoReset / GPU timer probe / shadow algorithm / color / fallback lighting paths). Status: Not yet implemented.
-3. **WEBGPU-instanced-bucket** — port `acquireBucket / addBucketInstance / setBucketInstanceTransform / setBucketInstanceColor / removeBucketInstance / resizeBucket / recomputeBucketBoundingSphere` to use WebGPU-compatible `InstancedMesh` instances. (`InstancedMesh` already exports from `three/webgpu`.) Unlocks batch-bench + material-bench's orbit ring. Status: Not yet implemented.
-4. **WEBGPU-batched-bucket** — same for the BatchedMesh path. Status: Not yet implemented.
-5. **MIGRATE-batch-bench-webgpu** — once Stories 3+4 land, flip `examples/batch-bench/project.json#render.mode` to `"webgpu"`. Status: Not yet implemented.
-6. **WEBGPU-renderer-import-boundary** (carried) — once `engine/render/webgpu/` directory exists (will happen with the gpu-timer port), extend `tests/unit/renderer-import-boundary.test.ts`. Status: Not yet implemented.
-7. **DOCS-webgpu-skill-update** — sync deferred/supported lists with current state. Status: Not yet implemented.
-
-### Blocked, not in S70 scope
-
-- `material-bench`, `shadows-bench`, `water-bench` migrations — still blocked on upstream three.js post-processing / CSM / Reflector fixes.
-- **WEBGPU-default-flip** — gated on 6+ examples migrated AND a clean upstream story.
+To be picked when S71 starts.
 
 ## Next Sprint (placeholder)
 
-S71 — likely picks up the next available unblock once we know which of S70's stories shipped. If lazy import lands: the bundle hit drops back to 320 KB. If gpu-timer lands: WebGPU projects get full `__agf.rendererInfo().gpuMs` parity. If bucket port lands: batch-bench migrates + material-bench's outer ring could migrate (once post-processing is also unblocked).
+S72 — TBD based on what S71 turns out to be.
