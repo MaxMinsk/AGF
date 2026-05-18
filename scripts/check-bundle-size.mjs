@@ -31,6 +31,14 @@ const VENDOR_BUDGETS = [
     label: "Rapier WASM (lazy-loaded behind project.physics.enabled)"
   },
   {
+    // S70 WEBGPU-lazy-import. WebGPU-only chunk pulled in by the adapter's
+    // dynamic `import("three/webgpu")`. Listed FIRST so the prefix check
+    // matches `three-webgpu-` before the bare `three-` prefix below.
+    prefix: "three-webgpu-",
+    budget: 200 * 1024,
+    label: "Three.js WebGPU (lazy-loaded behind project.render.mode = webgpu)"
+  },
+  {
     prefix: "three-",
     // S57 raised from 300 → 320 KB after pulling in SSAOPass + LUTPass +
     // LUTCubeLoader + GroundedSkybox + CubeCamera + ShadowMaterial +
@@ -38,13 +46,15 @@ const VENDOR_BUDGETS = [
     //
     // S61 raised from 320 → 480 KB. The new `WebGpuRenderAdapter` imports
     // `three/webgpu` at module top-level so `WebGPURenderer` instantiation
-    // is synchronous from the adapter constructor. The node-material /
-    // TSL runtime that backs WebGPURenderer adds ~145 KB gzipped to the
-    // three-vendor chunk. Eaten by every project — even WebGL-mode ones —
-    // until S64 ships the lazy-import refactor (`await import("three/webgpu")`
-    // inside `adapter.init()` so the cost moves into a webgpu-only chunk).
-    budget: 480 * 1024,
-    label: "Three.js (auto-split renderer vendor chunk)"
+    // is synchronous from the adapter constructor.
+    //
+    // S70 lowered back from 480 → 340 KB after WEBGPU-lazy-import moved
+    // the ~145 KB TSL / node-material runtime into the separate
+    // `three-webgpu-` chunk above. The remaining `three-` chunk holds
+    // `three.module.js` + `three.core.js` and lights / shadows / loaders
+    // / post-processing addons used by the WebGL path.
+    budget: 340 * 1024,
+    label: "Three.js core (WebGL renderer + addons)"
   }
 ];
 

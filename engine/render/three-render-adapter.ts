@@ -93,11 +93,9 @@ import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
-import {
-  WebGPURenderer,
-  PMREMGenerator as WebGpuPMREMGenerator,
-  CubeRenderTarget as WebGpuCubeRenderTarget
-} from "three/webgpu";
+import { WebGpuTimer } from "./webgpu/webgpu-timer";
+import type { WebGpuTimerHost } from "./webgpu/webgpu-timer";
+import { loadWebGpuModule, type WebGpuModule } from "./webgpu/webgpu-module-loader";
 import {
   type RenderAdapterCapabilities,
   type RenderAdapterKind,
@@ -590,10 +588,27 @@ export class ThreeRenderAdapter {
   // plus an extra async `.init()`. Methods that touch WebGL-only state
   // (composer, GPU timer, getContext-based extensions, CSM, PCSS, probes,
   // mirrors) gate on `this.capabilities.kind === "webgl"`.
-  private readonly device: WebGLRenderer;
+  // S70 WEBGPU-lazy-import: on the WebGL path the renderer is constructed
+  // synchronously and `device` is set before the constructor returns. On
+  // the WebGPU path device construction needs the lazy-imported
+  // `three/webgpu` module + a `GPUAdapter`/`GPUDevice` — both async — so
+  // assignment is deferred to `await adapter.init()`. The `!` marks the
+  // property as definitely-assigned by then; the runtime sequence in
+  // `engine/runtime/start.ts` always `await`s `init()` before any draw or
+  // acquire call so reads stay safe.
+  private device!: WebGLRenderer;
   readonly capabilities: RenderAdapterCapabilities;
   /** True once `await adapter.init()` has resolved. WebGL path resolves synchronously. */
   private initialized: boolean = false;
+  // S70 WEBGPU-lazy-import: cached snapshot of the original options bag so
+  // the deferred device setup on the WebGPU path can run the same
+  // configuration the WebGL path runs in the constructor. Cleared once
+  // consumed.
+  private pendingOptions: AdapterOptions | undefined;
+  // S70 WEBGPU-lazy-import: populated by `init()` for the WebGPU path with
+  // the dynamically imported `three/webgpu` constructors. Stays undefined
+  // on the WebGL path.
+  private webGpuModule: WebGpuModule | undefined;
   private contextLostListener: ((event: Event) => void) | undefined;
   private contextRestoredListener: (() => void) | undefined;
   // M21-mat-textures: shared TextureLoader + URL → Texture cache so a
@@ -656,6 +671,12 @@ export class ThreeRenderAdapter {
   // `EXT_disjoint_timer_query_webgl2` — every Safari, headless WebGL,
   // Firefox in resist-fingerprint.
   private gpuTimer: GpuTimer | undefined;
+  // S70 WEBGPU-gpu-timer. Parallel to `gpuTimer` for the WebGPU path. Stays
+  // `undefined` on the WebGL adapter and on WebGPU devices that don't
+  // expose the `timestamp-query` feature (three.js silently flips
+  // `trackTimestamp` to false in that case, so the helper would never
+  // produce a reading anyway).
+  private webGpuTimer: WebGpuTimer | undefined;
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -673,62 +694,23 @@ export class ThreeRenderAdapter {
       mode = "webgl";
     }
     this.capabilities = mode === "webgpu" ? WEBGPU_CAPABILITIES : WEBGL_CAPABILITIES;
-    if (mode === "webgpu") {
-      // S61 WEBGPU-adapter-core. `three/webgpu` is published as a separate
-      // entrypoint to keep the WebGL bundle slim. `WebGPURenderer`'s
-      // constructor is synchronous; the async `init()` (which asks for a
-      // GPUAdapter + GPUDevice) is awaited by `adapter.init()` below.
-      // Cast through `unknown` because three.js's WebGPURenderer extends
-      // a different base than WebGLRenderer — the public surface we use
-      // (render / setSize / setPixelRatio / dispose / shadowMap / info /
-      // toneMapping*) overlaps but TypeScript's structural check can't
-      // see it without a heavier type-level union; revisited when the
-      // RenderAdapter interface gains full method coverage.
-      this.device = new WebGPURenderer({
-        canvas: options.canvas,
-        antialias: true
-      }) as unknown as WebGLRenderer;
-    } else {
-      this.device = new WebGLRenderer({
-        canvas: options.canvas,
-        antialias: true,
-        preserveDrawingBuffer: true
-      });
+    // Scene-bound setup runs synchronously on both paths: the renderer
+    // device isn't needed for scene / background / fallback-lighting
+    // construction, so this works even before the WebGPU device exists.
+    this.scene = new Scene();
+    if (options.skyGradient !== undefined) {
+      this.scene.background = createGradientTexture(options.skyGradient);
+    } else if (options.background !== undefined) {
+      this.scene.background = new Color(options.background);
     }
-    // M21-frame-timing: by default three.js resets `info.render.*` on
-    // every `.render()` call. With EffectComposer (FXAA / Bloom /
-    // OutputPass) one frame issues 3+ `.render()` invocations and the
-    // counters we expose via `rendererInfo()` end up showing only the
-    // LAST pass's stats — typically a single full-screen quad, hence
-    // the misleading `drawCalls: 1` an agent sees from `__agf.rendererInfo()`.
-    //
-    // Disable autoReset + reset manually at the start of `draw()` so
-    // `info.render.calls / triangles` accumulate across every pass in
-    // the frame.
-    this.device.info.autoReset = false;
-    // S54 RUNTIME-gpu-timing: probe for the WebGL2 timer-query extension.
-    // Browsers behind privacy modes (Safari, Firefox-RFP) silently return
-    // null — that's expected and the runtime reports `gpuMs: undefined`.
-    // WebGPU has no equivalent timer query path wired yet (parked for
-    // a follow-up sprint via `GPUQuerySet { type: "timestamp" }`).
-    if (mode === "webgl") {
-      const rawCtx = this.device.getContext();
-      if (typeof WebGL2RenderingContext !== "undefined" && rawCtx instanceof WebGL2RenderingContext) {
-        const ext = rawCtx.getExtension("EXT_disjoint_timer_query_webgl2") as
-          | {
-              TIME_ELAPSED_EXT: number;
-              GPU_DISJOINT_EXT: number;
-            }
-          | null;
-        if (ext !== null) {
-          this.gpuTimer = new GpuTimer(rawCtx, ext);
-        }
-      }
-    }
-    // M21-context-loss: subscribe ONCE to the canvas's WebGL events.
-    // Three.js auto-rebuilds GPU resources on restore; the runtime
-    // uses these callbacks to emit diagnostics + optionally pause
-    // gameplay until the context is back.
+    // Fallback lighting until LightLifecycleSystem (or the user's scene)
+    // provides ECS Light entities. `disableFallbackLighting` removes them
+    // once an ECS light is acquired.
+    this.enableFallbackLighting();
+    // M21-context-loss: canvas-bound listeners are cheap to attach now
+    // even though the WebGPU device hasn't been created yet — the
+    // browser fires `webglcontextlost`/`webglcontextrestored` on the
+    // canvas, not on a renderer instance.
     if (options.onContextLost !== undefined) {
       const onLost = (event: Event): void => {
         // Without preventDefault the browser does not attempt to
@@ -745,6 +727,62 @@ export class ThreeRenderAdapter {
       };
       this.canvas.addEventListener("webglcontextrestored", onRestored);
       this.contextRestoredListener = onRestored;
+    }
+    if (mode === "webgpu") {
+      // S70 WEBGPU-lazy-import: defer device construction (which needs
+      // the dynamic `three/webgpu` import + an async `GPUAdapter`
+      // request) until `init()`. The options snapshot is consumed there.
+      this.pendingOptions = options;
+    } else {
+      this.device = new WebGLRenderer({
+        canvas: options.canvas,
+        antialias: true,
+        preserveDrawingBuffer: true
+      });
+      this.applyDeviceSetup(options);
+    }
+  }
+
+  /**
+   * S70 WEBGPU-lazy-import. Device-dependent configuration shared by the
+   * WebGL constructor path and the WebGPU init() path. Runs after
+   * `this.device` is assigned; nothing here references `this.scene` /
+   * `enableFallbackLighting()` / context-loss listeners, which are set
+   * up earlier in the constructor on both paths.
+   */
+  private applyDeviceSetup(options: AdapterOptions): void {
+    // M21-frame-timing: by default three.js resets `info.render.*` on
+    // every `.render()` call. With EffectComposer (FXAA / Bloom /
+    // OutputPass) one frame issues 3+ `.render()` invocations and the
+    // counters we expose via `rendererInfo()` end up showing only the
+    // LAST pass's stats — typically a single full-screen quad, hence
+    // the misleading `drawCalls: 1` an agent sees from `__agf.rendererInfo()`.
+    //
+    // Disable autoReset + reset manually at the start of `draw()` so
+    // `info.render.calls / triangles` accumulate across every pass in
+    // the frame.
+    this.device.info.autoReset = false;
+    if (this.capabilities.kind === "webgl") {
+      // S54 RUNTIME-gpu-timing: probe for the WebGL2 timer-query extension.
+      // Browsers behind privacy modes (Safari, Firefox-RFP) silently return
+      // null — that's expected and the runtime reports `gpuMs: undefined`.
+      const rawCtx = this.device.getContext();
+      if (typeof WebGL2RenderingContext !== "undefined" && rawCtx instanceof WebGL2RenderingContext) {
+        const ext = rawCtx.getExtension("EXT_disjoint_timer_query_webgl2") as
+          | {
+              TIME_ELAPSED_EXT: number;
+              GPU_DISJOINT_EXT: number;
+            }
+          | null;
+        if (ext !== null) {
+          this.gpuTimer = new GpuTimer(rawCtx, ext);
+        }
+      }
+    } else {
+      // WebGPU path: `trackTimestamp: true` was passed to the renderer
+      // constructor in init(); the helper just throttles
+      // `resolveTimestampsAsync` and reads `info.render.timestamp`.
+      this.webGpuTimer = new WebGpuTimer(this.device as unknown as WebGpuTimerHost);
     }
     // M21-shadow-basic: enable shadow rendering globally. Per-light + per-mesh
     // opt-in still happens via `setLightCastShadow` / `setMeshCastShadow` etc.
@@ -772,16 +810,6 @@ export class ThreeRenderAdapter {
     if (options.color?.transmissionResolutionScale !== undefined) {
       this.device.transmissionResolutionScale = options.color.transmissionResolutionScale;
     }
-    this.scene = new Scene();
-    if (options.skyGradient !== undefined) {
-      this.scene.background = createGradientTexture(options.skyGradient);
-    } else if (options.background !== undefined) {
-      this.scene.background = new Color(options.background);
-    }
-    // Fallback lighting until LightLifecycleSystem (or the user's scene)
-    // provides ECS Light entities. `disableFallbackLighting` removes them
-    // once an ECS light is acquired.
-    this.enableFallbackLighting();
   }
 
 
@@ -840,7 +868,38 @@ export class ThreeRenderAdapter {
   async init(): Promise<void> {
     if (this.initialized) return;
     if (this.capabilities.kind === "webgpu") {
-      // `WebGPURenderer.init()` is async on the WebGPU backend.
+      // S70 WEBGPU-lazy-import. The `three/webgpu` entrypoint is loaded
+      // dynamically (~145 KB gzipped) so projects that opt out don't
+      // pay for it. The module loader memoises so re-init across
+      // adapter rebuilds shares the same module.
+      this.webGpuModule = await loadWebGpuModule();
+      const options = this.pendingOptions;
+      this.pendingOptions = undefined;
+      if (options === undefined) {
+        throw new Error("[AGF] WebGPU adapter init() called without pending options snapshot");
+      }
+      // S61 WEBGPU-adapter-core. `WebGPURenderer`'s constructor is
+      // synchronous; the async `init()` (which asks for a GPUAdapter
+      // + GPUDevice) is awaited below. Cast through `unknown` because
+      // three.js's WebGPURenderer extends a different base than
+      // WebGLRenderer — the public surface we use (render / setSize /
+      // setPixelRatio / dispose / shadowMap / info / toneMapping*)
+      // overlaps but TypeScript's structural check can't see it.
+      //
+      // S70 WEBGPU-gpu-timer: opt into GPU timestamp queries. Three.js
+      // automatically falls back to `false` if the underlying GPUDevice
+      // doesn't advertise `timestamp-query`, so this is safe to always
+      // pass. `trackTimestamp` is forwarded to the backend constructor
+      // (`common/Backend.js`) but is not in the public JSDoc types.
+      const renderer = new this.webGpuModule.WebGPURenderer({
+        canvas: this.canvas,
+        antialias: true,
+        trackTimestamp: true
+      } as unknown as ConstructorParameters<WebGpuModule["WebGPURenderer"]>[0]);
+      this.device = renderer as unknown as WebGLRenderer;
+      this.applyDeviceSetup(options);
+      // `WebGPURenderer.init()` is async on the WebGPU backend (asks for
+      // a GPUAdapter + GPUDevice from the browser).
       await (this.device as unknown as { init(): Promise<void> }).init();
     }
     this.initialized = true;
@@ -906,8 +965,8 @@ export class ThreeRenderAdapter {
       // through `unknown` because TypeScript doesn't see the structural
       // overlap with WebGLRenderer.
       this.pmrem =
-        this.capabilities.kind === "webgpu"
-          ? (new WebGpuPMREMGenerator(this.device as unknown as never) as unknown as PMREMGenerator)
+        this.capabilities.kind === "webgpu" && this.webGpuModule !== undefined
+          ? (new this.webGpuModule.PMREMGenerator(this.device as unknown as never) as unknown as PMREMGenerator)
           : new PMREMGenerator(this.device);
       this.pmrem.compileEquirectangularShader();
     }
@@ -1036,8 +1095,8 @@ export class ThreeRenderAdapter {
     // `WebGLCubeRenderTarget`) compatible with `WebGPURenderer`.
     // CubeCamera works on both renderers and reads `.texture` from
     // either RT class.
-    const renderTarget = this.capabilities.kind === "webgpu"
-      ? (new WebGpuCubeRenderTarget(spec.size, {
+    const renderTarget = this.capabilities.kind === "webgpu" && this.webGpuModule !== undefined
+      ? (new this.webGpuModule.CubeRenderTarget(spec.size, {
           type: HalfFloatType,
           generateMipmaps: true,
           minFilter: LinearMipmapLinearFilter
@@ -2243,6 +2302,7 @@ export class ThreeRenderAdapter {
       this.device.render(this.scene, camera);
     }
     this.gpuTimer?.end();
+    this.webGpuTimer?.onFrame();
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -2666,7 +2726,7 @@ export class ThreeRenderAdapter {
       planarMirrors: this.planarMirrors.size,
       renderer: this.capabilities.kind
     };
-    const gpuMs = this.gpuTimer?.read();
+    const gpuMs = this.gpuTimer?.read() ?? this.webGpuTimer?.read();
     if (gpuMs !== undefined) {
       info.gpuMs = gpuMs;
     }

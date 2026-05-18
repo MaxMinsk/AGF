@@ -3163,3 +3163,51 @@ Status: Completed and archived. Single-story sprint: beacon-world joins the WebG
 
 - **WEBGPU progress**: 5 of 9 example projects now on WebGPU (webgpu-spike, webgpu-light-test, hello-3d, physics-bench, beacon-world). 4 still blocked (material-bench bloom, shadows-bench CSM, water-bench mirror, batch-bench batching).
 - **S70 plan**: pick highest-value of GPU timer / lazy import / bucket port (batch-bench unblocker). Bucket port is the largest single migration unlock — would let material-bench's outer ring + shadows-bench's village + batch-bench all use batching on WebGPU. Likely worth several sprints once it starts.
+
+## Sprint 70 — WebGPU GPU timer + lazy-import + batch-bench unblock
+
+Status: Completed and archived. Seven stories shipped — the carry list from S68/S69 cleared, plus the batch-bench migration that the S70 plan flagged as multi-sprint turned out to be a no-op (three.js's InstancedMesh / BatchedMesh classes already work under WebGPURenderer in r0.184; the "stubbed" assumption from the S60 spike sketch was stale).
+
+### Completed Work
+
+1. **WEBGPU-gpu-timer** — `engine/render/webgpu/webgpu-timer.ts` wraps the `GPUQuerySet { type: "timestamp" }` path that three.js exposes when the renderer is constructed with `trackTimestamp: true`. A throttled `resolveTimestampsAsync()` reads `info.render.timestamp` (nanoseconds) and surfaces milliseconds via `__agf.rendererInfo().gpuMs` — parity with the WebGL `EXT_disjoint_timer_query` path. Unit-tested against a stub host (throttle schedule, in-flight gating, rejection path, sticky-undefined for zero readings).
+2. **WEBGPU-lazy-import** — moved the static `import { WebGPURenderer, PMREMGenerator, CubeRenderTarget } from "three/webgpu"` out of `engine/render/three-render-adapter.ts` into a memoised dynamic `await import("three/webgpu")` inside `engine/render/webgpu/webgpu-module-loader.ts`. Adapter constructor split: scene-bound setup runs eagerly on both paths; WebGL device construction stays synchronous; WebGPU device construction deferred to `await adapter.init()`. Vite `manualChunks` splits files under `three/build/three.webgpu.js` into a separate `three-webgpu-{hash}.js` chunk. Result on the prod build:
+   - `three-` chunk: 465 KB → 305 KB gzipped (-149 KB on every WebGL-only project).
+   - `three-webgpu-` chunk: new 148 KB gzipped, loaded only when `project.render.mode = "webgpu"`.
+   `scripts/check-bundle-size.mjs` lowered the `three-` budget from 480 KB back to 340 KB and added a 200 KB budget for the new `three-webgpu-` chunk.
+3. **WEBGPU-instanced-bucket** — verification only. Live probe of batch-bench under WebGPU confirms the InstancedMesh path already renders correctly: drawCalls=2, bucketInstances=401, per-instance colors visible, zero errors.
+4. **WEBGPU-batched-bucket** — verification only. Live probe with `Batchable: { path: "batched" }` confirms BatchedMesh + per-instance color attribute render correctly on WebGPU (drawCalls=2, batchedBucketInstances=400, zero errors).
+5. **MIGRATE-batch-bench-webgpu** — flip `examples/batch-bench/project.json#render.mode` to `webgpu`. Unlike other migrations this one KEEPS `batching.auto: true` because the whole point of batch-bench is to exercise the bucket path. 6 of 9 example projects are now on WebGPU.
+6. **WEBGPU-renderer-import-boundary** — extend `tests/unit/renderer-import-boundary.test.ts` with a second case that scopes `three/webgpu` imports to `engine/render/webgpu/` only. Defends the S70-2 chunk split: any future top-level `from "three/webgpu"` outside the lazy boundary would pull the chunk eagerly back into the WebGL graph and break the split silently.
+7. **DOCS-webgpu-skill-update** — `docs/agent/skills/webgpu-rendering.md` synced: 5 of 9 example projects called out as migrated; HDR + IBL, ReflectionProbe, HemisphereLight position fix, drawCalls-per-frame, auto-fallback, GPU timer moved from "deferred" to "shipped"; the S65-S67 post-processing block reframed as an upstream three.js issue with the audit tool name; roadmap table replaced with the actual sprint chain that shipped.
+
+### Out of scope (still blocked upstream)
+
+- **Post-processing on WebGPU** — `BloomNode` pingpong full-screen quads use vanilla `ShaderMaterial` that `StandardNodeLibrary` doesn't have an entry for. Not fixable from AGF; tracked per three.js minor.
+- **`material-bench` migration** — uses bloom + transmission pre-pass + multi-probe + PMREM-prefilter. Blocked by the above.
+- **`shadows-bench` migration** — uses CSM cascade shadow maps. Needs `CSMNode` port (TSL rewrite).
+- **`water-bench` migration** — uses `Reflector`. Needs `ReflectorNode` API integration (node-attached to material, different shape than Mesh-based Reflector).
+
+### Deliverables
+
+- `engine/render/webgpu/webgpu-timer.ts` (new) — throttled GPU timestamp resolve.
+- `engine/render/webgpu/webgpu-module-loader.ts` (new) — memoised `await import("three/webgpu")`.
+- `engine/render/three-render-adapter.ts` — constructor refactor: scene-bound setup eager, device-bound setup gated; WebGPU device construction moved to `init()`; PMREM + CubeRenderTarget references switched to the dynamically-imported module.
+- `vite.config.ts` — `manualChunks` splits `three.webgpu` into a separate chunk.
+- `scripts/check-bundle-size.mjs` — `three-webgpu-` budget added, `three-` budget tightened.
+- `tests/unit/webgpu-timer.test.ts` (new) — 5 cases covering throttle, in-flight gating, rejection path, sticky-undefined.
+- `tests/unit/renderer-import-boundary.test.ts` — second case for `three/webgpu` scope.
+- `examples/batch-bench/project.json` — `mode: webgpu`, batching stays on.
+- `docs/agent/skills/webgpu-rendering.md` — full state refresh.
+
+### Verification
+
+- typecheck + 517 unit tests + 11/11 e2e smoke (1 webgpu skipped on headless) + 9/9 engine:check.
+- Live playwright probe across all migrated WebGPU projects (hello-3d, physics-bench, beacon-world, batch-bench InstancedMesh + batch-bench BatchedMesh): every project boots clean, drawCalls non-zero, no console errors. Visual screenshots confirm scenes + per-instance colors render correctly.
+- Bundle-size check: `three-` 305.7 KB / 340 KB, `three-webgpu-` 148.2 KB / 200 KB, both well under budget.
+
+### Follow-Ups
+
+- **WEBGPU progress**: 6 of 9 example projects on WebGPU (webgpu-spike, webgpu-light-test, hello-3d, physics-bench, beacon-world, batch-bench). 3 still blocked upstream (material-bench bloom, shadows-bench CSM, water-bench mirror).
+- **S71 candidates**: ASSET-prefab pipeline + DOCTOR-prefab section + RUNTIME-progressive-loading from the S54 carry list — nothing WebGPU-shaped is contained until upstream three.js releases a fix for `BloomNode`'s ShaderMaterial path or someone ports `CSMNode`/`ReflectorNode`. The next WebGPU sprint could pivot to a CSMNode port spike if shadows-bench is high-priority, but that's a multi-sprint effort and likely lives outside the agent-first scope.
+- **WEBGPU-default-flip** still gated. 6 of 9 isn't comfortable yet (material-bench/shadows-bench/water-bench would silently lose features); flip after either upstream lifts the post-processing block or the WebGL→WebGPU feature gap drops to one project.

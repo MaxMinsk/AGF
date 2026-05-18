@@ -75,6 +75,15 @@ export default defineConfig({
         // bundle stays small and the big libraries cache independently.
         manualChunks(id: string): string | undefined {
           if (id.includes("/node_modules/three/")) {
+            // S70 WEBGPU-lazy-import. Split the WebGPU-only build
+            // (`three/build/three.webgpu.js`) into its own chunk so
+            // WebGL-only projects don't ship the ~145 KB gzipped TSL /
+            // node-material runtime. The adapter's dynamic
+            // `import("three/webgpu")` is the only edge that pulls this
+            // chunk in.
+            if (id.includes("three.webgpu")) {
+              return "three-webgpu";
+            }
             return "three";
           }
           if (id.includes("/node_modules/ajv/") || id.includes("/node_modules/ajv-")) {
