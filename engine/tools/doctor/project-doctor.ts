@@ -365,6 +365,37 @@ export function runDoctor(
   const bundle = mainChunk;
   const vendorBundles = vendorChunks;
 
+  // S85 AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK. Compute the renderer
+  // inspect summary once so both the report field and the recommendation
+  // logic below can read it.
+  const rendererInspectSummary = ((): RendererInspectReport | null => {
+    const path = options.rendererInspectFrom;
+    if (path === undefined) return null;
+    const absolute = resolve(path);
+    if (!existsSync(absolute)) return null;
+    try {
+      const raw = readFileSync(absolute, "utf8");
+      const parsed = JSON.parse(raw) as
+        | { payload?: { info?: Record<string, unknown>; handles?: { count?: number; entityIds?: ReadonlyArray<string> } } }
+        | { info?: Record<string, unknown>; handles?: { count?: number; entityIds?: ReadonlyArray<string> } };
+      const body = "payload" in parsed && parsed.payload !== undefined ? parsed.payload : parsed;
+      const info = (body as { info?: Record<string, unknown> }).info ?? {};
+      const handles = (body as { handles?: { count?: number; entityIds?: ReadonlyArray<string> } }).handles ?? {};
+      const entityIds = handles.entityIds ?? [];
+      return {
+        info,
+        handles: {
+          count: handles.count ?? entityIds.length,
+          entityIds,
+          sample: entityIds.slice(0, 8)
+        },
+        handleLeak: typeof info["handleLeak"] === "number" ? (info["handleLeak"] as number) : 0
+      };
+    } catch {
+      return null;
+    }
+  })();
+
   const recommendations: string[] = [];
   const errorCount = check.diagnostics.filter((d) => d.severity === "error").length;
   const warningCount = check.diagnostics.filter((d) => d.severity === "warning").length;
@@ -375,6 +406,14 @@ export function runDoctor(
   } else if (warningCount > 0) {
     recommendations.push(
       `Address ${warningCount} engine-check warning(s) when convenient (\`npm run engine:check -- ${projectDir}\`).`
+    );
+  }
+  // S85 AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK.
+  if (rendererInspectSummary !== null && rendererInspectSummary.handleLeak > 0) {
+    const sample = rendererInspectSummary.handles.sample.slice(0, 4).join(", ");
+    const sampleStr = sample.length > 0 ? ` Sample entities: ${sample}.` : "";
+    recommendations.push(
+      `Renderer handle leak detected (handleLeak=${rendererInspectSummary.handleLeak}). Run \`__agf.rendererInspect()\` and check handles.entityIds for unfreed entities — most often a scene.load missed cleaning up a long-lived mesh handle (the S82 ghost-player class of bug).${sampleStr}`
     );
   }
   if (summary.playtests.length === 0) {
@@ -567,35 +606,7 @@ export function runDoctor(
         return null;
       }
     })(),
-    rendererInspect: ((): RendererInspectReport | null => {
-      const path = options.rendererInspectFrom;
-      if (path === undefined) return null;
-      const absolute = resolve(path);
-      if (!existsSync(absolute)) return null;
-      try {
-        const raw = readFileSync(absolute, "utf8");
-        // Accept either the raw inspect() output OR the dev-bridge
-        // envelope `{ ok, payload: { … } }`.
-        const parsed = JSON.parse(raw) as
-          | { payload?: { info?: Record<string, unknown>; handles?: { count?: number; entityIds?: ReadonlyArray<string> } } }
-          | { info?: Record<string, unknown>; handles?: { count?: number; entityIds?: ReadonlyArray<string> } };
-        const body = "payload" in parsed && parsed.payload !== undefined ? parsed.payload : parsed;
-        const info = (body as { info?: Record<string, unknown> }).info ?? {};
-        const handles = (body as { handles?: { count?: number; entityIds?: ReadonlyArray<string> } }).handles ?? {};
-        const entityIds = handles.entityIds ?? [];
-        return {
-          info,
-          handles: {
-            count: handles.count ?? entityIds.length,
-            entityIds,
-            sample: entityIds.slice(0, 8)
-          },
-          handleLeak: typeof info["handleLeak"] === "number" ? (info["handleLeak"] as number) : 0
-        };
-      } catch {
-        return null;
-      }
-    })(),
+    rendererInspect: rendererInspectSummary,
     webgpuReadiness: (() => {
       const wgpu = summarizeWebGpuReadiness(projectDir, reflectionProbes);
       // S61 DOCTOR-webgpu-readiness-actionable: when a project actually

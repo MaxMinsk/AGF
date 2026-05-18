@@ -100,11 +100,13 @@
     {
       "id": "AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK",
       "title": "engine doctor recommends action when rendererInspect.handleLeak > 0",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Wire a recommendation entry into DoctorReport.recommendations when the supplied --renderer-inspect-from snapshot carries handleLeak > 0. Sample text: `Renderer handle leak detected (N handles unmapped to RenderMeshHandle). Run __agf.rendererInspect() and check the handles.entityIds list for unfreed entities — most often a scene.load missed cleaning up a long-lived mesh handle.`",
       "verification": [
         "unit test: rendererInspectFrom snapshot with handleLeak: 4 → DoctorReport.recommendations contains the leak callout",
-        "snapshot with handleLeak: 0 stays quiet"
+        "snapshot with handleLeak: 0 stays quiet",
+        "rendererInspectSummary computed once + reused for the report field; new recommendation block fires when handleLeak > 0 with a sample of leaked entity ids (up to 4)",
+        "+2 unit tests: leaked snapshot surfaces the rec; clean snapshot stays quiet"
       ],
       "dependsOn": [
         "AGF-DOCTOR-RENDERER-INSPECT-SECTION"
