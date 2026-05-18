@@ -39,11 +39,13 @@
     {
       "id": "KABOOM-BLAST-PARTICLES",
       "title": "Particle burst on each blast cell",
-      "status": "pending",
+      "status": "implemented",
       "summary": "When `BlastPropagationSystem` spawns a `BlastTile`, additionally spawn a short-lived ParticleEmitter entity tuned for an arcade explosion (orange/yellow, ~12 particles, 0.4 s lifetime). Re-uses the existing engine particle preset from M19. Single inline preset block in the system; no new engine work.",
       "verification": [
         "snapshot after detonation shows N ParticleEmitter entities equal to the blast tile count",
-        "live probe screenshot: bomb at (3,3) produces a visible particle burst at the centre + each cardinal cell"
+        "live probe screenshot: bomb at (3,3) produces a visible particle burst at the centre + each cardinal cell",
+        "BlastPropagationSystem spawns a ParticleEmitter entity (preset='spark', lifetime=0.4s, rate=30, maxParticles=12) alongside every BlastTile",
+        "M19 ParticleEmitter primitive handles particle lifetime — emitter cleans itself up after 0.4s; no new engine schema work"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

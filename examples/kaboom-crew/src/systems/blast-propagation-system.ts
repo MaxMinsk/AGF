@@ -135,6 +135,27 @@ function spawnBlastTile(
   world.setComponent(id, GRID_POSITION, { gx, gz });
   world.setComponent(id, GRID_OCCUPANT, { layer: "blast", blocksMovement: false, blocksBlast: false });
   world.setComponent(id, BLAST_TILE, { lifetimeRemaining: BLAST_TILE_LIFETIME, ownerId });
+
+  // S84 KABOOM-BLAST-PARTICLES. A short-lived 'spark' emitter co-spawned
+  // with each blast tile. Single inline preset reuses the engine
+  // ParticleEmitter primitive (M19); the emitter cleans itself up when
+  // ParticleEmitter.elapsed >= lifetime.
+  const emitterId = `${id}.spark`;
+  if (!world.hasEntity(emitterId)) {
+    world.addEntity(emitterId);
+    world.setComponent(emitterId, TRANSFORM, {
+      position: [gx, 0.4, gz],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+    world.setComponent(emitterId, "ParticleEmitter", {
+      preset: "spark",
+      lifetime: 0.4,
+      elapsed: 0,
+      rate: 30,
+      maxParticles: 12
+    });
+  }
 }
 
 function softBlockIdsAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): EntityId[] {
