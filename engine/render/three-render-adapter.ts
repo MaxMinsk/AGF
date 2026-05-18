@@ -95,7 +95,7 @@ import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
 import { WebGpuTimer } from "./webgpu/webgpu-timer";
 import type { WebGpuTimerHost } from "./webgpu/webgpu-timer";
-import { loadWebGpuModule, loadCsmShadowNode, type WebGpuModule, type TslColorNode } from "./webgpu/webgpu-module-loader";
+import { loadWebGpuModule, type WebGpuModule, type TslColorNode } from "./webgpu/webgpu-module-loader";
 import {
   type RenderAdapterCapabilities,
   type RenderAdapterKind,
@@ -2766,24 +2766,29 @@ export class ThreeRenderAdapter {
   }
 
   /**
-   * S74 WEBGPU-csm. Asynchronously load `CSMShadowNode` and assemble a
-   * cascade-shadow setup. The function fires-and-forgets the load.
+   * S76 WEBGPU-csm. Build a CSM setup with `CSMShadowNode`
+   * SYNCHRONOUSLY. The constructor is now part of `loadWebGpuModule`
+   * which the runtime has already awaited inside `adapter.init()`, so
+   * it's safe to read `this.webGpuModule.CSMShadowNode` here without
+   * additional await.
    *
-   * KNOWN LIMITATION (S75): on a fresh page load this produces visible
-   * (though weaker than the WebGL baseline) cascade shadows. But
-   * live-tuning the CSM config — `setCsmShadowMapSize`, cascade count
-   * via the shadow-tuner UI, etc. — calls `setCsm()` → `rebuildCsm()`,
-   * which disposes the old CSMShadowNode and constructs a new one on
-   * the same renderer. Three.js's TSL pipeline caches the per-light
-   * node graph; rebuilding mid-session raises
-   * `THREE.TSL: TypeError: Cannot read properties of undefined`
-   * (`AssignNode.generate()` walking a cascade sub-node that's no
-   * longer in the graph). For now, CSM tuning on WebGPU requires a
-   * full page reload.
+   * Ordering: shadowNode is assigned to `light.shadow.shadowNode`
+   * BEFORE the light enters the scene graph. Three.js's
+   * `AnalyticLightNode.setup` reads the shadowNode the first time a
+   * material samples the light and bakes the resulting TSL graph; if
+   * the light were added first, the default (no-CSM) graph would get
+   * baked and the late shadowNode assignment would have no effect.
+   * That race was the root cause of the S74-spike "weak shadows"
+   * symptom on WebGPU.
    */
   private buildWebGpuCsm(camera: PerspectiveCamera): void {
     const config = this.csmConfig;
     if (config === undefined) return;
+    if (this.webGpuModule === undefined) {
+      // eslint-disable-next-line no-console
+      console.warn("[AGF] buildWebGpuCsm called before adapter.init() resolved; cascade shadows skipped.");
+      return;
+    }
     const direction = config.lightDirection ?? [-0.5, -1, -0.3];
     const light = new DirectionalLight(
       0xffffff,
@@ -2802,26 +2807,31 @@ export class ThreeRenderAdapter {
     if (config.shadowNormalBias !== undefined) {
       light.shadow.normalBias = config.shadowNormalBias;
     }
+    const shadowNode = new this.webGpuModule.CSMShadowNode(
+      light as unknown as { shadow: { shadowNode?: unknown }; isDirectionalLight?: boolean },
+      {
+        cascades: config.cascades ?? 3,
+        maxFar: config.maxFar ?? 100,
+        mode: config.mode ?? "practical"
+      }
+    );
+    // CRITICAL: do NOT pre-assign shadowNode.camera here. CSMShadowNode's
+    // `setup(builder)` only calls `_init(builder)` when `this.camera ===
+    // null`, and `_init` is where cascade sub-lights, frustums, and the
+    // internal `_shadowNodes[]` array get populated. Pre-setting the
+    // camera short-circuits that → the cascade arrays stay empty → TSL
+    // graph traversal in `AssignNode.generate()` walks an undefined
+    // sub-node and the renderer crashes with
+    // `TypeError: Cannot read properties of undefined (reading 'build')`.
+    // Three.js reads `builder.camera` from the renderer context on the
+    // first setup pass, which is the camera we want anyway.
+    // (`shadowNode.camera = camera;` removed — see S76 commit.)
+    void camera;
+    (light.shadow as unknown as { shadowNode?: unknown }).shadowNode = shadowNode;
+    this.csmShadowNodeAttached = shadowNode;
     this.csmDirectionalLight = light;
+    // Add to scene LAST — see method-doc comment above.
     this.scene.add(light);
-    loadCsmShadowNode().then(({ CSMShadowNode }) => {
-      // Bail if disposeCsm or another rebuild ran while we were loading.
-      if (this.csmDirectionalLight !== light) return;
-      const shadowNode = new CSMShadowNode(
-        light as unknown as { shadow: { shadowNode?: unknown }; isDirectionalLight?: boolean },
-        {
-          cascades: config.cascades ?? 3,
-          maxFar: config.maxFar ?? 100,
-          mode: config.mode ?? "practical"
-        }
-      );
-      shadowNode.camera = camera;
-      (light.shadow as unknown as { shadowNode?: unknown }).shadowNode = shadowNode;
-      this.csmShadowNodeAttached = shadowNode;
-    }).catch((err: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn("[AGF] CSMShadowNode load failed; cascade shadows disabled on WebGPU.", err);
-    });
   }
 
   private disposeCsm(): void {
