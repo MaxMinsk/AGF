@@ -73,7 +73,27 @@ function buildFlatStartScene(): SceneInput {
 }
 
 function restartScene(runtime: RuntimeHandle): number {
-  runtime.applyCommands([{ kind: "scene.load", scene: buildFlatStartScene() }]);
+  // S84 KABOOM-SCORING-HUD. Read tally + roundNumber out of the live
+  // world before scene.load wipes everything, then re-seed the new
+  // RoundState with bumped numbers so the persistent score line
+  // survives the auto-restart.
+  const snap = runtime.snapshot();
+  const prevRound = snap.entities.find((e) => e.id === "kaboom.round-state");
+  const prev = prevRound?.components["RoundState"] as
+    | { roundNumber?: number; tally?: { player: number; bot: number; draws: number } }
+    | undefined;
+  const nextRoundNumber = (prev?.roundNumber ?? 1) + 1;
+  const tally = prev?.tally ?? { player: 0, bot: 0, draws: 0 };
+  runtime.applyCommands([
+    { kind: "scene.load", scene: buildFlatStartScene() },
+    {
+      kind: "entity.create",
+      entityId: "kaboom.round-state",
+      components: {
+        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally }
+      }
+    }
+  ]);
   return 1;
 }
 
@@ -446,16 +466,25 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
 
       const update = (): void => {
         const s = api.status() as {
-          round?: { phase?: string; elapsed?: number; winnerId?: string };
+          round?: {
+            phase?: string;
+            elapsed?: number;
+            winnerId?: string;
+            roundNumber?: number;
+            tally?: { player: number; bot: number; draws: number };
+          };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
         };
-        // Stats line — one row per bomber.
+        // Stats line — one row per bomber + a persistent score line.
         const lines: string[] = [];
         const phase = s.round?.phase ?? "playing";
         const elapsed = Math.floor(s.round?.elapsed ?? 0);
-        lines.push(`round: ${phase}   t: ${elapsed}s`);
+        const roundNumber = s.round?.roundNumber ?? 1;
+        const tally = s.round?.tally ?? { player: 0, bot: 0, draws: 0 };
+        lines.push(`Round ${roundNumber}   W:${tally.player} L:${tally.bot} D:${tally.draws}`);
+        lines.push(`phase: ${phase}   t: ${elapsed}s`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
           lines.push(

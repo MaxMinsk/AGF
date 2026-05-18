@@ -52,11 +52,14 @@
     {
       "id": "KABOOM-SCORING-HUD",
       "title": "Round counter + W/L tally in HUD",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promote the existing `RoundState` singleton with `roundNumber: number` and a `tally: { player: number, bot: number, draws: number }` block. `RoundResolveSystem` increments the right counter when the phase resolves; `restartScene` increments roundNumber and preserves the tally across the auto-restart wipe. The HUD `kaboom.stats` widget renders the new fields in a top row (e.g. `Round 7  •  W: 4  L: 2  D: 1`).",
       "verification": [
         "unit test: phase=won bumps tally.player; phase=lost bumps tally.bot; phase=draw bumps tally.draws; counter survives scene.load",
-        "live probe: HUD stats widget includes 'Round N' + 'W:/L:/D:' after a kill"
+        "live probe: HUD stats widget includes 'Round N' + 'W:/L:/D:' after a kill",
+        "RoundState extended with roundNumber + tally; RoundResolveSystem bumps tally.player on 'won' / tally.bot on 'lost' / tally.draws on 'draw'; +3 unit tests",
+        "restartScene reads the previous RoundState before scene.load and re-creates kaboom.round-state with bumped roundNumber + preserved tally so the score survives the wipe",
+        "HUD stats widget now renders 'Round N   W:A L:B D:C' as the first row, then phase/timer/per-bomber stats below"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

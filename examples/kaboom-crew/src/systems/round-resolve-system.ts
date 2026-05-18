@@ -22,10 +22,14 @@ const GRID_MOVER: ComponentName = "GridMover";
 
 const SINGLETON_ID: EntityId = "kaboom.round-state";
 
+type Tally = { player: number; bot: number; draws: number };
+
 type RoundState = {
   phase: "playing" | "won" | "lost" | "draw";
   winnerId?: EntityId;
   elapsed?: number;
+  roundNumber?: number;
+  tally?: Tally;
 };
 
 type BomberStats = { alive?: boolean };
@@ -114,9 +118,21 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
       if (alive.length === 1) {
         const winner = alive[0]!;
         const phase = winner === playerId ? "won" : "lost";
-        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase, winnerId: winner });
+        // S84 KABOOM-SCORING-HUD. Bump the appropriate tally counter
+        // when the phase resolves — the bootstrap reads the tally
+        // out of the world before scene.load and seeds the same
+        // numbers into the new RoundState so the count survives the
+        // wipe.
+        const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
+        const bumped: Tally =
+          phase === "won"
+            ? { ...tally, player: tally.player + 1 }
+            : { ...tally, bot: tally.bot + 1 };
+        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase, winnerId: winner, tally: bumped });
       } else if (alive.length === 0) {
-        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw" });
+        const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
+        const bumped: Tally = { ...tally, draws: tally.draws + 1 };
+        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped });
       }
     } else {
       // Round is over: freeze GridMover so motion stops without

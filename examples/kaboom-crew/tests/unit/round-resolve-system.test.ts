@@ -128,6 +128,42 @@ describe("createKaboomRoundResolveSystem (S82 KABOOM-DAMAGE-AND-DEATH / RESTART)
     expect(onRestart).toHaveBeenCalledTimes(1);
   });
 
+  it("S84 KABOOM-SCORING-HUD: tally.player increments on 'won' phase", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false); // already dead → next tick resolves to 'won'
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as {
+      phase: string;
+      tally?: { player: number; bot: number; draws: number };
+    };
+    expect(state.phase).toBe("won");
+    expect(state.tally).toEqual({ player: 1, bot: 0, draws: 0 });
+  });
+
+  it("S84 KABOOM-SCORING-HUD: tally.bot increments on 'lost' phase", () => {
+    const world = new World();
+    addBomber(world, "player.1", false);
+    addBomber(world, "bot.1");
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { phase: string; tally?: { bot: number } };
+    expect(state.phase).toBe("lost");
+    expect(state.tally?.bot).toBe(1);
+  });
+
+  it("S84 KABOOM-SCORING-HUD: tally.draws increments on 'draw' phase", () => {
+    const world = new World();
+    addBomber(world, "player.1", false);
+    addBomber(world, "bot.1", false);
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { phase: string; tally?: { draws: number } };
+    expect(state.phase).toBe("draw");
+    expect(state.tally?.draws).toBe(1);
+  });
+
   it("autoRestartAfterMs = 0 disables auto-restart", () => {
     const world = new World();
     addBomber(world, "player.1");

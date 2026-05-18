@@ -85,12 +85,23 @@
     "roundStateComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Singleton round state. RoundResolveSystem flips `phase` to 'won' / 'lost' / 'draw' when ≤ 1 bombers remain alive. `elapsed` is wall-clock seconds since the round started; useful for the HUD timer.",
+      "description": "Singleton round state. RoundResolveSystem flips `phase` to 'won' / 'lost' / 'draw' when ≤ 1 bombers remain alive. `elapsed` is wall-clock seconds since the round started. `roundNumber` increments on every (re)start so the HUD can show 'Round N'. `tally` carries the player-vs-bot win/loss/draw count across restarts; RoundResolveSystem bumps the right field when the phase resolves. Both `roundNumber` and `tally` are seeded by the bootstrap on restart so they survive the scene.load wipe.",
       "required": ["phase"],
       "properties": {
         "phase": { "type": "string", "enum": ["playing", "won", "lost", "draw"] },
         "winnerId": { "type": "string", "minLength": 1 },
-        "elapsed": { "type": "number", "minimum": 0 }
+        "elapsed": { "type": "number", "minimum": 0 },
+        "roundNumber": { "type": "integer", "minimum": 1, "default": 1 },
+        "tally": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player", "bot", "draws"],
+          "properties": {
+            "player": { "type": "integer", "minimum": 0 },
+            "bot": { "type": "integer", "minimum": 0 },
+            "draws": { "type": "integer", "minimum": 0 }
+          }
+        }
       }
     },
     "roundRestartRequestComponent": {
