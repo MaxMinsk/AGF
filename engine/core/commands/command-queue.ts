@@ -1,9 +1,25 @@
 import { World } from "../ecs/world";
+import type { DiagnosticsBus } from "../../runtime/diagnostics/diagnostics-bus";
 import type { CommandLogEntry, EngineCommand } from "./types";
+
+export type CommandQueueOptions = {
+  /**
+   * Optional diagnostics bus for AGF-LOG-LIFECYCLE-TRACES — emits
+   * `AGF_SCENE_LOAD_APPLIED` with entity counts before/after when a
+   * scene.load command is drained. Off by default so plain unit
+   * tests don't have to wire a bus.
+   */
+  diagnostics?: DiagnosticsBus;
+};
 
 export class CommandQueue {
   private readonly pending: EngineCommand[] = [];
   private readonly applied: CommandLogEntry[] = [];
+  private readonly diagnostics: DiagnosticsBus | undefined;
+
+  constructor(options: CommandQueueOptions = {}) {
+    this.diagnostics = options.diagnostics;
+  }
 
   enqueue(command: EngineCommand): void {
     this.pending.push(command);
@@ -20,7 +36,18 @@ export class CommandQueue {
       if (command === undefined) {
         break;
       }
+      const before = command.kind === "scene.load" ? world.entityIds().length : 0;
       applyCommand(world, command);
+      if (command.kind === "scene.load" && this.diagnostics !== undefined) {
+        const after = world.entityIds().length;
+        this.diagnostics.emit({
+          severity: "info",
+          code: "AGF_SCENE_LOAD_APPLIED",
+          source: "scene",
+          message: `scene.load applied (${before} → ${after} entities)`,
+          details: { entityCountBefore: before, entityCountAfter: after, sceneId: command.scene.id }
+        });
+      }
       const entry: CommandLogEntry = { index: this.applied.length, command };
       this.applied.push(entry);
       drained.push(entry);

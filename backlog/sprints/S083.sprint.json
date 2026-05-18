@@ -84,10 +84,14 @@
     {
       "id": "AGF-LOG-LIFECYCLE-TRACES",
       "title": "Structured lifecycle traces — scene load / system register / runtime stop",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Emit one structured trace per lifecycle event (scene load start/end with entity counts, system register/unregister, runtime stop) through the existing diagnostics channel. No console.log path. Helps post-mortems on hangs + ghost-entity bugs.",
       "verification": [
-        "diagnostics buffer captures `agf.scene.loaded`, `agf.system.registered`, `agf.runtime.stopped` payloads in an integration test"
+        "diagnostics buffer captures `agf.scene.loaded`, `agf.system.registered`, `agf.runtime.stopped` payloads in an integration test",
+        "SystemScheduler accepts optional { diagnostics } and emits AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED on register/unregister; legacy callers without a bus stay silent",
+        "CommandQueue accepts optional { diagnostics } and emits AGF_SCENE_LOAD_APPLIED with { entityCountBefore, entityCountAfter, sceneId } when draining a scene.load",
+        "engine/runtime/start.ts emits AGF_RUNTIME_STARTED on startup (with systemCount) and AGF_RUNTIME_STOPPED on stop()",
+        "+6 unit tests (scheduler register/unregister/silent-unknown/no-bus + command-queue scene.load/no-emit-for-other-commands); 640 → 646 unit tests passing"
       ],
       "dependsOn": [
         "AGF-LOG-POLICY-DOC"
