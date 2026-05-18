@@ -12,7 +12,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S082.sprint.js
 
 - **KABOOM-PLAYER-INPUT** — Keyboard input → GridMover.queuedDirection _(implemented)_
   Project-local `PlayerInputSystem` under `examples/kaboom-crew/src/` translates WASD + arrow keys into `GridMover.queuedDirection`. Keys are tracked via an internal pressed-set rebuilt from window keydown/keyup; the system writes whichever cardinal is currently held (right > up > left > down precedence to keep behaviour deterministic). Releases all keys on blur. Tagged via a new `PlayerControlled` (already in core.schema.json) component on the player entity to scope which mover the system drives. No bomb input yet — that lands in KABOOM-BOMB-PLACE.
-- **KABOOM-BOT-AI** — Bot AI v0 — wander + bomb-avoidance _(pending)_
+- **KABOOM-BOT-AI** — Bot AI v0 — wander + bomb-avoidance _(implemented)_
   Project-local `BotAISystem` reads `BotBrain` component (project schema fragment under examples/kaboom-crew/schemas) and writes `GridMover.queuedDirection`. Two behaviours: (1) wander — pick a random cardinal that is passable + not in the current danger map; (2) flee — when the current cell is in the danger map, prefer the direction with the lowest danger value. Danger map is derived from active bomb fuses + reachable blast cells through GridOccupancySystem; computed once per second (TimeBased component drives the cadence). Personality dial: `aggression` (0..1) — higher values reduce flee threshold.
   Depends on: KABOOM-PLAYER-INPUT.
 - **KABOOM-BOMB-PLACE** — Place-bomb action: space key spawns a Bomb entity on the player's cell _(implemented)_
@@ -27,7 +27,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S082.sprint.js
 - **KABOOM-DAMAGE-AND-DEATH** — Damage + death: blast tiles kill bombers; round ends when only one is alive _(implemented)_
   BlastPropagationSystem additionally checks every `BomberStats`-carrying entity at the blast cell and sets `BomberStats.alive = false`. Project-local `RoundResolveSystem` watches surviving bombers each frame; when ≤ 1 remain alive (or 0 — draw), it flips a singleton `RoundState { phase: 'playing' | 'won' | 'lost' | 'draw', winnerId? }` and pauses every GridMover. The HUD watches `RoundState` and shows a win/loss banner.
   Depends on: KABOOM-BOMB-FUSE-BLAST.
-- **KABOOM-RESTART** — Round restart command — R key resets the scene + RoundState _(pending)_
+- **KABOOM-RESTART** — Round restart command — R key resets the scene + RoundState _(implemented)_
   Project-local input maps the `R` key to a `RoundRestartRequest` transient on a singleton control entity. `RoundResolveSystem` consumes it: applies the inverse-of-scene command chain (re-runs `scene.load` against examples/kaboom-crew/scenes/start.scene.json, or re-rolls a procedural seed). Lives entirely as data + commands so the same path serves agent replay scripts. No imperative renderer reset needed.
   Depends on: KABOOM-DAMAGE-AND-DEATH.
 - **KABOOM-HUD-PANEL** — HUD: round timer + bomber stats + win/loss banner _(pending)_

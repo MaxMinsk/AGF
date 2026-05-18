@@ -30,17 +30,26 @@
     {
       "id": "KABOOM-BOT-AI",
       "title": "Bot AI v0 — wander + bomb-avoidance",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-local `BotAISystem` reads `BotBrain` component (project schema fragment under examples/kaboom-crew/schemas) and writes `GridMover.queuedDirection`. Two behaviours: (1) wander — pick a random cardinal that is passable + not in the current danger map; (2) flee — when the current cell is in the danger map, prefer the direction with the lowest danger value. Danger map is derived from active bomb fuses + reachable blast cells through GridOccupancySystem; computed once per second (TimeBased component drives the cadence). Personality dial: `aggression` (0..1) — higher values reduce flee threshold.",
       "verification": [
         "BotBrain schema validates inside examples/kaboom-crew/schemas/bot.schema.json",
         "unit test: bot in a bomb's blast radius prefers the perpendicular escape cardinal",
-        "the seeded start scene runs for 30 seconds without the bot getting stuck on a wall"
+        "the seeded start scene runs for 30 seconds without the bot getting stuck on a wall",
+        "BotBrain { aggression, nextDecisionIn, lastDecision* } drives a 0.2s-tick decision loop in fixedUpdate",
+        "danger map built from active Bomb entities + range walk + soft-block shielding",
+        "flee picks a non-danger cardinal; wander biases to lastDecision (60 percent); aggression>0 + adjacent soft block triggers PlaceBombRequest",
+        "6 unit tests cover cooldown, wander, flee, aggression bomb-drop, dead-bot skip"
       ],
       "dependsOn": [
         "KABOOM-PLAYER-INPUT"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/src/systems/bot-ai-system.ts",
+        "examples/kaboom-crew/bootstrap.ts (registers bot AI)",
+        "examples/kaboom-crew/tests/unit/bot-ai-system.test.ts"
+      ]
     },
     {
       "id": "KABOOM-BOMB-PLACE",
@@ -129,16 +138,23 @@
     {
       "id": "KABOOM-RESTART",
       "title": "Round restart command — R key resets the scene + RoundState",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-local input maps the `R` key to a `RoundRestartRequest` transient on a singleton control entity. `RoundResolveSystem` consumes it: applies the inverse-of-scene command chain (re-runs `scene.load` against examples/kaboom-crew/scenes/start.scene.json, or re-rolls a procedural seed). Lives entirely as data + commands so the same path serves agent replay scripts. No imperative renderer reset needed.",
       "verification": [
         "live: end a round, press R, scene returns to initial layout, RoundState.phase resets to 'playing'",
-        "the engine recording captures the restart as a single scene.load command"
+        "the engine recording captures the restart as a single scene.load command",
+        "RoundResolveSystem creates RoundState singleton, flips phase to won|lost|draw based on alive bombers, freezes GridMover on round end",
+        "RoundRestartRequest transient is ignored while phase='playing' + invokes onRestart when phase != 'playing'",
+        "bootstrap.attachUi binds KeyR globally → runtime.applyCommands([scene.load]) reloads start scene; bootstrap.resetRound is the canonical entry point. 6 unit tests"
       ],
       "dependsOn": [
         "KABOOM-DAMAGE-AND-DEATH"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/src/systems/round-resolve-system.ts",
+        "examples/kaboom-crew/bootstrap.ts (resetRound + attachUi KeyR binding)"
+      ]
     },
     {
       "id": "KABOOM-HUD-PANEL",
