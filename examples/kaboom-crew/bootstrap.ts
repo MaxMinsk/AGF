@@ -30,6 +30,7 @@ import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
+import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
@@ -187,6 +188,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       }),
       { profiles: ["static"] }
     );
+
+    // S87 KABOOM-CAMERA-SHAKE — observe BlastEvent transients BEFORE
+    // blast-propagation consumes them. Perturbs the active camera's
+    // Transform.position; intensity scales with blast range.
+    scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });

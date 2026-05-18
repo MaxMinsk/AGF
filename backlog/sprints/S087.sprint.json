@@ -45,11 +45,14 @@
     {
       "id": "KABOOM-CAMERA-SHAKE",
       "title": "Camera shake on blast — small, decaying",
-      "status": "pending",
+      "status": "implemented",
       "summary": "When a BlastEvent fires, perturb the camera transform with a 0.3-second decaying noise. Implementation: a tiny project-local CameraShakeSystem reads BlastEvent transient + writes Transform.position offsets on the active camera; offsets decay each frame; resets to baseline once shake intensity drops below 0.001. Magnitude scales with blast range so a range-4 detonation is felt more than range-2.",
       "verification": [
         "unit test: shake state ramps to non-zero on BlastEvent, decays back to 0 inside 0.4 s of fixed steps",
-        "live probe: bomb at (4,4) jitters the orthographic camera visibly"
+        "live probe: bomb at (4,4) jitters the orthographic camera visibly",
+        "examples/kaboom-crew/src/systems/camera-shake-system.ts — observes BlastEvent in fixedUpdate (before blast-propagation consumes), bumps intensity by intensityPerRange * range (default 0.06), clamps to maxIntensity (0.5), exponentially decays (default 6/s), snaps Transform.position back to baseline below 0.001",
+        "+6 unit tests: ramp / decay-to-zero / snap-back-to-baseline / range scaling / no-camera no-op / maxIntensity clamp",
+        "bootstrap.ts registers camera-shake BEFORE blast-propagation so the transient is observed before deletion"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
