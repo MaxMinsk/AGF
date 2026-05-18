@@ -93,6 +93,8 @@ import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
+import { WebGpuTimer } from "./webgpu/webgpu-timer";
+import type { WebGpuTimerHost } from "./webgpu/webgpu-timer";
 import {
   WebGPURenderer,
   PMREMGenerator as WebGpuPMREMGenerator,
@@ -656,6 +658,12 @@ export class ThreeRenderAdapter {
   // `EXT_disjoint_timer_query_webgl2` — every Safari, headless WebGL,
   // Firefox in resist-fingerprint.
   private gpuTimer: GpuTimer | undefined;
+  // S70 WEBGPU-gpu-timer. Parallel to `gpuTimer` for the WebGPU path. Stays
+  // `undefined` on the WebGL adapter and on WebGPU devices that don't
+  // expose the `timestamp-query` feature (three.js silently flips
+  // `trackTimestamp` to false in that case, so the helper would never
+  // produce a reading anyway).
+  private webGpuTimer: WebGpuTimer | undefined;
 
   constructor(options: AdapterOptions) {
     this.canvas = options.canvas;
@@ -684,10 +692,19 @@ export class ThreeRenderAdapter {
       // toneMapping*) overlaps but TypeScript's structural check can't
       // see it without a heavier type-level union; revisited when the
       // RenderAdapter interface gains full method coverage.
+      // S70 WEBGPU-gpu-timer: opt into GPU timestamp queries. Three.js
+      // automatically falls back to `false` if the underlying GPUDevice
+      // doesn't advertise `timestamp-query` (see
+      // `WebGPUBackend#init` → `hasFeature(GPUFeatureName.TimestampQuery)`),
+      // so this is safe to always pass. The parameter is forwarded to the
+      // backend constructor (`common/Backend.js`) but is not in the public
+      // JSDoc types — cast the param bag through `unknown` to attach it.
       this.device = new WebGPURenderer({
         canvas: options.canvas,
-        antialias: true
-      }) as unknown as WebGLRenderer;
+        antialias: true,
+        trackTimestamp: true
+      } as unknown as ConstructorParameters<typeof WebGPURenderer>[0]) as unknown as WebGLRenderer;
+      this.webGpuTimer = new WebGpuTimer(this.device as unknown as WebGpuTimerHost);
     } else {
       this.device = new WebGLRenderer({
         canvas: options.canvas,
@@ -2243,6 +2260,7 @@ export class ThreeRenderAdapter {
       this.device.render(this.scene, camera);
     }
     this.gpuTimer?.end();
+    this.webGpuTimer?.onFrame();
   }
 
   // ---- M21-shadow-csm: cascade shadow maps ----
@@ -2666,7 +2684,7 @@ export class ThreeRenderAdapter {
       planarMirrors: this.planarMirrors.size,
       renderer: this.capabilities.kind
     };
-    const gpuMs = this.gpuTimer?.read();
+    const gpuMs = this.gpuTimer?.read() ?? this.webGpuTimer?.read();
     if (gpuMs !== undefined) {
       info.gpuMs = gpuMs;
     }
