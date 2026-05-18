@@ -82,6 +82,8 @@ type ParsedArgs = {
   expectPath: string | undefined;
   write: boolean;
   build: boolean;
+  /** S83 AGF-LOG-DOCTOR-DIAGNOSTICS — optional path to a runtime diagnostics snapshot JSON. */
+  diagnosticsFrom?: string;
   /** S81 KABOOM-GENERATOR-FRAMEWORK. */
   seed: number | undefined;
   template: string | undefined;
@@ -132,7 +134,10 @@ if (parsedArgs.command === "check") {
   }
   process.exitCode = 0;
 } else if (parsedArgs.command === "doctor") {
-  const report = runDoctor(parsedArgs.projectDir, undefined, { build: parsedArgs.build });
+  const report = runDoctor(parsedArgs.projectDir, undefined, {
+    build: parsedArgs.build,
+    ...(parsedArgs.diagnosticsFrom !== undefined ? { diagnosticsFrom: parsedArgs.diagnosticsFrom } : {})
+  });
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
 } else if (parsedArgs.command === "docs") {
@@ -667,6 +672,11 @@ function parseArgs(args: string[]): ParsedArgs {
     }
     if (current === "--build") {
       result.build = true;
+      continue;
+    }
+    if (current === "--diagnostics-from") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) result.diagnosticsFrom = value;
       continue;
     }
     if (current === "--seed") {

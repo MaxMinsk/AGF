@@ -68,6 +68,40 @@ export type DiagnosticsBusOptions = {
   nowSeconds?: () => number;
 };
 
+// S83 AGF-LOG-DOCTOR-DIAGNOSTICS. Compact summary of a diagnostics
+// snapshot — count by severity + top-N codes. Pure function so the
+// engine doctor and CI scripts can both call it on a recorded buffer
+// (JSON snapshot) without a live runtime.
+export type DiagnosticsSummary = {
+  total: number;
+  bySeverity: Record<DiagnosticSeverity, number>;
+  topCodes: Array<{ code: string; count: number }>;
+};
+
+export function summarizeDiagnostics(
+  events: ReadonlyArray<RuntimeDiagnostic>,
+  options: { topCodes?: number } = {}
+): DiagnosticsSummary {
+  const topN = Math.max(1, options.topCodes ?? 5);
+  const bySeverity: Record<DiagnosticSeverity, number> = {
+    info: 0,
+    warning: 0,
+    error: 0,
+    debug: 0,
+    trace: 0
+  };
+  const codeCounts = new Map<string, number>();
+  for (const ev of events) {
+    bySeverity[ev.severity] = (bySeverity[ev.severity] ?? 0) + 1;
+    codeCounts.set(ev.code, (codeCounts.get(ev.code) ?? 0) + 1);
+  }
+  const topCodes = [...codeCounts.entries()]
+    .map(([code, count]) => ({ code, count }))
+    .sort((a, b) => (b.count - a.count) || a.code.localeCompare(b.code))
+    .slice(0, topN);
+  return { total: events.length, bySeverity, topCodes };
+}
+
 export function createDiagnosticsBus(options: DiagnosticsBusOptions = {}): DiagnosticsBus {
   const retain = Math.max(1, options.retain ?? 200);
   const nowSeconds =

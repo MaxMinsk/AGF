@@ -104,10 +104,13 @@
     {
       "id": "AGF-LOG-DOCTOR-DIAGNOSTICS",
       "title": "engine doctor reports diagnostics noise summary",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Add a `diagnostics` section to `engine doctor` that summarises total events by severity + top-N codes since boot. Helps spot a system that's spam-warning every frame without grep-ing console.",
       "verification": [
-        "engine doctor --json prints a `diagnostics: { total, bySeverity, topCodes }` block on a sample project"
+        "engine doctor --json prints a `diagnostics: { total, bySeverity, topCodes }` block on a sample project",
+        "summarizeDiagnostics(events, { topCodes }) pure helper exported from engine/runtime/diagnostics/diagnostics-bus.ts; 3 unit tests cover empty buffer / severity tally + code ranking / top-N cap",
+        "DoctorReport now carries diagnosticsSummary: DiagnosticsSummary | null; populated when --diagnostics-from <path> resolves to a JSON snapshot (accepts raw event array or { snapshot } shape)",
+        "CLI wires '--diagnostics-from <path>' on engine doctor; ParsedArgs.diagnosticsFrom + DoctorOptions.diagnosticsFrom plumbed through"
       ],
       "dependsOn": [
         "AGF-LOG-LIFECYCLE-TRACES"

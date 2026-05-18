@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { PRIMITIVE_MESHES } from "../../core/primitives";
+import { summarizeDiagnostics } from "../../runtime/diagnostics/diagnostics-bus";
 import { checkProject, type Diagnostic } from "../check/project-check";
 import { summarizeProject, type ProjectSummary } from "../summarize/project-summarize";
 import {
@@ -167,6 +168,12 @@ export type DoctorReport = {
   webgpuReadiness: WebGpuReadinessReport;
   /** S79 BACKLOG-DOCTOR: snapshot of the JSON-first backlog at repo root. Informational across projects (one backlog per repo). */
   backlog: BacklogReport;
+  /**
+   * S83 AGF-LOG-DOCTOR-DIAGNOSTICS. Summary of a runtime-diagnostics
+   * snapshot (total / bySeverity / topCodes). Null when no
+   * --diagnostics-from path is supplied.
+   */
+  diagnosticsSummary: import("../../runtime/diagnostics/diagnostics-bus").DiagnosticsSummary | null;
   recommendations: string[];
 };
 
@@ -302,6 +309,13 @@ export type ShadowConfigReport = {
 export type DoctorOptions = {
   /** When true, `runDoctor` invokes `npm run build` if `dist/` is missing. */
   build?: boolean;
+  /**
+   * S83 AGF-LOG-DOCTOR-DIAGNOSTICS. Optional path to a JSON file
+   * containing a `RuntimeDiagnostic[]` array (e.g. saved from
+   * `/__agf/diagnostics`). When supplied, runDoctor summarises the
+   * events and reports them under DoctorReport.diagnosticsSummary.
+   */
+  diagnosticsFrom?: string;
 };
 
 export function runDoctor(
@@ -520,6 +534,20 @@ export function runDoctor(
     prefabs,
     reflectionProbes,
     backlog,
+    diagnosticsSummary: ((): import("../../runtime/diagnostics/diagnostics-bus").DiagnosticsSummary | null => {
+      const path = options.diagnosticsFrom;
+      if (path === undefined) return null;
+      const absolute = resolve(path);
+      if (!existsSync(absolute)) return null;
+      try {
+        const raw = readFileSync(absolute, "utf8");
+        const parsed = JSON.parse(raw) as { snapshot?: unknown[] } | unknown[];
+        const events = (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.snapshot) ? parsed.snapshot : [])) as import("../../runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic[];
+        return summarizeDiagnostics(events);
+      } catch {
+        return null;
+      }
+    })(),
     webgpuReadiness: (() => {
       const wgpu = summarizeWebGpuReadiness(projectDir, reflectionProbes);
       // S61 DOCTOR-webgpu-readiness-actionable: when a project actually
