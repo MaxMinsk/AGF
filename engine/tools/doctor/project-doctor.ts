@@ -63,11 +63,11 @@ export const DEFAULT_VENDOR_BUDGETS: Record<string, { softGzipKb?: number; hardG
   // WebGPU-only TSL / node-material code into a separate
   // `three-webgpu-` chunk via the manualChunks rule in vite.config.ts.
   // In practice the split never produced a distinct chunk (Vite pulls
-  // `three.webgpu.js` straight into the main `three` chunk despite the
-  // dynamic `import("three/webgpu")` in webgpu-module-loader.ts), so the
-  // combined chunk sits at ~520 KB gzipped. S82 raised the budget to
-  // keep doctor + bundle:check aligned; AGF-WEBGPU-CHUNK-SPLIT (engine
-  // S083) actually fixes the split. Tighten when that lands.
+  // the WebGPU build straight into the main `three` chunk despite the
+  // dynamic `import` in webgpu-module-loader), so the combined chunk
+  // sits at ~520 KB gzipped. S82 raised the budget to keep doctor +
+  // bundle:check aligned; AGF-WEBGPU-CHUNK-SPLIT (engine S083) actually
+  // fixes the split. Tighten when that lands.
   "three-": { hardGzipKb: 560 },
   "three-webgpu-": { hardGzipKb: 200 }
 };
