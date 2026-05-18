@@ -8,12 +8,15 @@
     {
       "id": "AGF-AUDIO-PRIMITIVE",
       "title": "Engine audio primitive — load + play + stop sound effects",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Tiny engine-level audio surface under `engine/runtime/audio/`. Wraps HTMLAudioElement (or AudioContext-backed buffer when needed). Exposes `createAudioBus(parent)` returning `{ load(id, url), play(id, { volume?, rate? }), stop(id), dispose() }`. The engine doesn't yet need positional / 3D audio; this is the smallest primitive a project can bind to game events. SSR-safe (no-op without `globalThis.document`). Lives under `engine/runtime/audio/` and is reachable via `runtime.audio` so projects don't roll their own HTMLAudio singletons.",
       "verification": [
         "engine/runtime/audio/audio-bus.ts ships createAudioBus + AudioBus type",
         "unit test: load() + play() + stop() with mocked HTMLAudioElement; dispose() releases everything",
-        "runtime.audio is null in SSR / no-DOM contexts (graceful degradation)"
+        "runtime.audio is null in SSR / no-DOM contexts (graceful degradation)",
+        "engine/runtime/audio/audio-bus.ts ships createAudioBus + AudioBus type; lazy <audio> creation per id, restart-on-replay, autoplay rejection swallowed",
+        "RuntimeHandle.audio surfaces the bus; undefined when no document is available (SSR / Node) — projects branch with runtime.audio?.play(...)",
+        "+7 unit tests: SSR safety / load tracking / lazy create / unknown clip no-op / re-play same element / stop pause+rewind / dispose idempotent"
       ],
       "epic": "AUDIO"
     },
@@ -26,7 +29,9 @@
         "4 clips registered + bound; live probe confirms `audio.play(...)` was invoked once per event (window.__agf.kaboom.audioLog mirror)",
         "unit test: synthesised events drive the binding system through expected call sequence"
       ],
-      "dependsOn": ["AGF-AUDIO-PRIMITIVE"],
+      "dependsOn": [
+        "AGF-AUDIO-PRIMITIVE"
+      ],
       "epic": "KABOOM-CREW-MVP-1"
     },
     {
@@ -92,7 +97,9 @@
         "examples/kaboom-crew/recordings/demo-30s.recording.json exists; replay test passes",
         "any change to BombFuseSystem / BlastPropagationSystem / BotAISystem that changes the determinism flips the test red"
       ],
-      "dependsOn": ["KABOOM-BOT-DIFFICULTY"],
+      "dependsOn": [
+        "KABOOM-BOT-DIFFICULTY"
+      ],
       "epic": "KABOOM-CREW-MVP-1"
     },
     {
@@ -115,7 +122,9 @@
         "ThreeRenderAdapter accepts diagnostics option; lifted call sites now emit through the bus when wired",
         "smoke test confirms no renderer console output on a clean boot (the boot-noise-budget test stays green)"
       ],
-      "dependsOn": ["AGF-DOCTOR-RENDERER-INSPECT-SECTION"],
+      "dependsOn": [
+        "AGF-DOCTOR-RENDERER-INSPECT-SECTION"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
   ]
