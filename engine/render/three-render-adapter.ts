@@ -1,7 +1,8 @@
-// agf-allow:console-file renderer adapter — pre-runtime diagnostics
-// (no bus reachable from the renderer adapter today). Lifting these
-// warnings/errors to runtime.diagnostics is a follow-up under the
-// renderer-diagnostics integration epic.
+// S85 AGF-LOG-RENDERER-LIFT-WARN-SITES: every renderer-adapter
+// warning route now goes through runtime.diagnostics (when wired);
+// pre-runtime fallbacks keep the `console.warn` path with inline
+// agf-allow:console markers + rationale. Drop the file-level marker
+// the S83 audit pass added — line-level audit is sufficient now.
 //
 // Thin Three.js touchpoint for the renderer pipeline (M21-a).
 //
@@ -753,6 +754,7 @@ export class ThreeRenderAdapter {
         });
       } else {
         // eslint-disable-next-line no-console
+        // agf-allow:console pre-runtime fallback — adapter constructor runs before the bus is wired in tests / non-runtime spikes.
         console.warn("[AGF] project.render.mode = 'webgpu' but navigator.gpu is undefined — falling back to WebGL.");
       }
       mode = "webgl";
@@ -2548,10 +2550,20 @@ export class ThreeRenderAdapter {
       this.csmConfig !== undefined &&
       this.csmDirectionalLight !== undefined
     ) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "[AGF] WebGPU CSM does not support live rebuild yet — change project.json#render.shadows.csm and reload the page. Slider change ignored."
-      );
+      const message =
+        "WebGPU CSM does not support live rebuild yet — change project.json#render.shadows.csm and reload the page. Slider change ignored.";
+      if (this.diagnostics !== undefined) {
+        this.diagnostics.emit({
+          severity: "warning",
+          code: "AGF_RENDER_WEBGPU_CSM_NO_LIVE_REBUILD",
+          source: "three-render-adapter",
+          message
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        // agf-allow:console pre-runtime call site — bus unavailable when the legacy shadow-tuner pings setCsmConfig before attachUi.
+        console.warn(`[AGF] ${message}`);
+      }
       return;
     }
     this.csmConfig = config;
@@ -2813,10 +2825,20 @@ export class ThreeRenderAdapter {
     // when the active camera is orthographic; warn once so the agent
     // sees why their shadow tuner is no-op'ing.
     if (!(camera instanceof PerspectiveCamera)) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "[AGF] CSM requires a perspective camera; active camera is orthographic. Cascade shadows skipped — use a single DirectionalLight with `castShadow: true` or switch the camera kind."
-      );
+      const message =
+        "CSM requires a perspective camera; active camera is orthographic. Cascade shadows skipped — use a single DirectionalLight with `castShadow: true` or switch the camera kind.";
+      if (this.diagnostics !== undefined) {
+        this.diagnostics.emit({
+          severity: "warning",
+          code: "AGF_RENDER_CSM_REQUIRES_PERSPECTIVE",
+          source: "three-render-adapter",
+          message
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        // agf-allow:console bus not yet attached.
+        console.warn(`[AGF] ${message}`);
+      }
       this.disposeCsm();
       return;
     }
@@ -2895,8 +2917,19 @@ export class ThreeRenderAdapter {
     const config = this.csmConfig;
     if (config === undefined) return;
     if (this.webGpuModule === undefined) {
-      // eslint-disable-next-line no-console
-      console.warn("[AGF] buildWebGpuCsm called before adapter.init() resolved; cascade shadows skipped.");
+      const message = "buildWebGpuCsm called before adapter.init() resolved; cascade shadows skipped.";
+      if (this.diagnostics !== undefined) {
+        this.diagnostics.emit({
+          severity: "warning",
+          code: "AGF_RENDER_WEBGPU_CSM_BEFORE_INIT",
+          source: "three-render-adapter",
+          message
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        // agf-allow:console early-init path before diagnostics bus is wired.
+        console.warn(`[AGF] ${message}`);
+      }
       return;
     }
     const direction = config.lightDirection ?? [-0.5, -1, -0.3];

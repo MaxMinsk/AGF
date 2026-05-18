@@ -46,6 +46,7 @@ Sprint 0 is archived. Sprint 1 is active: project/scene validation, the first re
 - `docs/QUALITY_AXES.md` for how AGF defines "works" beyond build success.
 - `docs/agent/debug-protocol.md` for debugging workflow.
 - `docs/diagnostics-policy.md` for the AGF logging / diagnostics rules (severity scale, code naming, CI gates).
+- `docs/agent-probes.md` for the catalogue of every `/__agf/*` probe endpoint (snapshot / diagnostics / renderer / commands / console-log / events SSE / recording / asset invalidate).
 - `SAMPLE_GAME_IDEAS.md` for the dogfood game direction.
 
 ## Architecture Summary

@@ -164,6 +164,41 @@ describe("createKaboomRoundResolveSystem (S82 KABOOM-DAMAGE-AND-DEATH / RESTART)
     expect(state.tally?.draws).toBe(1);
   });
 
+  it("S85 KABOOM-ROUND-TIMER: timeLimit reached with both alive → 'draw' + tally.draws bump", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1");
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 5,
+      tally: { player: 0, bot: 0, draws: 0 },
+      timeLimit: 5
+    });
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world, 0.02));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { phase: string; tally?: { draws: number } };
+    expect(state.phase).toBe("draw");
+    expect(state.tally?.draws).toBe(1);
+  });
+
+  it("S85 KABOOM-ROUND-TIMER: timeLimit=0 disables the auto-draw", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1");
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 1000,
+      tally: { player: 0, bot: 0, draws: 0 },
+      timeLimit: 0
+    });
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    for (let i = 0; i < 10; i += 1) system.frameUpdate!(ctx(world, 1));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { phase: string };
+    expect(state.phase).toBe("playing");
+  });
+
   it("autoRestartAfterMs = 0 disables auto-restart", () => {
     const world = new World();
     addBomber(world, "player.1");

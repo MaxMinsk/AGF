@@ -64,4 +64,32 @@ describe("DoctorReport.rendererInspect (S84 AGF-DOCTOR-RENDERER-INSPECT-SECTION)
     expect(report2.rendererInspect).toBeNull();
     rmSync(dir, { recursive: true });
   });
+
+  it("S85 AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK: surfaces a recommendation when handleLeak > 0", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doctor-inspect-"));
+    const path = join(dir, "inspect.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        info: { meshes: 4, handleLeak: 4 },
+        handles: { count: 8, entityIds: ["leaked.1", "leaked.2", "leaked.3", "leaked.4", "live.a"] }
+      })
+    );
+    const report = runDoctor(PROJECT_DIR, undefined, { rendererInspectFrom: path });
+    const leakRec = report.recommendations.find((r) => r.startsWith("Renderer handle leak detected"));
+    expect(leakRec).toBeDefined();
+    expect(leakRec!).toContain("handleLeak=4");
+    expect(leakRec!).toContain("leaked.1");
+    rmSync(dir, { recursive: true });
+  });
+
+  it("S85 AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK: stays quiet when handleLeak = 0", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doctor-inspect-"));
+    const path = join(dir, "inspect.json");
+    writeFileSync(path, JSON.stringify({ info: { handleLeak: 0 }, handles: { count: 0, entityIds: [] } }));
+    const report = runDoctor(PROJECT_DIR, undefined, { rendererInspectFrom: path });
+    const leakRec = report.recommendations.find((r) => r.startsWith("Renderer handle leak detected"));
+    expect(leakRec).toBeUndefined();
+    rmSync(dir, { recursive: true });
+  });
 });

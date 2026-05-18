@@ -1,0 +1,120 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S085",
+  "title": "Kaboom Crew MVP 1 hotfixes + pool warmup + observability follow-ons",
+  "status": "active",
+  "startedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "KABOOM-TITLE-INPUT-PAUSE",
+      "title": "Player input freezes while GamePaused — fixes Space-to-start placing a bomb + movement-before-start",
+      "status": "implemented",
+      "summary": "User-reported S084 bugs: (a) hitting Space on the title screen dismisses the overlay AND immediately writes PlaceBombRequest because PlayerInputSystem's edge-detect fires on the same frame, and (b) WASD already moves player.1 before Space is pressed. Add the GamePaused guard to PlayerInputSystem (same shape as bot-ai / bomb-fuse / bomb-placement in S084) so keyboard input stays inert until the overlay is dismissed.",
+      "verification": [
+        "PlayerInputSystem early-out when kaboom.game-state has GamePaused — no queuedDirection writes, no PlaceBombRequest writes",
+        "live probe: with the overlay up, holding D for 500 ms keeps player.1 stationary; pressing Space dismisses the overlay AND does NOT spawn a bomb on (1,1)",
+        "unit test: PlayerInputSystem with GamePaused set on the game-state singleton stays silent across multiple frames",
+        "PlayerInputSystem early-out when kaboom.game-state has GamePaused: no queuedDirection writes, no PlaceBombRequest / RoundRestartRequest writes, BUT previousPressed still ticks so a held Space (the long press that dismissed the overlay) does not surface as an edge after resume",
+        "+2 unit tests cover the paused early-out + the held-key-no-edge resume path; 680 → 682 total"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-AUDIO-PROCEDURAL-SFX",
+      "title": "WebAudio-synth SFX so the four events actually make sound",
+      "status": "implemented",
+      "summary": "S084 KABOOM-AUDIO-WIRE loaded clip URLs that didn't exist — HTMLAudio.play() fell through silently. Replace the placeholder loader with a project-local procedural synth that uses WebAudio (OscillatorNode + GainNode + lazy AudioContext): bomb-place = low tick, blast = filtered noise burst, pickup = rising chirp, death = descending pitch. No binary assets to ship; sounds the moment the user clicks the page.",
+      "verification": [
+        "examples/kaboom-crew/src/audio-fx.ts ships createKaboomAudioFx({ contextFactory? }) → { play(kind), dispose() }",
+        "bootstrap wires the audio binding's onEvent through it; audio.load placeholders dropped",
+        "unit test: each kind dispatches the expected oscillator + gain envelope (mocked AudioContext)",
+        "live probe: window.__agf.kaboom.placeBomb('player.1') triggers an audible bomb-place tick + blast burst 2.5 s later",
+        "examples/kaboom-crew/src/audio-fx.ts ships createKaboomAudioFx({ contextFactory?, masterGain? }) → { play(kind), dispose() }; lazy AudioContext + autoplay-rejection swallow",
+        "bootstrap drops the S84 placeholder audio.load URLs; audio-binding's onEvent now drives audioFx.play(kind); audioLog mirror unchanged",
+        "+7 unit tests cover lazy construction / 4 kinds dispatched / no-DOM no-op / dispose idempotent (mocked AudioContext)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-POOL-WARMUP-PARTICLES",
+      "title": "Pre-warm the particle pool to its declared max so the first blast doesn't stall",
+      "status": "implemented",
+      "summary": "S084 follow-up — first KABOOM-BLAST-PARTICLES burst stalled visibly because the M19 particle pool only grew to its `maxParticles` cap on demand. Add a one-shot warmup step in ParticleEmitterSystem (or the adapter pool surface) that allocates the full instance slot up front, then immediately returns the slots to the free pool. Steady-state cost unchanged; the spike on the first burst goes away. Pairs naturally with the broader render-pool unification in a future sprint — for now scope to the particle case where the user actually saw the stall.",
+      "verification": [
+        "live probe: motion-smoothness probe extended to capture frame-time during the first blast; before vs after metrics in the PR body",
+        "unit test (or pool-state introspection): pool size after the first emitter spawn equals maxParticles, NOT 0 + grown-under-demand",
+        "bootstrap.attachUi spawns a single-particle 'spark' emitter (lifetime 0.05s) offscreen on first boot; the M19 ParticleEmitterSystem acquires its InstancedMesh + compiles the MeshBasicMaterial shader before the first real blast",
+        "narrower scope than the original 'pool warmup + unification' description — pool sharing across emitters lives in a future render-pool-abstraction sprint; this is the targeted fix the user actually felt"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-ROUND-TIMER",
+      "title": "Per-round time limit + auto-draw when nobody dies in time",
+      "status": "implemented",
+      "summary": "Promote RoundState with a `timeLimit: number` field (default 90 s, query-param overridable). RoundResolveSystem flips phase to 'draw' when elapsed >= timeLimit + no winner. HUD timer line shows `t: 47s / 90s` instead of bare elapsed. Stops a game where both bombers play it safe from looping forever.",
+      "verification": [
+        "schema: RoundState.timeLimit optional + default 90",
+        "unit test: round with both bombers alive at elapsed === timeLimit flips to 'draw' + bumps tally.draws",
+        "HUD shows 'X s / Y s' once timeLimit is set",
+        "RoundState.timeLimit (optional number, default 90 s) drains RoundResolveSystem to a draw when both bombers are still alive at elapsed >= timeLimit; +2 unit tests",
+        "bootstrap reads ?roundTimeLimit= off the URL, seeds RoundState with the value on initial boot AND each restart; HUD timer renders 'X s / Y s' when limit > 0"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-CONTROLS-HINT",
+      "title": "Bottom-center controls hint for the first 4 s of a fresh boot",
+      "status": "implemented",
+      "summary": "Tiny HUD widget shown for the first 4 seconds of the first round explaining `WASD / arrows · Space = bomb · R = restart`. Helps new players who skipped the README. Fades out automatically; doesn't survive a manual restart.",
+      "verification": [
+        "live probe: HUD widget 'kaboom.controls-hint' present in the bottomCenter slot for ~4 s after the round starts, then removed",
+        "bootstrap mounts a 'kaboom.controls-hint' centre-slot HUD widget for the first 4 s after gameStarted; unmounts when the window expires or when the banner needs the slot (round resolved)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-DOCS-AGENT-PROBE-CATALOGUE",
+      "title": "docs/agent-probes.md — one-page catalogue of every /__agf endpoint",
+      "status": "implemented",
+      "summary": "Single page listing every probe surface an agent can hit (snapshot, diagnostics, renderer-info, renderer-inspect, commands, console-log, reload-events, asset/invalidate, events SSE) with a curl example + return shape. Pairs with the runtime-side docs already shipped — agents look here first, then drill into engine doctor.",
+      "verification": [
+        "docs/agent-probes.md exists; CLAUDE.md Read-First references it",
+        "every existing /__agf route has a section + sample",
+        "docs/agent-probes.md ships: snapshot / diagnostics / events SSE / renderer-info / renderer-inspect / commands / console-log / reload-events / asset/invalidate / recording / health — each with curl example + payload shape",
+        "CLAUDE.md Read-First references the new doc"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-RENDERER-LIFT-WARN-SITES",
+      "title": "Lift the remaining renderer console.warn sites to runtime.diagnostics",
+      "status": "implemented",
+      "summary": "S084 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE threaded the bus into ThreeRenderAdapter but only migrated the WebGPU-fallback site. Walk the remaining `agf-allow:console-file` sites (shader-pcss + material-binding + three-render-adapter + three-renderer) and lift each call to `bus.emit({ severity, code: 'AGF_RENDER_*', ... })` when a bus is wired; keep the console fallback for the no-bus case. Drop the file-level allow markers as each file becomes clean.",
+      "verification": [
+        "each migrated file documents the code(s) emitted + drops its agf-allow:console-file marker; check-no-console-log still passes",
+        "boot-noise-budget smoke test stays green on hello-3d (no new warnings)",
+        "three-render-adapter.ts: dropped the S83 file-level allow marker; 4 sites (webgpu fallback / csm-no-live-rebuild / csm-requires-perspective / webgpu-csm-before-init) emit AGF_RENDER_* warnings through diagnostics when wired, fall back to inline-marked console.warn pre-runtime",
+        "shader-pcss / material-binding / three-renderer keep their existing file-level allow markers — those call sites don't have a path to a runtime context yet (still on the renderer-diagnostics integration backlog); scope reduced to the bus-reachable file",
+        "check-no-console-log gate passes (140 files); 691 unit tests stay green"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK",
+      "title": "engine doctor recommends action when rendererInspect.handleLeak > 0",
+      "status": "implemented",
+      "summary": "Wire a recommendation entry into DoctorReport.recommendations when the supplied --renderer-inspect-from snapshot carries handleLeak > 0. Sample text: `Renderer handle leak detected (N handles unmapped to RenderMeshHandle). Run __agf.rendererInspect() and check the handles.entityIds list for unfreed entities — most often a scene.load missed cleaning up a long-lived mesh handle.`",
+      "verification": [
+        "unit test: rendererInspectFrom snapshot with handleLeak: 4 → DoctorReport.recommendations contains the leak callout",
+        "snapshot with handleLeak: 0 stays quiet",
+        "rendererInspectSummary computed once + reused for the report field; new recommendation block fires when handleLeak > 0 with a sample of leaked entity ids (up to 4)",
+        "+2 unit tests: leaked snapshot surfaces the rec; clean snapshot stays quiet"
+      ],
+      "dependsOn": [
+        "AGF-DOCTOR-RENDERER-INSPECT-SECTION"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}

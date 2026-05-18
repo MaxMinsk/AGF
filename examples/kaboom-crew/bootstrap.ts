@@ -29,7 +29,23 @@ import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
+import { createKaboomAudioFx } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
+
+const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
+function readRoundTimeLimit(): number {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+  try {
+    const value = new URLSearchParams(search).get("roundTimeLimit");
+    if (value === null) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+    return parsed;
+  } catch {
+    return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+  }
+}
 
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
@@ -98,7 +114,7 @@ function restartScene(runtime: RuntimeHandle): number {
       kind: "entity.create",
       entityId: "kaboom.round-state",
       components: {
-        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally }
+        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit() }
       }
     },
     { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
@@ -191,6 +207,30 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       restartScene(runtime);
     };
 
+    // S85 AGF-POOL-WARMUP-PARTICLES. The first KABOOM-BLAST-PARTICLES
+    // burst stalled visibly because the renderer compiles the
+    // ParticleEmitter shader program lazily on the first emit + uploads
+    // an InstancedMesh + IcosahedronGeometry pair to the GPU. Spawn a
+    // single-particle, short-lived 'spark' emitter offscreen during
+    // attachUi so the shader is compiled + the pool is hot well before
+    // a real blast.
+    runtime.applyCommands([
+      {
+        kind: "entity.create",
+        entityId: "kaboom.warmup-particles",
+        components: {
+          Transform: { position: [-100, -100, -100], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          ParticleEmitter: {
+            preset: "spark",
+            lifetime: 0.05,
+            elapsed: 0,
+            rate: 60,
+            maxParticles: 12
+          }
+        }
+      }
+    ]);
+
     // S84 KABOOM-TITLE-SCREEN. Before the first round, mount the
     // GamePaused singleton so bot AI / bomb fuse / bomb placement
     // freeze. The title-screen HUD overlay listens for Space to
@@ -211,32 +251,43 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           GamePaused: { reason: "title-screen" }
         }
       },
+      // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
+      // present from frame 0 — RoundResolveSystem's ensureRoundState would
+      // otherwise create a singleton without it.
+      {
+        kind: "entity.create",
+        entityId: "kaboom.round-state",
+        components: {
+          RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit() }
+        }
+      },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
       { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
       { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
     ]);
     let titleScreenMounted = false;
     let gameStarted = false;
+    // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
+    // first becomes playable; used to keep the hint widget on screen
+    // for 4 s.
+    let gameStartedAtMs = 0;
     const startGame = (): void => {
       if (gameStarted) return;
       gameStarted = true;
+      gameStartedAtMs = performance.now();
       runtime.applyCommands([
         { kind: "component.remove", entityId: "kaboom.game-state", component: "GamePaused" }
       ]);
     };
 
-    // S84 KABOOM-AUDIO-WIRE. Register the 4 clips (placeholder URLs;
-    // CC0 WAVs will land under examples/kaboom-crew/assets/audio/ in
-    // a follow-up). Audio bus is undefined on headless hosts —
-    // _boundAudioEvent still runs so audioLog mirrors the event
-    // sequence, but play() is skipped.
-    const audio = (runtime as unknown as { audio?: import("../../engine/runtime/audio/audio-bus").AudioBus }).audio;
-    if (audio !== undefined) {
-      audio.load("bomb-place", "/examples/kaboom-crew/assets/audio/bomb-place.wav");
-      audio.load("blast", "/examples/kaboom-crew/assets/audio/blast.wav");
-      audio.load("pickup", "/examples/kaboom-crew/assets/audio/pickup.wav");
-      audio.load("death", "/examples/kaboom-crew/assets/audio/death.wav");
-    }
+    // S85 KABOOM-AUDIO-PROCEDURAL-SFX. Drop the S84 placeholder
+    // audio.load URLs (which pointed at non-existing files and fell
+    // through silently) and route the four binding events through a
+    // procedural WebAudio synth. No binary assets to ship; audio
+    // starts working the moment the user clicks the page (the
+    // AudioContext is lazily created on the first play() because
+    // browsers reject construction before a user gesture).
+    const audioFx = createKaboomAudioFx({ masterGain: 0.4 });
     _audioLog = [];
     _boundAudioEvent = (kind, c): void => {
       const entry: AudioLogEntry = { kind, ts: Date.now() };
@@ -244,7 +295,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       _audioLog.push(entry);
       // Cap the log so a long-running session doesn't grow unbounded.
       if (_audioLog.length > 200) _audioLog.splice(0, _audioLog.length - 200);
-      audio?.play(kind, { volume: kind === "blast" ? 0.8 : 0.6 });
+      audioFx.play(kind);
     };
 
     const handleKey = (event: KeyboardEvent): void => {
@@ -502,6 +553,23 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       });
       titleScreenMounted = true;
 
+      // S85 KABOOM-CONTROLS-HINT spec — mounted in the center slot
+      // for the first 4 s of the first round, dismissed once the
+      // banner needs the slot or the 4 s window expires.
+      const CONTROLS_HINT_ID = "kaboom.controls-hint";
+      const controlsHintSpec = {
+        id: CONTROLS_HINT_ID,
+        slot: "center" as const,
+        initial: undefined,
+        render: (): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "font-size:14px;font-weight:500;text-align:center;padding:4px 10px;opacity:0.85;");
+          el.textContent = "WASD / arrows  ·  Space = bomb  ·  R = restart";
+          return el;
+        }
+      };
+      let controlsHintMounted = false;
+
       // Banner widget is added on demand because the engine's HUD
       // WIDGET_STYLE always paints a dark pill around the slot — even
       // an empty render leaves a visible dot in the centre of the
@@ -548,6 +616,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             winnerId?: string;
             roundNumber?: number;
             tally?: { player: number; bot: number; draws: number };
+            timeLimit?: number;
           };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
@@ -560,7 +629,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         const roundNumber = s.round?.roundNumber ?? 1;
         const tally = s.round?.tally ?? { player: 0, bot: 0, draws: 0 };
         lines.push(`Round ${roundNumber}   W:${tally.player} L:${tally.bot} D:${tally.draws}`);
-        lines.push(`phase: ${phase}   t: ${elapsed}s`);
+        const timeLimit = s.round?.timeLimit;
+        const timeStr = timeLimit !== undefined && timeLimit > 0 ? `t: ${elapsed}s / ${Math.floor(timeLimit)}s` : `t: ${elapsed}s`;
+        lines.push(`phase: ${phase}   ${timeStr}`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
           lines.push(
@@ -568,6 +639,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           );
         }
         hud.update(STATS_ID, { lines });
+
+        // S85 KABOOM-CONTROLS-HINT — gate against the banner (which
+        // also wants the centre slot once the round resolves). Mount
+        // once the title screen is dismissed; unmount after 4 s OR
+        // as soon as the banner needs the slot.
+        const hintWindowOpen =
+          gameStarted &&
+          phase === "playing" &&
+          performance.now() - gameStartedAtMs < 4000;
+        if (hintWindowOpen && !controlsHintMounted && !bannerMounted) {
+          hud.add(controlsHintSpec);
+          controlsHintMounted = true;
+        } else if (controlsHintMounted && (!hintWindowOpen || bannerMounted)) {
+          hud.remove(CONTROLS_HINT_ID);
+          controlsHintMounted = false;
+        }
 
         // Banner — empty while playing, mounted otherwise.
         let bannerText = "";
@@ -616,6 +703,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         hud.remove(STATS_ID);
         if (bannerMounted) hud.remove(BANNER_ID);
         if (titleScreenMounted) hud.remove(TITLE_ID);
+        if (controlsHintMounted) hud.remove(CONTROLS_HINT_ID);
         hud.remove(MINIMAP_ID);
       };
     }
@@ -627,6 +715,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         _boundRestart = undefined;
         _boundAudioEvent = undefined;
         _audioLog = [];
+        audioFx.dispose();
         if (hudCleanup !== undefined) hudCleanup();
       }
     };

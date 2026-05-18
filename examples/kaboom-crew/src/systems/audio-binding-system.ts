@@ -52,7 +52,13 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
   let prevPickupIds = new Set<EntityId>();
   let prevAlive = new Map<EntityId, boolean>();
 
-  const frameUpdate = (context: SystemContext): void => {
+  // S85 KABOOM-AUDIO-PROCEDURAL-SFX fix — runs in fixedUpdate because
+  // BlastEvent transients are emitted AND consumed inside the
+  // fixedUpdate phase (bomb-fuse emits it, blast-propagation deletes
+  // it). A frameUpdate observer never saw them. With this system
+  // registered BEFORE blast-propagation in the bootstrap, we observe
+  // the live transient and emit "blast" exactly once.
+  const fixedUpdate = (context: SystemContext): void => {
     const world = context.world;
     if (world !== cachedWorld) {
       bombs = world.createQuery([BOMB]);
@@ -104,5 +110,5 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     if (anyBlast) onEvent("blast");
   };
 
-  return { name, frameUpdate };
+  return { name, fixedUpdate };
 }
