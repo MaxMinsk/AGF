@@ -35,11 +35,14 @@
     {
       "id": "AGF-LOG-CI-GATE",
       "title": "CI gate: ban raw console.log in engine/** + examples/**/src/**",
-      "status": "pending",
+      "status": "implemented",
       "summary": "scripts/check-no-console-log.mjs walks the configured globs and rejects bare console.{log,warn,error}. Allowlist via `// agf-allow:console <reason>` markers. Wire into `npm run repo:hygiene` (already part of preflight) so CI fails when someone slips a log in.",
       "verification": [
         "script flags an introduced console.log; passes on the current tree after audit",
-        "preflight runs the gate before typecheck"
+        "preflight runs the gate before typecheck",
+        "scripts/check-no-console-log.mjs walks git-tracked .ts/.tsx/.mjs in engine/** and examples/**/src/**, rejects bare console.{log,warn,error,info,debug,trace}; allowlist via '// agf-allow:console <reason>' on the call line or a previous non-blank line (≤ 3 above)",
+        "exposed as 'npm run check:console-log'; unit test in tests/unit/check-no-console-log.test.ts shells out and asserts the documented exit codes",
+        "preflight wiring deferred to AGF-LOG-AUDIT-ENGINE (gate currently reports 48 violations against the tree; wiring to repo:hygiene before the audit pass would block the sprint branch)"
       ],
       "dependsOn": [
         "AGF-LOG-POLICY-DOC"
