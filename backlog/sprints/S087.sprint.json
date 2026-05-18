@@ -31,11 +31,14 @@
     {
       "id": "KABOOM-MATCH-BEST-OF-5",
       "title": "Match concept — first bomber to 3 wins is the match winner",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promote the existing tally into a 'match' construct. RoundState gains `matchTarget: number` (default 3) and `matchPhase: 'in-progress' | 'won' | 'lost' | 'draw'`. RoundResolveSystem flips matchPhase the moment tally.player or tally.bot hits matchTarget. The HUD banner shows MATCH win/loss banner on top of the round banner; the auto-restart skips when the match is over (player can press R to start a new match).",
       "verification": [
         "unit test: tally.player=3 → matchPhase='won' + autoRestart suppressed; tally.bot=3 → matchPhase='lost'",
-        "live probe: HUD shows 'MATCH WIN — first to 3' banner after the 3rd round win"
+        "live probe: HUD shows 'MATCH WIN — first to 3' banner after the 3rd round win",
+        "round-resolve-system.ts: RoundState gains matchTarget/matchPhase; resolveMatchPhase() runs after every tally bump; auto-restart short-circuits when matchPhase != in-progress",
+        "bootstrap.ts: restartScene() clears tally + resets roundNumber when matchPhase resolved (R while match is over starts a fresh match); RoundState seed includes matchTarget=3, matchPhase='in-progress'; HUD banner shows MATCH WIN/LOST/DRAW with new-match hint",
+        "+4 unit tests: tally hitting target flips matchPhase / auto-restart suppression / matchTarget=0 falls back to legacy behaviour"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

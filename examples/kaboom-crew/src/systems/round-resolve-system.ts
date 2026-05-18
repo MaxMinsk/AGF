@@ -32,6 +32,10 @@ type RoundState = {
   tally?: Tally;
   /** S85 KABOOM-ROUND-TIMER. Seconds before the round auto-draws. 0 / undefined → no limit. */
   timeLimit?: number;
+  /** S87 KABOOM-MATCH-BEST-OF-5. Number of round wins that ends the match. */
+  matchTarget?: number;
+  /** S87 KABOOM-MATCH-BEST-OF-5. 'in-progress' until tally hits matchTarget; then 'won'/'lost'/'draw'. */
+  matchPhase?: "in-progress" | "won" | "lost" | "draw";
 };
 
 type BomberStats = { alive?: boolean };
@@ -117,6 +121,21 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
         const stats = world.getComponent<BomberStats>(id, BOMBER_STATS);
         if (stats !== undefined && stats.alive !== false) alive.push(id);
       }
+      const matchTarget = next.matchTarget ?? 3;
+      // S87 KABOOM-MATCH-BEST-OF-5. After every tally bump, check
+      // whether the match itself has resolved. matchPhase flips to
+      // 'won' / 'lost' the moment tally.player or tally.bot reaches
+      // matchTarget; 'draw' is only possible on round draws once one
+      // side has matchTarget-1 wins and the other has matchTarget-1
+      // wins too — rare but possible.
+      function resolveMatchPhase(t: Tally): "in-progress" | "won" | "lost" | "draw" {
+        if (matchTarget <= 0) return "in-progress";
+        if (t.player >= matchTarget && t.bot >= matchTarget) return "draw";
+        if (t.player >= matchTarget) return "won";
+        if (t.bot >= matchTarget) return "lost";
+        return "in-progress";
+      }
+
       if (alive.length === 1) {
         const winner = alive[0]!;
         const phase = winner === playerId ? "won" : "lost";
@@ -130,11 +149,11 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
           phase === "won"
             ? { ...tally, player: tally.player + 1 }
             : { ...tally, bot: tally.bot + 1 };
-        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase, winnerId: winner, tally: bumped });
+        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase, winnerId: winner, tally: bumped, matchPhase: resolveMatchPhase(bumped) });
       } else if (alive.length === 0) {
         const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
         const bumped: Tally = { ...tally, draws: tally.draws + 1 };
-        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped });
+        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped, matchPhase: resolveMatchPhase(bumped) });
       } else if (
         // S85 KABOOM-ROUND-TIMER: time-limit reached with both bombers
         // alive → auto-draw. Avoid the loop where both bots play it safe.
@@ -144,7 +163,7 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
       ) {
         const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
         const bumped: Tally = { ...tally, draws: tally.draws + 1 };
-        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped });
+        world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped, matchPhase: resolveMatchPhase(bumped) });
       }
     } else {
       // Round is over: freeze GridMover so motion stops without
@@ -159,7 +178,10 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
       // Auto-restart after configured delay so the round loops without
       // the player having to press R. The previous gap (R-only restart)
       // made the game look frozen after win/loss.
-      if (!restartFired && autoRestartAfterMs > 0 && options.onRestart !== undefined) {
+      // S87 KABOOM-MATCH-BEST-OF-5 — skip auto-restart when the match
+      // has resolved; player presses R for a new match.
+      const matchOver = state.matchPhase !== undefined && state.matchPhase !== "in-progress";
+      if (!matchOver && !restartFired && autoRestartAfterMs > 0 && options.onRestart !== undefined) {
         endedMs += Math.max(0, context.time.dt) * 1000;
         if (endedMs >= autoRestartAfterMs) {
           restartFired = true;
