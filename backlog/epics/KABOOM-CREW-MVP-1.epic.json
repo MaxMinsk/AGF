@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "KABOOM-CREW-MVP-1",
+  "title": "Kaboom Crew — MVP 1 polish (audio + particles + score + title screen)",
+  "status": "active",
+  "category": "sample-game",
+  "summary": "Polish pass on the MVP-0 gameplay v0 so the game feels finished: a small engine audio primitive + sound effects on the four core events (bomb-place, explosion, pickup, death), a particle burst on each blast cell, a persistent round counter + win/loss tally in the HUD, a title-screen overlay before the first round, and a difficulty dial (easy / normal / hard) that maps to bot aggression + decision cadence.",
+  "doneCriteria": [
+    "Audio primitive ships under engine/runtime/audio and Kaboom Crew binds 4 events (bomb-place / blast / pickup / death) to clips",
+    "Blast cells emit a particle burst (reuse the engine particle preset)",
+    "HUD shows persistent round number + player-vs-bot W/L tally that survives the auto-restart",
+    "Title screen overlay precedes the first round; Enter / Space starts; default round count is configurable via query param",
+    "Difficulty preset reachable from ?difficulty=easy|normal|hard, applied at round start"
+  ],
+  "notes": [
+    "Follows S082 KABOOM-CREW-MVP-0 (gameplay v0)."
+  ]
+}

@@ -10,6 +10,7 @@ import type { ThreeRenderer } from "../render/three-renderer";
 import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 import { createHud, type HudHandle } from "./ui/hud";
+import { createAudioBus } from "./audio/audio-bus";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
@@ -140,6 +141,8 @@ export type RuntimeHandle = {
   frameTiming(): FrameTiming;
   /** S81 KABOOM-HUD-RUNTIME: 2D DOM HUD overlay primitive. Lives in `engine/runtime/ui/hud.ts`; project code reaches it through this handle. */
   readonly hud: HudHandle;
+  /** S84 AGF-AUDIO-PRIMITIVE: tiny HTMLAudio-backed SFX surface. `undefined` in SSR / no-DOM contexts. */
+  readonly audio: import("./audio/audio-bus").AudioBus | undefined;
   /**
    * M17-instance-picking: cast a ray from normalised screen
    * coordinates (`{ x: -1..1, y: -1..1 }`, y up) and return the
@@ -247,6 +250,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       ...(options.shadowAlgorithm !== undefined ? { shadowAlgorithm: options.shadowAlgorithm } : {}),
       ...(options.skyGradient !== undefined ? { skyGradient: options.skyGradient } : {}),
       ...(options.rendererMode !== undefined ? { mode: options.rendererMode } : {}),
+      // S84 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE — thread the runtime bus so the
+      // adapter can emit structured `AGF_RENDER_*` events instead of console.warn.
+      diagnostics,
       onContextLost: () => {
         diagnostics.emit({
           severity: "warning",
@@ -474,6 +480,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   // single root is mounted unconditionally — projects opt out simply
   // by not calling `runtime.hud.add` (DOM cost is one empty <div>).
   const hud: HudHandle = createHud(options.canvas.parentElement ?? document.body);
+  // S84 AGF-AUDIO-PRIMITIVE. Project code reaches the bus via
+  // `runtime.audio`. Returns undefined on no-DOM hosts, in which
+  // case projects branch with `runtime.audio?.play(...)`.
+  const audio = createAudioBus(options.canvas.parentElement ?? document.body);
 
   let metricsWindowStart = 0;
   let framesInWindow = 0;
@@ -670,6 +680,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     diagnostics,
     rendererReady,
     hud,
+    audio,
     invalidateAsset(ref: string): void {
       options.assetRegistry?.invalidate(ref);
       if (materialBindingSystem !== undefined) {
@@ -755,6 +766,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       window.removeEventListener("resize", applyCanvasSize);
       overlay?.dispose();
       hud.dispose();
+      audio?.dispose();
       renderer.dispose();
       // S83 AGF-LOG-LIFECYCLE-TRACES. Emit before tearing down so the
       // diagnostics buffer still captures the event for a final read.

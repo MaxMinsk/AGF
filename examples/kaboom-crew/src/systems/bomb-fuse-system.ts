@@ -36,6 +36,8 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
       bombs = world.createQuery([BOMB, GRID_POSITION]);
       cachedWorld = world;
     }
+    // S84 KABOOM-TITLE-SCREEN — fuses freeze while the round is paused.
+    if (world.hasComponent("kaboom.game-state", "GamePaused")) return;
     const dt = Math.max(0, context.time.fixedDt);
     // Materialise the entity list — we'll mutate the world below and
     // don't want the live query iterator to throw on snapshot drift.

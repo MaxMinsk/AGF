@@ -89,5 +89,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S081](backlog/sprints/S081.sprint.json)** — Kaboom Crew pre-game platform — orthographic camera, damped follow, 2D HUD, grid primitives, generator framework — 9 implemented · archived 2026-05-18
 - **[S082](backlog/sprints/S082.sprint.json)** — Kaboom Crew gameplay v0 — input + bot AI + bombs + win/loss — 11 implemented · archived 2026-05-18
 - **[S083](backlog/sprints/S083.sprint.json)** — Engine observability — logging policy + CI gate + motion smoothness — 11 implemented · archived 2026-05-18
+- **[S084](backlog/sprints/S084.sprint.json)** — Kaboom Crew MVP 1 polish — audio, particles, score, title, difficulty — 10 implemented · archived 2026-05-18
 
 <!-- backlog:render:end -->

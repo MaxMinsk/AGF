@@ -28,6 +28,8 @@ import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
+import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
+import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
@@ -72,7 +74,37 @@ function buildFlatStartScene(): SceneInput {
 }
 
 function restartScene(runtime: RuntimeHandle): number {
-  runtime.applyCommands([{ kind: "scene.load", scene: buildFlatStartScene() }]);
+  // S84 KABOOM-SCORING-HUD. Read tally + roundNumber out of the live
+  // world before scene.load wipes everything, then re-seed the new
+  // RoundState with bumped numbers so the persistent score line
+  // survives the auto-restart.
+  const snap = runtime.snapshot();
+  const prevRound = snap.entities.find((e) => e.id === "kaboom.round-state");
+  const prev = prevRound?.components["RoundState"] as
+    | { roundNumber?: number; tally?: { player: number; bot: number; draws: number } }
+    | undefined;
+  const nextRoundNumber = (prev?.roundNumber ?? 1) + 1;
+  const tally = prev?.tally ?? { player: 0, bot: 0, draws: 0 };
+  // S84 KABOOM-BOT-DIFFICULTY. Re-apply the URL preset on every
+  // restart so a difficulty change without reload still kicks in next
+  // round. Browser-only — `globalThis.location` is undefined in node.
+  const preset = readDifficultyFromUrl(
+    (globalThis as unknown as { location?: { search?: string } }).location?.search
+  );
+  const tuning = difficultyComponentPatch(preset);
+  runtime.applyCommands([
+    { kind: "scene.load", scene: buildFlatStartScene() },
+    {
+      kind: "entity.create",
+      entityId: "kaboom.round-state",
+      components: {
+        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally }
+      }
+    },
+    { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
+    { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
+    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
+  ]);
   return 1;
 }
 
@@ -81,6 +113,17 @@ function restartScene(runtime: RuntimeHandle): number {
 // the system holds this closure and attachUi populates `_boundRestart`
 // once the runtime is known. Cleared in dispose to release the handle.
 let _boundRestart: (() => void) | undefined;
+
+// S84 KABOOM-AUDIO-WIRE.
+// Same closure-bridge pattern: audio-binding system is registered in
+// registerSystems but the audio bus only exists once attachUi has
+// the runtime handle. attachUi populates `_boundAudioEvent`; the
+// binding system calls through it. `audioLog` mirrors every event so
+// the probe surface (`__agf.kaboom.audioLog`) can verify the sequence
+// without depending on the HTMLAudioElement state.
+type AudioLogEntry = { kind: AudioEventKind; entityId?: string; ts: number };
+let _boundAudioEvent: ((kind: AudioEventKind, ctx?: { entityId?: string }) => void) | undefined;
+let _audioLog: AudioLogEntry[] = [];
 
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler }: ProjectBootstrapContext): void {
@@ -93,6 +136,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
+    // S84 KABOOM-AUDIO-WIRE — register BEFORE blast-propagation so the
+    // binding system sees the BlastEvent transient before propagation
+    // consumes it. The late-bound closure indirects to attachUi where
+    // the audio bus is finally available.
+    scheduler.register(
+      createKaboomAudioBindingSystem({
+        onEvent(kind, c): void {
+          if (_boundAudioEvent !== undefined) _boundAudioEvent(kind, c);
+        }
+      }),
+      { profiles: ["static"] }
+    );
+
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
 
@@ -135,7 +191,70 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       restartScene(runtime);
     };
 
+    // S84 KABOOM-TITLE-SCREEN. Before the first round, mount the
+    // GamePaused singleton so bot AI / bomb fuse / bomb placement
+    // freeze. The title-screen HUD overlay listens for Space to
+    // remove the marker + dismiss the overlay.
+    //
+    // S84 KABOOM-BOT-DIFFICULTY. Apply the URL-selected preset to
+    // bot.1 on the same batch so even the very first round honours
+    // ?difficulty=easy|normal|hard.
+    const initialPreset = readDifficultyFromUrl(
+      (globalThis as unknown as { location?: { search?: string } }).location?.search
+    );
+    const initialTuning = difficultyComponentPatch(initialPreset);
+    runtime.applyCommands([
+      {
+        kind: "entity.create",
+        entityId: "kaboom.game-state",
+        components: {
+          GamePaused: { reason: "title-screen" }
+        }
+      },
+      { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
+      { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
+      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
+    ]);
+    let titleScreenMounted = false;
+    let gameStarted = false;
+    const startGame = (): void => {
+      if (gameStarted) return;
+      gameStarted = true;
+      runtime.applyCommands([
+        { kind: "component.remove", entityId: "kaboom.game-state", component: "GamePaused" }
+      ]);
+    };
+
+    // S84 KABOOM-AUDIO-WIRE. Register the 4 clips (placeholder URLs;
+    // CC0 WAVs will land under examples/kaboom-crew/assets/audio/ in
+    // a follow-up). Audio bus is undefined on headless hosts —
+    // _boundAudioEvent still runs so audioLog mirrors the event
+    // sequence, but play() is skipped.
+    const audio = (runtime as unknown as { audio?: import("../../engine/runtime/audio/audio-bus").AudioBus }).audio;
+    if (audio !== undefined) {
+      audio.load("bomb-place", "/examples/kaboom-crew/assets/audio/bomb-place.wav");
+      audio.load("blast", "/examples/kaboom-crew/assets/audio/blast.wav");
+      audio.load("pickup", "/examples/kaboom-crew/assets/audio/pickup.wav");
+      audio.load("death", "/examples/kaboom-crew/assets/audio/death.wav");
+    }
+    _audioLog = [];
+    _boundAudioEvent = (kind, c): void => {
+      const entry: AudioLogEntry = { kind, ts: Date.now() };
+      if (c?.entityId !== undefined) entry.entityId = c.entityId;
+      _audioLog.push(entry);
+      // Cap the log so a long-running session doesn't grow unbounded.
+      if (_audioLog.length > 200) _audioLog.splice(0, _audioLog.length - 200);
+      audio?.play(kind, { volume: kind === "blast" ? 0.8 : 0.6 });
+    };
+
     const handleKey = (event: KeyboardEvent): void => {
+      // S84 KABOOM-TITLE-SCREEN — Space dismisses the title screen on
+      // the first press; subsequent Space presses fall through to the
+      // bomb-place handler (PlayerInputSystem).
+      if (event.code === "Space" && !gameStarted) {
+        startGame();
+        return;
+      }
       if (event.code !== "KeyR") return;
       restartScene(runtime);
     };
@@ -235,6 +354,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       restart(): void {
         restartScene(runtime);
+      },
+      // S84 KABOOM-AUDIO-WIRE — agent-facing mirror of the audio event
+      // stream. Useful for probes that need to verify a sound was
+      // triggered without depending on HTMLAudioElement readiness.
+      audioLog(): ReadonlyArray<AudioLogEntry> {
+        return _audioLog.slice();
       },
       // S83 AGF-MOTION-SMOOTHNESS-PROBE. Returns the entity's
       // current world-space (x, z) from Transform.position — cheap
@@ -359,6 +484,24 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           return el;
         }
       });
+      // S84 KABOOM-TITLE-SCREEN. Title overlay piggy-backs on the
+      // banner spec — same slot, different copy. We add it
+      // immediately on attachUi (before bannerMounted toggling
+      // begins) and remove it the first time gameStarted flips true.
+      const TITLE_ID = "kaboom.title";
+      hud.add({
+        id: TITLE_ID,
+        slot: "center" as const,
+        initial: { text: "Kaboom Crew\nPress SPACE to start" },
+        render: (data: { text: string }): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "font-size:24px;font-weight:600;text-align:center;padding:6px 12px;white-space:pre-line;");
+          el.textContent = data.text;
+          return el;
+        }
+      });
+      titleScreenMounted = true;
+
       // Banner widget is added on demand because the engine's HUD
       // WIDGET_STYLE always paints a dark pill around the slot — even
       // an empty render leaves a visible dot in the centre of the
@@ -392,17 +535,32 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       let bannerMounted = false;
 
       const update = (): void => {
+        // S84 KABOOM-TITLE-SCREEN — drop the overlay once Space flips gameStarted.
+        if (titleScreenMounted && gameStarted) {
+          hud.remove(TITLE_ID);
+          titleScreenMounted = false;
+        }
+
         const s = api.status() as {
-          round?: { phase?: string; elapsed?: number; winnerId?: string };
+          round?: {
+            phase?: string;
+            elapsed?: number;
+            winnerId?: string;
+            roundNumber?: number;
+            tally?: { player: number; bot: number; draws: number };
+          };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
         };
-        // Stats line — one row per bomber.
+        // Stats line — one row per bomber + a persistent score line.
         const lines: string[] = [];
         const phase = s.round?.phase ?? "playing";
         const elapsed = Math.floor(s.round?.elapsed ?? 0);
-        lines.push(`round: ${phase}   t: ${elapsed}s`);
+        const roundNumber = s.round?.roundNumber ?? 1;
+        const tally = s.round?.tally ?? { player: 0, bot: 0, draws: 0 };
+        lines.push(`Round ${roundNumber}   W:${tally.player} L:${tally.bot} D:${tally.draws}`);
+        lines.push(`phase: ${phase}   t: ${elapsed}s`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
           lines.push(
@@ -457,6 +615,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         rafId = undefined;
         hud.remove(STATS_ID);
         if (bannerMounted) hud.remove(BANNER_ID);
+        if (titleScreenMounted) hud.remove(TITLE_ID);
         hud.remove(MINIMAP_ID);
       };
     }
@@ -466,6 +625,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         window.removeEventListener("keydown", handleKey);
         if (w.__agf !== undefined) delete w.__agf.kaboom;
         _boundRestart = undefined;
+        _boundAudioEvent = undefined;
+        _audioLog = [];
         if (hudCleanup !== undefined) hudCleanup();
       }
     };

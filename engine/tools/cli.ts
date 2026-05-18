@@ -84,6 +84,8 @@ type ParsedArgs = {
   build: boolean;
   /** S83 AGF-LOG-DOCTOR-DIAGNOSTICS — optional path to a runtime diagnostics snapshot JSON. */
   diagnosticsFrom?: string;
+  /** S84 AGF-DOCTOR-RENDERER-INSPECT-SECTION — optional path to a /__agf/renderer-inspect dump. */
+  rendererInspectFrom?: string;
   /** S81 KABOOM-GENERATOR-FRAMEWORK. */
   seed: number | undefined;
   template: string | undefined;
@@ -136,7 +138,8 @@ if (parsedArgs.command === "check") {
 } else if (parsedArgs.command === "doctor") {
   const report = runDoctor(parsedArgs.projectDir, undefined, {
     build: parsedArgs.build,
-    ...(parsedArgs.diagnosticsFrom !== undefined ? { diagnosticsFrom: parsedArgs.diagnosticsFrom } : {})
+    ...(parsedArgs.diagnosticsFrom !== undefined ? { diagnosticsFrom: parsedArgs.diagnosticsFrom } : {}),
+    ...(parsedArgs.rendererInspectFrom !== undefined ? { rendererInspectFrom: parsedArgs.rendererInspectFrom } : {})
   });
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
@@ -677,6 +680,11 @@ function parseArgs(args: string[]): ParsedArgs {
     if (current === "--diagnostics-from") {
       const value = args[++index];
       if (value !== undefined && value.length > 0) result.diagnosticsFrom = value;
+      continue;
+    }
+    if (current === "--renderer-inspect-from") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) result.rendererInspectFrom = value;
       continue;
     }
     if (current === "--seed") {

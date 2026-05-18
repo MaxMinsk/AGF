@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Kaboom Crew demo-30s regression (S84 KABOOM-DEMO-RECORDING) > produces a stable final state for a deterministic 30 s bot-vs-bot round 1`] = `
+{
+  "bombers": [
+    {
+      "alive": true,
+      "gx": 10,
+      "gz": 6,
+      "id": "player.1",
+    },
+    {
+      "alive": false,
+      "gx": 8,
+      "gz": 6,
+      "id": "bot.1",
+    },
+  ],
+  "phase": "won",
+  "stoppedAtStep": 336,
+  "tally": {
+    "bot": 0,
+    "draws": 0,
+    "player": 1,
+  },
+}
+`;

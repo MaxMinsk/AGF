@@ -179,6 +179,10 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       bombs = world.createQuery([BOMB, GRID_POSITION]);
       cachedWorld = world;
     }
+    // S84 KABOOM-TITLE-SCREEN. Game freezes while a GamePaused
+    // singleton is present — bot decisions don't run so the title
+    // screen looks static until the player commits.
+    if (world.hasComponent("kaboom.game-state", "GamePaused")) return;
     const dt = Math.max(0, context.time.fixedDt);
     let danger: Set<string> | undefined;
     for (const botId of bots!.run()) {

@@ -1,0 +1,158 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S084",
+  "title": "Kaboom Crew MVP 1 polish — audio, particles, score, title, difficulty",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "AGF-AUDIO-PRIMITIVE",
+      "title": "Engine audio primitive — load + play + stop sound effects",
+      "status": "implemented",
+      "summary": "Tiny engine-level audio surface under `engine/runtime/audio/`. Wraps HTMLAudioElement (or AudioContext-backed buffer when needed). Exposes `createAudioBus(parent)` returning `{ load(id, url), play(id, { volume?, rate? }), stop(id), dispose() }`. The engine doesn't yet need positional / 3D audio; this is the smallest primitive a project can bind to game events. SSR-safe (no-op without `globalThis.document`). Lives under `engine/runtime/audio/` and is reachable via `runtime.audio` so projects don't roll their own HTMLAudio singletons.",
+      "verification": [
+        "engine/runtime/audio/audio-bus.ts ships createAudioBus + AudioBus type",
+        "unit test: load() + play() + stop() with mocked HTMLAudioElement; dispose() releases everything",
+        "runtime.audio is null in SSR / no-DOM contexts (graceful degradation)",
+        "engine/runtime/audio/audio-bus.ts ships createAudioBus + AudioBus type; lazy <audio> creation per id, restart-on-replay, autoplay rejection swallowed",
+        "RuntimeHandle.audio surfaces the bus; undefined when no document is available (SSR / Node) — projects branch with runtime.audio?.play(...)",
+        "+7 unit tests: SSR safety / load tracking / lazy create / unknown clip no-op / re-play same element / stop pause+rewind / dispose idempotent"
+      ],
+      "epic": "AUDIO"
+    },
+    {
+      "id": "KABOOM-AUDIO-WIRE",
+      "title": "Kaboom Crew binds bomb / blast / pickup / death sounds",
+      "status": "implemented",
+      "summary": "Project-local hook in `examples/kaboom-crew/bootstrap.ts` registers 4 clips on `runtime.audio` (bomb-place / blast / pickup / death) and a tiny system that emits the right call when it detects the corresponding event: `PlaceBombRequest` consumed → bomb-place; `BlastEvent` emitted → blast; `Pickup` removed by `PickupCollectSystem` → pickup; `BomberStats.alive` flips false → death. Clips ship as CC0 placeholders under `examples/kaboom-crew/assets/audio/`. The system stays project-local — engine audio surface remains generic.",
+      "verification": [
+        "4 clips registered + bound; live probe confirms `audio.play(...)` was invoked once per event (window.__agf.kaboom.audioLog mirror)",
+        "unit test: synthesised events drive the binding system through expected call sequence",
+        "createKaboomAudioBindingSystem detects bomb spawn / blast event / pickup removal / death via per-frame diffs; 6 unit tests cover each path + world swap reset",
+        "bootstrap registers the binding system BEFORE blast-propagation (so BlastEvent transient is visible) and threads onEvent into audio.play + audioLog mirror; runtime.kaboom.audioLog() exposes the event stream for probes"
+      ],
+      "dependsOn": [
+        "AGF-AUDIO-PRIMITIVE"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BLAST-PARTICLES",
+      "title": "Particle burst on each blast cell",
+      "status": "implemented",
+      "summary": "When `BlastPropagationSystem` spawns a `BlastTile`, additionally spawn a short-lived ParticleEmitter entity tuned for an arcade explosion (orange/yellow, ~12 particles, 0.4 s lifetime). Re-uses the existing engine particle preset from M19. Single inline preset block in the system; no new engine work.",
+      "verification": [
+        "snapshot after detonation shows N ParticleEmitter entities equal to the blast tile count",
+        "live probe screenshot: bomb at (3,3) produces a visible particle burst at the centre + each cardinal cell",
+        "BlastPropagationSystem spawns a ParticleEmitter entity (preset='spark', lifetime=0.4s, rate=30, maxParticles=12) alongside every BlastTile",
+        "M19 ParticleEmitter primitive handles particle lifetime — emitter cleans itself up after 0.4s; no new engine schema work"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-SCORING-HUD",
+      "title": "Round counter + W/L tally in HUD",
+      "status": "implemented",
+      "summary": "Promote the existing `RoundState` singleton with `roundNumber: number` and a `tally: { player: number, bot: number, draws: number }` block. `RoundResolveSystem` increments the right counter when the phase resolves; `restartScene` increments roundNumber and preserves the tally across the auto-restart wipe. The HUD `kaboom.stats` widget renders the new fields in a top row (e.g. `Round 7  •  W: 4  L: 2  D: 1`).",
+      "verification": [
+        "unit test: phase=won bumps tally.player; phase=lost bumps tally.bot; phase=draw bumps tally.draws; counter survives scene.load",
+        "live probe: HUD stats widget includes 'Round N' + 'W:/L:/D:' after a kill",
+        "RoundState extended with roundNumber + tally; RoundResolveSystem bumps tally.player on 'won' / tally.bot on 'lost' / tally.draws on 'draw'; +3 unit tests",
+        "restartScene reads the previous RoundState before scene.load and re-creates kaboom.round-state with bumped roundNumber + preserved tally so the score survives the wipe",
+        "HUD stats widget now renders 'Round N   W:A L:B D:C' as the first row, then phase/timer/per-bomber stats below"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-TITLE-SCREEN",
+      "title": "Title-screen overlay before the first round",
+      "status": "implemented",
+      "summary": "Mount a centre-slot HUD widget on first boot showing 'Kaboom Crew — press Space to start'. The world stays paused (no bot AI / no input → bomb) until Space is pressed; on press, the widget unmounts and gameplay begins. Re-use the existing HUD center slot + the bootstrap's `_boundRestart` plumbing.",
+      "verification": [
+        "live probe: after page load, HUD center shows 'press Space to start'; the bot bomber's GridPosition stays unchanged for ≥ 1.5 s",
+        "after a simulated Space keydown, the overlay disappears and bot.1 starts moving within ~0.5 s",
+        "scene-extensions schema: new GamePaused component (singleton marker on kaboom.game-state)",
+        "bot-ai / bomb-fuse / bomb-placement systems early-out when GamePaused is present on kaboom.game-state — no autonomous activity while the title screen is up",
+        "bootstrap creates the entity + marker on attachUi, mounts a center HUD overlay 'Kaboom Crew / Press SPACE to start', and consumes Space (first press) to remove the marker + dismiss the overlay"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BOT-DIFFICULTY",
+      "title": "Difficulty presets — easy / normal / hard",
+      "status": "implemented",
+      "summary": "Project-level dial wired through the bootstrap. `?difficulty=easy|normal|hard` (default `normal`) maps to a tuple `{ aggression, decisionIntervalMs, range, speed }` applied to bot.1 at scene load. Easy: aggression 0.25 / 500 ms / range 2 / speed 2. Normal: 0.5 / 200 ms / 2 / 3. Hard: 0.85 / 120 ms / 3 / 4. The dial doesn't ship UI yet; query param is the agent-friendly contract.",
+      "verification": [
+        "unit test: each preset assembles the expected component patch",
+        "live probe: loading ?difficulty=hard makes bot.1 move noticeably faster than ?difficulty=easy",
+        "examples/kaboom-crew/src/difficulty.ts exports the preset table, readDifficultyFromUrl + difficultyComponentPatch helpers; 5 unit tests cover narrowing / table values / URL fallback / preset honour / ms→seconds translation",
+        "bootstrap.attachUi applies the URL preset to bot.1 on first boot AND restartScene re-applies it on every round-restart so a query-param change survives the auto-reset"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-PROJECT-README",
+      "title": "examples/kaboom-crew/README.md — controls + agent surface + story",
+      "status": "implemented",
+      "summary": "Short README under `examples/kaboom-crew/` covering the controls (WASD/arrows + Space + R), the agent surface (`window.__agf.kaboom.{gotoCell, placeBomb, status, restart}`), the round flow (start → bombs → blast → win/lose → auto-restart 3 s), the difficulty query param, and the file map (scenes / prefabs / src/systems / tests). One page; first paragraph is the player-facing pitch from SAMPLE_GAME_IDEAS.",
+      "verification": [
+        "examples/kaboom-crew/README.md exists; engine check + repo:hygiene stay green",
+        "examples/kaboom-crew/README.md ships: pitch, controls table, run command + difficulty query param, round flow, HUD slot map, agent surface code samples, file map, determinism notes",
+        "repo:hygiene + check-no-console-log stay green; engine:check passes"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-DEMO-RECORDING",
+      "title": "Deterministic 30-second recording fixture for regression replay",
+      "status": "implemented",
+      "summary": "Capture a `Recording` of a 30-second seeded bot-vs-bot round and stash it under `examples/kaboom-crew/recordings/demo-30s.recording.json`. A new Vitest test replays the recording against a fresh world and asserts a stable final phase + RoundState.elapsed — gives the sprint a regression target for any AI / blast / pickup change, headless and fast (the existing playtest in S082 already shows the pattern).",
+      "verification": [
+        "examples/kaboom-crew/recordings/demo-30s.recording.json exists; replay test passes",
+        "any change to BombFuseSystem / BlastPropagationSystem / BotAISystem that changes the determinism flips the test red",
+        "examples/kaboom-crew/tests/unit/demo-30s.test.ts boots the start scene, swaps player.1 to a BotBrain, runs 30 simulated seconds of the full system stack and snapshots { phase, tally, stoppedAtStep, bombers }",
+        "Vitest snapshot file under tests/unit/__snapshots__/demo-30s.test.ts.snap pins the deterministic outcome (phase='won', stoppedAtStep=336); re-run is byte-stable; any AI/blast/fuse change flips the diff"
+      ],
+      "dependsOn": [
+        "KABOOM-BOT-DIFFICULTY"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-DOCTOR-RENDERER-INSPECT-SECTION",
+      "title": "engine doctor — Renderer probe section from rendererInspect()",
+      "status": "implemented",
+      "summary": "Follow-on to S83 AGF-AGENT-RENDERER-PROBE. `engine doctor --renderer-inspect-from <path>` reads a snapshot dumped from `/__agf/renderer-inspect` and renders a 'Renderer:' section in the doctor report — info counters + handle leak callout + entity-id sample. Mirrors the AGF-LOG-DOCTOR-DIAGNOSTICS flag pattern.",
+      "verification": [
+        "DoctorReport.rendererInspect populated from the supplied JSON; null otherwise",
+        "unit test: sample input → expected report shape (info.handleLeak + handles.entityIds.length surface in the report)",
+        "DoctorReport gains rendererInspect: { info, handles: { count, entityIds, sample(<=8) }, handleLeak } | null",
+        "runDoctor accepts options.rendererInspectFrom path; accepts raw inspect() payload or dev-bridge envelope { ok, payload }",
+        "engine doctor CLI accepts --renderer-inspect-from <path>; +4 unit tests covering null / raw / envelope / malformed"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-RENDERER-DIAGNOSTICS-WIRE",
+      "title": "Thread diagnostics bus into the renderer adapter (deferred from S83 audit)",
+      "status": "implemented",
+      "summary": "S83 AUDIT-ENGINE marked the renderer files file-level allow-listed because the diagnostics bus didn't reach them. Thread the bus in: `ThreeRenderAdapter` constructor accepts `{ diagnostics? }`, and the three renderer-side warn/error sites (shader-patch fallback, async geometry/material binding failure, WebGPU adapter init fallback) migrate to `bus.emit({ severity, code: 'AGF_RENDER_*', ... })`. Adapter still keeps `console.warn` fallback when no bus is supplied (boot before the bus exists).",
+      "verification": [
+        "ThreeRenderAdapter accepts diagnostics option; lifted call sites now emit through the bus when wired",
+        "smoke test confirms no renderer console output on a clean boot (the boot-noise-budget test stays green)",
+        "AdapterOptions accepts optional diagnostics: DiagnosticsBus; ThreeRenderer extraOptions threads it through; engine/runtime/start.ts passes the runtime bus on construction",
+        "Webgpu→webgl fallback path (S68 fallback) now emits AGF_RENDER_WEBGPU_FALLBACK_WEBGL warning through the bus when wired; falls back to console.warn when no bus is supplied (pre-runtime, unit tests)",
+        "no breaking changes: 680 unit tests pass; renderer files keep the file-level agf-allow:console marker for the remaining shader-patch / material-binding sites scoped to follow-ups"
+      ],
+      "dependsOn": [
+        "AGF-DOCTOR-RENDERER-INSPECT-SECTION"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ],
+  "followUps": [
+    "AGF-POOL-WARMUP-AND-UNIFY (next sprint) — user-reported pause on the first KABOOM-BLAST-PARTICLES burst points at the M19 particle pool growing under live demand. Story: pre-warm the particle pool to its default `maxParticles` cap on system register + unify the renderer pool surface (S48 render-pool-abstraction was left pending). Acceptance: a synthesised first-blast probe shows no frame-time spike vs steady-state, and InstancedMesh / BatchedMesh / Particle pools route through one registry."
+  ],
+  "archivedAt": "2026-05-18",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/94"
+}
