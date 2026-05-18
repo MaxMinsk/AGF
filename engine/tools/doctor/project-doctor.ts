@@ -59,7 +59,16 @@ export type PerformanceBudget = {
  */
 export const DEFAULT_VENDOR_BUDGETS: Record<string, { softGzipKb?: number; hardGzipKb: number }> = {
   "rapier-": { hardGzipKb: 900 },
-  "three-": { hardGzipKb: 300 }
+  // S70 split the legacy `three-` chunk: the WebGPU-only TSL / node-
+  // material code (~150 KB gzipped) moved into a dedicated lazy
+  // `three-webgpu-` chunk pulled in only when `project.render.mode =
+  // "webgpu"`. The remaining `three-` chunk holds core three.js + the
+  // WebGL renderer + loaders, sitting around 305 KB gzipped. Doctor's
+  // hard ceiling lives slightly above scripts/check-bundle-size.mjs'
+  // 340 KB headroom so the two don't fight; tighten when three.js drops
+  // dead code.
+  "three-": { hardGzipKb: 340 },
+  "three-webgpu-": { hardGzipKb: 200 }
 };
 
 export type RendererMetric =
@@ -421,7 +430,7 @@ export function runDoctor(
         const list = wgpu.blockers.map((b) => b.feature).slice(0, 3).join(", ");
         const extra = wgpu.blockers.length > 3 ? ` (and ${wgpu.blockers.length - 3} more)` : "";
         recommendations.push(
-          `project.render.mode = "webgpu" + ${wgpu.blockers.length} unsupported feature(s) [${list}${extra}]. The WebGPU adapter will silently skip these; revert mode to "webgl" or wait for the S62 / S63 feature port.`
+          `project.render.mode = "webgpu" + ${wgpu.blockers.length} unsupported feature(s) [${list}${extra}]. The WebGPU adapter silently skips these; either drop the feature from the scene, revert mode to "webgl", or wait for the upstream/TSL port.`
         );
       }
       return wgpu;
@@ -443,14 +452,16 @@ function summarizeWebGpuReadiness(
         render?: { mode?: string; post?: ReadonlyArray<{ kind?: string }>; shadows?: { csm?: unknown }; color?: { transmissionResolutionScale?: number } };
       };
       declaredMode = meta.render?.mode === "webgpu" ? "webgpu" : meta.render?.mode === "webgl" ? "webgl" : "unspecified";
-      // Post-processing chain: no WebGPU equivalent until the post path ports.
+      // Post-processing chain: blocked upstream in three.js r0.184
+      // (BloomNode pingpong quads use vanilla ShaderMaterial that the
+      // TSL NodeBuilder rejects). Re-test on each three.js minor.
       const passes = meta.render?.post ?? [];
       for (const pass of passes) {
         if (typeof pass?.kind === "string") {
           blockers.push({
             feature: `post-pass: ${pass.kind}`,
             where: "project.json#render.post",
-            note: "EffectComposer chain has no WebGPU equivalent in AGF yet; planned for S62."
+            note: "WebGPU post-processing is upstream-blocked in three.js — BloomNode pingpong materials. Re-test on each three.js minor."
           });
         }
       }
@@ -458,47 +469,26 @@ function summarizeWebGpuReadiness(
         blockers.push({
           feature: "CSM (cascade shadow maps)",
           where: "project.json#render.shadows.csm",
-          note: "three.js's `CSM.js` is WebGL-only; CSMNode equivalent planned for S62."
+          note: "three.js's CSM is WebGL-only; needs a TSL CSMNode port (multi-sprint)."
+        });
+      }
+      if (meta.render?.shadows !== undefined && (meta.render.shadows as { algorithm?: string }).algorithm === "pcss") {
+        blockers.push({
+          feature: "PCSS shadow algorithm",
+          where: "project.json#render.shadows.algorithm",
+          note: "PCSS uses GLSL `onBeforeCompile` chunks; WebGPU needs a TSL rewrite. Fall back to `pcf`."
         });
       }
     } catch {
       // Malformed JSON is reported elsewhere.
     }
   }
-  if (reflectionProbes.probes.length > 0) {
-    blockers.push({
-      feature: `reflection probes (${reflectionProbes.probes.length})`,
-      where: "scenes/*.scene.json (ReflectionProbe component)",
-      note: "WebGPU equivalent for CubeCamera + WebGLCubeRenderTarget needs porting (S63)."
-    });
-  }
-  // Planar mirrors — scan scene JSON.
-  const scenesDir = resolve(projectDir, "scenes");
-  if (existsSync(scenesDir) && statSync(scenesDir).isDirectory()) {
-    const stack = [scenesDir];
-    let planarMirrorEntities = 0;
-    while (stack.length > 0) {
-      const dir = stack.pop()!;
-      for (const name of readdirSync(dir)) {
-        const full = resolve(dir, name);
-        if (statSync(full).isDirectory()) { stack.push(full); continue; }
-        if (!name.endsWith(".scene.json")) continue;
-        try {
-          const scene = JSON.parse(readFileSync(full, "utf8")) as { entities?: Array<{ components?: Record<string, unknown> }> };
-          for (const ent of scene.entities ?? []) {
-            if (ent.components?.["PlanarMirror"] !== undefined) planarMirrorEntities += 1;
-          }
-        } catch { /* malformed JSON reported elsewhere */ }
-      }
-    }
-    if (planarMirrorEntities > 0) {
-      blockers.push({
-        feature: `planar mirrors (${planarMirrorEntities})`,
-        where: "scenes/*.scene.json (PlanarMirror component)",
-        note: "WebGPU Reflector port planned for S63."
-      });
-    }
-  }
+  // S64 / S71: reflection probes work on WebGPU. S72: planar mirrors
+  // also work via TSL `reflector()`. Probes + mirrors no longer flagged
+  // as blockers — left this discovery loop in place so future
+  // project-specific advice can be added without rebuilding the
+  // scene-walk.
+  void reflectionProbes;
   return { declaredMode, blockers };
 }
 

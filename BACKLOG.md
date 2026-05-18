@@ -1,6 +1,6 @@
 # Backlog
 
-Date: 2026-05-18 (Sprint 70 archived)
+Date: 2026-05-18 (Sprint 72 archived)
 
 This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
 
@@ -28,31 +28,31 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M17-static-merge-spike** — static geometry merge with reverse `EntityId` lookup for picking. Strictly opt-in per-entity (`StaticMerge` tag). Deferred until a 10k+ static-prop project asks.
 - **M21-shadow-soft** — re-evaluate `PCFSoftShadowMap` vs `PCFShadowMap` vs `VSMShadowMap` once three.js stabilises soft shadows.
 - **M21-shadow-glb-acne** — self-shadow polish on low-poly GLB meshes.
-- **M21-webgpu-spike** — async WebGPU renderer adapter behind a profile flag.
 - **M16-cache-e** — reusable matrices / pooled scratch buffers inside the LTW cache layer.
 - **render-pool-caller-migration** — retire the per-kind adapter pool methods now that `acquirePool` dispatches uniformly.
 - **M17-batched-glb** — thread AssetRegistry through `updateBatched` so GLB references work inside batched buckets too.
 - **BATCH-BENCH-bvh-stress** — narrow-camera scenario knob for `batch-bench` so the BVH crossover can be measured live.
-- **REFLECTION-planar** — `three/addons/objects/Reflector.js` vendored helper for planar mirrors (water, lobby floor).
-- **POST-bloom** — worked example for bloom post-pass + tuner.
+- **POST-bloom** — worked example for bloom post-pass + tuner (gated on upstream three.js BloomNode ShaderMaterial fix).
+- **WEBGPU-csm-port** — TSL `CSMNode` port for shadows-bench. Multi-sprint spike; the last project still on WebGL.
+- **WEBGPU-reflection-tint** — wire the WebGL `Reflector.color` / `acquireReflectionProbe.color` parameters into the WebGPU TSL paths (`mix(reflector, color, factor)` colorNode + light tint on probe envmaps).
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 71 — TBD
+## Current Sprint: Sprint 73 — TBD (polish / docs / carry list)
 
-S70 cleared the WebGPU carry list and migrated batch-bench. 6 of 9 example projects on WebGPU; remaining three (material-bench, shadows-bench, water-bench) are blocked upstream — no contained WebGPU stories left until either three.js minors lift the BloomNode `ShaderMaterial` issue or someone ports `CSMNode` / `ReflectorNode`. Pivot to a non-WebGPU sprint or pick up the carried S54 asset/runtime stories.
+8 of 9 example projects are on WebGPU after S71 (material-bench) and S72 (water-bench). Only **shadows-bench** remains — its three blockers (CSM, PCSS, FXAA) all need real TSL ports or wait for an upstream three.js fix; none of them are contained inside a single sprint.
 
-### Candidate sprint shapes (pick at session start)
+After two heavy WebGPU sprints back-to-back the next session is a polish / docs / carry-list pass. Candidate shapes:
 
+- **WebGPU docs refresh** — sync `docs/agent/skills/webgpu-rendering.md` with the actual 8/9 state, document the per-feature WebGPU surface (`supportsPlanarMirror: true`, GPU timer, lazy import, PMREM-per-purpose split, no-visibility-toggle probe bake), and refresh the comparison page at `tests/manual/webgpu-vs-webgl/` so it boots both modes cleanly under the new code paths.
+- **engine doctor — WebGPU readiness** — refresh the doctor's `WebGPU readiness:` block per project so it reflects 8/9 (only shadows-bench still flagged), and surface the specific blocking features (CSM / PCSS / FXAA) per remaining project.
 - **Asset pipeline polish** — pick up the S54 carry list: `ASSET-prefab pipeline`, `DOCTOR-prefab section`, `RUNTIME-progressive-loading`, `DOCS-asset-pipeline`. Contained, agent-shaped, no upstream dependency.
-- **Material-bench polish** — push more authored content through `material-bench` so the WebGL path is in a place where the WebGPU migration would be visibly net-positive once upstream unblocks (this front-loads the dogfood story for when post-processing unblocks).
-- **Beacon-world gameplay** — back to the dogfood game; whatever the next gameplay slice is.
-- **WebGPU CSMNode spike** — multi-sprint port of CSM to TSL. Big lift; only do this if shadows-bench is high-priority and the team is OK with a feature-by-feature WebGPU forward push instead of waiting for upstream.
+- **WEBGPU-reflection-tint** — small follow-up: wire the `color` parameter through to the WebGPU TSL planar mirror + cube probe paths via `mix(reflector, color, factor)` colorNode. Single-session.
 
 ### Stories
 
-To be picked when S71 starts.
+To be picked when S73 starts.
 
 ## Next Sprint (placeholder)
 
-S72 — TBD based on what S71 turns out to be.
+S74 — likely the WEBGPU-csm spike if shadows-bench becomes priority, OR the next gameplay slice for beacon-world. Decide after the S73 polish pass.
