@@ -235,6 +235,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       restart(): void {
         restartScene(runtime);
       },
+      // S83 AGF-MOTION-SMOOTHNESS-PROBE. Returns the entity's
+      // current world-space (x, z) from Transform.position — cheap
+      // sampling target for per-frame motion-smoothness probes.
+      worldXZ(entityId: string): [number, number] | undefined {
+        const snap = runtime.snapshot();
+        const e = snap.entities.find((x) => x.id === entityId);
+        const t = (e?.components as Record<string, Record<string, unknown>> | undefined)?.["Transform"];
+        const pos = (t as { position?: ReadonlyArray<number> } | undefined)?.position;
+        if (pos === undefined) return undefined;
+        return [pos[0] ?? 0, pos[2] ?? 0];
+      },
       status(): unknown {
         const snap = runtime.snapshot();
         const round = (snap.entities.find((e) => e.id === "kaboom.round-state")?.components as Record<string, unknown> | undefined)?.["RoundState"];

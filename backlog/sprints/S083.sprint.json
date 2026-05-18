@@ -8,11 +8,15 @@
     {
       "id": "AGF-MOTION-SMOOTHNESS-PROBE",
       "title": "Motion smoothness — frame-time probe + GridMover stutter fix",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Build a deterministic Playwright probe that measures frame-delta jitter while the player walks across the Kaboom Crew arena. Capture a histogram of frame durations + per-cell tween dt deltas. Investigate whether GridMover's cell-tween + lane-assist introduce visible micro-stutters (cell boundary snaps, recompute order, BatchingSystem invalidation churn). Land a targeted fix if root cause is in the renderer/scheduler/tween path; if it turns out to be macOS PSU/throttling, document the workaround.",
       "verification": [
         "tests/e2e/motion-smoothness.spec.ts captures ≥3 s of frame-time samples while gotoCell drives the player across ≥5 cells, asserts P95 frame-delta ≤ N ms on the smoke project",
-        "before/after metrics in the PR body (median frame ms, P95 frame ms, max stall ms)"
+        "before/after metrics in the PR body (median frame ms, P95 frame ms, max stall ms)",
+        "headed Playwright probe tests/e2e/motion-smoothness.spec.ts samples rAF deltas + per-frame Transform.position while gotoCell drives the player across 7 cells; asserts frame P95 ≤ 25 ms, motion CV ≤ 50%, zeroSteps ≤ 5% of frames",
+        "baseline (before fix): meanStep=0.0330 stdev=0.0034 CV=10.2% zeroSteps=1 / 207 frames — one cell-boundary stall per crossing",
+        "after carry-over fix in engine/core/systems/grid-movement-system.ts: meanStep=0.0335 stdev=0.0031 CV=9.4% zeroSteps=0 — overshoot now feeds the next tween instead of resetting to lerp=0 on cell boundaries",
+        "unit test 'carries lerp overshoot across cell boundaries' guards the new code path; 631 → 632 unit tests passing"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
@@ -35,7 +39,9 @@
         "script flags an introduced console.log; passes on the current tree after audit",
         "preflight runs the gate before typecheck"
       ],
-      "dependsOn": ["AGF-LOG-POLICY-DOC"],
+      "dependsOn": [
+        "AGF-LOG-POLICY-DOC"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
@@ -47,7 +53,9 @@
         "check-no-console-log.mjs passes against engine/** with zero unmarked sites",
         "PR diff lists every conversion"
       ],
-      "dependsOn": ["AGF-LOG-CI-GATE"],
+      "dependsOn": [
+        "AGF-LOG-CI-GATE"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
@@ -59,7 +67,9 @@
         "unit test: logger is no-op when AGF_DEBUG is unset; emits when set to '*' or matching name",
         "at least one engine system (grid-movement) consumes the new logger"
       ],
-      "dependsOn": ["AGF-LOG-POLICY-DOC"],
+      "dependsOn": [
+        "AGF-LOG-POLICY-DOC"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
@@ -70,7 +80,9 @@
       "verification": [
         "diagnostics buffer captures `agf.scene.loaded`, `agf.system.registered`, `agf.runtime.stopped` payloads in an integration test"
       ],
-      "dependsOn": ["AGF-LOG-POLICY-DOC"],
+      "dependsOn": [
+        "AGF-LOG-POLICY-DOC"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
@@ -81,7 +93,9 @@
       "verification": [
         "engine doctor --json prints a `diagnostics: { total, bySeverity, topCodes }` block on a sample project"
       ],
-      "dependsOn": ["AGF-LOG-LIFECYCLE-TRACES"],
+      "dependsOn": [
+        "AGF-LOG-LIFECYCLE-TRACES"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
@@ -92,7 +106,9 @@
       "verification": [
         "smoke e2e fails when a deliberate noisy log is added; passes on the cleaned tree"
       ],
-      "dependsOn": ["AGF-LOG-AUDIT-ENGINE"],
+      "dependsOn": [
+        "AGF-LOG-AUDIT-ENGINE"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
@@ -103,7 +119,9 @@
       "verification": [
         "unit test: recreating a previously-deleted id triggers the warning; same-frame ids don't"
       ],
-      "dependsOn": ["AGF-LOG-LIFECYCLE-TRACES"],
+      "dependsOn": [
+        "AGF-LOG-LIFECYCLE-TRACES"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {

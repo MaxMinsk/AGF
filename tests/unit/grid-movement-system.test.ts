@@ -157,4 +157,31 @@ describe("createGridMovementSystem (S81 KABOOM-GRID-MOVER)", () => {
     const pos = world.getComponent("player", GRID_POSITION) as { gx: number; gz: number };
     expect(pos).toEqual({ gx: 0, gz: 0 });
   });
+
+  it("S83 AGF-MOTION-SMOOTHNESS-PROBE: carries lerp overshoot across cell boundaries", () => {
+    // Walking east at speed 4, with a frame dt that would land lerp
+    // just past 1.0 — the entity must immediately begin the next
+    // tween with the overshoot instead of pausing on the boundary.
+    const world = buildWorld(8);
+    addMover(world, "player", 2, 2, { speed: 4, direction: { dx: 1, dz: 0 } });
+    const occ = createGridOccupancySystem();
+    const mover = createGridMovementSystem({ occupancy: occ });
+
+    // First tick prepares + starts motion at currentLerp=0.
+    occ.frameUpdate!(ctx(world));
+    mover.frameUpdate!(ctx(world, 0.25)); // lerpStep = 0.25 * 4 = 1.0
+    // After exactly 1.0 of lerp, we're on the boundary. Next tick
+    // brings lerp to 1.0 + ε — the carry-over should keep motion alive.
+    occ.frameUpdate!(ctx(world));
+    mover.frameUpdate!(ctx(world, 0.05)); // lerpStep = 0.2; carry should hit
+    const posAfter = world.getComponent("player", GRID_POSITION) as { gx: number; gz: number };
+    const moverAfter = world.getComponent("player", GRID_MOVER) as { currentLerp?: number; targetGx?: number };
+    // Boundary crossed → gx advanced beyond start. Carry-over kept a
+    // new target queued and currentLerp is non-zero on the same frame
+    // we hit the boundary.
+    expect(posAfter.gx).toBeGreaterThan(2);
+    expect(moverAfter.targetGx).toBeDefined();
+    expect(moverAfter.currentLerp ?? 0).toBeGreaterThan(0);
+    expect(moverAfter.currentLerp ?? 1).toBeLessThan(1);
+  });
 });
