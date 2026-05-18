@@ -93,10 +93,12 @@
     {
       "id": "KABOOM-PROJECT-README",
       "title": "examples/kaboom-crew/README.md — controls + agent surface + story",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Short README under `examples/kaboom-crew/` covering the controls (WASD/arrows + Space + R), the agent surface (`window.__agf.kaboom.{gotoCell, placeBomb, status, restart}`), the round flow (start → bombs → blast → win/lose → auto-restart 3 s), the difficulty query param, and the file map (scenes / prefabs / src/systems / tests). One page; first paragraph is the player-facing pitch from SAMPLE_GAME_IDEAS.",
       "verification": [
-        "examples/kaboom-crew/README.md exists; engine check + repo:hygiene stay green"
+        "examples/kaboom-crew/README.md exists; engine check + repo:hygiene stay green",
+        "examples/kaboom-crew/README.md ships: pitch, controls table, run command + difficulty query param, round flow, HUD slot map, agent surface code samples, file map, determinism notes",
+        "repo:hygiene + check-no-console-log stay green; engine:check passes"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
