@@ -31,7 +31,8 @@
       "summary": "**ADR-0009-shadow-caster-dynamic-tag** ✅ — anchors `ShadowCaster { dynamic }` + `DynamicShadowSystem` with the S53 audit-trail of the first-version visual regression.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S056-4",
@@ -39,7 +40,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S056-5",
@@ -48,7 +50,8 @@
       "summary": "**ADR-0011-prefab-instantiation** ✅ — anchors `expandScenePrefabs` + shallow-merge override semantics + the `AGF_SCENE_INSTANCE_*` diagnostics + \"no nested deep merge\" rule (S54).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S056-6",
@@ -57,7 +60,8 @@
       "summary": "**ADR-0012-asset-registry-texture-resolution** ✅ — anchors the texture-refs-through-AssetRegistry rule; records the `urlFor` workaround (S54) and the planned `get<TextureAsset>()` integration (S57).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     }
   ],
   "followUps": [

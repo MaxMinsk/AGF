@@ -1,0 +1,38 @@
+{
+  "agfFormatVersion": 1,
+  "id": "KABOOM-CREW-MVP-0",
+  "title": "Kaboom Crew — offline solo vertical slice (MVP 0)",
+  "status": "active",
+  "category": "sample-game",
+  "summary": "Flagship dogfood sample for AGF: a top-down arcade chaos game with grid-based bombs, blocks, pickups and bots. MVP 0 is the offline single-player vertical slice — one sector, one bot, one win condition (clear all soft blocks or destroy the bot). Public name is Kaboom Crew; the internal design doc at notes/DynaBomber.md uses the codename DynaBomber. MVP 0 must run on the existing AGF stack with no networking, no procedural-character generator and no audio system; it exists to stress-test the agent loop against actual gameplay code.",
+  "targetMilestone": "MVP-0",
+  "dependsOn": [
+    "M3",
+    "M16",
+    "M17",
+    "M19",
+    "M21",
+    "M22",
+    "M25",
+    "AGF-BACKLOG-ENGINE"
+  ],
+  "sourceDoc": "notes/DynaBomber.md",
+  "doneCriteria": [
+    "Damped follow camera + orthographic camera path shipped as engine primitives (ECS systems, not project-local helpers).",
+    "2D HUD / minimap runtime shipped as an engine primitive (DOM-backed v0 is acceptable).",
+    "Grid primitives shipped: `GridPosition`, `GridOccupant`, `GridMover` + `GridOccupancySystem`.",
+    "Procedural-generator framework: seed → JSON scene + validation; one Kaboom Crew level template.",
+    "Bot AI primitives: danger map + basic pathfinding + one personality.",
+    "Bomb pipeline (project-local): fuse, blast propagation, chain reactions, block destruction, pickup spawn.",
+    "Bomberstats + power-up effects: Bomb-up, Fire-up, Speed-up (project-local).",
+    "Solo round terminates with a win or loss screen.",
+    "engine doctor passes; `examples/kaboom-crew/playtests/<scenario>.json` records a bot win.",
+    "Kaboom Crew is a public-name candidate — final trademark / uniqueness check happens at MVP 3, not before."
+  ],
+  "notes": [
+    "Public name decided 2026-05-18. See [[project-flagship-sample-kaboom-crew]] memory entry.",
+    "Gap list and order-of-operations live at notes/dynabomber-readiness-analysis.md.",
+    "Engine pre-game work (camera / HUD / grid / generator / bot AI) lands in S081–S082 before any bomb code; project-local game systems land in `examples/kaboom-crew/` from S083 onward.",
+    "Multiplayer authority, client prediction, snapshot relevance live in a sibling KABOOM-CREW-MVP-1 epic (post-MVP-0)."
+  ]
+}

@@ -13,7 +13,8 @@
       "summary": "**REFLECTION-cube-cam-world-matrix** — `ReflectionProbeSystem` no longer adds its `CubeCamera`s to the scene graph (three.js's `CubeCamera.update()` only auto-refreshes the world matrix when `parent === null`). Explicit `cubeCam.updateMatrixWorld(true)` added in `updateReflectionProbe` so any future re-parent doesn't silently break the capture.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S058-2",
@@ -22,7 +23,8 @@
       "summary": "**GROUNDED-skybox-shipping-fixes** — `GroundedSkybox` now built with a positive projection factor `radius / 6` (matches three.js docs example ≈ 6.6); the mesh is externally positioned at `projectionHeight + spec.height` so AGF's `height: -0.75` still works as \"world Y of the floor\". Raw RGBE equirect feeds both `scene.background` and the helper (was the PMREM cubemap — soft / blurred projection). Shadow-catcher lifted 10 mm above the sky's bottom disc + `renderOrder = 1` + `opacity 0.6` for natural shadow weight.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S058-3",
@@ -31,7 +33,8 @@
       "summary": "**REFLECTION-cube-mipmaps** — `WebGLCubeRenderTarget` constructed with `generateMipmaps: true, minFilter: LinearMipmapLinearFilter` so `MeshStandardMaterial.envMap` sampling at `roughness > 0` reads a box-filtered mip chain. Mip regen runs once per `CubeCamera.update`. Not full PMREM GGX prefilter (parked as `REFLECTION-prefilter`), but visually close enough for moderate roughness (≤ 0.3).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S058-4",
@@ -40,7 +43,8 @@
       "summary": "**MATERIAL-bench-multi-probe** — three reflection probes: `sphere.centre` (chrome ball's own probe, 128² @ 30 Hz), `probe.front` at (0, 1, +5), `probe.back` at (0, 1, −5). Outer-ring spheres bind by initial angle hemisphere: `sin(angle) ≥ 0` → `probe.front`, else `probe.back`. Static bindings — each sphere keeps its probe ref as the ring spins so the reflection difference between sphere groups stays visible regardless of where they orbit.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "MATERIAL-AND-SHADER-SYSTEM"
     },
     {
       "id": "S058-5",
@@ -49,7 +53,8 @@
       "summary": "New `stone.material.json` reuses `brick_bump` (`bumpMap`, scale 2.5) + `brick_roughness` (`roughnessMap`) over `#7e7468`. Shadow camera frustum widened to ±14 / far 40 so columns cast onto the grounded floor.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "MATERIAL-AND-SHADER-SYSTEM"
     },
     {
       "id": "S058-6",
@@ -58,7 +63,8 @@
       "summary": "**REFLECTION-cube-cam-shadow-opacity-tune** — live tuning loop with the user: shadow-catcher opacity 1.0 → 0.6 (more natural shadow weight), chrome roughness sweep 0.18 → 0.02 (proved probe correctness, since mirror reflection of an offset cubemap is obviously wrong) → 0.12 → 0.22 (proved mip-cube blur works).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S058-7",
@@ -67,7 +73,8 @@
       "summary": "**ADR-0013-reflection-probe-system** — `docs/adr/0013-reflection-probe-system.md` anchors the CubeCamera-per-entity design, the parent-null world-matrix gotcha, the mipmap-cube-RT vs PMREM tradeoff, multi-probe layout decision for material-bench, and self-reflection avoidance.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S058-8",
@@ -76,7 +83,8 @@
       "summary": "**DOCS-vfx-skill-update** — `docs/agent/skills/vfx-authoring.md` pitfalls section picks up four new entries from the shipping bugs: `groundedSkybox.height <= 0`, PMREM-vs-equirect for the helper, CubeCamera world-matrix gotcha, and `roughness > 0` needing the mip-cube chain.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S058-9",
@@ -85,7 +93,8 @@
       "summary": "**GPU-timer-webgl-errors** — `ext.QUERY_RESULT_AVAILABLE` and `ext.QUERY_RESULT` are `undefined` (the extension exposes only `TIME_ELAPSED_EXT`, `TIMESTAMP_EXT`, `GPU_DISJOINT_EXT`; the rest are core WebGL2 constants on the rendering context). Reading them off `ext` produced `INVALID_ENUM: getQueryParameter`. The companion `INVALID_OPERATION: endQuery: target query is not active` came from `gpuTimerPending` staying set when `beginGpuTimer` early-returned on an in-flight query. Tracked `gpuTimerActive` separately so `endQuery` only fires when `beginQuery` actually fired this frame.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     }
   ],
   "followUps": [

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M4",
+  "title": "M4 Save / load + persistence adapter",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 30: engine/runtime/persistence/{local-store,save-load}.ts + RuntimeHandle.save/load/clearSave + AppHandle + window.__agf surface. project.json#persistence.components allowlist enforced. Beacon World wired with [\"Repairable\", \"WorldSignal\", \"Scoreboard\"]. Follow-up: full-page-reload Playwright proof (M4-reload-e2e).",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

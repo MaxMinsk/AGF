@@ -13,7 +13,8 @@
       "summary": "**RENDER-adapter-interface** — `engine/render/render-adapter.ts` with `RenderAdapterCapabilities` + `WEBGL_CAPABILITIES` / `WEBGPU_CAPABILITIES` constants. Single source of truth for which features a renderer supports (supportsGpuTimer / supportsCsm / supportsPcss / supportsPostProcessing / supportsReflectionProbe / supportsPlanarMirror).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S061-2",
@@ -22,7 +23,8 @@
       "summary": "**WEBGPU-adapter-core** — `ThreeRenderAdapter` constructor branches on `mode`: `WebGLRenderer` (default) or `WebGPURenderer` from `three/webgpu`. Single class with capability gating, not a parallel class — kept the refactor surface minimal. Environment IBL (PMREMGenerator) skipped on WebGPU until S63 (WebGL PMREM crashes on WebGPURenderer).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S061-3",
@@ -31,7 +33,8 @@
       "summary": "No-op on WebGL; awaits `WebGPURenderer.init()` (GPUAdapter + GPUDevice request) on WebGPU.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S061-4",
@@ -40,7 +43,8 @@
       "summary": "`ProjectMeta.render.mode` typed in src/app.ts; runtime threads it through `ThreeRenderer` constructor.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S061-5",
@@ -49,7 +53,8 @@
       "summary": "Boots end-to-end on WebGPU; registered with project switcher; passes engine:check.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S061-6",
@@ -58,7 +63,8 @@
       "summary": "`__agf.rendererInfo().renderer === \"webgpu\"` when running the spike, `\"webgl\"` everywhere else.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S061-7",
@@ -67,7 +73,8 @@
       "summary": "**DOCTOR-webgpu-readiness-actionable** — when `mode = \"webgpu\"` AND the project uses an unsupported feature, doctor surfaces a recommendation. Walks project.json + every scene .json.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD"
     },
     {
       "id": "S061-8",
@@ -76,7 +83,8 @@
       "summary": "Self-skips on browsers without `navigator.gpu`; tagged into the smoke project so developer machines exercise it but CI Linux smoke stays green.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S061-9",
@@ -85,7 +93,8 @@
       "summary": "**DOCS-webgpu-skill-update** — `docs/agent/skills/webgpu-rendering.md` flips from \"no adapter\" → \"adapter shipped\"; documents the opt-in path, what works on WebGPU core today, what's still deferred.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S061-10",
@@ -94,7 +103,8 @@
       "summary": "**HIGH_LEVEL-update-webgpu** (from S60 carry-over) — `HIGH_LEVEL_BACKLOG.md` M21 row already records the spike + promoted adapter epic at S60 close; no S61 changes needed.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     }
   ],
   "followUps": [

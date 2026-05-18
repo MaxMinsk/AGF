@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M11",
+  "title": "M11 Resource lifecycle + leak tests",
+  "status": "active",
+  "category": "engine",
+  "summary": "HMR-heavy workflow means leaks build up silently. Renderer lifecycle audit (geometries / materials / textures count), HMR stress test, network adapter create/dispose loop.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

@@ -13,7 +13,8 @@
       "summary": "It's a different class than the WebGL one (takes the new `Renderer` base instead of `WebGLRenderer`); cast through `unknown` because TS doesn't see the structural overlap. Both `environment.kind: \"generated\"` (RoomEnvironment + PMREM) and `environment.kind: \"hdr\"` work end-to-end on the WebGPU spike — confirmed via headed playwright probe: geometries 5 → 18 (PMREM cube probes), textures 5 → 9 (PMREM RTs), zero errors.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S062-2",
@@ -22,7 +23,8 @@
       "summary": "**DOCS-webgpu-skill-update** — skill memo `docs/agent/skills/webgpu-rendering.md` moves HDR IBL out of the \"deferred\" list into \"what S62 landed\"; roadmap row for S62 marked ✅; S63 row now bundles post-passes + CSM + PCSS + probes + mirror + GPU timer.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S062-3",
@@ -31,7 +33,8 @@
       "summary": "**DOCS-webgpu-spike-readme** — `examples/webgpu-spike/README.md` notes the new HDR / IBL capability + how to flip the spike's environment to `hdr` for visual verification.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     }
   ],
   "followUps": [

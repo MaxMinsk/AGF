@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-fallback-policy** — adapter constructor now detects `navigator.gpu === undefined` and falls back to WebGL automatically with a `console.warn`. Saves users from black-canvas + console error when opting a project into WebGPU on a browser without WebGPU support. Bonus discovery: three.js's `WebGPURenderer` itself has an internal WebGL2 backend fallback for cases where `navigator.gpu` is defined but unusable (e.g. headless chromium without `--enable-unsafe-webgpu`); the AGF flag still reads `renderer: \"webgpu\"` in that case, but rendering succeeds through the WebGL2 backend.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S068-2",
@@ -22,7 +23,8 @@
       "summary": "**MIGRATE-hello-3d-webgpu** — `examples/hello-3d/project.json#render.mode: \"webgl\" → \"webgpu\"`, `batching.auto: true → false` (batching not yet supported on WebGPU adapter). Scene + shadows + Spin all render correctly. Headed chromium with `--enable-unsafe-webgpu` confirms `renderer: webgpu`, 8 meshes, 3 draws. Smoke tests pass on headless via three.js's WebGL2 fallback.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
     },
     {
       "id": "S068-3",
@@ -31,7 +33,8 @@
       "summary": "Scene renders correctly with 60fps, 208 entities, physics + shadow + materials all working. WebGPU adapter coexists with Rapier physics.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
     }
   ],
   "followUps": [

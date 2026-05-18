@@ -31,7 +31,8 @@
       "summary": "`9.3` Scripted playtest scenarios — new `schemas/playtest.schema.json` (`waitStep`, `applyCommandsStep`, `expectComponentStep`, `expectEntityMissingStep`). `engine check` validates any `<projectDir>/playtests/*.playtest.json`. New Playwright runner `tests/e2e/playtest-runner.spec.ts` dynamically discovers scenarios under `examples/*/playtests/` and runs each as a separate test. First scenario lands in `examples/beacon-world/playtests/pickup-cycle.playtest.json`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "PLAYTEST-RUNNER"
     },
     {
       "id": "S008-4",
@@ -40,7 +41,8 @@
       "summary": "Roadmap addition: `docs/proposals/procedural-character-generator.md` parks the future Procedural Character Generator tool (node-graph-driven rigged-mesh generator emitting Mixamo-compatible characters), tracked in its own proposal-level backlog.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "PROCEDURAL-CHARACTER-GENERATOR"
     }
   ],
   "followUps": [

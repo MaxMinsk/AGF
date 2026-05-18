@@ -13,7 +13,8 @@
       "summary": "**POLISH-shadows-bench-lighting** ✅ — ACES Filmic tonemap (`render.color.toneMapping`) + exposure tuned to 0.9; directional intensity 1.55 → 2.1; hemisphere ambient 0.55 → 0.45 with a warm `groundColor: \"#5b4a35\"` so shaded faces pick up bounce; `shadowNormalBias: 0.12 → 0.06` (sized for the 1024 shadow map after S47's drop from 2048); background `#3a5066 → #5d7d9b`. SHADOW_DEFAULTS in `bootstrap.ts` synced so the tuner's \"Reset to defaults\" restores the shipped state.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "EXAMPLES-SHADOWS-BENCH-BENCHMARK-PROJECT"
     },
     {
       "id": "S052-2",
@@ -22,7 +23,8 @@
       "summary": "**POLISH-shadows-bench-materials** ✅ — palette refresh sized for ACES: buildings 5 → 6 entries (warm cream / sandstone / muddy tan / pale ochre / dusty taupe / bright stucco); roofs 3 → 4 (terracotta / burnt sienna / light brick / weathered red); trees 3 → 4 (fresh leaf / bright canopy / shaded foliage / sun-lit lime); rocks 3 → 4 (warm-stone / light grey-tan / shaded boulder / weathered chalk). Trunk `#5a3a23 → #6f4a30`; road `#2f3135 → #3a3c40`; ground `#3e5f44 → #4f7a4d`. All entries inline Standard so auto-batch still collapses to one InstancedMesh per primitive mesh.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "EXAMPLES-SHADOWS-BENCH-BENCHMARK-PROJECT"
     },
     {
       "id": "S052-3",
@@ -31,7 +33,8 @@
       "summary": "**POLISH-shadows-bench-composition** ✅ — tree-size variance widened (trunk 0.8..1.6 → 0.6..2.0, canopy 0.7..1.4 → 0.5..1.6); 8 lampposts placed along EW + NS streets (pole + warm `#f0c869` head per lamp); 6 plaza props around the central intersection (4 planter boxes at quadrant corners + 2 smaller crates flanking the EW road). Entity count 393 → 415, drawCalls steady at 11.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "EXAMPLES-SHADOWS-BENCH-BENCHMARK-PROJECT"
     },
     {
       "id": "S052-4",
@@ -40,7 +43,8 @@
       "summary": "**POLISH-shadows-bench-sky** ✅ — new `project.json#render.skyGradient: { top, bottom }` schema + adapter `createGradientTexture()` (4×256 CanvasTexture, sRGB) that overrides the solid background. `RuntimeOptions.skyGradient` plumbed through `ThreeRenderer` → `ThreeRenderAdapter`. shadows-bench gets `{ top: \"#3f6589\", bottom: \"#bdc8d2\" }`. The procedural IBL (`scene.environment: \"generated\"` via RoomEnvironment + PMREMGenerator) is untouched — the gradient is purely the visible skybox.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "EXAMPLES-SHADOWS-BENCH-BENCHMARK-PROJECT"
     },
     {
       "id": "S052-5",
@@ -49,7 +53,8 @@
       "summary": "**M21-shadow-static-caster-tag** ✅ — new `ShadowCaster { dynamic: boolean }` component (schema in `schemas/components/render.schema.json`, scene-schema entry in `schemas/scene.schema.json`) + `engine/render/systems/dynamic-shadow-system.ts`. The system is dormant until ≥1 entity carries `dynamic: true`, then flips `setShadowMapAutoUpdate(false)` and only calls `invalidateShadowMap()` when a tagged entity's LTW changes (epsilon 1e-5). Restores `autoUpdate=true` if the tag set empties. Wired into the renderer scheduler last so LTW is fresh from `TransformResolveSystem`. shadows-bench tags 6 cars + ~80 tree roots; ~290 static entities skip the per-frame shadow re-bake. Live probe: `renderMs 0.58 → 0.48 (−17 %)`, `totalFrameMs 1.92 → 1.82` despite 22 added entities. Real payoff lands on scenes with idle dynamic casters (beacon-world drone, NPCs at rest). 5 unit tests cover the contract.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S052-6",
@@ -58,7 +63,8 @@
       "summary": "Reads `render.shadows.algorithm / autoUpdate / csm.cascades / csm.shadowMapSize` from `project.json` + scans scene JSON for `ShadowCaster` tag counts. Two recommendations: cascade-cost (`3 cascades cost ~17% renderMs vs 2`) when `cascades ≥ 3` + dynamic-caster nudge when `autoUpdate=true` and no `dynamic: true` tags.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD"
     },
     {
       "id": "S052-7",
@@ -67,7 +73,8 @@
       "summary": "Empirical finding: **FXAA costs ~14 % renderMs** on shadows-bench (`0.49 → 0.42`), not the < 0.05 ms the hypothesis assumed. Two extra draw calls disappear (FXAA quad + OutputPass). Second-largest single perf lever after cascade count.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S052-8",
@@ -85,7 +92,8 @@
       "summary": "**render-pool-abstraction** ✅ (design memo only; impl deferred) — `docs/research/render-pool-abstraction-design.md` scopes the ~150-line triplication across `acquireBucket` / `acquireBatchedBucket` / `acquireParticlePool` and proposes a 4-step unification (shared `RenderPoolRegistry<Spec, Entry>` helper → tagged `PoolHandle` union → `acquirePool(spec)` dispatcher → opt-in caller migration). Implementation deferred to a sprint that pairs it with `RENDER-bucket-key-architecture` + `M17-bvh-extension` since all three touch the same surface.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     }
   ],
   "followUps": [

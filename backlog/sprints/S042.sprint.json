@@ -13,7 +13,8 @@
       "summary": "PCSS is currently a no-op on default-PCF projects. Follow-up `M21-shadow-pcss-modern` carries to Sprint 43.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S042-2",
@@ -22,7 +23,8 @@
       "summary": "}` component + FollowCameraSystem. Anchors camera to a target entity, computes Euler look-at via Three's -Z convention (`yaw = atan2(-dx, -dz)`, `pitch = atan2(dy, |dxz|)`), supports frame-rate-aware smoothing. 5 unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S042-3",
@@ -31,7 +33,8 @@
       "summary": "}`. Adapter uses RGBELoader + PMREMGenerator to pre-filter; previous environment stays applied until the new texture lands so the scene doesn't flash unlit. `SceneEnvironmentInput` becomes a discriminated union. 4 new schema tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S042-4",
@@ -40,7 +43,8 @@
       "summary": "TSL's node-graph verbosity beats inline GLSL ~10× in JSON LOC; pitch (one source → WebGL + WebGPU) only materialises after `M21-webgpu-spike`. Keep the S40/S41 GLSL paths.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S042-5",
@@ -49,7 +53,8 @@
       "summary": "`M17-static-merge-spike` ✅ Research note at `docs/research/m17-static-merge-investigation.md` — verdict: **don't ship a static-merge primitive yet**. InstancedMesh (S35) + BatchedMesh (S40) cover every shipped project; static-merge's real target is 10k+ static-prop scenes that AGF doesn't have today. The more valuable follow-up was `M17-instance-picking-buckets` (now shipped).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S042-6",
@@ -58,7 +63,8 @@
       "summary": "RuntimeHandle.pick resolves bucket slots by scanning entities with `BatchedMeshHandle` (O(N) on a click — cold path). Verified: clicking `batch-bench?seed=64`'s centre returns a `bench.<i>` entity instead of falling through.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     }
   ],
   "followUps": [

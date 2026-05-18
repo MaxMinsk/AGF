@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "EXAMPLES-FEATURE-LAB-SANDBOX",
+  "title": "examples/feature-lab/ sandbox",
+  "status": "planned",
+  "category": "engine",
+  "summary": "A tiny non-game sandbox under examples/feature-lab/ whose only job is to lock the engine vertical: one parent-child rig (M16), one Pickable entity (M18), one Tween (M19), one ParticleEmitter preset (M19), one Persisted block (M4), one repeated-entity instancing group (M17). Playtest robot asserts each feature is wired. Not a game, just a regression target — keeps Beacon World focused on multiplayer gameplay and stops AGF samples from cloning idler/garden patterns from other engines' demos.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "E-55-INSPECTOR-WRITEBACK-CONTRACT",
+  "title": "E.55 Inspector writeback contract",
+  "status": "active",
+  "category": "infra",
+  "summary": "Define a JSON / AGF patch format; expose a dev API that exports pending patches from runtime commands; ship one prototype editor that moves an entity and emits a patch. Lower priority — pairs with a future inspector-overlay epic, agent-first prefers JSON edits.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)\" table on 2026-05-18."
+  ]
+}

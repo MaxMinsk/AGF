@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "TOOLCHAIN-AND-TESTS",
+  "title": "Toolchain and tests",
+  "status": "done",
+  "category": "engine",
+  "summary": "Vite, TypeScript, Vitest, Playwright — wired in Sprint 1.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

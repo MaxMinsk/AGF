@@ -13,7 +13,8 @@
       "summary": "New `engine/render/texture-loader.ts` registered with material + glb loaders. `MaterialPatch.{map,normalMap,bumpMap,roughnessMap,metalnessMap,emissiveMap,aoMap}` typed as pre-loaded `Texture` instances. Adapter retired its local `textureCache` + `acquireTexture`. 404s now emit `AGF_RUNTIME_ASSET_LOAD_FAILED`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S057-2",
@@ -22,7 +23,8 @@
       "summary": "`scene.environment.groundedSkybox: { height, radius }` mounts a curved-bottom sky mesh + an invisible `ShadowMaterial` shadow-catcher at the same height (lifted 1mm, renderOrder=1) so shadows fall on the virtual ground.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S057-3",
@@ -31,7 +33,8 @@
       "summary": "**REFLECTION-cube-probe** ✅ — new `ReflectionProbe` + `EnvmapBinding` scene components, adapter API for `CubeCamera + WebGLCubeRenderTarget` lifecycle, new `ReflectionProbeSystem` that gates rendering by `updateRate` (0/15/30/60 Hz), hides `excludeEntities` + the owner, and stamps the resulting cube texture onto every entity with `EnvmapBinding`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S057-4",
@@ -40,7 +43,8 @@
       "summary": "}]` wired through composer rebuild.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S057-5",
@@ -49,7 +53,8 @@
       "summary": "`project.render.post: [{ kind: \"color-lut\", file, intensity? }]`. LUT URL resolution rides through `adapter.lutUrlResolver` (default routes via `AssetRegistry.urlFor`).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S057-6",
@@ -57,7 +62,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S057-7",
@@ -66,7 +72,8 @@
       "summary": "**PERFTEST-material-bench-budget** ✅ — soft / hard ceilings rebaked for the new scene shape (geometries 6→10 / textures 24→36 / programs 16→20 / meshes 32→48 soft; hard up proportionally). Three vendor bundle budget 300 → 320 KB after the new addons.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M22"
     },
     {
       "id": "S057-8",
@@ -74,7 +81,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S057-9",
@@ -83,7 +91,8 @@
       "summary": "**DOCS-vfx-skill** ✅ — new `docs/agent/skills/vfx-authoring.md` covering every VFX surface AGF ships today + a perf-gotcha section + the material-bench worked example.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S057-10",
@@ -92,7 +101,8 @@
       "summary": "**MATERIAL-bench-vfx-adopt** ✅ — dark plinth removed; GroundedSkybox at y=-0.75 r=60; 8 cylindrical \"stonehenge\" stone columns at radius 11 (new `stone.material.json`); centre chrome sphere hosts `ReflectionProbe` 256² @ 60 Hz + `EnvmapBinding` self-ref; shadow-camera frustum widened to ±14 / far 40.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "MATERIAL-AND-SHADER-SYSTEM"
     },
     {
       "id": "S057-11",
@@ -101,7 +111,8 @@
       "summary": "**DOCTOR-reflection-section** ✅ — `engine doctor` `Reflections:` section enumerates declared probes (size, cadence, exclude count), estimates extra renders/sec, warns about probes without self-exclude and bindings with unknown probe ids. Static-only; bootstrap-spawned probes (material-bench's) don't show up by design.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD"
     }
   ],
   "followUps": [

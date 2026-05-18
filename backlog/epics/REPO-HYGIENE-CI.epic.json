@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "REPO-HYGIENE-CI",
+  "title": "Repo hygiene CI",
+  "status": "done",
+  "category": "engine",
+  "summary": "Cyrillic-in-repo check shipped in Sprint 2.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

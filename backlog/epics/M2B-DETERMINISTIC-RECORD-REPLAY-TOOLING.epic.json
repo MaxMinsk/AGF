@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M2B-DETERMINISTIC-RECORD-REPLAY-TOOLING",
+  "title": "M2b Deterministic record/replay tooling",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 28: engine/runtime/recording/recorder.ts + engine replay <file> [--expect ...] + two unit tests. Follow-up: profile-flag-gated seeded RNG helper for Beacon's hazard pulse / pickup respawn so replays survive RNG drift.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

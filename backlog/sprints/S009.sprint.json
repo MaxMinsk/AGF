@@ -22,7 +22,8 @@
       "summary": "The Sprint 7 plumbing already covered GLB (`forgetAssetBinding` clears both materials and geometries, `AssetRegistry.invalidate` drops the cached load). New Playwright spec `tests/e2e/glb-hot-reload.spec.ts` listens for the `[agf] hot-reloaded asset runtime/models/drone.glb` console message and triggers it by rewriting the file with its own bytes.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "HOT-RELOAD"
     }
   ],
   "followUps": [

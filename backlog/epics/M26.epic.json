@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M26",
+  "title": "M26 Visual fidelity polish (probes + post-FX)",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Source: docs/research/reflection-probes-investigation.md. Five-story sibling sprint earmarked after the asset-prefab-runtime stack closes (S54 + the runtime stories that come after). Top of the prioritised list: (1) GROUND-skybox — vendor three/addons/objects/GroundedSkybox.js, expose via scene.environment.groundedSkybox: { height, radius }, kills the HDR-sky / scene-floor seam. (2) REFLECTION-cube-probe — ReflectionProbe + EnvmapBinding components, new ReflectionProbeSystem runs a CubeCamera pre-pass per probe + hides excluded entities to avoid feedback. Material-bench centre chrome sphere adopts one and finally reflects the orbiting ring. (3) POST-ssao — vendor SSAOPass, expose as project.json#render.post: [{ kind: \"ssao\", radius?, intensity? }]. (4) POST-color-lut — LUTPass + .cube loader for final colour grading. (5) REFLECTION-prefilter — re-PMREM each probe cubemap at 10 Hz so roughness > 0.1 materials get plausibly blurry dynamic reflections. Deferred (own epics): SSR (SSRPass, blocked on G-buffer rework), BPCEM (parallax-corrected indoor envmap, WebGPU-native today), LightProbeGrid (3D irradiance volume — heavy bake, only diffuse, valuable for indoor levels), planar Reflec…",
+  "sourceDoc": "docs/research/reflection-probes-investigation.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

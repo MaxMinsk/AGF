@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "HOT-RELOAD",
+  "title": "Hot reload",
+  "status": "done",
+  "category": "engine",
+  "summary": "Scene diff and Vite HMR for scene JSON shipped in Sprint 2. Asset (material/shader) hot reload remains a Sprint 5+ candidate.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

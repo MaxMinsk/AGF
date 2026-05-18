@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY",
+  "title": "Patch-based agent writes (validate → diff → apply)",
+  "status": "planned",
+  "category": "research",
+  "summary": "New parking-lot entry below.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"From `Notes/kenji_engine_analysis.md` (most ideas already match AGF's direction)\" table on 2026-05-18."
+  ]
+}

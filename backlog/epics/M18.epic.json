@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M18",
+  "title": "M18 Picking / raycast interaction",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Runtime pick({ screen, include, maxDistance }) API + Pickable component. Renderer returns AGF entity ids (never Object3D); instanced meshes resolve instanceId → entityId; Playwright pick helper for tests. Pairs with M17 and a future inspector overlay. M24 follow-up: keep M18 as renderer-side picking (Raycaster / instanceId → EntityId); physics raycast lives as a separate runtime.physics.raycast({...}) API in M24-raycast — different semantics (visual occlusion vs physics body intersection), different layers / masks. Pickable does NOT require Collider3D — many interactables (UI billboards, particles) have no physics body.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

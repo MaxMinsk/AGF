@@ -13,7 +13,8 @@
       "summary": "`16.1` Material file hot reload — `AssetRegistry.invalidate(ref)` drops cached loads; `ThreeRenderer.forgetAssetBinding(ref)` clears entity → ref bindings for materials and meshes; `RuntimeHandle.invalidateAsset(ref)` + `AppHandle.reloadAsset(ref)` glue them. A dev-only Vite plugin `agf-asset-hot-reload` watches `examples/<projectId>/assets/**` and pushes a `agf:asset-changed` HMR event with `{ projectId, ref }`; `src/main.ts` listens, scopes to the active project and calls `app.reloadAsset(ref)`. Editing a material file in dev now reflects on the next render frame without a page reload.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "HOT-RELOAD"
     },
     {
       "id": "S007-2",

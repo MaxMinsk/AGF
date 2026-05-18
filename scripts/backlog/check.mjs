@@ -27,7 +27,9 @@ import Ajv from "ajv";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const sprintsDir = resolve(repoRoot, "backlog/sprints");
+const epicsDir = resolve(repoRoot, "backlog/epics");
 const schemaPath = resolve(repoRoot, "schemas/backlog/sprint.schema.json");
+const epicSchemaPath = resolve(repoRoot, "schemas/backlog/epic.schema.json");
 
 const args = new Set(process.argv.slice(2));
 const jsonOutput = args.has("--json");
@@ -56,6 +58,23 @@ try {
 // human documentation purposes even though we don't bundle ajv-formats.
 const ajv = new Ajv({ allErrors: true, strict: false, strictSchema: false });
 const validate = ajv.compile(schema);
+
+// S080 BACKLOG-EPIC-CHECK: same Ajv instance is reused for the epic schema.
+// The epic file is optional — projects that have not yet introduced the
+// `backlog/epics/` directory still pass the check.
+let validateEpic;
+try {
+  const epicSchema = JSON.parse(readFileSync(epicSchemaPath, "utf8"));
+  validateEpic = ajv.compile(epicSchema);
+} catch (err) {
+  diag(
+    "AGF_BACKLOG_EPIC_SCHEMA_LOAD_FAILED",
+    "warning",
+    `Could not load epic schema (epic validation skipped): ${err.message}`,
+    { file: epicSchemaPath }
+  );
+  validateEpic = null;
+}
 
 /** @type {Array<{ file: string; data: any }>} */
 const sprints = [];
@@ -222,6 +241,180 @@ for (const { file, data } of sprints) {
   }
 }
 
+// S080 BACKLOG-EPIC-CHECK — epic file validation + cross-references.
+/** @type {Array<{ file: string; data: any }>} */
+const epics = [];
+let epicFileNames = [];
+try {
+  if (statSync(epicsDir).isDirectory()) {
+    epicFileNames = readdirSync(epicsDir)
+      .filter((name) => name.endsWith(".epic.json"))
+      .sort();
+  }
+} catch {
+  // backlog/epics not created yet → no epics, no error.
+  epicFileNames = [];
+}
+
+if (validateEpic !== null) {
+  for (const name of epicFileNames) {
+    const file = resolve(epicsDir, name);
+    let data;
+    try {
+      data = JSON.parse(readFileSync(file, "utf8"));
+    } catch (err) {
+      diag("AGF_BACKLOG_EPIC_PARSE", "error", `Epic JSON parse failed: ${err.message}`, { file });
+      continue;
+    }
+    if (!validateEpic(data)) {
+      for (const e of validateEpic.errors ?? []) {
+        diag(
+          "AGF_BACKLOG_EPIC_SCHEMA",
+          "error",
+          `${e.instancePath || "/"} ${e.message ?? "schema error"}`,
+          { file, path: e.instancePath }
+        );
+      }
+      continue;
+    }
+    epics.push({ file, data });
+  }
+}
+
+// Build epic-id index + check uniqueness.
+const epicTable = new Map(); // epicId → { file, status, deps }
+for (const { file, data } of epics) {
+  if (epicTable.has(data.id)) {
+    diag(
+      "AGF_BACKLOG_DUPLICATE_EPIC_ID",
+      "error",
+      `Epic id "${data.id}" appears in multiple files.`,
+      { file, suggestion: `Also seen in ${epicTable.get(data.id).file}` }
+    );
+    continue;
+  }
+  epicTable.set(data.id, { file, status: data.status, deps: data.dependsOn ?? [] });
+}
+
+// Resolve epic.dependsOn — every dep id must be a known epic.
+for (const { file, data } of epics) {
+  for (const dep of data.dependsOn ?? []) {
+    if (!epicTable.has(dep)) {
+      diag(
+        "AGF_BACKLOG_EPIC_UNKNOWN_DEP",
+        "error",
+        `Epic ${data.id} depends on unknown epic "${dep}".`,
+        { file }
+      );
+    }
+  }
+}
+
+// Cycle detection across the epic graph.
+{
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  const color = new Map();
+  for (const id of epicTable.keys()) color.set(id, WHITE);
+  /** @type {Array<string>} */
+  const stack = [];
+  function dfs(id) {
+    color.set(id, GRAY);
+    stack.push(id);
+    const entry = epicTable.get(id);
+    if (entry !== undefined) {
+      for (const dep of entry.deps) {
+        if (!epicTable.has(dep)) continue;
+        const c = color.get(dep);
+        if (c === GRAY) {
+          const cycleStart = stack.indexOf(dep);
+          const cycle = stack.slice(cycleStart).concat([dep]).join(" → ");
+          diag("AGF_BACKLOG_EPIC_CYCLE", "error", `Epic dependency cycle: ${cycle}.`);
+        } else if (c === WHITE) {
+          dfs(dep);
+        }
+      }
+    }
+    stack.pop();
+    color.set(id, BLACK);
+  }
+  for (const id of epicTable.keys()) {
+    if (color.get(id) === WHITE) dfs(id);
+  }
+}
+
+// story.epic cross-reference: warn (downgraded to error after the
+// S080 BACKLOG-EPIC-STORY-BACKFILL story flips this gate). Only checked
+// when at least one epic file exists, so legacy repos still pass.
+const unknownEpicReferences = new Set();
+const openStoriesByEpic = new Map(); // epicId → Array<{ storyId, sprintId }>
+if (epicTable.size > 0) {
+  for (const { file, data } of sprints) {
+    for (const story of data.stories ?? []) {
+      const epicId = story.epic;
+      if (typeof epicId !== "string" || epicId.length === 0) continue;
+      if (!epicTable.has(epicId)) {
+        const key = `${story.id}→${epicId}`;
+        if (!unknownEpicReferences.has(key)) {
+          unknownEpicReferences.add(key);
+          // S80 BACKLOG-EPIC-STORY-BACKFILL flipped this from warning to
+          // error: by now every story that *has* an epic ref must resolve.
+          // Untagged stories (no `epic` field at all) are still allowed.
+          diag(
+            "AGF_BACKLOG_EPIC_UNKNOWN",
+            "error",
+            `Story ${story.id} (in ${data.id}) references unknown epic "${epicId}".`,
+            { file, suggestion: `Either add backlog/epics/${epicId}.epic.json or drop the story.epic field.` }
+          );
+        }
+        continue;
+      }
+      if (story.status === "pending" || story.status === "in_progress" || story.status === "implemented") {
+        if (!openStoriesByEpic.has(epicId)) openStoriesByEpic.set(epicId, []);
+        openStoriesByEpic.get(epicId).push({ storyId: story.id, sprintId: data.id, status: story.status });
+      }
+    }
+  }
+
+  // `done` epic must have no still-open (pending/in_progress) story tagged to it.
+  // Implemented stories are fine — they count as part of the epic completion.
+  for (const [epicId, entry] of epicTable.entries()) {
+    if (entry.status !== "done") continue;
+    const stories = openStoriesByEpic.get(epicId) ?? [];
+    const stillOpen = stories.filter((s) => s.status !== "implemented");
+    if (stillOpen.length > 0) {
+      const sample = stillOpen.slice(0, 3).map((s) => `${s.storyId} (${s.sprintId})`).join(", ");
+      const extra = stillOpen.length > 3 ? ` (and ${stillOpen.length - 3} more)` : "";
+      diag(
+        "AGF_BACKLOG_EPIC_DONE_HAS_OPEN_STORY",
+        "error",
+        `Epic ${epicId} is marked "done" but has ${stillOpen.length} open story/ies: ${sample}${extra}.`,
+        { file: entry.file, suggestion: "Either flip the epic to active or close the remaining stories." }
+      );
+    }
+  }
+
+  // `parked` epic must not be referenced by an ACTIVE sprint's open story —
+  // parked means "explicitly deferred", so an active sprint cannot be claiming work for it.
+  const activeSprintIds = new Set(sprints.filter((s) => s.data.status === "active").map((s) => s.data.id));
+  for (const [epicId, entry] of epicTable.entries()) {
+    if (entry.status !== "parked") continue;
+    const stories = (openStoriesByEpic.get(epicId) ?? []).filter(
+      (s) => activeSprintIds.has(s.sprintId) && s.status !== "implemented"
+    );
+    if (stories.length > 0) {
+      const sample = stories.slice(0, 3).map((s) => `${s.storyId} (${s.sprintId})`).join(", ");
+      diag(
+        "AGF_BACKLOG_PARKED_EPIC_HAS_ACTIVE_STORY",
+        "error",
+        `Epic ${epicId} is "parked" but the active sprint has open stories tagged to it: ${sample}.`,
+        { file: entry.file, suggestion: "Either un-park the epic (flip to active) or move the stories to a different epic." }
+      );
+    }
+  }
+}
+
 report();
 
 function report() {
@@ -230,7 +423,8 @@ function report() {
     process.exit(diagnostics.some((d) => d.severity === "error") ? 1 : 0);
   }
   if (diagnostics.length === 0) {
-    console.log(`[backlog:check] OK — ${sprints.length} sprint file(s), ${storyTable.size} stor${storyTable.size === 1 ? "y" : "ies"}.`);
+    const epicNote = epics.length > 0 ? `, ${epics.length} epic${epics.length === 1 ? "" : "s"}` : "";
+    console.log(`[backlog:check] OK — ${sprints.length} sprint file(s), ${storyTable.size} stor${storyTable.size === 1 ? "y" : "ies"}${epicNote}.`);
     process.exit(0);
   }
   const errors = diagnostics.filter((d) => d.severity === "error");

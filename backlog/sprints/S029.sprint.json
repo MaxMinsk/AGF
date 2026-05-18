@@ -93,7 +93,8 @@
       "summary": "**`M15` investigation story** — added `M15 — Engine dev server` epic in `HIGH_LEVEL_BACKLOG.md` after the user pushed back on a clipboard/download draft of \"live debug bridge\". The single story (`E.80`) is an investigate-only ticket that will produce `docs/research/engine-dev-server-investigation.md` covering use cases, architecture options (Vite plugin vs sidecar), endpoint surface, security stance, and a sequenced implementation sprint plan. **Explicit non-goals:** no Ctrl-C/Ctrl-V, no file-download flows, no overlay \"Copy bug report\" buttons.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     }
   ],
   "followUps": [

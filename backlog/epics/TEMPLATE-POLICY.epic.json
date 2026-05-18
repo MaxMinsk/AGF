@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "TEMPLATE-POLICY",
+  "title": "Template policy",
+  "status": "active",
+  "category": "engine",
+  "summary": "Maintained examples as templates, not one-shot generated archives.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

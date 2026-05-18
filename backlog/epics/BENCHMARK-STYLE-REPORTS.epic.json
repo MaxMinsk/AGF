@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "BENCHMARK-STYLE-REPORTS",
+  "title": "Benchmark-style reports",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Build/runtime/scene/playtest/visual/protocol health summary.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

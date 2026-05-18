@@ -22,7 +22,8 @@
       "summary": "`M24-raycast` ✅ `RapierAdapter.castRay(origin, direction, maxDistance)` wraps `castRayAndGetNormal` with `solid: true` and reverse-maps the hit through the internal handle table. `AppHandle.physics.raycast(...)` / `window.__agf.physics.raycast(...)` return `{ entityId, distance, point, normal }`. Spike `spikes/physics-rapier-v0/raycast-spike.ts` verifies vertical + horizontal hits + miss semantics.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S038-3",
@@ -31,7 +32,8 @@
       "summary": "When false, `renderer.shadowMap.autoUpdate` is disabled at startup; `__agf.renderer.invalidateShadowMap()` schedules one re-render. `examples/shadows-bench` opts in — buildings + trees + rocks never move, cascade bakes once and stops re-rendering each frame.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S038-4",
@@ -40,7 +42,8 @@
       "summary": "`M17-material-sharing-doctor` ✅ New `engine/tools/doctor/material-sharing.ts` scans `.material.json` manifests under `assets/{runtime,_sources}/materials/`, hashes shader kind + colour + opacity + PBR / clearcoat / sheen / iridescence / phong into stable signatures, reports duplicate groups. Hooked into `engine doctor` with a top-level recommendation. 3 unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S038-5",
@@ -49,7 +52,8 @@
       "summary": "`schemas/performance-budget.schema.json` adds matching fields.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S038-6",
@@ -58,7 +62,8 @@
       "summary": "`ASSET-decoder-paths` ✅ New `engine/render/asset-decoders/decoders.ts` — process-wide singletons for `DRACOLoader`, `KTX2Loader` (with `detectSupport(renderer)` re-issued on renderer change), `MeshoptDecoder`. `createGlbLoader({ renderer?, draco?, ktx2?, meshopt? })` reuses them. Scaffolding for `M25` ASSET-compression; no project opts in yet.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S038-7",
@@ -67,7 +72,8 @@
       "summary": "`BatchingSystem` grows a discriminated `BucketRecord`; the `BatchedRecord` path keys by `(colour + shadow + group)` and uses `acquireBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance` / `setBatchedInstanceTransform` / `setBatchedInstanceGeometry`. Overflow on 512-instance / 16k-vertex / 32k-index caps emits a one-shot `AGF_BATCH_OVERFLOW` per bucket.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     }
   ],
   "followUps": [

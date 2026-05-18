@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "ECS",
+  "title": "ECS core",
+  "status": "done",
+  "category": "engine",
+  "summary": "Pragmatic Map-backed world shipped in Sprint 1.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

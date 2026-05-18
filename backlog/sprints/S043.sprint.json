@@ -13,7 +13,8 @@
       "summary": "**OSS-cyrillic-fix** ✅ — Replaced the Russian phrase meaning \"almost like Unity\" with `\"almost Unity-class\"` in `docs/research/renderer-ecs-split-investigation.md`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S043-2",
@@ -22,7 +23,8 @@
       "summary": "Local mirror of `.github/workflows/repo-hygiene.yml`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     },
     {
       "id": "S043-3",
@@ -31,7 +33,8 @@
       "summary": "**OSS-license-metadata** ✅ — `LICENSE` (Apache-2.0), `THIRD_PARTY_NOTICES.md` (Draco / Basis Universal / Three.js / Rapier / AJV provenance), `package.json` gets `license`, `repository`, `bugs`, `homepage`, `keywords`, `description`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     },
     {
       "id": "S043-4",
@@ -40,7 +43,8 @@
       "summary": "**OSS-community** ✅ — `CONTRIBUTING.md` (preflight contract + agent rules), `SECURITY.md` (DEV-only `__agf` boundary, vulnerability reporting).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     },
     {
       "id": "S043-5",
@@ -49,7 +53,8 @@
       "summary": "**OSS-readme-refresh** ✅ — Replaced Sprint-1-era README with pre-alpha status, quickstart, what-works-today list, examples, agent workflow, limitations, roadmap, license.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     },
     {
       "id": "S043-6",
@@ -58,7 +63,8 @@
       "summary": "**OSS-docs-sync** ✅ — `docs/DEVELOPMENT.md` drops \"wired during Sprint 1\", lists actual command surface; `examples/backends/README.md` documents Node WebSocket `--serve` mode; `examples/backends/node-world-server/README.md` documents serve mode + threat model.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     },
     {
       "id": "S043-7",
@@ -67,7 +73,8 @@
       "summary": "**OSS-doctor-budget-align** ✅ — `engine doctor` now splits main-chunk budgets from vendor-chunk budgets matching `scripts/check-bundle-size.mjs`. `DEFAULT_VENDOR_BUDGETS` default for `rapier-` / `three-`. Per-project `bundle.vendors` overrides. 4 unit tests (`tests/unit/doctor-vendor-budgets.test.ts`).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     },
     {
       "id": "S043-8",
@@ -75,7 +82,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "REPO-HYGIENE-CI"
     }
   ],
   "notes": [

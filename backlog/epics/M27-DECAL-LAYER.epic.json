@@ -1,0 +1,22 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M27-DECAL-LAYER",
+  "title": "M27 Decal-on-grid renderer primitive",
+  "status": "planned",
+  "category": "engine",
+  "summary": "ECS-native decal layer for flat textured overlays on a grid: blast-prediction overlays, danger zones, footprints, telegraphs. Component shape: `Decal { texture, gridCell|worldPos, layer, lifetimeMs?, colorTint? }`. Renderer keeps it as a small instanced quad mesh so 100+ decals stay cheap on WebGPU and WebGL. Required by Kaboom Crew's one-hit-threat readability (blast predict before fuse expires) and by future hazard / sector-modifier visualisation. Stays out of `examples/kaboom-crew/` because every grid game (roguelike, RTS, tower defense) needs the same primitive.",
+  "targetMilestone": "MVP-2",
+  "dependsOn": ["M17", "M21"],
+  "sourceDoc": "notes/dynabomber-readiness-analysis.md",
+  "doneCriteria": [
+    "`schemas/components/decal.schema.json` ships with the Decal component shape.",
+    "Engine system (`DecalSystem` under `engine/render/systems/`) renders a tagged set of decals as one instanced bucket per material profile.",
+    "Per-decal lifetime expires the entity automatically (re-uses Tween / TimeBased machinery).",
+    "Doctor's renderer-pool section shows decal bucket counts.",
+    "Kaboom Crew (or batch-bench) demo scene proves 200 decals run without measurable frame-time impact on a modern laptop GPU."
+  ],
+  "notes": [
+    "Source: §14 of notes/dynabomber-readiness-analysis.md.",
+    "Not the same as three.js DecalGeometry — that one projects onto arbitrary meshes; we want flat ground-plane quads, much cheaper."
+  ]
+}

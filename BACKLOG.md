@@ -1,8 +1,8 @@
 # Backlog
 
-Date: 2026-05-18 (Sprint 78 archived)
+This file is **generated**. The active sprint section between the marker pair below is rewritten by `npm run backlog:render` from `backlog/sprints/*.sprint.json`. Do not edit the content between the markers — the next render will overwrite it. Everything outside the markers (this preamble, the Next-Sprint placeholder at the bottom) stays as hand-authored Markdown.
 
-The active sprint section below the `<!-- backlog:render:start -->
+<!-- backlog:render:start -->
 
 _No sprint is currently `active`. Edit a `backlog/sprints/S<NN>.sprint.json` to `status: "active"` and re-run `npm run backlog:render`._
 

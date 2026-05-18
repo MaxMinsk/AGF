@@ -13,7 +13,8 @@
       "summary": "Scene schema gains per-kind `allOf+if/then` constraints (trimesh: `vertices` + `indices`, heightfield: `rows` × `columns` + row-major `heights` + `scale`). RapierAdapter.acquireCollider switches on the new kinds; heightfield maps `nrows = rows-1, ncols = columns-1` per Rapier's quad-count convention. `engine check` gains `AGF_RIGIDBODY3D_DYNAMIC_TRIMESH` (error), `AGF_COLLIDER3D_TRIMESH_LARGE` (warning, ≥50k vertices), `AGF_COLLIDER3D_HEIGHTFIELD_DIMS` (error). Spike `spikes/physics-rapier-v0/static-mesh-spike.ts` lands a dynamic ball on a 5×5 heightfield (y=0.299) + a slanted trimesh wedge (y≈0.30 after slide).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S039-2",
@@ -22,7 +23,8 @@
       "summary": "`M24-character sensor-exclude fix` ✅ Carry-over hot-fix from Sprint 38: Rapier's KinematicCharacterController was treating sensor colliders as movement obstacles. Beacon's 1.2 / 1.6 m sensor radii (sized to gameplay pickup / deposit / hazard range) blocked the drone from approaching anything. `computeColliderMovement` now passes `QueryFilterFlags.EXCLUDE_SENSORS` so sensors still emit enter/exit events but stop pushing the character.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S039-3",
@@ -31,7 +33,8 @@
       "summary": "`M21-context-loss` ✅ ThreeRenderAdapter subscribes to canvas `webglcontextlost` / `webglcontextrestored` events (with `preventDefault` on lost so the browser actually restores). startRuntime emits `AGF_RENDER_CONTEXT_LOST` (warning) + `AGF_RENDER_CONTEXT_RESTORED` (info) on the DiagnosticsBus. Listeners cleaned up in adapter.dispose.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S039-4",
@@ -40,7 +43,8 @@
       "summary": "`M21-color` ✅ `project.json#render.color.{toneMapping, exposure}` (default toneMapping `\"none\"` — legacy linear) gives projects ACES Filmic / AgX / Reinhard / Cineon highlight roll-off on opt-in. Adapter maps the schema enum to the matching Three.js constant; the initial ACES default was reverted to \"none\" after a perceived overlit shift on Beacon.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S039-5",
@@ -58,7 +62,8 @@
       "summary": "`M21-mat-textures` ✅ Material manifest schema gains `map` / `normalMap` (+ `normalScale`) / `roughnessMap` / `metalnessMap` / `emissiveMap` (+ `emissiveIntensity`) / `aoMap`. MaterialPatch + MaterialBindingSystem forward through to `setMeshMaterialPatch`. Adapter holds a process-wide cached TextureLoader + URL→Texture Map so a shared map is fetched once. Base-colour gets SRGBColorSpace; data maps stay linear per glTF. KTX2 routing through the S38 decoder singletons is deferred to ASSET-compression.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     }
   ],
   "followUps": [

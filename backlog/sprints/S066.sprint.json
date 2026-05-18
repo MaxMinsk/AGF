@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-shadermaterial-audit (tool)** — adapter method `auditMaterialClasses()` walks every scene object's `.material` + `.customDepthMaterial` + `.customDistanceMaterial`, plus shadow-pass occurrences for castShadow lights + composer passes. Exposed via `window.__agf.__auditMaterials()` for headed playwright probes. Lives in `engine/render/three-render-adapter.ts`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S066-2",
@@ -22,7 +23,8 @@
       "summary": "Documents: - Audit results on webgpu-spike (only 4 `MeshStandardMaterial` + 1 shadow pass; **no `ShaderMaterial` in scene traversal**). - The exact error origin in `three/src/nodes/core/NodeBuilder.js:2985`. - `StandardNodeLibrary` registry: it maps `MeshStandard / Basic / Lambert / Phong / Toon / Physical / Normal / Matcap / LineBasic / LineDashed / Points / Sprite / ShadowMaterial` → node-material equivalents, but has **no entry for vanilla `ShaderMaterial`**. - Bisection results: removing env / probe / shadow each in isolation does NOT clear the error. The offender is in something always present on the WebGPU path, possibly an internal helper material created lazily during first `renderAsync` when `PostProcessing` is wired up.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     }
   ],
   "followUps": [

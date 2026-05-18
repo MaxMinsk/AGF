@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M3",
+  "title": "M3 Prefabs, variants, scene composition",
+  "status": "done",
+  "category": "engine",
+  "summary": "Sprint 29 landed schemas/prefab.schema.json + AGF_PREFAB_INVALID. Sprint 30 added scene instances + pure expandScenePrefabs(scene, registry) with AGF_SCENE_INSTANCE_PREFAB_MISSING / _DUPLICATE_ID. Sprint 54 wired the runtime: M3-c-load (startRuntime expands instances before World.fromScene; src/main.ts glob-imports per-project prefabs; engine check cross-validates instance refs) + M3-c-beacon (examples/beacon-world/prefabs/{beacon,energy-core}.prefab.json; scene-load shrinks 356 → 300 lines). Doctor Prefabs: section (S54 DOCTOR-prefab-section) surfaces declared / used / unused / missing-ref counts. Open future work: variants (multi-flavour prefab inheritance), prefab-time scene-extension validation, runtime prefab spawning via commands.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

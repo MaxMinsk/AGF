@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "AGENT-CLI",
+  "title": "Agent CLI",
+  "status": "done",
+  "category": "engine",
+  "summary": "engine check and engine inspect v0 shipped in Sprint 1.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

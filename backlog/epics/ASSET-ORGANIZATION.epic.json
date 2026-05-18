@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "ASSET-ORGANIZATION",
+  "title": "Asset organization",
+  "status": "done",
+  "category": "engine",
+  "summary": "Source metadata, runtime folder layout, asset reference validation — Sprint 1.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

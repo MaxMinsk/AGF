@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-shadermaterial-stacktrace** — re-enabled the S65 bloom path under controlled probe + patched `console.error` via playwright `page.addInitScript` to capture stacks. Five identical stacks during first frame, all from `WebGPURenderer._renderObjectDirect` → `NodeManager.needsRefresh` → `RenderObject.getMonitor` / `getNodeBuilderState` → `WGSLNodeBuilder.build` → `prebuild` → `error()`. Confirms the offending `RenderObject` is a Mesh in the rendered draw list. Source: three.js's internal bloom orchestration (BloomNode's pingpong quads use vanilla `ShaderMaterial`).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S067-2",
@@ -30,7 +31,8 @@
       "summary": "Workarounds + upstream-tracking guidance.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     }
   ],
   "followUps": [

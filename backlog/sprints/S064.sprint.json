@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-reflection-probe** — three.js's WebGPU build ships its own `CubeRenderTarget` (renamed from `WebGLCubeRenderTarget`) that runs through the WebGPU pipeline. `CubeCamera` is renderer-agnostic. PMREM prefilter wired in S62. Adapter `acquireReflectionProbe` branches on `capabilities.kind` to pick the right RT class. `WEBGPU_CAPABILITIES.supportsReflectionProbe: false → true`. Webgpu-spike updated with a probe on the hero cube (bake-once via `updateRate: 0`) to verify the path; live probe confirms `reflectionProbes: 1` with zero console errors.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S064-2",

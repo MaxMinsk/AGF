@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "PLAYTEST-RUNNER",
+  "title": "Playtest runner",
+  "status": "done",
+  "category": "engine",
+  "summary": "Runtime inspect API + scripted robot playtest shipped in Sprint 2.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

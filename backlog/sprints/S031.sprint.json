@@ -13,7 +13,8 @@
       "summary": "**Hello-3d hierarchy showcase** — `examples/hello-3d/scenes/start.scene.json` now demonstrates the Sprint 30 M16 resolver end-to-end: 7 new entities (one invisible `arena.root` + 6 children) forming three composition cases — wide platform parented to root, tower (base → 45°-rotated crown → tall spire, depth 3), and a 60°-tilted satellite disc with a beacon child that inherits the tilt + the disc's squashed Y scale. New `tests/unit/hello-3d-hierarchy.test.ts` (4 cases) locks the world positions hand-computed against the resolver math; new `tests/e2e/hello-3d-hierarchy.spec.ts` opens the page in Chromium, asserts all 10 entities are in `__agf.snapshot()`, checks for zero error diagnostics, and saves `test-results/hello-3d-hierarchy.png` for visual review. Visual confirmation: tower stacking, crown rotation, and disc tilt all render correctly.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M16"
     },
     {
       "id": "S031-2",
@@ -22,7 +23,8 @@
       "summary": "`GET /__agf/health` returns `{ ok, version, page }`. Unknown `/__agf/*` paths return a structured `AGF_BRIDGE_ROUTE_UNKNOWN` 404 instead of falling through to the SPA index. Production builds verified to exclude the plugin (no `/__agf/` strings in `dist/`).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-3",
@@ -31,7 +33,8 @@
       "summary": "`M15-b` WebSocket bridge at `/__agf/ws`. Server-side single-page invariant: the latest connected page wins; the previous receives `{ kind: \"displaced\" }` and is closed. Page side (`engine/dev/page-bridge.ts`) opens the WS under `import.meta.env.DEV` and sends a `hello` handshake with `{ projectId, profile }`; the plugin logs the connection.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-4",
@@ -40,7 +43,8 @@
       "summary": "`M15-c` Pull endpoints — `GET /__agf/{snapshot,diagnostics,renderer-info,reload-events}` proxy through the WS RPC layer with a 3 s timeout and structured `AGF_BRIDGE_PAGE_NOT_CONNECTED` / `AGF_BRIDGE_PAGE_TIMEOUT` envelopes.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-5",
@@ -49,7 +53,8 @@
       "summary": "`M15-d` `GET /__agf/bug-report` composes snapshot + diagnostics + renderer-info + reload-events plus the connected page's project id and an ISO `capturedAt` into one `AgentBugReport`. New `schemas/bug-report.schema.json` defines the shape.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-6",
@@ -58,7 +63,8 @@
       "summary": "`M15-e` `POST /__agf/recording/start` and `/__agf/recording/stop` forward to `app.startRecording` / `app.stopRecording` (Sprint 28 plumbing now surfaced on `AppHandle` + `window.__agf`). `/stop` returns the captured `Recording` JSON.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-7",
@@ -67,7 +73,8 @@
       "summary": "Malformed body returns `AGF_BRIDGE_INVALID_COMMANDS` / `AGF_BRIDGE_INVALID_JSON`. Live edits show up in the next `/snapshot`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-8",
@@ -75,7 +82,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S031-9",

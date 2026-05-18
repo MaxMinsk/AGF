@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M9",
+  "title": "M9 Build / deploy contract for static + connected",
+  "status": "active",
+  "category": "engine",
+  "summary": "engine build emits a deploy manifest (project id, profile, asset list, hashed bundles, engine version, backend config placeholders). Less urgent until first deploy target lands.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

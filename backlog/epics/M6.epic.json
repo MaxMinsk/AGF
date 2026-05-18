@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M6",
+  "title": "M6 Deterministic replay / recording",
+  "status": "active",
+  "category": "engine",
+  "summary": "Record (time, inputs, commands, snapshots, diagnostics); replay headlessly; attach AGF recording to failed Playwright tests.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

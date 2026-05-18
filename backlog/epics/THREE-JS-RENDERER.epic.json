@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "THREE-JS-RENDERER",
+  "title": "Three.js renderer",
+  "status": "done",
+  "category": "engine",
+  "summary": "v0 covers primitive meshes (box, sphere, plane) — Sprint 1. GLB still to come.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

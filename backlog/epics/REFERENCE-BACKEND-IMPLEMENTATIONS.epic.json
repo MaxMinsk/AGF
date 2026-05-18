@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "REFERENCE-BACKEND-IMPLEMENTATIONS",
+  "title": "Reference backend implementations",
+  "status": "active",
+  "category": "engine",
+  "summary": "Node skeleton landed in Sprint 5 (no transport yet). C#/.NET mirror under examples/backends/dotnet-world-server/ is still pending.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

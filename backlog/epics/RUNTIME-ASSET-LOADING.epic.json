@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "RUNTIME-ASSET-LOADING",
+  "title": "Runtime asset loading",
+  "status": "done",
+  "category": "engine",
+  "summary": "Asset registry, loader contracts and material binding shipped in Sprint 2; first real .glb import (hand-rolled cube) landed in Sprint 3.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

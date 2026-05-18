@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M5",
+  "title": "M5 Runtime diagnostics + browser-side error channel",
+  "status": "active",
+  "category": "engine",
+  "summary": "Structured window.__agf.diagnostics() event bus. Agents currently have no in-page error contract beyond console; this directly improves the agent loop.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

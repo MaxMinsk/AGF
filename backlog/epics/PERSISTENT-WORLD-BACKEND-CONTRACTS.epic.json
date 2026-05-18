@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "PERSISTENT-WORLD-BACKEND-CONTRACTS",
+  "title": "Persistent world backend contracts",
+  "status": "done",
+  "category": "engine",
+  "summary": "Protocol schema v0, node-world-server skeleton and Networked/Presence components shipped in Sprint 5. First real transport (WebSocket / SignalR) is a follow-up.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

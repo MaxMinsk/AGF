@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "MATERIAL-AND-SHADER-SYSTEM",
+  "title": "Material and shader system",
+  "status": "done",
+  "category": "engine",
+  "summary": "Material manifest v0 + shader spike shipped in Sprint 2; runtime shader compile is a later epic.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

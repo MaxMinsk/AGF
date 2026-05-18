@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M16",
+  "title": "M16 Transform hierarchy",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 30: Transform.parent schema, AGF_TRANSFORM_PARENT_MISSING/_SELF/_CYCLE diagnostics, pure resolveHierarchy resolver (4x4 matrix composition with Euler XYZ ↔ rotation), renderer consumes resolved world transforms, engine inspect prints parent + worldPosition. Follow-ups: cascade-delete commands (M16-cascade), prefab expansion preserves parent links, renderer dirty-flag cache when entity counts grow.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

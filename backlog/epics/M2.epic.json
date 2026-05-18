@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M2",
+  "title": "M2 Project bootstrap / plugin boundary",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 22 (engine/runtime/project-bootstrap.ts + per-project bootstrap.ts) and Sprint 23 (dynamic loaders in src/main.ts). Keep here for traceability.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

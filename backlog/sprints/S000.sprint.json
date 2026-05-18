@@ -28,7 +28,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S000-4",

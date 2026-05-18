@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-light-investigation + HemisphereLight position fix** — three.js's WebGPU `HemisphereLightNode` (r0.184) derives its \"up\" direction from the light's world position; a HemisphereLight at world origin produces a zero-length direction vector and silently contributes no light. WebGL ignores light position so the same scene works fine there. Root cause traced via systematic test scenes (`examples/webgpu-light-test/` — five spheres each lit by a different `Light.kind`); investigation steps documented in commit history. Fix: `setLightTransform` clamps any HemisphereLight's `position.y` to `>= 1` regardless of mode (harmless on WebGL, makes WebGPU work). User insight (\"maybe the hemisphere position is wrong?\") was the breakthrough.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S063-2",
