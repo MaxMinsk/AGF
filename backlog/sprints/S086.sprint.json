@@ -60,11 +60,13 @@
     {
       "id": "AGF-ASSET-INVENTORY-PROBE",
       "title": "/__agf/asset-inventory — list every loaded / pending asset ref",
-      "status": "pending",
+      "status": "implemented",
       "summary": "New GET endpoint on the dev bridge. Returns every asset the runtime touched: `{ ref, kind, status }[]` where status ∈ 'loaded' | 'pending' | 'failed'. Pairs with the existing /__agf/asset/invalidate POST — agents working an HMR issue get a complete inventory before deciding what to bust. Mirrors the rendererInspect / diagnostics pattern.",
       "verification": [
         "endpoint registered on dev-bridge; unit test on the AssetRegistry inventory helper",
-        "live probe: curl /__agf/asset-inventory on kaboom-crew returns the 5 prefab JSONs + any loaded glb / material refs"
+        "live probe: curl /__agf/asset-inventory on kaboom-crew returns the 5 prefab JSONs + any loaded glb / material refs",
+        "AssetRegistry.inventory() returns { ref, status }[] (loaded/pending/failed); status map tracked alongside the cache",
+        "/__agf/asset-inventory dev-bridge route + AppHandle.assetInventory() + window.__agf.assetInventory()"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
