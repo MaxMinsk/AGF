@@ -76,11 +76,13 @@
     {
       "id": "AGF-DOCS-AGENT-PROBE-CATALOGUE",
       "title": "docs/agent-probes.md — one-page catalogue of every /__agf endpoint",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Single page listing every probe surface an agent can hit (snapshot, diagnostics, renderer-info, renderer-inspect, commands, console-log, reload-events, asset/invalidate, events SSE) with a curl example + return shape. Pairs with the runtime-side docs already shipped — agents look here first, then drill into engine doctor.",
       "verification": [
         "docs/agent-probes.md exists; CLAUDE.md Read-First references it",
-        "every existing /__agf route has a section + sample"
+        "every existing /__agf route has a section + sample",
+        "docs/agent-probes.md ships: snapshot / diagnostics / events SSE / renderer-info / renderer-inspect / commands / console-log / reload-events / asset/invalidate / recording / health — each with curl example + payload shape",
+        "CLAUDE.md Read-First references the new doc"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
