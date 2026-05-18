@@ -8,11 +8,13 @@
     {
       "id": "AGF-AUDIO-VOLUME-DIAL",
       "title": "Audio volume dial — query param + localStorage persistence",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-friendly volume control. `?audio=off` mutes; `?audio=0..1` sets master gain; default `1.0`. Persist the last-applied value in localStorage under `agf.audio.volume` so a reload keeps the setting. KaboomAudioFx already accepts masterGain; this story wires the URL + storage read on attachUi and re-applies on the same reset hook the difficulty preset uses.",
       "verification": [
         "unit test: parser handles 'off' / '0.4' / '' / 'bad' / out-of-range; localStorage round-trip",
-        "live probe: ?audio=off → audio-fx returns silent stubs; reload without the param → muted state persists from localStorage"
+        "live probe: ?audio=off → audio-fx returns silent stubs; reload without the param → muted state persists from localStorage",
+        "parseAudioVolumeParam + resolveAudioVolume helpers in audio-fx.ts; +12 unit tests covering parsing edge cases / URL→storage persistence / corruption fallback",
+        "bootstrap resolves the dial on attachUi (URL → localStorage → default 1) and scales the existing 0.4 SFX baseline by it; ?audio=off mutes immediately and persists across reloads"
       ],
       "epic": "AUDIO"
     },

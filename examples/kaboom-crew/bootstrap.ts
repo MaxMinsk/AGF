@@ -29,7 +29,7 @@ import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
-import { createKaboomAudioFx } from "./src/audio-fx";
+import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
@@ -287,7 +287,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // starts working the moment the user clicks the page (the
     // AudioContext is lazily created on the first play() because
     // browsers reject construction before a user gesture).
-    const audioFx = createKaboomAudioFx({ masterGain: 0.4 });
+    // S86 AGF-AUDIO-VOLUME-DIAL. Resolve master volume from ?audio=,
+    // falling back to localStorage and then the default. Scale the
+    // existing 0.4 baseline by the dial so masterGain stays in the
+    // tuned-for-SFX range.
+    const w = globalThis as unknown as { location?: { search?: string }; localStorage?: typeof localStorage };
+    const dial = resolveAudioVolume({
+      search: w.location?.search,
+      storage: w.localStorage
+    });
+    const audioFx = createKaboomAudioFx({ masterGain: 0.4 * dial });
     _audioLog = [];
     _boundAudioEvent = (kind, c): void => {
       const entry: AudioLogEntry = { kind, ts: Date.now() };

@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createKaboomAudioFx, type AudioContextLike } from "../../src/audio-fx";
+import { createKaboomAudioFx, parseAudioVolumeParam, resolveAudioVolume, type AudioContextLike } from "../../src/audio-fx";
 
 type Spy = ReturnType<typeof vi.fn>;
 type FakeOsc = {
@@ -139,5 +139,59 @@ describe("createKaboomAudioFx (S85 KABOOM-AUDIO-PROCEDURAL-SFX)", () => {
     // factory returning the SAME ctx, we get a fresh oscillator on top
     // of the closed one (the engine guard above swallows any throw).
     expect(() => fx.play("blast")).not.toThrow();
+  });
+});
+
+describe("parseAudioVolumeParam (S86 AGF-AUDIO-VOLUME-DIAL)", () => {
+  it("returns undefined for missing / empty / unparseable values", () => {
+    expect(parseAudioVolumeParam(undefined)).toBeUndefined();
+    expect(parseAudioVolumeParam(null)).toBeUndefined();
+    expect(parseAudioVolumeParam("")).toBeUndefined();
+    expect(parseAudioVolumeParam("   ")).toBeUndefined();
+    expect(parseAudioVolumeParam("loud")).toBeUndefined();
+  });
+  it("maps 'off' / 'mute' to 0 and 'on' to 1", () => {
+    expect(parseAudioVolumeParam("off")).toBe(0);
+    expect(parseAudioVolumeParam("MUTE")).toBe(0);
+    expect(parseAudioVolumeParam("on")).toBe(1);
+  });
+  it("clamps numeric values into [0, 1]", () => {
+    expect(parseAudioVolumeParam("0")).toBe(0);
+    expect(parseAudioVolumeParam("0.5")).toBe(0.5);
+    expect(parseAudioVolumeParam("1")).toBe(1);
+    expect(parseAudioVolumeParam("-0.5")).toBe(0);
+    expect(parseAudioVolumeParam("1.7")).toBe(1);
+  });
+});
+
+describe("resolveAudioVolume (S86 AGF-AUDIO-VOLUME-DIAL)", () => {
+  function fakeStorage(initial: Record<string, string> = {}) {
+    const store = new Map(Object.entries(initial));
+    return {
+      raw: store,
+      api: {
+        getItem(k: string): string | null { return store.get(k) ?? null; },
+        setItem(k: string, v: string): void { store.set(k, v); }
+      }
+    };
+  }
+  it("falls back to defaultVolume when nothing supplies a value", () => {
+    expect(resolveAudioVolume({ defaultVolume: 0.7 })).toBe(0.7);
+  });
+  it("honours ?audio= over storage and persists it", () => {
+    const s = fakeStorage({ "agf.audio.volume": "0.2" });
+    const out = resolveAudioVolume({ search: "?audio=off", storage: s.api });
+    expect(out).toBe(0);
+    expect(s.raw.get("agf.audio.volume")).toBe("0");
+  });
+  it("uses storage when no URL value present", () => {
+    const s = fakeStorage({ "agf.audio.volume": "0.3" });
+    const out = resolveAudioVolume({ search: "", storage: s.api });
+    expect(out).toBe(0.3);
+  });
+  it("ignores storage if it parses as undefined (corruption)", () => {
+    const s = fakeStorage({ "agf.audio.volume": "loud" });
+    const out = resolveAudioVolume({ search: "", storage: s.api, defaultVolume: 1 });
+    expect(out).toBe(1);
   });
 });
