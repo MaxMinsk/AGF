@@ -3128,3 +3128,38 @@ Status: Completed and archived. Three stories shipped:
 
 - **S69 — WEBGPU-gpu-timer** (small, contained, non-post-processing) or **WEBGPU-lazy-import** (145 KB bundle win, constructor refactor).
 - **Three.js r0.185+ tracker** — re-test bloom on each minor; flip remaining projects to WebGPU once post-processing unblocks.
+
+## Sprint 69 — Migrate beacon-world to WebGPU
+
+Status: Completed and archived. Single-story sprint: beacon-world joins the WebGPU roster after disabling PCSS (uses `onBeforeCompile` GLSL chunks → WebGL-only) and the batching path (`acquireBucket` returns -1 on WebGPU stubs).
+
+### Completed Work
+
+1. **MIGRATE-beacon-world-webgpu** — `examples/beacon-world/project.json`:
+   - `mode: "webgl" → "webgpu"`
+   - `batching.auto: true → false`
+   - `shadows.algorithm: "pcss" → "pcf"` (PCSS needs a TSL node port to work on WebGPU)
+
+   Live verification (headed chromium, `--enable-unsafe-webgpu`): renderer=webgpu, 15 entities, 15 draws, 5 lights, scene + shadows + gameplay UI (HP/SIG widget) all render correctly. Physics + persistence + dev-bridge coexist with WebGPU.
+
+### Out of scope
+
+- `material-bench` — still blocked on bloom upstream.
+- `shadows-bench` — still blocked on CSM.
+- `water-bench` — still blocked on planar-mirror port.
+- `batch-bench` — still blocked on bucket port.
+- **WEBGPU-gpu-timer**, **WEBGPU-lazy-import** — carry to S70.
+
+### Deliverables
+
+- `examples/beacon-world/project.json` — webgpu mode, batching off, PCF shadows.
+
+### Verification
+
+- typecheck + 511 unit tests + 11/11 e2e smoke (1 webgpu skipped on headless) + 9/9 engine:check.
+- Live probe of `?project=beacon-world` under headed chromium with `--enable-unsafe-webgpu`: renderer=webgpu, scene + shadows + gameplay UI render correctly. WebGL2 fallback on CI smoke keeps the project-switcher test green.
+
+### Follow-Ups
+
+- **WEBGPU progress**: 5 of 9 example projects now on WebGPU (webgpu-spike, webgpu-light-test, hello-3d, physics-bench, beacon-world). 4 still blocked (material-bench bloom, shadows-bench CSM, water-bench mirror, batch-bench batching).
+- **S70 plan**: pick highest-value of GPU timer / lazy import / bucket port (batch-bench unblocker). Bucket port is the largest single migration unlock — would let material-bench's outer ring + shadows-bench's village + batch-bench all use batching on WebGPU. Likely worth several sprints once it starts.
