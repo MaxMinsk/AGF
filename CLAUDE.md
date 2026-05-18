@@ -19,10 +19,12 @@ This folder is the public repository root for the engine. Example games are nest
 ## Working Mode
 
 - A sprint runs on a single long-lived branch named `sprint/<N>-<slug>` cut from `main`. Stories are atomic commits inside that branch — no nested PRs, no waiting for review during the sprint.
-- When a story is marked `Implemented` in `BACKLOG.md`, commit the change without waiting for an explicit "commit it" instruction. Use the smallest relevant verification (typecheck / unit / `engine check`) before committing.
-- One PR `sprint/<N>-... → main` is opened (or updated) at sprint close, alongside `/archive-sprint`. That is the single review hand-off per sprint.
+- The **single source of truth** for the active sprint, its stories, follow-ups, and archive entries is `backlog/sprints/S<NN>.sprint.json`. `BACKLOG.md` and the trailing section of `BACKLOG_ARCHIVE.md` (everything below the `<!-- backlog:render:start -->` marker) are **generated** views — never hand-edit them. The hand-written prelude of `BACKLOG_ARCHIVE.md` (S0–S77) is frozen legacy and will be migrated by `BACKLOG-MIGRATE-HISTORY` later.
+- Story lifecycle: `pending` → `in_progress` → `implemented` (with `verification[]`) or `deferred` (with `deferredReason`). Sprint lifecycle: `pending` → `active` → `archived` (at most one `active` across all sprint files).
+- When a story is marked `implemented` in its sprint JSON, run `npm run backlog:check && npm run backlog:render`, then commit (sprint JSON + the regenerated `BACKLOG.md` / `BACKLOG_ARCHIVE.md`). No need to wait for an explicit "commit it" instruction. Use the smallest relevant verification (typecheck / unit / `engine check`) before committing.
+- One PR `sprint/<N>-... → main` is opened (or updated) at sprint close. At sprint close, flip the sprint JSON's `status` to `archived` + fill `archivedAt` + `prUrl`, then `backlog:render` produces the archive entry. `/archive-sprint` is no longer needed — the rendering covers it.
 - Exception: if a single change needs to merge before the sprint closes (hotfix, urgent doc), cherry-pick it onto a focused `feature/<slug>` branch and open a small PR.
-- Run `npm run preflight` only at sprint close, not on every story.
+- Run `npm run preflight` only at sprint close, not on every story. Preflight includes `npm run backlog:check` and `npm run backlog:render -- --check` (CI fails if the rendered Markdown is stale vs the JSON).
 - Default to making the reasonable call and continuing; flag the decisions in the end-of-turn summary so they can be redirected.
 
 ## Current Project Phase
@@ -32,9 +34,11 @@ Sprint 0 is archived. Sprint 1 is active: project/scene validation, the first re
 ## Read First
 
 - `README.md` for project overview.
-- `BACKLOG.md` for the active detailed sprint and next detailed sprint.
+- `BACKLOG.md` for the active detailed sprint and next detailed sprint **(generated — edit `backlog/sprints/*.sprint.json` instead)**.
 - `HIGH_LEVEL_BACKLOG.md` for roadmap epics.
-- `BACKLOG_ARCHIVE.md` for completed sprint details.
+- `BACKLOG_ARCHIVE.md` for completed sprint details (legacy prelude hand-written, post-S77 entries generated).
+- `backlog/sprints/S<NN>.sprint.json` — the actual source of truth for the active + archived sprints.
+- `notes/backlog_engine_analysis.md` for the full design of the JSON-first backlog workflow.
 - `AGENTS.md` for repo-wide agent rules.
 - `docs/ARCHITECTURE.md` for runtime boundaries.
 - `docs/STRUCTURE.md` for target repository layout.
