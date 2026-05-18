@@ -1,0 +1,168 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S082",
+  "title": "Kaboom Crew gameplay v0 — input + bot AI + bombs + win/loss",
+  "status": "active",
+  "startedAt": "2026-05-18",
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "KABOOM-PLAYER-INPUT",
+      "title": "Keyboard input → GridMover.queuedDirection",
+      "status": "implemented",
+      "summary": "Project-local `PlayerInputSystem` under `examples/kaboom-crew/src/` translates WASD + arrow keys into `GridMover.queuedDirection`. Keys are tracked via an internal pressed-set rebuilt from window keydown/keyup; the system writes whichever cardinal is currently held (right > up > left > down precedence to keep behaviour deterministic). Releases all keys on blur. Tagged via a new `PlayerControlled` (already in core.schema.json) component on the player entity to scope which mover the system drives. No bomb input yet — that lands in KABOOM-BOMB-PLACE.",
+      "verification": [
+        "examples/kaboom-crew/src/player-input-system.ts registered through the project bootstrap",
+        "live playwright probe: pressing 'd' for 200ms moves the blue player one cell to the right (gx increments)",
+        "no global state — system stops listening when runtime.stop() runs",
+        "WASD + arrow keys translate to GridMover.queuedDirection; right > up > left > down precedence; 9 unit tests",
+        "no revision bump when direction is unchanged (ECS efficiency)",
+        "dispose() safe in non-DOM env; bootstrap registers PlayerInput + GridOccupancy + GridMovement under the static profile"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/src/systems/player-input-system.ts",
+        "examples/kaboom-crew/bootstrap.ts (registers occupancy + movement + input systems)",
+        "examples/kaboom-crew/prefabs/player.prefab.json (adds PlayerControlled marker)",
+        "examples/kaboom-crew/tests/unit/player-input-system.test.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-BOT-AI",
+      "title": "Bot AI v0 — wander + bomb-avoidance",
+      "status": "pending",
+      "summary": "Project-local `BotAISystem` reads `BotBrain` component (project schema fragment under examples/kaboom-crew/schemas) and writes `GridMover.queuedDirection`. Two behaviours: (1) wander — pick a random cardinal that is passable + not in the current danger map; (2) flee — when the current cell is in the danger map, prefer the direction with the lowest danger value. Danger map is derived from active bomb fuses + reachable blast cells through GridOccupancySystem; computed once per second (TimeBased component drives the cadence). Personality dial: `aggression` (0..1) — higher values reduce flee threshold.",
+      "verification": [
+        "BotBrain schema validates inside examples/kaboom-crew/schemas/bot.schema.json",
+        "unit test: bot in a bomb's blast radius prefers the perpendicular escape cardinal",
+        "the seeded start scene runs for 30 seconds without the bot getting stuck on a wall"
+      ],
+      "dependsOn": [
+        "KABOOM-PLAYER-INPUT"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-BOMB-PLACE",
+      "title": "Place-bomb action: space key spawns a Bomb entity on the player's cell",
+      "status": "pending",
+      "summary": "Project-local `BombPlacementSystem` consumes a `PlaceBombRequest` transient component on the player. The transient is written by `PlayerInputSystem` on space key; system reads it, checks `BomberStats.activeBombs < BomberStats.maxBombs`, checks `GridOccupancySystem` for an existing bomb on the cell, then issues an `entity.create` command for a bomb prefab. Removes the transient at the end of the frame. Bots get their own `PlaceBombRequest` writer via BotAISystem so the same pipeline serves both.",
+      "verification": [
+        "schemas/components for project-local Bomb + BomberStats + PlaceBombRequest under examples/kaboom-crew/schemas",
+        "bomb prefab examples/kaboom-crew/prefabs/bomb.prefab.json validates",
+        "unit test: BombPlacementSystem refuses when maxBombs cap is hit + when the cell already has a bomb"
+      ],
+      "dependsOn": [
+        "KABOOM-PLAYER-INPUT"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-BOMB-FUSE-BLAST",
+      "title": "Bomb fuse → blast propagation → block destruction",
+      "status": "pending",
+      "summary": "`BombFuseSystem` decrements `Bomb.fuseRemaining` each fixedUpdate; at zero, it emits a `BlastEvent` transient + deletes the bomb entity. `BlastPropagationSystem` walks the four cardinals up to `Bomb.range` cells through `GridOccupancySystem`, stopping at the first cell that blocks blast (hard wall) and destroying any `soft-block` on the way. Chain reactions: a blast that overlaps another bomb's cell triggers that bomb early (fuse → 0). Visuals: each blast cell spawns a short-lived `BlastTile` entity carrying a `Tween` so the renderer paints a flash + fade — re-uses the existing Tween system.",
+      "verification": [
+        "unit test: a 3-range bomb at (5,5) with a hard wall at (7,5) destroys soft blocks at (4,5), (6,5), (5,4..7) and stops at the wall",
+        "unit test: bomb-touches-bomb chain reaction fires within one fixed step",
+        "live: place bomb, fuse ticks, blast spawns 4 directional cells, soft blocks disappear, hard wall stays"
+      ],
+      "dependsOn": [
+        "KABOOM-BOMB-PLACE"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-PICKUPS-AND-STATS",
+      "title": "Power-up pickups: Bomb-up / Fire-up / Speed-up",
+      "status": "pending",
+      "summary": "Soft blocks roll a deterministic-by-cell pickup table on destruction (small `r = seededRng(cellKey)` so the same arena always seeds the same pickups). `PickupCollectSystem` detects player/bot entering a pickup-occupied cell, applies the effect to `BomberStats`, deletes the pickup. Visual: pickups use 3 distinct primitive shapes + colours; HUD shows the bomber's current stats via the existing HUD widget API.",
+      "verification": [
+        "schemas/components/Pickup + BomberStats under examples/kaboom-crew/schemas",
+        "unit test: collecting Bomb-up increments BomberStats.maxBombs by 1",
+        "live: destroy a soft block, walk into the spawned pickup, see HUD widget update"
+      ],
+      "dependsOn": [
+        "KABOOM-BOMB-FUSE-BLAST"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-DAMAGE-AND-DEATH",
+      "title": "Damage + death: blast tiles kill bombers; round ends when only one is alive",
+      "status": "pending",
+      "summary": "BlastPropagationSystem additionally checks every `BomberStats`-carrying entity at the blast cell and sets `BomberStats.alive = false`. Project-local `RoundResolveSystem` watches surviving bombers each frame; when ≤ 1 remain alive (or 0 — draw), it flips a singleton `RoundState { phase: 'playing' | 'won' | 'lost' | 'draw', winnerId? }` and pauses every GridMover. The HUD watches `RoundState` and shows a win/loss banner.",
+      "verification": [
+        "unit test: a bomber on a blast cell flips BomberStats.alive=false in the same step",
+        "RoundResolveSystem emits the correct phase for 1v0 / 0v0 / 1v1 (still playing) scenarios",
+        "HUD banner appears in the live game when the bot is blasted"
+      ],
+      "dependsOn": [
+        "KABOOM-BOMB-FUSE-BLAST"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-RESTART",
+      "title": "Round restart command — R key resets the scene + RoundState",
+      "status": "pending",
+      "summary": "Project-local input maps the `R` key to a `RoundRestartRequest` transient on a singleton control entity. `RoundResolveSystem` consumes it: applies the inverse-of-scene command chain (re-runs `scene.load` against examples/kaboom-crew/scenes/start.scene.json, or re-rolls a procedural seed). Lives entirely as data + commands so the same path serves agent replay scripts. No imperative renderer reset needed.",
+      "verification": [
+        "live: end a round, press R, scene returns to initial layout, RoundState.phase resets to 'playing'",
+        "the engine recording captures the restart as a single scene.load command"
+      ],
+      "dependsOn": [
+        "KABOOM-DAMAGE-AND-DEATH"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-HUD-PANEL",
+      "title": "HUD: round timer + bomber stats + win/loss banner",
+      "status": "pending",
+      "summary": "Three HUD widgets wired into the runtime.hud surface from S081: (a) topLeft — bomber stats (active bombs / range / speed icons + numbers); (b) topRight — minimap with player + bot + bomb markers (driven by createMinimapWidget); (c) center — win/loss banner driven by RoundState. Project queries the ECS each frame and pushes the data via runtime.hud.update — engine HUD primitive stays project-agnostic.",
+      "verification": [
+        "live: HUD shows 1 / 1 / 4 (bombs/range/speed) at round start; updates when a Bomb-up is collected",
+        "live: minimap markers track the player + bot as they move",
+        "live: banner appears with the winning entity id after a blast kill"
+      ],
+      "dependsOn": [
+        "KABOOM-PICKUPS-AND-STATS",
+        "KABOOM-DAMAGE-AND-DEATH"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-PLAYTEST-SCENARIO",
+      "title": "Robot playtest scenario — bot-vs-bot recording proves the round terminates",
+      "status": "pending",
+      "summary": "Drop a deterministic playtest under `examples/kaboom-crew/playtests/bot-vs-bot.json`: starts the scene, swaps the player's `PlayerControlled` for a second BotBrain, records commands + snapshots for 60 simulated seconds, asserts RoundState.phase eventually leaves 'playing'. Becomes the regression target for any AI / blast / round-state change.",
+      "verification": [
+        "npm run playtest examples/kaboom-crew runs the scenario headlessly and exits 0 once RoundState.phase != 'playing'",
+        "the recording is reproducible — same seed produces a byte-identical snapshot at the end"
+      ],
+      "dependsOn": [
+        "KABOOM-BOT-AI",
+        "KABOOM-DAMAGE-AND-DEATH"
+      ],
+      "epic": "KABOOM-CREW-MVP-0"
+    }
+  ],
+  "followUps": [
+    "Audio (sound design pass) stays parked until MVP 2.",
+    "Procedural character generator stays parked — capsule placeholders cover MVP 0.",
+    "Multiplayer (server authority + client prediction + relevance filter) lives under the KABOOM-CREW-MVP-1 epic, not MVP 0.",
+    "Decal-on-grid (M27) + region-rule (M28) primitives are MVP-2-tier and not required for MVP 0."
+  ],
+  "outOfScope": [
+    "Networking, client prediction, snapshot relevance.",
+    "Audio system.",
+    "Procedural characters (still capsule placeholders).",
+    "Sector modifiers, blast-prediction telegraph decal."
+  ],
+  "prUrl": null,
+  "notes": [
+    "First sprint where Kaboom Crew is actually playable. Everything project-local lands under examples/kaboom-crew/src/ + examples/kaboom-crew/schemas/ — engine primitives stay frozen.",
+    "Round resolution + win/loss are ECS-data-driven (RoundState component) so an agent can flip phases via the command pipeline + drive end-screen UX from data."
+  ]
+}

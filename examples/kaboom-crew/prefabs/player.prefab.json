@@ -18,6 +18,9 @@
     },
     "GridMover": {
       "speed": 4
+    },
+    "PlayerControlled": {
+      "speed": 4
     }
   }
 }

@@ -1,16 +1,27 @@
-import type { ProjectBootstrap } from "../../engine/runtime/project-bootstrap";
+import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupancy-system";
+import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
+import type { ProjectBootstrap, ProjectBootstrapContext } from "../../engine/runtime/project-bootstrap";
+import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 
 /**
- * S81 KABOOM-PROJECT-SCAFFOLD. Kaboom Crew is the flagship MVP-0 sample
- * (codename "DynaBomber" in `notes/`). MVP 0 is an offline solo
- * vertical slice on the grid platform shipped in S081: ortho camera +
- * damped follow + 2D HUD + grid primitives + generator framework.
+ * S81 KABOOM-PROJECT-SCAFFOLD + S82 KABOOM-PLAYER-INPUT.
  *
- * Project-local bomb / blast / pickup / bot-AI systems land in S082 —
- * for now the bootstrap is the contract anchor.
+ * Kaboom Crew bootstrap. Registers the grid stack (occupancy + movement)
+ * + the project-local player input system. Bot AI / bombs / pickups /
+ * win-loss land in subsequent S82 stories.
+ *
+ * Profiles: gameplay-only (no networking yet) → `static`.
  */
 export const kaboomCrewBootstrap: ProjectBootstrap = {
-  registerSystems(): void {
-    // intentionally empty — game systems land in S082
+  registerSystems({ scheduler }: ProjectBootstrapContext): void {
+    const occupancy = createGridOccupancySystem();
+    scheduler.register(occupancy, { profiles: ["static"] });
+
+    // GridMovementSystem reads the occupancy index — register the
+    // occupancy handle BEFORE the mover so the same-frame data flow is
+    // {occupancy.rebuild} → {mover.advance}.
+    scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static"] });
+
+    scheduler.register(createKaboomPlayerInputSystem(), { profiles: ["static"] });
   }
 };
