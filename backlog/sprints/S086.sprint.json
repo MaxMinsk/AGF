@@ -34,11 +34,13 @@
     {
       "id": "KABOOM-DEATH-PARTICLES",
       "title": "Particle puff when a bomber dies",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Mirror the S84 blast-burst pattern on death. When `BomberStats.alive` flips from true to false, the project-local audio-binding system already emits 'death'; add a sibling effect: spawn a short-lived 'glow' preset emitter (capacity 10, lifetime 0.5 s) at the bomber's grid cell. Gives the round-end moment some visual weight.",
       "verification": [
         "unit test: simulated death emits a ParticleEmitter entity at the bomber's cell within one fixedUpdate tick",
-        "live probe: BomberStats.alive=false applied via /__agf/commands produces a visible puff"
+        "live probe: BomberStats.alive=false applied via /__agf/commands produces a visible puff",
+        "audio-binding-system spawns a  ParticleEmitter entity (preset='glow', lifetime=0.5s, rate=30, maxParticles=10) at the dead bomber's grid cell, in the same fixedUpdate where it emits 'death'",
+        "ParticleEmitterSystem owns lifetime cleanup; no manual delete needed"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
