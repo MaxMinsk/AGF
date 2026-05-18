@@ -3287,3 +3287,53 @@ Status: Completed and archived. Single-feature port: the WebGL `Reflector` (Mesh
 - **shadows-bench (last project)** — three blockers: CSM (needs TSL `CSMNode` port — multi-sprint), PCSS (`onBeforeCompile` is WebGL-only — needs TSL rewrite), FXAA (upstream BloomNode-style issue). None contained.
 - **Probe + planar-mirror color tint** — defer both into a small follow-up sprint together if any project asks for tinted reflections.
 - **WEBGPU-default-flip** still gated by shadows-bench being on WebGL.
+
+<!-- backlog:render:start -->
+
+## S078 — Backlog Engine V0 — JSON source of truth + render + check
+
+Status: **archived** (started 2026-05-18, archived 2026-05-18).
+
+### Completed Work
+
+- **BACKLOG-SCHEMA** — JSON schema for sprint files
+  Add `schemas/backlog/sprint.schema.json` describing the source-of-truth sprint file shape: sprint metadata + story[] with status enums, conditional required fields (`implemented` → verification, `deferred` → deferredReason), and dependency / epic linkage. Sprint id pattern `^S[0-9]{2,4}$`, story id all-caps kebab.
+  Verification: `ajv compile sprint.schema.json (run by backlog:check)`, `S078.sprint.json validates`.
+  Deliverables: `schemas/backlog/sprint.schema.json`, `backlog/sprints/S078.sprint.json`.
+- **BACKLOG-CHECK** — `npm run backlog:check` — schema + rule validation
+  AGF-style validator: walks every `backlog/sprints/*.sprint.json`, runs ajv against the schema, then applies cross-file rules (unique sprint id + story id, at most one `active` sprint, dependency-target ids resolve, no dependency cycles, archived sprint has no pending/in_progress stories). Diagnostics share the `code / severity / file / message / suggestion` shape `engine check` uses. `--json` mode for programmatic consumption.
+  Verification: `npm run backlog:check — OK on S078`, `ajv compile of sprint.schema.json passes`.
+  Deliverables: `scripts/backlog/check.mjs`, `package.json`.
+- **BACKLOG-RENDER** — `npm run backlog:render` — generate BACKLOG.md + archive tail from JSON
+  Regenerates the active-sprint block of `BACKLOG.md` and the post-`<!-- backlog:render:start -->` tail of `BACKLOG_ARCHIVE.md` from `backlog/sprints/*.sprint.json`. Preserves everything outside the marker pair (the BACKLOG.md preamble + `Next Sprint candidates` list; the legacy archive prelude S0–S77). `--check` mode exits non-zero on drift for CI.
+  Verification: `npm run backlog:render — writes both files`, `npm run backlog:render -- --check — OK after a write (idempotent)`.
+  Deliverables: `scripts/backlog/render.mjs`, `BACKLOG.md`, `BACKLOG_ARCHIVE.md`, `package.json`.
+- **BACKLOG-AGENT-DOCS** — CLAUDE.md updates for the new workflow
+  `CLAUDE.md` Working Mode rewritten: source of truth is `backlog/sprints/*.sprint.json`, BACKLOG.md and the post-marker archive section are generated, `/archive-sprint` retired. Added story-lifecycle states (pending → in_progress → implemented | deferred) and sprint lifecycle (pending → active → archived). Read-First section flags BACKLOG.md as generated.
+  Verification: `CLAUDE.md mentions backlog:check + backlog:render`, `CLAUDE.md no longer instructs editing rendered archive prose`.
+  Deliverables: `CLAUDE.md`.
+- **BACKLOG-SELF-ARCHIVE** — Dogfood: close S078 with the new tooling
+  S078 itself was archived through the new flow: stories flipped to `implemented`, `status: "archived"`, `archivedAt` set, `npm run backlog:check` OK, `npm run backlog:render` produced the archive entry below `<!-- backlog:render:start -->` in `BACKLOG_ARCHIVE.md`. No hand edits to the rendered Markdown.
+  Verification: `S078.sprint.json status=archived`, `npm run backlog:check passes`, `npm run backlog:render -- --check passes after archive`.
+  Deliverables: `backlog/sprints/S078.sprint.json`.
+
+### Out of scope
+
+- Migrating S0–S77 legacy archive prose into JSON files (deferred to BACKLOG-MIGRATE-HISTORY).
+- GitHub Issues / Linear / MCP integrations — repo-local is the v0 surface.
+- Agent task orchestration / atomic claim — single primary implementation agent for now.
+- Backlog dashboard UI — JSON + Markdown views are enough until they aren't.
+
+### Follow-ups
+
+- BACKLOG-NEXT — `npm run backlog:next --json` to pick the first unblocked story (relies on dependsOn graph).
+- BACKLOG-CLI-MUTATE — `backlog:claim` / `backlog:done` / `backlog:defer` / `backlog:archive` write commands so even the JSON is not hand-edited.
+- BACKLOG-MIGRATE-HISTORY — one-shot parser that turns the S0–S77 legacy archive into individual sprint JSON files. Lets `backlog:render` own the entire archive.
+- BACKLOG-PR-BODY — render close-of-sprint PR body from sprint JSON.
+- BACKLOG-DOCTOR — engine doctor section reporting active sprint, blocked stories, stale story warnings.
+
+### Notes
+
+- Designed in `notes/backlog_engine_analysis.md` (1100-line market scan + AGF-specific architecture). This sprint ships the minimum from §10 Sprint A; everything else stays as follow-ups.
+
+<!-- backlog:render:end -->

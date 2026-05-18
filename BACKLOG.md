@@ -1,8 +1,10 @@
 # Backlog
 
-Date: 2026-05-18 (Sprint 72 archived)
+Date: 2026-05-18 (Sprint 78 archived)
 
-This file contains only the currently active detailed sprint work and the next detailed sprint. Keep broad roadmap items in `HIGH_LEVEL_BACKLOG.md`. Move completed sprint details to `BACKLOG_ARCHIVE.md` at sprint close.
+The active sprint section below the `<!-- backlog:render:start -->` marker is **generated** by `npm run backlog:render` from `backlog/sprints/*.sprint.json`. Don't hand-edit it. Edit the sprint JSON, run `npm run backlog:check && npm run backlog:render`, commit.
+
+The preamble + `Next Sprint candidates` list above the marker remains hand-authored Markdown — a place for broad items not yet promoted into a sprint.
 
 ## Repository Scope
 
@@ -38,21 +40,12 @@ Example games live inside this repo as nested projects under `examples/`. The ma
 - **M20-a..l** — netcode rework (carried from Sprint 32). Own sprint.
 - **M2b-seed**, **13.13** audio, **10.5+** C# WS transport.
 
-## Current Sprint: Sprint 73 — TBD (polish / docs / carry list)
+<!-- backlog:render:start -->
 
-8 of 9 example projects are on WebGPU after S71 (material-bench) and S72 (water-bench). Only **shadows-bench** remains — its three blockers (CSM, PCSS, FXAA) all need real TSL ports or wait for an upstream three.js fix; none of them are contained inside a single sprint.
+_No sprint is currently `active`. Edit a `backlog/sprints/S<NN>.sprint.json` to `status: "active"` and re-run `npm run backlog:render`._
 
-After two heavy WebGPU sprints back-to-back the next session is a polish / docs / carry-list pass. Candidate shapes:
-
-- **WebGPU docs refresh** — sync `docs/agent/skills/webgpu-rendering.md` with the actual 8/9 state, document the per-feature WebGPU surface (`supportsPlanarMirror: true`, GPU timer, lazy import, PMREM-per-purpose split, no-visibility-toggle probe bake), and refresh the comparison page at `tests/manual/webgpu-vs-webgl/` so it boots both modes cleanly under the new code paths.
-- **engine doctor — WebGPU readiness** — refresh the doctor's `WebGPU readiness:` block per project so it reflects 8/9 (only shadows-bench still flagged), and surface the specific blocking features (CSM / PCSS / FXAA) per remaining project.
-- **Asset pipeline polish** — pick up the S54 carry list: `ASSET-prefab pipeline`, `DOCTOR-prefab section`, `RUNTIME-progressive-loading`, `DOCS-asset-pipeline`. Contained, agent-shaped, no upstream dependency.
-- **WEBGPU-reflection-tint** — small follow-up: wire the `color` parameter through to the WebGPU TSL planar mirror + cube probe paths via `mix(reflector, color, factor)` colorNode. Single-session.
-
-### Stories
-
-To be picked when S73 starts.
+<!-- backlog:render:end -->
 
 ## Next Sprint (placeholder)
 
-S74 — likely the WEBGPU-csm spike if shadows-bench becomes priority, OR the next gameplay slice for beacon-world. Decide after the S73 polish pass.
+After S78 lands the backlog engine, the next sprint is the DynaBomber pre-game platform: `BACKLOG-NEXT` + `BACKLOG-CLI-MUTATE` from this sprint's follow-ups, then `DYN-ortho-camera` / `DYN-damped-follow` / `DYN-2d-hud-runtime` / `DYN-grid-primitives` from `notes/dynabomber-readiness-analysis.md` §11.

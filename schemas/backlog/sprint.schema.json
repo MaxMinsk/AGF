@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agf/schemas/backlog/sprint.schema.json",
+  "title": "Sprint",
+  "description": "Source-of-truth file for an AGF sprint. `BACKLOG.md` and the rendered section of `BACKLOG_ARCHIVE.md` are derived views over the set of `backlog/sprints/S<NN>.sprint.json` files. Editing the rendered Markdown directly is a `backlog:check` failure.",
+  "type": "object",
+  "required": ["agfFormatVersion", "id", "title", "status", "stories"],
+  "additionalProperties": false,
+  "properties": {
+    "agfFormatVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "AGF schema version. Bumped only when the sprint file shape changes incompatibly."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^S[0-9]{2,4}$",
+      "description": "Sprint id, e.g. `S078`. Zero-padded to keep the filename + lexical sort happy."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Short human-readable sprint title (≤80 chars recommended)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "active", "archived"],
+      "description": "Sprint lifecycle. `pending` = planned but not started; `active` = current sprint (at most one across all files); `archived` = closed."
+    },
+    "startedAt": {
+      "type": ["string", "null"],
+      "description": "ISO date when the sprint moved to `active`."
+    },
+    "archivedAt": {
+      "type": ["string", "null"],
+      "description": "ISO date when the sprint moved to `archived`."
+    },
+    "stories": {
+      "type": "array",
+      "description": "Stories planned, in-progress, or completed inside this sprint.",
+      "items": { "$ref": "#/definitions/story" }
+    },
+    "followUps": {
+      "type": "array",
+      "description": "Items discovered during the sprint that didn't fit; promoted into the next sprint's candidates at archive time.",
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "outOfScope": {
+      "type": "array",
+      "description": "Items the sprint explicitly chose not to address; for archive readers who want to understand the boundary.",
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "prUrl": {
+      "type": ["string", "null"],
+      "pattern": "^https?://.+",
+      "description": "Pull request that closed the sprint."
+    },
+    "notes": {
+      "type": "array",
+      "description": "Free-text observations the sprint wants to preserve (e.g. measurement summaries, links to research notes).",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "story": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 2,
+          "pattern": "^[A-Z][A-Z0-9-]*$",
+          "description": "Story id, all-caps kebab. Stable across sprints; commit messages should start with `<id>:`."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 5
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "implemented", "deferred"],
+          "description": "Story lifecycle. `implemented` requires `verification` to be non-empty; `deferred` requires a `deferredReason`."
+        },
+        "summary": {
+          "type": "string",
+          "description": "One-paragraph summary of what shipped (for implemented stories) or what's planned."
+        },
+        "deliverables": {
+          "type": "array",
+          "description": "Key files / surfaces touched by the story. Can be derived from `git log` once `BACKLOG-git-derived` lands.",
+          "items": { "type": "string" }
+        },
+        "verification": {
+          "type": "array",
+          "description": "Commands or behaviours that prove the story works. Required when `status: \"implemented\"`.",
+          "items": { "type": "string" }
+        },
+        "deferredReason": {
+          "type": "string",
+          "description": "Required when `status: \"deferred\"` — short reason."
+        },
+        "dependsOn": {
+          "type": "array",
+          "description": "Story ids (within this sprint OR cross-sprint) that must reach `implemented` before this one can start.",
+          "items": { "type": "string" }
+        },
+        "epic": {
+          "type": "string",
+          "description": "Optional epic id this story rolls up to. Used by `HIGH_LEVEL_BACKLOG.md` cross-references."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "implemented" } } },
+          "then": { "required": ["verification"] }
+        },
+        {
+          "if": { "properties": { "status": { "const": "deferred" } } },
+          "then": { "required": ["deferredReason"] }
+        }
+      ]
+    }
+  }
+}

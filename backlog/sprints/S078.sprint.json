@@ -1,0 +1,107 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S078",
+  "title": "Backlog Engine V0 — JSON source of truth + render + check",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "archivedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "BACKLOG-SCHEMA",
+      "title": "JSON schema for sprint files",
+      "status": "implemented",
+      "summary": "Add `schemas/backlog/sprint.schema.json` describing the source-of-truth sprint file shape: sprint metadata + story[] with status enums, conditional required fields (`implemented` → verification, `deferred` → deferredReason), and dependency / epic linkage. Sprint id pattern `^S[0-9]{2,4}$`, story id all-caps kebab.",
+      "deliverables": [
+        "schemas/backlog/sprint.schema.json",
+        "backlog/sprints/S078.sprint.json"
+      ],
+      "verification": [
+        "ajv compile sprint.schema.json (run by backlog:check)",
+        "S078.sprint.json validates"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "BACKLOG-CHECK",
+      "title": "`npm run backlog:check` — schema + rule validation",
+      "status": "implemented",
+      "summary": "AGF-style validator: walks every `backlog/sprints/*.sprint.json`, runs ajv against the schema, then applies cross-file rules (unique sprint id + story id, at most one `active` sprint, dependency-target ids resolve, no dependency cycles, archived sprint has no pending/in_progress stories). Diagnostics share the `code / severity / file / message / suggestion` shape `engine check` uses. `--json` mode for programmatic consumption.",
+      "deliverables": [
+        "scripts/backlog/check.mjs",
+        "package.json"
+      ],
+      "verification": [
+        "npm run backlog:check — OK on S078",
+        "ajv compile of sprint.schema.json passes"
+      ],
+      "dependsOn": ["BACKLOG-SCHEMA"],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "BACKLOG-RENDER",
+      "title": "`npm run backlog:render` — generate BACKLOG.md + archive tail from JSON",
+      "status": "implemented",
+      "summary": "Regenerates the active-sprint block of `BACKLOG.md` and the post-`<!-- backlog:render:start -->` tail of `BACKLOG_ARCHIVE.md` from `backlog/sprints/*.sprint.json`. Preserves everything outside the marker pair (the BACKLOG.md preamble + `Next Sprint candidates` list; the legacy archive prelude S0–S77). `--check` mode exits non-zero on drift for CI.",
+      "deliverables": [
+        "scripts/backlog/render.mjs",
+        "BACKLOG.md",
+        "BACKLOG_ARCHIVE.md",
+        "package.json"
+      ],
+      "verification": [
+        "npm run backlog:render — writes both files",
+        "npm run backlog:render -- --check — OK after a write (idempotent)"
+      ],
+      "dependsOn": ["BACKLOG-SCHEMA"],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "BACKLOG-AGENT-DOCS",
+      "title": "CLAUDE.md updates for the new workflow",
+      "status": "implemented",
+      "summary": "`CLAUDE.md` Working Mode rewritten: source of truth is `backlog/sprints/*.sprint.json`, BACKLOG.md and the post-marker archive section are generated, `/archive-sprint` retired. Added story-lifecycle states (pending → in_progress → implemented | deferred) and sprint lifecycle (pending → active → archived). Read-First section flags BACKLOG.md as generated.",
+      "deliverables": [
+        "CLAUDE.md"
+      ],
+      "verification": [
+        "CLAUDE.md mentions backlog:check + backlog:render",
+        "CLAUDE.md no longer instructs editing rendered archive prose"
+      ],
+      "dependsOn": ["BACKLOG-RENDER"],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "BACKLOG-SELF-ARCHIVE",
+      "title": "Dogfood: close S078 with the new tooling",
+      "status": "implemented",
+      "summary": "S078 itself was archived through the new flow: stories flipped to `implemented`, `status: \"archived\"`, `archivedAt` set, `npm run backlog:check` OK, `npm run backlog:render` produced the archive entry below `<!-- backlog:render:start -->` in `BACKLOG_ARCHIVE.md`. No hand edits to the rendered Markdown.",
+      "deliverables": [
+        "backlog/sprints/S078.sprint.json"
+      ],
+      "verification": [
+        "S078.sprint.json status=archived",
+        "npm run backlog:check passes",
+        "npm run backlog:render -- --check passes after archive"
+      ],
+      "dependsOn": ["BACKLOG-CHECK", "BACKLOG-RENDER", "BACKLOG-AGENT-DOCS"],
+      "epic": "AGF-BACKLOG-ENGINE"
+    }
+  ],
+  "followUps": [
+    "BACKLOG-NEXT — `npm run backlog:next --json` to pick the first unblocked story (relies on dependsOn graph).",
+    "BACKLOG-CLI-MUTATE — `backlog:claim` / `backlog:done` / `backlog:defer` / `backlog:archive` write commands so even the JSON is not hand-edited.",
+    "BACKLOG-MIGRATE-HISTORY — one-shot parser that turns the S0–S77 legacy archive into individual sprint JSON files. Lets `backlog:render` own the entire archive.",
+    "BACKLOG-PR-BODY — render close-of-sprint PR body from sprint JSON.",
+    "BACKLOG-DOCTOR — engine doctor section reporting active sprint, blocked stories, stale story warnings."
+  ],
+  "outOfScope": [
+    "Migrating S0–S77 legacy archive prose into JSON files (deferred to BACKLOG-MIGRATE-HISTORY).",
+    "GitHub Issues / Linear / MCP integrations — repo-local is the v0 surface.",
+    "Agent task orchestration / atomic claim — single primary implementation agent for now.",
+    "Backlog dashboard UI — JSON + Markdown views are enough until they aren't."
+  ],
+  "prUrl": null,
+  "notes": [
+    "Designed in `notes/backlog_engine_analysis.md` (1100-line market scan + AGF-specific architecture). This sprint ships the minimum from §10 Sprint A; everything else stays as follow-ups."
+  ]
+}
