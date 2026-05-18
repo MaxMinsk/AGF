@@ -53,11 +53,13 @@
     {
       "id": "AGF-FRAME-SPIKE-UNIT-TEST",
       "title": "Unit test for AGF_FRAME_SPIKE emission + cooldown",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC shipped without a dedicated unit test (only the boot-noise budget smoke covers it). Pull the spike check into a tiny pure helper inside start.ts (or a sibling util) + unit-test it: synthetic frame sequence with one spike → exactly one emission; sustained spikes throttle to ≤ 1 emission per cooldown window.",
       "verification": [
         "unit test asserts emission count + cooldown windowing on a fake clock",
-        "boot-noise budget remains green (no regression)"
+        "boot-noise budget remains green (no regression)",
+        "engine/runtime/frame-spike-gate.ts extracts the spike detector as a pure function; +4 unit tests cover sub-threshold / cooldown / spikeMs=0 / reset",
+        "start.ts uses createFrameSpikeGate() instead of inline lastSpikeEmittedAt — behaviour identical, now testable"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
