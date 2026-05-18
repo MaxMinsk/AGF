@@ -216,6 +216,7 @@
     }
   ],
   "followUps": [
+    "AGENT-RENDERER-PROBE (engine-level) — `engine probe <projectDir>` + `runtime.renderer.inspect()` that returns a compact JSON dump of: (a) Three.js scene tree (Mesh / InstancedMesh / Light children + count + visibility), (b) BatchingSystem bucket records (key, capacity, live, members, lastWorld memo per entity), (c) MeshHandleRegistry handle → entityId map. The bug-hunt for the restart ghost players used this in ad-hoc form — `tmp-kaboom-probe.mjs` that reads `__agf.rendererInfo()`. A first-class tool means future render-side bugs are diagnosed in one curl, not in throwaway scripts. Live in a new engine sprint (likely engine-level under `M5` runtime diagnostics or as a new story under `E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD`).",
     "Audio (sound design pass) stays parked until MVP 2.",
     "Procedural character generator stays parked — capsule placeholders cover MVP 0.",
     "Multiplayer (server authority + client prediction + relevance filter) lives under the KABOOM-CREW-MVP-1 epic, not MVP 0.",
