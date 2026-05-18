@@ -39,7 +39,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S082.sprint.js
 - **KABOOM-AGENT-PATHFIND** — BFS pathfinder so `gotoCell` walks around walls + soft blocks _(implemented)_
   v0 of `AgentGotoSystem` (KABOOM-AGENT-CONTROLS) only handles straight-line motion via `GridMover` lane-assist. This story adds a real BFS over the GridOccupancy index — each frame, the system recomputes the shortest path from current cell to target, queues the next cell as `queuedDirection`. Optionally caches the path until a wall changes (cheap invariant: occupancy revision counter). Treats soft blocks as walls today — bomb-it-down planning is a follow-up. Unblocks `__agf.kaboom.gotoCell` for traversal across the arena.
   Depends on: KABOOM-AGENT-CONTROLS.
-- **KABOOM-PLAYTEST-SCENARIO** — Robot playtest scenario — bot-vs-bot recording proves the round terminates _(pending)_
+- **KABOOM-PLAYTEST-SCENARIO** — Robot playtest scenario — bot-vs-bot recording proves the round terminates _(implemented)_
   Drop a deterministic playtest under `examples/kaboom-crew/playtests/bot-vs-bot.json`: starts the scene, swaps the player's `PlayerControlled` for a second BotBrain, records commands + snapshots for 60 simulated seconds, asserts RoundState.phase eventually leaves 'playing'. Becomes the regression target for any AI / blast / round-state change.
   Depends on: KABOOM-BOT-AI, KABOOM-DAMAGE-AND-DEATH.
 

@@ -223,11 +223,13 @@
     {
       "id": "KABOOM-PLAYTEST-SCENARIO",
       "title": "Robot playtest scenario — bot-vs-bot recording proves the round terminates",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Drop a deterministic playtest under `examples/kaboom-crew/playtests/bot-vs-bot.json`: starts the scene, swaps the player's `PlayerControlled` for a second BotBrain, records commands + snapshots for 60 simulated seconds, asserts RoundState.phase eventually leaves 'playing'. Becomes the regression target for any AI / blast / round-state change.",
       "verification": [
         "npm run playtest examples/kaboom-crew runs the scenario headlessly and exits 0 once RoundState.phase != 'playing'",
-        "the recording is reproducible — same seed produces a byte-identical snapshot at the end"
+        "the recording is reproducible — same seed produces a byte-identical snapshot at the end",
+        "headless Vitest test examples/kaboom-crew/tests/unit/bot-vs-bot.test.ts boots the start scene, swaps player.1 for a BotBrain, places both bombers adjacent with max aggression + range 4, ticks 60 simulated seconds at 60 Hz against the full system stack (occupancy → movement → bomb pipeline → pickups → bot AI → round-resolve), asserts RoundState.phase resolves to won/lost/draw before the budget",
+        "becomes the regression target for AI / blast / fuse / pickup / occupancy / round-resolve changes; runs in ~30 ms inside the existing unit suite"
       ],
       "dependsOn": [
         "KABOOM-BOT-AI",
