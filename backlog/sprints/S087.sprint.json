@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S087",
   "title": "Kaboom Crew match flow + camera shake + engine timing test coverage",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-19",
   "stories": [
     {
@@ -107,5 +107,7 @@
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
-  ]
+  ],
+  "archivedAt": "2026-05-19",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/97"
 }
