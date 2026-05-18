@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S084",
   "title": "Kaboom Crew MVP 1 polish — audio, particles, score, title, difficulty",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-18",
   "stories": [
     {
@@ -152,5 +152,7 @@
   ],
   "followUps": [
     "AGF-POOL-WARMUP-AND-UNIFY (next sprint) — user-reported pause on the first KABOOM-BLAST-PARTICLES burst points at the M19 particle pool growing under live demand. Story: pre-warm the particle pool to its default `maxParticles` cap on system register + unify the renderer pool surface (S48 render-pool-abstraction was left pending). Acceptance: a synthesised first-blast probe shows no frame-time spike vs steady-state, and InstancedMesh / BatchedMesh / Particle pools route through one registry."
-  ]
+  ],
+  "archivedAt": "2026-05-18",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/94"
 }
