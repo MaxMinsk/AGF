@@ -28,6 +28,7 @@ import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
+import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
@@ -82,6 +83,17 @@ function restartScene(runtime: RuntimeHandle): number {
 // once the runtime is known. Cleared in dispose to release the handle.
 let _boundRestart: (() => void) | undefined;
 
+// S84 KABOOM-AUDIO-WIRE.
+// Same closure-bridge pattern: audio-binding system is registered in
+// registerSystems but the audio bus only exists once attachUi has
+// the runtime handle. attachUi populates `_boundAudioEvent`; the
+// binding system calls through it. `audioLog` mirrors every event so
+// the probe surface (`__agf.kaboom.audioLog`) can verify the sequence
+// without depending on the HTMLAudioElement state.
+type AudioLogEntry = { kind: AudioEventKind; entityId?: string; ts: number };
+let _boundAudioEvent: ((kind: AudioEventKind, ctx?: { entityId?: string }) => void) | undefined;
+let _audioLog: AudioLogEntry[] = [];
+
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler }: ProjectBootstrapContext): void {
     const occupancy = createGridOccupancySystem();
@@ -93,6 +105,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
+    // S84 KABOOM-AUDIO-WIRE — register BEFORE blast-propagation so the
+    // binding system sees the BlastEvent transient before propagation
+    // consumes it. The late-bound closure indirects to attachUi where
+    // the audio bus is finally available.
+    scheduler.register(
+      createKaboomAudioBindingSystem({
+        onEvent(kind, c): void {
+          if (_boundAudioEvent !== undefined) _boundAudioEvent(kind, c);
+        }
+      }),
+      { profiles: ["static"] }
+    );
+
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
 
@@ -133,6 +158,28 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
   attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
     _boundRestart = (): void => {
       restartScene(runtime);
+    };
+
+    // S84 KABOOM-AUDIO-WIRE. Register the 4 clips (placeholder URLs;
+    // CC0 WAVs will land under examples/kaboom-crew/assets/audio/ in
+    // a follow-up). Audio bus is undefined on headless hosts —
+    // _boundAudioEvent still runs so audioLog mirrors the event
+    // sequence, but play() is skipped.
+    const audio = (runtime as unknown as { audio?: import("../../engine/runtime/audio/audio-bus").AudioBus }).audio;
+    if (audio !== undefined) {
+      audio.load("bomb-place", "/examples/kaboom-crew/assets/audio/bomb-place.wav");
+      audio.load("blast", "/examples/kaboom-crew/assets/audio/blast.wav");
+      audio.load("pickup", "/examples/kaboom-crew/assets/audio/pickup.wav");
+      audio.load("death", "/examples/kaboom-crew/assets/audio/death.wav");
+    }
+    _audioLog = [];
+    _boundAudioEvent = (kind, c): void => {
+      const entry: AudioLogEntry = { kind, ts: Date.now() };
+      if (c?.entityId !== undefined) entry.entityId = c.entityId;
+      _audioLog.push(entry);
+      // Cap the log so a long-running session doesn't grow unbounded.
+      if (_audioLog.length > 200) _audioLog.splice(0, _audioLog.length - 200);
+      audio?.play(kind, { volume: kind === "blast" ? 0.8 : 0.6 });
     };
 
     const handleKey = (event: KeyboardEvent): void => {
@@ -235,6 +282,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       restart(): void {
         restartScene(runtime);
+      },
+      // S84 KABOOM-AUDIO-WIRE — agent-facing mirror of the audio event
+      // stream. Useful for probes that need to verify a sound was
+      // triggered without depending on HTMLAudioElement readiness.
+      audioLog(): ReadonlyArray<AudioLogEntry> {
+        return _audioLog.slice();
       },
       // S83 AGF-MOTION-SMOOTHNESS-PROBE. Returns the entity's
       // current world-space (x, z) from Transform.position — cheap
@@ -466,6 +519,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         window.removeEventListener("keydown", handleKey);
         if (w.__agf !== undefined) delete w.__agf.kaboom;
         _boundRestart = undefined;
+        _boundAudioEvent = undefined;
+        _audioLog = [];
         if (hudCleanup !== undefined) hudCleanup();
       }
     };

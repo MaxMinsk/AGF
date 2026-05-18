@@ -23,11 +23,13 @@
     {
       "id": "KABOOM-AUDIO-WIRE",
       "title": "Kaboom Crew binds bomb / blast / pickup / death sounds",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-local hook in `examples/kaboom-crew/bootstrap.ts` registers 4 clips on `runtime.audio` (bomb-place / blast / pickup / death) and a tiny system that emits the right call when it detects the corresponding event: `PlaceBombRequest` consumed → bomb-place; `BlastEvent` emitted → blast; `Pickup` removed by `PickupCollectSystem` → pickup; `BomberStats.alive` flips false → death. Clips ship as CC0 placeholders under `examples/kaboom-crew/assets/audio/`. The system stays project-local — engine audio surface remains generic.",
       "verification": [
         "4 clips registered + bound; live probe confirms `audio.play(...)` was invoked once per event (window.__agf.kaboom.audioLog mirror)",
-        "unit test: synthesised events drive the binding system through expected call sequence"
+        "unit test: synthesised events drive the binding system through expected call sequence",
+        "createKaboomAudioBindingSystem detects bomb spawn / blast event / pickup removal / death via per-frame diffs; 6 unit tests cover each path + world swap reset",
+        "bootstrap registers the binding system BEFORE blast-propagation (so BlastEvent transient is visible) and threads onEvent into audio.play + audioLog mirror; runtime.kaboom.audioLog() exposes the event stream for probes"
       ],
       "dependsOn": [
         "AGF-AUDIO-PRIMITIVE"
