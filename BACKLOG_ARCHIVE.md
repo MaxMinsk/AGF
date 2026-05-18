@@ -3211,3 +3211,79 @@ Status: Completed and archived. Seven stories shipped — the carry list from S6
 - **WEBGPU progress**: 6 of 9 example projects on WebGPU (webgpu-spike, webgpu-light-test, hello-3d, physics-bench, beacon-world, batch-bench). 3 still blocked upstream (material-bench bloom, shadows-bench CSM, water-bench mirror).
 - **S71 candidates**: ASSET-prefab pipeline + DOCTOR-prefab section + RUNTIME-progressive-loading from the S54 carry list — nothing WebGPU-shaped is contained until upstream three.js releases a fix for `BloomNode`'s ShaderMaterial path or someone ports `CSMNode`/`ReflectorNode`. The next WebGPU sprint could pivot to a CSMNode port spike if shadows-bench is high-priority, but that's a multi-sprint effort and likely lives outside the agent-first scope.
 - **WEBGPU-default-flip** still gated. 6 of 9 isn't comfortable yet (material-bench/shadows-bench/water-bench would silently lose features); flip after either upstream lifts the post-processing block or the WebGL→WebGPU feature gap drops to one project.
+
+## Sprint 71 — Migrate material-bench to WebGPU (PMREM + shadow + workflow fixes)
+
+Status: Completed and archived. Material-bench was thought to be blocked on three.js's BloomNode upstream issue, but stripping bloom + actually hitting "live state" revealed five separate WebGPU-vs-WebGL semantic gaps the AGF code path was hitting. Each had to be fixed before material-bench could render cleanly on WebGPU.
+
+### Completed Work
+
+1. **Visual systems → frameUpdate** — `Spin`, `Tween`, `WaypointMover` moved from `fixedUpdate` to `frameUpdate`. Fixed-update tied cosmetic motion to the simulation accumulator: heavy WebGPU frames (probe-bake spikes, material-bench's reflection cascade) pushed `frameDt` past the `maxStepsPerFrame=8` × `fixedDt` cap (~133 ms), the accumulator dropped the overflow, and visible motion stalled. Physics + character-movement (which legitimately need determinism) stay on fixedUpdate.
+2. **Round-robin reflection-probe bakes** — `reflection-probe-system` now picks at most ONE probe per frame, most-overdue first (bake-once probes have priority ∞ until baked). Avoids the `3 × 6 = 18 cube-renders` per-frame spike when multiple probes were ready simultaneously.
+3. **Per-entity envMap memo** — only call `setMeshMaterialPatch` when the bound texture pointer actually changes. Previously every frame stamped `material.needsUpdate = true` on every EnvmapBinding entity, which forced shader + bindgroup rebuilds on WebGPU and produced stale-bindgroup destroyed-texture warnings.
+4. **Separate PMREMGenerator instances** — `setEnvironment` (HDR cube, cubeSize 256) and `updateReflectionProbe` (probe cubes, cubeSize 128) shared a single `this.pmrem`. Three.js's PMREMGenerator disposes its internal `_pingPongRenderTarget` (named "PMREM.cubeUv") on size mismatch. With shared instance the pingpong got disposed every probe bake while still referenced in flight, raising "Destroyed texture used in submit" validation spam on every bake and entering the renderer into an error state. Split into `this.pmrem` (env) + `this.probePmrem` (probes).
+5. **WebGL-vs-WebGPU PMREMGenerator class** — the probe path's lazy init constructed `new PMREMGenerator(this.device)` (the WebGL class) against a `WebGPURenderer`. Mirror the existing setEnvironment selection (`webGpuModule.PMREMGenerator` on WebGPU).
+6. **Reuse prefiltered RT in fromCubemap** — pass `entry.prefilteredTarget` back as the second arg to `pmrem.fromCubemap(cubemap, sameRT)` so three.js writes IN PLACE instead of allocating + disposing. No runtime disposes → no validation warnings → no GPU leak.
+7. **Shadow-flicker fix** — dropped the `obj.visible = false` toggle around cube-bake. ShadowNode iterates the scene by visibility; with 3 probes × 15 Hz × 6 cube-faces, the WebGPU shadow texture got rebaked many times per frame with the probe-owner NOT a caster, producing visible shadow flicker under the centre sphere/cylinder. Sphere-shaped probe owners are invisible to a camera at their own world position via backface culling anyway. Verified by experiment.
+8. **Agent-debug infra** — new `GET /__agf/console-log` HTTP endpoint backed by a 200-entry `console.*` ring buffer in `engine/dev/page-bridge.ts`. Agents can `curl` recent browser console output (errors AND warnings AND logs) without launching playwright. The PMREM-class root-cause investigation surfaced via this — WebGPU validation comes through `console.warn` from Chrome's GPU process, not `pageerror` / `console.error`. Updated playwright-live-probe skill memo to require capturing AND printing every console.type.
+9. **MIGRATE-material-bench-webgpu** — flip `examples/material-bench/project.json#render.mode` to `"webgpu"`. Drop the bloom post-pass entry (still upstream-blocked). Reflection probes restored to 15 Hz on the centre PMREM probe + 15 Hz on the two side mipmap probes. 7 of 9 example projects now run on WebGPU.
+
+### Deliverables
+
+- `engine/core/systems/spin-system.ts`, `tween-system.ts`, `waypoint-mover-system.ts` — `fixedUpdate` → `frameUpdate`.
+- `engine/render/systems/reflection-probe-system.ts` — round-robin one-probe-per-frame, per-entity envMap memo.
+- `engine/render/three-render-adapter.ts` — `probePmrem` field, WebGPU-vs-WebGL PMREMGenerator class selection, `fromCubemap` RT reuse, no visibility toggle in `updateReflectionProbe`.
+- `engine/dev/page-bridge.ts` — console-tap ring buffer.
+- `engine/dev/agf-dev-bridge.ts` — `/__agf/console-log` route.
+- `examples/material-bench/project.json`, `bootstrap.ts` — webgpu mode + bloom removed; probes restored to 15 Hz.
+- Skill memos: `feedback-playwright-live-probe.md` rewritten to require full console capture; new `feedback-grab-browser-logs-first.md`.
+
+### Verification
+
+- typecheck + 517 unit tests pass.
+- Live playwright probe (`--enable-unsafe-webgpu`, real WebGPU backend): zero "Destroyed texture" warnings across all WebGPU projects; material-bench scene + 3 probes + spheres orbit + shadows under centre cylinder stable at 60 fps; spin / tween / waypoint motion runs at-spec.
+- User-verified on actual hardware: rotation runs at spec, shadow under centre sphere stable.
+
+### Follow-Ups
+
+- **WEBGPU progress**: 7 of 9 (added material-bench).
+- **CSMNode port** for shadows-bench remains the multi-sprint blocker.
+- **ReflectorNode port** for water-bench is sprint-sized — picked up in S72.
+- **Probe color tint**: `acquireReflectionProbe` accepts `color` on the WebGL `Reflector`, but the WebGPU TSL `ReflectorNode` path doesn't wire it yet. Deferred until a project actually needs it.
+
+## Sprint 72 — Migrate water-bench to WebGPU via TSL ReflectorNode
+
+Status: Completed and archived. Single-feature port: the WebGL `Reflector` (Mesh subclass with GLSL ShaderMaterial) is replaced on the WebGPU adapter by `reflector()` from `three/tsl` + `MeshBasicNodeMaterial`.
+
+### Completed Work
+
+1. **WEBGPU-planar-mirror** — `acquirePlanarMirror` branches on `capabilities.kind`:
+   - WebGL: existing `new Reflector(geometry, {...})` path unchanged.
+   - WebGPU: `reflector()` returns a TextureNode; `MeshBasicNodeMaterial.colorNode = reflector`; a `Mesh(planeGeometry, material)` is added to the scene; `reflector.target` is parented to the mesh so the mirror plane follows transform updates.
+   - `setPlanarMirrorTransform` and `releasePlanarMirror` updated to handle both shapes via a tagged union (`{ kind: "webgl" | "webgpu", ... }`).
+2. **TSL factory import path** — `reflector()` lives in `three/tsl`, NOT `three/webgpu`. The lazy `engine/render/webgpu/webgpu-module-loader.ts` now loads both modules in parallel and merges the surfaces. Added a structural `ReflectorFactoryResult` type since `reflector` isn't in `@types/three` for r0.184.
+3. **Capability flag** — `WEBGPU_CAPABILITIES.supportsPlanarMirror` flipped from `false` to `true`.
+4. **MIGRATE-water-bench-webgpu** — `examples/water-bench/project.json#render.mode` flipped to `"webgpu"`. 8 of 9 example projects now run on WebGPU.
+
+### Out of scope
+
+- **Color tint** — the original `Reflector` `color: '#88aaff'` parameter is not yet wired on the WebGPU path. TSL needs an explicit `mix(reflector, color, factor)` colorNode for that. Deferred — visual fidelity was never the bar for water-bench (the user previously agreed "let's leave the planar mirror as-is for now"; pure reflection is acceptable for the demo).
+
+### Deliverables
+
+- `engine/render/webgpu/webgpu-module-loader.ts` — bi-module load (`three/webgpu` + `three/tsl`); `MeshBasicNodeMaterial` + `reflector` factories exposed.
+- `engine/render/three-render-adapter.ts` — `acquirePlanarMirror` / `setPlanarMirrorTransform` / `releasePlanarMirror` branching; tagged-union storage.
+- `engine/render/render-adapter.ts` — `WEBGPU_CAPABILITIES.supportsPlanarMirror: true`.
+- `examples/water-bench/project.json` — webgpu mode.
+
+### Verification
+
+- typecheck + 517 unit tests pass.
+- Live playwright probe across all 8 WebGPU projects (water-bench + the other 7): zero destroyed-texture warnings, zero pageerrors.
+
+### Follow-Ups
+
+- **WEBGPU progress**: 8 of 9 (added water-bench).
+- **shadows-bench (last project)** — three blockers: CSM (needs TSL `CSMNode` port — multi-sprint), PCSS (`onBeforeCompile` is WebGL-only — needs TSL rewrite), FXAA (upstream BloomNode-style issue). None contained.
+- **Probe + planar-mirror color tint** — defer both into a small follow-up sprint together if any project asks for tinted reflections.
+- **WEBGPU-default-flip** still gated by shadows-bench being on WebGL.
