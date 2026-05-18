@@ -500,6 +500,16 @@ function mapRouteToRpcKind(method: string | undefined, route: string): string | 
       return "renderer-info";
     case "/reload-events":
       return "reload-events";
+    // S71 agent-debug. Returns the page's recent `console.*` lines
+    // (error/warn/log/info/debug, all severities) so an agent can
+    // `curl http://127.0.0.1:5173/__agf/console-log` and SEE WebGPU
+    // validation warnings ("Destroyed texture used in submit"),
+    // three.js `warnOnce` messages, and other browser-side signals
+    // without launching playwright. Pairs with playwright probes
+    // — playwright is heavier but supports a fresh page load;
+    // console-log lets you tail the EXISTING tab's recent state.
+    case "/console-log":
+      return "console-log";
     default:
       return undefined;
   }

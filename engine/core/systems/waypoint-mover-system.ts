@@ -19,8 +19,15 @@
 //                          // followers, etc.
 //   }
 //
-// Lives in `engine/core/systems/` because it has no renderer deps. Runs
-// in fixedUpdate so replay reproduces position/rotation per step.
+// Lives in `engine/core/systems/` because it has no renderer deps.
+//
+// S71: switched from fixedUpdate to frameUpdate. WaypointMover drives
+// purely cosmetic motion (decoration cars in shadows-bench, scripted
+// camera rails). Fixed-update tied motion to the simulation accumulator,
+// which on heavy scenes (WebGPU material-bench, large GLB) starts
+// dropping budget once fps falls below ~7.5 — visible as cars freezing
+// mid-route. Replay reproducibility for cosmetic motion was never
+// load-bearing; physics + character movement still own fixedUpdate.
 
 import type { ComponentName, EntityId } from "../ecs/types";
 import type { QueryHandle, World } from "../ecs/world";
@@ -73,7 +80,7 @@ export function createWaypointMoverSystem(options: { name?: string } = {}): Syst
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
 
-  const fixedUpdate = (context: SystemContext): void => {
+  const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
     if (world !== cachedWorld) {
       query = world.createQuery([WAYPOINT_MOVER, TRANSFORM]);
@@ -85,7 +92,7 @@ export function createWaypointMoverSystem(options: { name?: string } = {}): Syst
     }
   };
 
-  return { name, fixedUpdate };
+  return { name, frameUpdate };
 }
 
 function advance(world: World, entityId: EntityId, dt: number): void {

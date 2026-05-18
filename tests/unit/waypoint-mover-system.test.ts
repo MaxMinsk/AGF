@@ -8,7 +8,7 @@ import {
 } from "../../engine/core/systems/waypoint-mover-system";
 
 function step(system: ReturnType<typeof createWaypointMoverSystem>, world: World, dt: number): void {
-  system.fixedUpdate?.({
+  system.frameUpdate?.({
     time: { elapsed: 0, dt, fixedDt: dt, frameCount: 0, fixedStepCount: 0, physicsAlpha: 0 },
     world
   });

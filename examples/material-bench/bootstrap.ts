@@ -184,10 +184,6 @@ function buildSeedCommands(): EngineCommand[] {
     });
   }
 
-  // Two flanking reflection probes on the camera axis (front / back of
-  // the centre sphere). The chrome ball itself uses the centre probe;
-  // these supply outer-ring spheres on the near/far halves of the orbit
-  // with a more local reflection than the centre cubemap.
   const sideProbes: Array<{ id: string; pos: [number, number, number] }> = [
     { id: "probe.front", pos: [0, SIDE_PROBE_Y, SIDE_PROBE_OFFSET_Z] },
     { id: "probe.back", pos: [0, SIDE_PROBE_Y, -SIDE_PROBE_OFFSET_Z] }

@@ -11,6 +11,63 @@
 let activeEventUnsubs: Array<() => void> = [];
 let assetReloadHandler: ((event: Event) => void) | undefined;
 
+// S71 agent-debug: console tap. Patches `window.console.*` once per page
+// load to capture recent messages into a ring buffer that the
+// `/__agf/console-log` HTTP endpoint reads. Critical for agent
+// debugging — WebGPU validation warnings come through `console.warn`,
+// not `pageerror`, and the agent has no other way to see them without
+// launching playwright.
+const CONSOLE_RING_CAPACITY = 200;
+type CapturedConsoleLine = {
+  /** ms since page load (performance.now()) so an agent can correlate with frames. */
+  t: number;
+  /** "log" | "info" | "warn" | "error" | "debug" */
+  level: string;
+  /** Joined string of the original call's arguments (best-effort stringify). */
+  text: string;
+};
+const consoleRing: CapturedConsoleLine[] = [];
+let consoleTapInstalled = false;
+
+function installConsoleTap(): void {
+  if (consoleTapInstalled) return;
+  consoleTapInstalled = true;
+  const target = (globalThis as { console?: Console }).console;
+  if (target === undefined) return;
+  const levels: Array<keyof Console> = ["log", "info", "warn", "error", "debug"];
+  const perf = (globalThis as { performance?: { now(): number } }).performance;
+  const now = (): number => (perf !== undefined ? perf.now() : Date.now());
+  for (const level of levels) {
+    const original = target[level] as ((...args: unknown[]) => void) | undefined;
+    if (typeof original !== "function") continue;
+    (target as unknown as Record<string, (...args: unknown[]) => void>)[level as string] = (
+      ...args: unknown[]
+    ): void => {
+      try {
+        const text = args
+          .map((arg) => {
+            if (typeof arg === "string") return arg;
+            if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
+            try {
+              return JSON.stringify(arg);
+            } catch {
+              return String(arg);
+            }
+          })
+          .join(" ");
+        consoleRing.push({ t: Math.round(now()), level: String(level), text });
+        if (consoleRing.length > CONSOLE_RING_CAPACITY) {
+          consoleRing.splice(0, consoleRing.length - CONSOLE_RING_CAPACITY);
+        }
+      } catch {
+        // Never let a tap failure break the original console output.
+      }
+      original.apply(target, args);
+    };
+  }
+}
+installConsoleTap();
+
 function emitEvent(socket: WebSocket, type: string, data: unknown): void {
   if (socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ kind: "event", payload: { type, data } }));
@@ -179,6 +236,14 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "reload-events":
         payload = api?.reloadEvents ?? [];
         break;
+      case "console-log": {
+        // S71 agent-debug. `console-log` is fetched via
+        // `GET /__agf/console-log`. Returns a snapshot of the captured
+        // ring buffer (last 200 messages across all severities). Always
+        // a non-null payload — `[]` is a valid empty response.
+        payload = { lines: consoleRing.slice() };
+        break;
+      }
       case "commands": {
         const commands = (payloadIn as { commands?: ReadonlyArray<unknown> } | undefined)?.commands;
         if (!Array.isArray(commands) || api?.applyCommands === undefined) {

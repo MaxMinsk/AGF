@@ -22,7 +22,15 @@ export function createSpinSystem(name = "spin"): System {
   let spinningQuery: QueryHandle | undefined;
   return {
     name,
-    fixedUpdate({ time, world }: SystemContext): void {
+    // S71: spin is a cosmetic-only rotation, so frameUpdate is the right
+    // hook. Fixed-update tied the rotation to the simulation clock, which
+    // meant any frame that fell below ~7.5 fps started losing fixed-step
+    // accumulator budget (spiral-of-death cap drops the leftover), and the
+    // rotation visibly stalled — easy to hit on the WebGPU adapter when a
+    // heavy scene (material-bench reflection probes, large GLB) eats the
+    // frame budget. frameUpdate uses the real wall-clock per-frame delta,
+    // so the rotation stays smooth and at-spec regardless of fps.
+    frameUpdate({ time, world }: SystemContext): void {
       if (world !== cachedWorld) {
         spinningQuery = world.createQuery(["Spin", "Transform"]);
         cachedWorld = world;

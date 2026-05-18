@@ -9,8 +9,16 @@
 //   4. On completion: drops the tween (`loop: "none"`), wraps elapsed
 //      back to 0 (`"loop"`), or flips from/to (`"ping-pong"`).
 //
-// Pure ECS — no renderer / DOM access. Runs in `fixedUpdate` so replay
-// reproduces the same elapsed values across runs.
+// Pure ECS — no renderer / DOM access.
+//
+// S71: switched from fixedUpdate to frameUpdate. Tweens drive cosmetic
+// animations (repair flash, particle pickup glints, UI fades). Tying
+// them to the simulation accumulator meant the same spiral-of-death cap
+// that throttles spin / waypoint movers under heavy frames would also
+// freeze in-flight tweens mid-curve. The replay-reproducibility note
+// previously here was aspirational — Tween consumes its own `elapsed`
+// and there's no determinism harness that exercises mid-tween snapshots,
+// so swapping the hook is safe.
 
 import type { ComponentName, EntityId } from "../ecs/types";
 import type { QueryHandle, World } from "../ecs/world";
@@ -78,7 +86,7 @@ export function createTweenSystem(options: { name?: string } = {}): System {
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
 
-  const fixedUpdate = (context: SystemContext): void => {
+  const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
     if (world !== cachedWorld) {
       query = world.createQuery([TWEENS]);
@@ -90,7 +98,7 @@ export function createTweenSystem(options: { name?: string } = {}): System {
     }
   };
 
-  return { name, fixedUpdate };
+  return { name, frameUpdate };
 }
 
 export function advanceEntityTweens(world: World, entityId: EntityId, dt: number): void {

@@ -15,7 +15,7 @@ describe("SpinSystem", () => {
     world.setComponent("cube", "Spin", { axis: "y", speed: 90 });
 
     const system = createSpinSystem();
-    system.fixedUpdate?.({ time: tick(0, 1 / 60), world });
+    system.frameUpdate?.({ time: tick(0, 1 / 60), world });
 
     const transform = world.getComponent<{ rotation: [number, number, number] }>("cube", "Transform");
     expect(transform?.rotation[0]).toBe(0);
@@ -32,7 +32,7 @@ describe("SpinSystem", () => {
 
     const system = createSpinSystem();
 
-    expect(() => system.fixedUpdate?.({ time: tick(0, 0.1), world })).not.toThrow();
+    expect(() => system.frameUpdate?.({ time: tick(0, 0.1), world })).not.toThrow();
     expect(world.getComponent("only-transform", "Transform")).toEqual({ rotation: [0, 0, 0] });
   });
 
@@ -46,7 +46,7 @@ describe("SpinSystem", () => {
     world.setComponent("b", "Spin", { axis: "z", speed: 60 });
 
     const system = createSpinSystem();
-    system.fixedUpdate?.({ time: tick(0, 0.5), world });
+    system.frameUpdate?.({ time: tick(0, 0.5), world });
 
     const a = world.getComponent<{ rotation: [number, number, number] }>("a", "Transform");
     const b = world.getComponent<{ rotation: [number, number, number] }>("b", "Transform");
@@ -61,7 +61,7 @@ describe("SpinSystem", () => {
     world.setComponent("cube", "Spin", { axis: "y", speed: 30 });
 
     const system = createSpinSystem();
-    system.fixedUpdate?.({ time: tick(0, 1), world });
+    system.frameUpdate?.({ time: tick(0, 1), world });
 
     const transform = world.getComponent<{ rotation: [number, number, number] }>("cube", "Transform");
     expect(transform?.rotation).toEqual([0, 30, 0]);

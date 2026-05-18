@@ -58,6 +58,10 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
   let probeQuery: QueryHandle | undefined;
   let bindingQuery: QueryHandle | undefined;
   const probes = new Map<EntityId, ProbeState>();
+  // S71 fix: per-entity memo of "what we already wrote into envMap" so we
+  // only call setMeshMaterialPatch on actual change.
+  const boundTextureByEntity = new Map<EntityId, Texture>();
+  const boundIntensityByEntity = new Map<EntityId, number>();
 
   const fixedDtForRate = (rate: 0 | 15 | 30 | 60): number =>
     rate === 0 ? Number.POSITIVE_INFINITY : 1 / rate;
@@ -71,6 +75,8 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
         bindingQuery = world.createQuery([ENVMAP_BINDING]);
         cachedWorld = world;
         probes.clear();
+        boundTextureByEntity.clear();
+        boundIntensityByEntity.clear();
       }
 
       // Zero the frame's PMREM-regen accumulator before any probe runs
@@ -78,8 +84,12 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
       // cost.
       deps.adapter.resetReflectionPrefilterTimings();
 
-      // 1. Acquire / update / dispose probe entries.
+      // 1. Acquire / update / dispose probe entries. Collects probes
+      //    that WANT to bake this frame; the actual cube-bake fires in
+      //    pass 2 with a per-frame budget cap.
       const seen = new Set<EntityId>();
+      type PendingBake = { id: EntityId; state: ProbeState; excludes: ReadonlyArray<EntityId>; overdueSeconds: number };
+      const pendingBakes: PendingBake[] = [];
       for (const id of probeQuery!.run()) {
         seen.add(id);
         const config = world.getComponent<ReflectionProbeComponent>(id, REFLECTION_PROBE);
@@ -140,19 +150,50 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
             ? !state.baked
             : state.accumSeconds >= interval;
         if (shouldUpdate) {
-          state.accumSeconds = 0;
-          const hidden: Array<import("three").Object3D> = [];
-          const excludes = new Set<EntityId>(excludeEntities);
-          excludes.add(id); // never see self.
-          for (const excludeId of excludes) {
-            const meshHandle = deps.registry.handleFor(excludeId);
-            if (meshHandle === undefined) continue;
-            const mesh = deps.adapter.meshForHandle(meshHandle);
-            if (mesh !== undefined) hidden.push(mesh);
-          }
-          deps.adapter.updateReflectionProbe(state.handle, hidden);
-          if (state.updateRate === 0) state.baked = true;
+          pendingBakes.push({
+            id,
+            state,
+            excludes: excludeEntities,
+            overdueSeconds: state.updateRate === 0 ? Number.POSITIVE_INFINITY : state.accumSeconds - interval
+          });
         }
+      }
+
+      // S71 WEBGPU-probe-stagger. CubeCamera.update() does 6 full
+      // renderer.render() calls. With N probes that all want to bake on
+      // the same frame, the per-frame cost spikes to N × 6 cube renders
+      // + N × PMREM prefilter — easy to push frameDt above the 8-step
+      // accumulator cap on WebGPU (where cube-bakes run 3-4× slower
+      // than on WebGL2 in r0.184), at which point fixed-step gameplay
+      // stalls and the scene visibly freezes.
+      //
+      // Round-robin: bake at most one probe per frame. Pick the
+      // most-overdue probe so a probe that fell behind catches up
+      // first. Bake-once probes (updateRate === 0) have
+      // overdueSeconds === Infinity and always win until they've baked.
+      //
+      // Net effect: per-frame bake cost is capped at 6 cube renders
+      // regardless of probe count, while the AVERAGE refresh rate
+      // matches the configured updateRate as long as
+      // fps >= probeCount * updateRate (e.g., 60 fps comfortably
+      // supports 3 probes at 15 Hz = 45 demand/sec with headroom).
+      if (pendingBakes.length > 0) {
+        let pick = pendingBakes[0]!;
+        for (let i = 1; i < pendingBakes.length; i += 1) {
+          if (pendingBakes[i]!.overdueSeconds > pick.overdueSeconds) pick = pendingBakes[i]!;
+        }
+        pick.state.accumSeconds = 0;
+        const hidden: Array<import("three").Object3D> = [];
+        const excludes = new Set<EntityId>(pick.excludes);
+        excludes.add(pick.id); // never see self.
+        for (const excludeId of excludes) {
+          const meshHandle = deps.registry.handleFor(excludeId);
+          if (meshHandle === undefined) continue;
+          const mesh = deps.adapter.meshForHandle(meshHandle);
+          if (mesh !== undefined) hidden.push(mesh);
+        }
+        deps.adapter.updateReflectionProbe(pick.state.handle, hidden);
+        if (pick.state.updateRate === 0) pick.state.baked = true;
       }
 
       // Drop probes whose entities disappeared.
@@ -165,8 +206,17 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
 
 
       // 2. Stamp the probe texture onto every entity with an EnvmapBinding.
-      // Re-binds every frame; cheap because MaterialBinding handles the
-      // setMeshMaterialPatch idempotently.
+      // S71 fix: only patch when the probe's texture POINTER actually
+      // changed (i.e., a bake just produced a new prefiltered RT). Patching
+      // every frame forced `material.needsUpdate = true`, which on WebGPU
+      // disposes the previous shader program + bindgroup; the bindgroup
+      // may still be referenced by a submitted command buffer that hasn't
+      // finished GPU-side, producing the
+      // "Destroyed texture [PMREM.cubeUv] used in a submit" validation
+      // spam. Comparing by reference is fine because
+      // `reflectionProbeTexture` returns the SAME Texture object until the
+      // next successful bake replaces it (deferred-dispose ring is in the
+      // adapter).
       for (const bindingId of bindingQuery!.run()) {
         const binding = world.getComponent<EnvmapBindingComponent>(bindingId, ENVMAP_BINDING);
         if (binding === undefined) continue;
@@ -176,10 +226,16 @@ export function createReflectionProbeSystem(deps: ReflectionProbeDeps): System {
         if (texture === undefined) continue;
         const meshHandle = deps.registry.handleFor(bindingId);
         if (meshHandle === undefined) continue;
+        const previouslyBound = boundTextureByEntity.get(bindingId);
+        const intensity = binding.intensity;
+        const previousIntensity = boundIntensityByEntity.get(bindingId);
+        if (previouslyBound === texture && previousIntensity === intensity) continue;
         deps.adapter.setMeshMaterialPatch(meshHandle, {
           envMap: texture,
-          ...(binding.intensity !== undefined ? { envMapIntensity: binding.intensity } : {})
+          ...(intensity !== undefined ? { envMapIntensity: intensity } : {})
         });
+        boundTextureByEntity.set(bindingId, texture);
+        if (intensity !== undefined) boundIntensityByEntity.set(bindingId, intensity);
       }
     }
   };
