@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S086",
   "title": "Kaboom Crew polish round 2 + engine perf gates + asset inventory probe",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-18",
   "stories": [
     {
@@ -109,5 +109,7 @@
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     }
-  ]
+  ],
+  "archivedAt": "2026-05-19",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/96"
 }
