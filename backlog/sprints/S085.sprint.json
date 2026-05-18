@@ -22,13 +22,16 @@
     {
       "id": "KABOOM-AUDIO-PROCEDURAL-SFX",
       "title": "WebAudio-synth SFX so the four events actually make sound",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S084 KABOOM-AUDIO-WIRE loaded clip URLs that didn't exist — HTMLAudio.play() fell through silently. Replace the placeholder loader with a project-local procedural synth that uses WebAudio (OscillatorNode + GainNode + lazy AudioContext): bomb-place = low tick, blast = filtered noise burst, pickup = rising chirp, death = descending pitch. No binary assets to ship; sounds the moment the user clicks the page.",
       "verification": [
         "examples/kaboom-crew/src/audio-fx.ts ships createKaboomAudioFx({ contextFactory? }) → { play(kind), dispose() }",
         "bootstrap wires the audio binding's onEvent through it; audio.load placeholders dropped",
         "unit test: each kind dispatches the expected oscillator + gain envelope (mocked AudioContext)",
-        "live probe: window.__agf.kaboom.placeBomb('player.1') triggers an audible bomb-place tick + blast burst 2.5 s later"
+        "live probe: window.__agf.kaboom.placeBomb('player.1') triggers an audible bomb-place tick + blast burst 2.5 s later",
+        "examples/kaboom-crew/src/audio-fx.ts ships createKaboomAudioFx({ contextFactory?, masterGain? }) → { play(kind), dispose() }; lazy AudioContext + autoplay-rejection swallow",
+        "bootstrap drops the S84 placeholder audio.load URLs; audio-binding's onEvent now drives audioFx.play(kind); audioLog mirror unchanged",
+        "+7 unit tests cover lazy construction / 4 kinds dispatched / no-DOM no-op / dispose idempotent (mocked AudioContext)"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

@@ -29,6 +29,7 @@ import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
+import { createKaboomAudioFx } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
 /**
@@ -225,18 +226,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       ]);
     };
 
-    // S84 KABOOM-AUDIO-WIRE. Register the 4 clips (placeholder URLs;
-    // CC0 WAVs will land under examples/kaboom-crew/assets/audio/ in
-    // a follow-up). Audio bus is undefined on headless hosts —
-    // _boundAudioEvent still runs so audioLog mirrors the event
-    // sequence, but play() is skipped.
-    const audio = (runtime as unknown as { audio?: import("../../engine/runtime/audio/audio-bus").AudioBus }).audio;
-    if (audio !== undefined) {
-      audio.load("bomb-place", "/examples/kaboom-crew/assets/audio/bomb-place.wav");
-      audio.load("blast", "/examples/kaboom-crew/assets/audio/blast.wav");
-      audio.load("pickup", "/examples/kaboom-crew/assets/audio/pickup.wav");
-      audio.load("death", "/examples/kaboom-crew/assets/audio/death.wav");
-    }
+    // S85 KABOOM-AUDIO-PROCEDURAL-SFX. Drop the S84 placeholder
+    // audio.load URLs (which pointed at non-existing files and fell
+    // through silently) and route the four binding events through a
+    // procedural WebAudio synth. No binary assets to ship; audio
+    // starts working the moment the user clicks the page (the
+    // AudioContext is lazily created on the first play() because
+    // browsers reject construction before a user gesture).
+    const audioFx = createKaboomAudioFx({ masterGain: 0.4 });
     _audioLog = [];
     _boundAudioEvent = (kind, c): void => {
       const entry: AudioLogEntry = { kind, ts: Date.now() };
@@ -244,7 +241,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       _audioLog.push(entry);
       // Cap the log so a long-running session doesn't grow unbounded.
       if (_audioLog.length > 200) _audioLog.splice(0, _audioLog.length - 200);
-      audio?.play(kind, { volume: kind === "blast" ? 0.8 : 0.6 });
+      audioFx.play(kind);
     };
 
     const handleKey = (event: KeyboardEvent): void => {
@@ -627,6 +624,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         _boundRestart = undefined;
         _boundAudioEvent = undefined;
         _audioLog = [];
+        audioFx.dispose();
         if (hudCleanup !== undefined) hudCleanup();
       }
     };
