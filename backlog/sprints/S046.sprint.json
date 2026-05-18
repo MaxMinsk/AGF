@@ -13,7 +13,8 @@
       "summary": "**CI-e2e-artifacts** ✅ — `tests/e2e/_shared/artifacts.ts` Playwright fixture that on test failure attaches console log + `__agf.diagnostics()` + `rendererInfo()` + `frameTiming()`. Workflow uploads `playwright-report/` and `test-results/` as artifacts.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S046-2",
@@ -22,7 +23,8 @@
       "summary": "**CI-e2e-helpers** ✅ — `tests/e2e/_shared/agf.ts` exports `waitForAgfReady(page)` (gates on `__agf` exists → `rendererReady` → first scene-load → first frame tick) and `waitForAgfPredicate(page, fn)` (snapshot predicate poll with consistent 30s default). Replaces the historical inline `{ timeout: 5_000 }` pattern.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S046-3",
@@ -31,7 +33,8 @@
       "summary": "**CI-e2e-preview-mode** ✅ — `playwright.preview.config.ts` runs gameplay + rendering specs against `vite build` + `vite preview` instead of the dev server. Avoids per-request TypeScript transform + HMR overhead. New scripts `test:e2e:smoke`, `test:e2e:preview`, `test:e2e:full-dev`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     },
     {
       "id": "S046-4",
@@ -40,7 +43,8 @@
       "summary": "All pass locally in 32s. `preflight` now runs `test:e2e:smoke`, not the full suite.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "PLAYTEST-RUNNER"
     },
     {
       "id": "S046-5",
@@ -49,7 +53,8 @@
       "summary": "New `.github/workflows/e2e-nightly.yml` runs the full dev-server matrix + preview-mode matrix on cron (04:00 UTC) + workflow_dispatch + pushes to main.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGENT-RELIABILITY-INFRASTRUCTURE"
     }
   ],
   "notes": [

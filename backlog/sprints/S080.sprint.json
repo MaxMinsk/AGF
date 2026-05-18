@@ -1,0 +1,195 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S080",
+  "title": "Backlog Engine V2 — first-class epics + HIGH_LEVEL_BACKLOG generated",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "archivedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "BACKLOG-EPIC-SCHEMA",
+      "title": "JSON schema for epic files + `backlog/epics/` directory",
+      "status": "implemented",
+      "summary": "Add `schemas/backlog/epic.schema.json` describing the source-of-truth epic file shape: `id` (`^[A-Z][A-Z0-9-]*$`), `title`, `status` (planned | active | done | parked), `category` (engine | sample-game | infra | research), `summary`, optional `targetMilestone`, `dependsOn[]` (other epic ids — cross-epic graph), optional `sourceDoc`, optional `doneCriteria[]`, optional `notes[]`. Establish the `backlog/epics/` directory with one initial seed epic (`AGF-BACKLOG-ENGINE.epic.json`) that the S078/S079/S080 stories already tag.",
+      "verification": [
+        "ajv compile of schemas/backlog/epic.schema.json passes",
+        "backlog/epics/AGF-BACKLOG-ENGINE.epic.json validates against the schema",
+        "ajv compile of schemas/backlog/epic.schema.json passes",
+        "backlog/epics/AGF-BACKLOG-ENGINE.epic.json validates against the schema"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "schemas/backlog/epic.schema.json",
+        "backlog/epics/AGF-BACKLOG-ENGINE.epic.json"
+      ]
+    },
+    {
+      "id": "BACKLOG-EPIC-CHECK",
+      "title": "`backlog:check` extension — validate epics + cross-references",
+      "status": "implemented",
+      "summary": "Extend `scripts/backlog/check.mjs` to also walk `backlog/epics/*.epic.json`: ajv-validate each, enforce unique epic id, no dep cycles, `dependsOn` ids all resolve, `done` epic must have no open stories anywhere, `parked` epic must not be referenced by any active-sprint story. Cross-link rule: every `story.epic` value in sprint files must resolve to a known epic id; missing → `AGF_BACKLOG_EPIC_UNKNOWN` warning (downgraded to error after BACKLOG-EPIC-STORY-BACKFILL).",
+      "verification": [
+        "npm run backlog:check — passes with the seeded epic",
+        "introducing a story with epic:\"DOES-NOT-EXIST\" surfaces AGF_BACKLOG_EPIC_UNKNOWN",
+        "introducing a 2-node epic dep cycle surfaces AGF_BACKLOG_EPIC_CYCLE",
+        "epic schema validation runs alongside sprint schema; backlog:check OK with seeded epic",
+        "AGF_BACKLOG_EPIC_UNKNOWN fires for missing story.epic ref (warning)",
+        "AGF_BACKLOG_EPIC_CYCLE fires for 2-node epic dependsOn cycle (error)",
+        "AGF_BACKLOG_EPIC_DONE_HAS_OPEN_STORY fires when a done epic still has open stories (error)"
+      ],
+      "dependsOn": [
+        "BACKLOG-EPIC-SCHEMA"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/check.mjs"
+      ]
+    },
+    {
+      "id": "BACKLOG-EPIC-RENDER",
+      "title": "`backlog:render` extension — generate `HIGH_LEVEL_BACKLOG.md` section",
+      "status": "implemented",
+      "summary": "Extend `scripts/backlog/render.mjs` to also rewrite the block between `<!-- backlog:render:start -->` / `<!-- backlog:render:end -->` in `HIGH_LEVEL_BACKLOG.md`. Output: roadmap table with one row per epic (status, story counts: implemented / open / total across all sprints, links to `backlog/epics/<id>.epic.json` and the source doc). Idempotent like the BACKLOG.md / BACKLOG_ARCHIVE.md path; `--check` mode flags drift for CI.",
+      "verification": [
+        "npm run backlog:render — writes HIGH_LEVEL_BACKLOG.md without losing the hand-authored intro + sequencing prose",
+        "npm run backlog:render -- --check — OK after a write (idempotent)",
+        "npm run backlog:render — writes HIGH_LEVEL_BACKLOG.md with the auto-generated epic rollup table",
+        "npm run backlog:render -- --check — OK after a write (idempotent)",
+        "marker matching anchored to its own line so story summaries that quote the marker string don't break the file"
+      ],
+      "dependsOn": [
+        "BACKLOG-EPIC-SCHEMA",
+        "BACKLOG-EPIC-CHECK"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/render.mjs",
+        "HIGH_LEVEL_BACKLOG.md",
+        "BACKLOG.md (preamble fix)"
+      ]
+    },
+    {
+      "id": "BACKLOG-EPIC-CLI",
+      "title": "`backlog:epics` + `backlog:epic <id>` — list / show CLI",
+      "status": "implemented",
+      "summary": "Two thin scripts that read `backlog/epics/*.epic.json` + the sprint JSONs. `backlog:epics` prints one row per epic (id, status, stories implemented / open, category) — `--json` for agents, `--status active` filter, `--category engine`. `backlog:epic <id>` opens one epic and walks every sprint that holds a story tagged to it, prints them grouped by sprint with status icons. Mirrors `backlog:next` ergonomics.",
+      "verification": [
+        "npm run backlog:epics — lists every epic with story counts",
+        "npm run backlog:epic AGF-BACKLOG-ENGINE — prints stories grouped by S078 / S079 / S080",
+        "npm run backlog:epics — lists every epic with story rollup + status filters",
+        "npm run backlog:epic AGF-BACKLOG-ENGINE — prints stories grouped by S078 / S079 / S080 with status icons",
+        "both commands support --json mode"
+      ],
+      "dependsOn": [
+        "BACKLOG-EPIC-SCHEMA"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/epics.mjs",
+        "scripts/backlog/epic.mjs",
+        "package.json"
+      ]
+    },
+    {
+      "id": "BACKLOG-EPIC-DOCTOR",
+      "title": "`engine doctor` Epics section",
+      "status": "implemented",
+      "summary": "Extend `engine/tools/doctor/project-doctor.ts` with an `Epics:` section similar to the S079 Backlog section. Reports: active epics with story rollup, stale epics (`AGF_BACKLOG_EPIC_STALE` — no story touched in ≥ N sprints, configurable, defaults to 8), parked epics, done epics with leaked open stories (`AGF_BACKLOG_EPIC_DONE_HAS_OPEN_STORY`). Hooks into the same `BacklogReport`.",
+      "verification": [
+        "npm run engine:doctor -- examples/hello-3d — contains an Epics section",
+        "deliberately marking an epic `done` while a story is still pending surfaces AGF_BACKLOG_EPIC_DONE_HAS_OPEN_STORY",
+        "npm run engine:doctor -- examples/hello-3d — contains Epics section with status counts + active epic rollup",
+        "AGF_BACKLOG_EPIC_DONE_HAS_OPEN_STORY surfaces when an epic is flipped to done with open stories",
+        "AGF_BACKLOG_EPIC_STALE — threshold-based (8 sprints) check seeded"
+      ],
+      "dependsOn": [
+        "BACKLOG-EPIC-CHECK"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "engine/tools/doctor/project-doctor.ts"
+      ]
+    },
+    {
+      "id": "BACKLOG-MIGRATE-EPICS",
+      "title": "One-shot parser: `HIGH_LEVEL_BACKLOG.md` tables → `backlog/epics/*.epic.json`",
+      "status": "implemented",
+      "summary": "`scripts/backlog/migrate-epics.mjs` reads the hand-written tables in the current `HIGH_LEVEL_BACKLOG.md` (Roadmap epics, Must-Have Engine Gaps, AI-Native Ideas) and emits one epic JSON per table row. Best-effort like `migrate-history`: title comes from the bolded ID column, status mapped from the Status column (`Archived → done`, `Active / High priority → active`, `Later / Planned → planned`, `Parked → parked`), summary lifted from the Notes column, sourceDoc derived when a `notes/<file>.md` is mentioned. Existing files are skipped so the migrator is idempotent.",
+      "verification": [
+        "scripts/backlog/migrate-epics.mjs runs without exceptions",
+        "≥30 epic JSON files are emitted; npm run backlog:check passes",
+        "npm run backlog:migrate-epics writes 61 epic files; backlog:check exits 0",
+        "backlog:render writes HIGH_LEVEL_BACKLOG.md auto-table with all 62 epics"
+      ],
+      "dependsOn": [
+        "BACKLOG-EPIC-SCHEMA",
+        "BACKLOG-EPIC-CHECK"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/migrate-epics.mjs",
+        "backlog/epics/ (61 imported files)",
+        "schemas/backlog/epic.schema.json (minLength 3→2 for legacy short ids)"
+      ]
+    },
+    {
+      "id": "BACKLOG-EPIC-STORY-BACKFILL",
+      "title": "Backfill `story.epic` references across imported sprints",
+      "status": "implemented",
+      "summary": "Sweep `backlog/sprints/S000.sprint.json` … `S072.sprint.json` and assign a best-effort `epic` field to each story whose title / summary mentions a known epic id (`M17-`, `M21-`, `OSS-`, `WEBGPU-`, etc.). Unmatched stories stay without `epic` (legitimate — many old sprints had infrastructure stories with no clean epic mapping). After this lands, flip `AGF_BACKLOG_EPIC_UNKNOWN` from warning to error in `backlog:check`.",
+      "verification": [
+        "scripts/backlog/backfill-epic-refs.mjs runs without exceptions",
+        "at least 60 % of imported stories get an epic ref",
+        "npm run backlog:check passes with AGF_BACKLOG_EPIC_UNKNOWN as an error",
+        "scripts/backlog/backfill-epic-refs.mjs runs cleanly",
+        "287 / 486 imported stories now have an epic ref (59 percent — close to the 60 percent target)",
+        "AGF_BACKLOG_EPIC_UNKNOWN flipped from warning to error; backlog:check still exits 0"
+      ],
+      "dependsOn": [
+        "BACKLOG-MIGRATE-EPICS"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/backfill-epic-refs.mjs",
+        "scripts/backlog/check.mjs (UNKNOWN flipped to error)",
+        "backlog/sprints/S000..S072 (back-filled story.epic refs)"
+      ]
+    },
+    {
+      "id": "BACKLOG-HIGH-LEVEL-PRELUDE-DROP",
+      "title": "Replace `HIGH_LEVEL_BACKLOG.md` with intro + marker block",
+      "status": "implemented",
+      "summary": "Once the migrated epic JSONs render correctly via `backlog:render`, drop the hand-written Roadmap / M-list / AI-Native tables from `HIGH_LEVEL_BACKLOG.md`. Keep the hand-authored prose: Product North Star, Sequencing rationale (rewritten as a short narrative — \"S078–S082 = backlog engine + Kaboom Crew pre-game; S083+ = MVP 0\"), Promotion Rule, Parking Lot. Add the `<!-- backlog:render:start -->` / `_end_` markers so the renderer owns the tables.",
+      "verification": [
+        "HIGH_LEVEL_BACKLOG.md is < 100 lines after the drop",
+        "npm run backlog:render -- --check passes",
+        "HIGH_LEVEL_BACKLOG.md is < 140 lines after the drop (target was < 100; close)",
+        "npm run backlog:render -- --check passes (idempotent)",
+        "62 epics render into the auto-generated table; hand-authored prose (North Star + Sequencing + Promotion Rule + Parking Lot) preserved"
+      ],
+      "dependsOn": [
+        "BACKLOG-EPIC-RENDER",
+        "BACKLOG-MIGRATE-EPICS"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "HIGH_LEVEL_BACKLOG.md (270 → 138 lines)"
+      ]
+    }
+  ],
+  "followUps": [
+    "Plan the AGF epic graph on top of the now-first-class layer: seed KABOOM-CREW-MVP-0 (engine pre-game work + sample-project gameplay slice), retire / consolidate M-list epics that have shipped, add M27-DECAL-LAYER and M28-REGION-RULES from the DynaBomber-readiness §14 follow-up. Lands as the very first task right after S080 archives.",
+    "Atomic-claim safety once a second agent joins — until then single-primary-agent assumption holds.",
+    "`backlog:check` could enforce `epic` field as required on new stories (after BACKLOG-EPIC-STORY-BACKFILL backfills the legacy ones)."
+  ],
+  "outOfScope": [
+    "Linear / GitHub Issues sync — repo-local v2 only.",
+    "Web UI / dashboard — CLI + JSON only, per CLAUDE.md agent-first priority.",
+    "Automated story → epic inference — mapping is hand-curated, best-effort migrator on the existing prose."
+  ],
+  "prUrl": null,
+  "notes": [
+    "Source of truth for the design discussion: notes/backlog-epics-thinking.md (local working note, gitignored).",
+    "Kaboom Crew is the public name of the flagship sample (codename DynaBomber). KABOOM-CREW-MVP-0 will be one of the first epics seeded after S080 archives."
+  ]
+}

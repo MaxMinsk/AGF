@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "WORKSPACE-PACKAGE-SPLIT",
+  "title": "Workspace/package split",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Consider workspaces only after boundaries become painful.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

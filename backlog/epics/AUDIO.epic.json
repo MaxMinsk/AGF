@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "AUDIO",
+  "title": "Audio",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Positional audio and UI/music buses.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "SPRINT-0-DOCS-AND-RULES",
+  "title": "Sprint 0 docs and rules",
+  "status": "done",
+  "category": "engine",
+  "summary": "Baseline docs, ADRs, Claude setup and research notes exist.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

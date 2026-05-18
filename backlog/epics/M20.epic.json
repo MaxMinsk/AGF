@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M20",
+  "title": "M20 Netcode rework — pick a proven model & rebuild own-drone authority",
+  "status": "active",
+  "category": "engine",
+  "summary": "Three bugs surfaced together in Sprint 32 (own-drone runs 2× the server-broadcast position; 30s server idle timeout disconnects steady players; networked controls feel different from single-player). Current \"rollback-replay with replayUnackedIntents\" is mixed-source-of-truth — PlayerInputSystem moves the drone locally AND network-drone-sync lerps it toward server + replay, double-counting in-flight intents. Investigation lands as docs/research/netcode-rework-investigation.md (done Sprint 32); recommendation is client-authoritative own player (Option E). Implementation sequenced as M20-a → M20-l across 2 sprints.",
+  "sourceDoc": "docs/research/netcode-rework-investigation.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

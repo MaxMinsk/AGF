@@ -13,7 +13,8 @@
       "summary": "`M25 / ASSET-compression` ✅ `createGlbLoader` defaults `meshopt: true` + `draco: true` (Three.js engages decoders only when the GLB declares the matching extension, so uncompressed projects pay zero cost). Beacon's procedurally-built GLBs stay canonical — the optimize pipeline's dedup pass would destroy build-script flat-shaded normals; documented as a known limit on the optimize CLI (it's for art-authored GLBs, not procedural).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S041-2",
@@ -22,7 +23,8 @@
       "summary": "}` component + `OrbitCameraSystem` (frameUpdate, runs before CameraSyncSystem) resolves the polar coords into Transform.position + rotation. Input-agnostic — gameplay mutates OrbitCamera fields. 5 unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S041-3",
@@ -31,7 +33,8 @@
       "summary": "`M17-instance-picking` ✅ `ThreeRenderAdapter.pickAtNdc(x, y)` does Raycaster.setFromCamera + iterates the per-entity Mesh map for the closest hit. MeshHandleRegistry gains `entityForHandle` (with mirror map). RuntimeHandle.pick / AppHandle.pick / `window.__agf.pick({ x, y })` return `{ entityId, point, distance }`. Verified end-to-end against Beacon. Instance-mesh resolution is the natural follow-up.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S041-4",
@@ -58,7 +61,8 @@
       "summary": "MaterialBindingSystem fetches them in parallel, caches per URL, falls back gracefully on 404 / network errors. Inline `vertexShader` / `fragmentShader` still supported; refs take precedence when both are set.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S041-7",
@@ -67,7 +71,8 @@
       "summary": "New `engine/render/shadow-pcss.ts` ports three's `webgl_shadowmap_pcss.html` recipe. Schema `render.shadows.algorithm` enum gains `\"pcss\"`. Idempotent + process-wide. Beacon opts in — contact shadows under the drone soften with distance from the receiver. Known limit: CSM uses its own `CSMShader.js` and ignores the patched chunk; PCSS is a no-op on CSM scenes (shadows-bench) until a follow-up patches CSMShader.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     }
   ],
   "followUps": [

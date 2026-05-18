@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-planar-mirror** — `acquirePlanarMirror` branches on `capabilities.kind`: - WebGL: existing `new Reflector(geometry, {...})` path unchanged. - WebGPU: `reflector()` returns a TextureNode; `MeshBasicNodeMaterial.colorNode = reflector`; a `Mesh(planeGeometry, material)` is added to the scene; `reflector.target` is parented to the mesh so the mirror plane follows transform updates. - `setPlanarMirrorTransform` and `releasePlanarMirror` updated to handle both shapes via a tagged union (`{ kind: \"webgl\" | \"webgpu\", ... }`).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S072-2",
@@ -39,7 +40,8 @@
       "summary": "8 of 9 example projects now run on WebGPU.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
     }
   ],
   "followUps": [

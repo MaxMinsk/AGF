@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION",
+  "title": "M4-docs Schema-driven docs generation",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 28: engine docs <projectDir> renders Markdown from every schemas/*.schema.json + the project's template_context.md into docs/generated/<projectId>/. Regenerable; gitignored.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

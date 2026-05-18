@@ -13,7 +13,8 @@
       "summary": "**MIGRATE-beacon-world-webgpu** — `examples/beacon-world/project.json`: - `mode: \"webgl\" → \"webgpu\"` - `batching.auto: true → false` - `shadows.algorithm: \"pcss\" → \"pcf\"` (PCSS needs a TSL node port to work on WebGPU) Live verification (headed chromium, `--enable-unsafe-webgpu`): renderer=webgpu, 15 entities, 15 draws, 5 lights, scene + shadows + gameplay UI (HP/SIG widget) all render correctly. Physics + persistence + dev-bridge coexist with WebGPU.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
     }
   ],
   "followUps": [

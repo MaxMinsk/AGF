@@ -75,7 +75,8 @@
       "summary": "`13.12` Beacon World sound pings — new `examples/beacon-world/src/audio/sound-pings.ts` emits three procedural beeps (`pickup`, `deposit`, `damage`) via Web Audio. `PickupSystem` and `HazardSystem` now expose typed `onEvent` callbacks; the Beacon bootstrap wires both into a shared `SoundPings` instance and disposes the `AudioContext` on teardown. Headless-safe (no `AudioContext` ⇒ silent no-op), with two unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AUDIO"
     }
   ],
   "followUps": [

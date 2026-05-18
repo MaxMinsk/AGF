@@ -13,7 +13,8 @@
       "summary": "26-row OK / update / new verdict table plus an ownership map tying each remaining story to its files.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-2",
@@ -22,7 +23,8 @@
       "summary": "New hard rules: ECS systems by default + documented deviation, reuse engine primitives before scaffolding (Spin > GroupRotator), texture refs always through `AssetRegistry.urlFor`, `MeshRenderer.material` is full path, `Transform.rotation` is degrees, prefab overrides shallow-merge, primitive set is `box / sphere / cylinder / plane`. Review checklist gained Data+Schemas + Diagnostics + Performance Hygiene sections.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S055-3",
@@ -31,7 +33,8 @@
       "summary": "End-to-end walkthrough using material-bench shapes; instantiate-a-prefab recipe; HDR-background + idle-mode + criticalAssets recipes; 6-item common-mistakes checklist; `__agf` table extended with `gpuMs / frameTiming / pick / dev.tuner / shadow controls / physics raycast / recording / project-patch`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-4",
@@ -40,7 +43,8 @@
       "summary": "Pipeline diagram + per-stage prose: `_sources/` layout, provenance schema (`kind` / `source.type` enums), `engine asset import`, `engine asset optimize` with `--source` / `--textures`, material manifest cheat-sheet (incl. `bumpMap` vs `normalMap`), scene reference rules, HDR env spec, doctor sections, `criticalAssets` gate, diagnostics catalogue, future-work pointers.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-5",
@@ -49,7 +53,8 @@
       "summary": "Scene shape with `instances` + `environment.hdr.asBackground`; component cheat-sheet incl. MeshRenderer full-path rule, ShadowCaster dynamic flag, Spin / Tween / WaypointMover reuse note; project-local component flow; 5 pitfalls.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-6",
@@ -58,7 +63,8 @@
       "summary": "Lead with grep-before-scaffold; canonical cached-`createQuery` template; engine-vs-project boundary table; no per-frame Three.js alloc + no raw event listeners; 5 pitfalls.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-7",
@@ -67,7 +73,8 @@
       "summary": "Full `window.__agf` API table (16 entries incl. `rendererInfo.gpuMs`, `frameTiming`, `pick`, `dev.tuner.*`, shadow controls, physics raycast, recording, save/load). Dev-bridge HTTP endpoint table (12 routes). 6 common debugging patterns.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-8",
@@ -76,7 +83,8 @@
       "summary": "**DOCS-engine-check-skill** ✅ — `docs/agent/skills/engine-check.md` rewritten with the sibling-command matrix (check / doctor / inspect / docs / list / explain / asset optimize / asset import), symptom→code lookup, and the full list of files `engine check` validates. `docs/diagnostics.md` catalogue brought current — domain enum extended, new per-domain tables, S54 codes documented.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-9",
@@ -85,7 +93,8 @@
       "summary": "When-to-extract threshold, manifest shape, `scene.instances[]` syntax with shallow-merge semantics + worked example, per-instance field list, when NOT to extract, diagnostics + doctor section, beacon-world M3-c-beacon worked example.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M3"
     },
     {
       "id": "S055-10",
@@ -94,7 +103,8 @@
       "summary": "Shader picking table, full field cheat-sheet, bumpMap-vs-normalMap decision rules with the bump-source pitfall, asset-registry texture resolution, full-path rule for MeshRenderer.material, 7 common pitfalls, doctor + texture warnings.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-11",
@@ -103,7 +113,8 @@
       "summary": "Slash-command matrix + subagent matrix with \"when to delegate\" lines. Reliability-doc map updated. Sprint-workflow paragraph added. `.claude/agents/*.md` descriptions verified current — no changes needed.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S055-12",
@@ -112,7 +123,8 @@
       "summary": "Iteration loop gains the sprint-workflow paragraph and three new recipes (screenshot, bug-report, dev-tuner). Debug protocol gains a 17-row failure-taxonomy → first-look-diagnostic lookup table, the dev-bridge route list, and the post-fix verification checklist.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     }
   ],
   "followUps": [

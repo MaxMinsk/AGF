@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "BEACON-WORLD-SAMPLE",
+  "title": "Beacon World sample",
+  "status": "active",
+  "category": "engine",
+  "summary": "Scaffold + scene + drone movement shipped through Sprint 4; pickups, carry/deposit and hazards remain.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

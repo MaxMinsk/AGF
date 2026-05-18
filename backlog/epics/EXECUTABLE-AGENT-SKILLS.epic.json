@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "EXECUTABLE-AGENT-SKILLS",
+  "title": "Executable agent skills",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Turn repeated AGF workflows into runnable skill helpers after failures are known.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

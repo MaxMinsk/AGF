@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "REMOTE-CDN-ASSET-DELIVERY",
+  "title": "Remote/CDN asset delivery",
+  "status": "planned",
+  "category": "engine",
+  "summary": "AGF-flavoured \"Addressables-lite\": asset catalog manifest with hashed URLs, CORS-aware loaders, persistent browser cache (IndexedDB/Cache API), versioned cache busting, progress events and lazy bundles. Builds on top of the existing AssetRegistry.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

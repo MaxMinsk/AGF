@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M7",
+  "title": "M7 Performance budgets + renderer metrics",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 27: per-project performance-budget.json + schemas/performance-budget.schema.json + engine doctor reads the budget and exposes compareRendererInfo(info, budget) for soft/hard renderer violations. Renderer info already on window.__agf from Sprint 26. Follow-up (E.64): roll bundle:check into the doctor report.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

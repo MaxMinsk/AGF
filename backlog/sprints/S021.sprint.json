@@ -40,7 +40,8 @@
       "summary": "`14.8` Material HMR audit — new `tests/e2e/material-hmr-audit.spec.ts` walks every file under `examples/beacon-world/assets/runtime/materials/`, touches it, and asserts that `window.__agf.lastReloadedAsset` matches the expected ref and `reloadCount` increments. Catches accidental regressions to the `agf:asset-changed` plugin path. Updated `glb-hot-reload.spec.ts` to wait on `lastReloadedAsset` directly rather than re-reading after the fact, eliminating a race with the new audit when both run in parallel.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "HOT-RELOAD"
     }
   ],
   "followUps": [

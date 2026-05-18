@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M15",
+  "title": "M15 Engine dev server",
+  "status": "done",
+  "category": "engine",
+  "summary": "Sprint 30 produced the design doc; Sprint 31 shipped M15-a plugin + /health, M15-b WS bridge, M15-c pull endpoints (snapshot / diagnostics / renderer-info / reload-events), M15-d /bug-report + schema, M15-e recording start/stop, M15-f commands, M15-h asset invalidate. Page-bridge auto-reconnects, dedicated playwright.dev-bridge.config.ts owns isolation. Remaining: M15-g SSE event stream, M15-i optional engine connect CLI, M15-multi-page drop the single-page invariant.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

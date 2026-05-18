@@ -1,0 +1,22 @@
+{
+  "agfFormatVersion": 1,
+  "id": "AGF-BACKLOG-ENGINE",
+  "title": "JSON-first backlog engine — source of truth + tooling",
+  "status": "active",
+  "category": "infra",
+  "summary": "Replace the hand-edited `BACKLOG.md` / `BACKLOG_ARCHIVE.md` / `HIGH_LEVEL_BACKLOG.md` workflow with a JSON-first system where every sprint and epic is a validated file under `backlog/`, and the Markdown views are auto-generated. The motivation is agent ergonomics: an agent cannot reliably edit 200-line prose tables, but it can mutate small JSON files via dedicated CLI commands (`backlog:claim`, `backlog:done`, `backlog:defer`) with schema-backed safety nets. Once epics are first-class, the same agent can answer 'what's next', 'what does epic X still need', 'is the roadmap stale' without hand-grepping prose.",
+  "targetMilestone": "S082",
+  "doneCriteria": [
+    "Source of truth for sprints + stories + epics is JSON under `backlog/`.",
+    "`backlog:check` validates the whole graph (schema + cross-references + cycles + status invariants).",
+    "`backlog:render` writes BACKLOG.md, BACKLOG_ARCHIVE.md and HIGH_LEVEL_BACKLOG.md with the same marker-pair pattern.",
+    "Doctor surfaces backlog + epic health alongside other project diagnostics.",
+    "Legacy prose archive + roadmap tables migrated in one-shot scripts; renderer owns the generated view from that point on."
+  ],
+  "sourceDoc": "notes/backlog_engine_analysis.md",
+  "notes": [
+    "S078 shipped V0 (sprint schema + check + render + agent docs + self-archive).",
+    "S079 shipped V1 (next / claim / done / defer / pr-body / doctor section / migrate-history of S0–S72).",
+    "S080 ships V2 (epic schema + check + render of HIGH_LEVEL_BACKLOG + CLI + doctor + migrate-epics + story-epic backfill + prelude drop)."
+  ]
+}

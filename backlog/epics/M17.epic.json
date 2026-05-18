@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M17",
+  "title": "M17 Renderer batching / instancing",
+  "status": "done",
+  "category": "engine",
+  "summary": "Real draw-call reduction. Goal: an ECS-native, allocation-stingy batcher that auto-discovers batchable entities (same mesh+material+render-policy) without project code wiring it manually. Shipped: (1) M17-bucketer (S34) + M17-batched-mesh-system (S36) — InstancedMesh + BatchedMesh paths with per-bucket frustum culling; (2) M17-auto-batch-primitives (S50) — project.json#render.batching.auto: true opts every primitive renderable in, no Batchable tag needed; (3) M17-batchable-color-variants (S50) — useInstanceColor so different-coloured entities share one bucket; (4) M17-batched-mesh-primary (S51) — BatchedMesh with perObjectFrustumCulled = true exposed as project.json#render.batching.path: \"batched\" (per-instance CPU culling; loses to InstancedMesh on small fully-visible scenes per docs/research/m17-batched-vs-instanced-shadows-bench.md; intended for big scenes + BVH augmentation). engine doctor Batching: section (S51) reports per-class entity counts + auto-batch state + draw-call savings. Picking maps instanceId back to entity id (M17-instance-picking-buckets); renderer never exposes Object3D to gameplay. ECS data flow must stay clean — no two-writer state on Transform. Open: M17-b…",
+  "sourceDoc": "docs/research/m17-batched-vs-instanced-shadows-bench.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

@@ -85,7 +85,8 @@
       "summary": "Drop the bloom post-pass entry (still upstream-blocked). Reflection probes restored to 15 Hz on the centre PMREM probe + 15 Hz on the two side mipmap probes. 7 of 9 example projects now run on WebGPU.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
     }
   ],
   "followUps": [

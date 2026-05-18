@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M19",
+  "title": "M19 Game-feel polish (tween + particles)",
+  "status": "planned",
+  "category": "engine",
+  "summary": "Data-driven Tween component (target path, from, to, duration, ease, loop, persist policy) with deterministic easing for replay; ParticleEmitter with named presets (no general VFX graph yet), per-project particle budget enforced by engine doctor. Source: Notes/linkedin_web_engine_part3_analysis.md.",
+  "sourceDoc": "Notes/linkedin_web_engine_part3_analysis.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-gpu-timer** — `engine/render/webgpu/webgpu-timer.ts` wraps the `GPUQuerySet { type: \"timestamp\" }` path that three.js exposes when the renderer is constructed with `trackTimestamp: true`. A throttled `resolveTimestampsAsync()` reads `info.render.timestamp` (nanoseconds) and surfaces milliseconds via `__agf.rendererInfo().gpuMs` — parity with the WebGL `EXT_disjoint_timer_query` path. Unit-tested against a stub host (throttle schedule, in-flight gating, rejection path, sticky-undefined for zero readings).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S070-2",
@@ -22,7 +23,8 @@
       "summary": "**WEBGPU-lazy-import** — moved the static `import { WebGPURenderer, PMREMGenerator, CubeRenderTarget } from \"three/webgpu\"` out of `engine/render/three-render-adapter.ts` into a memoised dynamic `await import(\"three/webgpu\")` inside `engine/render/webgpu/webgpu-module-loader.ts`. Adapter constructor split: scene-bound setup runs eagerly on both paths; WebGL device construction stays synchronous; WebGPU device construction deferred to `await adapter.init()`. Vite `manualChunks` splits files under `three/build/three.webgpu.js` into a separate `three-webgpu-{hash}.js` chunk. Result on the prod build: - `three-` chunk: 465 KB → 305 KB gzipped (-149 KB on every WebGL-only project). - `three-webgpu-` chunk: new 148 KB gzipped, loaded only when `project.render.mode = \"webgpu\"`. `scripts/check-bundle-size.mjs` lowered the `three-` budget from 480 KB back to 340 KB and added a 200 KB budget for the new `three-webgpu-` chunk.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S070-3",
@@ -31,7 +33,8 @@
       "summary": "Live probe of batch-bench under WebGPU confirms the InstancedMesh path already renders correctly: drawCalls=2, bucketInstances=401, per-instance colors visible, zero errors.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S070-4",
@@ -40,7 +43,8 @@
       "summary": "Live probe with `Batchable: { path: \"batched\" }` confirms BatchedMesh + per-instance color attribute render correctly on WebGPU (drawCalls=2, batchedBucketInstances=400, zero errors).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S070-5",
@@ -49,7 +53,8 @@
       "summary": "Unlike other migrations this one KEEPS `batching.auto: true` because the whole point of batch-bench is to exercise the bucket path. 6 of 9 example projects are now on WebGPU.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
     },
     {
       "id": "S070-6",
@@ -58,7 +63,8 @@
       "summary": "**WEBGPU-renderer-import-boundary** — extend `tests/unit/renderer-import-boundary.test.ts` with a second case that scopes `three/webgpu` imports to `engine/render/webgpu/` only. Defends the S70-2 chunk split: any future top-level `from \"three/webgpu\"` outside the lazy boundary would pull the chunk eagerly back into the WebGL graph and break the split silently.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S070-7",
@@ -67,7 +73,8 @@
       "summary": "**DOCS-webgpu-skill-update** — `docs/agent/skills/webgpu-rendering.md` synced: 5 of 9 example projects called out as migrated; HDR + IBL, ReflectionProbe, HemisphereLight position fix, drawCalls-per-frame, auto-fallback, GPU timer moved from \"deferred\" to \"shipped\"; the S65-S67 post-processing block reframed as an upstream three.js issue with the audit tool name; roadmap table replaced with the actual sprint chain that shipped.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     }
   ],
   "followUps": [

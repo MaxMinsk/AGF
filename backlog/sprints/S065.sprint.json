@@ -13,7 +13,8 @@
       "summary": "**WEBGPU-post-bloom investigation** — wired `three/webgpu` `PostProcessing` + `three/addons/tsl/display/BloomNode.js` as a parallel pipeline alongside the existing WebGL `EffectComposer`. Capability flag `supportsPostBloom` proposed. Implementation typecheck'd and the build wired up; first runtime probe surfaced the `ShaderMaterial` incompatibility. Bisected — removing `environment.kind: \"generated\"`, the reflection probe, and `castShadow` in isolation each did NOT clear the error. Concluded: AGF's render path contains at least one `ShaderMaterial` instance the TSL `NodeBuilder` can't auto-convert; candidates include three.js's internal shadow `MeshDepthMaterial` (extends `ShaderMaterial`), PMREM `RoomEnvironment` shader materials, and AGF's `GroundedSkybox` / `ShadowMaterial`. Reverted all bloom code; capability flags stay `supportsPostProcessing: false` on WebGPU.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S065-2",

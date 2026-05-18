@@ -13,7 +13,8 @@
       "summary": "**ASSET-optimize-command** ✅ — `engine asset optimize <projectDir> [path]` CLI invoking `@gltf-transform/functions` with the project's preset (dedup → prune → weld → meshopt). Writes `<asset>.opt.glb` + prints before/after byte counts. Added `--source <path>` for per-file mode and `--textures` flag (locked WebP target).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S054-2",
@@ -22,7 +23,8 @@
       "summary": "}]` + `fallback: \"last\" | \"hide\"`. `engine check` validates ascending distances, mesh refs resolve, duplicates flagged. Diagnostic codes `AGF_LOD_DISTANCES_OUT_OF_ORDER` / `AGF_LOD_DISTANCE_DUPLICATE` / `AGF_LOD_MESH_MISSING`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S054-3",
@@ -31,7 +33,8 @@
       "summary": "**ASSET-texture-doctor** ✅ — `engine doctor` warnings: `AGF_TEXTURE_HUGE` (>1 MB uncompressed PNG/JPEG), `AGF_TEXTURE_NPOT` (non-power-of-two map dims), `AGF_TEXTURE_NO_TRANSCODER` (`.ktx2` ref without decoder).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S054-4",
@@ -40,7 +43,8 @@
       "summary": "Skips already-compressed files; updates material manifests in place.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S054-5",
@@ -49,7 +53,8 @@
       "summary": "**ASSET-decoder-vendor** ✅ — Draco / Basis / Meshopt decoder paths verified for production builds; e2e smoke loads a `.ktx2` texture from beacon-world without falling back.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M25"
     },
     {
       "id": "S054-6",
@@ -58,7 +63,8 @@
       "summary": "`engine/runtime/start.ts` calls `expandScenePrefabs` before `World.fromScene` whenever a scene declares instances; expansion diagnostics route to the bus. `src/main.ts` glob-imports `examples/<id>/prefabs/*.prefab.json` per project into a `Map<id, PrefabDefinition>` and passes through `AppOptions.prefabs`. `engine check` cross-validates `scene.instances[].prefab` against `prefabs/<id>.prefab.json`; instance id collisions surface as `AGF_SCENE_INSTANCE_DUPLICATE_ID`. The expander now preserves top-level scene fields (`environment`, etc.) — previously dropped.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M3"
     },
     {
       "id": "S054-7",
@@ -67,7 +73,8 @@
       "summary": "Four hand-rolled `beacon.*` / `core.*` entities collapsed into a `scene.instances` block with per-instance `Name` / `Transform` / `Spin` / `Pickup.originalPosition` overrides. scenes/start.scene.json: 356 → 300 lines. Entity ids preserved so light + tests resolve.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M3"
     },
     {
       "id": "S054-8",
@@ -76,7 +83,8 @@
       "summary": "**RUNTIME-progressive-loading** ✅ — `project.json#render.criticalAssets: string[]` declares the asset refs that must finish loading before `rendererReady` resolves; every other asset stays on the existing placeholder-then-swap path. Helper `criticalAssetsReady(world, refs)` exported for tests + tooling.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M11"
     },
     {
       "id": "S054-9",
@@ -85,7 +93,8 @@
       "summary": "`startRuntime` honours `project.json#render.idleMode: \"always\" | \"on-demand\"`: in `on-demand` it skips `renderer.render()` when the counter is unchanged from the previous frame. First frame, resize, and any mutation always render.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M11"
     },
     {
       "id": "S054-10",
@@ -94,7 +103,8 @@
       "summary": "**RUNTIME-gpu-timing** ✅ — `ThreeRenderAdapter.draw()` wraps the frame in a `EXT_disjoint_timer_query_webgl2` `TIME_ELAPSED` query when the extension is available. `AdapterInfo.gpuMs` carries the latest ms reading (1–2 frame lag) through to `window.__agf.rendererInfo().gpuMs`. Stays `undefined` on Safari / RFP-Firefox / non-WebGL2.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M11"
     },
     {
       "id": "S054-11",
@@ -102,7 +112,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S054-12",
@@ -111,7 +122,8 @@
       "summary": "**DOCTOR-prefab-section** ✅ — `engine doctor` `Prefabs:` section: declared count, total scene-instance count, top-3 ids by usage, plus diagnostics for unused declared prefabs + scene refs to unknown prefab ids.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD"
     },
     {
       "id": "S054-13",
@@ -120,7 +132,8 @@
       "summary": "Centre chrome sphere + 12 outer spheres on cement cylinder pedestals parented to a `Spin`-rotated root; HDR sky (`venice_sunset_1k.hdr`) drives IBL + acts as a blurred background; 12 material slots span standard / physical shader axes. Pulled engine work into the same commit: `cylinder` primitive added to the shared list; `material-binding-system` resolves texture refs through `AssetRegistry.urlFor`; `runtime/start.ts` does the same for HDR / cube env URLs; `bumpMap` + `bumpScale` added to material manifests; HDR env gained `asBackground` + `backgroundBlurriness`; `project.render.color.transmissionResolutionScale` exposes WebGLRenderer transmission pre-pass scale; sphere primitive bumped 24×16 → 32×20 segments. Friction notes in `docs/research/material-bench-asset-friction.md`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "EXAMPLES-SHADOWS-BENCH-BENCHMARK-PROJECT"
     }
   ],
   "followUps": [

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M8",
+  "title": "M8 Input actions, remapping, touch/gamepad",
+  "status": "active",
+  "category": "engine",
+  "summary": "Project-declared action schema (e.g. move.x, interact); adapter layer (keyboard / gamepad / touch); inspect API for action state.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

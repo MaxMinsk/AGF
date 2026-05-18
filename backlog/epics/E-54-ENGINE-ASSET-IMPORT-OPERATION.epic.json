@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "E-54-ENGINE-ASSET-IMPORT-OPERATION",
+  "title": "E.54 engine asset import operation",
+  "status": "done",
+  "category": "infra",
+  "summary": "Shipped Sprint 27 (engine/tools/asset/asset-import.ts). Copies a source file into assets/runtime/<subdir>/ and appends an entry to asset-sources.json. Follow-up: optional material-manifest emission.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)\" table on 2026-05-18."
+  ]
+}

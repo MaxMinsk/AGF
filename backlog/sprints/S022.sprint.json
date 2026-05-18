@@ -22,7 +22,8 @@
       "summary": "New `engine/core/commands/apply.ts` re-exports it so external callers can import the applicator in isolation, never pulling in `CommandQueue` or anything that imports systems. New `tests/unit/apply-command-perf.test.ts` asserts a 400-command worst-case batch (create / set / remove / delete × 100) on a fresh `World` runs in under 50 ms and that `apply.ts` exports only `applyCommand`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S022-3",

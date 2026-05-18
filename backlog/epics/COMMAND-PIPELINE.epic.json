@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "COMMAND-PIPELINE",
+  "title": "Command pipeline",
+  "status": "done",
+  "category": "engine",
+  "summary": "v0 with entity.create/entity.delete/component.set/scene.load — Sprint 1.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

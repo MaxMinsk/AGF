@@ -13,7 +13,8 @@
       "summary": "**DOCTOR-batching-report** ✅ — `engine doctor` gains a top-level `Batching:` section reading `project.json#render.batching.auto/path` + breaking renderables into primitives vs externals + reporting collapsed/available draw-call savings + surfacing a \"flip the switch\" recommendation when auto is off. Counts explicit `Batchable` annotations and `enabled: false` opt-outs.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD"
     },
     {
       "id": "S051-2",
@@ -22,7 +23,8 @@
       "summary": "**DOCS-build-a-game-batching** ✅ — \"Cut draw calls with auto-batch\" recipe in `docs/agent/build-a-game.md` covering opt-in, per-entity opt-out, group hint, doctor verification.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S051-3",
@@ -31,7 +33,8 @@
       "summary": "**M17-batched-mesh-primary** ✅ — BatchedMesh adapter path: `perObjectFrustumCulled = true` explicit, geometries get `computeBoundingBox()` + `computeBoundingSphere()` on add, new `setBatchedInstanceColor` for per-instance colour parity. `BatchingOptions.defaultPath` plumbed through `RuntimeOptions.batchingPath` ← `project.json#render.batching.path`. Doctor surfaces `path=...`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S051-4",
@@ -40,7 +43,8 @@
       "summary": "**M17-batched-colour-squaring fix** ✅ — bucket key + material colour both carried `renderer.color` so per-instance × material colour squared → darker scene. Fix mirrors S50: drop colour from key, anchor material at white.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S051-5",
@@ -49,7 +53,8 @@
       "summary": "**M17-batched-vs-instanced measurement** ✅ — wrote `scripts/perf-probe-batching.mjs` (Playwright A/B, patches project.json, reloads, samples for N seconds, restores on SIGINT). shadows-bench result: `batched` saves 36 % draw calls + 17.9 % triangles via per-instance culling, but `renderMs` rises +63.5 % (multi-draw command overhead on small scene with most instances in view). Decision: shadows-bench reverts to `instanced`; `batched` plumbing stays. Findings: `docs/research/m17-batched-vs-instanced-shadows-bench.md`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S051-6",
@@ -58,7 +63,8 @@
       "summary": "**SHADOWS-bench-perf-deepdive** ✅ — wrote `scripts/perf-probe-shadows.mjs` (sister probe, fresh browser per scenario so PCSS's one-way substitution can't leak). 6 scenarios measured. Findings: cascade count is the dominant lever (3 → 2 = −17.1 % renderMs); PCSS cost only +6.5 % (smaller than expected); shadowMapSize 1024 → 512 just −3.8 % in software-WebGL; programs counter flat (no shader churn). Combined `pcf + 2c + 512` saves 15.2 % renderMs at moderate visual cost. shadows-bench config left as-is (visual decision). Three follow-ups filed: `M21-shadow-static-caster-tag` (main perf win), `M21-shadow-map-size-real-hw`, `M21-fxaa-cost-isolation`. Notes: `docs/research/m21-shadows-bench-perf.md`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S051-7",

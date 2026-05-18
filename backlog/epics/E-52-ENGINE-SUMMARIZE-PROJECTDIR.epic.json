@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "E-52-ENGINE-SUMMARIZE-PROJECTDIR",
+  "title": "E.52 engine summarize <projectDir>",
+  "status": "done",
+  "category": "infra",
+  "summary": "Shipped Sprint 27 (engine/tools/summarize/project-summarize.ts). Compact project context summary — metadata, components, scene entity-component counts, asset entries, playtests. --json + human output.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)\" table on 2026-05-18."
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M22",
+  "title": "M22 ECS performance & design discipline",
+  "status": "done",
+  "category": "engine",
+  "summary": "Source: Notes/ecs_notes.md (Friflo benchmark survey + AGF-specific recommendations). Verdict: don't rewrite to archetype ECS — current Map<ComponentName, Map<EntityId, ComponentData>> is fine for AGF's scale and is agent-friendly. Competitive picture lives in docs/research/ecs-compare-performance.md (matched pair with the benchmark baseline; refresh together). Decision rule for new derived caches/indexes (from the Codex review of the compare doc, locked into CLAUDE.md): derived-entirely-from-ECS, no public authoring API, rebuildable from scratch, explicit invalidation rules, parity tests (incremental vs full rebuild), benchmark or measured bottleneck, improves a named system. Fails any → keep Map-backed. Sub-epics: (a) ✅ ECS benchmark suite — benchmarks/ecs/ zero-dep harness, three suites (snapshot / query / hierarchy-resolve), baseline JSON at docs/research/ecs-benchmarks-baseline.json. Key findings: resolveHierarchy chain-of-8 @ 10k = ~12.9 ms (no cache); cached createQuery is ~18,000× faster than uncached world.query(). ECS-B3 (batch-bucket bench) deferred until M17-bucketer exists. (b) LocalToWorld cache — M16-cache-a ✅ (per-component revision counter + partial-walk cache, ~2.…",
+  "sourceDoc": "Notes/ecs_notes.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

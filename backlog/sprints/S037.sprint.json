@@ -22,7 +22,8 @@
       "summary": "`M21-frame-timing` ✅ `start.ts` samples `performance.now()` around each tick phase; once per metrics window (~500 ms) the accumulators flatten into a `FrameTiming` record `{ fixedUpdateMs, frameUpdateMs, renderMs, totalFrameMs, samples }`. Exposed via `RuntimeHandle.frameTiming()` → `AppHandle.frameTiming()` → `__agf.frameTiming()`. Dev overlay renders `fix / frm / rnd / ms` cells next to fps. Overlay also picks up `drawCalls` from `renderer.info()` as a batching-regression signal.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S037-3",
@@ -31,7 +32,8 @@
       "summary": "`ThreeRenderAdapter.setDebugOverlayEnabled(boolean)` / `setDebugOverlayData(...)` manage a single transparent `LineSegments` node in the scene (`renderOrder: 999`, `depthTest: false`). `PhysicsDebugSystem` (frame update, registered when `project.physics.enabled`) drives the overlay from a shared `enabled` flag. Surface: `__agf.physics.setDebugOverlay(boolean)` + `?physicsDebug=1` URL param.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S037-4",
@@ -40,7 +42,8 @@
       "summary": "`M21-shadow-csm` ✅ `ThreeRenderAdapter.setCsm(config)` constructs `three/addons/csm/CSM.js` lazily — `rebuildCsm` runs the moment an active camera exists, registering every renderer-managed material through `setupMaterial`. Hooked at acquireMesh / acquireBucket / acquireBatchedBucket / setMeshMaterialPatch. `draw()` calls `csm.update()` before render. Camera-swap triggers full reconstruction. Schema lands on `project.json#render.shadows.csm` with cascades / maxFar / mode / shadowMapSize / shadowBias / lightDirection / lightIntensity.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S037-5",
@@ -58,7 +61,8 @@
       "summary": "`PhysicsSyncSystem` buffers `prev`/`curr` (position + rotation per dynamic body) in fixedUpdate and lerps in a new frameUpdate phase. Linear-degree blend on rotation is correct at 60 Hz steps. 120 Hz displays no longer show 60 Hz pulses for dynamic bodies. 7 unit tests cover alpha=0/0.5/1 + state churn.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S037-7",

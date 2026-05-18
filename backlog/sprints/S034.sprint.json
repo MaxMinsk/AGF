@@ -13,7 +13,8 @@
       "summary": "`M21-light-schema` ✅ Polymorphic `Light` + `ShadowFlags` JSON schemas (kind discriminator: directional / point / spot / ambient / hemisphere / rect-area; per-kind constraints via `allOf + if/then`). 11 unit tests covering happy paths + negative cases.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S034-2",
@@ -22,7 +23,8 @@
       "summary": "Adapter grows `acquireLight` / `releaseLight` / `setLightParams` / `setLightTransform` / `setLightCastShadow` for directional / point / ambient kinds. Fallback ambient + directional auto-disabled when first ECS light appears; re-enabled + `AGF_NO_LIGHTS` diagnostic emitted when scene loses every Light. Kind-change triggers release + re-acquire. 8 unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S034-3",
@@ -31,7 +33,8 @@
       "summary": "`MeshTransformSyncSystem` reads `ShadowFlags` per frame; `LightLifecycleSystem` configures `light.shadow.*`. Adapter enables `device.shadowMap` globally with `PCFShadowMap` (PCFSoftShadowMap deprecated in r184). `rendererInfo()` reports `shadowCasters`. Beacon-World adopts a high-noon sun (`light.sun` at `(2, 14, 7)`), ambient + cool fill; Hello-3D similar. Per-mesh `ShadowFlags` on `ground` / `floor` (cast=false).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S034-4",
@@ -58,7 +61,8 @@
       "summary": "Surface `__agf.dev.tuner.{add,remove,removeAll,list}`; each drag flows through `applyCommands` (snapshot / HMR / network / replay all \"just work\"). Panel is DOM, NOT in ECS — `__agf.snapshot()` never sees it. Dev-bridge gets 4 HTTP routes (`/__agf/tuner/{add,remove,remove-all,list}`) so agents can spawn sliders from a shell without DevTools. Agent skill at `docs/agent/dev-tuner.md`. 6 path-helper unit tests + e2e (add → drag → snapshot reflects → remove → panel gone).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S034-7",
@@ -67,7 +71,8 @@
       "summary": "`M21-env-generated` ✅ `ThreeRenderAdapter.setEnvironment(kind)` builds `RoomEnvironment` via `PMREMGenerator`; idempotent + disposes texture on swap. Scene schema gains top-level optional `environment: { kind: \"generated\" | \"none\" }`. Default = generated. PBR materials gain natural reflections out of the box. 5 schema tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S034-8",
@@ -76,7 +81,8 @@
       "summary": "`M16-cache-b` ✅ `World.consumeDirty(name)` reads + clears an incremental dirty set populated by `setComponent` / `removeComponent` / `removeEntity`. `TransformResolveSystem` keeps an internal `inputCache: Map<EntityId, TransformInput>`; seeds once when a new World arrives, then per frame rebuilds inputs only for `world.consumeDirty(\"Transform\")` entries. Drops the per-frame entity scan + deg→rad conversion for clean entities. Bench: 10k chain-of-8 @ 1%-dirty ~8.1 ms (~13% narrow win vs M16-cache-a alone; `M16-cache-c` is the next big lever). 2 unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M16"
     },
     {
       "id": "S034-9",
@@ -85,7 +91,8 @@
       "summary": "Forces GC, measures heap delta per op, reports bytes-per-op + heap delta KB. Findings at 10k: hierarchy resolve ~2.1 MB / op, cached steady-state ~890 KB / op, snapshotWorld ~1.2 MB / op. Baseline JSON at `docs/research/ecs-allocations-baseline.json`. Big numbers point at `M16-cache-c` (Map reuse + matrix scratch pooling).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S034-10",
@@ -94,7 +101,8 @@
       "summary": "`M17-doctor` ✅ `engine/tools/doctor/batch-candidates.ts` walks every `.scene.json`, groups MeshRenderer entities by `mesh|material|cast:receive` (the exact key M17 bucketer will use), reports top buckets + singleton isolation reasons through `engine doctor`. Beacon-World shows 8 renderable → 6 buckets, 2 draw calls saved. 4 unit tests.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S034-11",
@@ -112,7 +120,8 @@
       "summary": "`HIGH_LEVEL_BACKLOG.md` row replaces \"Rapier physics: Later\" with full epic: components (RigidBody3D / Collider3D / PhysicsMaterial3D / CharacterController3D), two-layer collision stack (renderer raycaster + Rapier simulation), hybrid collision output (raw events → runtime-only derived components → gameplay commands), named layers, fixed-step pipeline. 9 stories `M24-investigate..M24-static-mesh` queued in Sprint 35+ carry-over with concrete scopes. M17 / M18 cross-references updated.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S034-13",

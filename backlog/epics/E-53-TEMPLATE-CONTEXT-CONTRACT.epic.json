@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "E-53-TEMPLATE-CONTEXT-CONTRACT",
+  "title": "E.53 Template context contract",
+  "status": "done",
+  "category": "infra",
+  "summary": "Shipped Sprint 27. schemas/template.schema.json + template.json and template_context.md for both reference projects (hello-3d, beacon-world). Pairs with future M12.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)\" table on 2026-05-18."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M1",
+  "title": "M1 Versioned project format + migrations",
+  "status": "done",
+  "category": "engine",
+  "summary": "Shipped Sprint 27: agfFormatVersion on project.json schema + reference projects; AGF_FORMAT_VERSION_MISSING/_TOO_OLD/_UNSUPPORTED diagnostics; engine migrate <projectDir> [--dry-run] v0 adds the field when missing. Follow-up: extend to scene-extension and material manifests.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

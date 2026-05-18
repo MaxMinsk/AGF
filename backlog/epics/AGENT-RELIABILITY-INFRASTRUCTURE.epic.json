@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "AGENT-RELIABILITY-INFRASTRUCTURE",
+  "title": "Agent reliability infrastructure",
+  "status": "done",
+  "category": "engine",
+  "summary": "Preflight script, debug protocol, template policy and quality axes docs exist.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

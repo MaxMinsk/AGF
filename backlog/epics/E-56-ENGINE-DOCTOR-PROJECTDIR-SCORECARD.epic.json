@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD",
+  "title": "E.56 engine doctor <projectDir> scorecard",
+  "status": "done",
+  "category": "infra",
+  "summary": "Shipped Sprint 27 (engine/tools/doctor/project-doctor.ts). Consolidates engine check + summary + perf budget; exits 1 on errors. compareRendererInfo(info, budget) exposes soft/hard renderer violations for callers.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"AI-Native Ideas (from `Notes/ai-game-engine-ideas.md`)\" table on 2026-05-18."
+  ]
+}

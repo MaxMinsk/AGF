@@ -13,7 +13,8 @@
       "summary": "HTTP routes accept `?page=<socketId>` / `?playerId=<id>` / `?project=<id>` (falls back to most-recently-connected page). `/__agf/health` returns `pages: [...]`. Dropped the `playwright.dev-bridge.config.ts` workaround — all four bridge e2e specs run in parallel under default config, each using a unique `playerId` query.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S032-2",
@@ -22,7 +23,8 @@
       "summary": "`M15-g` `GET /__agf/events` SSE stream. Per-page `sseSubscribers` set; first HTTP subscriber arms `events-start` RPC on the page, last leaving fires `events-stop`. Page-side bootstrap subscribes to `runtime.diagnostics` (new `AppHandle.subscribeDiagnostics` plus `window.__agf.subscribeDiagnostics`) and `window.addEventListener(\"agf:asset-changed\")`, forwarding `{ kind: \"event\", payload: { type, data } }` over WS. Bridge fans events to all SSE subscribers attached to that page. New e2e spec opens the stream, dispatches a synthetic asset-changed event, and asserts the frame lands.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S032-3",
@@ -31,7 +33,8 @@
       "summary": "Implementation builds a parent → children map once per delete, then BFS. Five unit tests cover leaf / parent / middle / no-op / orphan-parent paths.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M16"
     },
     {
       "id": "S032-4",
@@ -40,7 +43,8 @@
       "summary": "`M4-reload-e2e` New Playwright spec `tests/e2e/beacon-persistence-reload.spec.ts` navigates Beacon, drives a repair via `window.__agf.applyCommands`, `__agf.save()`, `page.reload()`, `__agf.load()` and asserts the repaired state + `lastRepairedBy` survive the round trip via IndexedDB. Cleans up the store afterwards.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4"
     },
     {
       "id": "S032-5",
@@ -49,7 +53,8 @@
       "summary": "**M20 Netcode rework epic + investigate doc** — `docs/research/netcode-rework-investigation.md` captures the three Sprint 32 multiplayer bugs (own-drone 2× server, 30s idle disconnect, networked feel ≠ single-player), surveys five netcode patterns (snapshot interp / client prediction + server reconciliation / lockstep / GGPO rollback / **client-authoritative own player**), weighs each against AGF constraints, and recommends Option E (client-authoritative own-player) with a 12-story rebuild plan (M20-a..M20-l). Epic landed in `HIGH_LEVEL_BACKLOG.md`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M20"
     },
     {
       "id": "S032-6",
@@ -58,7 +63,8 @@
       "summary": "**M21 Renderer → ECS systems epic** — investigate-first entry in `HIGH_LEVEL_BACKLOG.md` calling for a research doc that audits `ThreeRenderer` responsibilities, proposes a per-system split (`CameraSyncSystem`, `MeshLifecycleSystem`, `MeshTransformSyncSystem`, `MaterialBindingSystem`, future `BatchingSystem`), preserves the renderer-import-boundary lock, and measures perf impact before code.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S032-7",
@@ -67,7 +73,8 @@
       "summary": "Don't rewrite to archetype ECS yet; instead build (a) ECS benchmark suite (`ECS-B1..B5`), (b) LocalToWorld cache (`M16-cache-a..e`), (c) system-level command buffer (`CMD-B1..B4`), (d) explicit indexes (`IDX-*`). Orient toward Friflo coverage + Unity DOTS transform pipeline + Leopotam minimalism + AGF's schema-first authoring. Explicit non-goals: full archetype, generic relations, event-driven gameplay.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S032-8",
@@ -76,7 +83,8 @@
       "summary": "**`M17` batching epic expansion + new `examples/batch-bench/` perf-only project** — M17 entry now calls out an ECS-native bucketer (Batchable tag, auto-grouping by mesh+material+render-policy, InstancedMesh per bucket, `engine doctor` batch metrics, no Transform two-writer state). `examples/batch-bench/` lands in the roadmap as a sister to `examples/feature-lab/` — stress on thousands of instanced entities, perf report (draw calls / FPS / bucket count) as a regression target for M17 changes.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S032-9",
@@ -85,7 +93,8 @@
       "summary": "**`CLAUDE.md` non-negotiable: ECS-first by default.** New rule: when adding new runtime behaviour, the default shape is a scheduler-registered System reading/writing typed components. Deviate only on measurable perf cost / architectural complexity / third-party API blockers; document the deviation inline.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S032-10",
@@ -94,7 +103,8 @@
       "summary": "**`References/three.js/examples`** sparse-checkout of `mrdoob/three.js@master` examples folder (~440 MB, gitignored) so M17 / M21 design has concrete `BatchedMesh` / `InstancedMesh` / WebGPU references (`webgl_mesh_batch.html`, `webgl_batch_lod_bvh.html`, `webgl_instancing_performance.html`, etc.).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     }
   ],
   "followUps": [

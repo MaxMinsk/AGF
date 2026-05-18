@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M21",
+  "title": "M21 Renderer → ECS systems",
+  "status": "done",
+  "category": "engine",
+  "summary": "M21-investigate shipped: see docs/research/renderer-ecs-split-investigation.md. Phase 1 (structural split, 8 stories): thin ThreeRenderAdapter + five scheduler-registered systems + five renderer-internal components. Renderer-import-boundary preserved. Phase 2 shipped through S52: M21-light-* ✅, M21-shadow-basic / -csm / -static / -algorithm (PCF + VSM + PCSS — BASIC variant only) ✅, M21-shadow-pcss-modern ✅ (S44), M21-shadow-pcss-csm ✅ (S47), M21-shadow-static-caster-tag ✅ (S52) — new ShadowCaster { dynamic } component + DynamicShadowSystem keep shadowMap.autoUpdate=false and only invalidate when a tagged caster moves; live probe −17 % renderMs on shadows-bench even with continuous-motion casters, expected larger payoff on idle-caster scenes (beacon-world drone, NPCs at rest), M21-env-generated / -hdr / -cube ✅ (S44), M21-mat-* (5 builtin shader kinds + textures + custom ShaderMaterial + external shader-file refs) ✅, M21-frame-timing ✅, M21-light-budgets ✅, M21-color ✅, M21-context-loss ✅, M21-post-pipeline ✅, M21-cam-orbit / -follow / -cinematic ✅ (cinematic S47), M21-tsl-investigate ✅ (verdict: defer until WebGPU), RUNTIME-renderer-ready ✅. S52 sky gradient — project.json#render…",
+  "sourceDoc": "docs/research/renderer-ecs-split-investigation.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

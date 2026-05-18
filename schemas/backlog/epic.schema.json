@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agf/schemas/backlog/epic.schema.json",
+  "title": "Epic",
+  "description": "Source-of-truth file for an AGF roadmap epic. Stories in `backlog/sprints/*.sprint.json` reference an epic via the `story.epic` field. `HIGH_LEVEL_BACKLOG.md` is a generated view over the set of `backlog/epics/*.epic.json` files. Editing the rendered Markdown directly is a `backlog:check` failure.",
+  "type": "object",
+  "required": ["agfFormatVersion", "id", "title", "status", "category", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "agfFormatVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "AGF schema version. Bumped only when the epic file shape changes incompatibly."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]*$",
+      "minLength": 2,
+      "description": "Epic id, all-caps kebab. Matches the same regex as story ids. Stable across sprints; story `epic` fields point at this id. minLength:2 keeps legacy short ids (M1, M2…) valid."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Short human-readable epic title (≤80 chars recommended)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "active", "done", "parked"],
+      "description": "Epic lifecycle. `planned` = on the roadmap but no sprint has picked stories yet; `active` = at least one sprint has shipped stories or has open stories tagged to it; `done` = all in-scope stories shipped, no follow-up planned; `parked` = explicitly deferred indefinitely (still listed so the agent doesn't re-discover it as a new idea)."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["engine", "sample-game", "infra", "research"],
+      "description": "Coarse classification for filtering. `engine` = generic primitives shipped under `engine/`; `sample-game` = specific game project under `examples/<project>/`; `infra` = repo / CI / agent tooling; `research` = investigation-only, no production code."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10,
+      "description": "One-paragraph rationale: what is this epic, why does it exist, what scope is in / out."
+    },
+    "targetMilestone": {
+      "type": "string",
+      "description": "Optional free-text milestone label, e.g. `MVP-0`, `public-beta`, `S100`. Used by `backlog:epics --milestone <label>` filters and the HIGH_LEVEL_BACKLOG rollup."
+    },
+    "dependsOn": {
+      "type": "array",
+      "description": "Other epic ids that must reach `done` before this epic can leave `planned`. Forms the cross-epic dependency graph; `backlog:check` rejects cycles.",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9-]*$"
+      }
+    },
+    "sourceDoc": {
+      "type": "string",
+      "description": "Optional pointer to the design / research doc this epic was distilled from, e.g. `notes/DynaBomber.md` or `docs/research/m21-webgpu-spike.md`."
+    },
+    "doneCriteria": {
+      "type": "array",
+      "description": "Human-checkable bullets that define `done` for this epic. Filled out when the epic is first authored, so future agents can decide whether status:\"done\" is warranted without re-reading every story.",
+      "items": { "type": "string", "minLength": 5 }
+    },
+    "notes": {
+      "type": "array",
+      "description": "Free-text observations (measurement summaries, links to research notes, design pivots). Behaves like `sprint.notes[]`.",
+      "items": { "type": "string" }
+    }
+  }
+}

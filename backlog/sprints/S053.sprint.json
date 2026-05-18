@@ -13,7 +13,8 @@
       "summary": "Shared `RenderPoolRegistry<Entry>` helper replaces the `Map<H, Entry>` + `next<P>Handle` pattern across InstancedMesh + BatchedMesh + particle pool. Adapter call sites refactored; public API unchanged.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-2",
@@ -22,7 +23,8 @@
       "summary": "Typed `BucketSpec` discriminated union (`instanced` / `batched` / `batched-bvh`) + `bucketSpecHash()` retire the hand-rolled `instanced|<mesh>|<material>|<shadow>|<group>` string keys. Hash output identical to the legacy strings so existing tests pass unchanged.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-3",
@@ -31,7 +33,8 @@
       "summary": "**RENDER-pool-handle-union** ✅ — tagged `PoolHandle` union + `adapter.acquirePool(spec, opts): PoolHandle` dispatcher + `poolLiveCount` / `releasePool`. Per-kind methods stay public for back-compat. New unit suite `tests/unit/bucket-spec.test.ts` (6 cases).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-4",
@@ -40,7 +43,8 @@
       "summary": "Doctor recommendation copy updated to surface the explicit-disabled case. All 5 example projects keep their explicit `auto: true` (redundant now but harmless).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-5",
@@ -49,7 +53,8 @@
       "summary": "`extendBatchedMeshPrototype()` runs once at module load. New `project.json#render.batching.path: \"batched-bvh\"` routes through the new path; adapter `ensureBucketBvh(handle)` lazily builds the BVH after first instance lands. `BatchingSystem.updateBatched` accepts a `useBvh` flag and walks the `record.useBvh` set at end-of-frame.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-6",
@@ -58,7 +63,8 @@
       "summary": "Measured `instanced` / `batched` / `batched-bvh` on shadows-bench (327 instances) + batch-bench (401 cubes). Headline: BVH culled **84 % of triangles** on shadows-bench (451 k → 70 k) and **strictly dominated vanilla `batched`** (renderMs 0.74 → 0.57). On software-WebGL `batched-bvh` still loses to `instanced` because fillrate-bound dispatch dominates; real-hardware delta filed as follow-up. Findings appended to `docs/research/m17-batched-vs-instanced-shadows-bench.md`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-7",
@@ -67,7 +73,8 @@
       "summary": "**M17-lod-batched** ✅ — pinned the existing in-bucket LOD-swap behaviour with a new regression test (`tests/unit/batching-system-batched-path.test.ts`): mesh-ref change on a tagged-batched entity adds a new geometry to the same bucket + calls `setBatchedInstanceGeometry` without releasing the slot. LOD system docstring updated to spell out the batched-vs-instanced distinction.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-8",
@@ -76,7 +83,8 @@
       "summary": "Body: `{ projectDir, patch }`. Path-traversal guarded; deep-merges patch onto current project.json; writes with 2-space indent + trailing newline. Production builds exclude the dev-bridge plugin entirely. 6 unit-tests for the `deepMerge` semantics (`tests/unit/devbridge-project-patch.test.ts`).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M15"
     },
     {
       "id": "S053-9",
@@ -94,7 +102,8 @@
       "summary": "`scripts/perf-probe-beacon-tag.mjs` A/B probe toggles the tag, reloads, samples renderer info. (See Follow-Ups for the visual regression caught here and the fix.)",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "BEACON-WORLD-SAMPLE"
     },
     {
       "id": "S053-11",
@@ -103,7 +112,8 @@
       "summary": "**DOCTOR-renderer-pool-section** ✅ — `engine doctor` `Batching:` section gains `pathDistribution: { instanced, batched, batchedBvh }` with the per-entity `Batchable.path` override applied on top of the project default. Plus a new recommendation: when `path: \"batched\"` is set with primitive-rich scenes, suggests upgrading to `batched-bvh` with the Story 6 perf numbers.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "E-56-ENGINE-DOCTOR-PROJECTDIR-SCORECARD"
     },
     {
       "id": "S053-12",
@@ -112,7 +122,8 @@
       "summary": "Pins handle monotonicity, no-handle-reuse-after-release, drain semantics. S53 test coverage matrix recorded in commit body.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S053-13",
@@ -121,7 +132,8 @@
       "summary": "Grep confirmed zero remaining hand-rolled `instanced|...|` / `batched|...|` string constructions outside `bucketSpecHash`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     }
   ],
   "followUps": [

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M12",
+  "title": "M12 Template / project creation CLI",
+  "status": "active",
+  "category": "engine",
+  "summary": "engine new -- <name> --template hello-3d. Less urgent while only two examples exist; gains value once a third sample is added.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

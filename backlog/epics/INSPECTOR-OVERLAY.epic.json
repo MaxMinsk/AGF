@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "INSPECTOR-OVERLAY",
+  "title": "Inspector overlay",
+  "status": "active",
+  "category": "engine",
+  "summary": "Sprint 5+ candidate — in-page entity/component overlay, toggle hotkey TBD (not F12, not F2).",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

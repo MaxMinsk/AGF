@@ -13,7 +13,8 @@
       "summary": "PMREM regen via `PMREMGenerator.fromCubemap` after every cube capture; bounded memory via dispose-on-replace.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S059-2",
@@ -21,7 +22,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S059-3",
@@ -39,7 +41,8 @@
       "summary": "**POST-bloom worked example** — material-bench's `project.json#render.post` picks up `[{ kind: \"bloom\", strength: 0.35, radius: 0.55, threshold: 0.92 }]`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M26"
     },
     {
       "id": "S059-5",
@@ -48,7 +51,8 @@
       "summary": "**GPU-timer-test** — `engine/render/gpu-timer.ts` extracted; 6 unit tests against a mock WebGL2 ctx covering both S58 regressions + surrounding invariants.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M21"
     },
     {
       "id": "S059-6",
@@ -56,7 +60,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S059-7",
@@ -64,7 +69,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M4-DOCS-SCHEMA-DRIVEN-DOCS-GENERATION"
     },
     {
       "id": "S059-8",
@@ -72,7 +78,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M22"
     },
     {
       "id": "S059-9",
@@ -80,7 +87,8 @@
       "status": "implemented",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "MATERIAL-AND-SHADER-SYSTEM"
     }
   ],
   "followUps": [

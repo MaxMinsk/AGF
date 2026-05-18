@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "EXAMPLES-PHYSICS-BENCH-BENCHMARK-PROJECT",
+  "title": "examples/physics-bench/ benchmark project",
+  "status": "done",
+  "category": "engine",
+  "summary": "sphere URL params (count clamped 0..2048). Default seed reports drawCalls 17, buckets 12, bucketInstances 200, handleLeak 0 with bodies settling to avgY ≈ 0.05 — regression target for physics scaling (Rapier step ms via __agf.frameTiming().fixedUpdateMs).",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

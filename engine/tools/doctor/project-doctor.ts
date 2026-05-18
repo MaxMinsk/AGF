@@ -188,6 +188,38 @@ export type BacklogReport = {
   multipleActive: ReadonlyArray<string>;
   /** Total archived sprints in JSON form. */
   archivedCount: number;
+  /** S80 BACKLOG-EPIC-DOCTOR: snapshot of `backlog/epics/*.epic.json`. */
+  epics: EpicsReport;
+};
+
+export type EpicsReport = {
+  /** Number of *.epic.json files discovered under `backlog/epics/`. */
+  epicFiles: number;
+  /** Aggregate status counts. */
+  counts: {
+    active: number;
+    planned: number;
+    done: number;
+    parked: number;
+  };
+  /** Epics in `active` status with their per-status story rollup across all sprints. */
+  active: ReadonlyArray<{
+    id: string;
+    title: string;
+    targetMilestone: string | undefined;
+    implemented: number;
+    open: number;
+    total: number;
+  }>;
+  /**
+   * Active or planned epics whose stories were last touched ≥ STALE_THRESHOLD
+   * sprints ago. The threshold is intentionally conservative (8) — bumping
+   * out a planned epic without rejecting it is fine, but an active epic
+   * that hasn't moved in 8 sprints likely needs a status flip or scope cut.
+   */
+  stale: ReadonlyArray<{ id: string; lastTouchedSprintId: string | undefined }>;
+  /** `done` epics that still have open stories (`backlog:check` error mirror). */
+  doneWithOpenStories: ReadonlyArray<{ id: string; openCount: number }>;
 };
 
 export type WebGpuReadinessReport = {
@@ -1254,22 +1286,32 @@ export function formatShadows(report: ShadowConfigReport): string {
   return lines.join("\n");
 }
 
+const EMPTY_EPICS_REPORT: EpicsReport = {
+  epicFiles: 0,
+  counts: { active: 0, planned: 0, done: 0, parked: 0 },
+  active: [],
+  stale: [],
+  doneWithOpenStories: []
+};
+const STALE_THRESHOLD_SPRINTS = 8;
+
 function summarizeBacklog(repoRoot: string): BacklogReport {
   const sprintsDir = resolve(repoRoot, "backlog/sprints");
   if (!existsSync(sprintsDir)) {
-    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0 };
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT };
   }
   let names: string[];
   try {
     names = readdirSync(sprintsDir).filter((n) => n.endsWith(".sprint.json"));
   } catch {
-    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0 };
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT };
   }
   type StoryLite = {
     id: string;
     status: string;
     dependsOn?: string[];
     verification?: string[];
+    epic?: string;
   };
   type SprintLite = {
     id: string;
@@ -1333,12 +1375,118 @@ function summarizeBacklog(repoRoot: string): BacklogReport {
       implementedWithoutVerification
     };
   }
+  const epics = summarizeEpics(repoRoot, sprints);
+
   return {
     sprintFiles: sprints.length,
     active: activeReport,
     multipleActive: activeSprints.length > 1 ? activeSprints.map((s) => s.id) : [],
-    archivedCount
+    archivedCount,
+    epics
   };
+}
+
+function summarizeEpics(
+  repoRoot: string,
+  sprints: ReadonlyArray<{
+    id: string;
+    status: string;
+    stories?: ReadonlyArray<{ id: string; status: string; epic?: string }>;
+  }>
+): EpicsReport {
+  const epicsDir = resolve(repoRoot, "backlog/epics");
+  if (!existsSync(epicsDir)) return EMPTY_EPICS_REPORT;
+  let epicFiles: string[];
+  try {
+    epicFiles = readdirSync(epicsDir).filter((n) => n.endsWith(".epic.json"));
+  } catch {
+    return EMPTY_EPICS_REPORT;
+  }
+  type EpicLite = {
+    id: string;
+    title: string;
+    status: "planned" | "active" | "done" | "parked";
+    category: string;
+    targetMilestone?: string;
+  };
+  const epics: EpicLite[] = [];
+  for (const name of epicFiles) {
+    try {
+      epics.push(JSON.parse(readFileSync(resolve(epicsDir, name), "utf8")));
+    } catch {
+      // surfaced by backlog:check
+    }
+  }
+
+  // Per-epic story rollup + last-touched sprint id.
+  const rollup = new Map<string, { implemented: number; open: number; total: number; lastSprintId?: string }>();
+  // Sort sprints by id ascending so "last" sprint = highest id touching the epic.
+  const sortedSprints = [...sprints].sort((a, b) => a.id.localeCompare(b.id));
+  for (const sprint of sortedSprints) {
+    for (const story of sprint.stories ?? []) {
+      const epicId = story.epic;
+      if (typeof epicId !== "string" || epicId.length === 0) continue;
+      if (!rollup.has(epicId)) rollup.set(epicId, { implemented: 0, open: 0, total: 0 });
+      const entry = rollup.get(epicId)!;
+      entry.total += 1;
+      if (story.status === "implemented") entry.implemented += 1;
+      else if (story.status === "deferred") {
+        // intentional: deferred counts toward neither open nor implemented
+      } else entry.open += 1;
+      entry.lastSprintId = sprint.id;
+    }
+  }
+
+  const counts = { active: 0, planned: 0, done: 0, parked: 0 };
+  const activeEpics: EpicsReport["active"][number][] = [];
+  const stale: EpicsReport["stale"][number][] = [];
+  const doneWithOpen: EpicsReport["doneWithOpenStories"][number][] = [];
+
+  // Compute "current" sprint id := the active sprint, falling back to the
+  // highest archived id. Stale threshold is in "sprints since last touch".
+  const activeOrLatest =
+    sprints.find((s) => s.status === "active")?.id ??
+    sortedSprints[sortedSprints.length - 1]?.id;
+
+  for (const epic of epics) {
+    counts[epic.status] = (counts[epic.status] ?? 0) + 1;
+    const r = rollup.get(epic.id) ?? { implemented: 0, open: 0, total: 0, lastSprintId: undefined };
+    if (epic.status === "active") {
+      activeEpics.push({
+        id: epic.id,
+        title: epic.title,
+        targetMilestone: epic.targetMilestone,
+        implemented: r.implemented,
+        open: r.open,
+        total: r.total
+      });
+    }
+    if (epic.status === "done" && r.open > 0) {
+      doneWithOpen.push({ id: epic.id, openCount: r.open });
+    }
+    if ((epic.status === "active" || epic.status === "planned") && activeOrLatest !== undefined) {
+      // Stale := last-touched sprint id is at least STALE_THRESHOLD_SPRINTS older than current sprint id.
+      // Sprint ids are S<NNN>; lex compare on the numeric suffix.
+      const currentNum = sprintIdToInt(activeOrLatest);
+      const lastNum = r.lastSprintId !== undefined ? sprintIdToInt(r.lastSprintId) : -Infinity;
+      if (currentNum - lastNum >= STALE_THRESHOLD_SPRINTS) {
+        stale.push({ id: epic.id, lastTouchedSprintId: r.lastSprintId });
+      }
+    }
+  }
+
+  return {
+    epicFiles: epics.length,
+    counts,
+    active: activeEpics,
+    stale,
+    doneWithOpenStories: doneWithOpen
+  };
+}
+
+function sprintIdToInt(id: string): number {
+  const match = /^S(\d+)$/.exec(id);
+  return match !== null ? Number(match[1]) : -1;
 }
 
 export function formatBacklog(report: BacklogReport): string {
@@ -1376,6 +1524,33 @@ export function formatBacklog(report: BacklogReport): string {
   if (report.multipleActive.length > 1) {
     lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
   }
+
+  // S80 BACKLOG-EPIC-DOCTOR — Epics section.
+  const e = report.epics;
+  if (e.epicFiles > 0) {
+    lines.push("");
+    lines.push(`Epics: ${e.epicFiles} file(s) (${e.counts.active} active, ${e.counts.planned} planned, ${e.counts.done} done, ${e.counts.parked} parked)`);
+    if (e.active.length === 0) {
+      lines.push(`  no active epics`);
+    } else {
+      for (const ae of e.active) {
+        const milestone = ae.targetMilestone ? ` → ${ae.targetMilestone}` : "";
+        lines.push(`  active ${ae.id}: ${ae.implemented}/${ae.total} stories impl (${ae.open} open)${milestone}`);
+      }
+    }
+    if (e.stale.length > 0) {
+      const sample = e.stale
+        .slice(0, 5)
+        .map((s) => (s.lastTouchedSprintId ? `${s.id} (last ${s.lastTouchedSprintId})` : `${s.id} (never touched)`))
+        .join(", ");
+      lines.push(`  AGF_BACKLOG_EPIC_STALE: ${e.stale.length} — ${sample}`);
+    }
+    if (e.doneWithOpenStories.length > 0) {
+      const sample = e.doneWithOpenStories.map((d) => `${d.id} (${d.openCount})`).join(", ");
+      lines.push(`  AGF_BACKLOG_EPIC_DONE_HAS_OPEN_STORY: ${sample}`);
+    }
+  }
+
   return lines.join("\n");
 }
 

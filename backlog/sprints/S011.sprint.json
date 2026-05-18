@@ -22,7 +22,8 @@
       "summary": "`glb-hot-reload.spec.ts` no longer depends on the console log format.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "HOT-RELOAD"
     },
     {
       "id": "S011-3",

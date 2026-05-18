@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M24",
+  "title": "M24 Rapier physics & colliders",
+  "status": "done",
+  "category": "engine",
+  "summary": "Source: Notes/colliders_physics_implementation_analysis.md. Shipped (S35–S39): M24-investigate / M24-schema / M24-adapter / M24-sync / M24-sensors / M24-character (with the S39 EXCLUDE_SENSORS follow-up) / M24-debug / M24-interpolation / M24-raycast / M24-static-mesh (trimesh + heightfield collider kinds + engine-check guards) / beacon-physics-sensor-wiring / beacon-physics-character. Every M24-* adapter story has landed. Open future work: GLB-trimesh auto-extraction (skip the inline arrays — pull vertices/indices from a loaded mesh), joints + vehicles + ragdolls if a sample asks for them. Multiplayer note: Rapier does NOT guarantee cross-client lockstep — first networked sample stays gameplay-level state, not raw physics.",
+  "sourceDoc": "Notes/colliders_physics_implementation_analysis.md",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Roadmap Epics\" table on 2026-05-18."
+  ]
+}

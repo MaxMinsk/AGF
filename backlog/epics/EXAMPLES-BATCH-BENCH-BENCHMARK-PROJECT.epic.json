@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "EXAMPLES-BATCH-BENCH-BENCHMARK-PROJECT",
+  "title": "examples/batch-bench/ benchmark project",
+  "status": "done",
+  "category": "engine",
+  "summary": "Stand-alone non-game project at examples/batch-bench/. Boots camera + ambient + sun + ground; bootstrap seeds a default 20×20 grid (400) of Batchable cubes in 4 colours via attachUi → runtime.applyCommands. ?seed=N URL param overrides (clamped 1..4096); ?seed=0 keeps the empty baseline. Open the page and __agf.rendererInfo() reports drawCalls: 5, buckets: 4, bucketInstances: 400, handleLeak: 0 — a deterministic regression target when M17 internals change. Follow-up: labelled applyCommands scenarios (instance churn, transform updates per frame, varied-geometry / shared-material via M17-batched-mesh-system) writing JSON snapshots into test-results/.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "EXAMPLES-SHADOWS-BENCH-BENCHMARK-PROJECT",
+  "title": "examples/shadows-bench/ benchmark project",
+  "status": "done",
+  "category": "engine",
+  "summary": "RTS-style showcase for M21-shadow-csm. 80×80 field + procedural \"village\" (28 buildings + 80 trees + 50 rocks + 6 cars on roads + 8 lampposts + 6 plaza props after S48/S52). Deterministic LCG seed so screenshots reproduce. RtsCameraSystem — WASD/arrows pan, mouse wheel + Q/E zoom. ?buildings=N&trees=N&rocks=N URL params. S52 lighting / materials / composition / sky polish on top: ACES Filmic tonemap + IBL fill + sky-gradient skybox + tagged dynamic shadow casters (renderMs −17 % vs S51 baseline). drawCalls hovers at 11–12 (auto-batch absorbs new content). Stays primitive-only on purpose; future story under M25 asset pipeline epic will let an agent pull CC0 GLBs into assets/runtime/.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

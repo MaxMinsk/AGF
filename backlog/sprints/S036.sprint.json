@@ -13,7 +13,8 @@
       "summary": "fixedUpdate System with 5 phases (acquire/release, kinematic push, step, sensors classify, dynamic writeback). Lazy-imports Rapier; registered by `startRuntime` when `project.physics?.enabled === true`. Project schema gains `physics: { enabled?, gravity?, fixedDt? }`. 6 unit tests with a stub adapter. Spike `spikes/physics-rapier-v0/sync-spike.ts` verified end-to-end with real Rapier.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S036-2",
@@ -22,7 +23,8 @@
       "summary": "`M24-sensors` ✅ Adapter `drainEvents()` reads Rapier's `EventQueue`; PhysicsSyncSystem writes runtime-only `CurrentContacts3D` / `OverlappingTriggers3D` ECS components per fixed step. `entityForCollider` reverse lookup added to the body registry. Spike `spikes/physics-rapier-v0/sensor-spike.ts` confirms enter/exit events fire across a sensor box and on contact pairs.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "ECS"
     },
     {
       "id": "S036-3",
@@ -31,7 +33,8 @@
       "summary": "`M24-character` ✅ `CharacterController3D` component + adapter `acquireCharacterController` / `releaseCharacterController` / `computeCharacterMovement` / `setBodyNextKinematicTranslation`. Kinematic capsule wrapper around Rapier's `KinematicCharacterController` (offset / autostep / maxClimbSlope / minSlideSlope / snapToGround / up-vector). Spike `spikes/physics-rapier-v0/character-spike.ts` lands a capsule at y≈1.05 on a fixed ground collider.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M24"
     },
     {
       "id": "S036-4",
@@ -40,7 +43,8 @@
       "summary": "`M16-cache-d` ✅ Persistent `parent→children` index in `resolve-cached.ts` (`knownInputs` / `childrenIndex` / `parentOfStored`); helpers `updateChildLink` / `evictFromIndexes` keep the index incrementally in sync as scenes mutate. New `resolveDirtyDelta(world, inputs, dirtyIds)` performs a BFS over the dirty closure and returns only changed `LocalToWorld` entries. **Bench at 10k chain-of-8 @ 1%-dirty: ~1.94 ms** (~3× faster than cache-c, ~6.5× faster than no-cache).",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M16"
     },
     {
       "id": "S036-5",
@@ -49,7 +53,8 @@
       "summary": "`M17-batched-mesh` ✅ (adapter primitives only) `acquireBatchedBucket` / `releaseBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance` / `removeBatchedInstance` / `setBatchedInstanceTransform` / `setBatchedInstanceGeometry` / `batchedBucketLiveCount`. Internal `batchedBuckets` map + `nextBatchedBucketHandle`. `rendererInfo()` exposes `batchedBuckets` / `batchedBucketInstances`. System-layer wiring deferred to Sprint 37.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S036-6",
@@ -67,7 +72,8 @@
       "summary": "`M17-renderer-respect-batchable` ✅ Surfaced by `batch-bench`: the standalone renderer fallback (`refreshMeshes`) acquired a per-entity Mesh handle for every `MeshRenderer` regardless of `Batchable`, doubling draw calls and leaking handles when `MeshLifecycleSystem` had already filtered the entity. `engine/render/three-renderer.ts` now filters `Batchable` out of `refreshMeshes` the same way the system does. On the 400-box bench grid: `drawCalls 405 → 5`, `meshes 401 → 1`, `handleLeak 400 → 0`.",
       "verification": [
         "legacy import — see sprint notes[] for the original sprint-level verification"
-      ]
+      ],
+      "epic": "M17"
     },
     {
       "id": "S036-8",

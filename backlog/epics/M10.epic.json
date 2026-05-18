@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "M10",
+  "title": "M10 Security / trust boundary for agent-authored projects",
+  "status": "active",
+  "category": "engine",
+  "summary": "Doc + CLI warning + network hardening (already partially shipped via protocol-validator, id-collision and size caps). Mostly documentation work.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"Must-Have Engine Gaps (from `Notes/codex_review_1.md` M-section)\" table on 2026-05-18."
+  ]
+}

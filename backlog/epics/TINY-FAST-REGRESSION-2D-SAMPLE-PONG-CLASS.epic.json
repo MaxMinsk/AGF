@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "TINY-FAST-REGRESSION-2D-SAMPLE-PONG-CLASS",
+  "title": "Tiny fast-regression 2D sample (Pong-class)",
+  "status": "planned",
+  "category": "research",
+  "summary": "Existing parking-lot \"PixiJS adapter for advanced 2D\" already covers the prerequisite.",
+  "notes": [
+    "Auto-migrated from HIGH_LEVEL_BACKLOG.md → \"From `Notes/kenji_engine_analysis.md` (most ideas already match AGF's direction)\" table on 2026-05-18."
+  ]
+}
