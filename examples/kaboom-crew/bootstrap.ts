@@ -267,9 +267,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     ]);
     let titleScreenMounted = false;
     let gameStarted = false;
+    // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
+    // first becomes playable; used to keep the hint widget on screen
+    // for 4 s.
+    let gameStartedAtMs = 0;
     const startGame = (): void => {
       if (gameStarted) return;
       gameStarted = true;
+      gameStartedAtMs = performance.now();
       runtime.applyCommands([
         { kind: "component.remove", entityId: "kaboom.game-state", component: "GamePaused" }
       ]);
@@ -548,6 +553,23 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       });
       titleScreenMounted = true;
 
+      // S85 KABOOM-CONTROLS-HINT spec — mounted in the center slot
+      // for the first 4 s of the first round, dismissed once the
+      // banner needs the slot or the 4 s window expires.
+      const CONTROLS_HINT_ID = "kaboom.controls-hint";
+      const controlsHintSpec = {
+        id: CONTROLS_HINT_ID,
+        slot: "center" as const,
+        initial: undefined,
+        render: (): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "font-size:14px;font-weight:500;text-align:center;padding:4px 10px;opacity:0.85;");
+          el.textContent = "WASD / arrows  ·  Space = bomb  ·  R = restart";
+          return el;
+        }
+      };
+      let controlsHintMounted = false;
+
       // Banner widget is added on demand because the engine's HUD
       // WIDGET_STYLE always paints a dark pill around the slot — even
       // an empty render leaves a visible dot in the centre of the
@@ -618,6 +640,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
         hud.update(STATS_ID, { lines });
 
+        // S85 KABOOM-CONTROLS-HINT — gate against the banner (which
+        // also wants the centre slot once the round resolves). Mount
+        // once the title screen is dismissed; unmount after 4 s OR
+        // as soon as the banner needs the slot.
+        const hintWindowOpen =
+          gameStarted &&
+          phase === "playing" &&
+          performance.now() - gameStartedAtMs < 4000;
+        if (hintWindowOpen && !controlsHintMounted && !bannerMounted) {
+          hud.add(controlsHintSpec);
+          controlsHintMounted = true;
+        } else if (controlsHintMounted && (!hintWindowOpen || bannerMounted)) {
+          hud.remove(CONTROLS_HINT_ID);
+          controlsHintMounted = false;
+        }
+
         // Banner — empty while playing, mounted otherwise.
         let bannerText = "";
         if (phase === "won") bannerText = "YOU WIN — restart in 3 s (R)";
@@ -665,6 +703,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         hud.remove(STATS_ID);
         if (bannerMounted) hud.remove(BANNER_ID);
         if (titleScreenMounted) hud.remove(TITLE_ID);
+        if (controlsHintMounted) hud.remove(CONTROLS_HINT_ID);
         hud.remove(MINIMAP_ID);
       };
     }

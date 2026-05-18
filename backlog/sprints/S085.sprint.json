@@ -65,10 +65,11 @@
     {
       "id": "KABOOM-CONTROLS-HINT",
       "title": "Bottom-center controls hint for the first 4 s of a fresh boot",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Tiny HUD widget shown for the first 4 seconds of the first round explaining `WASD / arrows · Space = bomb · R = restart`. Helps new players who skipped the README. Fades out automatically; doesn't survive a manual restart.",
       "verification": [
-        "live probe: HUD widget 'kaboom.controls-hint' present in the bottomCenter slot for ~4 s after the round starts, then removed"
+        "live probe: HUD widget 'kaboom.controls-hint' present in the bottomCenter slot for ~4 s after the round starts, then removed",
+        "bootstrap mounts a 'kaboom.controls-hint' centre-slot HUD widget for the first 4 s after gameStarted; unmounts when the window expires or when the banner needs the slot (round resolved)"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
