@@ -318,4 +318,15 @@ describe("project check", () => {
       ])
     );
   });
+
+  it("S81 KABOOM-GRID-POSITION: rejects GridPosition outside the Grid extents", () => {
+    const result = checkProject(resolve(fixturesRoot, "grid-out-of-bounds"));
+    expect(result.ok).toBe(false);
+    const oob = result.diagnostics.filter((d) => d.code === "AGF_GRID_POSITION_OUT_OF_BOUNDS");
+    expect(oob).toHaveLength(1);
+    expect(oob[0]).toMatchObject({
+      severity: "error",
+      path: "$.entities[3].components.GridPosition"
+    });
+  });
 });

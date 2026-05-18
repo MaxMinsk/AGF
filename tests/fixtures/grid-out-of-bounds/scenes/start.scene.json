@@ -1,0 +1,33 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Camera": { "kind": "perspective", "active": true, "fov": 60 },
+        "Transform": { "position": [0, 5, 10], "rotation": [-25, 0, 0], "scale": [1, 1, 1] }
+      }
+    },
+    {
+      "id": "grid.config",
+      "components": {
+        "Grid": { "cellSize": 1, "sizeX": 5, "sizeZ": 5 },
+        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+      }
+    },
+    {
+      "id": "block.in-bounds",
+      "components": {
+        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "GridPosition": { "gx": 0, "gz": 0 }
+      }
+    },
+    {
+      "id": "block.out-of-bounds",
+      "components": {
+        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "GridPosition": { "gx": 99, "gz": 0 }
+      }
+    }
+  ]
+}

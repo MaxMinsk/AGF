@@ -188,6 +188,7 @@ function validateStartScene(
   diagnostics.push(...validateTransformHierarchy(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validatePhysicsColliders(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validateScenePrefabInstances(sceneJson.data, scenePath, projectDir));
+  diagnostics.push(...validateGridComponents(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
@@ -808,6 +809,84 @@ function detectDuplicateEntityIds(sceneData: JsonValue, scenePath: string, proje
       suggestion: "Give every entity a stable unique id. Prefer readable ids such as camera.main or pickup.beacon-01."
     });
   });
+
+  return diagnostics;
+}
+
+// S81 KABOOM-GRID-POSITION cross-component validation. Rules:
+//   - At most one Grid component per scene (it's a singleton config).
+//   - Every GridPosition.gx is in [0, Grid.sizeX); same for gz.
+//   - GridPosition only makes sense when a Grid singleton exists.
+function validateGridComponents(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  if (!isJsonObject(sceneData) || !Array.isArray(sceneData["entities"])) return diagnostics;
+  const file = toProjectRelativeFile(scenePath, projectDir);
+
+  type GridConfig = { sizeX: number; sizeZ: number; entityIndex: number };
+  const gridConfigs: GridConfig[] = [];
+  const gridPositions: Array<{ entityIndex: number; gx: number; gz: number }> = [];
+
+  sceneData["entities"].forEach((entity, index) => {
+    if (!isJsonObject(entity)) return;
+    const components = entity["components"];
+    if (!isJsonObject(components)) return;
+    const grid = components["Grid"];
+    if (isJsonObject(grid)) {
+      const sizeX = typeof grid["sizeX"] === "number" ? grid["sizeX"] : NaN;
+      const sizeZ = typeof grid["sizeZ"] === "number" ? grid["sizeZ"] : NaN;
+      gridConfigs.push({ sizeX, sizeZ, entityIndex: index });
+    }
+    const gp = components["GridPosition"];
+    if (isJsonObject(gp)) {
+      const gx = typeof gp["gx"] === "number" ? gp["gx"] : NaN;
+      const gz = typeof gp["gz"] === "number" ? gp["gz"] : NaN;
+      gridPositions.push({ entityIndex: index, gx, gz });
+    }
+  });
+
+  if (gridConfigs.length > 1) {
+    for (const cfg of gridConfigs.slice(1)) {
+      diagnostics.push({
+        severity: "error",
+        code: "AGF_GRID_DUPLICATE_CONFIG",
+        file,
+        path: `$.entities[${cfg.entityIndex}].components.Grid`,
+        message: `Multiple Grid components in scene. The Grid is a singleton; place it on one config entity.`,
+        suggestion: `First Grid is at $.entities[${gridConfigs[0]!.entityIndex}].components.Grid.`
+      });
+    }
+  }
+
+  if (gridPositions.length > 0 && gridConfigs.length === 0) {
+    diagnostics.push({
+      severity: "error",
+      code: "AGF_GRID_POSITION_WITHOUT_GRID",
+      file,
+      path: `$.entities[${gridPositions[0]!.entityIndex}].components.GridPosition`,
+      message: `Scene has GridPosition components but no Grid singleton. Add a Grid config entity with cellSize/sizeX/sizeZ.`
+    });
+  }
+
+  if (gridConfigs.length > 0) {
+    const cfg = gridConfigs[0]!;
+    for (const gp of gridPositions) {
+      if (!Number.isFinite(gp.gx) || !Number.isFinite(gp.gz)) continue;
+      if (gp.gx < 0 || gp.gx >= cfg.sizeX || gp.gz < 0 || gp.gz >= cfg.sizeZ) {
+        diagnostics.push({
+          severity: "error",
+          code: "AGF_GRID_POSITION_OUT_OF_BOUNDS",
+          file,
+          path: `$.entities[${gp.entityIndex}].components.GridPosition`,
+          message: `GridPosition (gx=${gp.gx}, gz=${gp.gz}) is outside Grid extents (sizeX=${cfg.sizeX}, sizeZ=${cfg.sizeZ}).`,
+          suggestion: `Move the entity inside the grid (0..${cfg.sizeX - 1}, 0..${cfg.sizeZ - 1}) or grow the Grid singleton.`
+        });
+      }
+    }
+  }
 
   return diagnostics;
 }

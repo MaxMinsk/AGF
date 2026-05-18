@@ -238,6 +238,15 @@
             },
             "WaypointMover": {
               "$ref": "components/gamefeel.schema.json#/definitions/waypointMoverComponent"
+            },
+            "Grid": {
+              "$ref": "components/grid.schema.json#/definitions/gridComponent"
+            },
+            "GridPosition": {
+              "$ref": "components/grid.schema.json#/definitions/gridPositionComponent"
+            },
+            "GridOccupant": {
+              "$ref": "components/grid.schema.json#/definitions/gridOccupantComponent"
             }
           }
         }

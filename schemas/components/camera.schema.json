@@ -136,7 +136,13 @@
           "minimum": 0,
           "maximum": 1,
           "default": 1,
-          "description": "Per-frame lerp factor toward the desired position. 1 = snap, 0 = never move."
+          "description": "Frame-rate-aware exponential damping. 1 = snap, 0 = never move. Internally `alpha = 1 - (1 - smoothing)^(dt*60)` so the same value behaves identically at 30 / 60 / 120 Hz."
+        },
+        "lookAheadMs": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "S81 KABOOM-DAMPED-FOLLOW. Extrapolate the target's recent velocity by this many milliseconds when computing both camera position and look-at. 0 disables look-ahead (legacy behaviour). Kaboom Crew uses ~120 ms so the camera leans toward the player's motion direction instead of trailing behind."
         }
       }
     },
