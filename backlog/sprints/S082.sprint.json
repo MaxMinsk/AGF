@@ -2,9 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S082",
   "title": "Kaboom Crew gameplay v0 — input + bot AI + bombs + win/loss",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-18",
-  "archivedAt": null,
+  "archivedAt": "2026-05-18",
   "stories": [
     {
       "id": "KABOOM-PLAYER-INPUT",
@@ -260,7 +260,7 @@
     "Procedural characters (still capsule placeholders).",
     "Sector modifiers, blast-prediction telegraph decal."
   ],
-  "prUrl": null,
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/92",
   "notes": [
     "First sprint where Kaboom Crew is actually playable. Everything project-local lands under examples/kaboom-crew/src/ + examples/kaboom-crew/schemas/ — engine primitives stay frozen.",
     "Round resolution + win/loss are ECS-data-driven (RoundState component) so an agent can flip phases via the command pipeline + drive end-screen UX from data."
