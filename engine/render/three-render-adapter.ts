@@ -63,6 +63,7 @@ import {
   type ToneMapping,
   BasicShadowMap,
   PCFShadowMap,
+  PCFSoftShadowMap,
   VSMShadowMap,
   type ShadowMapType,
   PerspectiveCamera,
@@ -815,8 +816,13 @@ export class ThreeRenderAdapter {
     // directly produced a noisy console warning. VSM is a future stretch
     // (Phase 3) but is not the default — it changes the artifact profile.
     this.device.shadowMap.enabled = true;
-    this.device.shadowMap.type = shadowAlgorithmType(options.shadowAlgorithm);
-    if (options.shadowAlgorithm === "pcss") {
+    this.device.shadowMap.type = shadowAlgorithmType(options.shadowAlgorithm, this.capabilities.kind);
+    // The WebGL PCSS implementation patches three.js's shadow shader
+    // chunks via `onBeforeCompile` — no-op on WebGPU where the shader
+    // is built from TSL nodes and the soft-PCF filter is selected by
+    // `shadowMap.type = PCFSoftShadowMap` instead (see
+    // `shadowAlgorithmType` above).
+    if (options.shadowAlgorithm === "pcss" && this.capabilities.kind === "webgl") {
       applyPcssShadowChunks();
     }
     // M21-color: tone-mapping is opt-in (default "none" / linear clamp)
@@ -2492,26 +2498,48 @@ export class ThreeRenderAdapter {
    *
    * No-op when CSM is not currently active.
    */
+  /**
+   * S76 — walk both renderer paths' CSM-managed DirectionalLights.
+   * WebGL: `this.csm.lights[]` array. WebGPU: the host
+   * `this.csmDirectionalLight` plus the cascade sub-lights stored
+   * inside `(csmShadowNodeAttached as { lights: Light[] }).lights[]`.
+   */
+  private forEachCsmLight(fn: (light: DirectionalLight) => void): void {
+    if (this.csm !== undefined) {
+      for (const light of this.csm.lights) fn(light);
+      return;
+    }
+    if (this.csmDirectionalLight !== undefined) {
+      fn(this.csmDirectionalLight);
+    }
+    const node = this.csmShadowNodeAttached as
+      | { lights?: ReadonlyArray<{ shadow?: unknown; intensity?: number }> }
+      | undefined;
+    if (node?.lights !== undefined) {
+      for (const sub of node.lights) {
+        fn(sub as unknown as DirectionalLight);
+      }
+    }
+  }
+
   setCsmShadowBias(value: number): void {
-    if (this.csm === undefined) return;
-    for (const light of this.csm.lights) light.shadow.bias = value;
-    if (this.csmConfig !== undefined) this.csmConfig = { ...this.csmConfig, shadowBias: value };
+    if (this.csmConfig === undefined) return;
+    this.forEachCsmLight((light) => { light.shadow.bias = value; });
+    this.csmConfig = { ...this.csmConfig, shadowBias: value };
     this.invalidateShadowMap();
   }
 
   setCsmShadowNormalBias(value: number): void {
-    if (this.csm === undefined) return;
-    for (const light of this.csm.lights) light.shadow.normalBias = value;
-    if (this.csmConfig !== undefined)
-      this.csmConfig = { ...this.csmConfig, shadowNormalBias: value };
+    if (this.csmConfig === undefined) return;
+    this.forEachCsmLight((light) => { light.shadow.normalBias = value; });
+    this.csmConfig = { ...this.csmConfig, shadowNormalBias: value };
     this.invalidateShadowMap();
   }
 
   setCsmLightIntensity(value: number): void {
-    if (this.csm === undefined) return;
-    for (const light of this.csm.lights) light.intensity = value;
-    if (this.csmConfig !== undefined)
-      this.csmConfig = { ...this.csmConfig, lightIntensity: value };
+    if (this.csmConfig === undefined) return;
+    this.forEachCsmLight((light) => { light.intensity = value; });
+    this.csmConfig = { ...this.csmConfig, lightIntensity: value };
     // Light intensity doesn't change shadow geometry — no shadow re-render
     // needed.
   }
@@ -2523,16 +2551,15 @@ export class ThreeRenderAdapter {
    * (~100 ms + 267-material shader recompile in shadows-bench).
    */
   setCsmShadowMapSize(value: number): void {
-    if (this.csm === undefined) return;
-    for (const light of this.csm.lights) {
+    if (this.csmConfig === undefined) return;
+    this.forEachCsmLight((light) => {
       light.shadow.mapSize.set(value, value);
       if (light.shadow.map !== null) {
         light.shadow.map.dispose();
         light.shadow.map = null;
       }
-    }
-    if (this.csmConfig !== undefined)
-      this.csmConfig = { ...this.csmConfig, shadowMapSize: value };
+    });
+    this.csmConfig = { ...this.csmConfig, shadowMapSize: value };
     this.invalidateShadowMap();
   }
 
@@ -2563,7 +2590,7 @@ export class ThreeRenderAdapter {
    * `applyPcssShadowChunks()` has fired.
    */
   setShadowAlgorithm(kind: "pcf" | "vsm" | "pcss"): void {
-    this.device.shadowMap.type = shadowAlgorithmType(kind);
+    this.device.shadowMap.type = shadowAlgorithmType(kind, this.capabilities.kind);
     this.device.shadowMap.needsUpdate = true;
     if (kind === "pcss") {
       applyPcssShadowChunks();
@@ -3183,21 +3210,25 @@ void main() {
 `;
 
 function shadowAlgorithmType(
-  kind: "pcf" | "vsm" | "pcss" | undefined
+  kind: "pcf" | "vsm" | "pcss" | undefined,
+  mode: "webgl" | "webgpu" = "webgl"
 ): ShadowMapType {
-  // PCSS requires reading *raw depth* from the shadow map (blocker search +
-  // variable-penumbra filter). Modern three.js `PCFShadowMap` binds the
-  // shadow map as `sampler2DShadow` and uses hardware comparison — the
-  // sampler returns 0/1, not raw depth — so the PCSS shader-chunk
-  // substitution silently no-ops there.
-  //
-  // `BasicShadowMap` binds the shadow map as `sampler2D` and the chunk's
-  // BASIC variant of `getShadow` reads `texture2D( shadowMap, ... ).r`,
-  // which the S41 substitution actually replaces. Map `pcss` to
-  // `BasicShadowMap` so the algorithm has a visible effect; users who
-  // want plain default-PCF stick with `algorithm: "pcf"`. This matches
-  // the official `three/examples/webgl_shadowmap_pcss.html` setup that
-  // explicitly notes "PCSS requires reading raw depth values".
+  // S76 — on WebGPU, three.js's TSL shadow filter library is indexed
+  // directly by `shadowMap.type` (PCF / PCFSoft / VSM). Setting type
+  // to `PCFSoftShadowMap` enables `PCFSoftShadowFilter` — a 5×5 PCF
+  // kernel with linear hardware sampling that visibly softens shadow
+  // edges, especially under tall objects (the user's main "where is
+  // PCSS?" point on the WebGPU shadows-bench). No GLSL chunks needed.
+  if (kind === "pcss" && mode === "webgpu") return PCFSoftShadowMap;
+  // WebGL PCSS path: requires reading raw depth from the shadow map
+  // (blocker search + variable-penumbra filter). Modern three.js
+  // `PCFShadowMap` binds the shadow map as `sampler2DShadow` and uses
+  // hardware comparison — the sampler returns 0/1, not raw depth — so
+  // the PCSS shader-chunk substitution silently no-ops there.
+  // `BasicShadowMap` binds the shadow map as `sampler2D` and the
+  // chunk's BASIC variant of `getShadow` reads `texture2D( ... ).r`,
+  // which the S41 substitution actually replaces. Matches the official
+  // `three/examples/webgl_shadowmap_pcss.html` setup.
   if (kind === "vsm") return VSMShadowMap;
   if (kind === "pcss") return BasicShadowMap;
   return PCFShadowMap;
