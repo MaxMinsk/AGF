@@ -18,12 +18,12 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     const onEvent = vi.fn();
     const system = createKaboomAudioBindingSystem({ onEvent });
     // Tick 1: nothing.
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).not.toHaveBeenCalled();
     // Tick 2: a bomb spawns.
     world.addEntity("bomb.1");
     world.setComponent("bomb.1", "Bomb", { fuseRemaining: 2.5, range: 2, ownerId: "p" });
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).toHaveBeenCalledWith("bomb-place", { entityId: "bomb.1" });
   });
 
@@ -33,7 +33,7 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     const system = createKaboomAudioBindingSystem({ onEvent });
     world.addEntity("evt.1");
     world.setComponent("evt.1", "BlastEvent", { originGx: 0, originGz: 0, range: 1, ownerId: "p" });
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).toHaveBeenCalledWith("blast");
   });
 
@@ -44,11 +44,11 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     const onEvent = vi.fn();
     const system = createKaboomAudioBindingSystem({ onEvent });
     // Tick 1: pickup observed → no event.
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).not.toHaveBeenCalled();
     // Tick 2: pickup removed → event.
     world.removeEntity("pickup.1");
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).toHaveBeenCalledWith("pickup", { entityId: "pickup.1" });
   });
 
@@ -58,10 +58,10 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true });
     const onEvent = vi.fn();
     const system = createKaboomAudioBindingSystem({ onEvent });
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).not.toHaveBeenCalled();
     world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: false });
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).toHaveBeenCalledWith("death", { entityId: "p" });
   });
 
@@ -71,9 +71,9 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     world.setComponent("bomb.1", "Bomb", { fuseRemaining: 2.5, range: 2, ownerId: "p" });
     const onEvent = vi.fn();
     const system = createKaboomAudioBindingSystem({ onEvent });
-    system.frameUpdate!(ctx(world));
-    system.frameUpdate!(ctx(world));
-    system.frameUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
     expect(onEvent).toHaveBeenCalledTimes(1); // only the first tick saw the new bomb
   });
 
@@ -83,10 +83,10 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     worldA.setComponent("pickup.alpha", "Pickup", { kind: "bomb-up" });
     const onEvent = vi.fn();
     const system = createKaboomAudioBindingSystem({ onEvent });
-    system.frameUpdate!(ctx(worldA));
+    system.fixedUpdate!(ctx(worldA));
     // Switch to a fresh world (simulates scene.load).
     const worldB = new World();
-    system.frameUpdate!(ctx(worldB));
+    system.fixedUpdate!(ctx(worldB));
     // The pickup that "vanished" in worldA must NOT trigger an event
     // — that wasn't a collect, just a world reset.
     expect(onEvent).not.toHaveBeenCalledWith("pickup", expect.anything());
