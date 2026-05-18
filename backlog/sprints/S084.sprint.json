@@ -105,11 +105,13 @@
     {
       "id": "KABOOM-DEMO-RECORDING",
       "title": "Deterministic 30-second recording fixture for regression replay",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Capture a `Recording` of a 30-second seeded bot-vs-bot round and stash it under `examples/kaboom-crew/recordings/demo-30s.recording.json`. A new Vitest test replays the recording against a fresh world and asserts a stable final phase + RoundState.elapsed — gives the sprint a regression target for any AI / blast / pickup change, headless and fast (the existing playtest in S082 already shows the pattern).",
       "verification": [
         "examples/kaboom-crew/recordings/demo-30s.recording.json exists; replay test passes",
-        "any change to BombFuseSystem / BlastPropagationSystem / BotAISystem that changes the determinism flips the test red"
+        "any change to BombFuseSystem / BlastPropagationSystem / BotAISystem that changes the determinism flips the test red",
+        "examples/kaboom-crew/tests/unit/demo-30s.test.ts boots the start scene, swaps player.1 to a BotBrain, runs 30 simulated seconds of the full system stack and snapshots { phase, tally, stoppedAtStep, bombers }",
+        "Vitest snapshot file under tests/unit/__snapshots__/demo-30s.test.ts.snap pins the deterministic outcome (phase='won', stoppedAtStep=336); re-run is byte-stable; any AI/blast/fuse change flips the diff"
       ],
       "dependsOn": [
         "KABOOM-BOT-DIFFICULTY"
