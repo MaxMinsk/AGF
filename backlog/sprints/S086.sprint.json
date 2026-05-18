@@ -86,11 +86,13 @@
     {
       "id": "KABOOM-PAUSE-MENU",
       "title": "Esc opens a pause menu — Resume / Restart / Difficulty cycle",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Centre HUD widget with three clickable rows. Esc toggles. Resume removes GamePaused (same pattern as the title screen). Restart calls restartScene. Difficulty cycles easy → normal → hard, applies the preset immediately to bot.1 + writes it into `?difficulty=` via history.replaceState so a reload preserves it.",
       "verification": [
         "live probe: Esc mounts the menu, GamePaused added to kaboom.game-state; clicking Resume removes GamePaused; clicking Restart triggers scene.load",
-        "Difficulty button cycles through 3 presets — current label visible on the button"
+        "Difficulty button cycles through 3 presets — current label visible on the button",
+        "Esc keydown handler toggles a centre HUD widget with Resume / Restart / Difficulty buttons; mount adds GamePaused, unmount removes it",
+        "Difficulty button cycles easy → normal → hard, applies the preset to bot.1 + writes ?difficulty= via history.replaceState; reload preserves it"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

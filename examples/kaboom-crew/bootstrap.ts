@@ -323,7 +323,97 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       audioFx.play(kind);
     };
 
+    // S86 KABOOM-PAUSE-MENU. Mutable presets list for the Difficulty
+    // cycle button — reads / writes the URL's `?difficulty=` so a
+    // reload preserves it.
+    type DiffPreset = "easy" | "normal" | "hard";
+    const DIFF_ORDER: DiffPreset[] = ["easy", "normal", "hard"];
+    function currentDifficulty(): DiffPreset {
+      const search = (globalThis as unknown as { location?: { search?: string } }).location?.search ?? "";
+      try {
+        const v = new URLSearchParams(search).get("difficulty");
+        if (v === "easy" || v === "normal" || v === "hard") return v;
+      } catch {}
+      return "normal";
+    }
+    function cycleDifficulty(): DiffPreset {
+      const idx = DIFF_ORDER.indexOf(currentDifficulty());
+      const next = DIFF_ORDER[(idx + 1) % DIFF_ORDER.length]!;
+      const loc = (globalThis as unknown as { location?: { search?: string; pathname?: string }; history?: { replaceState(s: unknown, t: string, u: string): void } });
+      if (loc.history !== undefined && loc.location !== undefined) {
+        const params = new URLSearchParams(loc.location.search ?? "");
+        params.set("difficulty", next);
+        loc.history.replaceState(null, "", `${loc.location.pathname ?? ""}?${params.toString()}`);
+      }
+      const tuning = difficultyComponentPatch(next);
+      runtime.applyCommands([
+        { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
+        { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
+        { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
+      ]);
+      return next;
+    }
+
+    // S86 KABOOM-PAUSE-MENU. Mounted on Esc, unmounted on Esc again /
+    // Resume click. Adds GamePaused while open.
+    const PAUSE_MENU_ID = "kaboom.pause-menu";
+    let pauseMenuMounted = false;
+    function openPauseMenu(): void {
+      if (pauseMenuMounted) return;
+      pauseMenuMounted = true;
+      runtime.applyCommands([
+        { kind: "component.set", entityId: "kaboom.game-state", component: "GamePaused", data: { reason: "pause-menu" } }
+      ]);
+      const hud2 = (runtime as unknown as { hud?: typeof hud }).hud;
+      hud2?.add({
+        id: PAUSE_MENU_ID,
+        slot: "center",
+        initial: undefined,
+        render: (): HTMLElement => {
+          const root = document.createElement("div");
+          root.setAttribute("style", "display:flex;flex-direction:column;gap:8px;padding:12px 16px;font-size:16px;min-width:200px;text-align:center;");
+          const title = document.createElement("div");
+          title.setAttribute("style", "font-size:20px;font-weight:600;margin-bottom:4px;");
+          title.textContent = "Paused";
+          root.appendChild(title);
+          const mkBtn = (label: string, onClick: () => void): HTMLButtonElement => {
+            const btn = document.createElement("button");
+            btn.textContent = label;
+            btn.setAttribute("style", "pointer-events:auto;padding:6px 12px;font-size:14px;cursor:pointer;background:#2a3a5c;color:#fff;border:1px solid #5a6e94;border-radius:4px;");
+            btn.addEventListener("click", onClick);
+            return btn;
+          };
+          root.appendChild(mkBtn("Resume", closePauseMenu));
+          root.appendChild(mkBtn("Restart", () => { closePauseMenu(); restartScene(runtime); }));
+          const diff = currentDifficulty();
+          const diffBtn = mkBtn(`Difficulty: ${diff}`, () => {
+            const next = cycleDifficulty();
+            diffBtn.textContent = `Difficulty: ${next}`;
+          });
+          root.appendChild(diffBtn);
+          return root;
+        }
+      });
+    }
+    function closePauseMenu(): void {
+      if (!pauseMenuMounted) return;
+      pauseMenuMounted = false;
+      const hud2 = (runtime as unknown as { hud?: typeof hud }).hud;
+      hud2?.remove(PAUSE_MENU_ID);
+      runtime.applyCommands([
+        { kind: "component.remove", entityId: "kaboom.game-state", component: "GamePaused" }
+      ]);
+    }
+
     const handleKey = (event: KeyboardEvent): void => {
+      // S86 KABOOM-PAUSE-MENU — Esc toggles the menu (but only after
+      // the title screen is dismissed; on the title screen, Esc is
+      // ignored so user doesn't double-pause).
+      if (event.code === "Escape" && gameStarted) {
+        if (pauseMenuMounted) closePauseMenu();
+        else openPauseMenu();
+        return;
+      }
       // S84 KABOOM-TITLE-SCREEN — Space dismisses the title screen on
       // the first press; subsequent Space presses fall through to the
       // bomb-place handler (PlayerInputSystem).
@@ -729,6 +819,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (bannerMounted) hud.remove(BANNER_ID);
         if (titleScreenMounted) hud.remove(TITLE_ID);
         if (controlsHintMounted) hud.remove(CONTROLS_HINT_ID);
+        if (pauseMenuMounted) hud.remove(PAUSE_MENU_ID);
         hud.remove(MINIMAP_ID);
       };
     }
