@@ -125,6 +125,22 @@ describe("createKaboomPlayerInputSystem (S82 KABOOM-PLAYER-INPUT)", () => {
     expect(world.hasComponent("player", "RoundRestartRequest")).toBe(false);
   });
 
+  it("S87 KABOOM-HUD-KEY-GLYPHS: pressedSnapshot() reflects the live pressed set", () => {
+    const world = new World();
+    addPlayer(world);
+    const pressed = new Set<string>();
+    const system = createKaboomPlayerInputSystem({ pressedKeys: pressed });
+    expect(Array.from(system.pressedSnapshot())).toEqual([]);
+    pressed.add("KeyD");
+    pressed.add("Space");
+    const snap = system.pressedSnapshot();
+    expect(snap.has("KeyD")).toBe(true);
+    expect(snap.has("Space")).toBe(true);
+    // Snapshot is a copy — mutating it does NOT mutate the system's set.
+    (snap as Set<string>).clear();
+    expect(system.pressedSnapshot().has("KeyD")).toBe(true);
+  });
+
   it("S85 KABOOM-TITLE-INPUT-PAUSE: a held key fires no edge-trigger on the first resumed frame", () => {
     const world = new World();
     addPlayer(world);

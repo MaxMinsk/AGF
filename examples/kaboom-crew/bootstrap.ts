@@ -154,6 +154,12 @@ function restartScene(runtime: RuntimeHandle): number {
 // once the runtime is known. Cleared in dispose to release the handle.
 let _boundRestart: (() => void) | undefined;
 
+// S87 KABOOM-HUD-KEY-GLYPHS. PlayerInputSystem already exposes
+// pressedSnapshot(); we hold the instance so attachUi can expose a
+// `runtime.kaboom.input()` accessor (returns ReadonlyArray<string>)
+// and the HUD key-glyph widget can poll the live pressed set.
+let _boundPlayerInput: { pressedSnapshot(): ReadonlySet<string> } | undefined;
+
 // S84 KABOOM-AUDIO-WIRE.
 // Same closure-bridge pattern: audio-binding system is registered in
 // registerSystems but the audio bus only exists once attachUi has
@@ -171,7 +177,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(occupancy, { profiles: ["static"] });
 
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static"] });
-    scheduler.register(createKaboomPlayerInputSystem(), { profiles: ["static"] });
+    const playerInput = createKaboomPlayerInputSystem();
+    _boundPlayerInput = playerInput;
+    scheduler.register(playerInput, { profiles: ["static"] });
 
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
@@ -601,6 +609,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             };
           });
         return { round, players, bombs, tiles, pickups };
+      },
+      // S87 KABOOM-HUD-KEY-GLYPHS. Read-only view of the player input
+      // system's pressed-key set. Returns a fresh ReadonlyArray<string>
+      // (KeyboardEvent.code values) so callers can render glyphs or
+      // diagnose stuck-key bugs without mutating internal state.
+      input(): ReadonlyArray<string> {
+        if (_boundPlayerInput === undefined) return [];
+        return Array.from(_boundPlayerInput.pressedSnapshot());
       }
     };
 
@@ -729,6 +745,49 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       });
       hud.add({ ...minimapSpec, initial: { markers: [] } } as unknown);
 
+      // S87 KABOOM-HUD-KEY-GLYPHS. Bottom-left key-glyph row showing
+      // which movement keys + Space are currently held. Helps the
+      // player spot stuck-key issues and confirms the renderer sees
+      // the same input the system sees.
+      const KEYS_ID = "kaboom.input";
+      const keyOrder: Array<{ code: string; label: string }> = [
+        { code: "KeyW", label: "W" },
+        { code: "KeyA", label: "A" },
+        { code: "KeyS", label: "S" },
+        { code: "KeyD", label: "D" },
+        { code: "Space", label: "␣" }
+      ];
+      hud.add({
+        id: KEYS_ID,
+        slot: "bottomLeft",
+        initial: { pressed: [] as ReadonlyArray<string> },
+        render: (data: { pressed: ReadonlyArray<string> }): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "display:flex;gap:4px;padding-top:6px;");
+          const held = new Set(data.pressed);
+          // Arrow keys are equivalent to WASD for the same direction —
+          // light up the WASD glyph either way to avoid duplicating
+          // entries.
+          if (held.has("ArrowUp")) held.add("KeyW");
+          if (held.has("ArrowLeft")) held.add("KeyA");
+          if (held.has("ArrowDown")) held.add("KeyS");
+          if (held.has("ArrowRight")) held.add("KeyD");
+          for (const k of keyOrder) {
+            const on = held.has(k.code);
+            const glyph = document.createElement("div");
+            const bg = on ? "#5fa8ff" : "rgba(0,0,0,0.4)";
+            const fg = on ? "#0a0a0a" : "#cccccc";
+            glyph.setAttribute(
+              "style",
+              `width:20px;height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:${bg};color:${fg};`
+            );
+            glyph.textContent = k.label;
+            el.appendChild(glyph);
+          }
+          return el;
+        }
+      });
+
       const colorFor = (id: string): string =>
         id === "player.1" ? "#5fa8ff" : id === "bot.1" ? "#ff7a36" : "#ffffff";
 
@@ -773,6 +832,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           );
         }
         hud.update(STATS_ID, { lines });
+
+        // S87 KABOOM-HUD-KEY-GLYPHS — push live pressed-key set into
+        // the glyph widget. api.input() returns the same snapshot that
+        // PlayerInputSystem sees, so a stuck key here means the system
+        // is also stuck (and the bug is upstream).
+        const pressed = api.input();
+        hud.update(KEYS_ID, { pressed });
 
         // S85 KABOOM-CONTROLS-HINT — gate against the banner (which
         // also wants the centre slot once the round resolves). Mount
@@ -851,6 +917,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (controlsHintMounted) hud.remove(CONTROLS_HINT_ID);
         if (pauseMenuMounted) hud.remove(PAUSE_MENU_ID);
         hud.remove(MINIMAP_ID);
+        hud.remove(KEYS_ID);
       };
     }
 
@@ -860,6 +927,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (w.__agf !== undefined) delete w.__agf.kaboom;
         _boundRestart = undefined;
         _boundAudioEvent = undefined;
+        _boundPlayerInput = undefined;
         _audioLog = [];
         audioFx.dispose();
         if (hudCleanup !== undefined) hudCleanup();

@@ -85,11 +85,14 @@
     {
       "id": "KABOOM-HUD-KEY-GLYPHS",
       "title": "HUD shows current Player input state via key glyphs",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Tiny `kaboom.input` widget at bottomLeft alongside stats: small grid of WASD + Space key glyphs that light up while the key is held. Reads pressed-key state via a new `runtime.kaboom.input()` accessor on the existing PlayerInputSystem (exposes the internal pressed set as ReadonlyArray<string>). Helps players see which keys are detected as pressed (handy for stuck-key debugging).",
       "verification": [
         "live probe: holding D lights up the D glyph; releasing it dims; spacebar pulses on press",
-        "runtime.kaboom.input() returns the pressed key code array"
+        "runtime.kaboom.input() returns the pressed key code array",
+        "bootstrap.ts: keeps a reference to the PlayerInputSystem (already exposes pressedSnapshot()); api.input() returns Array.from(pressedSnapshot()) and is plumbed through window.__agf.kaboom.input()",
+        "kaboom.input HUD widget at bottomLeft: 5 glyphs (W A S D ␣); each frame pulls api.input() and lights glyphs whose KeyboardEvent.code matches; arrow keys are aliased onto WASD",
+        "+1 unit test: pressedSnapshot() reflects live set + returns a copy that is safe to mutate"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

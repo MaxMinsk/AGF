@@ -22,7 +22,7 @@ Status: **active** (started 2026-05-19). Source: `backlog/sprints/S087.sprint.js
   S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC shipped without a dedicated unit test (only the boot-noise budget smoke covers it). Pull the spike check into a tiny pure helper inside start.ts (or a sibling util) + unit-test it: synthetic frame sequence with one spike → exactly one emission; sustained spikes throttle to ≤ 1 emission per cooldown window.
 - **AGF-DOCTOR-RECENT-COMMITS** — engine doctor — Recent commits section (last 10 git log entries) _(implemented)_
   Add a recent-commits block to DoctorReport sourced from `git log --oneline -10` (one-time, captured at doctor invocation). Useful when the agent's bug-hunt needs context for 'what changed lately'. Silently empty when git is unavailable.
-- **KABOOM-HUD-KEY-GLYPHS** — HUD shows current Player input state via key glyphs _(pending)_
+- **KABOOM-HUD-KEY-GLYPHS** — HUD shows current Player input state via key glyphs _(implemented)_
   Tiny `kaboom.input` widget at bottomLeft alongside stats: small grid of WASD + Space key glyphs that light up while the key is held. Reads pressed-key state via a new `runtime.kaboom.input()` accessor on the existing PlayerInputSystem (exposes the internal pressed set as ReadonlyArray<string>). Helps players see which keys are detected as pressed (handy for stuck-key debugging).
 - **AGF-ASSET-INVENTORY-TEST** — Unit test for AssetRegistry.inventory() status transitions _(implemented)_
   S86 AGF-ASSET-INVENTORY-PROBE shipped the API without an explicit unit test. Add coverage: pending → loaded on resolve; pending → failed on reject; invalidate() clears the status; subsequent get() restarts at pending.
