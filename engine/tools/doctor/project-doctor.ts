@@ -203,6 +203,21 @@ export type PrefabsReport = {
   unusedPrefabs: ReadonlyArray<string>;
   /** Instance refs that point at prefab ids missing from the registry. */
   missingPrefabRefs: ReadonlyArray<string>;
+  /**
+   * S73 DOCTOR-prefab-section. Per-prefab component summary: which
+   * components each prefab declares in its base `components` block.
+   * Lets an agent read the doctor output and know the shape of every
+   * prefab without `cat`-ing the JSON. Sorted by prefab id ascending.
+   */
+  componentSummary: ReadonlyArray<{ prefab: string; components: ReadonlyArray<string> }>;
+  /**
+   * S73 DOCTOR-prefab-section. Per-instance override budget: how many
+   * scene instances customise the prefab with a `components` override
+   * block. High override counts indicate the prefab template may be
+   * underspecified for the project's actual usage. Only entries with
+   * at least one override are reported, sorted by override count desc.
+   */
+  overrideHotspots: ReadonlyArray<{ prefab: string; instances: number; instancesWithOverrides: number }>;
 };
 
 export type ShadowConfigReport = {
@@ -579,13 +594,22 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
 
 function summarizePrefabs(projectDir: string): PrefabsReport {
   const declared = new Set<string>();
+  const components = new Map<string, ReadonlyArray<string>>();
   const prefabsDir = resolve(projectDir, "prefabs");
   if (existsSync(prefabsDir) && statSync(prefabsDir).isDirectory()) {
     for (const name of readdirSync(prefabsDir)) {
       if (!name.endsWith(".prefab.json")) continue;
       try {
-        const data = JSON.parse(readFileSync(resolve(prefabsDir, name), "utf8")) as { id?: unknown };
-        if (typeof data.id === "string") declared.add(data.id);
+        const data = JSON.parse(readFileSync(resolve(prefabsDir, name), "utf8")) as {
+          id?: unknown;
+          components?: unknown;
+        };
+        if (typeof data.id === "string") {
+          declared.add(data.id);
+          if (data.components !== null && typeof data.components === "object") {
+            components.set(data.id, Object.keys(data.components as Record<string, unknown>).sort());
+          }
+        }
       } catch {
         /* engine check already reports parse errors. */
       }
@@ -593,6 +617,7 @@ function summarizePrefabs(projectDir: string): PrefabsReport {
   }
 
   const usage = new Map<string, number>();
+  const overrideCount = new Map<string, number>();
   let totalInstances = 0;
   const scenesDir = resolve(projectDir, "scenes");
   if (existsSync(scenesDir) && statSync(scenesDir).isDirectory()) {
@@ -608,7 +633,7 @@ function summarizePrefabs(projectDir: string): PrefabsReport {
           continue;
         }
         if (!name.endsWith(".scene.json")) continue;
-        let scene: { instances?: Array<{ prefab?: unknown }> };
+        let scene: { instances?: Array<{ prefab?: unknown; components?: unknown }> };
         try {
           scene = JSON.parse(readFileSync(full, "utf8"));
         } catch {
@@ -618,6 +643,10 @@ function summarizePrefabs(projectDir: string): PrefabsReport {
           if (typeof instance.prefab !== "string") continue;
           totalInstances += 1;
           usage.set(instance.prefab, (usage.get(instance.prefab) ?? 0) + 1);
+          const overrides = instance.components;
+          if (overrides !== undefined && overrides !== null && typeof overrides === "object" && Object.keys(overrides as Record<string, unknown>).length > 0) {
+            overrideCount.set(instance.prefab, (overrideCount.get(instance.prefab) ?? 0) + 1);
+          }
         }
       }
     }
@@ -633,13 +662,26 @@ function summarizePrefabs(projectDir: string): PrefabsReport {
   const missingPrefabRefs = [...usage.keys()]
     .filter((id) => !declared.has(id))
     .sort();
+  const componentSummary = declaredArr
+    .filter((id) => components.has(id))
+    .map((id) => ({ prefab: id, components: components.get(id) ?? [] }));
+  const overrideHotspots = [...overrideCount.entries()]
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .map(([prefab, instancesWithOverrides]) => ({
+      prefab,
+      instances: usage.get(prefab) ?? 0,
+      instancesWithOverrides
+    }));
 
   return {
     declared: declaredArr,
     totalInstances,
     topUsage,
     unusedPrefabs,
-    missingPrefabRefs
+    missingPrefabRefs,
+    componentSummary,
+    overrideHotspots
   };
 }
 
@@ -1082,6 +1124,18 @@ export function formatPrefabs(report: PrefabsReport): string {
   }
   if (report.missingPrefabRefs.length > 0) {
     lines.push(`  missing refs: ${report.missingPrefabRefs.join(", ")}`);
+  }
+  if (report.componentSummary.length > 0) {
+    lines.push("  components per prefab:");
+    for (const { prefab, components } of report.componentSummary) {
+      lines.push(`    ${prefab}: ${components.length === 0 ? "(none)" : components.join(", ")}`);
+    }
+  }
+  if (report.overrideHotspots.length > 0) {
+    lines.push("  override hotspots (instances customising prefab):");
+    for (const { prefab, instances, instancesWithOverrides } of report.overrideHotspots) {
+      lines.push(`    ${prefab}: ${instancesWithOverrides}/${instances} instance(s) override components`);
+    }
   }
   return lines.join("\n");
 }
