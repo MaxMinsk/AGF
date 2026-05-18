@@ -325,25 +325,50 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       const BANNER_ID = "kaboom.banner";
       const MINIMAP_ID = "kaboom.minimap";
 
+      // Layout: src/main.ts puts the project-info shell in the
+      // top-left and the perf counter in the top-right. Put kaboom
+      // HUD widgets in the bottom corners so neither shell elements
+      // nor the canvas viewport overlap them.
       hud.add({
         id: STATS_ID,
-        slot: "topLeft",
+        slot: "bottomLeft",
         initial: { lines: ["Kaboom Crew"] },
-        render: (data: { lines: ReadonlyArray<string> }): string => data.lines.join("\n")
+        // Build a node so per-line `<div>`s render as actual line
+        // breaks (HUD's string path uses textContent, which collapses
+        // \n into a single line under the default white-space rules).
+        render: (data: { lines: ReadonlyArray<string> }): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "display:flex;flex-direction:column;gap:2px;");
+          for (const line of data.lines) {
+            const row = document.createElement("div");
+            row.textContent = line;
+            el.appendChild(row);
+          }
+          return el;
+        }
       });
-      hud.add({
+      // Banner widget is added on demand because the engine's HUD
+      // WIDGET_STYLE always paints a dark pill around the slot — even
+      // an empty render leaves a visible dot in the centre of the
+      // viewport while the round is playing.
+      const bannerSpec = {
         id: BANNER_ID,
-        slot: "center",
+        slot: "center" as const,
         initial: { text: "" },
-        render: (data: { text: string }): string => data.text
-      });
+        render: (data: { text: string }): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "font-size:18px;font-weight:600;padding:2px 6px;");
+          el.textContent = data.text;
+          return el;
+        }
+      };
       // Arena bounds are 15 × 11 cells with cellSize 1, origin at (0,0).
       // Mirror the engine grid layout — same convention the world uses.
       // Pass `initial` so HUD's first render call doesn't dereference
       // an undefined `data.markers` (minimap.paint expects MinimapData).
       const minimapSpec = createMinimapWidget({
         id: MINIMAP_ID,
-        slot: "topRight",
+        slot: "bottomRight",
         bounds: { minX: -0.5, maxX: 14.5, minZ: -0.5, maxZ: 10.5 },
         pixelSize: 160
       });
@@ -351,6 +376,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
 
       const colorFor = (id: string): string =>
         id === "player.1" ? "#5fa8ff" : id === "bot.1" ? "#ff7a36" : "#ffffff";
+
+      let bannerMounted = false;
 
       const update = (): void => {
         const s = api.status() as {
@@ -372,12 +399,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
         hud.update(STATS_ID, { lines });
 
-        // Banner — empty while playing, message otherwise.
+        // Banner — empty while playing, mounted otherwise.
         let bannerText = "";
         if (phase === "won") bannerText = "YOU WIN — restart in 3 s (R)";
         else if (phase === "lost") bannerText = "YOU LOST — restart in 3 s (R)";
         else if (phase === "draw") bannerText = "DRAW — restart in 3 s (R)";
-        hud.update(BANNER_ID, { text: bannerText });
+        if (bannerText !== "" && !bannerMounted) {
+          hud.add(bannerSpec);
+          bannerMounted = true;
+        } else if (bannerText === "" && bannerMounted) {
+          hud.remove(BANNER_ID);
+          bannerMounted = false;
+        }
+        if (bannerMounted) hud.update(BANNER_ID, { text: bannerText });
 
         // Minimap markers — players + bots + bombs + pickups.
         const markers: Array<{ x: number; z: number; color: string; shape?: "dot" | "rect" | "triangle"; size?: number }> = [];
@@ -410,7 +444,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (rafId !== undefined) cancelAnimationFrame(rafId);
         rafId = undefined;
         hud.remove(STATS_ID);
-        hud.remove(BANNER_ID);
+        if (bannerMounted) hud.remove(BANNER_ID);
         hud.remove(MINIMAP_ID);
       };
     }
