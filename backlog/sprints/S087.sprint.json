@@ -1,0 +1,95 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S087",
+  "title": "Kaboom Crew match flow + camera shake + engine timing test coverage",
+  "status": "active",
+  "startedAt": "2026-05-19",
+  "stories": [
+    {
+      "id": "KABOOM-PLAYER-VS-BOT-COLOR",
+      "title": "Distinct player vs bot color tint via difficulty preset patch",
+      "status": "pending",
+      "summary": "At a glance the two bombers should be visually distinct. Bootstrap forces a blue tint on `player.1` and a red tint on `bot.1` via `component.set MeshRenderer.color` on initial attach + every restart. Minimap already uses these colors; this just makes the world view match.",
+      "verification": [
+        "live probe: player.1.MeshRenderer.color === '#5fa8ff' and bot.1.MeshRenderer.color === '#ff5a6e' after boot AND after a restart"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BOMB-COUNTDOWN-PULSE",
+      "title": "Bomb fuse pulses faster as it approaches 0",
+      "status": "pending",
+      "summary": "Project-local BombFuseSystem (or a small companion system) modulates `MeshRenderer.color` on each Bomb between two warning colors. Pulse period = max(0.08 s, fuseRemaining / 8); near the end the bomb effectively flashes white→orange. No new components, no schema changes.",
+      "verification": [
+        "unit test: bomb with fuseRemaining=2.5 → slow pulse; fuseRemaining=0.2 → fast pulse",
+        "live probe: bomb visibly flashes faster as it ages"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-MATCH-BEST-OF-5",
+      "title": "Match concept — first bomber to 3 wins is the match winner",
+      "status": "pending",
+      "summary": "Promote the existing tally into a 'match' construct. RoundState gains `matchTarget: number` (default 3) and `matchPhase: 'in-progress' | 'won' | 'lost' | 'draw'`. RoundResolveSystem flips matchPhase the moment tally.player or tally.bot hits matchTarget. The HUD banner shows MATCH win/loss banner on top of the round banner; the auto-restart skips when the match is over (player can press R to start a new match).",
+      "verification": [
+        "unit test: tally.player=3 → matchPhase='won' + autoRestart suppressed; tally.bot=3 → matchPhase='lost'",
+        "live probe: HUD shows 'MATCH WIN — first to 3' banner after the 3rd round win"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-CAMERA-SHAKE",
+      "title": "Camera shake on blast — small, decaying",
+      "status": "pending",
+      "summary": "When a BlastEvent fires, perturb the camera transform with a 0.3-second decaying noise. Implementation: a tiny project-local CameraShakeSystem reads BlastEvent transient + writes Transform.position offsets on the active camera; offsets decay each frame; resets to baseline once shake intensity drops below 0.001. Magnitude scales with blast range so a range-4 detonation is felt more than range-2.",
+      "verification": [
+        "unit test: shake state ramps to non-zero on BlastEvent, decays back to 0 inside 0.4 s of fixed steps",
+        "live probe: bomb at (4,4) jitters the orthographic camera visibly"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-FRAME-SPIKE-UNIT-TEST",
+      "title": "Unit test for AGF_FRAME_SPIKE emission + cooldown",
+      "status": "pending",
+      "summary": "S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC shipped without a dedicated unit test (only the boot-noise budget smoke covers it). Pull the spike check into a tiny pure helper inside start.ts (or a sibling util) + unit-test it: synthetic frame sequence with one spike → exactly one emission; sustained spikes throttle to ≤ 1 emission per cooldown window.",
+      "verification": [
+        "unit test asserts emission count + cooldown windowing on a fake clock",
+        "boot-noise budget remains green (no regression)"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-DOCTOR-RECENT-COMMITS",
+      "title": "engine doctor — Recent commits section (last 10 git log entries)",
+      "status": "pending",
+      "summary": "Add a recent-commits block to DoctorReport sourced from `git log --oneline -10` (one-time, captured at doctor invocation). Useful when the agent's bug-hunt needs context for 'what changed lately'. Silently empty when git is unavailable.",
+      "verification": [
+        "DoctorReport.recentCommits: { hash, subject }[] populated when run inside a git repo; empty array when git command fails",
+        "format pass renders a 'Recent commits:' section"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "KABOOM-HUD-KEY-GLYPHS",
+      "title": "HUD shows current Player input state via key glyphs",
+      "status": "pending",
+      "summary": "Tiny `kaboom.input` widget at bottomLeft alongside stats: small grid of WASD + Space key glyphs that light up while the key is held. Reads pressed-key state via a new `runtime.kaboom.input()` accessor on the existing PlayerInputSystem (exposes the internal pressed set as ReadonlyArray<string>). Helps players see which keys are detected as pressed (handy for stuck-key debugging).",
+      "verification": [
+        "live probe: holding D lights up the D glyph; releasing it dims; spacebar pulses on press",
+        "runtime.kaboom.input() returns the pressed key code array"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-ASSET-INVENTORY-TEST",
+      "title": "Unit test for AssetRegistry.inventory() status transitions",
+      "status": "pending",
+      "summary": "S86 AGF-ASSET-INVENTORY-PROBE shipped the API without an explicit unit test. Add coverage: pending → loaded on resolve; pending → failed on reject; invalidate() clears the status; subsequent get() restarts at pending.",
+      "verification": [
+        "+3 unit tests; the existing AssetRegistry suite stays green"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}
