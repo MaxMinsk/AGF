@@ -47,11 +47,13 @@
     {
       "id": "KABOOM-MAP-VARIANT-WIDE",
       "title": "Second arena preset — `?map=wide` (17x13 cells)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Second hand-tuned arena variant. `examples/kaboom-crew/scenes/wide.scene.json` (17 × 13 cells, more soft blocks, bots start further apart). Selectable via `?map=wide` (default `start`). Schema-level changes are zero — the grid bounds live in the Grid singleton component already.",
       "verification": [
         "wide.scene.json + soft-block instances laid out; engine check passes",
-        "live probe: ?map=wide boots a 17x13 arena; bot.1 spawns at (14,11)"
+        "live probe: ?map=wide boots a 17x13 arena; bot.1 spawns at (14,11)",
+        "examples/kaboom-crew/scenes/wide.scene.json (17x13 cells, 5 hard walls including a centre block, 10 soft blocks, bot.1 spawned at gx=15,gz=11) — engine check passes",
+        "bootstrap reads ?map=wide off the URL and routes buildFlatStartScene to the wide source; default behaviour unchanged"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

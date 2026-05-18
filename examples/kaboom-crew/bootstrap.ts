@@ -11,6 +11,7 @@ import type {
 import type { RuntimeHandle } from "../../engine/runtime/start";
 import { createMinimapWidget } from "../../engine/runtime/ui/minimap";
 import startSceneJson from "./scenes/start.scene.json";
+import wideSceneJson from "./scenes/wide.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -79,8 +80,23 @@ const PROJECT_PREFABS: ReadonlyMap<string, PrefabDefinition> = new Map<string, P
   [bombPrefab.id, bombPrefab as PrefabDefinition]
 ]);
 
+// S86 KABOOM-MAP-VARIANT-WIDE. Map id resolution + scene-source lookup.
+function readMapName(): "start" | "wide" {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return "start";
+  try {
+    const value = new URLSearchParams(search).get("map");
+    if (value === "wide") return "wide";
+    return "start";
+  } catch {
+    return "start";
+  }
+}
+
 function buildFlatStartScene(): SceneInput {
-  const expansion = expandScenePrefabs(startSceneJson as unknown as SceneInput, PROJECT_PREFABS);
+  const map = readMapName();
+  const source = (map === "wide" ? wideSceneJson : startSceneJson) as unknown as SceneInput;
+  const expansion = expandScenePrefabs(source, PROJECT_PREFABS);
   if (expansion.diagnostics.length > 0) {
     // eslint-disable-next-line no-console
     // agf-allow:console scene expansion path runs before the runtime diagnostics bus is bound to attachUi.
