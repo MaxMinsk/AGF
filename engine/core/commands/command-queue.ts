@@ -16,6 +16,13 @@ export class CommandQueue {
   private readonly pending: EngineCommand[] = [];
   private readonly applied: CommandLogEntry[] = [];
   private readonly diagnostics: DiagnosticsBus | undefined;
+  // S83 AGF-LOG-ENTITY-RECREATED. Tracks ids that have been removed
+  // via entity.delete (or wiped by scene.load) so a subsequent
+  // entity.create on the same id can be flagged. Set entries persist
+  // for the lifetime of the queue — recreation is the symptom of
+  // restart-style bugs, and we want to catch it even across many
+  // intermediate frames.
+  private readonly deletedIds = new Set<string>();
 
   constructor(options: CommandQueueOptions = {}) {
     this.diagnostics = options.diagnostics;
@@ -37,7 +44,41 @@ export class CommandQueue {
         break;
       }
       const before = command.kind === "scene.load" ? world.entityIds().length : 0;
+      // S83 AGF-LOG-ENTITY-RECREATED. Detect entity.create on a
+      // previously-deleted id BEFORE applying, so the diagnostic sits
+      // ahead of any side effects.
+      if (
+        command.kind === "entity.create" &&
+        this.deletedIds.has(command.entityId) &&
+        this.diagnostics !== undefined
+      ) {
+        this.diagnostics.emit({
+          severity: "warning",
+          code: "AGF_ENTITY_RECREATED",
+          source: "commands",
+          message: `entity "${command.entityId}" recreated after a prior delete`,
+          entityId: command.entityId,
+          details: { entityId: command.entityId }
+        });
+      }
+      // scene.load wipes the entire world inside applyCommand. To track
+      // recreated ids across the wipe, snapshot the about-to-be-removed
+      // ids BEFORE the apply step. Re-creating any of those via a later
+      // entity.create surfaces the same warning.
+      const wipedIds = command.kind === "scene.load" ? new Set(world.entityIds()) : undefined;
       applyCommand(world, command);
+      if (command.kind === "entity.delete") {
+        this.deletedIds.add(command.entityId);
+      } else if (command.kind === "entity.create") {
+        // A fresh create clears the "previously deleted" stamp so we
+        // don't repeatedly warn for ids that legitimately recycle.
+        this.deletedIds.delete(command.entityId);
+      } else if (command.kind === "scene.load" && wipedIds !== undefined) {
+        for (const id of wipedIds) this.deletedIds.add(id);
+        // The new scene's ids are freshly created — drop them from the
+        // deleted set so back-to-back scene.load doesn't warn.
+        for (const e of command.scene.entities) this.deletedIds.delete(e.id);
+      }
       if (command.kind === "scene.load" && this.diagnostics !== undefined) {
         const after = world.entityIds().length;
         this.diagnostics.emit({

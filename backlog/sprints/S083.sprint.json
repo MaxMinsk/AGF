@@ -127,10 +127,12 @@
     {
       "id": "AGF-LOG-ENTITY-RECREATED",
       "title": "Detect + log entity recreation regressions",
-      "status": "pending",
+      "status": "implemented",
       "summary": "When `entity.create` lands an id that was deleted earlier in the same session, emit a `agf.entity.recreated` warning with both call stacks (when stack traces are cheap). Root-cause aid for ghost-entity bugs like the S082 restart issue.",
       "verification": [
-        "unit test: recreating a previously-deleted id triggers the warning; same-frame ids don't"
+        "unit test: recreating a previously-deleted id triggers the warning; same-frame ids don't",
+        "CommandQueue tracks deletedIds across entity.delete + scene.load wipes; emits AGF_ENTITY_RECREATED warning when a later entity.create lands a previously-deleted id",
+        "+4 unit tests (delete→create, fresh create no warn, scene.load wipe→recreate warn, legitimate scene.load reload doesn't warn); 646 → 651 unit tests passing"
       ],
       "dependsOn": [
         "AGF-LOG-LIFECYCLE-TRACES"
