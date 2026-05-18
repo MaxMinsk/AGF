@@ -80,11 +80,13 @@
     {
       "id": "KABOOM-BOT-DIFFICULTY",
       "title": "Difficulty presets — easy / normal / hard",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-level dial wired through the bootstrap. `?difficulty=easy|normal|hard` (default `normal`) maps to a tuple `{ aggression, decisionIntervalMs, range, speed }` applied to bot.1 at scene load. Easy: aggression 0.25 / 500 ms / range 2 / speed 2. Normal: 0.5 / 200 ms / 2 / 3. Hard: 0.85 / 120 ms / 3 / 4. The dial doesn't ship UI yet; query param is the agent-friendly contract.",
       "verification": [
         "unit test: each preset assembles the expected component patch",
-        "live probe: loading ?difficulty=hard makes bot.1 move noticeably faster than ?difficulty=easy"
+        "live probe: loading ?difficulty=hard makes bot.1 move noticeably faster than ?difficulty=easy",
+        "examples/kaboom-crew/src/difficulty.ts exports the preset table, readDifficultyFromUrl + difficultyComponentPatch helpers; 5 unit tests cover narrowing / table values / URL fallback / preset honour / ms→seconds translation",
+        "bootstrap.attachUi applies the URL preset to bot.1 on first boot AND restartScene re-applies it on every round-restart so a query-param change survives the auto-reset"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

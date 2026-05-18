@@ -29,6 +29,7 @@ import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
+import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
@@ -84,6 +85,13 @@ function restartScene(runtime: RuntimeHandle): number {
     | undefined;
   const nextRoundNumber = (prev?.roundNumber ?? 1) + 1;
   const tally = prev?.tally ?? { player: 0, bot: 0, draws: 0 };
+  // S84 KABOOM-BOT-DIFFICULTY. Re-apply the URL preset on every
+  // restart so a difficulty change without reload still kicks in next
+  // round. Browser-only — `globalThis.location` is undefined in node.
+  const preset = readDifficultyFromUrl(
+    (globalThis as unknown as { location?: { search?: string } }).location?.search
+  );
+  const tuning = difficultyComponentPatch(preset);
   runtime.applyCommands([
     { kind: "scene.load", scene: buildFlatStartScene() },
     {
@@ -92,7 +100,10 @@ function restartScene(runtime: RuntimeHandle): number {
       components: {
         RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally }
       }
-    }
+    },
+    { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
+    { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
+    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
   ]);
   return 1;
 }
@@ -184,6 +195,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // GamePaused singleton so bot AI / bomb fuse / bomb placement
     // freeze. The title-screen HUD overlay listens for Space to
     // remove the marker + dismiss the overlay.
+    //
+    // S84 KABOOM-BOT-DIFFICULTY. Apply the URL-selected preset to
+    // bot.1 on the same batch so even the very first round honours
+    // ?difficulty=easy|normal|hard.
+    const initialPreset = readDifficultyFromUrl(
+      (globalThis as unknown as { location?: { search?: string } }).location?.search
+    );
+    const initialTuning = difficultyComponentPatch(initialPreset);
     runtime.applyCommands([
       {
         kind: "entity.create",
@@ -191,7 +210,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         components: {
           GamePaused: { reason: "title-screen" }
         }
-      }
+      },
+      { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
+      { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
+      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
     ]);
     let titleScreenMounted = false;
     let gameStarted = false;
