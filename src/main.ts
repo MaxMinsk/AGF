@@ -143,6 +143,11 @@ declare global {
         /** S60 PERF-renderer-info-renderer-kind: which renderer the adapter is backed by. Always `"webgl"` today; flips once `WebGpuRenderAdapter` ships. */
         readonly renderer: "webgl" | "webgpu";
       };
+      /** S83 AGF-AGENT-RENDERER-PROBE. */
+      rendererInspect(): {
+        readonly info: Record<string, unknown>;
+        readonly handles: { readonly count: number; readonly entityIds: ReadonlyArray<string> };
+      };
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -432,6 +437,8 @@ void (async (): Promise<void> => {
       rendererReady: app.rendererReady,
       pick: (spec) => app.pick(spec),
       rendererInfo: () => app.rendererInfo(),
+      // S83 AGF-AGENT-RENDERER-PROBE.
+      rendererInspect: () => app.rendererInspect(),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

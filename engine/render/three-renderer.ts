@@ -286,6 +286,28 @@ export class ThreeRenderer {
   }
 
   /**
+   * S83 AGF-AGENT-RENDERER-PROBE. Compact JSON dump for agent
+   * inspection: every renderer-internal counter from `info()` plus
+   * the explicit list of entity ids currently holding mesh handles.
+   * That handle list was the missing piece in the S82 restart
+   * bug-hunt — `handleLeak: 8` told us something was wrong, but not
+   * WHICH entities. Surface it here so agents grep on a fresh JSON
+   * blob instead of writing throwaway probes.
+   */
+  inspect(): {
+    info: ReturnType<ThreeRenderer["info"]>;
+    handles: { count: number; entityIds: string[] };
+  } {
+    return {
+      info: this.info(),
+      handles: {
+        count: this.registry.size(),
+        entityIds: [...this.registry.entityIds()]
+      }
+    };
+  }
+
+  /**
    * Forget the cached binding for an asset reference so the renderer re-fetches
    * and re-applies it on the next refreshMeshes. Used by asset HMR.
    */

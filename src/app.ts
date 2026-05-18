@@ -185,6 +185,10 @@ export type AppHandle = {
   startRecording(): { started: true };
   stopRecording(): unknown;
   /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant + light counts. */
+  rendererInspect(): {
+    info: Record<string, unknown>;
+    handles: { count: number; entityIds: string[] };
+  };
   rendererInfo(): {
     geometries: number;
     textures: number;
@@ -588,6 +592,10 @@ export async function createApp(
     },
     rendererInfo() {
       return runtime.renderer.info();
+    },
+    // S83 AGF-AGENT-RENDERER-PROBE.
+    rendererInspect() {
+      return runtime.renderer.inspect();
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

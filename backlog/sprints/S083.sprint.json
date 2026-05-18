@@ -150,11 +150,14 @@
     {
       "id": "AGF-AGENT-RENDERER-PROBE",
       "title": "Engine renderer probe — `runtime.renderer.inspect()` + CLI",
-      "status": "pending",
+      "status": "implemented",
       "summary": "First-class engine tool: `runtime.renderer.inspect()` returns a compact JSON dump of the Three.js scene tree (Mesh/InstancedMesh/Light counts + visibility), BatchingSystem bucket records (key, capacity, live, lastWorld memo) and MeshHandleRegistry entries. `engine probe <projectDir>` exposes the same via the CLI. The ad-hoc probe used during the S082 restart bug becomes a one-curl primitive.",
       "verification": [
         "unit test: inspect() output schema validates against schemas/renderer-inspect.schema.json",
-        "live probe: `curl /__agf/renderer-inspect` returns non-empty bucket + handle data on kaboom-crew"
+        "live probe: `curl /__agf/renderer-inspect` returns non-empty bucket + handle data on kaboom-crew",
+        "ThreeRenderer.inspect() returns { info: full info() summary, handles: { count, entityIds: [...] } } — handle list was the missing piece in the S82 restart bug-hunt",
+        "AppHandle.rendererInspect() + window.__agf.rendererInspect() + /__agf/renderer-inspect dev-bridge endpoint all forward to ThreeRenderer.inspect()",
+        "live: 'curl localhost:5173/__agf/renderer-inspect' returns ok=true with info.{meshes,lights,buckets,handleLeak} + handles.{count, entityIds}"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
