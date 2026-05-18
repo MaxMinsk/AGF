@@ -112,6 +112,13 @@ export function createKaboomPlayerInputSystem(
   // frame a key transitions from "not pressed" to "pressed". Stored as
   // the previous frame's snapshot so a held key doesn't spam requests.
   let previousPressed: Set<string> = new Set();
+  // S85 KABOOM-TITLE-INPUT-PAUSE. Track GamePaused across frames so the
+  // transition paused → unpaused can "consume" currently-held keys —
+  // otherwise a Space that ALSO dismissed the title overlay would fire
+  // a fresh edge on the unpause frame and spawn a bomb on (1,1).
+  // Default false because unit tests without a game-state entity must
+  // see normal edge-detect from frame 0.
+  let wasPaused = false;
 
   function someInSet(targets: Set<string>): boolean {
     for (const code of pressed) if (targets.has(code)) return true;
@@ -131,14 +138,16 @@ export function createKaboomPlayerInputSystem(
       cachedWorld = world;
     }
     // S85 KABOOM-TITLE-INPUT-PAUSE. Keyboard input stays inert while
-    // the title screen / pause overlay is up. Without this, holding D
-    // before Space would already nudge player.1, and the very Space
-    // press that dismisses the overlay would also fire a
-    // PlaceBombRequest because edge-detect runs on the same frame
-    // the keydown handler removes the GamePaused marker. Still tick
-    // `previousPressed` so the first post-resume keystroke is treated
-    // as an edge (otherwise a held key wouldn't move until release).
-    if (world.hasComponent("kaboom.game-state", "GamePaused")) {
+    // the title-screen / pause overlay is up. The transition frame
+    // (paused → unpaused) also has to be inert: the very Space press
+    // that dismissed the overlay is otherwise observed as a fresh edge
+    // and spawns a bomb on the player's starting cell. `wasPaused`
+    // captures the previous frame's state; the unpause frame swallows
+    // currently-held keys into `previousPressed` so the NEXT genuine
+    // keystroke (released + re-pressed) is the first edge.
+    const isPaused = world.hasComponent("kaboom.game-state", "GamePaused");
+    if (isPaused || wasPaused) {
+      wasPaused = isPaused;
       previousPressed = new Set(pressed);
       return;
     }
