@@ -95,7 +95,7 @@ import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
 import { WebGpuTimer } from "./webgpu/webgpu-timer";
 import type { WebGpuTimerHost } from "./webgpu/webgpu-timer";
-import { loadWebGpuModule, type WebGpuModule, type TslColorNode } from "./webgpu/webgpu-module-loader";
+import { loadWebGpuModule, loadCsmShadowNode, type WebGpuModule, type TslColorNode } from "./webgpu/webgpu-module-loader";
 import {
   type RenderAdapterCapabilities,
   type RenderAdapterKind,
@@ -662,6 +662,13 @@ export class ThreeRenderAdapter {
   private csm: CSM | undefined;
   private csmConfig: CsmConfig | undefined;
   private readonly csmMaterials = new Set<Material>();
+  // S74 WEBGPU-csm. WebGPU's CSM is a different shape: a single
+  // DirectionalLight with `light.shadow.shadowNode = CSMShadowNode(...)`.
+  // We keep the light + node references separately so disposeCsm() can
+  // tear them down on mode change. csmShadowNodeAttached protects
+  // against assigning a stale node to a disposed light.
+  private csmDirectionalLight: DirectionalLight | undefined;
+  private csmShadowNodeAttached: unknown | undefined;
   // M21-post-pipeline: composer + last-applied config. Rebuilt when the
   // config or active camera changes (mirrors the CSM lazy-build flow).
   private composer: EffectComposer | undefined;
@@ -2685,6 +2692,22 @@ export class ThreeRenderAdapter {
     // Reconstruct from scratch so a camera swap or config change is
     // safe — CSM caches the camera ref + shader uniforms.
     this.disposeCsm();
+    if (this.capabilities.kind === "webgpu") {
+      // S74 WEBGPU-csm. Three.js ships `CSMShadowNode` as an addon
+      // (`three/examples/jsm/csm/CSMShadowNode.js`) that runs natively
+      // on `WebGPURenderer`. The pattern: one DirectionalLight, set
+      // `light.shadow.shadowNode = new CSMShadowNode(light, data)`,
+      // add to scene. The shadowNode internally manages cascade
+      // sub-lights and the per-fragment cascade selection in the TSL
+      // graph — no `onBeforeCompile` material patching needed.
+      //
+      // Loaded asynchronously: kick off the load + complete in a
+      // microtask. Until then `this.csm` stays undefined and the rest
+      // of the adapter treats it as "CSM is disabled". The first frame
+      // after the load resolves shows cascade shadows.
+      this.buildWebGpuCsm(camera);
+      return;
+    }
     const direction = this.csmConfig.lightDirection ?? [-0.5, -1, -0.3];
     const csm = new CSM({
       camera,
@@ -2721,14 +2744,86 @@ export class ThreeRenderAdapter {
     }
   }
 
+  /**
+   * S74 WEBGPU-csm. Asynchronously load `CSMShadowNode` and assemble a
+   * cascade-shadow setup. The function fires-and-forgets the load; the
+   * adapter is happy for `this.csm` to stay undefined while it resolves.
+   */
+  private buildWebGpuCsm(camera: PerspectiveCamera): void {
+    const config = this.csmConfig;
+    if (config === undefined) return;
+    const direction = config.lightDirection ?? [-0.5, -1, -0.3];
+    const light = new DirectionalLight(
+      0xffffff,
+      config.lightIntensity ?? 1.5
+    );
+    // DirectionalLight.position acts as the LIGHT direction in three.js
+    // (the light looks toward .target, which defaults to origin). Place
+    // it along the inverse of the direction vector so the light shines
+    // along `direction` toward the scene.
+    const dir = new Vector3(direction[0], direction[1], direction[2]).normalize();
+    light.position.copy(dir).multiplyScalar(-50);
+    light.castShadow = true;
+    const mapSize = config.shadowMapSize ?? 2048;
+    light.shadow.mapSize.set(mapSize, mapSize);
+    light.shadow.bias = config.shadowBias ?? -0.0001;
+    if (config.shadowNormalBias !== undefined) {
+      light.shadow.normalBias = config.shadowNormalBias;
+    }
+    this.csmDirectionalLight = light;
+    this.scene.add(light);
+    loadCsmShadowNode().then(({ CSMShadowNode }) => {
+      // Bail if disposeCsm or another rebuild ran while we were loading.
+      if (this.csmDirectionalLight !== light) return;
+      const shadowNode = new CSMShadowNode(
+        light as unknown as { shadow: { shadowNode?: unknown }; isDirectionalLight?: boolean },
+        {
+          cascades: config.cascades ?? 3,
+          maxFar: config.maxFar ?? 100,
+          mode: config.mode ?? "practical"
+        }
+      );
+      // CSMShadowNode needs the scene camera to compute cascade splits.
+      // The setup() pass picks this up via `builder.camera`, but exposing
+      // it explicitly is documented as safe and helps an early resize.
+      shadowNode.camera = camera;
+      (light.shadow as unknown as { shadowNode?: unknown }).shadowNode = shadowNode;
+      // The light's existing shadow needs a single re-prep so node-light
+      // setup picks up the shadowNode on the next analytic-light setup.
+      light.shadow.needsUpdate = true;
+      this.csmShadowNodeAttached = shadowNode;
+    }).catch((err: unknown) => {
+      // eslint-disable-next-line no-console
+      console.warn("[AGF] CSMShadowNode load failed; cascade shadows disabled on WebGPU.", err);
+    });
+  }
+
   private disposeCsm(): void {
-    if (this.csm === undefined) return;
-    this.csm.remove();
-    this.csm.dispose();
-    this.csm = undefined;
-    // CSM.dispose already flips needsUpdate on each registered material
-    // so the shader recompiles without the cascade defines next frame.
-    this.csmMaterials.clear();
+    if (this.csm !== undefined) {
+      this.csm.remove();
+      this.csm.dispose();
+      this.csm = undefined;
+      // CSM.dispose already flips needsUpdate on each registered material
+      // so the shader recompiles without the cascade defines next frame.
+      this.csmMaterials.clear();
+    }
+    // S74 WEBGPU-csm dispose: detach the shadowNode (if attached) and
+    // remove the host DirectionalLight + its shadow target. The
+    // CSMShadowNode exposes a dispose() — call it so the internal
+    // cascade lights + render targets release.
+    if (this.csmShadowNodeAttached !== undefined) {
+      const attached = this.csmShadowNodeAttached as { dispose?: () => void };
+      if (typeof attached.dispose === "function") {
+        attached.dispose();
+      }
+      this.csmShadowNodeAttached = undefined;
+    }
+    if (this.csmDirectionalLight !== undefined) {
+      this.scene.remove(this.csmDirectionalLight);
+      (this.csmDirectionalLight.shadow as unknown as { shadowNode?: unknown }).shadowNode = undefined;
+      this.csmDirectionalLight.dispose();
+      this.csmDirectionalLight = undefined;
+    }
   }
 
   /**

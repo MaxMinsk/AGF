@@ -97,3 +97,37 @@ export function loadWebGpuModule(): Promise<WebGpuModule> {
   }
   return cached;
 }
+
+/**
+ * S74 WEBGPU-csm. Lazy import of three.js's `CSMShadowNode` addon. The
+ * addon transitively imports `three/webgpu` and `three/tsl`, so we keep
+ * the load behind a separate dynamic boundary so WebGL-only projects
+ * don't pay for it. Only the WebGPU code path in
+ * `ThreeRenderAdapter.rebuildCsm` calls this loader.
+ *
+ * Module is memoised — concurrent calls share a single fetch.
+ */
+export type CsmShadowNodeCtor = new (
+  light: { shadow: { shadowNode?: unknown }; isDirectionalLight?: boolean },
+  data?: {
+    cascades?: number;
+    maxFar?: number;
+    mode?: "practical" | "uniform" | "logarithmic" | "custom";
+    lightMargin?: number;
+  }
+) => {
+  camera: unknown;
+  fade: boolean;
+  dispose?: () => void;
+};
+
+let csmCached: Promise<{ CSMShadowNode: CsmShadowNodeCtor }> | undefined;
+
+export function loadCsmShadowNode(): Promise<{ CSMShadowNode: CsmShadowNodeCtor }> {
+  if (csmCached === undefined) {
+    csmCached = import("three/examples/jsm/csm/CSMShadowNode.js").then((mod) => ({
+      CSMShadowNode: (mod as unknown as { CSMShadowNode: CsmShadowNodeCtor }).CSMShadowNode
+    }));
+  }
+  return csmCached;
+}
