@@ -29,6 +29,16 @@ type CameraComponent = {
   fov?: number;
   near?: number;
   far?: number;
+  /** S81 KABOOM-ORTHO-CAMERA: half-height for the orthographic projection. */
+  orthographicSize?: number;
+};
+
+type CameraAcquireParams = {
+  kind: "perspective" | "orthographic";
+  fov?: number;
+  near?: number;
+  far?: number;
+  orthographicSize?: number;
 };
 
 type MeshRendererComponent = {
@@ -58,6 +68,8 @@ export class ThreeRenderer {
   private readonly assetRegistry: AssetRegistry | undefined;
   private cameraHandle: CameraHandle | undefined;
   private cameraEntityId: EntityId | undefined;
+  /** S81 KABOOM-ORTHO-CAMERA: track the projection kind currently bound so we can re-acquire when it flips. */
+  private boundCameraKind: "perspective" | "orthographic" | undefined;
   private materialBindingExternal = false;
   private meshTransformSyncExternal = false;
 
@@ -295,6 +307,7 @@ export class ThreeRenderer {
     this.appliedGeometries.clear();
     this.cameraHandle = undefined;
     this.cameraEntityId = undefined;
+    this.boundCameraKind = undefined;
     this.adapter.dispose();
   }
 
@@ -323,26 +336,43 @@ export class ThreeRenderer {
     }
 
     const cameraComponent = this.world.getComponent<CameraComponent>(activeId, "Camera");
-    if (cameraComponent === undefined || cameraComponent.kind !== "perspective") {
+    if (
+      cameraComponent === undefined ||
+      (cameraComponent.kind !== "perspective" && cameraComponent.kind !== "orthographic")
+    ) {
       this.adapter.setActiveCamera(undefined);
       return;
     }
 
-    if (this.cameraHandle === undefined || this.cameraEntityId !== activeId) {
+    // S81 KABOOM-ORTHO-CAMERA. Acquire freshly on first bind or whenever
+    // the bound camera entity changes; we also re-acquire when the
+    // `kind` of an already-bound entity flips between perspective and
+    // orthographic, because the underlying Three.js object class
+    // differs and setCameraParams can't switch projection mode.
+    const previousKind = this.boundCameraKind;
+    const kindChanged = previousKind !== undefined && previousKind !== cameraComponent.kind;
+    if (this.cameraHandle === undefined || this.cameraEntityId !== activeId || kindChanged) {
       if (this.cameraHandle !== undefined) {
         this.adapter.releaseCamera(this.cameraHandle);
       }
-      const acquire: { fov?: number; near?: number; far?: number } = {};
+      const acquire: CameraAcquireParams = { kind: cameraComponent.kind };
       if (cameraComponent.fov !== undefined) acquire.fov = cameraComponent.fov;
       if (cameraComponent.near !== undefined) acquire.near = cameraComponent.near;
       if (cameraComponent.far !== undefined) acquire.far = cameraComponent.far;
+      if (cameraComponent.orthographicSize !== undefined) {
+        acquire.orthographicSize = cameraComponent.orthographicSize;
+      }
       this.cameraHandle = this.adapter.acquireCamera(acquire);
       this.cameraEntityId = activeId;
+      this.boundCameraKind = cameraComponent.kind;
     } else {
-      const patch: { fov?: number; near?: number; far?: number } = {};
+      const patch: CameraAcquireParams = { kind: cameraComponent.kind };
       if (cameraComponent.fov !== undefined) patch.fov = cameraComponent.fov;
       if (cameraComponent.near !== undefined) patch.near = cameraComponent.near;
       if (cameraComponent.far !== undefined) patch.far = cameraComponent.far;
+      if (cameraComponent.orthographicSize !== undefined) {
+        patch.orthographicSize = cameraComponent.orthographicSize;
+      }
       this.adapter.setCameraParams(this.cameraHandle, patch);
     }
 

@@ -9,14 +9,23 @@
     {
       "id": "KABOOM-ORTHO-CAMERA",
       "title": "Orthographic camera path in the render adapter",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Today `ThreeRenderAdapter.acquireCamera` always constructs a `PerspectiveCamera`. Kaboom Crew's top-down arcade view + the existing `shadows-bench` RTS camera both want orthographic projection (cleaner gameplay readability, no foreshortening artefacts on the grid). Extend the scene `Camera` component schema with a `projection: \"perspective\" | \"orthographic\"` field (default perspective for backward compat); ortho mode reads `orthographicSize` + `near` / `far` from the same component. WebGPU + WebGL paths both honour the projection field. `engine inspect` reports it. Existing scenes keep perspective by absence; opting a scene into ortho is a one-line edit.",
       "verification": [
         "schemas/components/camera.schema.json gains projection + orthographicSize fields",
         "examples/hello-3d with `projection: \"orthographic\"` still passes engine:check + renders without TypeScript / runtime errors on WebGL and WebGPU",
-        "live playwright probe at hello-3d shows an orthographic view (no foreshortening) when the field is flipped"
+        "live playwright probe at hello-3d shows an orthographic view (no foreshortening) when the field is flipped",
+        "schemas/components/camera.schema.json gained orthographicSize; allOf-if requires it when kind=orthographic",
+        "engine:check on hello-3d with orthographic + size — OK; without size — AGF_SCHEMA_REQUIRED_PROPERTY",
+        "typecheck passes; 517 unit tests passing",
+        "resize handler branches on PerspectiveCamera vs OrthographicCamera; CSM rebuild skips with a warn when active camera is orthographic"
       ],
-      "epic": "KABOOM-CREW-MVP-0"
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "schemas/components/camera.schema.json",
+        "engine/render/three-render-adapter.ts",
+        "engine/render/three-renderer.ts"
+      ]
     },
     {
       "id": "KABOOM-DAMPED-FOLLOW",
@@ -51,7 +60,9 @@
         "hello-3d playtest renders a minimap with one marker tracking the player",
         "widget supports 200 markers without measurable jank (Canvas2D fillRect loop is the v0; WebGL or instanced path is a follow-up)"
       ],
-      "dependsOn": ["KABOOM-HUD-RUNTIME"],
+      "dependsOn": [
+        "KABOOM-HUD-RUNTIME"
+      ],
       "epic": "KABOOM-CREW-MVP-0"
     },
     {
@@ -75,7 +86,9 @@
         "unit test: moving an entity updates both old and new cell occupancy",
         "incremental index matches a from-scratch rebuild (parity test similar to M16-cache-parity)"
       ],
-      "dependsOn": ["KABOOM-GRID-POSITION"],
+      "dependsOn": [
+        "KABOOM-GRID-POSITION"
+      ],
       "epic": "KABOOM-CREW-MVP-0"
     },
     {
@@ -87,7 +100,10 @@
         "playtest moves a Capsule across a 5×5 grid hitting blocked cells; visits 4 distinct cells with no NaN transforms",
         "unit test: blocked queued direction triggers lane-assist (perpendicular fallback)"
       ],
-      "dependsOn": ["KABOOM-GRID-POSITION", "KABOOM-GRID-OCCUPANCY"],
+      "dependsOn": [
+        "KABOOM-GRID-POSITION",
+        "KABOOM-GRID-OCCUPANCY"
+      ],
       "epic": "KABOOM-CREW-MVP-0"
     },
     {
@@ -100,7 +116,9 @@
         "same seed yields a byte-identical scene (deterministic)",
         "different seeds yield different scenes (a quick diff prints ≥10 differing entity ids)"
       ],
-      "dependsOn": ["KABOOM-GRID-POSITION"],
+      "dependsOn": [
+        "KABOOM-GRID-POSITION"
+      ],
       "epic": "KABOOM-CREW-MVP-0"
     },
     {
@@ -113,7 +131,12 @@
         "npm run engine:summarize -- examples/kaboom-crew lists ≥4 declared prefabs",
         "npm run dev with the project selector lands on a primitive Kaboom Crew start scene with the player capsule + 3-4 soft / hard blocks visible"
       ],
-      "dependsOn": ["KABOOM-ORTHO-CAMERA", "KABOOM-DAMPED-FOLLOW", "KABOOM-HUD-RUNTIME", "KABOOM-GRID-POSITION"],
+      "dependsOn": [
+        "KABOOM-ORTHO-CAMERA",
+        "KABOOM-DAMPED-FOLLOW",
+        "KABOOM-HUD-RUNTIME",
+        "KABOOM-GRID-POSITION"
+      ],
       "epic": "KABOOM-CREW-MVP-0"
     }
   ],

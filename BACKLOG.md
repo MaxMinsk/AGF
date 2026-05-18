@@ -10,7 +10,7 @@ Status: **active** (started 2026-05-18). Source: `backlog/sprints/S081.sprint.js
 
 ### Stories
 
-- **KABOOM-ORTHO-CAMERA** — Orthographic camera path in the render adapter _(pending)_
+- **KABOOM-ORTHO-CAMERA** — Orthographic camera path in the render adapter _(implemented)_
   Today `ThreeRenderAdapter.acquireCamera` always constructs a `PerspectiveCamera`. Kaboom Crew's top-down arcade view + the existing `shadows-bench` RTS camera both want orthographic projection (cleaner gameplay readability, no foreshortening artefacts on the grid). Extend the scene `Camera` component schema with a `projection: "perspective" | "orthographic"` field (default perspective for backward compat); ortho mode reads `orthographicSize` + `near` / `far` from the same component. WebGPU + WebGL paths both honour the projection field. `engine inspect` reports it. Existing scenes keep perspective by absence; opting a scene into ortho is a one-line edit.
 - **KABOOM-DAMPED-FOLLOW** — Damped follow camera system + `FollowTarget` / `CameraDamping` components _(pending)_
   Engine-level `DampedFollowCameraSystem` reads a `FollowTarget { entityId, offset, lookAtOffset }` and a `CameraDamping { positionTau, rotationTau, lookAheadMs }` component on a camera entity. Outputs a smoothed camera transform per frame (exponential damping driven by frameDeltaSeconds — works under variable frame time, unlike fixed-tau). Look-ahead extrapolates the target's recent velocity by `lookAheadMs`; Kaboom Crew uses ~120 ms. Lives under `engine/render/systems/damped-follow-camera-system.ts`. Bench-camera follow already exists for shadows-bench (RtsCameraSystem) — that one stays sample-local; this is the generic primitive every game can pick up.
