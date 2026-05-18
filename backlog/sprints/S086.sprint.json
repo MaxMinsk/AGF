@@ -73,11 +73,13 @@
     {
       "id": "AGF-LOG-MATERIAL-BINDING-LIFT",
       "title": "Lift material-binding-system console sites to runtime.diagnostics",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S85 closed renderer-adapter sites but the material-binding-system file-level allow marker stayed because the system didn't have a bus reference. Thread `{ diagnostics? }` into the system's deps options + lift the 5 warn/error sites (mesh-load failure, mesh has no Mesh, material-load failure, material has no kind, applied to unknown handle). Drop the file-level marker.",
       "verification": [
         "options { diagnostics? } threaded; 5 sites emit AGF_RENDER_MATERIAL_* / AGF_RENDER_GEOMETRY_* events",
-        "check-no-console-log gate passes without the material-binding-system file marker"
+        "check-no-console-log gate passes without the material-binding-system file marker",
+        "MaterialBindingDeps gets optional diagnostics; emitBinding() helper routes 5 sites (glb-no-mesh / mesh-load / texture-load / vertex-shader / fragment-shader / material-load) through the bus when wired, with allow-marked console fallbacks for pre-runtime hosts",
+        "S83 file-level allow marker dropped from the file; check-no-console-log gate passes"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
