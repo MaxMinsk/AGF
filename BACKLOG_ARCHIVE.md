@@ -92,5 +92,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S084](backlog/sprints/S084.sprint.json)** — Kaboom Crew MVP 1 polish — audio, particles, score, title, difficulty — 10 implemented · archived 2026-05-18
 - **[S085](backlog/sprints/S085.sprint.json)** — Kaboom Crew MVP 1 hotfixes + pool warmup + observability follow-ons — 8 implemented · archived 2026-05-18
 - **[S086](backlog/sprints/S086.sprint.json)** — Kaboom Crew polish round 2 + engine perf gates + asset inventory probe — 8 implemented · archived 2026-05-19
+- **[S087](backlog/sprints/S087.sprint.json)** — Kaboom Crew match flow + camera shake + engine timing test coverage — 8 implemented · archived 2026-05-19
 
 <!-- backlog:render:end -->

@@ -11,6 +11,7 @@ import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
 import { createHud, type HudHandle } from "./ui/hud";
 import { createAudioBus } from "./audio/audio-bus";
+import { createFrameSpikeGate } from "./frame-spike-gate";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
@@ -504,12 +505,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   let frameAccumMs = 0;
   let renderAccumMs = 0;
   let totalAccumMs = 0;
-  // S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC. Defaults: 50 ms threshold,
-  // 1 s cooldown. Both configurable via RuntimeOptions; spikeMs=0
-  // disables the gate entirely.
+  // S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC + S87 AGF-FRAME-SPIKE-UNIT-TEST.
+  // Defaults: 50 ms threshold, 1 s cooldown. spikeMs=0 disables.
+  const spikeGate = createFrameSpikeGate({
+    spikeMs: options.spikeMs ?? 50,
+    cooldownMs: options.spikeCooldownMs ?? 1000
+  });
   const spikeMs = options.spikeMs ?? 50;
-  const spikeCooldownMs = options.spikeCooldownMs ?? 1000;
-  let lastSpikeEmittedAt = -Infinity;
 
   let lastFrameTiming: FrameTiming = {
     fixedUpdateMs: 0,
@@ -637,22 +639,15 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     renderAccumMs += tickEnd - renderPhaseStart;
     totalAccumMs += tickTotalMs;
 
-    // S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC. Single-frame spike
-    // detector: if this tick exceeded `spikeMs`, emit a structured
-    // warning. Cooldown of `spikeCooldownMs` keeps a stuck frame
-    // from spamming the bus. `spikeMs === 0` disables the gate.
-    if (spikeMs > 0 && tickTotalMs > spikeMs) {
-      const sinceLast = tickEnd - lastSpikeEmittedAt;
-      if (sinceLast >= spikeCooldownMs) {
-        diagnostics.emit({
-          severity: "warning",
-          code: "AGF_FRAME_SPIKE",
-          source: "runtime",
-          message: `Frame budget exceeded — total ${tickTotalMs.toFixed(1)} ms (threshold ${spikeMs} ms).`,
-          details: { totalMs: tickTotalMs, threshold: spikeMs }
-        });
-        lastSpikeEmittedAt = tickEnd;
-      }
+    // S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC + S87 AGF-FRAME-SPIKE-UNIT-TEST.
+    if (spikeGate.observe(tickTotalMs, tickEnd)) {
+      diagnostics.emit({
+        severity: "warning",
+        code: "AGF_FRAME_SPIKE",
+        source: "runtime",
+        message: `Frame budget exceeded — total ${tickTotalMs.toFixed(1)} ms (threshold ${spikeMs} ms).`,
+        details: { totalMs: tickTotalMs, threshold: spikeMs }
+      });
     }
 
     framesInWindow += 1;

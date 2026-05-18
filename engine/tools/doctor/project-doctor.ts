@@ -213,6 +213,11 @@ export type BacklogReport = {
    * the running follow-up list in one place.
    */
   followUps: ReadonlyArray<{ sprintId: string; text: string }>;
+  /**
+   * S87 AGF-DOCTOR-RECENT-COMMITS: last ~10 commits from `git log`.
+   * Empty when git is unavailable / not a repo.
+   */
+  recentCommits: ReadonlyArray<{ hash: string; subject: string }>;
 };
 
 export type EpicsReport = {
@@ -1395,13 +1400,13 @@ const STALE_THRESHOLD_SPRINTS = 8;
 function summarizeBacklog(repoRoot: string): BacklogReport {
   const sprintsDir = resolve(repoRoot, "backlog/sprints");
   if (!existsSync(sprintsDir)) {
-    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [] };
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [], recentCommits: [] };
   }
   let names: string[];
   try {
     names = readdirSync(sprintsDir).filter((n) => n.endsWith(".sprint.json"));
   } catch {
-    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [] };
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [], recentCommits: [] };
   }
   type StoryLite = {
     id: string;
@@ -1494,13 +1499,32 @@ function summarizeBacklog(repoRoot: string): BacklogReport {
     if (followUps.length >= 20) break;
   }
 
+  // S87 AGF-DOCTOR-RECENT-COMMITS. Best-effort git log, swallow
+  // failures so non-repo invocations stay quiet.
+  const recentCommits: Array<{ hash: string; subject: string }> = [];
+  try {
+    const result = spawnSync("git", ["log", "--oneline", "-10"], { cwd: repoRoot, encoding: "utf8" });
+    if (result.status === 0 && typeof result.stdout === "string") {
+      for (const line of result.stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0) continue;
+        const space = trimmed.indexOf(" ");
+        if (space <= 0) continue;
+        recentCommits.push({ hash: trimmed.slice(0, space), subject: trimmed.slice(space + 1) });
+      }
+    }
+  } catch {
+    // git absent → leave recentCommits empty.
+  }
+
   return {
     sprintFiles: sprints.length,
     active: activeReport,
     multipleActive: activeSprints.length > 1 ? activeSprints.map((s) => s.id) : [],
     archivedCount,
     epics,
-    followUps
+    followUps,
+    recentCommits
   };
 }
 
@@ -1641,6 +1665,15 @@ export function formatBacklog(report: BacklogReport): string {
   }
   if (report.multipleActive.length > 1) {
     lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
+  }
+
+  // S87 AGF-DOCTOR-RECENT-COMMITS.
+  if (report.recentCommits.length > 0) {
+    lines.push(`  Recent commits (${report.recentCommits.length}):`);
+    for (const c of report.recentCommits) {
+      const preview = c.subject.length > 120 ? `${c.subject.slice(0, 117)}...` : c.subject;
+      lines.push(`    ${c.hash} ${preview}`);
+    }
   }
 
   // S86 AGF-DOCTOR-FOLLOWUP-LIST.

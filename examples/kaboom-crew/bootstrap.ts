@@ -30,6 +30,7 @@ import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
+import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
@@ -110,13 +111,17 @@ function restartScene(runtime: RuntimeHandle): number {
   // world before scene.load wipes everything, then re-seed the new
   // RoundState with bumped numbers so the persistent score line
   // survives the auto-restart.
+  // S87 KABOOM-MATCH-BEST-OF-5 — if the match is over (matchPhase !=
+  // in-progress) and the user hits R, restart starts a fresh match:
+  // tally cleared, roundNumber reset to 1.
   const snap = runtime.snapshot();
   const prevRound = snap.entities.find((e) => e.id === "kaboom.round-state");
   const prev = prevRound?.components["RoundState"] as
-    | { roundNumber?: number; tally?: { player: number; bot: number; draws: number } }
+    | { roundNumber?: number; tally?: { player: number; bot: number; draws: number }; matchPhase?: string }
     | undefined;
-  const nextRoundNumber = (prev?.roundNumber ?? 1) + 1;
-  const tally = prev?.tally ?? { player: 0, bot: 0, draws: 0 };
+  const matchOver = prev?.matchPhase !== undefined && prev.matchPhase !== "in-progress";
+  const nextRoundNumber = matchOver ? 1 : (prev?.roundNumber ?? 1) + 1;
+  const tally = matchOver ? { player: 0, bot: 0, draws: 0 } : (prev?.tally ?? { player: 0, bot: 0, draws: 0 });
   // S84 KABOOM-BOT-DIFFICULTY. Re-apply the URL preset on every
   // restart so a difficulty change without reload still kicks in next
   // round. Browser-only — `globalThis.location` is undefined in node.
@@ -130,12 +135,15 @@ function restartScene(runtime: RuntimeHandle): number {
       kind: "entity.create",
       entityId: "kaboom.round-state",
       components: {
-        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit() }
+        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit(), matchTarget: 3, matchPhase: "in-progress" }
       }
     },
     { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
     { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
-    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
+    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover },
+    // S87 KABOOM-PLAYER-VS-BOT-COLOR — re-apply on every restart.
+    { kind: "component.set", entityId: "player.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#5fa8ff" } },
+    { kind: "component.set", entityId: "bot.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#ff5a6e" } }
   ]);
   return 1;
 }
@@ -145,6 +153,12 @@ function restartScene(runtime: RuntimeHandle): number {
 // the system holds this closure and attachUi populates `_boundRestart`
 // once the runtime is known. Cleared in dispose to release the handle.
 let _boundRestart: (() => void) | undefined;
+
+// S87 KABOOM-HUD-KEY-GLYPHS. PlayerInputSystem already exposes
+// pressedSnapshot(); we hold the instance so attachUi can expose a
+// `runtime.kaboom.input()` accessor (returns ReadonlyArray<string>)
+// and the HUD key-glyph widget can poll the live pressed set.
+let _boundPlayerInput: { pressedSnapshot(): ReadonlySet<string> } | undefined;
 
 // S84 KABOOM-AUDIO-WIRE.
 // Same closure-bridge pattern: audio-binding system is registered in
@@ -163,7 +177,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(occupancy, { profiles: ["static"] });
 
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static"] });
-    scheduler.register(createKaboomPlayerInputSystem(), { profiles: ["static"] });
+    const playerInput = createKaboomPlayerInputSystem();
+    _boundPlayerInput = playerInput;
+    scheduler.register(playerInput, { profiles: ["static"] });
 
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
@@ -180,6 +196,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       }),
       { profiles: ["static"] }
     );
+
+    // S87 KABOOM-CAMERA-SHAKE — observe BlastEvent transients BEFORE
+    // blast-propagation consumes them. Perturbs the active camera's
+    // Transform.position; intensity scales with blast range.
+    scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
@@ -279,7 +300,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
       { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
-      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
+      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover },
+      // S87 KABOOM-PLAYER-VS-BOT-COLOR. Force tints so the in-world
+      // bombers match the minimap colours from the start.
+      { kind: "component.set", entityId: "player.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#5fa8ff" } },
+      { kind: "component.set", entityId: "bot.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#ff5a6e" } }
     ]);
     let titleScreenMounted = false;
     let gameStarted = false;
@@ -584,6 +609,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             };
           });
         return { round, players, bombs, tiles, pickups };
+      },
+      // S87 KABOOM-HUD-KEY-GLYPHS. Read-only view of the player input
+      // system's pressed-key set. Returns a fresh ReadonlyArray<string>
+      // (KeyboardEvent.code values) so callers can render glyphs or
+      // diagnose stuck-key bugs without mutating internal state.
+      input(): ReadonlyArray<string> {
+        if (_boundPlayerInput === undefined) return [];
+        return Array.from(_boundPlayerInput.pressedSnapshot());
       }
     };
 
@@ -712,6 +745,49 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       });
       hud.add({ ...minimapSpec, initial: { markers: [] } } as unknown);
 
+      // S87 KABOOM-HUD-KEY-GLYPHS. Bottom-left key-glyph row showing
+      // which movement keys + Space are currently held. Helps the
+      // player spot stuck-key issues and confirms the renderer sees
+      // the same input the system sees.
+      const KEYS_ID = "kaboom.input";
+      const keyOrder: Array<{ code: string; label: string }> = [
+        { code: "KeyW", label: "W" },
+        { code: "KeyA", label: "A" },
+        { code: "KeyS", label: "S" },
+        { code: "KeyD", label: "D" },
+        { code: "Space", label: "␣" }
+      ];
+      hud.add({
+        id: KEYS_ID,
+        slot: "bottomLeft",
+        initial: { pressed: [] as ReadonlyArray<string> },
+        render: (data: { pressed: ReadonlyArray<string> }): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute("style", "display:flex;gap:4px;padding-top:6px;");
+          const held = new Set(data.pressed);
+          // Arrow keys are equivalent to WASD for the same direction —
+          // light up the WASD glyph either way to avoid duplicating
+          // entries.
+          if (held.has("ArrowUp")) held.add("KeyW");
+          if (held.has("ArrowLeft")) held.add("KeyA");
+          if (held.has("ArrowDown")) held.add("KeyS");
+          if (held.has("ArrowRight")) held.add("KeyD");
+          for (const k of keyOrder) {
+            const on = held.has(k.code);
+            const glyph = document.createElement("div");
+            const bg = on ? "#5fa8ff" : "rgba(0,0,0,0.4)";
+            const fg = on ? "#0a0a0a" : "#cccccc";
+            glyph.setAttribute(
+              "style",
+              `width:20px;height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:${bg};color:${fg};`
+            );
+            glyph.textContent = k.label;
+            el.appendChild(glyph);
+          }
+          return el;
+        }
+      });
+
       const colorFor = (id: string): string =>
         id === "player.1" ? "#5fa8ff" : id === "bot.1" ? "#ff7a36" : "#ffffff";
 
@@ -732,6 +808,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             roundNumber?: number;
             tally?: { player: number; bot: number; draws: number };
             timeLimit?: number;
+            matchTarget?: number;
+            matchPhase?: "in-progress" | "won" | "lost" | "draw";
           };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
@@ -755,6 +833,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
         hud.update(STATS_ID, { lines });
 
+        // S87 KABOOM-HUD-KEY-GLYPHS — push live pressed-key set into
+        // the glyph widget. api.input() returns the same snapshot that
+        // PlayerInputSystem sees, so a stuck key here means the system
+        // is also stuck (and the bug is upstream).
+        const pressed = api.input();
+        hud.update(KEYS_ID, { pressed });
+
         // S85 KABOOM-CONTROLS-HINT — gate against the banner (which
         // also wants the centre slot once the round resolves). Mount
         // once the title screen is dismissed; unmount after 4 s OR
@@ -772,8 +857,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
 
         // Banner — empty while playing, mounted otherwise.
+        // S87 KABOOM-MATCH-BEST-OF-5 — once the match resolves
+        // (matchPhase != in-progress) the banner takes over with the
+        // match outcome + a hint that R starts a new match. Auto-
+        // restart is suppressed in this state by RoundResolveSystem.
         let bannerText = "";
-        if (phase === "won") bannerText = "YOU WIN — restart in 3 s (R)";
+        const matchPhase = s.round?.matchPhase;
+        const matchTarget = s.round?.matchTarget ?? 3;
+        const matchOver = matchPhase !== undefined && matchPhase !== "in-progress";
+        if (matchOver) {
+          if (matchPhase === "won") bannerText = `MATCH WIN — first to ${matchTarget}\nPress R for a new match`;
+          else if (matchPhase === "lost") bannerText = `MATCH LOST — bot reached ${matchTarget}\nPress R for a new match`;
+          else if (matchPhase === "draw") bannerText = `MATCH DRAW — both reached ${matchTarget}\nPress R for a new match`;
+        } else if (phase === "won") bannerText = "YOU WIN — restart in 3 s (R)";
         else if (phase === "lost") bannerText = "YOU LOST — restart in 3 s (R)";
         else if (phase === "draw") bannerText = "DRAW — restart in 3 s (R)";
         if (bannerText !== "" && !bannerMounted) {
@@ -821,6 +917,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (controlsHintMounted) hud.remove(CONTROLS_HINT_ID);
         if (pauseMenuMounted) hud.remove(PAUSE_MENU_ID);
         hud.remove(MINIMAP_ID);
+        hud.remove(KEYS_ID);
       };
     }
 
@@ -830,6 +927,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (w.__agf !== undefined) delete w.__agf.kaboom;
         _boundRestart = undefined;
         _boundAudioEvent = undefined;
+        _boundPlayerInput = undefined;
         _audioLog = [];
         audioFx.dispose();
         if (hudCleanup !== undefined) hudCleanup();

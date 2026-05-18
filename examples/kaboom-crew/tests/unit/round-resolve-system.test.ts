@@ -199,6 +199,102 @@ describe("createKaboomRoundResolveSystem (S82 KABOOM-DAMAGE-AND-DEATH / RESTART)
     expect(state.phase).toBe("playing");
   });
 
+  it("S87 KABOOM-MATCH-BEST-OF-5: matchPhase='in-progress' until tally hits matchTarget", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false);
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 0,
+      tally: { player: 2, bot: 0, draws: 0 },
+      matchTarget: 3,
+      matchPhase: "in-progress"
+    });
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as {
+      phase: string;
+      tally?: { player: number };
+      matchPhase?: string;
+    };
+    expect(state.phase).toBe("won");
+    expect(state.tally?.player).toBe(3);
+    expect(state.matchPhase).toBe("won");
+  });
+
+  it("S87 KABOOM-MATCH-BEST-OF-5: tally.bot reaching matchTarget → matchPhase='lost'", () => {
+    const world = new World();
+    addBomber(world, "player.1", false);
+    addBomber(world, "bot.1");
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 0,
+      tally: { player: 0, bot: 2, draws: 0 },
+      matchTarget: 3,
+      matchPhase: "in-progress"
+    });
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { matchPhase?: string };
+    expect(state.matchPhase).toBe("lost");
+  });
+
+  it("S87 KABOOM-MATCH-BEST-OF-5: auto-restart suppressed when matchPhase resolves", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false);
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 0,
+      tally: { player: 2, bot: 0, draws: 0 },
+      matchTarget: 3,
+      matchPhase: "in-progress"
+    });
+    const onRestart = vi.fn();
+    const system = createKaboomRoundResolveSystem({
+      playerId: "player.1",
+      onRestart,
+      autoRestartAfterMs: 100
+    });
+    // Tick 1 — round resolves to 'won', match resolves to 'won'.
+    system.frameUpdate!(ctx(world, 0.05));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { matchPhase?: string };
+    expect(state.matchPhase).toBe("won");
+    // Keep ticking past autoRestartAfterMs — onRestart MUST NOT fire because the match is over.
+    for (let i = 0; i < 10; i += 1) system.frameUpdate!(ctx(world, 0.05));
+    expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it("S87 KABOOM-MATCH-BEST-OF-5: matchTarget=0 leaves matchPhase='in-progress' (auto-restart still works)", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false);
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 0,
+      tally: { player: 9, bot: 0, draws: 0 },
+      matchTarget: 0,
+      matchPhase: "in-progress"
+    });
+    const onRestart = vi.fn();
+    const system = createKaboomRoundResolveSystem({
+      playerId: "player.1",
+      onRestart,
+      autoRestartAfterMs: 50
+    });
+    system.frameUpdate!(ctx(world, 0.05));
+    const state = world.getComponent("kaboom.round-state", "RoundState") as { matchPhase?: string };
+    expect(state.matchPhase).toBe("in-progress");
+    // Push past the threshold so auto-restart can fire.
+    system.frameUpdate!(ctx(world, 0.05));
+    system.frameUpdate!(ctx(world, 0.05));
+    expect(onRestart).toHaveBeenCalled();
+  });
+
   it("autoRestartAfterMs = 0 disables auto-restart", () => {
     const world = new World();
     addBomber(world, "player.1");
