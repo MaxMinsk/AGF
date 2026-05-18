@@ -19,7 +19,7 @@
       "auto": true
     },
     "shadows": {
-      "algorithm": "pcf",
+      "algorithm": "pcss",
       "csm": {
         "enabled": true,
         "cascades": 3,
