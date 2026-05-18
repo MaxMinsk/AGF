@@ -1295,7 +1295,18 @@ export class ThreeRenderAdapter {
   // RTT for a single flat surface — perfect for water / lobby floor /
   // smooth glass tile. Cost is one extra full-scene render per mirror
   // per frame.
-  private readonly planarMirrors = new Map<number, { mirror: Reflector }>();
+  // S72 WEBGPU-planar-mirror. Two storage shapes for the same logical
+  // handle: WebGL keeps `mirror: Reflector` (Reflector IS a Mesh
+  // subclass — single object on the scene); WebGPU keeps `mesh: Mesh +
+  // material: MeshBasicNodeMaterial + reflectorTarget: Object3D`. The
+  // ReflectorNode's `target` Object3D is parented to the mesh so the
+  // mirror plane follows the mesh's transform (set via
+  // setPlanarMirrorTransform).
+  private readonly planarMirrors = new Map<
+    number,
+    | { kind: "webgl"; mirror: Reflector }
+    | { kind: "webgpu"; mesh: Mesh; material: Material; reflectorTarget: Object3D }
+  >();
   private nextPlanarMirrorHandle = 1;
 
   acquirePlanarMirror(spec: {
@@ -1304,6 +1315,41 @@ export class ThreeRenderAdapter {
     resolution: number;
     color?: string;
   }): number {
+    const handle = this.nextPlanarMirrorHandle++;
+    if (this.capabilities.kind === "webgpu") {
+      if (this.webGpuModule === undefined) {
+        throw new Error("[AGF] acquirePlanarMirror requires webGpuModule on the WebGPU adapter; call adapter.init() first.");
+      }
+      // TSL ReflectorNode + node-material pattern. The `reflector()`
+      // factory returns a TextureNode that captures live reflections;
+      // we attach it to a `MeshBasicNodeMaterial.colorNode` so the
+      // mirror plane shows pure reflection (the WebGL `Reflector`
+      // class similarly renders an unlit colored-reflection surface).
+      // `resolutionScale: 0.5` matches the original `Reflector`'s
+      // `textureWidth / textureHeight: resolution` budget at half the
+      // viewport — keep it cheap on real GPU. The `target` Object3D
+      // (which the reflector base node uses to derive the mirror plane)
+      // becomes a child of the host mesh so transform updates propagate.
+      const reflectorNode = this.webGpuModule.reflector({ resolutionScale: 0.5 });
+      const material = new this.webGpuModule.MeshBasicNodeMaterial();
+      // Tinted reflection: blend reflection.rgb with the optional spec
+      // color using the node-material's pre-multiplied colorNode. The
+      // simplest tint is to just assign the reflector; the per-fragment
+      // color comes through. spec.color is parked for a future story
+      // where we mix in via `mix(reflector, color, factor)`.
+      (material as unknown as { colorNode: unknown }).colorNode = reflectorNode;
+      const geometry = new PlaneGeometry(spec.width, spec.height);
+      const mesh = new Mesh(geometry, material as unknown as Material);
+      mesh.add((reflectorNode as unknown as { target: Object3D }).target);
+      this.scene.add(mesh);
+      this.planarMirrors.set(handle, {
+        kind: "webgpu",
+        mesh,
+        material: material as unknown as Material,
+        reflectorTarget: (reflectorNode as unknown as { target: Object3D }).target
+      });
+      return handle;
+    }
     const geometry = new PlaneGeometry(spec.width, spec.height);
     const mirror = new Reflector(geometry, {
       textureWidth: spec.resolution,
@@ -1315,8 +1361,7 @@ export class ThreeRenderAdapter {
     // matrix updates via setPlanarMirrorTransform put it where the
     // entity's LocalToWorld says.
     this.scene.add(mirror);
-    const handle = this.nextPlanarMirrorHandle++;
-    this.planarMirrors.set(handle, { mirror });
+    this.planarMirrors.set(handle, { kind: "webgl", mirror });
     return handle;
   }
 
@@ -1326,25 +1371,33 @@ export class ThreeRenderAdapter {
   ): void {
     const entry = this.planarMirrors.get(handle);
     if (entry === undefined) return;
+    const node: Object3D = entry.kind === "webgl" ? entry.mirror : entry.mesh;
     // LocalToWorld.rotation is 3-element XYZ Euler (radians) — matches the
     // shape `applyTransform` consumes for meshes / lights / cameras. Earlier
     // S59 impl read 4 values as a quaternion → undefined `w` → scrambled
     // orientation → mirror normal pointed roughly behind the camera, so the
     // water plane reflected nothing and read as black.
-    entry.mirror.position.set(ltw.position[0]!, ltw.position[1]!, ltw.position[2]!);
-    entry.mirror.rotation.set(ltw.rotation[0]!, ltw.rotation[1]!, ltw.rotation[2]!);
-    entry.mirror.scale.set(ltw.scale[0]!, ltw.scale[1]!, ltw.scale[2]!);
-    entry.mirror.updateMatrixWorld(true);
+    node.position.set(ltw.position[0]!, ltw.position[1]!, ltw.position[2]!);
+    node.rotation.set(ltw.rotation[0]!, ltw.rotation[1]!, ltw.rotation[2]!);
+    node.scale.set(ltw.scale[0]!, ltw.scale[1]!, ltw.scale[2]!);
+    node.updateMatrixWorld(true);
   }
 
   releasePlanarMirror(handle: number): void {
     const entry = this.planarMirrors.get(handle);
     if (entry === undefined) return;
-    this.scene.remove(entry.mirror);
-    entry.mirror.geometry.dispose();
-    // Reflector materials are internal; dispose-on-remove is the helper's
-    // documented teardown. The wrapping object3d is what matters.
-    (entry.mirror.material as Material).dispose();
+    if (entry.kind === "webgl") {
+      this.scene.remove(entry.mirror);
+      entry.mirror.geometry.dispose();
+      // Reflector materials are internal; dispose-on-remove is the helper's
+      // documented teardown. The wrapping object3d is what matters.
+      (entry.mirror.material as Material).dispose();
+    } else {
+      this.scene.remove(entry.mesh);
+      entry.mesh.remove(entry.reflectorTarget);
+      entry.mesh.geometry.dispose();
+      entry.material.dispose();
+    }
     this.planarMirrors.delete(handle);
   }
 
