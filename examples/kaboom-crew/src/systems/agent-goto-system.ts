@@ -1,20 +1,22 @@
-// S82 KABOOM-AGENT-CONTROLS. Drives any entity with `AgentGoto`
-// toward the target cell by writing `GridMover.queuedDirection` each
-// frame. v0 is straight-line: pick the cardinal that reduces |dx|
-// first, falling back to the cardinal that reduces |dz| when dx is
-// already zero. GridMovementSystem's lane-assist handles the rest —
-// blocked moves get a perpendicular fallback automatically, so the
-// agent doesn't get stuck against soft blocks or walls in most cases.
-// BFS pathfinding around obstacles lands as KABOOM-AGENT-PATHFIND.
+// S82 KABOOM-AGENT-CONTROLS + KABOOM-AGENT-PATHFIND.
+//
+// Drives any entity with `AgentGoto` toward the target cell by writing
+// `GridMover.queuedDirection` each frame. When occupancy + Grid are
+// wired, a per-frame BFS over the grid finds the shortest path around
+// obstacles (hard walls, soft blocks, bombs) and queues the next step.
+// When occupancy is missing (e.g. minimal unit tests) the system falls
+// back to a straight-line policy that picks the cardinal reducing |dx|
+// first and relies on GridMovementSystem's lane-assist.
 //
 // Termination contract (consumed by `runtime.kaboom.gotoCell`):
 //   - "arrived"     — entity reached the target cell exactly.
 //   - "unreachable" — the target cell itself is blocked at request time
-//                     (hard wall / soft block / out-of-bounds). Caller
-//                     usually wants to retry against an adjacent cell.
+//                     (hard wall / soft block / out-of-bounds) OR no
+//                     BFS path exists from the current cell.
 //   - "stuck"       — entity hasn't reduced Manhattan distance to the
 //                     target for `stuckGraceFrames` consecutive frames.
-//                     This is the v0 substitute for proper pathfinding.
+//                     With BFS this should be rare — kept as a safety
+//                     net against pathological occupancy changes.
 // The system writes `AgentGotoResult` (transient) before removing
 // `AgentGoto` so external poller code can read the outcome.
 
@@ -53,7 +55,7 @@ export type AgentGotoResultComponent = {
 
 export type KaboomAgentGotoOptions = {
   name?: string;
-  /** Optional occupancy query — when provided, the system fails fast with `unreachable` if the target cell is already blocked. */
+  /** Optional occupancy query — unlocks BFS pathfinding + early-out when the target is blocked. */
   occupancy?: GridOccupancyQuery;
   /** Consecutive frames without distance progress that count as stuck. Default 60 (~1 s @ 60 Hz). */
   stuckGraceFrames?: number;
@@ -63,6 +65,13 @@ type Tracker = {
   lastBest: number;
   noProgressFrames: number;
 };
+
+const DIRECTIONS: ReadonlyArray<{ dx: number; dz: number }> = [
+  { dx: 1, dz: 0 },
+  { dx: -1, dz: 0 },
+  { dx: 0, dz: 1 },
+  { dx: 0, dz: -1 }
+];
 
 function manhattan(ax: number, az: number, bx: number, bz: number): number {
   return Math.abs(ax - bx) + Math.abs(az - bz);
@@ -84,6 +93,58 @@ function writeResult(
   };
   world.setComponent(entityId, AGENT_GOTO_RESULT, result);
   world.removeComponent(entityId, AGENT_GOTO);
+}
+
+/**
+ * BFS from `(startGx, startGz)` to `(targetGx, targetGz)`. Returns the
+ * first cardinal step on the shortest path, or `undefined` when no
+ * path exists. `isBlocked(gx, gz)` is consulted for every neighbour;
+ * the start cell is always considered open even when occupancy thinks
+ * it isn't (the entity is standing there, after all).
+ */
+export function bfsFirstStep(
+  startGx: number,
+  startGz: number,
+  targetGx: number,
+  targetGz: number,
+  grid: { sizeX: number; sizeZ: number },
+  isBlocked: (gx: number, gz: number) => boolean
+): { dx: number; dz: number } | undefined {
+  if (startGx === targetGx && startGz === targetGz) return { dx: 0, dz: 0 };
+  // Visited map stores the FIRST direction chosen out of the start
+  // cell — reconstructing the full path isn't needed because we only
+  // queue the next step. Map<key, dir>.
+  const key = (gx: number, gz: number): number => gx * grid.sizeZ + gz;
+  const visited = new Map<number, { dx: number; dz: number }>();
+  visited.set(key(startGx, startGz), { dx: 0, dz: 0 });
+
+  // Hand-rolled ring buffer over an array — Array.shift is O(n).
+  const queue: number[] = [key(startGx, startGz)];
+  let head = 0;
+  while (head < queue.length) {
+    const cellKey = queue[head++]!;
+    const gx = Math.floor(cellKey / grid.sizeZ);
+    const gz = cellKey - gx * grid.sizeZ;
+    for (const d of DIRECTIONS) {
+      const nx = gx + d.dx;
+      const nz = gz + d.dz;
+      if (nx < 0 || nz < 0 || nx >= grid.sizeX || nz >= grid.sizeZ) continue;
+      const nk = key(nx, nz);
+      if (visited.has(nk)) continue;
+      // Target itself: don't consult isBlocked (we already verified it
+      // up-stream; allowing entry here lets BFS find paths that end on
+      // a 'soft' target that the caller insists on).
+      if (!(nx === targetGx && nz === targetGz) && isBlocked(nx, nz)) continue;
+      // First step from start = direction we just took.
+      const firstDir = (gx === startGx && gz === startGz)
+        ? { dx: d.dx, dz: d.dz }
+        : visited.get(cellKey)!;
+      visited.set(nk, firstDir);
+      if (nx === targetGx && nz === targetGz) return firstDir;
+      queue.push(nk);
+    }
+  }
+  return undefined;
 }
 
 export function createKaboomAgentGotoSystem(options: KaboomAgentGotoOptions = {}): System {
@@ -132,8 +193,7 @@ export function createKaboomAgentGotoSystem(options: KaboomAgentGotoOptions = {}
         continue;
       }
 
-      // Case 2a: target is out of grid bounds. Fail fast — the entity
-      // would otherwise burn through stuckGraceFrames against the wall.
+      // Case 2a: target is out of grid bounds. Fail fast.
       if (grid !== undefined && !isInBounds(grid, goal.targetGx, goal.targetGz)) {
         writeResult(world, entityId, "unreachable", pos, goal);
         if (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0) {
@@ -143,9 +203,7 @@ export function createKaboomAgentGotoSystem(options: KaboomAgentGotoOptions = {}
         continue;
       }
 
-      // Case 2b: target itself is blocked (hard wall / soft block).
-      // Only checked when occupancy is wired; the unit-test path doesn't
-      // need to know about occupancy.
+      // Case 2b: target itself is blocked.
       if (occupancy !== undefined && occupancy.blocked(goal.targetGx, goal.targetGz, "movement")) {
         writeResult(world, entityId, "unreachable", pos, goal);
         if (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0) {
@@ -155,9 +213,56 @@ export function createKaboomAgentGotoSystem(options: KaboomAgentGotoOptions = {}
         continue;
       }
 
-      // Case 3: stuck-detection. Track Manhattan distance to target and
-      // count consecutive frames without progress. v0 substitute for
-      // proper BFS — KABOOM-AGENT-PATHFIND replaces this.
+      // Case 2c: full BFS — only when both grid bounds and occupancy
+      // are available. Exhausting the queue means no path exists.
+      if (grid !== undefined && occupancy !== undefined) {
+        const step = bfsFirstStep(
+          pos.gx,
+          pos.gz,
+          goal.targetGx,
+          goal.targetGz,
+          { sizeX: grid.sizeX, sizeZ: grid.sizeZ },
+          (gx, gz) => occupancy.blocked(gx, gz, "movement")
+        );
+        if (step === undefined) {
+          writeResult(world, entityId, "unreachable", pos, goal);
+          if (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0) {
+            world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+          }
+          trackers.delete(entityId);
+          continue;
+        }
+        // Still also do stuck tracking — occupancy can churn (bombs
+        // appear, etc.) and the BFS could theoretically oscillate.
+        const dist = manhattan(pos.gx, pos.gz, goal.targetGx, goal.targetGz);
+        let tracker = trackers.get(entityId);
+        if (tracker === undefined) {
+          tracker = { lastBest: dist, noProgressFrames: 0 };
+          trackers.set(entityId, tracker);
+        } else if (dist < tracker.lastBest) {
+          tracker.lastBest = dist;
+          tracker.noProgressFrames = 0;
+        } else {
+          tracker.noProgressFrames += 1;
+        }
+        if (tracker.noProgressFrames >= stuckGraceFrames) {
+          writeResult(world, entityId, "stuck", pos, goal);
+          if (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0) {
+            world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+          }
+          trackers.delete(entityId);
+          continue;
+        }
+        const prev = mover.queuedDirection;
+        if (prev?.dx !== step.dx || prev?.dz !== step.dz) {
+          world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: step });
+        }
+        continue;
+      }
+
+      // Fallback path (no occupancy → no BFS): straight-line + stuck
+      // detection. Used by unit tests that don't construct an occupancy
+      // index.
       const dist = manhattan(pos.gx, pos.gz, goal.targetGx, goal.targetGz);
       let tracker = trackers.get(entityId);
       if (tracker === undefined) {
@@ -177,9 +282,6 @@ export function createKaboomAgentGotoSystem(options: KaboomAgentGotoOptions = {}
         trackers.delete(entityId);
         continue;
       }
-
-      // Case 4: pick the cardinal that reduces |dx| first. Feels
-      // natural in arcade arenas + matches the v0 tests.
       const dx = Math.sign(goal.targetGx - pos.gx);
       const dz = Math.sign(goal.targetGz - pos.gz);
       const direction = dx !== 0 ? { dx, dz: 0 } : { dx: 0, dz };

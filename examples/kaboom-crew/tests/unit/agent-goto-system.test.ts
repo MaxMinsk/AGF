@@ -1,9 +1,9 @@
-// S82 KABOOM-AGENT-CONTROLS unit tests for the AgentGotoSystem.
+// S82 KABOOM-AGENT-CONTROLS + KABOOM-AGENT-PATHFIND unit tests.
 
 import { describe, expect, it } from "vitest";
 
 import { World } from "../../../../engine/core/ecs/world";
-import { createKaboomAgentGotoSystem } from "../../src/systems/agent-goto-system";
+import { bfsFirstStep, createKaboomAgentGotoSystem } from "../../src/systems/agent-goto-system";
 
 function ctx(world: World) {
   return {
@@ -155,5 +155,83 @@ describe("createKaboomAgentGotoSystem (S82 KABOOM-AGENT-CONTROLS)", () => {
     system.frameUpdate!(ctx(world));
     // After progress, we should NOT be stuck even though several frames passed.
     expect(world.hasComponent("player", "AgentGoto")).toBe(true);
+  });
+});
+
+describe("bfsFirstStep (S82 KABOOM-AGENT-PATHFIND)", () => {
+  const open = () => false;
+
+  it("returns {0,0} when start equals target", () => {
+    const step = bfsFirstStep(3, 3, 3, 3, { sizeX: 10, sizeZ: 10 }, open);
+    expect(step).toEqual({ dx: 0, dz: 0 });
+  });
+
+  it("on an empty grid, first step is +x toward an eastern target", () => {
+    const step = bfsFirstStep(1, 1, 5, 1, { sizeX: 10, sizeZ: 10 }, open);
+    // BFS explores cardinals in DIRECTIONS order — +x is first, so a
+    // straight east target picks +x.
+    expect(step).toEqual({ dx: 1, dz: 0 });
+  });
+
+  it("walks around a wall blocking the straight path", () => {
+    // Direct neighbour (2,1) is walled — BFS must NOT pick +x as the
+    // first step (it would be blocked). Only +z, -z or -x are open.
+    // -x walks west (away from a target to the east, longer path), so
+    // the optimal first step is +z.
+    const wall = new Set(["2,1"]);
+    const isBlocked = (gx: number, gz: number) => wall.has(`${gx},${gz}`);
+    const step = bfsFirstStep(1, 1, 4, 1, { sizeX: 6, sizeZ: 6 }, isBlocked);
+    expect(step?.dx).toBe(0);
+    // Either +z or -z is fine; +z is what BFS picks because it enumerates
+    // cardinals in (+x, -x, +z, -z) order — +x blocked, -x blocked by
+    // bounds (gx=0 is open but -x lengthens the path), +z wins.
+    expect(step?.dz).toBe(1);
+  });
+
+  it("returns undefined when the target is fully walled off", () => {
+    // Sealing target (4,4) by walls at (3,4) (4,3) (5,4) (4,5).
+    const wall = new Set(["3,4", "4,3", "5,4", "4,5"]);
+    const isBlocked = (gx: number, gz: number) => wall.has(`${gx},${gz}`);
+    const step = bfsFirstStep(1, 1, 4, 4, { sizeX: 8, sizeZ: 8 }, isBlocked);
+    expect(step).toBeUndefined();
+  });
+
+  it("BFS-end-game: AgentGotoSystem uses BFS when occupancy + Grid are wired", () => {
+    // Real system test — wire occupancy with a wall blocking the
+    // straight-line route + a detour via gz=2.
+    const world = new World();
+    world.addEntity("grid.config");
+    world.setComponent("grid.config", "Grid", { cellSize: 1, sizeX: 6, sizeZ: 6 });
+    setupEntity(world, 1, 1, 4, 1);
+    const blocked = new Set(["2,1", "3,1"]); // walls between us + target
+    const occupancy = {
+      occupants: () => [],
+      blocked: (gx: number, gz: number) => blocked.has(`${gx},${gz}`),
+      occupiedCells: () => []
+    };
+    const system = createKaboomAgentGotoSystem({ occupancy });
+    system.frameUpdate!(ctx(world));
+    const mover = world.getComponent("player", "GridMover") as { queuedDirection: { dx: number; dz: number } };
+    // Cannot go +x (blocked), so the BFS first step is +z (south detour).
+    expect(mover.queuedDirection).toEqual({ dx: 0, dz: 1 });
+  });
+
+  it("BFS-end-game: AgentGotoSystem reports unreachable when no path exists", () => {
+    const world = new World();
+    world.addEntity("grid.config");
+    world.setComponent("grid.config", "Grid", { cellSize: 1, sizeX: 6, sizeZ: 6 });
+    setupEntity(world, 1, 1, 4, 4);
+    // Wall off (4,4) on all four sides.
+    const sealed = new Set(["3,4", "4,3", "5,4", "4,5"]);
+    const occupancy = {
+      occupants: () => [],
+      blocked: (gx: number, gz: number) => sealed.has(`${gx},${gz}`),
+      occupiedCells: () => []
+    };
+    const system = createKaboomAgentGotoSystem({ occupancy });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "AgentGoto")).toBe(false);
+    const result = world.getComponent("player", "AgentGotoResult") as { outcome: string };
+    expect(result.outcome).toBe("unreachable");
   });
 });

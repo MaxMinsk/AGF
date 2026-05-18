@@ -204,12 +204,14 @@
     {
       "id": "KABOOM-AGENT-PATHFIND",
       "title": "BFS pathfinder so `gotoCell` walks around walls + soft blocks",
-      "status": "pending",
+      "status": "implemented",
       "summary": "v0 of `AgentGotoSystem` (KABOOM-AGENT-CONTROLS) only handles straight-line motion via `GridMover` lane-assist. This story adds a real BFS over the GridOccupancy index — each frame, the system recomputes the shortest path from current cell to target, queues the next cell as `queuedDirection`. Optionally caches the path until a wall changes (cheap invariant: occupancy revision counter). Treats soft blocks as walls today — bomb-it-down planning is a follow-up. Unblocks `__agf.kaboom.gotoCell` for traversal across the arena.",
       "verification": [
         "unit test: BFS finds the 4-cell path from (1,1) to (1,5) around a soft-block wall at (1,3)",
         "no path → system clears queuedDirection (player stops at current cell)",
-        "live probe: `__agf.kaboom.gotoCell('player.1', 13, 9)` traverses the arena around hard walls"
+        "live probe: `__agf.kaboom.gotoCell('player.1', 13, 9)` traverses the arena around hard walls",
+        "unit tests: bfsFirstStep BFS helper (empty-grid step, wall detour, no-path) + AgentGotoSystem-with-occupancy end-game (BFS detour, no-path unreachable)",
+        "live probe: gotoCell('player.1', 13, 9) arrived across the full arena (BFS through corridors), gotoCell('player.1', 5, 5) → unreachable (cell hosts soft block 'soft.2' in start scene)"
       ],
       "dependsOn": [
         "KABOOM-AGENT-CONTROLS"
