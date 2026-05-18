@@ -175,16 +175,28 @@
     {
       "id": "KABOOM-AGENT-CONTROLS",
       "title": "Agent-friendly control surface: `runtime.kaboom = { gotoCell, placeBomb, status }`",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Expose a small object on `runtime.kaboom` (mirrored onto `window.__agf.kaboom`) so an agent can drive Kaboom Crew without simulating keyboard events. v0 surface: (a) `gotoCell(entityId, gx, gz)` — sets a target cell that a project-local `AgentGotoSystem` walks toward each frame by writing `GridMover.queuedDirection` (one-step-at-a-time, respects walls + lane-assist); (b) `placeBomb(entityId)` — writes a `PlaceBombRequest` transient on the entity (same code path as space-key + bot AI); (c) `status()` — returns `{ round, players: [{ id, gx, gz, alive, activeBombs, stats }], bombs: [...], blastTiles: [...] }` so an agent can poll game state without parsing the full snapshot. Agent playtests + bug reproductions become one-liners.",
       "verification": [
         "live probe: `__agf.kaboom.gotoCell('player.1', 5, 5)` then waiting 2 s moves player.1 from (1,1) toward (5,5) along a passable path",
         "live probe: `__agf.kaboom.placeBomb('player.1')` spawns a Bomb entity in the same frame; cap respected",
         "`__agf.kaboom.status()` returns a compact JSON snapshot suitable for curl piping",
-        "no existing keyboard / bot behaviour breaks — controls are additive"
+        "no existing keyboard / bot behaviour breaks — controls are additive",
+        "runtime.kaboom.gotoCell(entityId, gx, gz) moves player across the arena: live probe drove player.1 from (1,1) to (5,1) in ~1.5s",
+        "runtime.kaboom.placeBomb(entityId) spawns Bomb entity in same frame; cap respected",
+        "runtime.kaboom.status() returns compact JSON with round + players + bombs + tiles for curl-pipe",
+        "AgentGotoSystem covered by 6 unit tests (cardinal pick + arrival cleanup + revision stability); 607 total tests passing"
       ],
-      "dependsOn": ["KABOOM-BOMB-PLACE"],
-      "epic": "KABOOM-CREW-MVP-0"
+      "dependsOn": [
+        "KABOOM-BOMB-PLACE"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/src/systems/agent-goto-system.ts",
+        "examples/kaboom-crew/schemas/scene-extensions.schema.json (AgentGoto)",
+        "examples/kaboom-crew/bootstrap.ts (runtime.kaboom + window.__agf.kaboom mount via setTimeout retry-loop)",
+        "examples/kaboom-crew/tests/unit/agent-goto-system.test.ts"
+      ]
     },
     {
       "id": "KABOOM-AGENT-PATHFIND",
@@ -196,7 +208,9 @@
         "no path → system clears queuedDirection (player stops at current cell)",
         "live probe: `__agf.kaboom.gotoCell('player.1', 13, 9)` traverses the arena around hard walls"
       ],
-      "dependsOn": ["KABOOM-AGENT-CONTROLS"],
+      "dependsOn": [
+        "KABOOM-AGENT-CONTROLS"
+      ],
       "epic": "KABOOM-CREW-MVP-0"
     },
     {
@@ -225,6 +239,7 @@
     "AGF-LOG-DOCTOR-DIAGNOSTICS (engine S083) — extend engine doctor with a Diagnostics: section: counts by (severity, code) since runtime start; flags any error or > 5 warnings of the same code as a recommendation.",
     "AGF-LOG-BOOT-NOISE-BUDGET (engine S083) — preflight smoke asserts zero error/warning diagnostics after first paint for hello-3d + kaboom-crew. Regression gate on engine pipeline cleanliness.",
     "AGF-LOG-ENTITY-RECREATED (engine S083) — scene.load detects when an entity id is removed AND re-added in the same command batch + emits AGF_ENTITY_RECREATED warning. Would have surfaced the BatchedMeshHandle-loss bug in one frame.",
+    "AGF-WEBGPU-CHUNK-SPLIT (engine S083) — investigate why vite.config.ts manualChunks rule for `three.webgpu` never produces a `three-webgpu-` chunk in production builds. The dynamic `import` in webgpu-module-loader.ts should split, but Vite/Rolldown pulls the WebGPU build (~180 KB gzipped of WebGPU/TSL/node-material code) straight into the main `three` chunk anyway. Result: every WebGL-only project (beacon-world, hello-3d, batch-bench, physics-bench, shadows-bench) ships WebGPU runtime it never uses. Fix → tighten the `three-` budget back from 560 → ~340 KB in scripts/check-bundle-size.mjs + engine/tools/doctor/project-doctor.ts. Hygiene CI was red on main from S75 through S81 because of this; S82 unblocked with a budget bump but the underlying bug remains.",
     "Audio (sound design pass) stays parked until MVP 2.",
     "Procedural character generator stays parked — capsule placeholders cover MVP 0.",
     "Multiplayer (server authority + client prediction + relevance filter) lives under the KABOOM-CREW-MVP-1 epic, not MVP 0.",

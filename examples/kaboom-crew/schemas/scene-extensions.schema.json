@@ -12,7 +12,8 @@
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
     "RoundState": { "$ref": "#/definitions/roundStateComponent" },
     "RoundRestartRequest": { "$ref": "#/definitions/roundRestartRequestComponent" },
-    "Pickup": { "$ref": "#/definitions/pickupComponent" }
+    "Pickup": { "$ref": "#/definitions/pickupComponent" },
+    "AgentGoto": { "$ref": "#/definitions/agentGotoComponent" }
   },
   "definitions": {
     "bomberStatsComponent": {
@@ -95,6 +96,16 @@
       "additionalProperties": false,
       "description": "Transient input request. PlayerInputSystem writes this on R key; RoundResolveSystem consumes it + emits a scene.load command.",
       "properties": {}
+    },
+    "agentGotoComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S82 KABOOM-AGENT-CONTROLS. Agent-supplied target cell. AgentGotoSystem reads it each frame and writes GridMover.queuedDirection toward the goal. v0 uses straight-line cardinal preference + GridMover lane-assist; BFS pathfinding is KABOOM-AGENT-PATHFIND.",
+      "required": ["targetGx", "targetGz"],
+      "properties": {
+        "targetGx": { "type": "integer", "minimum": 0 },
+        "targetGz": { "type": "integer", "minimum": 0 }
+      }
     },
     "pickupComponent": {
       "type": "object",

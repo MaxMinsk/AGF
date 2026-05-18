@@ -24,6 +24,7 @@ import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagat
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
+import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
@@ -94,6 +95,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // wires the restart path via bootstrap.resetRound — runtime calls
     // that for KeyR via the host AppHandle.
     scheduler.register(createKaboomRoundResolveSystem({ playerId: "player.1" }), { profiles: ["static"] });
+
+    // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
+    // toward the target cell. Used by `runtime.kaboom.gotoCell` (wired
+    // in attachUi) and by future bot playtests.
+    scheduler.register(createKaboomAgentGotoSystem(), { profiles: ["static"] });
   },
 
   attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
@@ -102,9 +108,96 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       restartScene(runtime);
     };
     window.addEventListener("keydown", handleKey);
+
+    // S82 KABOOM-AGENT-CONTROLS. Mount an agent-facing control surface
+    // on `window.__agf.kaboom` so this assistant + future scripted
+    // playtests can drive the game in one curl/call without simulating
+    // keyboard events. Three primitives are exposed:
+    //   - gotoCell(entityId, gx, gz) — sets AgentGoto so AgentGotoSystem
+    //     walks the entity to that cell via GridMover.queuedDirection.
+    //   - placeBomb(entityId) — writes PlaceBombRequest transient (same
+    //     pipeline as Space-key + bot AI).
+    //   - status() — compact JSON of round + players + bombs + tiles.
+    const api = {
+      gotoCell(entityId: string, gx: number, gz: number): void {
+        runtime.applyCommands([
+          { kind: "component.set", entityId, component: "AgentGoto", data: { targetGx: gx, targetGz: gz } }
+        ]);
+      },
+      placeBomb(entityId: string): void {
+        runtime.applyCommands([
+          { kind: "component.set", entityId, component: "PlaceBombRequest", data: {} }
+        ]);
+      },
+      restart(): void {
+        restartScene(runtime);
+      },
+      status(): unknown {
+        const snap = runtime.snapshot();
+        const round = (snap.entities.find((e) => e.id === "kaboom.round-state")?.components as Record<string, unknown> | undefined)?.["RoundState"];
+        const players = snap.entities
+          .filter((e) => (e.components as Record<string, unknown> | undefined)?.["BomberStats"] !== undefined)
+          .map((e) => {
+            const c = e.components as Record<string, Record<string, unknown>>;
+            return {
+              id: e.id,
+              gx: (c["GridPosition"] as { gx?: number })?.gx,
+              gz: (c["GridPosition"] as { gz?: number })?.gz,
+              alive: (c["BomberStats"] as { alive?: boolean })?.alive,
+              activeBombs: (c["BomberStats"] as { activeBombs?: number })?.activeBombs,
+              maxBombs: (c["BomberStats"] as { maxBombs?: number })?.maxBombs,
+              range: (c["BomberStats"] as { range?: number })?.range,
+              targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
+              targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
+            };
+          });
+        const bombs = snap.entities
+          .filter((e) => (e.components as Record<string, unknown> | undefined)?.["Bomb"] !== undefined)
+          .map((e) => {
+            const c = e.components as Record<string, Record<string, unknown>>;
+            return {
+              id: e.id,
+              gx: (c["GridPosition"] as { gx?: number })?.gx,
+              gz: (c["GridPosition"] as { gz?: number })?.gz,
+              fuse: (c["Bomb"] as { fuseRemaining?: number })?.fuseRemaining,
+              range: (c["Bomb"] as { range?: number })?.range,
+              owner: (c["Bomb"] as { ownerId?: string })?.ownerId
+            };
+          });
+        const tiles = snap.entities
+          .filter((e) => (e.components as Record<string, unknown> | undefined)?.["BlastTile"] !== undefined).length;
+        return { round, players, bombs, tiles };
+      }
+    };
+
+    interface KaboomGlobal {
+      __agf?: { kaboom?: typeof api } & Record<string, unknown>;
+    }
+    const w = window as unknown as KaboomGlobal;
+    // src/main.ts assigns `window.__agf = { ... }` AFTER attachUi runs
+    // and the assignment OVERWRITES the global (it's a fresh object
+    // literal, not a mutation). The exact timing varies — async asset
+    // loads + dev-bridge connection push the assignment well past any
+    // single setTimeout we'd pick. Poll for up to 3 s after attachUi
+    // and re-inject `kaboom` whenever it's missing. Cheap (only fires
+    // until __agf is populated + kaboom is set + survives one frame).
+    let polls = 0;
+    const pollMount = (): void => {
+      polls += 1;
+      if (w.__agf === undefined) w.__agf = {};
+      if (w.__agf.kaboom !== api) w.__agf.kaboom = api;
+      if (polls < 30) setTimeout(pollMount, 100);
+    };
+    setTimeout(pollMount, 0);
+    // Also expose on the runtime handle for non-DOM consumers. The
+    // runtime type widens via a structural cast — we don't add an
+    // engine-level type for the project-local surface.
+    (runtime as unknown as { kaboom?: typeof api }).kaboom = api;
+
     return {
       dispose(): void {
         window.removeEventListener("keydown", handleKey);
+        if (w.__agf !== undefined) delete w.__agf.kaboom;
       }
     };
   },
