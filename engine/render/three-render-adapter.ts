@@ -95,7 +95,7 @@ import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
 import { GpuTimer } from "./gpu-timer";
 import { WebGpuTimer } from "./webgpu/webgpu-timer";
 import type { WebGpuTimerHost } from "./webgpu/webgpu-timer";
-import { loadWebGpuModule, type WebGpuModule } from "./webgpu/webgpu-module-loader";
+import { loadWebGpuModule, type WebGpuModule, type TslColorNode } from "./webgpu/webgpu-module-loader";
 import {
   type RenderAdapterCapabilities,
   type RenderAdapterKind,
@@ -1332,12 +1332,16 @@ export class ThreeRenderAdapter {
       // becomes a child of the host mesh so transform updates propagate.
       const reflectorNode = this.webGpuModule.reflector({ resolutionScale: 0.5 });
       const material = new this.webGpuModule.MeshBasicNodeMaterial();
-      // Tinted reflection: blend reflection.rgb with the optional spec
-      // color using the node-material's pre-multiplied colorNode. The
-      // simplest tint is to just assign the reflector; the per-fragment
-      // color comes through. spec.color is parked for a future story
-      // where we mix in via `mix(reflector, color, factor)`.
-      (material as unknown as { colorNode: unknown }).colorNode = reflectorNode;
+      // S73 WEBGPU-reflection-tint. The WebGL `Reflector` multiplies
+      // the reflected RGB by `color` in its internal ShaderMaterial.
+      // TSL equivalent: `reflector.mul(color(hex))` evaluates per-pixel
+      // and lands in `material.colorNode`. Defaulting the tint to the
+      // same #88aaff the WebGL path uses keeps water-bench visually
+      // close on both renderers; projects that want pure reflection
+      // can pass `"#ffffff"`.
+      const tint = this.webGpuModule.color(spec.color ?? "#88aaff");
+      (material as unknown as { colorNode: unknown }).colorNode =
+        reflectorNode.mul(tint as TslColorNode);
       const geometry = new PlaneGeometry(spec.width, spec.height);
       const mesh = new Mesh(geometry, material as unknown as Material);
       mesh.add((reflectorNode as unknown as { target: Object3D }).target);
