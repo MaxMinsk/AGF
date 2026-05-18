@@ -19,11 +19,12 @@
     {
       "id": "KABOOM-BOMB-COUNTDOWN-PULSE",
       "title": "Bomb fuse pulses faster as it approaches 0",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Project-local BombFuseSystem (or a small companion system) modulates `MeshRenderer.color` on each Bomb between two warning colors. Pulse period = max(0.08 s, fuseRemaining / 8); near the end the bomb effectively flashes white→orange. No new components, no schema changes.",
       "verification": [
         "unit test: bomb with fuseRemaining=2.5 → slow pulse; fuseRemaining=0.2 → fast pulse",
-        "live probe: bomb visibly flashes faster as it ages"
+        "live probe: bomb visibly flashes faster as it ages",
+        "bombPulseColor(fuseRemaining) exported pure helper; period clamps Math.max(0.08, t/8) so fresh bombs pulse slowly and near-zero bombs strobe; bomb-fuse-system applies the colour each fixedUpdate"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
