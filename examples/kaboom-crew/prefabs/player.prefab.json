@@ -1,0 +1,23 @@
+{
+  "agfFormatVersion": 1,
+  "id": "player",
+  "description": "Kaboom Crew player avatar — capsule placeholder for MVP 0. Procedural character generator lands post-MVP-0; until then a primitive sphere is the visual.",
+  "components": {
+    "Transform": {
+      "rotation": [0, 0, 0],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "MeshRenderer": {
+      "mesh": "sphere",
+      "color": "#3ab0ff"
+    },
+    "GridOccupant": {
+      "layer": "player",
+      "blocksMovement": false,
+      "blocksBlast": false
+    },
+    "GridMover": {
+      "speed": 4
+    }
+  }
+}

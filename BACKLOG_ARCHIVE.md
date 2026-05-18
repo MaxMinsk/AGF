@@ -86,5 +86,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S078](backlog/sprints/S078.sprint.json)** — Backlog Engine V0 — JSON source of truth + render + check — 5 implemented · archived 2026-05-18
 - **[S079](backlog/sprints/S079.sprint.json)** — Backlog Engine V1 — mutate commands + migrate legacy archive — 5 implemented · archived 2026-05-18
 - **[S080](backlog/sprints/S080.sprint.json)** — Backlog Engine V2 — first-class epics + HIGH_LEVEL_BACKLOG generated — 8 implemented · archived 2026-05-18
+- **[S081](backlog/sprints/S081.sprint.json)** — Kaboom Crew pre-game platform — orthographic camera, damped follow, 2D HUD, grid primitives, generator framework — 9 implemented · archived 2026-05-18
 
 <!-- backlog:render:end -->

@@ -9,6 +9,7 @@ import type { SystemScheduler } from "../core/systems/scheduler";
 import type { ThreeRenderer } from "../render/three-renderer";
 import type { AssetRegistry } from "./asset-registry";
 import { createDevOverlay, type DevOverlayHandle } from "./dev-overlay";
+import { createHud, type HudHandle } from "./ui/hud";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
@@ -137,6 +138,8 @@ export type RuntimeHandle = {
   readonly rendererReady: Promise<void>;
   /** Window-averaged per-phase timings — see FrameTiming. */
   frameTiming(): FrameTiming;
+  /** S81 KABOOM-HUD-RUNTIME: 2D DOM HUD overlay primitive. Lives in `engine/runtime/ui/hud.ts`; project code reaches it through this handle. */
+  readonly hud: HudHandle;
   /**
    * M17-instance-picking: cast a ray from normalised screen
    * coordinates (`{ x: -1..1, y: -1..1 }`, y up) and return the
@@ -466,6 +469,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     ? createDevOverlay(options.devOverlayParent ?? options.canvas.parentElement ?? document.body)
     : undefined;
 
+  // S81 KABOOM-HUD-RUNTIME. The HUD root sits next to the canvas just
+  // like the dev overlay so its slots overlay the canvas viewport. A
+  // single root is mounted unconditionally — projects opt out simply
+  // by not calling `runtime.hud.add` (DOM cost is one empty <div>).
+  const hud: HudHandle = createHud(options.canvas.parentElement ?? document.body);
+
   let metricsWindowStart = 0;
   let framesInWindow = 0;
   // RUNTIME-renderer-ready: resolves once `renderer.render()` performed
@@ -651,6 +660,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     time,
     diagnostics,
     rendererReady,
+    hud,
     invalidateAsset(ref: string): void {
       options.assetRegistry?.invalidate(ref);
       if (materialBindingSystem !== undefined) {
@@ -735,6 +745,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       window.cancelAnimationFrame(frameRequestId);
       window.removeEventListener("resize", applyCanvasSize);
       overlay?.dispose();
+      hud.dispose();
       renderer.dispose();
     }
   };

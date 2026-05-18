@@ -1,0 +1,20 @@
+{
+  "agfFormatVersion": 1,
+  "id": "hard-block",
+  "description": "Indestructible wall. Blocks both movement and blast propagation.",
+  "components": {
+    "Transform": {
+      "rotation": [0, 0, 0],
+      "scale": [1, 1, 1]
+    },
+    "MeshRenderer": {
+      "mesh": "box",
+      "color": "#41525f"
+    },
+    "GridOccupant": {
+      "layer": "wall",
+      "blocksMovement": true,
+      "blocksBlast": true
+    }
+  }
+}

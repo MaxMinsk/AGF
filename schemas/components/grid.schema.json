@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/components/grid.schema.json",
+  "title": "AGF Grid components",
+  "description": "S81 KABOOM-GRID-POSITION. Reusable grid primitives — applicable to bomberman-style arcade games, roguelikes, tower-defence, RTS. Project gameplay code consumes `runtime.grid.occupants` (provided by GridOccupancySystem) instead of running raw world queries each frame.",
+  "type": "object",
+  "definitions": {
+    "gridComponent": {
+      "description": "Scene-level grid configuration. Conventionally placed on a singleton 'grid-config' entity; `engine check` rejects scenes with more than one Grid component. `cellSize` is in world units (typically 1). `sizeX`/`sizeZ` are inclusive cell counts along the X and Z axes; `originX`/`originZ` give the world position of the (0, 0) cell centre.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cellSize", "sizeX", "sizeZ"],
+      "properties": {
+        "cellSize": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1
+        },
+        "sizeX": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sizeZ": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "originX": {
+          "type": "number",
+          "default": 0
+        },
+        "originZ": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "gridPositionComponent": {
+      "description": "Cell coordinates of an entity on the scene's Grid. `engine check` rejects out-of-bounds values (`AGF_GRID_POSITION_OUT_OF_BOUNDS`). Renderer-side Transform.position is derived from this by GridMovementSystem; gameplay code never writes Transform.position directly for grid entities.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gx", "gz"],
+      "properties": {
+        "gx": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gz": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "gridMoverComponent": {
+      "description": "S81 KABOOM-GRID-MOVER. Smoothly tweens an entity between grid cells. Project gameplay code writes `queuedDirection` from input / AI; GridMovementSystem owns `currentLerp`, `targetGx`, `targetGz` and writes Transform.position. `speed` is cells per second.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["speed"],
+      "properties": {
+        "speed": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 4
+        },
+        "queuedDirection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dx": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "dz": { "type": "integer", "minimum": -1, "maximum": 1 }
+          }
+        },
+        "currentLerp": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "targetGx": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "targetGz": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "gridOccupantComponent": {
+      "description": "Declares how an entity participates in grid queries. `layer` lets multiple entities share a cell on different layers (floor / wall / blast). `blocksMovement` and `blocksBlast` are sample-game-agnostic predicates GridOccupancySystem exposes via runtime.grid.occupants(...) and runtime.grid.blocked(...).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "default": "default"
+        },
+        "blocksMovement": {
+          "type": "boolean",
+          "default": false
+        },
+        "blocksBlast": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "grid-out-of-bounds",
+  "name": "Grid Out Of Bounds",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "background": "#0b1020"
+  },
+  "profiles": ["static"]
+}

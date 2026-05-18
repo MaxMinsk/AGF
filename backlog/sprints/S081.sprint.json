@@ -1,0 +1,228 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S081",
+  "title": "Kaboom Crew pre-game platform — orthographic camera, damped follow, 2D HUD, grid primitives, generator framework",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "archivedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "KABOOM-ORTHO-CAMERA",
+      "title": "Orthographic camera path in the render adapter",
+      "status": "implemented",
+      "summary": "Today `ThreeRenderAdapter.acquireCamera` always constructs a `PerspectiveCamera`. Kaboom Crew's top-down arcade view + the existing `shadows-bench` RTS camera both want orthographic projection (cleaner gameplay readability, no foreshortening artefacts on the grid). Extend the scene `Camera` component schema with a `projection: \"perspective\" | \"orthographic\"` field (default perspective for backward compat); ortho mode reads `orthographicSize` + `near` / `far` from the same component. WebGPU + WebGL paths both honour the projection field. `engine inspect` reports it. Existing scenes keep perspective by absence; opting a scene into ortho is a one-line edit.",
+      "verification": [
+        "schemas/components/camera.schema.json gains projection + orthographicSize fields",
+        "examples/hello-3d with `projection: \"orthographic\"` still passes engine:check + renders without TypeScript / runtime errors on WebGL and WebGPU",
+        "live playwright probe at hello-3d shows an orthographic view (no foreshortening) when the field is flipped",
+        "schemas/components/camera.schema.json gained orthographicSize; allOf-if requires it when kind=orthographic",
+        "engine:check on hello-3d with orthographic + size — OK; without size — AGF_SCHEMA_REQUIRED_PROPERTY",
+        "typecheck passes; 517 unit tests passing",
+        "resize handler branches on PerspectiveCamera vs OrthographicCamera; CSM rebuild skips with a warn when active camera is orthographic"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "schemas/components/camera.schema.json",
+        "engine/render/three-render-adapter.ts",
+        "engine/render/three-renderer.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-DAMPED-FOLLOW",
+      "title": "Damped follow camera system + `FollowTarget` / `CameraDamping` components",
+      "status": "implemented",
+      "summary": "Engine-level `DampedFollowCameraSystem` reads a `FollowTarget { entityId, offset, lookAtOffset }` and a `CameraDamping { positionTau, rotationTau, lookAheadMs }` component on a camera entity. Outputs a smoothed camera transform per frame (exponential damping driven by frameDeltaSeconds — works under variable frame time, unlike fixed-tau). Look-ahead extrapolates the target's recent velocity by `lookAheadMs`; Kaboom Crew uses ~120 ms. Lives under `engine/render/systems/damped-follow-camera-system.ts`. Bench-camera follow already exists for shadows-bench (RtsCameraSystem) — that one stays sample-local; this is the generic primitive every game can pick up.",
+      "verification": [
+        "schemas/components/follow-target.schema.json + damped-camera.schema.json validate",
+        "hello-3d gains an opt-in playtest scene that follows a moving entity smoothly with no jitter",
+        "system is registered through scheduler, no DOM access, no Three.js import outside engine/render",
+        "extended existing FollowCameraSystem with lookAheadMs field per the reuse-before-new rule; existing smoothing field is already framerate-aware exponential damping (mathematical equivalent to a positionTau parameterisation)",
+        "follow-camera-system.test.ts gains 3 cases: look-ahead at constant velocity, zero-look-ahead default, velocity-history reset on target swap — all pass",
+        "full unit suite: 520 tests passing on 85 files"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/render/systems/follow-camera-system.ts",
+        "schemas/components/camera.schema.json",
+        "tests/unit/follow-camera-system.test.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-HUD-RUNTIME",
+      "title": "2D HUD runtime primitive (`engine/runtime/ui/`)",
+      "status": "implemented",
+      "summary": "Engine ships an HTML-overlay HUD primitive so games don't keep rolling ad-hoc DOM (beacon-world's HP/SIG widget pattern). The runtime mounts a single `<div data-agf-hud>` adjacent to the canvas, exposes `runtime.hud.add({ id, render, slot })` / `runtime.hud.update(id, data)` / `runtime.hud.remove(id)`. `slot` is one of `topLeft | topRight | bottomLeft | bottomRight | center`. Per-widget render is a pure function `(data) => string | HTMLElement`. Strict CSP-friendly (no innerHTML on raw strings — the runtime escapes); fully removable when the runtime tears down. Lives under `engine/runtime/ui/hud.ts`; DOM dependency stays inside this single file.",
+      "verification": [
+        "hello-3d playtest renders one HUD widget showing fps + entity count",
+        "removing the runtime disposes the HUD root and all widget DOM nodes",
+        "no other engine module imports `engine/runtime/ui/` (single-DOM-touchpoint property)",
+        "createHud + add/update/remove/dispose covered by 9 unit tests against a hand-rolled DOM stub — 529 tests passing total",
+        "imports:check passes; only engine/runtime/start.ts imports engine/runtime/ui/hud.ts (single DOM touchpoint property)",
+        "runtime.hud.dispose called on stop() so the root + every widget unmount cleanly",
+        "string renderer output goes through textContent (XSS-safe); HTMLElement output replaces previous content cleanly"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/runtime/ui/hud.ts",
+        "engine/runtime/start.ts (wired runtime.hud + dispose)",
+        "tests/unit/hud.test.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-MINIMAP-WIDGET",
+      "title": "Generic minimap widget on top of the HUD runtime",
+      "status": "implemented",
+      "summary": "Project-agnostic minimap widget: a `<canvas>`-backed HUD slot that takes a list of `{ x, z, color, shape: dot | triangle | rect, size }` markers + a `bounds: { minX, maxX, minZ, maxZ }` and draws them at the configured slot. Project code queries the ECS each frame (cached query) and pushes the marker list via `runtime.hud.update`. Kaboom Crew's player / bots / objectives all share this one widget; no project-specific minimap implementation is needed. Lives under `engine/runtime/ui/minimap.ts` next to `hud.ts`.",
+      "verification": [
+        "hello-3d playtest renders a minimap with one marker tracking the player",
+        "widget supports 200 markers without measurable jank (Canvas2D fillRect loop is the v0; WebGL or instanced path is a follow-up)",
+        "createMinimapWidget returns a HudWidgetSpec consumable by runtime.hud.add",
+        "Canvas2D projection / shape selection / out-of-bounds skip / stable-canvas-node covered by 8 unit tests against a hand-rolled Canvas stub — 537 total passing",
+        "viewer marker option draws at canvas centre"
+      ],
+      "dependsOn": [
+        "KABOOM-HUD-RUNTIME"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/runtime/ui/minimap.ts",
+        "tests/unit/minimap.test.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-GRID-POSITION",
+      "title": "`GridPosition` + `GridOccupant` components + `Grid` config schema",
+      "status": "implemented",
+      "summary": "Engine grid primitives: `Grid { cellSize, originX, originZ, sizeX, sizeZ }` lives on a scene-level config entity (or scene.metadata). `GridPosition { gx, gz }` carries the cell coordinates; `GridOccupant { layer, blocksMovement, blocksBlast }` describes how the entity interacts with grid queries. Conversion helpers `worldToGrid(grid, worldVec3): { gx, gz }` and `gridToWorld(grid, gx, gz): Vec3` ship as pure functions under `engine/core/grid.ts`. Schema validation on out-of-bounds cell ids. Lives under `engine/core/` because it's reusable across roguelike / tower-defense / RTS / Kaboom Crew.",
+      "verification": [
+        "schemas/components/grid-position.schema.json validates valid + invalid fixtures",
+        "engine:check rejects a scene where `GridPosition.gx` lies outside `Grid.sizeX`",
+        "unit tests cover worldToGrid / gridToWorld round-trip",
+        "engine/core/grid.ts: worldToGrid + gridToWorld + isInBounds + cellKey + parseCellKey covered by 7 unit tests including a 165-cell round-trip",
+        "schemas/components/grid.schema.json defines Grid + GridPosition + GridOccupant; wired into scene.schema.json",
+        "engine:check rejects out-of-bounds GridPosition with AGF_GRID_POSITION_OUT_OF_BOUNDS (covered by tests/fixtures/grid-out-of-bounds + project-check test)",
+        "AGF_GRID_DUPLICATE_CONFIG + AGF_GRID_POSITION_WITHOUT_GRID also implemented in the cross-validator"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/core/grid.ts",
+        "schemas/components/grid.schema.json",
+        "schemas/scene.schema.json",
+        "engine/tools/check/project-check.ts",
+        "tests/fixtures/grid-out-of-bounds/"
+      ]
+    },
+    {
+      "id": "KABOOM-GRID-OCCUPANCY",
+      "title": "`GridOccupancySystem` — sparse cell → entity index",
+      "status": "implemented",
+      "summary": "ECS system that maintains a `Map<cellKey, EntityId[]>` derived from every entity with both `GridPosition` and `GridOccupant`. Invalidates on add / remove / move. Exposes `runtime.grid.occupants(gx, gz, layer?)` for project code (Kaboom Crew bomb placement, blast propagation, AI danger-map all hit this). Cache lifetime survives HMR; `world.query` style cached handle. Authoring rule: project gameplay never calls `world.query()` over GridPosition entities — always hit `runtime.grid.occupants`.",
+      "verification": [
+        "unit test: moving an entity updates both old and new cell occupancy",
+        "incremental index matches a from-scratch rebuild (parity test similar to M16-cache-parity)",
+        "GridOccupancySystem maintains a Map<cellKey, Entry[]> rebuilt per frameUpdate; cached QueryHandle resets on world swap (HMR-safe)",
+        "occupants(gx,gz,layer?) + blocked(gx,gz, movement|blast) public query API exposed on the system handle",
+        "moving an entity updates both old + new cell; removeEntity clears occupancy; layer filter works; parity test passes — 7 unit tests, 553 total"
+      ],
+      "dependsOn": [
+        "KABOOM-GRID-POSITION"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/core/systems/grid-occupancy-system.ts",
+        "tests/unit/grid-occupancy-system.test.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-GRID-MOVER",
+      "title": "`GridMover` component + `GridMovementSystem` (smooth tween between cells)",
+      "status": "implemented",
+      "summary": "Component shape: `GridMover { speed, queuedDirection: { dx, dz }, currentLerp: 0..1 }`. System interpolates the entity's render Transform between the start cell (gx,gz) and the target cell over `1 / speed` seconds, then snaps to the new GridPosition and pulls the next queuedDirection. Plays well with `GridOccupancySystem` (movement only commits to the new cell when free + not blocked). Lane-assist: if the queuedDirection's target is blocked, the system tries the perpendicular cardinal first (so you don't get stuck on a corner). Lives under `engine/core/systems/grid-movement-system.ts`. Project code (Kaboom Crew player controller, bot AI) writes `queuedDirection` from input; system does the rest.",
+      "verification": [
+        "playtest moves a Capsule across a 5×5 grid hitting blocked cells; visits 4 distinct cells with no NaN transforms",
+        "unit test: blocked queued direction triggers lane-assist (perpendicular fallback)",
+        "GridMover tweens Transform between cells at configured speed; snaps GridPosition + Transform on arrival; pulls queuedDirection forward for continuous motion",
+        "lane-assist falls back to perpendicular cardinals when the queued cell is blocked; cornered (no fallback) leaves the mover stationary",
+        "no Grid singleton ⇒ no-op (engine boot stays robust); 7 unit tests, 560 total"
+      ],
+      "dependsOn": [
+        "KABOOM-GRID-POSITION",
+        "KABOOM-GRID-OCCUPANCY"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/core/systems/grid-movement-system.ts",
+        "schemas/components/grid.schema.json (GridMover fields)",
+        "schemas/scene.schema.json (GridMover ref)",
+        "tests/unit/grid-movement-system.test.ts"
+      ]
+    },
+    {
+      "id": "KABOOM-GENERATOR-FRAMEWORK",
+      "title": "Seed-driven procedural generator framework + first Kaboom Crew level template",
+      "status": "implemented",
+      "summary": "Generator framework lives under `engine/tools/generators/`. Surface: `generateScene({ seed, template, params }): SceneFile` where `template` is a registered generator function in a project's `bootstrap.ts`. Generators are pure functions (Mulberry32 PRNG) → JSON scene. Engine ships: (a) the PRNG primitive (already in `engine/core/random.ts`?  check; add if missing), (b) a `validateGenerated(scene): Diagnostic[]` pass that runs the same `engine check` rules as static scenes, (c) one CLI: `engine generate <projectDir> --template <name> --seed <int> --out <file>`. First Kaboom Crew template: `kaboom-arena-small` — soft-blocks scattered around hard walls in a 15×11 grid with 1 player spawn + 1 bot spawn. The template generator lives under `examples/kaboom-crew/generators/`.",
+      "verification": [
+        "`engine generate examples/kaboom-crew --template kaboom-arena-small --seed 1` writes a JSON scene; `engine check` on it passes",
+        "same seed yields a byte-identical scene (deterministic)",
+        "different seeds yield different scenes (a quick diff prints ≥10 differing entity ids)",
+        "runGenerator is deterministic — same seed produces byte-identical scenes",
+        "engine generate CLI: --template + --seed + --out wired; loads <projectDir>/generators/<name>.gen.mjs|.gen.ts default export; 8 unit tests covering happy path + missing-module + dup-id + out-of-bounds validation",
+        "framework validates duplicate entity ids, multiple Grid singletons, out-of-bounds GridPosition before writing to disk",
+        "568 unit tests total; the first Kaboom Crew kaboom-arena-small generator lands as part of KABOOM-PROJECT-SCAFFOLD"
+      ],
+      "dependsOn": [
+        "KABOOM-GRID-POSITION"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "engine/tools/generators/types.ts",
+        "engine/tools/generators/generate.ts",
+        "engine/tools/generators/cli.ts",
+        "engine/tools/cli.ts (engine generate command)",
+        "tests/fixtures/generator-demo/"
+      ]
+    },
+    {
+      "id": "KABOOM-PROJECT-SCAFFOLD",
+      "title": "`examples/kaboom-crew/` project scaffold",
+      "status": "implemented",
+      "summary": "Scaffold `examples/kaboom-crew/` as an AGF project: `project.json` (id `kaboom-crew`, agfFormatVersion 1, render.mode webgpu, performance budget), `bootstrap.ts` (registers the generator + a Kaboom-Crew-local set of placeholder components for upcoming bomb / block work), `scenes/start.scene.json` (small primitive-only test arena loaded by the runtime), `assets/_sources/asset-sources.json`, `prefabs/` skeleton (one player capsule, one bot capsule, one soft-block cube, one hard-block cube). README points to `notes/DynaBomber.md` for the codename history + Kaboom Crew memory entry. `engine:check examples/kaboom-crew` passes. No gameplay code yet — that lands as S082+ stories.",
+      "verification": [
+        "npm run engine:check -- examples/kaboom-crew exits 0",
+        "npm run engine:summarize -- examples/kaboom-crew lists ≥4 declared prefabs",
+        "npm run dev with the project selector lands on a primitive Kaboom Crew start scene with the player capsule + 3-4 soft / hard blocks visible",
+        "npm run engine:check -- examples/kaboom-crew exits 0",
+        "npm run engine:summarize -- examples/kaboom-crew lists 4 prefabs (bot, player, soft-block, hard-block)",
+        "engine generate examples/kaboom-crew --template kaboom-arena-small --seed N produces byte-identical scenes for the same seed; different seeds differ"
+      ],
+      "dependsOn": [
+        "KABOOM-ORTHO-CAMERA",
+        "KABOOM-DAMPED-FOLLOW",
+        "KABOOM-HUD-RUNTIME",
+        "KABOOM-GRID-POSITION"
+      ],
+      "epic": "KABOOM-CREW-MVP-0",
+      "deliverables": [
+        "examples/kaboom-crew/ (project.json + bootstrap.ts + scenes/start.scene.json + 4 prefabs + assets skeleton)",
+        "examples/kaboom-crew/generators/kaboom-arena-small.gen.mjs"
+      ]
+    }
+  ],
+  "followUps": [
+    "S082: bot AI primitives (danger map + basic pathfinding), bomb / blast / pickup pipeline as project-local Kaboom Crew systems, win/loss state.",
+    "Procedural character generator (the standalone tool) stays parked until MVP 0 ships; capsule placeholders are fine for now.",
+    "Audio system stays out of MVP 0 — sound is part of MVP 2."
+  ],
+  "outOfScope": [
+    "Bombs, blasts, pickups, power-ups — all S082 work.",
+    "Multiplayer, client prediction, snapshot relevance — KABOOM-CREW-MVP-1 epic.",
+    "Procedural character generator — own epic, post-MVP-0.",
+    "Decal-on-grid renderer / region rules (M27 / M28) — required for MVP 2, not MVP 0."
+  ],
+  "prUrl": null,
+  "notes": [
+    "First sprint with the new epic graph in place — every story tags KABOOM-CREW-MVP-0 so the doctor + the HIGH_LEVEL_BACKLOG view rolls them up automatically.",
+    "Order-of-operations rationale lives in notes/dynabomber-readiness-analysis.md §11."
+  ]
+}

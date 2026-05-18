@@ -66,6 +66,7 @@ import {
   PCFSoftShadowMap,
   VSMShadowMap,
   type ShadowMapType,
+  OrthographicCamera,
   PerspectiveCamera,
   PMREMGenerator,
   PointLight,
@@ -363,9 +364,18 @@ export type MaterialPatch = {
 };
 
 export type CameraParams = {
+  /**
+   * S81 KABOOM-ORTHO-CAMERA. Default `perspective` for backward compat — every
+   * scene that doesn't set `kind` keeps a PerspectiveCamera. Orthographic
+   * cameras read `orthographicSize` (half-height) and derive width from
+   * `aspect`. Both kinds honour `near` / `far`.
+   */
+  kind?: "perspective" | "orthographic";
   fov?: number;
   near?: number;
   far?: number;
+  /** Half-height of the ortho frustum in world units. Ignored for perspective. */
+  orthographicSize?: number;
   /** Width / height. The adapter recomputes this on `resize`; passing it here is only used to seed a freshly-acquired camera. */
   aspect?: number;
 };
@@ -617,7 +627,7 @@ export class ThreeRenderAdapter {
   // S57 textureLoader / textureCache removed — see AssetRegistry texture loader.
   private readonly scene: Scene;
   private readonly meshes = new Map<MeshHandle, Mesh>();
-  private readonly cameras = new Map<CameraHandle, PerspectiveCamera>();
+  private readonly cameras = new Map<CameraHandle, PerspectiveCamera | OrthographicCamera>();
   private readonly lights = new Map<LightHandle, Light>();
   // S53 RENDER-pool-registry: replaces the three triplicated patterns
   // (Map<H, Entry> + `next<Pool>Handle` counter) that the InstancedMesh
@@ -2133,7 +2143,16 @@ export class ThreeRenderAdapter {
     }
     const active = this.activeCamera();
     if (active !== undefined) {
-      active.aspect = width / Math.max(1, height);
+      const aspect = width / Math.max(1, height);
+      if (active instanceof PerspectiveCamera) {
+        active.aspect = aspect;
+      } else {
+        // S81 KABOOM-ORTHO-CAMERA: keep ortho frustum half-height
+        // (active.top) stable; rebuild horizontal extents from new aspect.
+        const halfHeight = active.top;
+        active.left = -halfHeight * aspect;
+        active.right = halfHeight * aspect;
+      }
       active.updateProjectionMatrix();
     }
   }
@@ -2305,12 +2324,20 @@ export class ThreeRenderAdapter {
   acquireCamera(params: CameraParams): CameraHandle {
     const handle = this.nextCameraHandle;
     this.nextCameraHandle += 1;
-    const camera = new PerspectiveCamera(
-      params.fov ?? 60,
-      params.aspect ?? this.canvasAspect(),
-      params.near ?? 0.1,
-      params.far ?? 100
-    );
+    const aspect = params.aspect ?? this.canvasAspect();
+    const near = params.near ?? 0.1;
+    const far = params.far ?? 100;
+    let camera: PerspectiveCamera | OrthographicCamera;
+    if (params.kind === "orthographic") {
+      // S81 KABOOM-ORTHO-CAMERA. half-height = orthographicSize; width
+      // derived from canvas aspect at acquire time and refreshed on
+      // resize via setCameraParams.
+      const halfHeight = params.orthographicSize ?? 5;
+      const halfWidth = halfHeight * aspect;
+      camera = new OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, near, far);
+    } else {
+      camera = new PerspectiveCamera(params.fov ?? 60, aspect, near, far);
+    }
     this.cameras.set(handle, camera);
     return handle;
   }
@@ -2325,10 +2352,24 @@ export class ThreeRenderAdapter {
   setCameraParams(handle: CameraHandle, params: CameraParams): void {
     const camera = this.cameras.get(handle);
     if (camera === undefined) return;
-    if (params.fov !== undefined) camera.fov = params.fov;
     if (params.near !== undefined) camera.near = params.near;
     if (params.far !== undefined) camera.far = params.far;
-    if (params.aspect !== undefined) camera.aspect = params.aspect;
+    if (camera instanceof PerspectiveCamera) {
+      if (params.fov !== undefined) camera.fov = params.fov;
+      if (params.aspect !== undefined) camera.aspect = params.aspect;
+    } else {
+      // Orthographic: ortho cameras don't have `aspect` directly; derive
+      // left/right from aspect × half-height (params.orthographicSize),
+      // falling back to the current frustum half-height so a partial
+      // patch (only `near` / `far` changed) doesn't reshape the frustum.
+      const aspect = params.aspect ?? this.canvasAspect();
+      const halfHeight = params.orthographicSize ?? camera.top;
+      const halfWidth = halfHeight * aspect;
+      camera.left = -halfWidth;
+      camera.right = halfWidth;
+      camera.top = halfHeight;
+      camera.bottom = -halfHeight;
+    }
     camera.updateProjectionMatrix();
   }
 
@@ -2737,6 +2778,18 @@ export class ThreeRenderAdapter {
       this.disposeCsm();
       return;
     }
+    // S81 KABOOM-ORTHO-CAMERA. CSM splits the perspective frustum using
+    // FOV → cascade math doesn't translate to orthographic. Skip CSM
+    // when the active camera is orthographic; warn once so the agent
+    // sees why their shadow tuner is no-op'ing.
+    if (!(camera instanceof PerspectiveCamera)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[AGF] CSM requires a perspective camera; active camera is orthographic. Cascade shadows skipped — use a single DirectionalLight with `castShadow: true` or switch the camera kind."
+      );
+      this.disposeCsm();
+      return;
+    }
     // Reconstruct from scratch so a camera swap or config change is
     // safe — CSM caches the camera ref + shader uniforms.
     this.disposeCsm();
@@ -3060,7 +3113,7 @@ export class ThreeRenderAdapter {
     this.device.dispose();
   }
 
-  private activeCamera(): PerspectiveCamera | undefined {
+  private activeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
     if (this.activeCameraHandle === undefined) return undefined;
     return this.cameras.get(this.activeCameraHandle);
   }

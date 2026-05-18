@@ -1,0 +1,23 @@
+{
+  "agfFormatVersion": 1,
+  "id": "bot",
+  "description": "Kaboom Crew bot opponent — capsule placeholder for MVP 0. Personality / pathfinding state lands in S082 as Kaboom-Crew-local components.",
+  "components": {
+    "Transform": {
+      "rotation": [0, 0, 0],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "MeshRenderer": {
+      "mesh": "sphere",
+      "color": "#ff5a6e"
+    },
+    "GridOccupant": {
+      "layer": "bot",
+      "blocksMovement": false,
+      "blocksBlast": false
+    },
+    "GridMover": {
+      "speed": 3
+    }
+  }
+}

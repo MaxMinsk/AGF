@@ -69,4 +69,50 @@ describe("FollowCameraSystem (M21-cam-follow)", () => {
     const pos = (world.getComponent("camera", "Transform") as { position: number[] }).position;
     expect(pos).toEqual([0, 0, 0]); // unchanged from setup
   });
+
+  it("S81 lookAheadMs extrapolates camera position along target velocity", () => {
+    // Frame 1: prime velocity history (target at 0, no prior frame → velocity = 0).
+    // Frame 2: target jumps to +1 on X over dt = 1/60 s ⇒ vx = 60 m/s.
+    //          lookAheadMs = 100 ms ⇒ aheadX = 60 * 0.1 = 6.
+    //          camera follows at offset (0, 0, 5), smoothing = 1 (snap).
+    const world = setup([0, 0, 0], { offset: [0, 0, 5], lookAheadMs: 100 });
+    const system = createFollowCameraSystem();
+    system.frameUpdate?.(ctx(world));
+    world.setComponent("target", "Transform", { position: [1, 0, 0] });
+    system.frameUpdate?.(ctx(world));
+    const pos = (world.getComponent("camera", "Transform") as { position: number[] }).position;
+    // Target now at (1, 0, 0); offset (0, 0, 5); look-ahead pushes +6 on X.
+    expect(pos[0]).toBeCloseTo(7, 4);
+    expect(pos[1]).toBeCloseTo(0, 4);
+    expect(pos[2]).toBeCloseTo(5, 4);
+  });
+
+  it("S81 lookAheadMs = 0 (default) matches the no-look-ahead behaviour", () => {
+    const world = setup([0, 0, 0], { offset: [0, 0, 5] });
+    const system = createFollowCameraSystem();
+    system.frameUpdate?.(ctx(world));
+    world.setComponent("target", "Transform", { position: [1, 0, 0] });
+    system.frameUpdate?.(ctx(world));
+    const pos = (world.getComponent("camera", "Transform") as { position: number[] }).position;
+    expect(pos[0]).toBeCloseTo(1, 4);
+    expect(pos[2]).toBeCloseTo(5, 4);
+  });
+
+  it("S81 velocity history resets when target entity changes", () => {
+    // First target moves +X fast, second target is stationary. After the swap
+    // the camera must not carry the old velocity into a look-ahead spike.
+    const world = setup([0, 0, 0], { offset: [0, 0, 5], lookAheadMs: 100 });
+    world.addEntity("target2");
+    world.setComponent("target2", "Transform", { position: [0, 0, 0] });
+    const system = createFollowCameraSystem();
+    system.frameUpdate?.(ctx(world));
+    world.setComponent("target", "Transform", { position: [10, 0, 0] });
+    system.frameUpdate?.(ctx(world));
+    // Swap target — first frame after the swap must not extrapolate.
+    world.setComponent("camera", "FollowCamera", { target: "target2", offset: [0, 0, 5], lookAheadMs: 100 });
+    system.frameUpdate?.(ctx(world));
+    const pos = (world.getComponent("camera", "Transform") as { position: number[] }).position;
+    expect(pos[0]).toBeCloseTo(0, 4); // target2 at origin, no carried velocity
+    expect(pos[2]).toBeCloseTo(5, 4);
+  });
 });

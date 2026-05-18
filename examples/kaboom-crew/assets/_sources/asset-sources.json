@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "kaboom-crew.procedural-primitives",
+      "kind": "procedural",
+      "runtimeFiles": [],
+      "license": "Project-owned",
+      "source": {
+        "type": "procedural",
+        "notes": "MVP-0 uses primitive box / sphere meshes only — no .glb assets yet. Procedural-character generator + textured props arrive post-MVP-0."
+      }
+    }
+  ]
+}

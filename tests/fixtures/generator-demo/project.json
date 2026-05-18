@@ -1,0 +1,9 @@
+{
+  "agfFormatVersion": 1,
+  "id": "generator-demo",
+  "name": "Generator Demo",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": { "mode": "webgl", "background": "#000000" },
+  "profiles": ["static"]
+}

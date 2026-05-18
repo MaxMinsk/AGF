@@ -78,6 +78,11 @@ type ParsedArgs = {
   expectPath: string | undefined;
   write: boolean;
   build: boolean;
+  /** S81 KABOOM-GENERATOR-FRAMEWORK. */
+  seed: number | undefined;
+  template: string | undefined;
+  outPath: string | undefined;
+  paramsJson: string | undefined;
   positional: string[];
 };
 
@@ -142,6 +147,33 @@ if (parsedArgs.command === "check") {
       validateAfter: true
     });
     emitResult(result, parsedArgs, () => formatPatchResult(result));
+    process.exitCode = result.ok ? 0 : 1;
+  }
+} else if (parsedArgs.command === "generate") {
+  // S81 KABOOM-GENERATOR-FRAMEWORK.
+  const { runGenerateCli } = await import("./generators/cli");
+  if (parsedArgs.template === undefined) {
+    console.error("Usage: engine generate <projectDir> --template <name> --seed <int> [--params '<json>'] [--out <path>] [--json]");
+    process.exitCode = 2;
+  } else {
+    const seed = parsedArgs.seed ?? 1;
+    const result = await runGenerateCli({
+      projectDir: parsedArgs.projectDir,
+      template: parsedArgs.template,
+      seed,
+      paramsJson: parsedArgs.paramsJson,
+      out: parsedArgs.outPath
+    });
+    if (parsedArgs.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    } else {
+      for (const d of result.diagnostics) {
+        console.error(`${d.severity.toUpperCase()} ${d.code}${d.path !== undefined ? " " + d.path : ""}: ${d.message}`);
+      }
+      if (result.outPath !== undefined) {
+        console.error(`[engine generate] wrote ${result.outPath}`);
+      }
+    }
     process.exitCode = result.ok ? 0 : 1;
   }
 } else if (parsedArgs.command === "replay") {
@@ -469,6 +501,10 @@ function parseArgs(args: string[]): ParsedArgs {
     expectPath: undefined,
     write: false,
     build: false,
+    seed: undefined,
+    template: undefined,
+    outPath: undefined,
+    paramsJson: undefined,
     positional: []
   };
 
@@ -627,6 +663,26 @@ function parseArgs(args: string[]): ParsedArgs {
     }
     if (current === "--build") {
       result.build = true;
+      continue;
+    }
+    if (current === "--seed") {
+      const value = args[++index];
+      if (value !== undefined) result.seed = Number(value);
+      continue;
+    }
+    if (current === "--template") {
+      const value = args[++index];
+      if (value !== undefined) result.template = value;
+      continue;
+    }
+    if (current === "--out") {
+      const value = args[++index];
+      if (value !== undefined) result.outPath = value;
+      continue;
+    }
+    if (current === "--params") {
+      const value = args[++index];
+      if (value !== undefined) result.paramsJson = value;
       continue;
     }
     if (current.startsWith("--")) {

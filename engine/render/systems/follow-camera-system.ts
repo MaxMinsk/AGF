@@ -25,6 +25,8 @@ type FollowCameraComponent = {
   offset: Vec3;
   lookAtOffset?: Vec3;
   smoothing?: number;
+  /** S81 KABOOM-DAMPED-FOLLOW: target-velocity extrapolation, in milliseconds. 0 disables. */
+  lookAheadMs?: number;
 };
 
 type TransformComponent = {
@@ -51,6 +53,13 @@ export function createFollowCameraSystem(options: { name?: string } = {}): Syste
   // Cached previous camera position per entity so smoothing has a
   // continuous reference frame even when the scene swaps a target.
   const lastPosition = new Map<EntityId, [number, number, number]>();
+  // S81 KABOOM-DAMPED-FOLLOW. Per-target velocity estimate (one slot per
+  // FollowCamera entity, keyed by camera id so two cameras following the
+  // same target keep independent histories). Updated every frame the
+  // target has moved measurably; reset when the target swaps.
+  const lastTargetPosition = new Map<EntityId, [number, number, number]>();
+  const targetVelocity = new Map<EntityId, [number, number, number]>();
+  const lastTargetId = new Map<EntityId, EntityId>();
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
@@ -58,6 +67,9 @@ export function createFollowCameraSystem(options: { name?: string } = {}): Syste
       query = world.createQuery([FOLLOW_CAMERA, TRANSFORM]);
       cachedWorld = world;
       lastPosition.clear();
+      lastTargetPosition.clear();
+      targetVelocity.clear();
+      lastTargetId.clear();
     }
     const dt = context.time.dt;
     for (const entityId of query!.run()) {
@@ -67,9 +79,46 @@ export function createFollowCameraSystem(options: { name?: string } = {}): Syste
       if (targetPos === undefined) continue;
       const transform = world.getComponent<TransformComponent>(entityId, TRANSFORM);
 
-      const desiredX = (targetPos[0] ?? 0) + (follow.offset[0] ?? 0);
-      const desiredY = (targetPos[1] ?? 0) + (follow.offset[1] ?? 0);
-      const desiredZ = (targetPos[2] ?? 0) + (follow.offset[2] ?? 0);
+      // Velocity estimate: simple per-frame difference. Reset history
+      // when the target entity changes so a discontinuity doesn't
+      // produce a one-frame velocity spike.
+      const previousTargetId = lastTargetId.get(entityId);
+      if (previousTargetId !== follow.target) {
+        lastTargetPosition.delete(entityId);
+        targetVelocity.delete(entityId);
+        lastTargetId.set(entityId, follow.target);
+      }
+      const tx = targetPos[0] ?? 0;
+      const ty = targetPos[1] ?? 0;
+      const tz = targetPos[2] ?? 0;
+      const prevTarget = lastTargetPosition.get(entityId);
+      let vx = 0, vy = 0, vz = 0;
+      if (prevTarget !== undefined && dt > 0) {
+        vx = (tx - prevTarget[0]) / dt;
+        vy = (ty - prevTarget[1]) / dt;
+        vz = (tz - prevTarget[2]) / dt;
+        targetVelocity.set(entityId, [vx, vy, vz]);
+      } else if (prevTarget === undefined) {
+        targetVelocity.set(entityId, [0, 0, 0]);
+      } else {
+        const v = targetVelocity.get(entityId);
+        if (v !== undefined) { vx = v[0]; vy = v[1]; vz = v[2]; }
+      }
+      lastTargetPosition.set(entityId, [tx, ty, tz]);
+
+      // S81 KABOOM-DAMPED-FOLLOW. lookAhead = velocity × seconds.
+      // Applied to both the camera position goal AND the look-at point
+      // so the camera leans into the motion direction without staring
+      // off-axis. The S46 unit tests covered zero look-ahead; the new
+      // test exercises non-zero look-ahead at constant velocity.
+      const lookAheadSeconds = Math.max(0, follow.lookAheadMs ?? 0) / 1000;
+      const aheadX = vx * lookAheadSeconds;
+      const aheadY = vy * lookAheadSeconds;
+      const aheadZ = vz * lookAheadSeconds;
+
+      const desiredX = tx + (follow.offset[0] ?? 0) + aheadX;
+      const desiredY = ty + (follow.offset[1] ?? 0) + aheadY;
+      const desiredZ = tz + (follow.offset[2] ?? 0) + aheadZ;
 
       // Frame-rate-aware lerp factor — smoothing = 1 ⇒ snap (alpha=1);
       // smoothing = 0 ⇒ alpha=0; smoothing in between rebases per 60 Hz frame.
@@ -94,9 +143,9 @@ export function createFollowCameraSystem(options: { name?: string } = {}): Syste
       const pz = prevZ + (desiredZ - prevZ) * alpha;
       lastPosition.set(entityId, [px, py, pz]);
 
-      const lookAtX = (targetPos[0] ?? 0) + (follow.lookAtOffset?.[0] ?? 0);
-      const lookAtY = (targetPos[1] ?? 0) + (follow.lookAtOffset?.[1] ?? 0);
-      const lookAtZ = (targetPos[2] ?? 0) + (follow.lookAtOffset?.[2] ?? 0);
+      const lookAtX = tx + (follow.lookAtOffset?.[0] ?? 0) + aheadX;
+      const lookAtY = ty + (follow.lookAtOffset?.[1] ?? 0) + aheadY;
+      const lookAtZ = tz + (follow.lookAtOffset?.[2] ?? 0) + aheadZ;
 
       // Compute Euler look-at — Three's `Camera` looks down -Z at zero
       // rotation. To re-orient toward a world-space direction `d`:

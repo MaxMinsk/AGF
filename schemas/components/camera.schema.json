@@ -32,8 +32,19 @@
         "far": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "orthographicSize": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Half-height of the orthographic view frustum in world units. Width is derived from the canvas aspect at acquire time and updated on `resize`. Ignored when `kind` is `perspective`. Required when `kind` is `orthographic`."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "orthographic" } } },
+          "then": { "required": ["orthographicSize"] }
+        }
+      ]
     },
     "cinematicCameraComponent": {
       "description": "M21-cam-cinematic: scripted camera waypoint playback. Each waypoint declares a camera position + look-at target + duration. CinematicCameraSystem interpolates Transform.position + rotation through the chain. `autoplay: true` starts on scene load; gameplay can pause/skip via applyCommands flipping `playing` or seeking `elapsed`.",
@@ -125,7 +136,13 @@
           "minimum": 0,
           "maximum": 1,
           "default": 1,
-          "description": "Per-frame lerp factor toward the desired position. 1 = snap, 0 = never move."
+          "description": "Frame-rate-aware exponential damping. 1 = snap, 0 = never move. Internally `alpha = 1 - (1 - smoothing)^(dt*60)` so the same value behaves identically at 30 / 60 / 120 Hz."
+        },
+        "lookAheadMs": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "S81 KABOOM-DAMPED-FOLLOW. Extrapolate the target's recent velocity by this many milliseconds when computing both camera position and look-at. 0 disables look-ahead (legacy behaviour). Kaboom Crew uses ~120 ms so the camera leans toward the player's motion direction instead of trailing behind."
         }
       }
     },
