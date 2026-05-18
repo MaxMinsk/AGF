@@ -293,8 +293,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // tuned-for-SFX range.
     const audioGlobals = globalThis as unknown as { location?: { search?: string }; localStorage?: typeof localStorage };
     const dial = resolveAudioVolume({
-      search: audioGlobals.location?.search,
-      storage: audioGlobals.localStorage
+      ...(audioGlobals.location?.search !== undefined ? { search: audioGlobals.location.search } : {}),
+      ...(audioGlobals.localStorage !== undefined ? { storage: audioGlobals.localStorage } : {})
     });
     const audioFx = createKaboomAudioFx({ masterGain: 0.4 * dial });
     _audioLog = [];
