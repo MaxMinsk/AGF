@@ -2456,6 +2456,27 @@ export class ThreeRenderAdapter {
       this.csmConfig = undefined;
       return;
     }
+    // S75 WEBGPU-csm-rebuild-guard. Three.js's `CSMShadowNode` does NOT
+    // survive being torn down + reconstructed on the same renderer
+    // (cached TSL graph references the OLD cascade sub-nodes, the
+    // graph walks a dangling pointer and `AssignNode.generate()`
+    // throws). Live tuning of cascades / maxFar / mode / mapSize on
+    // WebGPU therefore requires a page reload to take effect. If the
+    // CSM is already initialized for this scene, treat the new config
+    // as a no-op + warn so the dev-tuner sliders don't crash the page.
+    // Bias / normalBias / intensity have their own dedicated setters
+    // (`setCsmShadowBias` etc.) and bypass this rebuild path entirely.
+    if (
+      this.capabilities.kind === "webgpu" &&
+      this.csmConfig !== undefined &&
+      this.csmDirectionalLight !== undefined
+    ) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[AGF] WebGPU CSM does not support live rebuild yet — change project.json#render.shadows.csm and reload the page. Slider change ignored."
+      );
+      return;
+    }
     this.csmConfig = config;
     this.rebuildCsm();
   }
@@ -2746,8 +2767,19 @@ export class ThreeRenderAdapter {
 
   /**
    * S74 WEBGPU-csm. Asynchronously load `CSMShadowNode` and assemble a
-   * cascade-shadow setup. The function fires-and-forgets the load; the
-   * adapter is happy for `this.csm` to stay undefined while it resolves.
+   * cascade-shadow setup. The function fires-and-forgets the load.
+   *
+   * KNOWN LIMITATION (S75): on a fresh page load this produces visible
+   * (though weaker than the WebGL baseline) cascade shadows. But
+   * live-tuning the CSM config — `setCsmShadowMapSize`, cascade count
+   * via the shadow-tuner UI, etc. — calls `setCsm()` → `rebuildCsm()`,
+   * which disposes the old CSMShadowNode and constructs a new one on
+   * the same renderer. Three.js's TSL pipeline caches the per-light
+   * node graph; rebuilding mid-session raises
+   * `THREE.TSL: TypeError: Cannot read properties of undefined`
+   * (`AssignNode.generate()` walking a cascade sub-node that's no
+   * longer in the graph). For now, CSM tuning on WebGPU requires a
+   * full page reload.
    */
   private buildWebGpuCsm(camera: PerspectiveCamera): void {
     const config = this.csmConfig;
@@ -2783,14 +2815,8 @@ export class ThreeRenderAdapter {
           mode: config.mode ?? "practical"
         }
       );
-      // CSMShadowNode needs the scene camera to compute cascade splits.
-      // The setup() pass picks this up via `builder.camera`, but exposing
-      // it explicitly is documented as safe and helps an early resize.
       shadowNode.camera = camera;
       (light.shadow as unknown as { shadowNode?: unknown }).shadowNode = shadowNode;
-      // The light's existing shadow needs a single re-prep so node-light
-      // setup picks up the shadowNode on the next analytic-light setup.
-      light.shadow.needsUpdate = true;
       this.csmShadowNodeAttached = shadowNode;
     }).catch((err: unknown) => {
       // eslint-disable-next-line no-console
