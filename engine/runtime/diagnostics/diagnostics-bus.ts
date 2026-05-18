@@ -6,7 +6,11 @@
 // checks. This bus carries live events the agent can observe through
 // `window.__agf.diagnostics()` and tests can assert against.
 
-export const DIAGNOSTIC_SEVERITIES = ["info", "warning", "error"] as const;
+// S83 AGF-LOG-POLICY-DOC. `debug` + `trace` are opt-in (off by default)
+// and routed through `createDebugLogger(name)`; tooling can still emit
+// them directly when it has explicit consent from the host. See
+// `docs/diagnostics-policy.md` for the full severity scale.
+export const DIAGNOSTIC_SEVERITIES = ["info", "warning", "error", "debug", "trace"] as const;
 export type DiagnosticSeverity = (typeof DIAGNOSTIC_SEVERITIES)[number];
 
 export type RuntimeDiagnostic = {

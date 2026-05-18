@@ -58,7 +58,7 @@ declare global {
       diagnostics(): ReadonlyArray<{
         readonly id: number;
         readonly emittedAtSeconds: number;
-        readonly severity: "info" | "warning" | "error";
+        readonly severity: "info" | "warning" | "error" | "debug" | "trace";
         readonly code: string;
         readonly source: string;
         readonly message: string;
@@ -77,7 +77,7 @@ declare global {
         listener: (diagnostic: {
           readonly id: number;
           readonly emittedAtSeconds: number;
-          readonly severity: "info" | "warning" | "error";
+          readonly severity: "info" | "warning" | "error" | "debug" | "trace";
           readonly code: string;
           readonly source: string;
           readonly message: string;

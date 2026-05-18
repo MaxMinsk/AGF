@@ -66,11 +66,15 @@
     {
       "id": "AGF-LOG-PER-SYSTEM-DEBUG",
       "title": "Named per-system debug loggers + AGF_DEBUG flag",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Engine adds a `createDebugLogger(name)` factory that returns a logger gated by a project-wide `AGF_DEBUG` env / query-param. Systems opt-in (`const log = createDebugLogger('grid-movement')`) so debug output can be filtered by name and stays silent by default.",
       "verification": [
         "unit test: logger is no-op when AGF_DEBUG is unset; emits when set to '*' or matching name",
-        "at least one engine system (grid-movement) consumes the new logger"
+        "at least one engine system (grid-movement) consumes the new logger",
+        "engine/runtime/diagnostics/debug-logger.ts exports createDebugLogger(name, { bus, selector }) — no-op unless AGF_DEBUG selector matches the source name AND a diagnostics bus is wired",
+        "AGF_DEBUG is read from process.env in Node, globalThis.__AGF_DEBUG__ override (for tests), or ?agf_debug=… on location in the browser; '*' / single name / comma-separated allowlist syntax",
+        "DIAGNOSTIC_SEVERITIES extended with 'debug' + 'trace' per docs/diagnostics-policy.md; emitted events carry severity='debug' or 'trace'",
+        "8 unit tests across parseDebugSelector (5) + createDebugLogger (4) including no-op / disabled / debug emission / trace emission; 632 → 640 unit tests passing"
       ],
       "dependsOn": [
         "AGF-LOG-POLICY-DOC"
