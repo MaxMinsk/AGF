@@ -1,0 +1,55 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S013",
+  "title": "Hazard Mesh + Agent Iteration Docs + Beacon HUD",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S013-1",
+      "title": "`14.4` Hazard `.glb` — `scripts/build-hazard-glb.mjs` emits a 2.9 KB stellated-octahedron mesh through the shared…",
+      "status": "implemented",
+      "summary": "`14.4` Hazard `.glb` — `scripts/build-hazard-glb.mjs` emits a 2.9 KB stellated-octahedron mesh through the shared `scripts/lib/write-glb.mjs` writer. Both `hazard.center` and `hazard.east` swap their primitive sphere for `mesh: \"runtime/models/hazard.glb\"` while keeping their inline colours, so the mesh is shared and intent stays in the scene. `asset-sources.json` declares the new runtime file.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S013-2",
+      "title": "`D.1` Agent iteration docs — `docs/agent/iteration-loop.md` walks the edit → inspect → run loop: `engine inspect` filters, `--save`,…",
+      "status": "implemented",
+      "summary": "`D.1` Agent iteration docs — `docs/agent/iteration-loop.md` walks the edit → inspect → run loop: `engine inspect` filters, `--save`, `--diff`; `window.__agf` `snapshot`/`applyCommands`/`lastReloadedAsset`/`reloadCount`; playtest scenarios and the runner; `playtest:watch`. Linked from `docs/agent/claude-code.md`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S013-3",
+      "title": "`13.10` Health / Invulnerable HUD — `examples/beacon-world/src/ui/health-hud.ts` polls `runtime.snapshot()` every 100 ms and renders HP…",
+      "status": "implemented",
+      "summary": "`13.10` Health / Invulnerable HUD — `examples/beacon-world/src/ui/health-hud.ts` polls `runtime.snapshot()` every 100 ms and renders HP cells plus an INVULN badge. `src/app.ts` mounts the HUD only when `projectId === \"beacon-world\"` and disposes it on `AppHandle.dispose`. DOM stays secondary; the canonical state is still the entity's `Health`/`Invulnerable` components reachable through `window.__agf.snapshot()`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S013-4",
+      "title": "Recorded `feedback-sprint-size` memory: default sprint is 4–6 stories; grow undersized sprints by pulling adjacent candidates.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "HUD does not yet show any derived world signal (repaired beacon count, score). Picked up in Sprint 14 (`13.11`).",
+    "Hazard mesh is uniform across both entities. Per-hazard variation deferred.",
+    "Sound pings (`13.12`) still pending."
+  ],
+  "notes": [
+    "Deliverables: `scripts/build-hazard-glb.mjs`, `examples/beacon-world/assets/runtime/models/hazard.glb`; `examples/beacon-world/assets/_sources/asset-sources.json` (`beacon-world.hazard-mesh`); `docs/agent/iteration-loop.md`, `docs/agent/claude-code.md` link; `examples/beacon-world/src/ui/health-hud.ts`, `src/app.ts` mount/dispose; `memory/feedback-sprint-size.md`",
+    "Verification: Sprint-close `npm run preflight`: typecheck clean, 109 unit tests across 16 files, vite build OK, 10 Playwright e2e tests.; `engine check examples/beacon-world` green; HUD visible in the dev server only for `beacon-world`.",
+    "Goal Recap: The hazard authoring path matches the beacon path: shared procedural script, shared writer, shared `asset-sources` shape.; A human-readable iteration doc explains the agent loop end-to-end so a fresh agent does not have to rediscover it from code.; The Beacon HUD demonstrates the agent-first pattern: DOM is one read-only view of the snapshot, never the source of truth."
+  ]
+}

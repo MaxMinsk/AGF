@@ -1,0 +1,101 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S031",
+  "title": "Hello-3d hierarchy showcase + Engine dev server (M15-a → M15-h)",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S031-1",
+      "title": "**Hello-3d hierarchy showcase** — `examples/hello-3d/scenes/start.scene.json` now demonstrates the Sprint 30 M16 resolver end-to-end: 7 new…",
+      "status": "implemented",
+      "summary": "**Hello-3d hierarchy showcase** — `examples/hello-3d/scenes/start.scene.json` now demonstrates the Sprint 30 M16 resolver end-to-end: 7 new entities (one invisible `arena.root` + 6 children) forming three composition cases — wide platform parented to root, tower (base → 45°-rotated crown → tall spire, depth 3), and a 60°-tilted satellite disc with a beacon child that inherits the tilt + the disc's squashed Y scale. New `tests/unit/hello-3d-hierarchy.test.ts` (4 cases) locks the world positions hand-computed against the resolver math; new `tests/e2e/hello-3d-hierarchy.spec.ts` opens the page in Chromium, asserts all 10 entities are in `__agf.snapshot()`, checks for zero error diagnostics, and saves `test-results/hello-3d-hierarchy.png` for visual review. Visual confirmation: tower stacking, crown rotation, and disc tilt all render correctly.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-2",
+      "title": "`M15-a` `engine/dev/agf-dev-bridge.ts` Vite plugin (`apply: \"serve\"`) registering `/__agf/*` middleware on the dev server.",
+      "status": "implemented",
+      "summary": "`GET /__agf/health` returns `{ ok, version, page }`. Unknown `/__agf/*` paths return a structured `AGF_BRIDGE_ROUTE_UNKNOWN` 404 instead of falling through to the SPA index. Production builds verified to exclude the plugin (no `/__agf/` strings in `dist/`).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-3",
+      "title": "`M15-b` WebSocket bridge at `/__agf/ws`. Server-side single-page invariant: the latest connected page wins; the previous receives `{ kind:…",
+      "status": "implemented",
+      "summary": "`M15-b` WebSocket bridge at `/__agf/ws`. Server-side single-page invariant: the latest connected page wins; the previous receives `{ kind: \"displaced\" }` and is closed. Page side (`engine/dev/page-bridge.ts`) opens the WS under `import.meta.env.DEV` and sends a `hello` handshake with `{ projectId, profile }`; the plugin logs the connection.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-4",
+      "title": "`M15-c` Pull endpoints — `GET /__agf/{snapshot,diagnostics,renderer-info,reload-events}` proxy through the WS RPC layer with a 3 s timeout…",
+      "status": "implemented",
+      "summary": "`M15-c` Pull endpoints — `GET /__agf/{snapshot,diagnostics,renderer-info,reload-events}` proxy through the WS RPC layer with a 3 s timeout and structured `AGF_BRIDGE_PAGE_NOT_CONNECTED` / `AGF_BRIDGE_PAGE_TIMEOUT` envelopes.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-5",
+      "title": "`M15-d` `GET /__agf/bug-report` composes snapshot + diagnostics + renderer-info + reload-events plus the connected page's project id and an…",
+      "status": "implemented",
+      "summary": "`M15-d` `GET /__agf/bug-report` composes snapshot + diagnostics + renderer-info + reload-events plus the connected page's project id and an ISO `capturedAt` into one `AgentBugReport`. New `schemas/bug-report.schema.json` defines the shape.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-6",
+      "title": "`M15-e` `POST /__agf/recording/start` and `/__agf/recording/stop` forward to `app.startRecording` / `app.stopRecording` (Sprint 28 plumbing…",
+      "status": "implemented",
+      "summary": "`M15-e` `POST /__agf/recording/start` and `/__agf/recording/stop` forward to `app.startRecording` / `app.stopRecording` (Sprint 28 plumbing now surfaced on `AppHandle` + `window.__agf`). `/stop` returns the captured `Recording` JSON.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-7",
+      "title": "`M15-f` `POST /__agf/commands` (body `{ commands }`) lets an agent edit the running scene live.",
+      "status": "implemented",
+      "summary": "Malformed body returns `AGF_BRIDGE_INVALID_COMMANDS` / `AGF_BRIDGE_INVALID_JSON`. Live edits show up in the next `/snapshot`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-8",
+      "title": "`M15-h` `POST /__agf/asset/invalidate` (body `{ ref }`) triggers `runtime.invalidateAsset(ref)` over the bridge.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S031-9",
+      "title": "`engine/dev/page-bridge.ts` polish — auto-reconnect 250 ms after every unexpected WS close so a displaced page slips back into the active…",
+      "status": "implemented",
+      "summary": "`engine/dev/page-bridge.ts` polish — auto-reconnect 250 ms after every unexpected WS close so a displaced page slips back into the active slot when the displacer goes away. Plus a dedicated `playwright.dev-bridge.config.ts` (workers=1, fullyParallel=false) so the bridge spec gets exclusive access; `npm run preflight` now runs both the default and the dev-bridge config.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`M15-g` SSE event stream (`GET /__agf/events`).",
+    "`M15-multi-page` allow multiple concurrent pages on the bridge (drops the single-page invariant + the playwright workaround).",
+    "`M15-i` `engine connect <url>` CLI.",
+    "M16-cascade, M3-c, M4-reload-e2e, 10.x backend, M2b-seed wire-up still pending."
+  ],
+  "notes": [
+    "Deliverables: `examples/hello-3d/scenes/start.scene.json` (hierarchy showcase); `engine/dev/agf-dev-bridge.ts` (Vite plugin: HTTP + WS + 8 routes); `engine/dev/page-bridge.ts` (browser-side WS client with auto-reconnect); `vite.config.ts` (plugin wired); `src/app.ts`, `src/main.ts` (AppHandle.startRecording/stopRecording/reloadAsset surfaced on `window.__agf`); `schemas/bug-report.schema.json`; `playwright.config.ts` + `playwright.dev-bridge.config.ts` + `package.json` script wiring; `tests/unit/hello-3d-hierarchy.test.ts`; `tests/unit/agf-dev-bridge.test.ts`; `tests/e2e/hello-3d-hierarchy.spec.ts`; `tests/e2e/dev-bridge.spec.ts` (4 cases: pull endpoints, commands, asset invalidate, recording)",
+    "Verification: `npm run preflight`: **268 Vitest tests across 43 files**, vite build OK, bundle:check green (three chunk 144 KB gzipped), **16 default e2e + 4 dev-bridge e2e** all pass.; Manual: `curl http://127.0.0.1:5173/__agf/health` returns the connected page's projectId; `curl /__agf/snapshot` proxies the live world snapshot; `curl -X POST -H 'Content-Type: application/json' -d '{\"commands\":[...]}' /__agf/commands` injects commands into the running game.; Visual: `test-results/hello-3d-hierarchy.png` shows the cart-style tower with 45°-rotated crown, vertical spire, and tilted satellite — all derived purely from the M16 resolver.",
+    "Goal Recap: **The hero ask from the user landed.** Hello-3d demonstrates the full M16 stack with non-trivial scale + rotation composition, and both unit + e2e verification lock it.; **The engine dev server is real.** An agent can curl `/__agf/snapshot`, `/__agf/bug-report`, `/__agf/commands`, `/__agf/recording/*`, `/__agf/asset/invalidate` against a running tab — zero DevTools, zero clipboard, zero file-paste. The single piece of M15 still missing is SSE (M15-g) and an optional `engine connect` CLI wrapper."
+  ]
+}

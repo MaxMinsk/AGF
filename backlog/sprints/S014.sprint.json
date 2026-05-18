@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S014",
+  "title": "Asset Polish + World Signal + Smallest-Pivot Query",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S014-1",
+      "title": "`14.5` Core `.glb` — `scripts/build-core-glb.mjs` emits a 1.7 KB flat-shaded pentagonal-bipyramid mesh through the shared…",
+      "status": "implemented",
+      "summary": "`14.5` Core `.glb` — `scripts/build-core-glb.mjs` emits a 1.7 KB flat-shaded pentagonal-bipyramid mesh through the shared `scripts/lib/write-glb.mjs` writer. Both `core.north` and `core.south` swap their primitive sphere for `mesh: \"runtime/models/core.glb\"` and keep their inline `color`, so the mesh is shared but the scene still controls intent. `asset-sources.json` declares the new runtime file.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S014-2",
+      "title": "`14.6` Material variants — new `examples/beacon-world/assets/runtime/materials/beacon-repaired.material.json` provides the repaired-beacon…",
+      "status": "implemented",
+      "summary": "`14.6` Material variants — new `examples/beacon-world/assets/runtime/materials/beacon-repaired.material.json` provides the repaired-beacon look (teal `#4af0a8`, emissive, lower roughness, higher metalness). `Repairable` schema gains optional `repairedMaterial` and runtime-only `originalColor`. `pickup-system.ts` deposit/decay refactored to swap the `MeshRenderer.material` ref when `repairedMaterial` is present and restore the original material (or inline colour) on decay; the legacy `repairedColor` path remains as a fallback for color-only scenes. New unit tests cover the material-swap path and the colour-only fallback.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S014-3",
+      "title": "`13.11` Derived world signal in HUD — `health-hud.ts` now also counts repaired vs total `Repairable` entities from the snapshot and renders…",
+      "status": "implemented",
+      "summary": "`13.11` Derived world signal in HUD — `health-hud.ts` now also counts repaired vs total `Repairable` entities from the snapshot and renders a `SIG repaired/total` line with filled cells. No new component; the HUD reads pure derived state through `runtime.snapshot()`, matching the agent-first principle.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S014-4",
+      "title": "`E.1` Smallest-pivot query — `engine/core/ecs/world.ts` `query` now picks the component with the fewest entities as the pivot instead of…",
+      "status": "implemented",
+      "summary": "`E.1` Smallest-pivot query — `engine/core/ecs/world.ts` `query` now picks the component with the fewest entities as the pivot instead of always using the first argument. Missing-store short-circuit covered. New `tests/unit/ecs-world.test.ts` cases prove a 100-entity / 3-hazard scene reaches the matches through the small store.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "Per-core or per-beacon material variants (e.g. \"north\" vs \"south\") would let scenes distinguish entities by material alone. Deferred — no gameplay call for it yet.",
+    "`13.12` Sound pings still pending.",
+    "`10.4`/`10.5`/`10.6` backend follow-ups still pending."
+  ],
+  "notes": [
+    "Deliverables: `scripts/build-core-glb.mjs`, `examples/beacon-world/assets/runtime/models/core.glb`; `examples/beacon-world/assets/runtime/materials/beacon-repaired.material.json`; `examples/beacon-world/assets/_sources/asset-sources.json` (`beacon-world.core-mesh`); `examples/beacon-world/schemas/scene-extensions.schema.json` (`repairedMaterial`, `originalColor`); `examples/beacon-world/scenes/start.scene.json` (cores → `core.glb`, beacons → `repairedMaterial`); `examples/beacon-world/src/systems/pickup-system.ts` (material swap + colour fallback); `examples/beacon-world/src/ui/health-hud.ts` (`SIG` line); `engine/core/ecs/world.ts` (smallest-pivot query); `tests/unit/ecs-world.test.ts`, `examples/beacon-world/tests/unit/pickup-system.test.ts`",
+    "Verification: `engine check examples/beacon-world` green.; Sprint-close `npm run preflight`: typecheck clean, 113 Vitest tests across 16 files, vite build OK, 10 Playwright e2e tests (including the updated `beacon-world-gameplay` material-swap assertions).",
+    "Goal Recap: Both moving prop families (cores, beacons) now use authored `.glb` + named materials; the procedural-primitive era is over for the dogfood scene.; The repair loop swaps material refs instead of dropping them, so HMR on `beacon-repaired.material.json` will live-update repaired beacons.; The HUD now surfaces a real-time world signal derived from the snapshot, giving the agent a one-glance check that the gameplay loop is producing progress.; ECS queries no longer scale with the first-argument store; gameplay code can pass the broadest filter first without paying for it."
+  ]
+}

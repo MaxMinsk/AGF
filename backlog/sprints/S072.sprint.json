@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S072",
+  "title": "Migrate water-bench to WebGPU via TSL ReflectorNode",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S072-1",
+      "title": "**WEBGPU-planar-mirror** — `acquirePlanarMirror` branches on `capabilities.kind`: - WebGL: existing `new Reflector(geometry, {...})` path…",
+      "status": "implemented",
+      "summary": "**WEBGPU-planar-mirror** — `acquirePlanarMirror` branches on `capabilities.kind`: - WebGL: existing `new Reflector(geometry, {...})` path unchanged. - WebGPU: `reflector()` returns a TextureNode; `MeshBasicNodeMaterial.colorNode = reflector`; a `Mesh(planeGeometry, material)` is added to the scene; `reflector.target` is parented to the mesh so the mirror plane follows transform updates. - `setPlanarMirrorTransform` and `releasePlanarMirror` updated to handle both shapes via a tagged union (`{ kind: \"webgl\" | \"webgpu\", ... }`).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S072-2",
+      "title": "**TSL factory import path** — `reflector()` lives in `three/tsl`, NOT `three/webgpu`.",
+      "status": "implemented",
+      "summary": "The lazy `engine/render/webgpu/webgpu-module-loader.ts` now loads both modules in parallel and merges the surfaces. Added a structural `ReflectorFactoryResult` type since `reflector` isn't in `@types/three` for r0.184.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S072-3",
+      "title": "**Capability flag** — `WEBGPU_CAPABILITIES.supportsPlanarMirror` flipped from `false` to `true`.",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S072-4",
+      "title": "**MIGRATE-water-bench-webgpu** — `examples/water-bench/project.json#render.mode` flipped to `\"webgpu\"`.",
+      "status": "implemented",
+      "summary": "8 of 9 example projects now run on WebGPU.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**WEBGPU progress**: 8 of 9 (added water-bench).",
+    "**shadows-bench (last project)** — three blockers: CSM (needs TSL `CSMNode` port — multi-sprint), PCSS (`onBeforeCompile` is WebGL-only — needs TSL rewrite), FXAA (upstream BloomNode-style issue). None contained.",
+    "**Probe + planar-mirror color tint** — defer both into a small follow-up sprint together if any project asks for tinted reflections.",
+    "**WEBGPU-default-flip** still gated by shadows-bench being on WebGL."
+  ],
+  "notes": [
+    "Deliverables: `engine/render/webgpu/webgpu-module-loader.ts` — bi-module load (`three/webgpu` + `three/tsl`); `MeshBasicNodeMaterial` + `reflector` factories exposed.; `engine/render/three-render-adapter.ts` — `acquirePlanarMirror` / `setPlanarMirrorTransform` / `releasePlanarMirror` branching; tagged-union storage.; `engine/render/render-adapter.ts` — `WEBGPU_CAPABILITIES.supportsPlanarMirror: true`.; `examples/water-bench/project.json` — webgpu mode.",
+    "Verification: typecheck + 517 unit tests pass.; Live playwright probe across all 8 WebGPU projects (water-bench + the other 7): zero destroyed-texture warnings, zero pageerrors.",
+    "Out of scope: **Color tint** — the original `Reflector` `color: '#88aaff'` parameter is not yet wired on the WebGPU path. TSL needs an explicit `mix(reflector, color, factor)` colorNode for that. Deferred — visual fidelity was never the bar for water-bench (the user previously agreed \"let's leave the planar mirror as-is for now\"; pure reflection is acceptable for the demo)."
+  ]
+}

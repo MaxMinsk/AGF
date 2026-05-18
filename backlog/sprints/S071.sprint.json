@@ -1,0 +1,101 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S071",
+  "title": "Migrate material-bench to WebGPU (PMREM + shadow + workflow fixes)",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S071-1",
+      "title": "**Visual systems → frameUpdate** — `Spin`, `Tween`, `WaypointMover` moved from `fixedUpdate` to `frameUpdate`.",
+      "status": "implemented",
+      "summary": "Fixed-update tied cosmetic motion to the simulation accumulator: heavy WebGPU frames (probe-bake spikes, material-bench's reflection cascade) pushed `frameDt` past the `maxStepsPerFrame=8` × `fixedDt` cap (~133 ms), the accumulator dropped the overflow, and visible motion stalled. Physics + character-movement (which legitimately need determinism) stay on fixedUpdate.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-2",
+      "title": "**Round-robin reflection-probe bakes** — `reflection-probe-system` now picks at most ONE probe per frame, most-overdue first (bake-once…",
+      "status": "implemented",
+      "summary": "**Round-robin reflection-probe bakes** — `reflection-probe-system` now picks at most ONE probe per frame, most-overdue first (bake-once probes have priority ∞ until baked). Avoids the `3 × 6 = 18 cube-renders` per-frame spike when multiple probes were ready simultaneously.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-3",
+      "title": "**Per-entity envMap memo** — only call `setMeshMaterialPatch` when the bound texture pointer actually changes.",
+      "status": "implemented",
+      "summary": "Previously every frame stamped `material.needsUpdate = true` on every EnvmapBinding entity, which forced shader + bindgroup rebuilds on WebGPU and produced stale-bindgroup destroyed-texture warnings.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-4",
+      "title": "**Separate PMREMGenerator instances** — `setEnvironment` (HDR cube, cubeSize 256) and `updateReflectionProbe` (probe cubes, cubeSize 128)…",
+      "status": "implemented",
+      "summary": "**Separate PMREMGenerator instances** — `setEnvironment` (HDR cube, cubeSize 256) and `updateReflectionProbe` (probe cubes, cubeSize 128) shared a single `this.pmrem`. Three.js's PMREMGenerator disposes its internal `_pingPongRenderTarget` (named \"PMREM.cubeUv\") on size mismatch. With shared instance the pingpong got disposed every probe bake while still referenced in flight, raising \"Destroyed texture used in submit\" validation spam on every bake and entering the renderer into an error state. Split into `this.pmrem` (env) + `this.probePmrem` (probes).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-5",
+      "title": "**WebGL-vs-WebGPU PMREMGenerator class** — the probe path's lazy init constructed `new PMREMGenerator(this.device)` (the WebGL class)…",
+      "status": "implemented",
+      "summary": "**WebGL-vs-WebGPU PMREMGenerator class** — the probe path's lazy init constructed `new PMREMGenerator(this.device)` (the WebGL class) against a `WebGPURenderer`. Mirror the existing setEnvironment selection (`webGpuModule.PMREMGenerator` on WebGPU).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-6",
+      "title": "**Reuse prefiltered RT in fromCubemap** — pass `entry.prefilteredTarget` back as the second arg to `pmrem.fromCubemap(cubemap, sameRT)` so…",
+      "status": "implemented",
+      "summary": "**Reuse prefiltered RT in fromCubemap** — pass `entry.prefilteredTarget` back as the second arg to `pmrem.fromCubemap(cubemap, sameRT)` so three.js writes IN PLACE instead of allocating + disposing. No runtime disposes → no validation warnings → no GPU leak.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-7",
+      "title": "**Shadow-flicker fix** — dropped the `obj.visible = false` toggle around cube-bake.",
+      "status": "implemented",
+      "summary": "ShadowNode iterates the scene by visibility; with 3 probes × 15 Hz × 6 cube-faces, the WebGPU shadow texture got rebaked many times per frame with the probe-owner NOT a caster, producing visible shadow flicker under the centre sphere/cylinder. Sphere-shaped probe owners are invisible to a camera at their own world position via backface culling anyway. Verified by experiment.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-8",
+      "title": "**Agent-debug infra** — new `GET /__agf/console-log` HTTP endpoint backed by a 200-entry `console.*` ring buffer in…",
+      "status": "implemented",
+      "summary": "**Agent-debug infra** — new `GET /__agf/console-log` HTTP endpoint backed by a 200-entry `console.*` ring buffer in `engine/dev/page-bridge.ts`. Agents can `curl` recent browser console output (errors AND warnings AND logs) without launching playwright. The PMREM-class root-cause investigation surfaced via this — WebGPU validation comes through `console.warn` from Chrome's GPU process, not `pageerror` / `console.error`. Updated playwright-live-probe skill memo to require capturing AND printing every console.type.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S071-9",
+      "title": "**MIGRATE-material-bench-webgpu** — flip `examples/material-bench/project.json#render.mode` to `\"webgpu\"`.",
+      "status": "implemented",
+      "summary": "Drop the bloom post-pass entry (still upstream-blocked). Reflection probes restored to 15 Hz on the centre PMREM probe + 15 Hz on the two side mipmap probes. 7 of 9 example projects now run on WebGPU.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**WEBGPU progress**: 7 of 9 (added material-bench).",
+    "**CSMNode port** for shadows-bench remains the multi-sprint blocker.",
+    "**ReflectorNode port** for water-bench is sprint-sized — picked up in S72.",
+    "**Probe color tint**: `acquireReflectionProbe` accepts `color` on the WebGL `Reflector`, but the WebGPU TSL `ReflectorNode` path doesn't wire it yet. Deferred until a project actually needs it."
+  ],
+  "notes": [
+    "Deliverables: `engine/core/systems/spin-system.ts`, `tween-system.ts`, `waypoint-mover-system.ts` — `fixedUpdate` → `frameUpdate`.; `engine/render/systems/reflection-probe-system.ts` — round-robin one-probe-per-frame, per-entity envMap memo.; `engine/render/three-render-adapter.ts` — `probePmrem` field, WebGPU-vs-WebGL PMREMGenerator class selection, `fromCubemap` RT reuse, no visibility toggle in `updateReflectionProbe`.; `engine/dev/page-bridge.ts` — console-tap ring buffer.; `engine/dev/agf-dev-bridge.ts` — `/__agf/console-log` route.; `examples/material-bench/project.json`, `bootstrap.ts` — webgpu mode + bloom removed; probes restored to 15 Hz.; Skill memos: `feedback-playwright-live-probe.md` rewritten to require full console capture; new `feedback-grab-browser-logs-first.md`.",
+    "Verification: typecheck + 517 unit tests pass.; Live playwright probe (`--enable-unsafe-webgpu`, real WebGPU backend): zero \"Destroyed texture\" warnings across all WebGPU projects; material-bench scene + 3 probes + spheres orbit + shadows under centre cylinder stable at 60 fps; spin / tween / waypoint motion runs at-spec.; User-verified on actual hardware: rotation runs at spec, shadow under centre sphere stable."
+  ]
+}

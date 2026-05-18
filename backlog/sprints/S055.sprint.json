@@ -1,0 +1,127 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S055",
+  "title": "Agent surface refresh",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S055-1",
+      "title": "**DOCS-stale-audit** ✅ — `docs/agent/_audit-2026-05-15.md` (deleted at sprint close after being mined).",
+      "status": "implemented",
+      "summary": "26-row OK / update / new verdict table plus an ownership map tying each remaining story to its files.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-2",
+      "title": "**DOCS-AGENTS-root** ✅ — `AGENTS.md` + `docs/agent/rules.md` + `docs/agent/review-checklist.md` synced.",
+      "status": "implemented",
+      "summary": "New hard rules: ECS systems by default + documented deviation, reuse engine primitives before scaffolding (Spin > GroupRotator), texture refs always through `AssetRegistry.urlFor`, `MeshRenderer.material` is full path, `Transform.rotation` is degrees, prefab overrides shallow-merge, primitive set is `box / sphere / cylinder / plane`. Review checklist gained Data+Schemas + Diagnostics + Performance Hygiene sections.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-3",
+      "title": "**DOCS-build-a-game** ✅ — `docs/agent/build-a-game.md` rewritten.",
+      "status": "implemented",
+      "summary": "End-to-end walkthrough using material-bench shapes; instantiate-a-prefab recipe; HDR-background + idle-mode + criticalAssets recipes; 6-item common-mistakes checklist; `__agf` table extended with `gpuMs / frameTiming / pick / dev.tuner / shadow controls / physics raycast / recording / project-patch`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-4",
+      "title": "**DOCS-asset-pipeline** ✅ — new `docs/agent/asset-pipeline.md`.",
+      "status": "implemented",
+      "summary": "Pipeline diagram + per-stage prose: `_sources/` layout, provenance schema (`kind` / `source.type` enums), `engine asset import`, `engine asset optimize` with `--source` / `--textures`, material manifest cheat-sheet (incl. `bumpMap` vs `normalMap`), scene reference rules, HDR env spec, doctor sections, `criticalAssets` gate, diagnostics catalogue, future-work pointers.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-5",
+      "title": "**DOCS-scene-authoring-skill** ✅ — `docs/agent/skills/scene-authoring.md` rewritten.",
+      "status": "implemented",
+      "summary": "Scene shape with `instances` + `environment.hdr.asBackground`; component cheat-sheet incl. MeshRenderer full-path rule, ShadowCaster dynamic flag, Spin / Tween / WaypointMover reuse note; project-local component flow; 5 pitfalls.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-6",
+      "title": "**DOCS-system-authoring-skill** ✅ — `docs/agent/skills/system-authoring.md` rewritten.",
+      "status": "implemented",
+      "summary": "Lead with grep-before-scaffold; canonical cached-`createQuery` template; engine-vs-project boundary table; no per-frame Three.js alloc + no raw event listeners; 5 pitfalls.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-7",
+      "title": "**DOCS-playtest-debugging-skill** ✅ — `docs/agent/skills/playtest-debugging.md` rewritten.",
+      "status": "implemented",
+      "summary": "Full `window.__agf` API table (16 entries incl. `rendererInfo.gpuMs`, `frameTiming`, `pick`, `dev.tuner.*`, shadow controls, physics raycast, recording, save/load). Dev-bridge HTTP endpoint table (12 routes). 6 common debugging patterns.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-8",
+      "title": "**DOCS-engine-check-skill** ✅ — `docs/agent/skills/engine-check.md` rewritten with the sibling-command matrix (check / doctor / inspect /…",
+      "status": "implemented",
+      "summary": "**DOCS-engine-check-skill** ✅ — `docs/agent/skills/engine-check.md` rewritten with the sibling-command matrix (check / doctor / inspect / docs / list / explain / asset optimize / asset import), symptom→code lookup, and the full list of files `engine check` validates. `docs/diagnostics.md` catalogue brought current — domain enum extended, new per-domain tables, S54 codes documented.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-9",
+      "title": "**DOCS-prefab-skill** ✅ — new `docs/agent/skills/prefab-authoring.md`.",
+      "status": "implemented",
+      "summary": "When-to-extract threshold, manifest shape, `scene.instances[]` syntax with shallow-merge semantics + worked example, per-instance field list, when NOT to extract, diagnostics + doctor section, beacon-world M3-c-beacon worked example.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-10",
+      "title": "**DOCS-material-skill** ✅ — new `docs/agent/skills/material-authoring.md`.",
+      "status": "implemented",
+      "summary": "Shader picking table, full field cheat-sheet, bumpMap-vs-normalMap decision rules with the bump-source pitfall, asset-registry texture resolution, full-path rule for MeshRenderer.material, 7 common pitfalls, doctor + texture warnings.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-11",
+      "title": "**DOCS-claude-code-+-subagents** ✅ — `docs/agent/claude-code.md` rewritten.",
+      "status": "implemented",
+      "summary": "Slash-command matrix + subagent matrix with \"when to delegate\" lines. Reliability-doc map updated. Sprint-workflow paragraph added. `.claude/agents/*.md` descriptions verified current — no changes needed.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S055-12",
+      "title": "**DOCS-iteration-+-debug-protocol** ✅ — `docs/agent/iteration-loop.md` + `docs/agent/debug-protocol.md` refreshed.",
+      "status": "implemented",
+      "summary": "Iteration loop gains the sprint-workflow paragraph and three new recipes (screenshot, bug-report, dev-tuner). Debug protocol gains a 17-row failure-taxonomy → first-look-diagnostic lookup table, the dev-bridge route list, and the post-fix verification checklist.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**ADR audit.** Texture resolution through `AssetRegistry.urlFor`, environment.asBackground, primitive-set extensions and `transmissionResolutionScale` are documented in skill memos but not anchored in any ADR. Spawn a doc-only follow-up sprint if the codebase needs the architectural record.",
+    "**`engine docs <projectId>` regen.** The auto-generated docs under `docs/generated/<projectId>/` weren't refreshed during S55. They aren't used by agents day-to-day (the hand-written skill memos are), but a follow-up run keeps them aligned with the new schema fields (`asBackground`, `backgroundBlurriness`, `transmissionResolutionScale`, `idleMode`, `criticalAssets`, `bumpMap`, `bumpScale`).",
+    "**MeshRenderer.material path-validator.** Several docs (build-a-game, asset-pipeline, scene-authoring, material-authoring) call out the bare-id-vs-path pitfall — backlog candidate to make `engine check` enforce it."
+  ],
+  "notes": [
+    "Deliverables: 12 docs touched, 2 new skill memos (prefab-authoring, material-authoring), 1 new top-level doc (asset-pipeline.md), audit file consumed and deleted.; Diagnostics catalogue (`docs/diagnostics.md`) is now the canonical map of every `AGF_*` code emitted by `engine check` / `engine doctor` / runtime.",
+    "Verification: `npm run preflight` ✅ at sprint close — repo:hygiene + 5 engine:check projects + imports:check + systems:check + typecheck + 83 unit test files / 504 tests + build + bundle:check + 11/11 e2e smoke (27.2 s).; Cyrillic-in-repo sweep across the touched files — clean.; Cross-link sanity: every `docs/agent/skills/<name>.md` referenced from `claude-code.md` exists."
+  ]
+}

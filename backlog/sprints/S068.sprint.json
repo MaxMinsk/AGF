@@ -1,0 +1,46 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S068",
+  "title": "Migrate hello-3d + physics-bench to WebGPU + auto-fallback policy",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S068-1",
+      "title": "**WEBGPU-fallback-policy** — adapter constructor now detects `navigator.gpu === undefined` and falls back to WebGL automatically with a…",
+      "status": "implemented",
+      "summary": "**WEBGPU-fallback-policy** — adapter constructor now detects `navigator.gpu === undefined` and falls back to WebGL automatically with a `console.warn`. Saves users from black-canvas + console error when opting a project into WebGPU on a browser without WebGPU support. Bonus discovery: three.js's `WebGPURenderer` itself has an internal WebGL2 backend fallback for cases where `navigator.gpu` is defined but unusable (e.g. headless chromium without `--enable-unsafe-webgpu`); the AGF flag still reads `renderer: \"webgpu\"` in that case, but rendering succeeds through the WebGL2 backend.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S068-2",
+      "title": "**MIGRATE-hello-3d-webgpu** — `examples/hello-3d/project.json#render.mode: \"webgl\" → \"webgpu\"`, `batching.auto: true → false` (batching not…",
+      "status": "implemented",
+      "summary": "**MIGRATE-hello-3d-webgpu** — `examples/hello-3d/project.json#render.mode: \"webgl\" → \"webgpu\"`, `batching.auto: true → false` (batching not yet supported on WebGPU adapter). Scene + shadows + Spin all render correctly. Headed chromium with `--enable-unsafe-webgpu` confirms `renderer: webgpu`, 8 meshes, 3 draws. Smoke tests pass on headless via three.js's WebGL2 fallback.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S068-3",
+      "title": "**MIGRATE-physics-bench-webgpu** — same pattern.",
+      "status": "implemented",
+      "summary": "Scene renders correctly with 60fps, 208 entities, physics + shadow + materials all working. WebGPU adapter coexists with Rapier physics.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**S69 — WEBGPU-gpu-timer** (small, contained, non-post-processing) or **WEBGPU-lazy-import** (145 KB bundle win, constructor refactor).",
+    "**Three.js r0.185+ tracker** — re-test bloom on each minor; flip remaining projects to WebGPU once post-processing unblocks."
+  ],
+  "notes": [
+    "Deliverables: `engine/render/three-render-adapter.ts` — fallback policy in constructor.; `examples/hello-3d/project.json` — webgpu mode + batching off.; `examples/physics-bench/project.json` — webgpu mode + batching off.",
+    "Verification: typecheck + 511 unit tests pass.; Preflight clean: 11 / 11 e2e smoke (1 webgpu skipped on headless), 9 / 9 engine:check.; Live playwright probe of hello-3d + physics-bench under `--enable-unsafe-webgpu`: both renderers report `webgpu`, scenes render correctly with shadows + materials + physics.; Headless probe of hello-3d (no `--enable-unsafe-webgpu`): three.js auto-falls-back to WebGL2 backend; `renderer: webgpu` flag still set; scene renders. Smoke tests confirm this on CI.",
+    "Out of scope (still on WebGL): `material-bench` — uses bloom post-pass (upstream-blocked) + multi-probe + PMREM-prefilter + transmission.; `shadows-bench` — uses CSM (not yet on WebGPU).; `water-bench` — uses `PlanarMirror` (Reflector — not yet ported).; `webgpu-spike` / `webgpu-light-test` — already on WebGPU.; `batch-bench` — heavy InstancedMesh / BatchedMesh use; the adapter's bucket methods stub on WebGPU and the bench would fall back to per-mesh, defeating its purpose. Migrate once batching ports.; `beacon-world` — gameplay project; deserves a separate migration sprint that verifies physics + dev-bridge + persistence on WebGPU."
+  ]
+}

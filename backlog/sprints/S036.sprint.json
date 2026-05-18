@@ -1,0 +1,101 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S036",
+  "title": "physics integration + cache polish + batched-mesh primitives + Beacon physics adoption",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S036-1",
+      "title": "`M24-sync` ✅ `engine/physics/rapier/physics-sync-system.ts` + `physics-body-registry.ts`.",
+      "status": "implemented",
+      "summary": "fixedUpdate System with 5 phases (acquire/release, kinematic push, step, sensors classify, dynamic writeback). Lazy-imports Rapier; registered by `startRuntime` when `project.physics?.enabled === true`. Project schema gains `physics: { enabled?, gravity?, fixedDt? }`. 6 unit tests with a stub adapter. Spike `spikes/physics-rapier-v0/sync-spike.ts` verified end-to-end with real Rapier.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-2",
+      "title": "`M24-sensors` ✅ Adapter `drainEvents()` reads Rapier's `EventQueue`; PhysicsSyncSystem writes runtime-only `CurrentContacts3D` /…",
+      "status": "implemented",
+      "summary": "`M24-sensors` ✅ Adapter `drainEvents()` reads Rapier's `EventQueue`; PhysicsSyncSystem writes runtime-only `CurrentContacts3D` / `OverlappingTriggers3D` ECS components per fixed step. `entityForCollider` reverse lookup added to the body registry. Spike `spikes/physics-rapier-v0/sensor-spike.ts` confirms enter/exit events fire across a sensor box and on contact pairs.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-3",
+      "title": "`M24-character` ✅ `CharacterController3D` component + adapter `acquireCharacterController` / `releaseCharacterController` /…",
+      "status": "implemented",
+      "summary": "`M24-character` ✅ `CharacterController3D` component + adapter `acquireCharacterController` / `releaseCharacterController` / `computeCharacterMovement` / `setBodyNextKinematicTranslation`. Kinematic capsule wrapper around Rapier's `KinematicCharacterController` (offset / autostep / maxClimbSlope / minSlideSlope / snapToGround / up-vector). Spike `spikes/physics-rapier-v0/character-spike.ts` lands a capsule at y≈1.05 on a fixed ground collider.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-4",
+      "title": "`M16-cache-d` ✅ Persistent `parent→children` index in `resolve-cached.ts` (`knownInputs` / `childrenIndex` / `parentOfStored`); helpers…",
+      "status": "implemented",
+      "summary": "`M16-cache-d` ✅ Persistent `parent→children` index in `resolve-cached.ts` (`knownInputs` / `childrenIndex` / `parentOfStored`); helpers `updateChildLink` / `evictFromIndexes` keep the index incrementally in sync as scenes mutate. New `resolveDirtyDelta(world, inputs, dirtyIds)` performs a BFS over the dirty closure and returns only changed `LocalToWorld` entries. **Bench at 10k chain-of-8 @ 1%-dirty: ~1.94 ms** (~3× faster than cache-c, ~6.5× faster than no-cache).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-5",
+      "title": "`M17-batched-mesh` ✅ (adapter primitives only) `acquireBatchedBucket` / `releaseBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance`…",
+      "status": "implemented",
+      "summary": "`M17-batched-mesh` ✅ (adapter primitives only) `acquireBatchedBucket` / `releaseBatchedBucket` / `addBatchedGeometry` / `addBatchedInstance` / `removeBatchedInstance` / `setBatchedInstanceTransform` / `setBatchedInstanceGeometry` / `batchedBucketLiveCount`. Internal `batchedBuckets` map + `nextBatchedBucketHandle`. `rendererInfo()` exposes `batchedBuckets` / `batchedBucketInstances`. System-layer wiring deferred to Sprint 37.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-6",
+      "title": "`examples/batch-bench/` ✅ Perf-only project — camera + ambient + sun + ground; no project-specific systems.",
+      "status": "implemented",
+      "summary": "Bootstrap seeds a default 20×20 grid (400) of batchable cubes in 4 colours via `attachUi` → `runtime.applyCommands`. `?seed=N` URL param overrides (clamped 1..4096); `?seed=0` keeps the empty baseline. Bridge probe at default seed: `drawCalls: 5, buckets: 4, bucketInstances: 400, handleLeak: 0`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-7",
+      "title": "`M17-renderer-respect-batchable` ✅ Surfaced by `batch-bench`: the standalone renderer fallback (`refreshMeshes`) acquired a per-entity Mesh…",
+      "status": "implemented",
+      "summary": "`M17-renderer-respect-batchable` ✅ Surfaced by `batch-bench`: the standalone renderer fallback (`refreshMeshes`) acquired a per-entity Mesh handle for every `MeshRenderer` regardless of `Batchable`, doubling draw calls and leaking handles when `MeshLifecycleSystem` had already filtered the entity. `engine/render/three-renderer.ts` now filters `Batchable` out of `refreshMeshes` the same way the system does. On the 400-box bench grid: `drawCalls 405 → 5`, `meshes 401 → 1`, `handleLeak 400 → 0`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-8",
+      "title": "`beacon-physics-adoption` ✅ `examples/beacon-world/project.json` enables `physics: { enabled: true, gravity, fixedDt }`.",
+      "status": "implemented",
+      "summary": "Scene declares: `ground` (fixed body + box collider), `player.drone` (kinematicPosition body + capsule, lockRotations), `beacons` (fixed body + capsule sensor), `cores` (fixed body + sphere sensor), `hazards` (fixed body + sphere sensor sized to `maxRadius`). Gameplay systems (`pickup-system`, `hazard-system`) still drive via Transform distance — sensor-event wiring + character-controller-driven movement are Sprint 37 candidates. Bridge probe: 8 bodies / 6 sensors / zero diagnostics; `beacon-world-gameplay.spec` green.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S036-9",
+      "title": "`bundle-check-vendor-budgets` ✅ `scripts/check-bundle-size.mjs` now tracks vendor chunks (`rapier-*` 900 kB, `three-*` 300 kB) under…",
+      "status": "implemented",
+      "summary": "`bundle-check-vendor-budgets` ✅ `scripts/check-bundle-size.mjs` now tracks vendor chunks (`rapier-*` 900 kB, `three-*` 300 kB) under separate budgets, so the main-bundle check (250 kB) isn't dominated by the lazy-loaded Rapier WASM. Largest non-vendor chunk today: AJV at ~32 kB.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`M21-shadow-csm` — outdoor CSM via `three/addons/csm/CSM.js`. High-touch: adapter-side CSM instance bound to active camera, per-frame `csm.update()`, `csm.setupMaterial(material)` on every material the renderer manages (acquire / patch / manifest paths). Schema on `project.json#renderer.shadows.csm`. Conflict with ECS-owned sun shadow needs an opt-out path.",
+    "`M17-batched-mesh-system` — wire BatchedMesh adapter primitives behind `Batchable.path?: \"instanced\" | \"batched\"` in `BatchingSystem`. Bucketing for \"batched\" keys by `material + shadow + group` (mesh varies). Add a `batch-bench` scenario pushing 4 different primitive meshes through one batched bucket.",
+    "`beacon-physics-character` — switch `player.drone` from `PlayerControlled` Transform writes to `CharacterController3D` + new `CharacterMovementSystem` that consumes input and queries the controller for collision-resolved motion. Project flag so Hello-3D keeps the old path.",
+    "`beacon-physics-sensor-wiring` — replace `pickup-system` / `hazard-system` proximity loops with `OverlappingTriggers3D` reads."
+  ],
+  "notes": [
+    "Deliverables: `engine/physics/rapier/physics-sync-system.ts` + `physics-body-registry.ts`; `engine/physics/rapier/rapier-adapter.ts` — `drainEvents`, character-controller, BatchedMesh primitives; `engine/core/transform/resolve-cached.ts` — `resolveDirtyDelta` + persistent children index; `engine/render/systems/transform-resolve-system.ts` — writes only the changed `LocalToWorld` subset; `engine/render/three-renderer.ts` — `refreshMeshes` filters `Batchable`; `engine/runtime/inspect.ts` — `RENDER_INTERNAL_COMPONENTS` adds `BatchedMeshHandle`, `RenderLightHandle`, `CurrentContacts3D`, `OverlappingTriggers3D`; `schemas/scene.schema.json` — `CharacterController3D`; `schemas/project.schema.json` — `physics: { enabled?, gravity?, fixedDt? }`; `src/app.ts` — lazy-imports Rapier + registers PhysicsSyncSystem when `project.physics?.enabled === true`; `examples/batch-bench/` — new project (`project.json`, `scenes/start.scene.json`, `bootstrap.ts`, `README.md`, `assets/_sources/asset-sources.json`); `examples/beacon-world/project.json` + `scenes/start.scene.json` — physics declarations on ground, drone, beacons, cores, hazards; `spikes/physics-rapier-v0/{sync-spike,sensor-spike,character-spike}.ts`; `tests/unit/physics-sync-system.test.ts` — 6 tests; `scripts/check-bundle-size.mjs` — vendor-chunk budgets",
+    "Verification: `npm run preflight` ✅ — full chain green with 1-retry tolerance (hmr-stress + multiclient-roundtrip flaky under parallel load, deterministic in isolation; 22 e2e passed, 2 flaky-retried).; Bridge probe on Beacon-World: 8 bodies / 6 sensors / 0 diagnostics.; Bridge probe on batch-bench (default seed): `drawCalls: 5, buckets: 4, bucketInstances: 400, handleLeak: 0`.; `beacon-world-gameplay.spec` ✅ — drone still picks up a core and repairs a beacon with physics enabled."
+  ]
+}

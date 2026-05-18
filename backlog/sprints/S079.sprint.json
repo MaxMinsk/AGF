@@ -1,0 +1,115 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S079",
+  "title": "Backlog Engine V1 — mutate commands + migrate legacy archive",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "archivedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "BACKLOG-NEXT",
+      "title": "`npm run backlog:next` — pick the first unblocked story",
+      "status": "implemented",
+      "summary": "Walk the active sprint, return the first story whose dependsOn ids all resolve to `implemented` (or are absent). `--json` mode for agents. Exits 0 with a story id on stdout; exits 1 with no output when nothing is ready (sprint blocked or fully done).",
+      "verification": [
+        "npm run backlog:next — returns BACKLOG-CLI-MUTATE first (BACKLOG-NEXT itself is implemented)",
+        "npm run backlog:next -- --json — returns parseable JSON",
+        "npm run backlog:next returns BACKLOG-CLI-MUTATE",
+        "npm run backlog:next -- --json returns parseable JSON"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/next.mjs",
+        "package.json"
+      ]
+    },
+    {
+      "id": "BACKLOG-CLI-MUTATE",
+      "title": "`backlog:claim` / `backlog:done` / `backlog:defer` — story write commands",
+      "status": "implemented",
+      "summary": "Three small CLI commands that mutate the active sprint JSON instead of hand-edits. `claim <story>` → status:in_progress. `done <story> --verification \"...\"` → status:implemented + verification[]. `defer <story> --reason \"...\"` → status:deferred + deferredReason. All run `backlog:check` after the write; reject on validation failure. Archive promotion stays manual for now (one explicit step).",
+      "verification": [
+        "round-trip: claim → done → backlog:check → backlog:render --check all pass",
+        "defer without --reason rejects with AGF_BACKLOG_DEFER_NO_REASON",
+        "round-trip: backlog:done BACKLOG-NEXT → backlog:check pass → backlog:render writes → backlog:next picks BACKLOG-CLI-MUTATE",
+        "defer without --reason fails fast"
+      ],
+      "dependsOn": [
+        "BACKLOG-NEXT"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/mutate.mjs",
+        "package.json"
+      ]
+    },
+    {
+      "id": "BACKLOG-PR-BODY",
+      "title": "`backlog:pr-body` — render PR summary from sprint JSON",
+      "status": "implemented",
+      "summary": "Stdout: a Markdown PR body summarising implemented stories + follow-ups + verification, formatted the way the WebGPU-sprint PRs were written by hand. `gh pr create` can pipe directly to its `--body-file -` argument. Optional `--sprint S079` flag for closing a non-active sprint (useful when archived just before push).",
+      "verification": [
+        "npm run backlog:pr-body | head -20 — produces a sensible Markdown summary for S079",
+        "npm run backlog:pr-body renders Markdown body for active sprint S079 with all sections"
+      ],
+      "dependsOn": [
+        "BACKLOG-CLI-MUTATE"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/pr-body.mjs",
+        "package.json"
+      ]
+    },
+    {
+      "id": "BACKLOG-DOCTOR",
+      "title": "engine doctor — backlog section",
+      "status": "implemented",
+      "summary": "Extend `engine doctor` with a `Backlog:` section reporting: active sprint id + title, count of pending / in_progress / implemented stories, blockers (open stories with unfinished dependencies), stories with empty verification once implemented. Diagnostic codes `AGF_BACKLOG_*` matching `backlog:check`.",
+      "verification": [
+        "npm run engine:doctor -- examples/hello-3d — contains a Backlog section",
+        "running with a deliberately broken sprint surfaces AGF_BACKLOG_BLOCKED",
+        "npm run engine:doctor -- examples/hello-3d shows Backlog section with active sprint id, story counts, AGF_BACKLOG_BLOCKED count",
+        "synthetic broken dep surfaces AGF_BACKLOG_BLOCKED: 1 blocked - <story> ← needs [<missing>]"
+      ],
+      "dependsOn": [
+        "BACKLOG-NEXT"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "engine/tools/doctor/project-doctor.ts"
+      ]
+    },
+    {
+      "id": "BACKLOG-MIGRATE-HISTORY",
+      "title": "Parse legacy `BACKLOG_ARCHIVE.md` prelude into sprint JSON files",
+      "status": "implemented",
+      "summary": "One-shot import: parse the hand-written S0–S77 prelude into `backlog/sprints/S000.sprint.json` … `S077.sprint.json` files (best-effort — completed-work bullets become stories with empty deliverables/verification, sprint-level Verification/Deliverables/Follow-Ups become sprint `notes[]` / `followUps[]`). Renderer keeps the prelude untouched so the diff stays reviewable; once the JSON output looks acceptable, a follow-up sprint can drop the prelude.",
+      "verification": [
+        "scripts/backlog/migrate-history.mjs runs without exceptions",
+        "backlog/sprints/S000.sprint.json … S077.sprint.json exist and pass backlog:check",
+        "npm run backlog:migrate-history writes 73 sprint files (S000-S072)",
+        "npm run backlog:check exits 0 (warnings only: AGF_BACKLOG_ARCHIVED_NO_DATE)",
+        "npm run backlog:render writes rendered archive tail covering 73 imported sprints"
+      ],
+      "dependsOn": [
+        "BACKLOG-CLI-MUTATE"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE",
+      "deliverables": [
+        "scripts/backlog/migrate-history.mjs",
+        "backlog/sprints/S000.sprint.json..S072.sprint.json (73 files)"
+      ]
+    }
+  ],
+  "followUps": [
+    "BACKLOG-MIGRATE-HISTORY-CLEANUP — once the imported JSON renders well, drop the hand-written prelude from `BACKLOG_ARCHIVE.md` and let the renderer own the entire file.",
+    "BACKLOG-PRECOMMIT — wire `backlog:check` + `backlog:render -- --check` into the preflight script."
+  ],
+  "outOfScope": [
+    "GitHub Issues / Linear sync — still repo-local v1.",
+    "Atomic claim for parallel agents — single primary agent for now."
+  ],
+  "prUrl": null,
+  "notes": []
+}

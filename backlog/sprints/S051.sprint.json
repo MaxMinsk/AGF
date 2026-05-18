@@ -1,0 +1,93 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S051",
+  "title": "BatchedMesh perf path + shadows-bench shadow deep-dive",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S051-1",
+      "title": "**DOCTOR-batching-report** ✅ — `engine doctor` gains a top-level `Batching:` section reading `project.json#render.batching.auto/path` +…",
+      "status": "implemented",
+      "summary": "**DOCTOR-batching-report** ✅ — `engine doctor` gains a top-level `Batching:` section reading `project.json#render.batching.auto/path` + breaking renderables into primitives vs externals + reporting collapsed/available draw-call savings + surfacing a \"flip the switch\" recommendation when auto is off. Counts explicit `Batchable` annotations and `enabled: false` opt-outs.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-2",
+      "title": "**DOCS-build-a-game-batching** ✅ — \"Cut draw calls with auto-batch\" recipe in `docs/agent/build-a-game.md` covering opt-in, per-entity…",
+      "status": "implemented",
+      "summary": "**DOCS-build-a-game-batching** ✅ — \"Cut draw calls with auto-batch\" recipe in `docs/agent/build-a-game.md` covering opt-in, per-entity opt-out, group hint, doctor verification.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-3",
+      "title": "**M17-batched-mesh-primary** ✅ — BatchedMesh adapter path: `perObjectFrustumCulled = true` explicit, geometries get `computeBoundingBox()` +…",
+      "status": "implemented",
+      "summary": "**M17-batched-mesh-primary** ✅ — BatchedMesh adapter path: `perObjectFrustumCulled = true` explicit, geometries get `computeBoundingBox()` + `computeBoundingSphere()` on add, new `setBatchedInstanceColor` for per-instance colour parity. `BatchingOptions.defaultPath` plumbed through `RuntimeOptions.batchingPath` ← `project.json#render.batching.path`. Doctor surfaces `path=...`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-4",
+      "title": "**M17-batched-colour-squaring fix** ✅ — bucket key + material colour both carried `renderer.color` so per-instance × material colour squared…",
+      "status": "implemented",
+      "summary": "**M17-batched-colour-squaring fix** ✅ — bucket key + material colour both carried `renderer.color` so per-instance × material colour squared → darker scene. Fix mirrors S50: drop colour from key, anchor material at white.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-5",
+      "title": "**M17-batched-vs-instanced measurement** ✅ — wrote `scripts/perf-probe-batching.mjs` (Playwright A/B, patches project.json, reloads, samples…",
+      "status": "implemented",
+      "summary": "**M17-batched-vs-instanced measurement** ✅ — wrote `scripts/perf-probe-batching.mjs` (Playwright A/B, patches project.json, reloads, samples for N seconds, restores on SIGINT). shadows-bench result: `batched` saves 36 % draw calls + 17.9 % triangles via per-instance culling, but `renderMs` rises +63.5 % (multi-draw command overhead on small scene with most instances in view). Decision: shadows-bench reverts to `instanced`; `batched` plumbing stays. Findings: `docs/research/m17-batched-vs-instanced-shadows-bench.md`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-6",
+      "title": "**SHADOWS-bench-perf-deepdive** ✅ — wrote `scripts/perf-probe-shadows.mjs` (sister probe, fresh browser per scenario so PCSS's one-way…",
+      "status": "implemented",
+      "summary": "**SHADOWS-bench-perf-deepdive** ✅ — wrote `scripts/perf-probe-shadows.mjs` (sister probe, fresh browser per scenario so PCSS's one-way substitution can't leak). 6 scenarios measured. Findings: cascade count is the dominant lever (3 → 2 = −17.1 % renderMs); PCSS cost only +6.5 % (smaller than expected); shadowMapSize 1024 → 512 just −3.8 % in software-WebGL; programs counter flat (no shader churn). Combined `pcf + 2c + 512` saves 15.2 % renderMs at moderate visual cost. shadows-bench config left as-is (visual decision). Three follow-ups filed: `M21-shadow-static-caster-tag` (main perf win), `M21-shadow-map-size-real-hw`, `M21-fxaa-cost-isolation`. Notes: `docs/research/m21-shadows-bench-perf.md`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-7",
+      "title": "**shadow autoUpdate hotfix** ✅ — `examples/shadows-bench/project.json` dropped `shadows.autoUpdate: false`.",
+      "status": "implemented",
+      "summary": "The flag was left from the previously-static scene; after S48 added moving cars + swaying trees the per-frame shadow map needed to refresh.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S051-8",
+      "title": "**e2e fix at sprint close** ✅ — hello-3d smoke assertion `info.meshes > 0` failed under auto-batch (everything in buckets, `meshes` reads 0).",
+      "status": "implemented",
+      "summary": "Sum `meshes + bucketInstances + batchedBucketInstances` so either path counts.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`M21-shadow-static-caster-tag` (Sprint 52, highest-impact perf follow-up — tagged dynamic vs static casters, restore `autoUpdate=false` for ~290 static entities while keeping cars + swaying trees correct).",
+    "`M21-shadow-map-size-real-hw` — user-driven measurement, software-WebGL undersells fill-rate savings.",
+    "`M21-fxaa-cost-isolation` — quick probe extension.",
+    "`M17-bvh-extension` — `@three.ez/batched-mesh-extensions` may flip the `batched` crossover toward smaller scenes; own sprint when prioritised.",
+    "shadows-bench picture got dimmer after S51's autoUpdate/bias changes — picked up as `POLISH-shadows-bench-*` in Sprint 52."
+  ],
+  "notes": [
+    "Deliverables: `engine/render/three-render-adapter.ts` — BatchedMesh: `perObjectFrustumCulled = true`, geometry bounding-box compute on add, `setBatchedInstanceColor`, material anchored at white.; `engine/render/systems/batching-system.ts` — `BatchingOptions.defaultPath`, per-instance colour stamping in batched path, bucket key drops `renderer.color`.; `engine/runtime/start.ts` — `RuntimeOptions.batchingPath` plumbing.; `engine/tools/doctor/project-doctor.ts` — new `Batching:` section + `formatBatching` helper + `BatchingConfigReport` type.; `schemas/project.schema.json` — `render.batching.path: \"instanced\" | \"batched\"` declared.; `src/app.ts` — project.json `render.batching.path` → `runtimeOptions.batchingPath`.; `examples/shadows-bench/project.json` — dropped `shadows.autoUpdate: false`; kept `batching.auto: true`, path stays default (instanced).; `tests/e2e/app.spec.ts` — sums bucket instances when asserting \"rendered something\".; `tests/unit/doctor-batching.test.ts` (new) — 4 cases.; `tests/unit/batching-system-batched-path.test.ts` (new) — 4 cases incl. colour-squaring regression.; `scripts/perf-probe-batching.mjs` (new) — reusable instanced ↔ batched A/B.; `scripts/perf-probe-shadows.mjs` (new) — reusable named-scenario shadow probe.; `docs/research/m17-batched-vs-instanced-shadows-bench.md` (new) — A/B numbers + crossover analysis.; `docs/research/m21-shadows-bench-perf.md` (new) — 6-scenario deep-dive + follow-up story list.; `docs/agent/build-a-game.md` — \"Cut draw calls with auto-batch\" recipe.",
+    "Verification: `npm run typecheck` ✅; `npm run test` ✅ — 71 files / 440+ tests (incl. 8 new batching-doctor + batched-path cases).; `npm run preflight` ✅ at sprint close — 11/11 e2e smoke green after the `meshes`-counter fix.; `npm run engine:doctor -- examples/{shadows-bench, beacon-world}` ✅ — prints new `Batching:` section correctly.; `node scripts/perf-probe-batching.mjs` ✅ — A/B numbers reproducible.; `node scripts/perf-probe-shadows.mjs --durationMs 4000` ✅ — 6 scenarios reproducible.; Merged via PR [#54](https://github.com/MaxMinsk/AGF/pull/54)."
+  ]
+}

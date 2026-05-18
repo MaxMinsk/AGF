@@ -1,0 +1,48 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S007",
+  "title": "Agent Loop + World Evolution",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S007-1",
+      "title": "`16.1` Material file hot reload — `AssetRegistry.invalidate(ref)` drops cached loads; `ThreeRenderer.forgetAssetBinding(ref)` clears entity…",
+      "status": "implemented",
+      "summary": "`16.1` Material file hot reload — `AssetRegistry.invalidate(ref)` drops cached loads; `ThreeRenderer.forgetAssetBinding(ref)` clears entity → ref bindings for materials and meshes; `RuntimeHandle.invalidateAsset(ref)` + `AppHandle.reloadAsset(ref)` glue them. A dev-only Vite plugin `agf-asset-hot-reload` watches `examples/<projectId>/assets/**` and pushes a `agf:asset-changed` HMR event with `{ projectId, ref }`; `src/main.ts` listens, scopes to the active project and calls `app.reloadAsset(ref)`. Editing a material file in dev now reflects on the next render frame without a page reload.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S007-2",
+      "title": "`13.6` Beacon decay + core respawn — extended the Beacon World scene-extensions schema with runtime fields (`Pickup.{originalPosition,…",
+      "status": "implemented",
+      "summary": "`13.6` Beacon decay + core respawn — extended the Beacon World scene-extensions schema with runtime fields (`Pickup.{originalPosition, respawnAfter, consumed, respawnIn}`, `Repairable.{decayAfter, decayIn, originalMaterial}`). `pickup-system.frameUpdate` now ticks both timers, stashes the original material at repair, and either deletes or \"parks\" the consumed pickup underground depending on whether respawn fields are present. Beacon World scene gives both beacons `decayAfter: 6` and both cores `respawnAfter: 4` + `originalPosition`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S007-3",
+      "title": "Dropped per `CLAUDE.md` \"agent-first\" rule: `15.1` In-page inspector overlay and `17.1` Scene editor command palette — human-only GUI…",
+      "status": "implemented",
+      "summary": "Dropped per `CLAUDE.md` \"agent-first\" rule: `15.1` In-page inspector overlay and `17.1` Scene editor command palette — human-only GUI tooling.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "Decay UX has zero anticipation; an agent reading a snapshot sees `decayIn` ticking but a human looking at the scene gets no warning before revert. A small visual cue (e.g. faded color toward the end of the timer) would help, but it's deliberately deferred — agent‑first.",
+    "The dev-only HMR plugin watches every file under `examples/<id>/assets/**`. Today the only consumer of the event is the material renderer; once GLB or texture HMR appears, the plugin can stay as-is but the renderer's `forgetAssetBinding` should already cover geometry too (it does, but is untested for GLB HMR).",
+    "Beacon World still has no hazards (`13.7`) and no real authored `.glb` for drone/beacons (`14.3`).",
+    "The agent does not yet have a structured way to script multi-step playtests (e.g. \"pick up + deposit + wait for respawn + repeat\"). Promote a \"scenario format\" story when this becomes a bottleneck."
+  ],
+  "notes": [
+    "Deliverables: `engine/runtime/asset-registry.ts` (`invalidate`); `engine/render/three-renderer.ts` (`forgetAssetBinding`); `engine/runtime/start.ts` (`RuntimeHandle.invalidateAsset`); `src/app.ts` (`AppHandle.reloadAsset`); `vite.config.ts` (`agf-asset-hot-reload` dev plugin); `src/main.ts` (HMR listener); `examples/beacon-world/schemas/scene-extensions.schema.json` (runtime/state fields on Pickup and Repairable); `examples/beacon-world/src/systems/pickup-system.ts` (respawn + decay ticks, deposit stash, consumed-skip in carrier search); `examples/beacon-world/scenes/start.scene.json` (`decayAfter` on beacons, `respawnAfter` + `originalPosition` on cores); `examples/beacon-world/tests/unit/pickup-system.test.ts` (+3 cases); `tests/unit/asset-registry.test.ts` (+1 case); `CLAUDE.md` updated with the agent-first non-negotiable rule",
+    "Verification: Sprint-close `npm run preflight`: typecheck clean, 94 Vitest tests across 14 files, vite build OK, 6 Playwright e2e tests.; `npm run engine:check -- examples/beacon-world` green with the extended schema.; Manual: editing `examples/beacon-world/assets/runtime/materials/beacon.material.json` in dev triggers `[agf] hot-reloaded asset ...` and changes the beacon visibly without reload.",
+    "Goal Recap: The agent's edit → run cycle is one step tighter: edit any project asset file and see the result on the next frame.; Beacon World now demonstrably \"keeps changing\" — repaired beacons decay, picked-up cores respawn. The sample-game pitch \"the world drifts whether or not anyone is online\" is closer.; The agent-first priority is now codified in `CLAUDE.md` so it survives between sessions."
+  ]
+}

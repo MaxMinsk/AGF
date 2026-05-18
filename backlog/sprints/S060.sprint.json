@@ -1,0 +1,110 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S060",
+  "title": "WebGPU spike + measurement",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S060-1",
+      "title": "**WEBGPU-comparison-page** — `tests/manual/webgpu-vs-webgl/` standalone three.js harness, `?renderer=webgl|webgpu` switch, scene scale via…",
+      "status": "implemented",
+      "summary": "**WEBGPU-comparison-page** — `tests/manual/webgpu-vs-webgl/` standalone three.js harness, `?renderer=webgl|webgpu` switch, scene scale via `?boxes=N&spheres=N`. Two rotating ring groups + gentle Y-bob. Canvas pinned via explicit CSS so high-DPR Chromes don't render to a corner. WebGPU `info.render.frameCalls` vs WebGL `calls` reconciled.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-2",
+      "title": "**WEBGPU-measure-script** — `scripts/perf-probe-webgpu.mjs` drives the comparison page at light / medium / heavy / extreme scenes under both…",
+      "status": "implemented",
+      "summary": "**WEBGPU-measure-script** — `scripts/perf-probe-webgpu.mjs` drives the comparison page at light / medium / heavy / extreme scenes under both renderers. `--headed` + `--no-vsync` flags for real-hw uncapped runs. Dumps to `docs/research/perf/webgpu-spike-{date}.json`.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-3",
+      "title": "**WEBGPU-feature-audit** — 14 features work as-is, 11 cleanup, 4 full rewrites (post-processing chain, PCSS via onBeforeCompile, GPU timer,…",
+      "status": "implemented",
+      "summary": "**WEBGPU-feature-audit** — 14 features work as-is, 11 cleanup, 4 full rewrites (post-processing chain, PCSS via onBeforeCompile, GPU timer, CSM). Embedded in the research writeup.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-4",
+      "title": "**WEBGPU-adapter-sketch** — `docs/research/m21-webgpu-adapter-sketch.md`.",
+      "status": "implemented",
+      "summary": "`RenderAdapter` interface extraction plan, sibling `WebGpuRenderAdapter` class, capability flags, `project.json#render.mode` selector.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-5",
+      "title": "**WEBGPU-research-writeup** — `docs/research/m21-webgpu-spike.md`.",
+      "status": "implemented",
+      "summary": "Real-hw uncapped numbers: light +278 % / medium +34 % / heavy −31 % fps; p99/p50 variance 3.6× (WebGL) → 2.0× (WebGPU). Recommendation: opt-in S61, default-flip S65.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-6",
+      "title": "**PERF-renderer-info-renderer-kind** — `AdapterInfo.renderer: \"webgl\" | \"webgpu\"` + `__agf.rendererInfo().renderer` + typed surface in…",
+      "status": "implemented",
+      "summary": "**PERF-renderer-info-renderer-kind** — `AdapterInfo.renderer: \"webgl\" | \"webgpu\"` + `__agf.rendererInfo().renderer` + typed surface in src/app.ts + src/main.ts.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-7",
+      "title": "**DOCTOR-webgpu-readiness** — `engine doctor` `WebGPU readiness:` section.",
+      "status": "implemented",
+      "summary": "Walks `project.json` + scenes, lists declared `render.mode` + features that block migration.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-8",
+      "title": "**DOCS-webgpu-skill** — `docs/agent/skills/webgpu-rendering.md` (status, wins/blockers summary, S61-S65 roadmap, pitfalls).",
+      "status": "implemented",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-9",
+      "title": "**HIGH_LEVEL-update-webgpu** — `HIGH_LEVEL_BACKLOG.md` M21 row records S60 results + promotes `M21-webgpu-adapter` from parked to active…",
+      "status": "implemented",
+      "summary": "**HIGH_LEVEL-update-webgpu** — `HIGH_LEVEL_BACKLOG.md` M21 row records S60 results + promotes `M21-webgpu-adapter` from parked to active phase-2 work with S61 → S65 story sequencing.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S060-10",
+      "title": "**WEBGL-stutter-investigation** — investigated user-reported hello-3d stutters.",
+      "status": "implemented",
+      "summary": "Verdict (`docs/research/m21-hello3d-stutter-investigation.md`): hello-3d at 1.4 % real-lateness (>20 ms) matches the no-AGF harness at 0.9 % — within noise. Material-bench at 14.4 % over-budget IS engine-bound (probe + bloom + transmission stack vs 16.67 ms budget). Shipped fix: `applyCanvasSize()` short-circuit (was running renderer.resize / composer.setSize / projection update every frame regardless). Dropped hello-3d stutters 4.67 % → 3.78 % at >18 ms, p99 19.4 → 18.7 ms. Material-bench probe / post-pass tuning deferred to S61+ per user (fix on WebGPU rather than baking in current WebGL assumptions).",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "**`M21-webgpu-adapter` epic — Sprint 61**: extract `RenderAdapter` interface + ship `WebGpuRenderAdapter` core path (mesh / light / shadow / transmission). Opt-in via `project.render.mode = \"webgpu\"`.",
+    "**S62 / S63 / S64**: post-processing port, CSM / PCSS / probe / mirror port, example migrations + re-bench.",
+    "**S65 default-flip**: `webgpu` becomes the default, `webgl` legacy opt-in.",
+    "**WebGL stutter follow-up**: capture chrome devtools Performance traces during a known stutter frame so we can attribute the ~2 ms over-budget frames to specific browser task categories. Current measurement says *how often*, not *what*. Lands when a user actually needs to chase a specific stutter."
+  ],
+  "notes": [
+    "Deliverables: `tests/manual/webgpu-vs-webgl/{index.html, main.js}` (new) — comparison harness.; `scripts/perf-probe-webgpu.mjs` (new) — playwright measurement.; `docs/research/m21-webgpu-spike.md` (new) — research writeup.; `docs/research/m21-webgpu-adapter-sketch.md` (new) — integration plan.; `docs/research/m21-hello3d-stutter-investigation.md` (new) — multi-threshold stutter findings.; `docs/research/perf/webgpu-spike-*.json` (new) — raw measurement dumps.; `docs/agent/skills/webgpu-rendering.md` (new) — skill memo.; `engine/render/three-render-adapter.ts` — `AdapterInfo.renderer` field, info() returns `\"webgl\"`.; `engine/render/three-renderer.ts` + `src/app.ts` + `src/main.ts` — typed surface for `__agf.rendererInfo().renderer`.; `engine/tools/doctor/project-doctor.ts` — `WebGpuReadinessReport` + `summarizeWebGpuReadiness` + `formatWebGpuReadiness`.; `engine/runtime/start.ts` — `applyCanvasSize()` short-circuit when canvas size unchanged.; `src/app.ts` — `?overlay=0` query param for stutter A/B probes.; `HIGH_LEVEL_BACKLOG.md` — M21 row records spike + promotes `M21-webgpu-adapter` epic.",
+    "Verification: `npm run preflight` at sprint close (this commit).; Headed playwright probes on real GPU at 3 scene scales × 2 renderers; raw numbers in `docs/research/perf/webgpu-spike-*.json`.; engine doctor surfaces the WebGPU readiness section on every project (material-bench correctly flags the bloom post-pass blocker).; User live-verified the comparison harness on their real-hw Chrome after the canvas + draws-field fix.",
+    "Deferred to Sprint 61: 9 **BASELINE-rebench-pre-webgpu** — re-run perf-probe-shadows + perf-probe-batching on current main for the comparison anchor. Doesn't block S60 conclusion; lands when the WebGPU adapter actually ships and we need to A/B against it.; Material-bench probe / post-pass tuning. The WebGPU adapter changes per-render cost enough that re-baking these knobs against the new backend is the right time."
+  ]
+}

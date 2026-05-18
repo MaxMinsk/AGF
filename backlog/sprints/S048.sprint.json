@@ -1,0 +1,62 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S048",
+  "title": "Schema split + shadows-bench cars",
+  "status": "archived",
+  "startedAt": null,
+  "archivedAt": null,
+  "stories": [
+    {
+      "id": "S048-1",
+      "title": "**SCHEMA-scene-split** ✅ — `scene.schema.json` shrinks from 798 → 210 lines.",
+      "status": "implemented",
+      "summary": "Component definitions move to `schemas/components/{core,render,camera,physics-3d,gamefeel,network}.schema.json` (75-352 lines each). Shared types (`vec3`) move to `schemas/common.schema.json`. New `engine/tools/schemas/load-scene-schema.ts` bundler walks external `$ref`s, inlines them back into a single in-memory schema for AJV — no cross-file AJV machinery, all 7 consumers (project-check, list-components, explain-component, the 4 scene-* unit tests) call the same loader. 429 unit tests still green.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S048-2",
+      "title": "**list/explain fix** ✅ — `engine list components <projectDir>` and `engine explain component <Name> <projectDir>` were pointing at the…",
+      "status": "implemented",
+      "summary": "**list/explain fix** ✅ — `engine list components <projectDir>` and `engine explain component <Name> <projectDir>` were pointing at the non-existent `project-local-components.schema.json`. Now read `<projectDir>/schemas/scene-extensions.schema.json` (the file `engine check` actually uses) and resolve `$ref`s through it. Verified: shadows-bench's `RtsCamera` shows up in the catalog.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S048-3",
+      "title": "**M19-WaypointMover** ✅ — generic `WaypointMover { waypoints[], loop, elapsed, faceForward }` component + `WaypointMoverSystem`.",
+      "status": "implemented",
+      "summary": "Sibling of CinematicCamera but for any Transform (not just the active camera) + derives yaw from velocity when `faceForward: true`. Replay-safe via fixed-update. 4 unit tests.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S048-4",
+      "title": "**shadows-bench roads + cars** ✅ — 2 cross-shaped roads (EW + NS) sit just above the ground.",
+      "status": "implemented",
+      "summary": "6 cars ping-pong along them, each on its own lane (±1.2 / 0.0) so traffic never collides. Each car is a parent entity (WaypointMover-driven) with child body + cabin + 4 wheels — proper car shape, not a cube. `pulse`-loop Tween on each body provides a subtle ~0.6° roll wobble with staggered phase.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    },
+    {
+      "id": "S048-5",
+      "title": "**shadows-bench trees actually sway** ✅ — the S47 wind-sway tween wasn't visible because the canopy was a sibling entity, not parented to…",
+      "status": "implemented",
+      "summary": "**shadows-bench trees actually sway** ✅ — the S47 wind-sway tween wasn't visible because the canopy was a sibling entity, not parented to the trunk. Restructured each tree as a root + child trunk + child canopy hierarchy parented to a sway-tweened root, so the whole tree pivots from the base.",
+      "verification": [
+        "legacy import — see sprint notes[] for the original sprint-level verification"
+      ]
+    }
+  ],
+  "followUps": [
+    "`render-pool-abstraction` — unify InstancedMesh / BatchedMesh / Particle pools under one BucketSpec + dispatcher. Carried into Sprint 52 candidates."
+  ],
+  "notes": [
+    "Deliverables: `schemas/scene.schema.json` (798 → 210 lines); `schemas/common.schema.json` + `schemas/components/*.schema.json` (new); `engine/tools/schemas/load-scene-schema.ts` (new — bundler); `engine/core/systems/waypoint-mover-system.ts` (new); `engine/runtime/start.ts` — register WaypointMoverSystem; `examples/shadows-bench/bootstrap.ts` — roads + 6 cars (parent/child hierarchy) + tree hierarchy rewrite for visible sway; `tests/unit/waypoint-mover-system.test.ts` (new) + 4 scene-* tests now use `loadBundledSceneSchema`; `engine/tools/components/{list,explain}-component.ts` — fixed scene-extensions path; `SECURITY.md` — slimmed down, dropped maintainer's personal email",
+    "Verification: `npm run typecheck` ✅; `npm run test` ✅ — 69 files, 433 tests; `npm run engine:check:examples` ✅ — 5 projects OK; `npm run engine:list -- components examples/shadows-bench` ✅ — 20 built-ins + `RtsCamera` (project-local); Live probe: trees sway (tree.0 X rotation oscillates), cars move on dedicated lanes (car.0 traverses -34→-21 in 1.5s), zero page errors"
+  ]
+}
