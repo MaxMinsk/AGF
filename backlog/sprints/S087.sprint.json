@@ -88,10 +88,11 @@
     {
       "id": "AGF-ASSET-INVENTORY-TEST",
       "title": "Unit test for AssetRegistry.inventory() status transitions",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S86 AGF-ASSET-INVENTORY-PROBE shipped the API without an explicit unit test. Add coverage: pending → loaded on resolve; pending → failed on reject; invalidate() clears the status; subsequent get() restarts at pending.",
       "verification": [
-        "+3 unit tests; the existing AssetRegistry suite stays green"
+        "+3 unit tests; the existing AssetRegistry suite stays green",
+        "+3 unit tests for AssetRegistry.inventory(): pending→loaded resolve, pending→failed reject, invalidate() drops status"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }

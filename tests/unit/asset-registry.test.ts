@@ -158,6 +158,48 @@ describe("AssetRegistry diagnostics integration", () => {
     expect(failure).toBeDefined();
     expect(failure?.details).toMatchObject({ loader: "broken", reason: "boom" });
   });
+
+  it("S87 AGF-ASSET-INVENTORY-TEST: inventory transitions pending → loaded on resolve", async () => {
+    const loader: AssetLoader<unknown> = {
+      name: "json",
+      matches: (ref) => ref.endsWith(".json"),
+      load: vi.fn().mockResolvedValue({ hello: "world" })
+    };
+    const registry = new AssetRegistry({ baseUrl: "http://example.test/" });
+    registry.register(loader);
+    const promise = registry.get("a.json");
+    const before = registry.inventory();
+    expect(before).toEqual([{ ref: "a.json", status: "pending" }]);
+    await promise;
+    const after = registry.inventory();
+    expect(after).toEqual([{ ref: "a.json", status: "loaded" }]);
+  });
+
+  it("S87 AGF-ASSET-INVENTORY-TEST: inventory transitions pending → failed on reject", async () => {
+    const loader: AssetLoader<unknown> = {
+      name: "bad",
+      matches: (ref) => ref.endsWith(".bad"),
+      load: vi.fn().mockRejectedValue(new Error("boom"))
+    };
+    const registry = new AssetRegistry({ baseUrl: "http://example.test/" });
+    registry.register(loader);
+    await registry.get("x.bad").catch(() => {});
+    expect(registry.inventory()).toEqual([{ ref: "x.bad", status: "failed" }]);
+  });
+
+  it("S87 AGF-ASSET-INVENTORY-TEST: invalidate() drops the status entry", async () => {
+    const loader: AssetLoader<unknown> = {
+      name: "ok",
+      matches: (ref) => ref.endsWith(".ok"),
+      load: vi.fn().mockResolvedValue("x")
+    };
+    const registry = new AssetRegistry({ baseUrl: "http://example.test/" });
+    registry.register(loader);
+    await registry.get("y.ok");
+    expect(registry.inventory()).toHaveLength(1);
+    registry.invalidate("y.ok");
+    expect(registry.inventory()).toEqual([]);
+  });
 });
 
 describe("MaterialLoader matcher", () => {
