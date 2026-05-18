@@ -33,4 +33,30 @@ describe("renderer import boundary", () => {
     }
     expect(violations).toEqual([]);
   });
+
+  // S70 WEBGPU-renderer-import-boundary. The `three/webgpu` entrypoint
+  // re-exports the entire TSL / node-material runtime (~145 KB gzipped).
+  // It must be reachable only from `engine/render/webgpu/` so the lazy
+  // chunk split set up in `vite.config.ts` keeps holding: any other file
+  // touching it would either pull the chunk eagerly into a different
+  // dependency graph or break the dynamic-import boundary inside
+  // `webgpu-module-loader.ts`.
+  it("only files under engine/render/webgpu/ may reference `three/webgpu`", () => {
+    const webgpuDir = resolve(engineDir, "render/webgpu");
+    const violations: string[] = [];
+    for (const file of walkTs(engineDir)) {
+      const isWebGpuSubdir = file.startsWith(`${webgpuDir}/`) || file === webgpuDir;
+      if (isWebGpuSubdir) {
+        continue;
+      }
+      const source = readFileSync(file, "utf8");
+      if (
+        /from\s+["']three\/webgpu["']/.test(source) ||
+        /import\(\s*["']three\/webgpu["']\s*\)/.test(source)
+      ) {
+        violations.push(file.replace(`${repoRoot}/`, ""));
+      }
+    }
+    expect(violations).toEqual([]);
+  });
 });
