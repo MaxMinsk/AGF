@@ -633,6 +633,22 @@ export class ThreeRenderAdapter {
   private fallbackAmbient: AmbientLight | undefined;
   private fallbackDirectional: DirectionalLight | undefined;
   private pmrem: PMREMGenerator | undefined;
+  // S71 WebGPU bug fix. Reflection probes need a DEDICATED PMREMGenerator
+  // so their cube-bake doesn't share the `_pingPongRenderTarget` (named
+  // "PMREM.cubeUv") with `setEnvironment`. Sharing was the actual root
+  // cause of the WebGPU validation spam:
+  //   - setEnvironment with HDR `venice_sunset_1k.hdr` (1024 equirect)
+  //     sized PMREM's pingpong for cubeSize 256.
+  //   - Probe cube-bake at size 128 wants cubeSize 128 → on each
+  //     `fromCubemap` call, three.js's PMREMGenerator._init detected the
+  //     size mismatch and `_dispose()`d the pingpong, recreating it.
+  //   - Dispose hit while the previous bake's submit was still in flight,
+  //     so Chrome's WebGPU validation logged
+  //     "Destroyed texture PMREM.cubeUv used in a submit" on every bake
+  //     and the renderer entered an error state — game animation froze.
+  // Splitting the two PMREMGenerator instances pins each one to a stable
+  // input size and the pingpong stays put.
+  private probePmrem: PMREMGenerator | undefined;
   private currentEnvironmentTexture: Texture | undefined;
   private currentEnvironmentKind: EnvironmentKind = "none";
   // S57 GROUND-skybox: optional helpers + an invisible shadow-catcher
@@ -1139,35 +1155,92 @@ export class ThreeRenderAdapter {
   ): void {
     const entry = this.reflectionProbes.get(handle);
     if (entry === undefined) return;
-    // Hide the excluded entities for the duration of the cube render so
-    // the camera doesn't see itself or its owner.
-    const restoreVisibility = new Map<Object3D, boolean>();
-    for (const obj of hiddenObjects) {
-      restoreVisibility.set(obj, obj.visible);
-      obj.visible = false;
-    }
-    try {
-      // Force a world-matrix refresh — three.js's CubeCamera.update()
-      // does this only when parent === null, which it is now, but be
-      // explicit so a future "add to scene" doesn't silently break.
-      entry.cubeCam.updateMatrixWorld(true);
-      entry.cubeCam.update(this.device, this.scene);
-    } finally {
-      for (const [obj, was] of restoreVisibility) obj.visible = was;
-    }
+    // S71 shadow-flicker fix. The `hiddenObjects` list — typically the
+    // probe owner + its pedestal — is intentionally NOT applied as an
+    // `obj.visible = false` toggle around the cube-bake. Verified
+    // experimentally on WebGPU material-bench: toggling visibility off
+    // during the bake hid the centre sphere/pedestal from the WebGPU
+    // shadow pass too (three.js's `ShadowNode.updateBefore` iterates
+    // the scene by `visible`, and a cube bake runs 6 sub-camera frames
+    // inside one tick — the shadow texture got rebaked with the
+    // probe-owner NOT a caster on the last of those 6 sub-cameras,
+    // lingered into the main render's frame, and produced the visible
+    // shadow flicker under the centre sphere/cylinder that the user
+    // reported at probe-bake cadence). Removing the toggle eliminates
+    // the flicker.
+    //
+    // What about the probe-owner appearing in its own cube capture?
+    // The cube camera sits AT the probe owner's world position. For a
+    // sphere-shaped probe owner the camera is INSIDE the geometry and
+    // backface culling makes it invisible to the cube camera for free.
+    // For non-sphere probe owners (a flat plate, a cylinder closer than
+    // the near plane, etc.) the cube capture may include parts of the
+    // owner from the inside; today's example projects all use sphere
+    // probe owners so the trade-off is invisible. A future story can
+    // bring back proper exclusion via per-light
+    // `shadow.camera.layers.enable(PROBE_HIDDEN_LAYER)` + matching
+    // object/camera layer setup if a project needs it; document the
+    // need rather than re-introduce the visibility toggle.
+    void hiddenObjects;
+    entry.cubeCam.updateMatrixWorld(true);
+    entry.cubeCam.update(this.device, this.scene);
     // S59 REFLECTION-prefilter: run GGX prefilter through PMREMGenerator
     // when the probe asked for it. fromCubemap allocates a new RT every
     // call; we dispose the previous to bound memory. Cost is ~4–6× a
     // single face render, so pair with a low `updateRate` (15 Hz).
     if (entry.prefilter === "pmrem") {
-      if (this.pmrem === undefined) {
-        this.pmrem = new PMREMGenerator(this.device);
+      if (this.probePmrem === undefined) {
+        // S71 BUG-FIX (final). Probes get their OWN PMREMGenerator so
+        // their internal pingpong (named "PMREM.cubeUv") doesn't get
+        // dispose+recreated when `setEnvironment` pushes a different
+        // cubemap size through the SAME generator. Also use the
+        // backend-correct class on WebGPU vs WebGL.
+        if (this.capabilities.kind === "webgpu" && this.webGpuModule !== undefined) {
+          this.probePmrem = new this.webGpuModule.PMREMGenerator(
+            this.device as unknown as never
+          ) as unknown as PMREMGenerator;
+        } else {
+          this.probePmrem = new PMREMGenerator(this.device);
+        }
       }
+      const pmrem = this.probePmrem;
       const t0 = performance.now();
-      const prev = entry.prefilteredTarget;
-      const next = this.pmrem.fromCubemap(entry.renderTarget.texture);
+      // S71 WEBGPU-deferred-dispose. Ring of 3 prefiltered RTs:
+      //   prefilteredTargetPrev (2 bakes ago) -- safe to dispose now;
+      //                                          any GPU submit that
+      //                                          referenced it has long
+      //                                          since completed.
+      //   prefilteredTarget     (1 bake ago)  -- may still be bound on
+      //                                          materials' envMap and
+      //                                          referenced in the
+      //                                          most-recent submit's
+      //                                          command buffer; DO NOT
+      //                                          dispose this frame.
+      //   next                  (this bake)   -- becomes the new
+      //                                          prefilteredTarget.
+      // S71 WEBGPU-pmrem-reuse-target. Pass the existing prefilteredTarget
+      // back to `fromCubemap` so three.js fills the SAME RT in place
+      // instead of allocating a new one each call. Result:
+      //   - No `prefilteredTarget` dispose during runtime — fixes the
+      //     "Destroyed texture [PMREM.cubeUv] used in a submit" warning
+      //     spam from Chrome's WebGPU validation that previously broke
+      //     material-bench (the texture got destroyed while a previous
+      //     bake's submit was still in flight, and the renderer entered
+      //     an error state).
+      //   - Texture object pointer stays stable across bakes; entities
+      //     with `EnvmapBinding` keep their existing `material.envMap`
+      //     reference and don't need to be re-patched.
+      //   - The bound-texture memo in `reflection-probe-system` will see
+      //     the same Texture object and short-circuit the patch (no
+      //     spurious `material.needsUpdate` per frame).
+      //
+      // First call (entry.prefilteredTarget is undefined) lets
+      // PMREMGenerator allocate a new RT; subsequent calls reuse it.
+      const next = pmrem.fromCubemap(
+        entry.renderTarget.texture,
+        entry.prefilteredTarget ?? null
+      ) as unknown as WebGLRenderTarget;
       entry.prefilteredTarget = next;
-      if (prev !== undefined) prev.dispose();
       const ms = performance.now() - t0;
       entry.prefilterLastMs = ms;
       this.reflectionPrefilterMsThisFrame += ms;
@@ -2754,6 +2827,8 @@ export class ThreeRenderAdapter {
     this.currentEnvironmentTexture = undefined;
     this.pmrem?.dispose();
     this.pmrem = undefined;
+    this.probePmrem?.dispose();
+    this.probePmrem = undefined;
     this.cameras.clear();
     this.activeCameraHandle = undefined;
     if (this.contextLostListener !== undefined) {

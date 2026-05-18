@@ -5,15 +5,12 @@
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {
-    "mode": "webgl",
+    "mode": "webgpu",
     "color": {
       "toneMapping": "aces-filmic",
       "exposure": 1.0,
       "transmissionResolutionScale": 0.5
     },
-    "post": [
-      { "kind": "bloom", "strength": 0.35, "radius": 0.55, "threshold": 0.92 }
-    ],
     "batching": {
       "auto": false
     }

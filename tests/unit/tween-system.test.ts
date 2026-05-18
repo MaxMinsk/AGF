@@ -9,7 +9,7 @@ const createWorld = (): World => new World();
 import { advanceEntityTweens, createTweenSystem, TWEENS } from "../../engine/core/systems/tween-system";
 
 function step(system: ReturnType<typeof createTweenSystem>, world: World, dt: number): void {
-  system.fixedUpdate?.({
+  system.frameUpdate?.({
     time: { elapsed: 0, dt, fixedDt: dt, frameCount: 0, fixedStepCount: 0, physicsAlpha: 0 },
     world
   });
