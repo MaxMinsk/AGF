@@ -1,0 +1,176 @@
+{
+  "id": "wide",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Camera": {
+          "kind": "orthographic",
+          "active": true,
+          "orthographicSize": 9.5,
+          "near": 0.1,
+          "far": 100
+        },
+        "Transform": {
+          "position": [8, 12, 12],
+          "rotation": [-55, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Light": {
+          "kind": "directional",
+          "color": "#ffffff",
+          "intensity": 1.5
+        },
+        "Transform": {
+          "position": [0, 8, 4],
+          "rotation": [-45, 30, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Light": {
+          "kind": "ambient",
+          "color": "#ffffff",
+          "intensity": 0.3
+        },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "grid.config",
+      "components": {
+        "Grid": {
+          "cellSize": 1,
+          "sizeX": 17,
+          "sizeZ": 13,
+          "originX": 0,
+          "originZ": 0
+        },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "position": [8, -0.05, 6],
+          "rotation": [0, 0, 0],
+          "scale": [17, 0.1, 13]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#1d2536"
+        }
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "player.1",
+      "prefab": "player",
+      "overrides": {
+        "Transform": { "position": [1, 0.4, 1] },
+        "GridPosition": { "gx": 1, "gz": 1 }
+      }
+    },
+    {
+      "id": "bot.1",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": { "position": [15, 0.4, 11] },
+        "GridPosition": { "gx": 15, "gz": 11 }
+      }
+    },
+    {
+      "id": "wall.1",
+      "prefab": "hard-block",
+      "overrides": { "Transform": { "position": [3, 0.5, 3] }, "GridPosition": { "gx": 3, "gz": 3 } }
+    },
+    {
+      "id": "wall.2",
+      "prefab": "hard-block",
+      "overrides": { "Transform": { "position": [13, 0.5, 3] }, "GridPosition": { "gx": 13, "gz": 3 } }
+    },
+    {
+      "id": "wall.3",
+      "prefab": "hard-block",
+      "overrides": { "Transform": { "position": [3, 0.5, 9] }, "GridPosition": { "gx": 3, "gz": 9 } }
+    },
+    {
+      "id": "wall.4",
+      "prefab": "hard-block",
+      "overrides": { "Transform": { "position": [13, 0.5, 9] }, "GridPosition": { "gx": 13, "gz": 9 } }
+    },
+    {
+      "id": "wall.5",
+      "prefab": "hard-block",
+      "overrides": { "Transform": { "position": [8, 0.5, 6] }, "GridPosition": { "gx": 8, "gz": 6 } }
+    },
+    {
+      "id": "soft.w.1",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [5, 0.45, 6] }, "GridPosition": { "gx": 5, "gz": 6 } }
+    },
+    {
+      "id": "soft.w.2",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [6, 0.45, 6] }, "GridPosition": { "gx": 6, "gz": 6 } }
+    },
+    {
+      "id": "soft.w.3",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [10, 0.45, 6] }, "GridPosition": { "gx": 10, "gz": 6 } }
+    },
+    {
+      "id": "soft.w.4",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [11, 0.45, 6] }, "GridPosition": { "gx": 11, "gz": 6 } }
+    },
+    {
+      "id": "soft.w.5",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [4, 0.45, 4] }, "GridPosition": { "gx": 4, "gz": 4 } }
+    },
+    {
+      "id": "soft.w.6",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [4, 0.45, 8] }, "GridPosition": { "gx": 4, "gz": 8 } }
+    },
+    {
+      "id": "soft.w.7",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [12, 0.45, 4] }, "GridPosition": { "gx": 12, "gz": 4 } }
+    },
+    {
+      "id": "soft.w.8",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [12, 0.45, 8] }, "GridPosition": { "gx": 12, "gz": 8 } }
+    },
+    {
+      "id": "soft.w.9",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [2, 0.45, 5] }, "GridPosition": { "gx": 2, "gz": 5 } }
+    },
+    {
+      "id": "soft.w.10",
+      "prefab": "soft-block",
+      "overrides": { "Transform": { "position": [14, 0.45, 7] }, "GridPosition": { "gx": 14, "gz": 7 } }
+    }
+  ]
+}

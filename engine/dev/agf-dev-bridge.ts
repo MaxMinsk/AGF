@@ -500,6 +500,8 @@ function mapRouteToRpcKind(method: string | undefined, route: string): string | 
       return "renderer-info";
     case "/renderer-inspect":
       return "renderer-inspect";
+    case "/asset-inventory":
+      return "asset-inventory";
     case "/reload-events":
       return "reload-events";
     // S71 agent-debug. Returns the page's recent `console.*` lines

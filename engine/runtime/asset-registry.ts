@@ -23,6 +23,10 @@ export class AssetRegistry {
   private readonly baseUrl: string;
   private readonly loaders: AssetLoader[] = [];
   private readonly cache = new Map<AssetRef, Promise<unknown>>();
+  // S86 AGF-ASSET-INVENTORY-PROBE. Mirror the cache key set with a
+  // resolved-status map so the /__agf/asset-inventory endpoint can
+  // report which refs settled vs which are still in flight.
+  private readonly status = new Map<AssetRef, "loaded" | "pending" | "failed">();
   private readonly diagnostics: DiagnosticsBus | undefined;
 
   constructor(options: AssetRegistryOptions) {
@@ -45,8 +49,23 @@ export class AssetRegistry {
     return this.cache.has(ref);
   }
 
+  /**
+   * S86 AGF-ASSET-INVENTORY-PROBE. Snapshot of every ref the registry
+   * has touched + its status — `loaded` (resolved), `pending`
+   * (in-flight), or `failed` (settled with rejection, then cleared
+   * from the cache and re-listed here). Probe-only, no side effects.
+   */
+  inventory(): Array<{ ref: AssetRef; status: "loaded" | "pending" | "failed" }> {
+    const out: Array<{ ref: AssetRef; status: "loaded" | "pending" | "failed" }> = [];
+    for (const [ref, status] of this.status) {
+      out.push({ ref, status });
+    }
+    return out;
+  }
+
   /** Drop a cached load so the next get(ref) re-fetches. Used by HMR. */
   invalidate(ref: AssetRef): boolean {
+    this.status.delete(ref);
     return this.cache.delete(ref);
   }
 
@@ -74,22 +93,29 @@ export class AssetRegistry {
 
     const promise = loader.load(this.urlFor(ref));
     this.cache.set(ref, promise);
+    this.status.set(ref, "pending");
 
     // Drop failed loads from the cache so callers can retry after the issue is fixed.
-    promise.catch((error: unknown) => {
-      if (this.cache.get(ref) === promise) {
-        this.cache.delete(ref);
-      }
-      const reason = error instanceof Error ? error.message : String(error);
-      this.diagnostics?.emit({
-        severity: "error",
-        code: "AGF_RUNTIME_ASSET_LOAD_FAILED",
-        source: "asset-registry",
-        message: `Failed to load asset "${ref}": ${reason}`,
-        assetRef: ref,
-        details: { loader: loader.name, reason }
+    promise
+      .then((value) => {
+        if (this.cache.get(ref) === promise) this.status.set(ref, "loaded");
+        return value;
+      })
+      .catch((error: unknown) => {
+        if (this.cache.get(ref) === promise) {
+          this.cache.delete(ref);
+        }
+        this.status.set(ref, "failed");
+        const reason = error instanceof Error ? error.message : String(error);
+        this.diagnostics?.emit({
+          severity: "error",
+          code: "AGF_RUNTIME_ASSET_LOAD_FAILED",
+          source: "asset-registry",
+          message: `Failed to load asset "${ref}": ${reason}`,
+          assetRef: ref,
+          details: { loader: loader.name, reason }
+        });
       });
-    });
 
     return promise as Promise<T>;
   }

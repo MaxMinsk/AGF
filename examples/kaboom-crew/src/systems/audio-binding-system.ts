@@ -28,6 +28,9 @@ const BOMB: ComponentName = "Bomb";
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const PICKUP: ComponentName = "Pickup";
 const BOMBER_STATS: ComponentName = "BomberStats";
+const GRID_POSITION: ComponentName = "GridPosition";
+const TRANSFORM: ComponentName = "Transform";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
 export type AudioEventKind = "bomb-place" | "blast" | "pickup" | "death";
 export type AudioEventListener = (kind: AudioEventKind, context?: { entityId?: EntityId }) => void;
@@ -95,7 +98,31 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     }
     for (const [id, wasAlive] of prevAlive) {
       const nowAlive = currentAlive.get(id) ?? false;
-      if (wasAlive && !nowAlive) onEvent("death", { entityId: id });
+      if (wasAlive && !nowAlive) {
+        onEvent("death", { entityId: id });
+        // S86 KABOOM-DEATH-PARTICLES. Spawn a short-lived 'glow' puff
+        // at the dead bomber's cell. The M19 ParticleEmitterSystem
+        // cleans the entity up when lifetime elapses.
+        const pos = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+        if (pos !== undefined) {
+          const puffId = `${id}.death-puff`;
+          if (!world.hasEntity(puffId)) {
+            world.addEntity(puffId);
+            world.setComponent(puffId, TRANSFORM, {
+              position: [pos.gx ?? 0, 0.5, pos.gz ?? 0],
+              rotation: [0, 0, 0],
+              scale: [1, 1, 1]
+            });
+            world.setComponent(puffId, PARTICLE_EMITTER, {
+              preset: "glow",
+              lifetime: 0.5,
+              elapsed: 0,
+              rate: 30,
+              maxParticles: 10
+            });
+          }
+        }
+      }
     }
     prevAlive = currentAlive;
 

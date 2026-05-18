@@ -1,7 +1,8 @@
-// agf-allow:console-file renderer-side async geometry/material binding —
-// the renderer adapter doesn't yet carry the diagnostics bus through
-// to these systems; warnings/errors stay on console pending the
-// renderer-diagnostics integration follow-up (S084).
+// S86 AGF-LOG-MATERIAL-BINDING-LIFT — diagnostics bus threaded into
+// MaterialBindingDeps; each warn/error site routes through
+// `emit(severity, code, message, entityId, ref, error?)`, falling back
+// to inline-marked console.* only when no bus is supplied (pre-runtime
+// hosts + unit tests). The S83 file-level allow marker is gone.
 //
 // M21-e: own the async geometry + material asset binding for renderable
 // entities. Reads `MeshRenderer` (mesh/material/color fields) and the
@@ -48,6 +49,8 @@ export type MaterialBindingDeps = {
   adapter: ThreeRenderAdapter;
   registry: MeshHandleRegistry;
   assetRegistry: AssetRegistry | undefined;
+  /** S86 AGF-LOG-MATERIAL-BINDING-LIFT — when wired, warnings/errors route through here instead of console. */
+  diagnostics?: import("../../runtime/diagnostics/diagnostics-bus").DiagnosticsBus;
 };
 
 export type MaterialBindingSystemHandle = System & {
@@ -62,6 +65,9 @@ export function createMaterialBindingSystem(
   const name = options.name ?? "render.material-binding";
   let cachedWorld: World | undefined;
   let renderableQuery: QueryHandle | undefined;
+
+  // emit() now a top-level helper — see emitBinding below; reconcile*
+  // functions outside this closure use it too.
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
@@ -105,6 +111,35 @@ export function createMaterialBindingSystem(
   };
 }
 
+// S86 AGF-LOG-MATERIAL-BINDING-LIFT helper. Routes a warning / error
+// through the diagnostics bus when supplied, otherwise falls back to
+// console.* (with an allow-marker) for pre-runtime hosts + unit tests.
+function emitBinding(
+  diagnostics: import("../../runtime/diagnostics/diagnostics-bus").DiagnosticsBus | undefined,
+  severity: "warning" | "error",
+  code: string,
+  message: string,
+  entityId: string,
+  ref: string,
+  error?: unknown
+): void {
+  if (diagnostics !== undefined) {
+    const details: Record<string, unknown> = { entityId, ref };
+    if (error !== undefined) details["reason"] = error instanceof Error ? error.message : String(error);
+    diagnostics.emit({ severity, code, source: "material-binding", message, entityId, assetRef: ref, details });
+    return;
+  }
+  if (severity === "error") {
+    // eslint-disable-next-line no-console
+    // agf-allow:console pre-runtime asset binding fallback (no bus wired).
+    console.error(`[agf] ${message}`, error);
+  } else {
+    // eslint-disable-next-line no-console
+    // agf-allow:console pre-runtime asset binding fallback (no bus wired).
+    console.warn(`[agf] ${message}`);
+  }
+}
+
 function reconcileGeometry(
   world: World,
   entityId: EntityId,
@@ -132,7 +167,7 @@ function reconcileGeometry(
       if (!deps.adapter.hasMesh(handle)) return;
       const sourceMesh = findFirstMeshOf(asset);
       if (sourceMesh === undefined) {
-        console.warn(`[agf] glb "${meshRef}" contains no Mesh; skipping.`);
+        emitBinding(deps.diagnostics, "warning", "AGF_RENDER_GEOMETRY_NO_MESH", `glb "${meshRef}" contains no Mesh; skipping.`, entityId, meshRef);
         world.setComponent(entityId, APPLIED_GEOMETRY_REF, { ref: meshRef, status: "failed" });
         return;
       }
@@ -140,7 +175,7 @@ function reconcileGeometry(
       world.setComponent(entityId, APPLIED_GEOMETRY_REF, { ref: meshRef, status: "applied" });
     },
     (error: unknown) => {
-      console.error(`[agf] mesh load failed for "${entityId}" → "${meshRef}":`, error);
+      emitBinding(deps.diagnostics, "error", "AGF_RENDER_GEOMETRY_LOAD_FAILED", `mesh load failed for "${entityId}" → "${meshRef}"`, entityId, meshRef, error);
       const live = world.getComponent<AppliedRef>(entityId, APPLIED_GEOMETRY_REF);
       if (live?.ref === meshRef) {
         world.setComponent(entityId, APPLIED_GEOMETRY_REF, { ref: meshRef, status: "failed" });
@@ -231,7 +266,7 @@ function reconcileMaterial(
                 patch[slot] = texture;
               },
               (error) => {
-                console.error(`[agf] texture load failed for "${entityId}" → "${ref}":`, error);
+                emitBinding(deps.diagnostics, "error", "AGF_RENDER_MATERIAL_TEXTURE_LOAD_FAILED", `texture load failed for "${entityId}" → "${ref}"`, entityId, ref, error);
               }
             )
           );
@@ -245,7 +280,7 @@ function reconcileMaterial(
               patch.vertexShader = source;
             },
             (error) => {
-              console.error(`[agf] vertexShaderRef load failed for "${entityId}" → "${ref}":`, error);
+              emitBinding(deps.diagnostics, "error", "AGF_RENDER_MATERIAL_VERTEX_SHADER_LOAD_FAILED", `vertexShaderRef load failed for "${entityId}" → "${ref}"`, entityId, ref, error);
             }
           )
         );
@@ -258,7 +293,7 @@ function reconcileMaterial(
               patch.fragmentShader = source;
             },
             (error) => {
-              console.error(`[agf] fragmentShaderRef load failed for "${entityId}" → "${ref}":`, error);
+              emitBinding(deps.diagnostics, "error", "AGF_RENDER_MATERIAL_FRAGMENT_SHADER_LOAD_FAILED", `fragmentShaderRef load failed for "${entityId}" → "${ref}"`, entityId, ref, error);
             }
           )
         );
@@ -277,7 +312,7 @@ function reconcileMaterial(
       world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "applied" });
     },
     (error: unknown) => {
-      console.error(`[agf] material load failed for "${entityId}" → "${materialRef}":`, error);
+      emitBinding(deps.diagnostics, "error", "AGF_RENDER_MATERIAL_LOAD_FAILED", `material load failed for "${entityId}" → "${materialRef}"`, entityId, materialRef, error);
       const live = world.getComponent<AppliedRef>(entityId, APPLIED_MATERIAL_REF);
       if (live?.ref === materialRef) {
         world.setComponent(entityId, APPLIED_MATERIAL_REF, { ref: materialRef, status: "failed" });

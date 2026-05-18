@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S085",
   "title": "Kaboom Crew MVP 1 hotfixes + pool warmup + observability follow-ons",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-18",
   "stories": [
     {
@@ -116,5 +116,7 @@
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
-  ]
+  ],
+  "archivedAt": "2026-05-18",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/95"
 }

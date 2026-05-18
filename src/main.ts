@@ -148,6 +148,11 @@ declare global {
         readonly info: Record<string, unknown>;
         readonly handles: { readonly count: number; readonly entityIds: ReadonlyArray<string> };
       };
+      /** S86 AGF-ASSET-INVENTORY-PROBE. */
+      assetInventory(): ReadonlyArray<{
+        readonly ref: string;
+        readonly status: "loaded" | "pending" | "failed";
+      }>;
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -439,6 +444,8 @@ void (async (): Promise<void> => {
       rendererInfo: () => app.rendererInfo(),
       // S83 AGF-AGENT-RENDERER-PROBE.
       rendererInspect: () => app.rendererInspect(),
+      // S86 AGF-ASSET-INVENTORY-PROBE.
+      assetInventory: () => app.assetInventory(),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

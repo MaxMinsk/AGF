@@ -27,13 +27,13 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 
 | Epic | Status | Category | Stories (impl / open / total) | Notes |
 |---|---|---|---|---|
-| **[AGF-BACKLOG-ENGINE](backlog/epics/AGF-BACKLOG-ENGINE.epic.json)** — JSON-first backlog engine — source of truth + tooling | active | infra | 24 / 0 / 24 | → S082 |
-| **[AGF-ENGINE-OBSERVABILITY](backlog/epics/AGF-ENGINE-OBSERVABILITY.epic.json)** — Engine observability — diagnostics, logging, motion + renderer probes | active | engine | 13 / 4 / 17 |  |
+| **[AGF-BACKLOG-ENGINE](backlog/epics/AGF-BACKLOG-ENGINE.epic.json)** — JSON-first backlog engine — source of truth + tooling | active | infra | 25 / 0 / 25 | → S082 |
+| **[AGF-ENGINE-OBSERVABILITY](backlog/epics/AGF-ENGINE-OBSERVABILITY.epic.json)** — Engine observability — diagnostics, logging, motion + renderer probes | active | engine | 20 / 0 / 20 |  |
 | **[BEACON-WORLD-SAMPLE](backlog/epics/BEACON-WORLD-SAMPLE.epic.json)** — Beacon World sample | active | engine | 1 / 0 / 1 |  |
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
 | **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 20 / 0 / 20 | → MVP-0 |
-| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 7 / 4 / 11 |  |
+| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 14 / 0 / 14 |  |
 | **[M10](backlog/epics/M10.epic.json)** — M10 Security / trust boundary for agent-authored projects | active | engine | 0 / 0 / 0 |  |
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
@@ -44,7 +44,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M9](backlog/epics/M9.epic.json)** — M9 Build / deploy contract for static + connected | active | engine | 0 / 0 / 0 |  |
 | **[REFERENCE-BACKEND-IMPLEMENTATIONS](backlog/epics/REFERENCE-BACKEND-IMPLEMENTATIONS.epic.json)** — Reference backend implementations | active | engine | 0 / 0 / 0 |  |
 | **[TEMPLATE-POLICY](backlog/epics/TEMPLATE-POLICY.epic.json)** — Template policy | active | engine | 0 / 0 / 0 |  |
-| **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 2 / 0 / 2 |  |
+| **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 3 / 0 / 3 |  |
 | **[BENCHMARK-STYLE-REPORTS](backlog/epics/BENCHMARK-STYLE-REPORTS.epic.json)** — Benchmark-style reports | planned | engine | 0 / 0 / 0 |  |
 | **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 0 / 0 / 0 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |

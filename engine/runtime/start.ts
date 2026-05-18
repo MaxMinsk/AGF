@@ -89,6 +89,10 @@ export type RuntimeOptions = {
   assetRegistry?: AssetRegistry;
   /** Optional diagnostics bus shared across runtime systems. */
   diagnostics?: DiagnosticsBus;
+  /** S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC. Single-frame total-ms threshold above which the runtime emits an AGF_FRAME_SPIKE warning. Default 50 ms. Set to 0 to disable the gate. */
+  spikeMs?: number;
+  /** Minimum gap (ms) between consecutive AGF_FRAME_SPIKE emissions. Default 1000 ms. */
+  spikeCooldownMs?: number;
   /**
    * M3-c-load: optional prefab registry. When set, `scene.instances` are
    * expanded into entities before `World.fromScene`. Unknown prefab refs
@@ -500,6 +504,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   let frameAccumMs = 0;
   let renderAccumMs = 0;
   let totalAccumMs = 0;
+  // S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC. Defaults: 50 ms threshold,
+  // 1 s cooldown. Both configurable via RuntimeOptions; spikeMs=0
+  // disables the gate entirely.
+  const spikeMs = options.spikeMs ?? 50;
+  const spikeCooldownMs = options.spikeCooldownMs ?? 1000;
+  let lastSpikeEmittedAt = -Infinity;
+
   let lastFrameTiming: FrameTiming = {
     fixedUpdateMs: 0,
     frameUpdateMs: 0,
@@ -622,8 +633,27 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     }
 
     const tickEnd = performance.now();
+    const tickTotalMs = tickEnd - tickStart;
     renderAccumMs += tickEnd - renderPhaseStart;
-    totalAccumMs += tickEnd - tickStart;
+    totalAccumMs += tickTotalMs;
+
+    // S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC. Single-frame spike
+    // detector: if this tick exceeded `spikeMs`, emit a structured
+    // warning. Cooldown of `spikeCooldownMs` keeps a stuck frame
+    // from spamming the bus. `spikeMs === 0` disables the gate.
+    if (spikeMs > 0 && tickTotalMs > spikeMs) {
+      const sinceLast = tickEnd - lastSpikeEmittedAt;
+      if (sinceLast >= spikeCooldownMs) {
+        diagnostics.emit({
+          severity: "warning",
+          code: "AGF_FRAME_SPIKE",
+          source: "runtime",
+          message: `Frame budget exceeded — total ${tickTotalMs.toFixed(1)} ms (threshold ${spikeMs} ms).`,
+          details: { totalMs: tickTotalMs, threshold: spikeMs }
+        });
+        lastSpikeEmittedAt = tickEnd;
+      }
+    }
 
     framesInWindow += 1;
     fixedStepsInWindow += stepResult.steps;

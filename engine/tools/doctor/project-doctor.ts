@@ -207,6 +207,12 @@ export type BacklogReport = {
   archivedCount: number;
   /** S80 BACKLOG-EPIC-DOCTOR: snapshot of `backlog/epics/*.epic.json`. */
   epics: EpicsReport;
+  /**
+   * S86 AGF-DOCTOR-FOLLOWUP-LIST: every archived sprint's followUps[]
+   * collected, most recent first, capped at 20. Lets an agent grep
+   * the running follow-up list in one place.
+   */
+  followUps: ReadonlyArray<{ sprintId: string; text: string }>;
 };
 
 export type EpicsReport = {
@@ -1389,13 +1395,13 @@ const STALE_THRESHOLD_SPRINTS = 8;
 function summarizeBacklog(repoRoot: string): BacklogReport {
   const sprintsDir = resolve(repoRoot, "backlog/sprints");
   if (!existsSync(sprintsDir)) {
-    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT };
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [] };
   }
   let names: string[];
   try {
     names = readdirSync(sprintsDir).filter((n) => n.endsWith(".sprint.json"));
   } catch {
-    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT };
+    return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [] };
   }
   type StoryLite = {
     id: string;
@@ -1408,7 +1414,9 @@ function summarizeBacklog(repoRoot: string): BacklogReport {
     id: string;
     title: string;
     status: string;
+    archivedAt?: string;
     stories?: StoryLite[];
+    followUps?: string[];
   };
   const sprints: SprintLite[] = [];
   for (const name of names) {
@@ -1468,12 +1476,31 @@ function summarizeBacklog(repoRoot: string): BacklogReport {
   }
   const epics = summarizeEpics(repoRoot, sprints);
 
+  // S86 AGF-DOCTOR-FOLLOWUP-LIST. Collect every archived sprint's
+  // followUps[] (free-text strings) into one flat list, most recent
+  // first (lex sort on sprint id since they're zero-padded), capped
+  // at 20 entries so the doctor JSON stays compact.
+  const followUps: Array<{ sprintId: string; text: string }> = [];
+  const archived = sprints.filter((s) => s.status === "archived");
+  archived.sort((a, b) => b.id.localeCompare(a.id));
+  for (const sprint of archived) {
+    if (sprint.followUps === undefined || sprint.followUps.length === 0) continue;
+    for (const text of sprint.followUps) {
+      if (typeof text === "string" && text.trim().length > 0) {
+        followUps.push({ sprintId: sprint.id, text: text.trim() });
+        if (followUps.length >= 20) break;
+      }
+    }
+    if (followUps.length >= 20) break;
+  }
+
   return {
     sprintFiles: sprints.length,
     active: activeReport,
     multipleActive: activeSprints.length > 1 ? activeSprints.map((s) => s.id) : [],
     archivedCount,
-    epics
+    epics,
+    followUps
   };
 }
 
@@ -1614,6 +1641,15 @@ export function formatBacklog(report: BacklogReport): string {
   }
   if (report.multipleActive.length > 1) {
     lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
+  }
+
+  // S86 AGF-DOCTOR-FOLLOWUP-LIST.
+  if (report.followUps.length > 0) {
+    lines.push(`  Follow-ups (${report.followUps.length} most-recent, capped at 20):`);
+    for (const f of report.followUps) {
+      const preview = f.text.length > 140 ? `${f.text.slice(0, 137)}...` : f.text;
+      lines.push(`    [${f.sprintId}] ${preview}`);
+    }
   }
 
   // S80 BACKLOG-EPIC-DOCTOR — Epics section.

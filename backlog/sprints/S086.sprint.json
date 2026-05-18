@@ -1,0 +1,115 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S086",
+  "title": "Kaboom Crew polish round 2 + engine perf gates + asset inventory probe",
+  "status": "archived",
+  "startedAt": "2026-05-18",
+  "stories": [
+    {
+      "id": "AGF-AUDIO-VOLUME-DIAL",
+      "title": "Audio volume dial — query param + localStorage persistence",
+      "status": "implemented",
+      "summary": "Project-friendly volume control. `?audio=off` mutes; `?audio=0..1` sets master gain; default `1.0`. Persist the last-applied value in localStorage under `agf.audio.volume` so a reload keeps the setting. KaboomAudioFx already accepts masterGain; this story wires the URL + storage read on attachUi and re-applies on the same reset hook the difficulty preset uses.",
+      "verification": [
+        "unit test: parser handles 'off' / '0.4' / '' / 'bad' / out-of-range; localStorage round-trip",
+        "live probe: ?audio=off → audio-fx returns silent stubs; reload without the param → muted state persists from localStorage",
+        "parseAudioVolumeParam + resolveAudioVolume helpers in audio-fx.ts; +12 unit tests covering parsing edge cases / URL→storage persistence / corruption fallback",
+        "bootstrap resolves the dial on attachUi (URL → localStorage → default 1) and scales the existing 0.4 SFX baseline by it; ?audio=off mutes immediately and persists across reloads"
+      ],
+      "epic": "AUDIO"
+    },
+    {
+      "id": "AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC",
+      "title": "Auto-emit AGF_FRAME_SPIKE warning when frame > 50 ms",
+      "status": "implemented",
+      "summary": "Engine-side passive perf gate. The runtime already samples per-phase frame timing into a window (M21-frame-timing). Add a guard that emits `severity: 'warning', code: 'AGF_FRAME_SPIKE'` once per spike — defined as totalFrameMs > spikeMs (default 50). Cooldown 1 s between emissions so a stuck frame doesn't spam the bus. Configurable via `RuntimeOptions.spikeMs`. Stays off when set to 0.",
+      "verification": [
+        "unit test: synthetic frame-timing sequence with a spike triggers one emission; sustained spikes throttle to ≤ 1/sec",
+        "boot-noise-budget smoke test still green on hello-3d (steady-state has no spikes)",
+        "RuntimeOptions { spikeMs?: number = 50; spikeCooldownMs?: number = 1000 } threaded into the main tick; spikeMs=0 disables",
+        "AGF_FRAME_SPIKE warning emitted with { totalMs, threshold } in details; cooldown rate-limits a stuck frame to ≤ 1/sec"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-DEATH-PARTICLES",
+      "title": "Particle puff when a bomber dies",
+      "status": "implemented",
+      "summary": "Mirror the S84 blast-burst pattern on death. When `BomberStats.alive` flips from true to false, the project-local audio-binding system already emits 'death'; add a sibling effect: spawn a short-lived 'glow' preset emitter (capacity 10, lifetime 0.5 s) at the bomber's grid cell. Gives the round-end moment some visual weight.",
+      "verification": [
+        "unit test: simulated death emits a ParticleEmitter entity at the bomber's cell within one fixedUpdate tick",
+        "live probe: BomberStats.alive=false applied via /__agf/commands produces a visible puff",
+        "audio-binding-system spawns a  ParticleEmitter entity (preset='glow', lifetime=0.5s, rate=30, maxParticles=10) at the dead bomber's grid cell, in the same fixedUpdate where it emits 'death'",
+        "ParticleEmitterSystem owns lifetime cleanup; no manual delete needed"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-MAP-VARIANT-WIDE",
+      "title": "Second arena preset — `?map=wide` (17x13 cells)",
+      "status": "implemented",
+      "summary": "Second hand-tuned arena variant. `examples/kaboom-crew/scenes/wide.scene.json` (17 × 13 cells, more soft blocks, bots start further apart). Selectable via `?map=wide` (default `start`). Schema-level changes are zero — the grid bounds live in the Grid singleton component already.",
+      "verification": [
+        "wide.scene.json + soft-block instances laid out; engine check passes",
+        "live probe: ?map=wide boots a 17x13 arena; bot.1 spawns at (14,11)",
+        "examples/kaboom-crew/scenes/wide.scene.json (17x13 cells, 5 hard walls including a centre block, 10 soft blocks, bot.1 spawned at gx=15,gz=11) — engine check passes",
+        "bootstrap reads ?map=wide off the URL and routes buildFlatStartScene to the wide source; default behaviour unchanged"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-ASSET-INVENTORY-PROBE",
+      "title": "/__agf/asset-inventory — list every loaded / pending asset ref",
+      "status": "implemented",
+      "summary": "New GET endpoint on the dev bridge. Returns every asset the runtime touched: `{ ref, kind, status }[]` where status ∈ 'loaded' | 'pending' | 'failed'. Pairs with the existing /__agf/asset/invalidate POST — agents working an HMR issue get a complete inventory before deciding what to bust. Mirrors the rendererInspect / diagnostics pattern.",
+      "verification": [
+        "endpoint registered on dev-bridge; unit test on the AssetRegistry inventory helper",
+        "live probe: curl /__agf/asset-inventory on kaboom-crew returns the 5 prefab JSONs + any loaded glb / material refs",
+        "AssetRegistry.inventory() returns { ref, status }[] (loaded/pending/failed); status map tracked alongside the cache",
+        "/__agf/asset-inventory dev-bridge route + AppHandle.assetInventory() + window.__agf.assetInventory()"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-LOG-MATERIAL-BINDING-LIFT",
+      "title": "Lift material-binding-system console sites to runtime.diagnostics",
+      "status": "implemented",
+      "summary": "S85 closed renderer-adapter sites but the material-binding-system file-level allow marker stayed because the system didn't have a bus reference. Thread `{ diagnostics? }` into the system's deps options + lift the 5 warn/error sites (mesh-load failure, mesh has no Mesh, material-load failure, material has no kind, applied to unknown handle). Drop the file-level marker.",
+      "verification": [
+        "options { diagnostics? } threaded; 5 sites emit AGF_RENDER_MATERIAL_* / AGF_RENDER_GEOMETRY_* events",
+        "check-no-console-log gate passes without the material-binding-system file marker",
+        "MaterialBindingDeps gets optional diagnostics; emitBinding() helper routes 5 sites (glb-no-mesh / mesh-load / texture-load / vertex-shader / fragment-shader / material-load) through the bus when wired, with allow-marked console fallbacks for pre-runtime hosts",
+        "S83 file-level allow marker dropped from the file; check-no-console-log gate passes"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-PAUSE-MENU",
+      "title": "Esc opens a pause menu — Resume / Restart / Difficulty cycle",
+      "status": "implemented",
+      "summary": "Centre HUD widget with three clickable rows. Esc toggles. Resume removes GamePaused (same pattern as the title screen). Restart calls restartScene. Difficulty cycles easy → normal → hard, applies the preset immediately to bot.1 + writes it into `?difficulty=` via history.replaceState so a reload preserves it.",
+      "verification": [
+        "live probe: Esc mounts the menu, GamePaused added to kaboom.game-state; clicking Resume removes GamePaused; clicking Restart triggers scene.load",
+        "Difficulty button cycles through 3 presets — current label visible on the button",
+        "Esc keydown handler toggles a centre HUD widget with Resume / Restart / Difficulty buttons; mount adds GamePaused, unmount removes it",
+        "Difficulty button cycles easy → normal → hard, applies the preset to bot.1 + writes ?difficulty= via history.replaceState; reload preserves it"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-DOCTOR-FOLLOWUP-LIST",
+      "title": "engine doctor surfaces sprint-level follow-ups",
+      "status": "implemented",
+      "summary": "Tail of every archived sprint JSON's `followUps[]` (free-text strings) is interesting next-up reading; right now an agent has to grep them by hand. Add a `followUps: { sprintId, text }[]` block to DoctorReport (collected from backlog/sprints/*.sprint.json) so `engine doctor --json` surfaces the running list. Cap at 20 most recent.",
+      "verification": [
+        "DoctorReport.followUps populated from the JSON files; unit test on a fixture set",
+        "format pass surfaces a 'Follow-ups:' section so plain text doctor output isn't silent",
+        "BacklogReport.followUps populated from archived sprint JSONs in descending sprint-id order; cap 20 entries; trimmed text trims",
+        "formatBacklog renders a 'Follow-ups:' section with [sprintId] prefix and 140-char preview"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    }
+  ],
+  "archivedAt": "2026-05-19",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/96"
+}

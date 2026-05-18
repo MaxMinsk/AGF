@@ -189,6 +189,8 @@ export type AppHandle = {
     info: Record<string, unknown>;
     handles: { count: number; entityIds: string[] };
   };
+  /** S86 AGF-ASSET-INVENTORY-PROBE. */
+  assetInventory(): ReadonlyArray<{ ref: string; status: "loaded" | "pending" | "failed" }>;
   rendererInfo(): {
     geometries: number;
     textures: number;
@@ -596,6 +598,10 @@ export async function createApp(
     // S83 AGF-AGENT-RENDERER-PROBE.
     rendererInspect() {
       return runtime.renderer.inspect();
+    },
+    // S86 AGF-ASSET-INVENTORY-PROBE.
+    assetInventory() {
+      return assetRegistry?.inventory() ?? [];
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

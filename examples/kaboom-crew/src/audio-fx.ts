@@ -26,6 +26,80 @@ export type AudioFxOptions = {
   masterGain?: number;
 };
 
+/**
+ * S86 AGF-AUDIO-VOLUME-DIAL. Parse a URL `?audio=` value into a
+ * normalised masterGain. Returns:
+ *   `undefined`   — when the param is absent and no override should
+ *                    apply (caller falls back to default + localStorage)
+ *   `0`           — when the user explicitly requested mute
+ *   `0..1`        — clamped numeric volume
+ *
+ * Accepted strings: 'off' / 'mute' (→ 0), 'on' (→ 1), bare numbers
+ * '0.5', '1', '0' (clamped to 0..1). Anything else → undefined.
+ */
+export function parseAudioVolumeParam(raw: string | undefined | null): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  const lower = trimmed.toLowerCase();
+  if (lower === "off" || lower === "mute") return 0;
+  if (lower === "on") return 1;
+  const num = Number(trimmed);
+  if (!Number.isFinite(num)) return undefined;
+  if (num < 0) return 0;
+  if (num > 1) return 1;
+  return num;
+}
+
+const AUDIO_VOLUME_STORAGE_KEY = "agf.audio.volume";
+
+/**
+ * Resolve the effective master volume by checking, in order:
+ *   1. `?audio=` from the URL (if provided AND parseable)
+ *   2. localStorage[`agf.audio.volume`]
+ *   3. The supplied default (1.0)
+ * Side effect: when (1) is used, the value is also persisted to
+ * localStorage so reloads without the param remember the choice.
+ */
+export function resolveAudioVolume(options: {
+  search?: string;
+  storage?: { getItem(key: string): string | null; setItem(key: string, value: string): void } | undefined;
+  defaultVolume?: number;
+} = {}): number {
+  const defaultVolume = Math.max(0, Math.min(1, options.defaultVolume ?? 1));
+  const storage = options.storage;
+  let fromUrl: number | undefined;
+  if (typeof options.search === "string" && options.search.length > 0) {
+    try {
+      fromUrl = parseAudioVolumeParam(new URLSearchParams(options.search).get("audio"));
+    } catch {
+      fromUrl = undefined;
+    }
+  }
+  if (fromUrl !== undefined) {
+    if (storage !== undefined) {
+      try {
+        storage.setItem(AUDIO_VOLUME_STORAGE_KEY, String(fromUrl));
+      } catch {
+        // ignore quota / disabled storage
+      }
+    }
+    return fromUrl;
+  }
+  if (storage !== undefined) {
+    try {
+      const raw = storage.getItem(AUDIO_VOLUME_STORAGE_KEY);
+      if (raw !== null) {
+        const parsed = parseAudioVolumeParam(raw);
+        if (parsed !== undefined) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return defaultVolume;
+}
+
 // Narrow AudioContext surface the synth needs. Lets the unit test mock
 // without dragging in the Web Audio types.
 export type AudioContextLike = {
