@@ -38,10 +38,14 @@ type PickupVisual = {
 };
 
 const PICKUP_VISUAL: Record<PickupKind, PickupVisual> = {
-  // Round, slightly raised — reads as "collectible".
+  // Round, slightly raised — reads as "collectible". Engine primitives
+  // are box / sphere / cylinder / plane (see engine/core/primitives.ts);
+  // anything else falls through to a placeholder and the mesh never
+  // renders. Speed-up uses a tall, narrow cylinder so it reads
+  // distinctly from the bomb-up sphere from a top-down camera.
   "bomb-up": { mesh: "sphere", color: "#5fa8ff", scale: [0.35, 0.35, 0.35], yOffset: 0.3 },
   "fire-up": { mesh: "box", color: "#ff7a36", scale: [0.45, 0.45, 0.45], yOffset: 0.28 },
-  "speed-up": { mesh: "cone", color: "#7be35f", scale: [0.4, 0.5, 0.4], yOffset: 0.3 }
+  "speed-up": { mesh: "cylinder", color: "#7be35f", scale: [0.3, 0.5, 0.3], yOffset: 0.3 }
 };
 
 const PICKUP_KINDS: ReadonlyArray<PickupKind> = ["bomb-up", "fire-up", "speed-up"];
