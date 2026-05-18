@@ -130,6 +130,18 @@ export function createKaboomPlayerInputSystem(
       query = world.createQuery([PLAYER_CONTROLLED, GRID_MOVER]);
       cachedWorld = world;
     }
+    // S85 KABOOM-TITLE-INPUT-PAUSE. Keyboard input stays inert while
+    // the title screen / pause overlay is up. Without this, holding D
+    // before Space would already nudge player.1, and the very Space
+    // press that dismisses the overlay would also fire a
+    // PlaceBombRequest because edge-detect runs on the same frame
+    // the keydown handler removes the GamePaused marker. Still tick
+    // `previousPressed` so the first post-resume keystroke is treated
+    // as an edge (otherwise a held key wouldn't move until release).
+    if (world.hasComponent("kaboom.game-state", "GamePaused")) {
+      previousPressed = new Set(pressed);
+      return;
+    }
     const direction = resolveDirection();
     const placeBombEdge = someInSetNew(PLACE_BOMB);
     const restartEdge = someInSetNew(ROUND_RESTART);

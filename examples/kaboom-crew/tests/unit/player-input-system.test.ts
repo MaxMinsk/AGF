@@ -110,4 +110,35 @@ describe("createKaboomPlayerInputSystem (S82 KABOOM-PLAYER-INPUT)", () => {
     const system = createKaboomPlayerInputSystem({ pressedKeys: new Set() });
     expect(() => system.dispose()).not.toThrow();
   });
+
+  it("S85 KABOOM-TITLE-INPUT-PAUSE: keys are no-ops while GamePaused is on the game-state singleton", () => {
+    const world = new World();
+    addPlayer(world);
+    world.addEntity("kaboom.game-state");
+    world.setComponent("kaboom.game-state", "GamePaused", { reason: "title-screen" });
+    const pressed = new Set(["KeyD", "Space"]);
+    const system = createKaboomPlayerInputSystem({ pressedKeys: pressed });
+    system.frameUpdate!(ctx(world));
+    system.frameUpdate!(ctx(world));
+    expect(snapshotDirection(world)).toBeUndefined();
+    expect(world.hasComponent("player", "PlaceBombRequest")).toBe(false);
+    expect(world.hasComponent("player", "RoundRestartRequest")).toBe(false);
+  });
+
+  it("S85 KABOOM-TITLE-INPUT-PAUSE: a held key fires no edge-trigger on the first resumed frame", () => {
+    const world = new World();
+    addPlayer(world);
+    world.addEntity("kaboom.game-state");
+    world.setComponent("kaboom.game-state", "GamePaused", { reason: "title-screen" });
+    const pressed = new Set(["Space"]);
+    const system = createKaboomPlayerInputSystem({ pressedKeys: pressed });
+    // Two paused frames — Space already in pressed, but we ignore it.
+    system.frameUpdate!(ctx(world));
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "PlaceBombRequest")).toBe(false);
+    // Now resume — previousPressed already contains Space, so no edge.
+    world.removeComponent("kaboom.game-state", "GamePaused");
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "PlaceBombRequest")).toBe(false);
+  });
 });

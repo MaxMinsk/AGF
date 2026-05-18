@@ -8,12 +8,14 @@
     {
       "id": "KABOOM-TITLE-INPUT-PAUSE",
       "title": "Player input freezes while GamePaused — fixes Space-to-start placing a bomb + movement-before-start",
-      "status": "pending",
+      "status": "implemented",
       "summary": "User-reported S084 bugs: (a) hitting Space on the title screen dismisses the overlay AND immediately writes PlaceBombRequest because PlayerInputSystem's edge-detect fires on the same frame, and (b) WASD already moves player.1 before Space is pressed. Add the GamePaused guard to PlayerInputSystem (same shape as bot-ai / bomb-fuse / bomb-placement in S084) so keyboard input stays inert until the overlay is dismissed.",
       "verification": [
         "PlayerInputSystem early-out when kaboom.game-state has GamePaused — no queuedDirection writes, no PlaceBombRequest writes",
         "live probe: with the overlay up, holding D for 500 ms keeps player.1 stationary; pressing Space dismisses the overlay AND does NOT spawn a bomb on (1,1)",
-        "unit test: PlayerInputSystem with GamePaused set on the game-state singleton stays silent across multiple frames"
+        "unit test: PlayerInputSystem with GamePaused set on the game-state singleton stays silent across multiple frames",
+        "PlayerInputSystem early-out when kaboom.game-state has GamePaused: no queuedDirection writes, no PlaceBombRequest / RoundRestartRequest writes, BUT previousPressed still ticks so a held Space (the long press that dismissed the overlay) does not surface as an edge after resume",
+        "+2 unit tests cover the paused early-out + the held-key-no-edge resume path; 680 → 682 total"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
@@ -94,7 +96,9 @@
         "unit test: rendererInspectFrom snapshot with handleLeak: 4 → DoctorReport.recommendations contains the leak callout",
         "snapshot with handleLeak: 0 stays quiet"
       ],
-      "dependsOn": ["AGF-DOCTOR-RENDERER-INSPECT-SECTION"],
+      "dependsOn": [
+        "AGF-DOCTOR-RENDERER-INSPECT-SECTION"
+      ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
   ]
