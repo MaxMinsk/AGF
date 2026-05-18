@@ -29,6 +29,17 @@ import type { Object3D } from "three";
  */
 export type ReflectorFactoryResult = {
   target: Object3D;
+  /** Multiplied component (chainable node operator) used by the tint mul. */
+  mul: (other: TslColorNode) => TslColorNode;
+};
+
+/**
+ * Opaque handle to a TSL color/vec3 node — produced by the `color()`
+ * factory. We don't need the internal node structure here; treat it as
+ * an opaque token that can be multiplied with other nodes.
+ */
+export type TslColorNode = {
+  mul: (other: TslColorNode) => TslColorNode;
 };
 
 export type WebGpuModule = {
@@ -43,6 +54,13 @@ export type WebGpuModule = {
   // of the host Mesh so the reflection plane follows the mesh transform.
   MeshBasicNodeMaterial: typeof MeshBasicNodeMaterial;
   reflector: (parameters?: { resolutionScale?: number; generateMipmaps?: boolean; bounces?: boolean; depth?: boolean; samples?: number }) => ReflectorFactoryResult;
+  /**
+   * TSL `color()` factory. Accepts any of the same inputs three.js's
+   * `Color` constructor accepts (hex string, hex number, r/g/b triple)
+   * and returns an opaque color-vec3 node that participates in TSL
+   * `.mul()`, `.add()`, `.mix()` etc.
+   */
+  color: (input: string | number) => TslColorNode;
 };
 
 let cached: Promise<WebGpuModule> | undefined;
@@ -63,13 +81,17 @@ export function loadWebGpuModule(): Promise<WebGpuModule> {
         CubeRenderTarget: typeof CubeRenderTarget;
         MeshBasicNodeMaterial: typeof MeshBasicNodeMaterial;
       };
-      const t = tslMod as unknown as { reflector: WebGpuModule["reflector"] };
+      const t = tslMod as unknown as {
+        reflector: WebGpuModule["reflector"];
+        color: WebGpuModule["color"];
+      };
       return {
         WebGPURenderer: w.WebGPURenderer,
         PMREMGenerator: w.PMREMGenerator,
         CubeRenderTarget: w.CubeRenderTarget,
         MeshBasicNodeMaterial: w.MeshBasicNodeMaterial,
-        reflector: t.reflector
+        reflector: t.reflector,
+        color: t.color
       };
     });
   }
