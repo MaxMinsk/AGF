@@ -72,6 +72,12 @@ function restartScene(runtime: RuntimeHandle): number {
   return 1;
 }
 
+// Late-bound restart callback. registerSystems runs before attachUi, so
+// the runtime handle isn't available when RoundResolveSystem is built —
+// the system holds this closure and attachUi populates `_boundRestart`
+// once the runtime is known. Cleared in dispose to release the handle.
+let _boundRestart: (() => void) | undefined;
+
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler }: ProjectBootstrapContext): void {
     const occupancy = createGridOccupancySystem();
@@ -90,19 +96,34 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // decisions; seeded RNG keeps replay recordings reproducible.
     scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static"] });
 
-    // Round resolve is constructed without an onRestart callback at
-    // registerSystems time (runtime isn't available yet). attachUi
-    // wires the restart path via bootstrap.resetRound — runtime calls
-    // that for KeyR via the host AppHandle.
-    scheduler.register(createKaboomRoundResolveSystem({ playerId: "player.1" }), { profiles: ["static"] });
+    // Round resolve gets a late-bound onRestart closure so it can fire
+    // the auto-restart timer (default 3 s after win/loss/draw) without
+    // requiring the player to press R. The runtime handle becomes
+    // available in attachUi, which populates `_boundRestart`.
+    scheduler.register(
+      createKaboomRoundResolveSystem({
+        playerId: "player.1",
+        autoRestartAfterMs: 3000,
+        onRestart: (): void => {
+          if (_boundRestart !== undefined) _boundRestart();
+        }
+      }),
+      { profiles: ["static"] }
+    );
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
     // toward the target cell. Used by `runtime.kaboom.gotoCell` (wired
-    // in attachUi) and by future bot playtests.
-    scheduler.register(createKaboomAgentGotoSystem(), { profiles: ["static"] });
+    // in attachUi) and by future bot playtests. Pass `occupancy` so
+    // the system fails fast with `unreachable` when the caller targets
+    // a blocked cell (hard / soft wall) instead of forever trying.
+    scheduler.register(createKaboomAgentGotoSystem({ occupancy }), { profiles: ["static"] });
   },
 
   attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
+    _boundRestart = (): void => {
+      restartScene(runtime);
+    };
+
     const handleKey = (event: KeyboardEvent): void => {
       if (event.code !== "KeyR") return;
       restartScene(runtime);
@@ -112,17 +133,89 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S82 KABOOM-AGENT-CONTROLS. Mount an agent-facing control surface
     // on `window.__agf.kaboom` so this assistant + future scripted
     // playtests can drive the game in one curl/call without simulating
-    // keyboard events. Three primitives are exposed:
-    //   - gotoCell(entityId, gx, gz) — sets AgentGoto so AgentGotoSystem
-    //     walks the entity to that cell via GridMover.queuedDirection.
+    // keyboard events. Four primitives are exposed:
+    //   - gotoCell(entityId, gx, gz) — returns a Promise<GotoResult>
+    //     that resolves when AgentGotoSystem clears the AgentGoto
+    //     component, reporting outcome + final cell. Outcomes:
+    //       'arrived'     — reached the target;
+    //       'unreachable' — target was blocked at request time;
+    //       'stuck'       — couldn't make progress (v0 path policy);
+    //       'timeout'     — caller-supplied timeoutMs elapsed.
     //   - placeBomb(entityId) — writes PlaceBombRequest transient (same
     //     pipeline as Space-key + bot AI).
     //   - status() — compact JSON of round + players + bombs + tiles.
+    //   - restart() — host-driven scene reload (same as KeyR).
+    type GotoResult = {
+      reached: boolean;
+      outcome: "arrived" | "unreachable" | "stuck" | "timeout";
+      finalGx: number;
+      finalGz: number;
+      targetGx: number;
+      targetGz: number;
+    };
+
+    type EntitySnapshot = {
+      gx: number | undefined;
+      gz: number | undefined;
+      hasAgentGoto: boolean;
+      result: { outcome: "arrived" | "unreachable" | "stuck"; finalGx: number; finalGz: number } | undefined;
+    };
+
+    function findEntity(entityId: string): EntitySnapshot | undefined {
+      const snap = runtime.snapshot();
+      const e = snap.entities.find((x) => x.id === entityId);
+      if (e === undefined) return undefined;
+      const c = e.components as Record<string, Record<string, unknown> | undefined>;
+      const pos = c["GridPosition"] as { gx?: number; gz?: number } | undefined;
+      const res = c["AgentGotoResult"] as { outcome?: "arrived" | "unreachable" | "stuck"; finalGx?: number; finalGz?: number } | undefined;
+      return {
+        gx: pos?.gx,
+        gz: pos?.gz,
+        hasAgentGoto: c["AgentGoto"] !== undefined,
+        result:
+          res?.outcome !== undefined && res.finalGx !== undefined && res.finalGz !== undefined
+            ? { outcome: res.outcome, finalGx: res.finalGx, finalGz: res.finalGz }
+            : undefined
+      };
+    }
+
     const api = {
-      gotoCell(entityId: string, gx: number, gz: number): void {
+      gotoCell(entityId: string, gx: number, gz: number, options: { timeoutMs?: number; pollMs?: number } = {}): Promise<GotoResult> {
+        const timeoutMs = options.timeoutMs ?? 10_000;
+        const pollMs = options.pollMs ?? 50;
+        // applyCommands is synchronous against the world. AgentGoto is
+        // present in the snapshot before the first poll tick fires.
+        // Any AgentGotoResult left over from a prior gotoCell is
+        // ignored while AgentGoto is on the entity, and gets
+        // overwritten by AgentGotoSystem when this attempt finishes.
         runtime.applyCommands([
           { kind: "component.set", entityId, component: "AgentGoto", data: { targetGx: gx, targetGz: gz } }
         ]);
+        return new Promise<GotoResult>((resolve) => {
+          const startedAt = Date.now();
+          const tick = (): void => {
+            const e = findEntity(entityId);
+            if (e === undefined) {
+              resolve({ reached: false, outcome: "stuck", finalGx: gx, finalGz: gz, targetGx: gx, targetGz: gz });
+              return;
+            }
+            if (!e.hasAgentGoto) {
+              const finalGx = e.result?.finalGx ?? e.gx ?? gx;
+              const finalGz = e.result?.finalGz ?? e.gz ?? gz;
+              const outcome = e.result?.outcome ?? (finalGx === gx && finalGz === gz ? "arrived" : "stuck");
+              resolve({ reached: outcome === "arrived", outcome, finalGx, finalGz, targetGx: gx, targetGz: gz });
+              return;
+            }
+            if (Date.now() - startedAt > timeoutMs) {
+              const finalGx = e.gx ?? gx;
+              const finalGz = e.gz ?? gz;
+              resolve({ reached: false, outcome: "timeout", finalGx, finalGz, targetGx: gx, targetGz: gz });
+              return;
+            }
+            setTimeout(tick, pollMs);
+          };
+          setTimeout(tick, pollMs);
+        });
       },
       placeBomb(entityId: string): void {
         runtime.applyCommands([
@@ -198,6 +291,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       dispose(): void {
         window.removeEventListener("keydown", handleKey);
         if (w.__agf !== undefined) delete w.__agf.kaboom;
+        _boundRestart = undefined;
       }
     };
   },

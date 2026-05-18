@@ -98,4 +98,48 @@ describe("createKaboomRoundResolveSystem (S82 KABOOM-DAMAGE-AND-DEATH / RESTART)
     system.frameUpdate!(ctx(world));
     expect(onRestart).toHaveBeenCalledTimes(1);
   });
+
+  it("auto-fires onRestart after autoRestartAfterMs of non-playing time", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false); // bot starts dead → round will flip to 'won'
+    const onRestart = vi.fn();
+    const system = createKaboomRoundResolveSystem({
+      playerId: "player.1",
+      onRestart,
+      autoRestartAfterMs: 100
+    });
+
+    // Frame 1 — RoundState created and round flips to 'won' (only player alive).
+    system.frameUpdate!(ctx(world, 0.05));
+    expect(roundPhase(world)).toBe("won");
+    expect(onRestart).not.toHaveBeenCalled();
+
+    // Frame 2 — 50 ms elapsed in non-playing; threshold not reached.
+    system.frameUpdate!(ctx(world, 0.05));
+    expect(onRestart).not.toHaveBeenCalled();
+
+    // Frame 3 — 100 ms elapsed → auto-restart fires once.
+    system.frameUpdate!(ctx(world, 0.05));
+    expect(onRestart).toHaveBeenCalledTimes(1);
+
+    // Subsequent frames must not re-fire while the same world stays around.
+    system.frameUpdate!(ctx(world, 0.05));
+    expect(onRestart).toHaveBeenCalledTimes(1);
+  });
+
+  it("autoRestartAfterMs = 0 disables auto-restart", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false);
+    const onRestart = vi.fn();
+    const system = createKaboomRoundResolveSystem({
+      playerId: "player.1",
+      onRestart,
+      autoRestartAfterMs: 0
+    });
+    for (let i = 0; i < 10; i += 1) system.frameUpdate!(ctx(world, 1));
+    expect(roundPhase(world)).toBe("won");
+    expect(onRestart).not.toHaveBeenCalled();
+  });
 });

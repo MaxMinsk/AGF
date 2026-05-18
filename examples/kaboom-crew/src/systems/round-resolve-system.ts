@@ -39,21 +39,29 @@ type GridMoverComponent = {
 };
 
 export type RoundResolveSystemOptions = {
-  /** Called when a RoundRestartRequest is consumed. The host wires this to runtime.applyCommands([{ kind: "scene.load", scene }]). */
+  /** Called when a RoundRestartRequest is consumed OR after `autoRestartAfterMs` elapses post-round. Host wires this to runtime.applyCommands([{ kind: "scene.load", scene }]). */
   onRestart?: () => void;
   /** Local player id — used to decide 'won' vs 'lost' phase. Defaults to "player.1". */
   playerId?: EntityId;
+  /** ms to wait after the round ends (won/lost/draw) before firing onRestart automatically. 0 disables. Default 3000. */
+  autoRestartAfterMs?: number;
   name?: string;
 };
 
 export function createKaboomRoundResolveSystem(options: RoundResolveSystemOptions = {}): System {
   const name = options.name ?? "kaboom.round-resolve";
   const playerId = options.playerId ?? "player.1";
+  const autoRestartAfterMs = options.autoRestartAfterMs ?? 3000;
 
   let cachedWorld: World | undefined;
   let bombers: QueryHandle | undefined;
   let restartRequests: QueryHandle | undefined;
   let movers: QueryHandle | undefined;
+  // Wallclock-style timer (ticks via context.time.dt) that accumulates only
+  // while the round is NOT in 'playing'. RoundState.elapsed stops when the
+  // round ends, so we cannot reuse it for the auto-restart delay.
+  let endedMs = 0;
+  let restartFired = false;
 
   function ensureRoundState(world: World): void {
     if (!world.hasEntity(SINGLETON_ID)) {
@@ -71,6 +79,9 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
       restartRequests = world.createQuery([ROUND_RESTART_REQUEST]);
       movers = world.createQuery([GRID_MOVER]);
       cachedWorld = world;
+      // World was swapped (scene.load fired) — reset post-round timers.
+      endedMs = 0;
+      restartFired = false;
     }
     ensureRoundState(world);
     const state = world.getComponent<RoundState>(SINGLETON_ID, ROUND_STATE) as RoundState;
@@ -80,7 +91,8 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
     // has ended fires the host-supplied restart callback.
     for (const id of restartRequests!.run()) {
       world.removeComponent(id, ROUND_RESTART_REQUEST);
-      if (state.phase !== "playing" && options.onRestart !== undefined) {
+      if (state.phase !== "playing" && options.onRestart !== undefined && !restartFired) {
+        restartFired = true;
         options.onRestart();
         return; // host will replace the world; further work is moot
       }
@@ -88,6 +100,8 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
 
     // Tick elapsed when playing.
     if (state.phase === "playing") {
+      endedMs = 0;
+      restartFired = false;
       const next: RoundState = { ...state, elapsed: (state.elapsed ?? 0) + Math.max(0, context.time.dt) };
       world.setComponent(SINGLETON_ID, ROUND_STATE, next);
 
@@ -112,6 +126,17 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
         if (mover === undefined) continue;
         if (mover.queuedDirection !== undefined && (mover.queuedDirection.dx !== 0 || mover.queuedDirection.dz !== 0)) {
           world.setComponent(id, GRID_MOVER, { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+        }
+      }
+      // Auto-restart after configured delay so the round loops without
+      // the player having to press R. The previous gap (R-only restart)
+      // made the game look frozen after win/loss.
+      if (!restartFired && autoRestartAfterMs > 0 && options.onRestart !== undefined) {
+        endedMs += Math.max(0, context.time.dt) * 1000;
+        if (endedMs >= autoRestartAfterMs) {
+          restartFired = true;
+          options.onRestart();
+          return;
         }
       }
     }

@@ -13,7 +13,8 @@
     "RoundState": { "$ref": "#/definitions/roundStateComponent" },
     "RoundRestartRequest": { "$ref": "#/definitions/roundRestartRequestComponent" },
     "Pickup": { "$ref": "#/definitions/pickupComponent" },
-    "AgentGoto": { "$ref": "#/definitions/agentGotoComponent" }
+    "AgentGoto": { "$ref": "#/definitions/agentGotoComponent" },
+    "AgentGotoResult": { "$ref": "#/definitions/agentGotoResultComponent" }
   },
   "definitions": {
     "bomberStatsComponent": {
@@ -105,6 +106,19 @@
       "properties": {
         "targetGx": { "type": "integer", "minimum": 0 },
         "targetGz": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "agentGotoResultComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S82 KABOOM-AGENT-CONTROLS. Outcome of the last AgentGoto request. Written by AgentGotoSystem when it removes AgentGoto. `arrived` = reached target; `unreachable` = target cell was blocked when the request was issued; `stuck` = entity stopped making progress toward the target for stuckGraceFrames consecutive frames (no path with the v0 straight-line policy). Stays on the entity until the next AgentGoto request overwrites it or the host consumes it.",
+      "required": ["outcome", "targetGx", "targetGz", "finalGx", "finalGz"],
+      "properties": {
+        "outcome": { "type": "string", "enum": ["arrived", "unreachable", "stuck"] },
+        "targetGx": { "type": "integer", "minimum": 0 },
+        "targetGz": { "type": "integer", "minimum": 0 },
+        "finalGx": { "type": "integer", "minimum": 0 },
+        "finalGz": { "type": "integer", "minimum": 0 }
       }
     },
     "pickupComponent": {
