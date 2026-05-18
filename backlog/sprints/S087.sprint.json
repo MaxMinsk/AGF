@@ -8,10 +8,11 @@
     {
       "id": "KABOOM-PLAYER-VS-BOT-COLOR",
       "title": "Distinct player vs bot color tint via difficulty preset patch",
-      "status": "pending",
+      "status": "implemented",
       "summary": "At a glance the two bombers should be visually distinct. Bootstrap forces a blue tint on `player.1` and a red tint on `bot.1` via `component.set MeshRenderer.color` on initial attach + every restart. Minimap already uses these colors; this just makes the world view match.",
       "verification": [
-        "live probe: player.1.MeshRenderer.color === '#5fa8ff' and bot.1.MeshRenderer.color === '#ff5a6e' after boot AND after a restart"
+        "live probe: player.1.MeshRenderer.color === '#5fa8ff' and bot.1.MeshRenderer.color === '#ff5a6e' after boot AND after a restart",
+        "attachUi + restartScene both override MeshRenderer.color on player.1 (#5fa8ff) and bot.1 (#ff5a6e); minimap markers already used these colours"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

@@ -135,7 +135,10 @@ function restartScene(runtime: RuntimeHandle): number {
     },
     { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
     { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
-    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
+    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover },
+    // S87 KABOOM-PLAYER-VS-BOT-COLOR — re-apply on every restart.
+    { kind: "component.set", entityId: "player.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#5fa8ff" } },
+    { kind: "component.set", entityId: "bot.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#ff5a6e" } }
   ]);
   return 1;
 }
@@ -279,7 +282,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
       { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
-      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
+      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover },
+      // S87 KABOOM-PLAYER-VS-BOT-COLOR. Force tints so the in-world
+      // bombers match the minimap colours from the start.
+      { kind: "component.set", entityId: "player.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#5fa8ff" } },
+      { kind: "component.set", entityId: "bot.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#ff5a6e" } }
     ]);
     let titleScreenMounted = false;
     let gameStarted = false;
