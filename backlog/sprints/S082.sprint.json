@@ -173,6 +173,33 @@
       "epic": "KABOOM-CREW-MVP-0"
     },
     {
+      "id": "KABOOM-AGENT-CONTROLS",
+      "title": "Agent-friendly control surface: `runtime.kaboom = { gotoCell, placeBomb, status }`",
+      "status": "pending",
+      "summary": "Expose a small object on `runtime.kaboom` (mirrored onto `window.__agf.kaboom`) so an agent can drive Kaboom Crew without simulating keyboard events. v0 surface: (a) `gotoCell(entityId, gx, gz)` — sets a target cell that a project-local `AgentGotoSystem` walks toward each frame by writing `GridMover.queuedDirection` (one-step-at-a-time, respects walls + lane-assist); (b) `placeBomb(entityId)` — writes a `PlaceBombRequest` transient on the entity (same code path as space-key + bot AI); (c) `status()` — returns `{ round, players: [{ id, gx, gz, alive, activeBombs, stats }], bombs: [...], blastTiles: [...] }` so an agent can poll game state without parsing the full snapshot. Agent playtests + bug reproductions become one-liners.",
+      "verification": [
+        "live probe: `__agf.kaboom.gotoCell('player.1', 5, 5)` then waiting 2 s moves player.1 from (1,1) toward (5,5) along a passable path",
+        "live probe: `__agf.kaboom.placeBomb('player.1')` spawns a Bomb entity in the same frame; cap respected",
+        "`__agf.kaboom.status()` returns a compact JSON snapshot suitable for curl piping",
+        "no existing keyboard / bot behaviour breaks — controls are additive"
+      ],
+      "dependsOn": ["KABOOM-BOMB-PLACE"],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
+      "id": "KABOOM-AGENT-PATHFIND",
+      "title": "BFS pathfinder so `gotoCell` walks around walls + soft blocks",
+      "status": "pending",
+      "summary": "v0 of `AgentGotoSystem` (KABOOM-AGENT-CONTROLS) only handles straight-line motion via `GridMover` lane-assist. This story adds a real BFS over the GridOccupancy index — each frame, the system recomputes the shortest path from current cell to target, queues the next cell as `queuedDirection`. Optionally caches the path until a wall changes (cheap invariant: occupancy revision counter). Treats soft blocks as walls today — bomb-it-down planning is a follow-up. Unblocks `__agf.kaboom.gotoCell` for traversal across the arena.",
+      "verification": [
+        "unit test: BFS finds the 4-cell path from (1,1) to (1,5) around a soft-block wall at (1,3)",
+        "no path → system clears queuedDirection (player stops at current cell)",
+        "live probe: `__agf.kaboom.gotoCell('player.1', 13, 9)` traverses the arena around hard walls"
+      ],
+      "dependsOn": ["KABOOM-AGENT-CONTROLS"],
+      "epic": "KABOOM-CREW-MVP-0"
+    },
+    {
       "id": "KABOOM-PLAYTEST-SCENARIO",
       "title": "Robot playtest scenario — bot-vs-bot recording proves the round terminates",
       "status": "pending",
