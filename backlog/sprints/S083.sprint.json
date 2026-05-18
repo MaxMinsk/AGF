@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S083",
   "title": "Engine observability — logging policy + CI gate + motion smoothness",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-18",
   "stories": [
     {
@@ -176,5 +176,7 @@
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
-  ]
+  ],
+  "archivedAt": "2026-05-18",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/93"
 }
