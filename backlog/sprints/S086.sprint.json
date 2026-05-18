@@ -99,11 +99,13 @@
     {
       "id": "AGF-DOCTOR-FOLLOWUP-LIST",
       "title": "engine doctor surfaces sprint-level follow-ups",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Tail of every archived sprint JSON's `followUps[]` (free-text strings) is interesting next-up reading; right now an agent has to grep them by hand. Add a `followUps: { sprintId, text }[]` block to DoctorReport (collected from backlog/sprints/*.sprint.json) so `engine doctor --json` surfaces the running list. Cap at 20 most recent.",
       "verification": [
         "DoctorReport.followUps populated from the JSON files; unit test on a fixture set",
-        "format pass surfaces a 'Follow-ups:' section so plain text doctor output isn't silent"
+        "format pass surfaces a 'Follow-ups:' section so plain text doctor output isn't silent",
+        "BacklogReport.followUps populated from archived sprint JSONs in descending sprint-id order; cap 20 entries; trimmed text trims",
+        "formatBacklog renders a 'Follow-ups:' section with [sprintId] prefix and 140-char preview"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     }
