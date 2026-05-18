@@ -34,6 +34,27 @@ export type ReflectorFactoryResult = {
 };
 
 /**
+ * S74 / S76 WEBGPU-csm. `three.js`'s `CSMShadowNode` constructor as
+ * imported from `three/examples/jsm/csm/CSMShadowNode.js`. Used by the
+ * adapter's `buildWebGpuCsm`. The constructor returns a `ShadowBaseNode`
+ * instance (typed structurally here — we only consume `.camera`,
+ * `.fade`, `.dispose()`).
+ */
+export type CsmShadowNodeCtor = new (
+  light: { shadow: { shadowNode?: unknown }; isDirectionalLight?: boolean },
+  data?: {
+    cascades?: number;
+    maxFar?: number;
+    mode?: "practical" | "uniform" | "logarithmic" | "custom";
+    lightMargin?: number;
+  }
+) => {
+  camera: unknown;
+  fade: boolean;
+  dispose?: () => void;
+};
+
+/**
  * Opaque handle to a TSL color/vec3 node — produced by the `color()`
  * factory. We don't need the internal node structure here; treat it as
  * an opaque token that can be multiplied with other nodes.
@@ -61,6 +82,17 @@ export type WebGpuModule = {
    * `.mul()`, `.add()`, `.mix()` etc.
    */
   color: (input: string | number) => TslColorNode;
+  /**
+   * S76 WEBGPU-csm. `CSMShadowNode` constructor — loaded together with
+   * the rest of the WebGPU module so `buildWebGpuCsm` can construct +
+   * assign the shadow node SYNCHRONOUSLY, BEFORE the host
+   * DirectionalLight enters the scene graph. Previous attempts to
+   * lazy-load it (S74 / S75) had a race: three.js bakes the lighting
+   * TSL graph the first time a material samples the light, and by the
+   * time the async load resolved the graph was already cached without
+   * the cascade-shadow path → shadows weak.
+   */
+  CSMShadowNode: CsmShadowNodeCtor;
 };
 
 let cached: Promise<WebGpuModule> | undefined;
@@ -68,13 +100,16 @@ let cached: Promise<WebGpuModule> | undefined;
 export function loadWebGpuModule(): Promise<WebGpuModule> {
   if (cached === undefined) {
     // `three/webgpu` exposes WebGPURenderer + PMREM + CubeRenderTarget +
-    // node materials, but the TSL factories (`reflector()`, etc.) live
-    // in the separate `three/tsl` entrypoint as of r0.184. Load both in
-    // parallel for the WebGPU paths that need them.
+    // node materials. The TSL factories (`reflector()`, `color()`) live
+    // in the separate `three/tsl` entrypoint as of r0.184. CSMShadowNode
+    // ships in `three/examples/jsm/csm/CSMShadowNode.js` and depends on
+    // both. Load all three in parallel so any code path that needs them
+    // gets them synchronously after `adapter.init()` resolves.
     cached = Promise.all([
       import("three/webgpu"),
-      import("three/tsl")
-    ]).then(([webgpuMod, tslMod]) => {
+      import("three/tsl"),
+      import("three/examples/jsm/csm/CSMShadowNode.js")
+    ]).then(([webgpuMod, tslMod, csmMod]) => {
       const w = webgpuMod as unknown as {
         WebGPURenderer: typeof WebGPURenderer;
         PMREMGenerator: typeof PMREMGenerator;
@@ -85,49 +120,21 @@ export function loadWebGpuModule(): Promise<WebGpuModule> {
         reflector: WebGpuModule["reflector"];
         color: WebGpuModule["color"];
       };
+      const csm = csmMod as unknown as { CSMShadowNode: CsmShadowNodeCtor };
       return {
         WebGPURenderer: w.WebGPURenderer,
         PMREMGenerator: w.PMREMGenerator,
         CubeRenderTarget: w.CubeRenderTarget,
         MeshBasicNodeMaterial: w.MeshBasicNodeMaterial,
         reflector: t.reflector,
-        color: t.color
+        color: t.color,
+        CSMShadowNode: csm.CSMShadowNode
       };
     });
   }
   return cached;
 }
 
-/**
- * S74 WEBGPU-csm. Lazy import of three.js's `CSMShadowNode` addon. The
- * addon transitively imports `three/webgpu` and `three/tsl`, so we keep
- * the load behind a separate dynamic boundary so WebGL-only projects
- * don't pay for it. Only the WebGPU code path in
- * `ThreeRenderAdapter.rebuildCsm` calls this loader.
- *
- * Module is memoised — concurrent calls share a single fetch.
- */
-export type CsmShadowNodeCtor = new (
-  light: { shadow: { shadowNode?: unknown }; isDirectionalLight?: boolean },
-  data?: {
-    cascades?: number;
-    maxFar?: number;
-    mode?: "practical" | "uniform" | "logarithmic" | "custom";
-    lightMargin?: number;
-  }
-) => {
-  camera: unknown;
-  fade: boolean;
-  dispose?: () => void;
-};
-
-let csmCached: Promise<{ CSMShadowNode: CsmShadowNodeCtor }> | undefined;
-
-export function loadCsmShadowNode(): Promise<{ CSMShadowNode: CsmShadowNodeCtor }> {
-  if (csmCached === undefined) {
-    csmCached = import("three/examples/jsm/csm/CSMShadowNode.js").then((mod) => ({
-      CSMShadowNode: (mod as unknown as { CSMShadowNode: CsmShadowNodeCtor }).CSMShadowNode
-    }));
-  }
-  return csmCached;
-}
+// S76 — CsmShadowNodeCtor merged into the main WebGpuModule loader so
+// buildWebGpuCsm can construct + assign synchronously. `loadCsmShadowNode`
+// helper removed; callers use `webGpuModule.CSMShadowNode`.

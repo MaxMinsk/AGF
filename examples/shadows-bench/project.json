@@ -5,17 +5,12 @@
   "startScene": "scenes/start.scene.json",
   "assetRoot": "assets",
   "render": {
-    "mode": "webgl",
+    "mode": "webgpu",
     "background": "#5d7d9b",
     "skyGradient": {
       "top": "#3f6589",
       "bottom": "#bdc8d2"
     },
-    "post": [
-      {
-        "kind": "fxaa"
-      }
-    ],
     "color": {
       "toneMapping": "aces-filmic",
       "exposure": 0.9
@@ -24,7 +19,7 @@
       "auto": true
     },
     "shadows": {
-      "algorithm": "pcss",
+      "algorithm": "pcf",
       "csm": {
         "enabled": true,
         "cascades": 3,
