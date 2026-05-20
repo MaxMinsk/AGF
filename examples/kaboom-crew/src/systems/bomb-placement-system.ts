@@ -17,6 +17,13 @@ const BOMB: ComponentName = "Bomb";
 const TRANSFORM: ComponentName = "Transform";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
+const TWEENS: ComponentName = "Tweens";
+
+// S095 KABOOM-SPAWN-POP-TWEEN — bombs grow from a single point to full
+// size with a small overshoot on spawn. Drives the engine Tween system
+// via the `Tweens` component; the system removes itself on completion.
+const SPAWN_POP_DURATION_S = 0.2;
+const BOMB_FINAL_SCALE: ReadonlyArray<number> = [0.35, 0.35, 0.35];
 
 type BomberStats = {
   maxBombs: number;
@@ -92,8 +99,20 @@ export function createKaboomBombPlacementSystem(
       world.setComponent(bombId, TRANSFORM, {
         position: [pos.gx, 0.35, pos.gz],
         rotation: [0, 0, 0],
-        scale: [0.35, 0.35, 0.35]
+        scale: [0, 0, 0]
       });
+      // S095 KABOOM-SPAWN-POP-TWEEN — drive scale 0 → final with
+      // easeOutBack so the bomb visibly pops into existence.
+      world.setComponent(bombId, TWEENS, [
+        {
+          component: TRANSFORM,
+          property: "scale",
+          from: [0, 0, 0],
+          to: BOMB_FINAL_SCALE,
+          duration: SPAWN_POP_DURATION_S,
+          ease: "easeOutBack"
+        }
+      ]);
       world.setComponent(bombId, MESH_RENDERER, { mesh: "sphere", color: "#1a1a1a" });
       world.setComponent(bombId, GRID_POSITION, { gx: pos.gx, gz: pos.gz });
       world.setComponent(bombId, GRID_OCCUPANT, { layer: "bomb", blocksMovement: false, blocksBlast: false });

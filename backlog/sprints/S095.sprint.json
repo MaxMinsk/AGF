@@ -23,12 +23,13 @@
     {
       "id": "KABOOM-SPAWN-POP-TWEEN",
       "title": "Bomb / pickup mesh scale 0 → 1 with easeOutBack on spawn",
-      "status": "pending",
-      "summary": "On bomb-place and pickup-spawn, tween the entity's Transform.scale from 0 → 1 over 200 ms using `easeOutBack`. The renderer already reads Transform.scale per frame so no adapter change is needed. Uses the existing Tween component / system path — the spawn handler attaches a Tween on the just-created entity. Tween component removes itself on completion.",
+      "status": "implemented",
+      "summary": "bomb-placement-system.ts + pickup-spawn-system.ts now stamp `Transform.scale = [0, 0, 0]` on the freshly-spawned entity and attach a `Tweens` component driving scale to the final size over 200 ms with `easeOutBack`. The engine's TweenSystem (registered by start.ts) advances each tween in fixedUpdate and removes the Tween component on completion — no per-project advance code needed. Final scales: bombs `[0.35, 0.35, 0.35]`, pickups inherit the per-kind PICKUP_VISUAL.scale.",
       "verification": [
-        "acceptance: New bombs and pickups visibly 'pop' into existence with a small overshoot rather than appearing at full size instantly.",
-        "examples/kaboom-crew/src/systems/bomb-place-system.ts attaches Tween on the new bomb entity",
-        "+ unit test on a stub world: after placing a bomb the new entity carries a Tween component with target=1, ease='easeOutBack', duration ~0.2"
+        "acceptance: New bombs visibly pop into existence (scale jumps from 0 to slightly past 1 then settles to full); pickups dropped on a softblock-destroyed cell do the same — no longer flash in at full size.",
+        "bomb-placement-system.ts: stamps Tweens[{component:'Transform', property:'scale', from:[0,0,0], to:[0.35,0.35,0.35], duration:0.2, ease:'easeOutBack'}]",
+        "pickup-spawn-system.ts: same shape, `to` matches per-kind visual.scale",
+        "+2 unit tests verifying the Tween component shape on both spawn paths"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
