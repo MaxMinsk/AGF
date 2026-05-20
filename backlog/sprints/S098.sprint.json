@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S098",
   "title": "QA followups (S90/S96 verification) + entity create/delete probes + input inject + game-design dogfood",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/112",
   "stories": [
     {
       "id": "AGF-PROBE-ENTITY-CREATE",

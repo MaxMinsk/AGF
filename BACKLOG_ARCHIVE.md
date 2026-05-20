@@ -103,5 +103,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S095](backlog/sprints/S095.sprint.json)** — Polish — camera shake / spawn pop + agent free-cam + audio dial + snapshot history — 7 implemented · archived 2026-05-20
 - **[S096](backlog/sprints/S096.sprint.json)** — Particles + snapshot diff probe + component probe + game-design agent seed — 8 implemented · archived 2026-05-20
 - **[S097](backlog/sprints/S097.sprint.json)** — Game-design proposal flow + entity dump probe + component write + diagnostics-since — 8 implemented · archived 2026-05-20
+- **[S098](backlog/sprints/S098.sprint.json)** — QA followups (S90/S96 verification) + entity create/delete probes + input inject + game-design dogfood — 8 implemented · archived 2026-05-20
 
 <!-- backlog:render:end -->
