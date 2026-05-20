@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S096",
   "title": "Particles + snapshot diff probe + component probe + game-design agent seed",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/108",
   "stories": [
     {
       "id": "KABOOM-PICKUP-IDLE-PULSE",
