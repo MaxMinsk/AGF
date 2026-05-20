@@ -50,8 +50,15 @@ const DIRECTIONS: ReadonlyArray<{ dx: number; dz: number }> = [
 
 const DECISION_INTERVAL = 0.2; // seconds between brain ticks
 
+// S100 KABOOM-BOT-PERSONALITY-VARIANTS. Each personality biases two
+// decisions: (1) WHERE to wander (which cell is the bias goal) and
+// (2) WHEN to drop a bomb. 'hunter' = current default; 'coward' bombs
+// more often defensively; 'miner' chases soft blocks + bombs them.
+export type BotPersonality = "hunter" | "coward" | "miner";
+
 type BotBrain = {
   aggression: number;
+  personality?: BotPersonality;
   nextDecisionIn?: number;
   lastDecisionDx?: number;
   lastDecisionDz?: number;
@@ -158,6 +165,72 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return { gx: best.gx, gz: best.gz };
   }
 
+  // S100 KABOOM-BOT-PERSONALITY-VARIANTS — pick the goal cell that
+  // the bias-toward path should chase, based on the bot's personality.
+  //
+  // 'hunter' (default): nearest player (PlayerControlled + GridPosition)
+  // within sight, falling back to the existing pickup magnet.
+  //
+  // 'coward': no goal — the bot just wanders the safe pool. Avoiding
+  // the player is implicit: hunter would chase, coward simply doesn't.
+  //
+  // 'miner': nearest pickup OR nearest soft block, whichever is closer.
+  // Soft blocks are movement-blocking, non-blast-blocking occupants
+  // (same predicate the shouldDropBomb path uses).
+  function personalityGoal(
+    world: World,
+    pos: GridPos,
+    personality: BotPersonality,
+    danger: Set<string>
+  ): { gx: number; gz: number } | undefined {
+    if (personality === "coward") return undefined;
+    if (personality === "miner") {
+      const pickupGoal = nearestPickup(world, pos, danger);
+      const softGoal = nearestSoftBlock(world, pos, danger);
+      if (pickupGoal === undefined) return softGoal;
+      if (softGoal === undefined) return pickupGoal;
+      const dPickup = manhattan(pos.gx, pos.gz, pickupGoal.gx, pickupGoal.gz);
+      const dSoft = manhattan(pos.gx, pos.gz, softGoal.gx, softGoal.gz);
+      return dPickup <= dSoft ? pickupGoal : softGoal;
+    }
+    // hunter (default): chase nearest player; fall through to pickup.
+    const playerGoal = nearestPlayer(world, pos);
+    if (playerGoal !== undefined) return playerGoal;
+    return nearestPickup(world, pos, danger);
+  }
+
+  function nearestPlayer(world: World, pos: GridPos): { gx: number; gz: number } | undefined {
+    let best: { gx: number; gz: number; dist: number } | undefined;
+    // agf-allow: world.query — bot AI ticks at DECISION_INTERVAL (~5 Hz), not per-frame.
+    for (const id of world.query(["PlayerControlled", GRID_POSITION])) {
+      const p = world.getComponent<GridPos>(id, GRID_POSITION);
+      if (p === undefined) continue;
+      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
+      if (dist > PICKUP_RADIUS * 2) continue; // 'hunter' sees further than the pickup magnet
+      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+    }
+    if (best === undefined) return undefined;
+    return { gx: best.gx, gz: best.gz };
+  }
+
+  function nearestSoftBlock(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
+    let best: { gx: number; gz: number; dist: number } | undefined;
+    // agf-allow: world.query — same cadence as above.
+    for (const id of world.query([GRID_POSITION, "GridOccupant"])) {
+      const p = world.getComponent<GridPos>(id, GRID_POSITION);
+      if (p === undefined) continue;
+      const occ = world.getComponent<{ layer?: string; blocksMovement?: boolean; blocksBlast?: boolean }>(id, "GridOccupant");
+      // Soft block = movement-blocker AND NOT blast-blocker (hard walls block both).
+      if (occ?.blocksMovement !== true || occ?.blocksBlast === true) continue;
+      if (danger.has(cellKey(p.gx, p.gz))) continue;
+      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
+      if (dist > PICKUP_RADIUS) continue;
+      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+    }
+    if (best === undefined) return undefined;
+    return { gx: best.gx, gz: best.gz };
+  }
+
   function decideDirection(
     pos: GridPos,
     brain: BotBrain,
@@ -225,6 +298,13 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     const stats = world.getComponent<{ activeBombs?: number; maxBombs: number; alive?: boolean }>(botId, BOMBER_STATS);
     if (stats === undefined || stats.alive === false) return false;
     if ((stats.activeBombs ?? 0) >= stats.maxBombs) return false;
+    // S100 KABOOM-BOT-PERSONALITY-VARIANTS — personality scales the
+    // base aggression. 'coward' bombs more eagerly as a defensive
+    // shield; 'miner' bombs more eagerly toward soft blocks. 'hunter'
+    // uses the unscaled aggression.
+    const persona = brain.personality ?? "hunter";
+    const aggressionScale = persona === "coward" ? 1.5 : persona === "miner" ? 1.4 : 1.0;
+    const aggression = Math.min(1, brain.aggression * aggressionScale);
     // Adjacent soft block? Look at the four cardinals — if any
     // contains a movement-blocking, non-blast-blocking occupant, it's
     // a soft block.
@@ -235,7 +315,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         options.occupancy.blocked(gx, gz, "movement") &&
         !options.occupancy.blocked(gx, gz, "blast")
       ) {
-        return rng.next() < brain.aggression;
+        return rng.next() < aggression;
       }
     }
     return false;
@@ -273,8 +353,11 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         continue;
       }
       if (danger === undefined) danger = buildDangerMap(world);
-      const pickupGoal = nearestPickup(world, pos, danger);
-      const direction = decideDirection(pos, brain, danger, pickupGoal);
+      // S100 KABOOM-BOT-PERSONALITY-VARIANTS — pick the goal cell
+      // based on the bot's personality (default 'hunter' chases the
+      // player; 'coward' has no goal; 'miner' adds soft blocks).
+      const goal = personalityGoal(world, pos, brain.personality ?? "hunter", danger);
+      const direction = decideDirection(pos, brain, danger, goal);
 
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
       if (mover !== undefined) {

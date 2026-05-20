@@ -79,6 +79,11 @@
       "required": ["aggression"],
       "properties": {
         "aggression": { "type": "number", "minimum": 0, "maximum": 1 },
+        "personality": {
+          "type": "string",
+          "enum": ["hunter", "coward", "miner"],
+          "description": "S100 KABOOM-BOT-PERSONALITY-VARIANTS. 'hunter' (default) chases the nearest player + bombs when adjacent to soft blocks. 'coward' has no chase goal + bombs more eagerly when threatened (defensive shield). 'miner' chases soft blocks AND pickups, ignores the player unless in path; bombs more eagerly toward soft blocks."
+        },
         "nextDecisionIn": { "type": "number", "minimum": 0 },
         "lastDecisionDx": { "type": "integer", "minimum": -1, "maximum": 1 },
         "lastDecisionDz": { "type": "integer", "minimum": -1, "maximum": 1 }

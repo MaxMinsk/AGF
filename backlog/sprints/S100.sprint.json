@@ -46,7 +46,7 @@
     {
       "id": "KABOOM-BOT-PERSONALITY-VARIANTS",
       "title": "Bot personality variants — Hunter / Coward / Miner (GDP-005)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-20-005. Today's bot AI has a single difficulty axis (easy/normal/hard) tuning decision cadence + aggression. Add a `personality` dial on top: 'hunter' biases bot toward shortest path to player + bomb-when-adjacent; 'coward' biases toward distance-from-bombs + place-bombs-when-cornered; 'miner' biases toward destroying soft blocks for pickups + ignores the player unless adjacent. URL: ?botPersonality=hunter|coward|miner (defaults to 'hunter' for backwards-compat with the current behavior). Implementation: extend the BotBrain component with a 'personality' field; bot-ai-system reads it + applies the corresponding decision weights.",
       "verification": [
         "acceptance: ?botPersonality=miner — the bot visibly avoids the player and prefers placing bombs near soft-block clusters. ?botPersonality=coward — the bot keeps maximum distance from live bombs.",

@@ -36,7 +36,7 @@ import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system
 import { createKaboomDeathAnimationSystem } from "./src/systems/death-animation-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
-import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
+import { difficultyComponentPatch, readBotPersonalityFromUrl, readDifficultyFromUrl } from "./src/difficulty";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
 function readRoundTimeLimit(): number {
@@ -147,6 +147,9 @@ function restartScene(runtime: RuntimeHandle): number {
   const preset = readDifficultyFromUrl(
     (globalThis as unknown as { location?: { search?: string } }).location?.search
   );
+  const personality = readBotPersonalityFromUrl(
+    (globalThis as unknown as { location?: { search?: string } }).location?.search
+  );
   const tuning = difficultyComponentPatch(preset);
   runtime.applyCommands([
     { kind: "scene.load", scene: buildFlatStartScene() },
@@ -157,7 +160,11 @@ function restartScene(runtime: RuntimeHandle): number {
         RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit(), matchTarget: 3, matchPhase: "in-progress" }
       }
     },
-    { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
+    // S100 KABOOM-BOT-PERSONALITY-VARIANTS — splice the URL-derived
+    // personality into the difficulty patch so a single component.set
+    // both keeps the existing aggression/decision dial AND sets the
+    // personality flag the bot-ai-system reads.
+    { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
     { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
     { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover },
     // S87 KABOOM-PLAYER-VS-BOT-COLOR — re-apply on every restart.
@@ -304,6 +311,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     const initialPreset = readDifficultyFromUrl(
       (globalThis as unknown as { location?: { search?: string } }).location?.search
     );
+    const initialPersonality = readBotPersonalityFromUrl(
+      (globalThis as unknown as { location?: { search?: string } }).location?.search
+    );
     const initialTuning = difficultyComponentPatch(initialPreset);
     runtime.applyCommands([
       {
@@ -323,7 +333,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit() }
         }
       },
-      { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: initialTuning.BotBrain },
+      { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
       { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
       { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover },
       // S87 KABOOM-PLAYER-VS-BOT-COLOR. Force tints so the in-world
@@ -398,8 +408,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         loc.history.replaceState(null, "", `${loc.location.pathname ?? ""}?${params.toString()}`);
       }
       const tuning = difficultyComponentPatch(next);
+      // S100 KABOOM-BOT-PERSONALITY-VARIANTS — re-read personality on
+      // each difficulty cycle so URL changes between cycles are picked
+      // up; cycling difficulty doesn't otherwise touch personality.
+      const personality = readBotPersonalityFromUrl(
+        (globalThis as unknown as { location?: { search?: string } }).location?.search
+      );
       runtime.applyCommands([
-        { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: tuning.BotBrain },
+        { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
         { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
         { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
       ]);
