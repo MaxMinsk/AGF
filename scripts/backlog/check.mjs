@@ -226,6 +226,32 @@ for (const { file, data } of sprints) {
   }
 }
 
+// S93 QA-ACCEPTANCE-CONVENTION. For every story.status === "implemented"
+// the FIRST entry of verification[] must start with "acceptance:" (case-
+// insensitive). This is what the QA-agent terminal reads as "what should
+// I manually verify". Emitted as a warning during the grace period; will
+// be promoted to error once existing archived sprints are cleaned up.
+//
+// We restrict the check to non-archived sprints — backfilling 80+
+// archived sprints would drown the output (~600 warnings). New work
+// (active + pending sprints) is enforced from now.
+for (const { file, data } of sprints) {
+  if (data.status === "archived") continue;
+  for (const story of data.stories ?? []) {
+    if (story.status !== "implemented") continue;
+    const first = Array.isArray(story.verification) ? story.verification[0] : undefined;
+    const ok = typeof first === "string" && /^acceptance\s*:/i.test(first.trim());
+    if (!ok) {
+      diag(
+        "AGF_BACKLOG_NO_ACCEPTANCE",
+        "warning",
+        `Implemented story ${story.id} verification[] has no leading "acceptance:" line (QA agent has nothing to manually verify against).`,
+        { file, suggestion: "Add a first entry: 'acceptance: <user-facing description of what to manually verify>'." }
+      );
+    }
+  }
+}
+
 // Cycle detection via DFS over the dependency graph.
 {
   const WHITE = 0;

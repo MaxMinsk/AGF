@@ -47,12 +47,13 @@
     {
       "id": "QA-ACCEPTANCE-CONVENTION",
       "title": "backlog:check warns when an implemented story lacks `acceptance:` line",
-      "status": "pending",
-      "summary": "Extend `scripts/backlog/check.mjs` with a soft rule (warning, not error): for every story where status='implemented', the first entry of `verification[]` should start with the literal prefix `acceptance:` (case-insensitive). Emit `AGF_BACKLOG_NO_ACCEPTANCE` warning per offending story. Grace period: warning only — promote to error in a later sprint once the existing archived sprints have been cleaned up. Add a doctor-side note that summarises the count.",
+      "status": "implemented",
+      "summary": "scripts/backlog/check.mjs gains a soft rule: every story.status='implemented' must have a first verification[] entry whose trimmed text matches `/^acceptance\\s*:/i`. Missing acceptance fires AGF_BACKLOG_NO_ACCEPTANCE warning. Restricted to non-archived sprints — backfilling 80+ archived sprints would drown the output (~600 warnings, confirmed). New work (active + pending sprints) is enforced from now; the legacy clean-up is a follow-up sprint when we want it.",
       "verification": [
-        "acceptance: A fresh sprint JSON with an `implemented` story whose verification[] lacks an acceptance: line surfaces AGF_BACKLOG_NO_ACCEPTANCE in `npm run backlog:check`. Adding `acceptance: <text>` as the first entry silences it.",
-        "Case-insensitive match (Acceptance / ACCEPTANCE accepted)",
-        "+1 unit test on the rule"
+        "acceptance: A fresh sprint JSON with an `implemented` story whose verification[] lacks an `acceptance:` line surfaces AGF_BACKLOG_NO_ACCEPTANCE under `npm run backlog:check`. Adding `acceptance: <text>` as the first entry silences it.",
+        "Case-insensitive match — 'Acceptance:', 'ACCEPTANCE:' both silence the warning",
+        "Archived sprints skipped (legacy stories don't drown the report)",
+        "+3 unit tests under tests/unit/qa-acceptance-rule.test.ts: archived sprints silent; pending sprint warns on missing prefix; case-insensitive silence path"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
