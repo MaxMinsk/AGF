@@ -693,6 +693,12 @@ export class ThreeRenderAdapter {
   private groundedSkyboxMesh: Mesh | undefined;
   private groundedShadowMesh: Mesh | undefined;
   private activeCameraHandle: CameraHandle | undefined;
+  // S095 AGF-RENDER-DEBUG-FREECAM. When set, this camera overrides
+  // `activeCameraHandle` everywhere `activeCamera()` is read (render,
+  // resize, pickAtNdc). Cleared back to undefined by setFreeCam(null);
+  // the project's normal active-camera flow then takes over again.
+  private freeCamCamera: PerspectiveCamera | undefined;
+  private freeCamSpec: { position: [number, number, number]; lookAt: [number, number, number] } | undefined;
   private debugOverlay: LineSegments | undefined;
   // S091 AGF-RENDER-DEBUG-MODE-AGENT. `debugCache` stores per-mesh state
   // so `setDebugMode('off')` restores the original material (and original
@@ -2448,6 +2454,48 @@ export class ThreeRenderAdapter {
     return this.activeCamera() !== undefined;
   }
 
+  // S095 AGF-RENDER-DEBUG-FREECAM.
+  /** Returns the current freecam spec or undefined when off. */
+  getFreeCam(): { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | undefined {
+    if (this.freeCamSpec === undefined) return undefined;
+    return { position: this.freeCamSpec.position, lookAt: this.freeCamSpec.lookAt };
+  }
+
+  /** Set or clear the freecam override. `null` clears it; the project
+   *  active camera takes over again on the next render. Setting it
+   *  with new coordinates reuses the existing override camera. */
+  setFreeCam(spec: { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | null): boolean {
+    if (spec === null) {
+      // Tear down the override.
+      if (this.freeCamCamera !== undefined) {
+        this.scene.remove(this.freeCamCamera);
+        this.freeCamCamera = undefined;
+      }
+      this.freeCamSpec = undefined;
+      // CSM + composer rebuild because the active camera flipped.
+      if (this.csmConfig !== undefined) this.rebuildCsm();
+      if (this.postConfig !== undefined) this.rebuildComposer();
+      return false;
+    }
+    if (this.freeCamCamera === undefined) {
+      this.freeCamCamera = new PerspectiveCamera(60, this.canvasAspect(), 0.1, 1000);
+      // Add to the scene so transforms / matrix world updates take.
+      this.scene.add(this.freeCamCamera);
+    }
+    const [px, py, pz] = spec.position;
+    const [lx, ly, lz] = spec.lookAt;
+    this.freeCamCamera.position.set(px, py, pz);
+    this.freeCamCamera.lookAt(lx, ly, lz);
+    this.freeCamCamera.updateProjectionMatrix();
+    this.freeCamSpec = {
+      position: [px, py, pz],
+      lookAt: [lx, ly, lz]
+    };
+    if (this.csmConfig !== undefined) this.rebuildCsm();
+    if (this.postConfig !== undefined) this.rebuildComposer();
+    return true;
+  }
+
   // ---- M17-instance-picking ----
 
   /**
@@ -3205,6 +3253,9 @@ export class ThreeRenderAdapter {
     // down meshes so dispose runs against each mesh's real material, not
     // the shared debug override.
     this.restoreDebugOverrides();
+    // S095 AGF-RENDER-DEBUG-FREECAM: tear down the override camera so
+    // it doesn't leak past dispose.
+    this.setFreeCam(null);
     for (const mesh of this.meshes.values()) {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
@@ -3244,6 +3295,9 @@ export class ThreeRenderAdapter {
   }
 
   private activeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
+    // S095 AGF-RENDER-DEBUG-FREECAM — when the freecam override is on,
+    // it wins over the project's active camera.
+    if (this.freeCamCamera !== undefined) return this.freeCamCamera;
     if (this.activeCameraHandle === undefined) return undefined;
     return this.cameras.get(this.activeCameraHandle);
   }

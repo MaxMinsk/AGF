@@ -32,6 +32,38 @@ export const DEV_BRIDGE_VERSION = "0.1.0-m15-multi-page";
 export const DEV_BRIDGE_PATH_PREFIX = "/__agf/";
 export const DEV_BRIDGE_WS_PATH = "/__agf/ws";
 
+/**
+ * S095 AGF-RENDER-DEBUG-FREECAM — pure body validator for the
+ * POST /__agf/render/freecam route. Exported for unit tests so the
+ * accept/reject rules can be locked without spinning up Vite.
+ */
+export type FreeCamBodyResult =
+  | { kind: "off" }
+  | { kind: "set"; position: [number, number, number]; lookAt: [number, number, number] }
+  | { kind: "error"; code: string; message: string };
+
+export function validateFreeCamBody(body: unknown): FreeCamBodyResult {
+  if (body === null || typeof body !== "object") {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_FREECAM",
+      message: "Body must be a JSON object."
+    };
+  }
+  const b = body as { off?: unknown; position?: unknown; lookAt?: unknown };
+  if (b.off === true) return { kind: "off" };
+  const isVec3 = (v: unknown): v is [number, number, number] =>
+    Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === "number" && Number.isFinite(n));
+  if (!isVec3(b.position) || !isVec3(b.lookAt)) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_FREECAM",
+      message: "Body must be JSON with `position: [x, y, z]` + `lookAt: [x, y, z]` (finite numbers), or `{ off: true }` to clear."
+    };
+  }
+  return { kind: "set", position: b.position, lookAt: b.lookAt };
+}
+
 const DEFAULT_RPC_TIMEOUT_MS = 3000;
 
 type PendingRpc = {
@@ -431,6 +463,37 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             return;
           }
           await proxyToPage(req, res, "render-debug-mode-set", { mode });
+          return;
+        }
+
+        // S095 AGF-RENDER-DEBUG-FREECAM. POST sets the override (or
+        // clears it with { off: true }); GET reads the current pose.
+        if (route === "/render/freecam" && req.method === "GET") {
+          await proxyToPage(req, res, "render-freecam-get");
+          return;
+        }
+        if (route === "/render/freecam" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const validated = validateFreeCamBody(body);
+          if (validated.kind === "error") {
+            respondJson(res, 400, {
+              ok: false,
+              error: { code: validated.code, message: validated.message }
+            });
+            return;
+          }
+          if (validated.kind === "off") {
+            await proxyToPage(req, res, "render-freecam-set", { off: true });
+            return;
+          }
+          await proxyToPage(req, res, "render-freecam-set", {
+            position: validated.position,
+            lookAt: validated.lookAt
+          });
           return;
         }
 

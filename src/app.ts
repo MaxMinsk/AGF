@@ -239,6 +239,11 @@ export type AppHandle = {
   /** S095 AGF-AUDIO-MASTER-VOLUME. */
   getAudioMasterVolume(): number;
   setAudioMasterVolume(value: number): number;
+  /** S095 AGF-RENDER-DEBUG-FREECAM. */
+  getRenderFreeCam(): { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | undefined;
+  setRenderFreeCam(
+    spec: { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | null
+  ): boolean;
   /**
    * RUNTIME-renderer-ready: resolves once the renderer has drawn its
    * first frame (active camera acquired). Tests + dev-bridge clients
@@ -663,6 +668,13 @@ export async function createApp(
     },
     setAudioMasterVolume(value: number) {
       return runtime.audio?.setMasterVolume(value) ?? 1;
+    },
+    // S095 AGF-RENDER-DEBUG-FREECAM.
+    getRenderFreeCam() {
+      return runtime.renderer.getFreeCam();
+    },
+    setRenderFreeCam(spec) {
+      return runtime.renderer.setFreeCam(spec);
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

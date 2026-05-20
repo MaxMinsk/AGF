@@ -339,6 +339,17 @@ export class ThreeRenderer {
   }
 
   /**
+   * S095 AGF-RENDER-DEBUG-FREECAM. Forwarders for the agent-driven
+   * free-fly camera override. Used by /__agf/render/freecam.
+   */
+  getFreeCam(): { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | undefined {
+    return this.adapter.getFreeCam();
+  }
+  setFreeCam(spec: { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | null): boolean {
+    return this.adapter.setFreeCam(spec);
+  }
+
+  /**
    * Forget the cached binding for an asset reference so the renderer re-fetches
    * and re-applies it on the next refreshMeshes. Used by asset HMR.
    */

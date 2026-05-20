@@ -172,6 +172,11 @@ declare global {
       /** S095 AGF-AUDIO-MASTER-VOLUME. */
       getAudioMasterVolume(): number;
       setAudioMasterVolume(value: number): number;
+      /** S095 AGF-RENDER-DEBUG-FREECAM. */
+      getRenderFreeCam(): { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | undefined;
+      setRenderFreeCam(
+        spec: { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | null
+      ): boolean;
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -479,6 +484,9 @@ void (async (): Promise<void> => {
       // S095 AGF-AUDIO-MASTER-VOLUME.
       getAudioMasterVolume: () => app.getAudioMasterVolume(),
       setAudioMasterVolume: (value: number) => app.setAudioMasterVolume(value),
+      // S095 AGF-RENDER-DEBUG-FREECAM.
+      getRenderFreeCam: () => app.getRenderFreeCam(),
+      setRenderFreeCam: (spec) => app.setRenderFreeCam(spec),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,
