@@ -156,6 +156,38 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     expect(world.hasEntity("bot.1.match-burst-draw")).toBe(true);
   });
 
+  it("S90 KABOOM-FOOTSTEP-TICK: a GridPosition change between ticks fires one 'footstep' event", () => {
+    const world = new World();
+    world.addEntity("player.1");
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+    world.setComponent("player.1", "GridPosition", { gx: 1, gz: 1 });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    // Tick 1: first observation, no event.
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).not.toHaveBeenCalledWith("footstep", expect.anything());
+    // Tick 2: position unchanged, still no event.
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).not.toHaveBeenCalledWith("footstep", expect.anything());
+    // Tick 3: position changed → one event.
+    world.setComponent("player.1", "GridPosition", { gx: 2, gz: 1 });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("footstep", { entityId: "player.1" });
+  });
+
+  it("S90 KABOOM-FOOTSTEP-TICK: dead bombers don't tick", () => {
+    const world = new World();
+    world.addEntity("player.1");
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: false });
+    world.setComponent("player.1", "GridPosition", { gx: 1, gz: 1 });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("player.1", "GridPosition", { gx: 2, gz: 1 });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).not.toHaveBeenCalledWith("footstep", expect.anything());
+  });
+
   it("S88 KABOOM-WIN-CHIME: matchPhase=draw fires 'match-draw'", () => {
     const world = new World();
     world.addEntity("kaboom.round-state");

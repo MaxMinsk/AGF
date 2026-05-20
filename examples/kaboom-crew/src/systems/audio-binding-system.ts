@@ -39,7 +39,8 @@ export type AudioEventKind =
   | "death"
   | "match-won"
   | "match-lost"
-  | "match-draw";
+  | "match-draw"
+  | "footstep";
 export type AudioEventListener = (kind: AudioEventKind, context?: { entityId?: EntityId }) => void;
 
 export type KaboomAudioBindingOptions = {
@@ -61,6 +62,10 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
   let prevBombIds = new Set<EntityId>();
   let prevPickupIds = new Set<EntityId>();
   let prevAlive = new Map<EntityId, boolean>();
+  // S90 KABOOM-FOOTSTEP-TICK. Last observed GridPosition cell per
+  // bomber. A cell change between ticks fires one 'footstep' event.
+  // Map key = entity id; value = packed `gx,gz` string.
+  let prevBomberCell = new Map<EntityId, string>();
   // S88 KABOOM-WIN-CHIME. Track previous matchPhase so we fire a
   // 'match-{won|lost|draw}' event exactly once per matchPhase
   // transition out of 'in-progress'. Defaults to 'in-progress' so
@@ -86,6 +91,7 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       prevBombIds = new Set();
       prevPickupIds = new Set();
       prevAlive = new Map();
+      prevBomberCell = new Map();
       prevMatchPhase = "in-progress";
     }
 
@@ -113,6 +119,16 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       const nowAlive = currentAlive.get(id) ?? false;
       if (wasAlive && !nowAlive) {
         onEvent("death", { entityId: id });
+        // S90 KABOOM-DEATH-FALL — tag the bomber with a per-entity
+        // animation component the dedicated system will tween + freeze
+        // movement so a dying bomber stops mid-stride.
+        if (!world.hasComponent(id, "DeathAnim")) {
+          world.setComponent(id, "DeathAnim", { elapsed: 0 });
+        }
+        const mover = world.getComponent<{ queuedDirection?: { dx: number; dz: number } }>(id, "GridMover");
+        if (mover !== undefined && (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0)) {
+          world.setComponent(id, "GridMover", { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+        }
         // S86 KABOOM-DEATH-PARTICLES. Spawn a short-lived 'glow' puff
         // at the dead bomber's cell. The M19 ParticleEmitterSystem
         // cleans the entity up when lifetime elapses.
@@ -148,6 +164,27 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     // BlastTile fan-out, which the dedicated death/pickup paths skip.
     const anyBlast = blastEvents!.run().length > 0;
     if (anyBlast) onEvent("blast");
+
+    // S90 KABOOM-FOOTSTEP-TICK. Walk every bomber's GridPosition;
+    // a cell change since last tick fires one 'footstep' event per
+    // bomber. Dead bombers (alive===false) don't tick — keeps the
+    // corpse silent during the death animation. Map values are
+    // refreshed each tick so a fresh world (cleared at the top)
+    // starts from a clean slate.
+    const currentCells = new Map<EntityId, string>();
+    for (const id of bombers!.run()) {
+      const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+      if (stats !== undefined && stats.alive === false) continue;
+      const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+      if (gp?.gx === undefined || gp?.gz === undefined) continue;
+      const key = `${gp.gx},${gp.gz}`;
+      currentCells.set(id, key);
+      const prev = prevBomberCell.get(id);
+      if (prev !== undefined && prev !== key) {
+        onEvent("footstep", { entityId: id });
+      }
+    }
+    prevBomberCell = currentCells;
 
     // S88 KABOOM-WIN-CHIME. Detect a matchPhase transition out of
     // 'in-progress' on the kaboom.round-state singleton and fire the

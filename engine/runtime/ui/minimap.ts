@@ -34,8 +34,26 @@ export type MinimapBounds = {
   maxZ: number;
 };
 
+/**
+ * S90 KABOOM-MINIMAP-DANGER-OVERLAY. World-space cell rectangles
+ * painted UNDER the marker list at low alpha. Used by gameplay
+ * projects to surface a "this cell is about to be set on fire"
+ * overlay without polluting the regular marker shape vocabulary.
+ */
+export type MinimapCellOverlay = {
+  /** World-space cell centre. */
+  x: number;
+  z: number;
+  /** Cell width / height in world units. Default 1. */
+  size?: number;
+  /** Fill colour (CSS). Default `rgba(255,90,90,0.4)`. */
+  color?: string;
+};
+
 export type MinimapData = {
   markers: ReadonlyArray<MinimapMarker>;
+  /** Optional under-layer cell rectangles (e.g. blast-projection overlay). */
+  cells?: ReadonlyArray<MinimapCellOverlay>;
 };
 
 export type MinimapWidgetOptions = {
@@ -117,6 +135,20 @@ export function createMinimapWidget(options: MinimapWidgetOptions): HudWidgetSpe
       const px = ((x - options.bounds.minX) / rangeX) * pixelSize;
       const py = ((z - options.bounds.minZ) / rangeZ) * pixelSize;
       return { px, py };
+    }
+
+    // S90 KABOOM-MINIMAP-DANGER-OVERLAY. Paint cell rectangles first
+    // so the marker list lands on top. Cells are described in world
+    // units (cell size defaults to 1).
+    if (data.cells !== undefined) {
+      for (const cell of data.cells) {
+        const { px, py } = project(cell.x, cell.z);
+        const size = cell.size ?? 1;
+        const halfPx = (size * pixelSize) / (2 * rangeX);
+        const halfPy = (size * pixelSize) / (2 * rangeZ);
+        c.fillStyle = cell.color ?? "rgba(255,90,90,0.4)";
+        c.fillRect(px - halfPx, py - halfPy, halfPx * 2, halfPy * 2);
+      }
     }
 
     for (const marker of data.markers) {

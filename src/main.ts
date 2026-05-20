@@ -159,6 +159,9 @@ declare global {
         readonly live: number;
         readonly peak: number;
       }>;
+      /** S90 AGF-DEV-BRIDGE-TIME-SCALE. */
+      getTimeScale(): number;
+      setTimeScale(scale: number): number;
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -454,6 +457,9 @@ void (async (): Promise<void> => {
       assetInventory: () => app.assetInventory(),
       // S88 AGF-POOL-INVENTORY-PROBE.
       poolInventory: () => app.poolInventory(),
+      // S90 AGF-DEV-BRIDGE-TIME-SCALE.
+      getTimeScale: () => app.getTimeScale(),
+      setTimeScale: (scale: number) => app.setTimeScale(scale),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

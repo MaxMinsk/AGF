@@ -167,6 +167,23 @@ curl 'http://localhost:5173/__agf/pool-inventory'
 #     ] }
 ```
 
+### `GET /__agf/runtime/timescale` · `POST /__agf/runtime/timescale`
+
+S90 AGF-DEV-BRIDGE-TIME-SCALE. Read or set the engine-level
+time-scale that the loop multiplies into every system's dt.
+Clamped to `[0.05, 4]`; non-finite values fall back to `1`. The
+response always carries the final clamped value so the caller can
+diff against its intent.
+
+```bash
+curl 'http://localhost:5173/__agf/runtime/timescale'
+# → { "scale": 1 }
+curl -X POST 'http://localhost:5173/__agf/runtime/timescale' \
+  -H 'Content-Type: application/json' \
+  -d '{"value":0.25}'
+# → { "scale": 0.25 }
+```
+
 ### `POST /__agf/asset/invalidate?playerId=<id>`
 
 Manually invalidate an asset binding on the page (used by the

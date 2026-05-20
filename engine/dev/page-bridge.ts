@@ -119,6 +119,10 @@ type AgfApi = {
   assetInventory?: () => unknown;
   /** S88 AGF-POOL-INVENTORY-PROBE. */
   poolInventory?: () => unknown;
+  /** S90 AGF-DEV-BRIDGE-TIME-SCALE. GET returns the live scale. */
+  getTimeScale?: () => number;
+  /** S90 AGF-DEV-BRIDGE-TIME-SCALE. POST forwards a new scale; returns the clamped value. */
+  setTimeScale?: (scale: number) => number;
   reloadEvents?: unknown;
   applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
   startRecording?: () => unknown;
@@ -252,6 +256,20 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         // S88 AGF-POOL-INVENTORY-PROBE.
         payload = api?.poolInventory?.();
         break;
+      case "runtime-timescale":
+        // S90 AGF-DEV-BRIDGE-TIME-SCALE — GET path.
+        payload = { scale: api?.getTimeScale?.() ?? 1 };
+        break;
+      case "runtime-timescale-set": {
+        // S90 AGF-DEV-BRIDGE-TIME-SCALE — POST path. Body contains `value`.
+        const value = (payloadIn as { value?: number } | undefined)?.value;
+        if (typeof value !== "number" || api?.setTimeScale === undefined) {
+          payload = { scale: api?.getTimeScale?.() ?? 1 };
+        } else {
+          payload = { scale: api.setTimeScale(value) };
+        }
+        break;
+      }
       case "reload-events":
         payload = api?.reloadEvents ?? [];
         break;

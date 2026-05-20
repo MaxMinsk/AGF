@@ -320,6 +320,28 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S90 AGF-DEV-BRIDGE-TIME-SCALE. POST forwards to the page's
+        // setTimeScale; GET reads the live value. Out-of-range values
+        // clamp on the page side; the response always carries the
+        // final scale so the caller can compare against its intent.
+        if (route === "/runtime/timescale" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const value = (body as { value?: unknown }).value;
+          if (typeof value !== "number") {
+            respondJson(res, 400, {
+              ok: false,
+              error: { code: "AGF_BRIDGE_INVALID_TIME_SCALE", message: "Body must be JSON with a `value` number." }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "runtime-timescale-set", { value });
+          return;
+        }
+
         if (route === "/project-patch" && req.method === "POST") {
           // S53 DEVBRIDGE-project-patch: shallow merge-patch onto a
           // project.json on disk. Dev-only (the whole `/__agf/*`
@@ -504,6 +526,8 @@ function mapRouteToRpcKind(method: string | undefined, route: string): string | 
       return "asset-inventory";
     case "/pool-inventory":
       return "pool-inventory";
+    case "/runtime/timescale":
+      return "runtime-timescale";
     case "/reload-events":
       return "reload-events";
     // S71 agent-debug. Returns the page's recent `console.*` lines

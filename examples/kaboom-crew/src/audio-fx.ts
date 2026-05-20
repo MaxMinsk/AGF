@@ -19,7 +19,8 @@ export type AudioEventKind =
   | "death"
   | "match-won"
   | "match-lost"
-  | "match-draw";
+  | "match-draw"
+  | "footstep";
 
 export type KaboomAudioFx = {
   play(kind: AudioEventKind): void;
@@ -303,6 +304,23 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     playChord(c, [392.0, 587.33], 0.5, 0.4);
   }
 
+  // S90 KABOOM-FOOTSTEP-TICK. ~25 ms low-gain click — barely audible
+  // solo, satisfying when chained one per cell crossing. Triangle wave
+  // around 180 Hz with a sharp gain envelope; lowpass shaves harshness.
+  function playFootstep(c: AudioContextLike): void {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "triangle";
+    const now = c.currentTime;
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.025);
+    envelope(c, gain, 0.002, masterGain * 0.18, 0.025);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+
   return {
     play(kind: AudioEventKind): void {
       if (muted) return;
@@ -316,6 +334,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         else if (kind === "match-won") playMatchWon(c);
         else if (kind === "match-lost") playMatchLost(c);
         else if (kind === "match-draw") playMatchDraw(c);
+        else if (kind === "footstep") playFootstep(c);
       } catch {
         // Browser quirks (e.g. context closed) — fail silent so a
         // misbehaving audio path doesn't break gameplay.

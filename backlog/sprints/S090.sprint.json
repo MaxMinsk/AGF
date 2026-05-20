@@ -1,0 +1,92 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S090",
+  "title": "Engine time-scale primitive + Kaboom Crew feel pass",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "AGF-RUNTIME-TIME-SCALE",
+      "title": "runtime.setTimeScale(x) — engine-level slow-mo / fast-forward",
+      "status": "implemented",
+      "summary": "RuntimeHandle gains `setTimeScale(scale)` + `getTimeScale()`. The loop multiplies the real wallclock dt by the scale before advanceFixedStep / setting time.dt — so fixed-step accumulator and frame dt scale identically (deterministic systems still tick on the same simulated clock, just at a different tempo). Exported `clampTimeScale(value)` enforces [0.05, 4]; non-finite inputs (NaN, ±Inf) fall back to 1.",
+      "verification": [
+        "+4 unit tests under tests/unit/runtime-time-scale.test.ts cover identity range, low-clamp, high-clamp, non-finite fallback",
+        "engine/runtime/start.ts: `timeScale` variable defaults to 1; `setTimeScale` clamps + assigns + returns; tick() reads `wallDt * timeScale`",
+        "RuntimeHandle TypeScript surface gains setTimeScale + getTimeScale with TSDoc"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-DEV-BRIDGE-TIME-SCALE",
+      "title": "POST /__agf/runtime/timescale over the dev bridge",
+      "status": "implemented",
+      "summary": "Mirror the in-page accessor over the dev bridge so scripted playtests can flip time-scale without poking at window.__agf. `POST /__agf/runtime/timescale { value: 0.25 }` proxies to runtime.setTimeScale and returns the clamped scale; `GET /__agf/runtime/timescale` returns the live value. Plumbed through agf-dev-bridge route table + page-bridge channels + main.ts handler.",
+      "verification": [
+        "agf-dev-bridge.ts: GET /runtime/timescale → 'runtime-timescale' channel; POST → 'runtime-timescale-set' with `value` body",
+        "page-bridge.ts: API surface gains getTimeScale + setTimeScale; channel handlers return `{ scale }`",
+        "src/app.ts + src/main.ts forward to runtime.getTimeScale / setTimeScale",
+        "docs/agent-probes.md adds a /__agf/runtime/timescale section"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-BOMB-FUSE-WIGGLE",
+      "title": "Bomb mesh wiggles in scale as fuse nears 0",
+      "status": "implemented",
+      "summary": "Added pure helper `bombWiggleScale(fuseRemaining, now?)` to bomb-fuse-system: returns 1 when fuseRemaining > 2 (fresh bomb sits still), otherwise sin(t * frequency) modulation around 1 with amplitude 0.04 → 0.14 and frequency 4 → 12 Hz as urgency rises (fuseRemaining → 0). The system rewrites Transform.scale on the bomb each fixed step when fuse <= 2; otherwise leaves it untouched so the mutation counter doesn't churn.",
+      "verification": [
+        "+4 unit tests under tests/unit/bomb-fuse-wiggle.test.ts: fresh fuse=1 baseline, mid-fuse amplitude, near-zero amplitude, negative fuse defensive return"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-DEATH-FALL",
+      "title": "Dying bomber visibly tips over before despawn",
+      "status": "implemented",
+      "summary": "audio-binding-system's alive→dead detection writes a `DeathAnim { elapsed: 0 }` component + zeroes GridMover.queuedDirection. New `kaboom.death-animation` system tweens Transform.rotation X toward Math.PI/2 over 0.4 s with an ease-out-quad curve; baseline rotation is captured the first tick we see the entity so a rotated mesh still tips. Pure helper `deathFallPitch(elapsed, baseX)` exported for tests.",
+      "verification": [
+        "+6 unit tests (3 on the pure helper + 3 on the system): baseline / target / monotonic curve / writes rotation / reaches target after 0.4 s / ignores entities without DeathAnim",
+        "examples/kaboom-crew/bootstrap.ts registers the system in the static profile",
+        "GridMover.queuedDirection zeroed on the same step the DeathAnim is written"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-FOOTSTEP-TICK",
+      "title": "Tiny click on every grid-cell crossing",
+      "status": "implemented",
+      "summary": "AudioEventKind grows a `footstep` value. audio-binding-system maintains a per-bomber GridPosition cache (`prevBomberCell`) and fires one 'footstep' event per (gx,gz) change between fixed ticks. Dead bombers (alive===false) skip the check so a corpse mid-DeathAnim stays silent. audio-fx.ts plays a 25 ms low-gain triangle click around 180 Hz — barely audible solo, satisfying when chained.",
+      "verification": [
+        "+2 unit tests in audio-binding-system.test.ts: GridPosition change fires footstep; dead bomber doesn't tick",
+        "audio-fx.ts adds playFootstep; play() dispatches via the existing kind switch"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-MINIMAP-DANGER-OVERLAY",
+      "title": "Minimap tints projected blast cells red",
+      "status": "implemented",
+      "summary": "MinimapData gains an optional `cells: ReadonlyArray<MinimapCellOverlay>` field — world-space cell rectangles painted UNDER the markers (default 40%-alpha red `rgba(255,90,90,0.4)`, size 1 cell). Kaboom Crew bootstrap holds a reference to the live GridOccupancyQuery (`_boundOccupancy`) and feeds the minimap with `projectedBlastCells(world, occupancy)` results each frame. Helper lives in `examples/kaboom-crew/src/danger.ts` and mirrors blast-propagation's projection rules (hard walls block, soft blocks burn-and-stop).",
+      "verification": [
+        "+3 unit tests in tests/unit/danger.test.ts: cardinal arms + range, hard-wall stop, multi-bomb dedup union",
+        "engine/runtime/ui/minimap.ts paints `cells` below `markers`; `MinimapData.cells` is optional so non-kaboom projects are unaffected",
+        "bootstrap.ts captures `_boundOccupancy` in registerSystems; minimap update reads it + passes danger cells per frame; dispose() clears the binding"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-DOCS-RUNTIME-HANDLE-AUDIT",
+      "title": "Inline JSDoc audit on RuntimeHandle surface",
+      "status": "implemented",
+      "summary": "Six previously-undocumented members on RuntimeHandle (world, renderer, time, diagnostics, applyCommands, snapshot, stop) get TSDoc blocks explaining the contract + linking to the sprint that introduced them where applicable. Behaviour unchanged.",
+      "verification": [
+        "engine/runtime/start.ts: every field/method on RuntimeHandle now has a TSDoc block",
+        "typecheck stays green; lint clean"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ],
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/100"
+}

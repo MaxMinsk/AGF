@@ -95,5 +95,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S087](backlog/sprints/S087.sprint.json)** — Kaboom Crew match flow + camera shake + engine timing test coverage — 8 implemented · archived 2026-05-19
 - **[S088](backlog/sprints/S088.sprint.json)** — Render-pool warmup + unification + Kaboom Crew polish r3 — 9 implemented · archived 2026-05-20
 - **[S089](backlog/sprints/S089.sprint.json)** — Kaboom Crew polish r4 + engine observability tail — 8 implemented · archived 2026-05-20
+- **[S090](backlog/sprints/S090.sprint.json)** — Engine time-scale primitive + Kaboom Crew feel pass — 7 implemented · archived 2026-05-20
 
 <!-- backlog:render:end -->
