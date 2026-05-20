@@ -89,6 +89,15 @@ declare global {
         readonly assetRef?: string;
         readonly details?: Record<string, unknown>;
       }>;
+      /** S097 AGF-PROBE-DIAGNOSTICS-SINCE. */
+      diagnosticsSince(thresholdSeconds: number): ReadonlyArray<{
+        readonly id: number;
+        readonly emittedAtSeconds: number;
+        readonly severity: "info" | "warning" | "error" | "debug" | "trace";
+        readonly code: string;
+        readonly source: string;
+        readonly message: string;
+      }>;
       /** Drop retained diagnostics. Subscribers stay alive. */
       clearDiagnostics(): void;
       /**
@@ -495,6 +504,8 @@ void (async (): Promise<void> => {
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),
+      // S097 AGF-PROBE-DIAGNOSTICS-SINCE.
+      diagnosticsSince: (thresholdSeconds: number) => app.diagnosticsSince(thresholdSeconds),
       clearDiagnostics: () => app.clearDiagnostics(),
       subscribeDiagnostics: (listener) => app.subscribeDiagnostics(listener),
       copyDiagnostics: () => app.copyDiagnostics(),

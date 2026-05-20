@@ -434,6 +434,27 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S097 AGF-PROBE-DIAGNOSTICS-SINCE. `?since=<ISO timestamp>`
+        // returns only diagnostics with emittedAtSeconds > since.
+        // Without ?since the generic `/diagnostics` GET (further
+        // down) returns the whole ring.
+        if (route === "/diagnostics" && req.method === "GET" && url.searchParams.has("since")) {
+          const sinceRaw = url.searchParams.get("since") ?? "";
+          const sinceMs = Date.parse(sinceRaw);
+          if (!Number.isFinite(sinceMs)) {
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE",
+                message: "`since` must be an ISO-8601 timestamp parseable by Date.parse (e.g. 2026-05-20T12:34:56Z)."
+              }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "diagnostics-since", { thresholdSeconds: sinceMs / 1000 });
+          return;
+        }
+
         // S90 AGF-DEV-BRIDGE-TIME-SCALE. POST forwards to the page's
         // setTimeScale; GET reads the live value. Out-of-range values
         // clamp on the page side; the response always carries the

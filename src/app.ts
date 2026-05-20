@@ -185,6 +185,8 @@ export type AppHandle = {
   resetRound(): number;
   /** Snapshot of the runtime diagnostics bus. */
   diagnostics(): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
+  /** S097 AGF-PROBE-DIAGNOSTICS-SINCE. */
+  diagnosticsSince(thresholdSeconds: number): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
   /**
    * Subscribe to live diagnostic emissions. Used by the dev-bridge SSE
    * stream (`GET /__agf/events`) to fan diagnostics out to subscribed agents.
@@ -654,6 +656,10 @@ export async function createApp(
     },
     diagnostics() {
       return runtime.diagnostics.snapshot();
+    },
+    // S097 AGF-PROBE-DIAGNOSTICS-SINCE.
+    diagnosticsSince(thresholdSeconds: number) {
+      return runtime.diagnostics.snapshotSince(thresholdSeconds);
     },
     subscribeDiagnostics(listener) {
       return runtime.diagnostics.subscribe(listener);

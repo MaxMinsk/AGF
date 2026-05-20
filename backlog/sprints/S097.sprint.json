@@ -74,13 +74,13 @@
     {
       "id": "AGF-PROBE-DIAGNOSTICS-SINCE",
       "title": "GET /__agf/diagnostics?since=<timestamp> filters by timestamp",
-      "status": "pending",
-      "summary": "Today's /diagnostics returns the entire diagnostics ring buffer. For long-running sessions an agent wants 'what's new since I last asked' to avoid re-parsing every entry. Add `since` query param: ISO timestamp; only diagnostics with `t > since` are returned. Returns the live tail when `since` is omitted (current behaviour). Returns 400 AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE when `since` is non-ISO.",
+      "status": "implemented",
+      "summary": "engine/runtime/diagnostics/diagnostics-bus.ts grew `snapshotSince(thresholdSeconds)` and an exported pure `filterDiagnosticsSince(diagnostics, threshold)` helper (returns strict suffix where emittedAtSeconds > threshold; non-finite threshold returns all). Plumbed through src/app.ts.diagnosticsSince → window.__agf.diagnosticsSince → page-bridge `diagnostics-since` RPC. Dev-bridge GET /diagnostics handles `?since=<ISO>`: parses via Date.parse, returns 400 AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE on non-ISO, otherwise forwards `thresholdSeconds = sinceMs / 1000` to the page. Without `?since`, the existing /diagnostics route still returns the full ring.",
       "verification": [
-        "acceptance: GET /__agf/diagnostics returns N entries; GET /__agf/diagnostics?since=<ISO time mid-buffer> returns a strict suffix of those.",
-        "engine/dev/agf-dev-bridge.ts: parse + validate ?since; forward to a new page-bridge RPC `diagnostics-since` that filters in-page",
-        "engine/runtime/diagnostics/diagnostics-bus.ts: add `snapshotSince(timestamp)` helper",
-        "+ unit tests on the pure filter helper covering: since=undefined returns all; since=epoch returns all; since=now returns []; since beyond mid-list returns the strict suffix"
+        "acceptance: GET /__agf/diagnostics returns N entries; GET /__agf/diagnostics?since=<ISO mid-buffer> returns a strict suffix of those; bad ISO returns 400 AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE.",
+        "engine/runtime/diagnostics/diagnostics-bus.ts: snapshotSince + filterDiagnosticsSince (the latter exported for tests)",
+        "engine/dev/agf-dev-bridge.ts: /diagnostics route handles ?since= explicitly before falling through to the generic mapper",
+        "+7 unit tests on the pure filter: below-all / above-all / mid-list strict-suffix / boundary-exclusive / empty input / NaN defensive / +Infinity defensive"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

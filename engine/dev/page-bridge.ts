@@ -114,6 +114,8 @@ type AgfApi = {
   /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
   snapshotAt?: (at: number) => unknown;
   snapshotHistoryStats?: () => { capacity: number; size: number };
+  /** S097 AGF-PROBE-DIAGNOSTICS-SINCE. */
+  diagnosticsSince?: (thresholdSeconds: number) => unknown;
   /** S096 AGF-PROBE-COMPONENT-AT. */
   componentAt?: (entityId: string, componentName: string, at?: number) =>
     | { kind: "ok"; value: unknown }
@@ -350,6 +352,16 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "diagnostics":
         payload = api?.diagnostics?.();
         break;
+      case "diagnostics-since": {
+        // S097 AGF-PROBE-DIAGNOSTICS-SINCE. Threshold is wall-clock seconds.
+        const threshold = (payloadIn as { thresholdSeconds?: number } | undefined)?.thresholdSeconds;
+        if (typeof threshold !== "number" || api?.diagnosticsSince === undefined) {
+          payload = undefined;
+          break;
+        }
+        payload = api.diagnosticsSince(threshold);
+        break;
+      }
       case "renderer-info":
         payload = api?.rendererInfo?.();
         break;
