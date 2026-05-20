@@ -228,6 +228,10 @@ export type AppHandle = {
     invalidateShadowMap(): void;
     setShadowMapAutoUpdate(enabled: boolean): void;
   };
+  /** S091 AGF-RENDER-DEBUG-MODE-AGENT. */
+  getRenderDebugMode(): "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+  setRenderDebugMode(mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"):
+    "off" | "wireframe" | "unlit-white" | "normals" | "uv";
   /**
    * RUNTIME-renderer-ready: resolves once the renderer has drawn its
    * first frame (active camera acquired). Tests + dev-bridge clients
@@ -629,6 +633,13 @@ export async function createApp(
     },
     setTimeScale(scale: number) {
       return runtime.setTimeScale(scale);
+    },
+    // S091 AGF-RENDER-DEBUG-MODE-AGENT.
+    getRenderDebugMode() {
+      return runtime.renderer.getDebugMode();
+    },
+    setRenderDebugMode(mode) {
+      return runtime.renderer.setDebugMode(mode);
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

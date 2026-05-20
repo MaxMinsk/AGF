@@ -342,6 +342,36 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S091 AGF-RENDER-DEBUG-MODE-AGENT. POST forwards a mode; GET
+        // returns the live mode. Invalid modes are rejected at the
+        // bridge before reaching the page so misconfigured agents fail
+        // loudly instead of silently no-op-ing.
+        if (route === "/render/debug-mode" && req.method === "GET") {
+          await proxyToPage(req, res, "render-debug-mode-get");
+          return;
+        }
+        if (route === "/render/debug-mode" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const mode = (body as { mode?: unknown }).mode;
+          const allowed = ["off", "wireframe", "unlit-white", "normals", "uv"];
+          if (typeof mode !== "string" || !allowed.includes(mode)) {
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_BRIDGE_INVALID_RENDER_DEBUG_MODE",
+                message: `Body must be JSON with a "mode" string in ${JSON.stringify(allowed)}.`
+              }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "render-debug-mode-set", { mode });
+          return;
+        }
+
         if (route === "/project-patch" && req.method === "POST") {
           // S53 DEVBRIDGE-project-patch: shallow merge-patch onto a
           // project.json on disk. Dev-only (the whole `/__agf/*`

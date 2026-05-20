@@ -184,6 +184,44 @@ curl -X POST 'http://localhost:5173/__agf/runtime/timescale' \
 # → { "scale": 0.25 }
 ```
 
+### `GET /__agf/render/debug-mode` · `POST /__agf/render/debug-mode`
+
+S091 AGF-RENDER-DEBUG-MODE-AGENT. Read or flip the renderer-level
+debug material override. Modes:
+
+- `off` — restore every original material (default state).
+- `wireframe` — set `material.wireframe = true` on every standard /
+  basic / lambert / phong / physical material in the scene.
+- `unlit-white` — replace every mesh material with a flat
+  `MeshBasicMaterial({ color: 0xffffff })`. Useful to debug shape
+  vs. lighting independently.
+- `normals` — replace with `MeshNormalMaterial`. Catches flipped
+  triangles (mismatched winding shows the wrong hemisphere).
+- `uv` — replace with a tiny ShaderMaterial that draws `rgb = (uv.x,
+  uv.y, 0)`. Catches packed-atlas / UV-wrap bugs.
+
+Toggling to `off` restores every original material; the override
+material is disposed. The companion HUD pill (S091
+AGF-RENDER-DEBUG-OVERLAY-HUD) is mounted in the topRight while
+mode != off so the player / agent can't accidentally leave the
+override on.
+
+```bash
+curl 'http://localhost:5173/__agf/render/debug-mode'
+# → { "mode": "off" }
+curl -X POST 'http://localhost:5173/__agf/render/debug-mode' \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"wireframe"}'
+# → { "mode": "wireframe" }
+curl -X POST 'http://localhost:5173/__agf/render/debug-mode' \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"off"}'
+# → { "mode": "off" }
+```
+
+Invalid mode strings (anything outside the v1 set above) return
+HTTP 400 with `AGF_BRIDGE_INVALID_RENDER_DEBUG_MODE`.
+
 ### `POST /__agf/asset/invalidate?playerId=<id>`
 
 Manually invalidate an asset binding on the page (used by the

@@ -14,7 +14,13 @@ import type { MaterialManifest } from "../runtime/asset-loaders/material-loader"
 import type { GlbAsset } from "./glb-loader";
 import { createLightHandleRegistry, type LightHandleRegistry } from "./light-handle-registry";
 import { createMeshHandleRegistry, type MeshHandleRegistry } from "./mesh-handle-registry";
-import { ThreeRenderAdapter, type CameraHandle, type MeshHandle, type ResolvedWorld } from "./three-render-adapter";
+import {
+  ThreeRenderAdapter,
+  type CameraHandle,
+  type MeshHandle,
+  type RenderDebugMode,
+  type ResolvedWorld
+} from "./three-render-adapter";
 
 type Vec3 = ReadonlyArray<number>;
 
@@ -318,6 +324,18 @@ export class ThreeRenderer {
         entityIds: [...this.registry.entityIds()]
       }
     };
+  }
+
+  /**
+   * S091 AGF-RENDER-DEBUG-MODE-AGENT. Forwarders to the adapter — agents
+   * call them via `runtime.renderer.setDebugMode("wireframe")` or the
+   * `/__agf/render/debug-mode` route.
+   */
+  getDebugMode(): RenderDebugMode {
+    return this.adapter.getDebugMode();
+  }
+  setDebugMode(mode: RenderDebugMode): RenderDebugMode {
+    return this.adapter.setDebugMode(mode);
   }
 
   /**

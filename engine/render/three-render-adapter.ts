@@ -97,6 +97,14 @@ import { GroundedSkybox } from "three/examples/jsm/objects/GroundedSkybox.js";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { CSM } from "three/examples/jsm/csm/CSM.js";
 import { applyPcssShadowChunks } from "./shadow-pcss";
+import {
+  applyDebugOverrides,
+  createDebugOverrideMaterial,
+  restoreDebugOverrides,
+  type DebugCache,
+  type RenderDebugMode
+} from "./debug-mode";
+export { RENDER_DEBUG_MODES, type RenderDebugMode } from "./debug-mode";
 import { RenderPoolRegistry } from "./render-pool-registry";
 import type { BucketSpec, PoolHandle } from "./bucket-spec";
 import { extendBatchedMeshPrototype } from "@three.ez/batched-mesh-extensions";
@@ -686,6 +694,15 @@ export class ThreeRenderAdapter {
   private groundedShadowMesh: Mesh | undefined;
   private activeCameraHandle: CameraHandle | undefined;
   private debugOverlay: LineSegments | undefined;
+  // S091 AGF-RENDER-DEBUG-MODE-AGENT. `debugCache` stores per-mesh state
+  // so `setDebugMode('off')` restores the original material (and original
+  // `material.wireframe` flag, when the wireframe override was used).
+  // `debugOverrideMaterial` is shared across every mesh during a swap
+  // (one MeshBasicMaterial / MeshNormalMaterial / UV ShaderMaterial) and
+  // disposed on restore.
+  private debugMode: RenderDebugMode = "off";
+  private readonly debugCache: DebugCache = new Map();
+  private debugOverrideMaterial: Material | undefined;
   private csm: CSM | undefined;
   private csmConfig: CsmConfig | undefined;
   private readonly csmMaterials = new Set<Material>();
@@ -3105,6 +3122,38 @@ export class ThreeRenderAdapter {
     ];
   }
 
+  // S091 AGF-RENDER-DEBUG-MODE-AGENT.
+  getDebugMode(): RenderDebugMode {
+    return this.debugMode;
+  }
+
+  // Returns the new active mode (== input unless the override fails to
+  // build; today all four modes always build, so the return is always
+  // the input). Idempotent: setting the same mode twice is a no-op.
+  setDebugMode(mode: RenderDebugMode): RenderDebugMode {
+    if (mode === this.debugMode) return this.debugMode;
+    this.restoreDebugOverrides();
+    this.debugMode = mode;
+    if (mode !== "off") this.applyDebugOverrides();
+    return this.debugMode;
+  }
+
+  private applyDebugOverrides(): void {
+    if (this.debugMode === "off") return;
+    if (this.debugMode !== "wireframe") {
+      this.debugOverrideMaterial = createDebugOverrideMaterial(this.debugMode);
+    }
+    applyDebugOverrides(this.scene, this.debugMode, this.debugCache, this.debugOverrideMaterial);
+  }
+
+  private restoreDebugOverrides(): void {
+    restoreDebugOverrides(this.debugCache);
+    if (this.debugOverrideMaterial !== undefined) {
+      disposeMaterial(this.debugOverrideMaterial);
+      this.debugOverrideMaterial = undefined;
+    }
+  }
+
   info(): AdapterInfo {
     const memory = this.device.info.memory;
     const renderStats = this.device.info.render;
@@ -3152,6 +3201,10 @@ export class ThreeRenderAdapter {
   }
 
   dispose(): void {
+    // S091 AGF-RENDER-DEBUG-MODE-AGENT: restore originals before tearing
+    // down meshes so dispose runs against each mesh's real material, not
+    // the shared debug override.
+    this.restoreDebugOverrides();
     for (const mesh of this.meshes.values()) {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
@@ -3247,6 +3300,7 @@ function disposeMaterial(material: Mesh["material"]): void {
   }
   material.dispose();
 }
+
 
 /**
  * S52 POLISH-shadows-bench-sky: build a vertical 2-stop gradient as a
