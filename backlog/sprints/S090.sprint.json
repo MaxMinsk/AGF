@@ -20,12 +20,13 @@
     {
       "id": "AGF-DEV-BRIDGE-TIME-SCALE",
       "title": "POST /__agf/runtime/timescale over the dev bridge",
-      "status": "pending",
-      "summary": "Mirror the in-page accessor over the dev bridge so scripted playtests can flip time-scale without poking at window.__agf manually. `POST /__agf/runtime/timescale { value: 0.25 }` calls runtime.setTimeScale on the active page and returns the clamped value; `GET /__agf/runtime/timescale` returns the live value. Plumbed through page-bridge + agf-dev-bridge + main.ts the same way every other runtime surface is.",
+      "status": "implemented",
+      "summary": "Mirror the in-page accessor over the dev bridge so scripted playtests can flip time-scale without poking at window.__agf. `POST /__agf/runtime/timescale { value: 0.25 }` proxies to runtime.setTimeScale and returns the clamped scale; `GET /__agf/runtime/timescale` returns the live value. Plumbed through agf-dev-bridge route table + page-bridge channels + main.ts handler.",
       "verification": [
-        "POST /__agf/runtime/timescale { value: 0.5 } returns { ok: true, payload: { scale: 0.5 } }; GET returns the current value",
-        "Out-of-range values clamp and the response contains the clamped scale (no 4xx)",
-        "Docs row added to docs/agent-probes.md under the existing runtime probes section"
+        "agf-dev-bridge.ts: GET /runtime/timescale → 'runtime-timescale' channel; POST → 'runtime-timescale-set' with `value` body",
+        "page-bridge.ts: API surface gains getTimeScale + setTimeScale; channel handlers return `{ scale }`",
+        "src/app.ts + src/main.ts forward to runtime.getTimeScale / setTimeScale",
+        "docs/agent-probes.md adds a /__agf/runtime/timescale section"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

@@ -12,8 +12,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S090.sprint.js
 
 - **AGF-RUNTIME-TIME-SCALE** — runtime.setTimeScale(x) — engine-level slow-mo / fast-forward _(implemented)_
   RuntimeHandle gains `setTimeScale(scale)` + `getTimeScale()`. The loop multiplies the real wallclock dt by the scale before advanceFixedStep / setting time.dt — so fixed-step accumulator and frame dt scale identically (deterministic systems still tick on the same simulated clock, just at a different tempo). Exported `clampTimeScale(value)` enforces [0.05, 4]; non-finite inputs (NaN, ±Inf) fall back to 1.
-- **AGF-DEV-BRIDGE-TIME-SCALE** — POST /__agf/runtime/timescale over the dev bridge _(pending)_
-  Mirror the in-page accessor over the dev bridge so scripted playtests can flip time-scale without poking at window.__agf manually. `POST /__agf/runtime/timescale { value: 0.25 }` calls runtime.setTimeScale on the active page and returns the clamped value; `GET /__agf/runtime/timescale` returns the live value. Plumbed through page-bridge + agf-dev-bridge + main.ts the same way every other runtime surface is.
+- **AGF-DEV-BRIDGE-TIME-SCALE** — POST /__agf/runtime/timescale over the dev bridge _(implemented)_
+  Mirror the in-page accessor over the dev bridge so scripted playtests can flip time-scale without poking at window.__agf. `POST /__agf/runtime/timescale { value: 0.25 }` proxies to runtime.setTimeScale and returns the clamped scale; `GET /__agf/runtime/timescale` returns the live value. Plumbed through agf-dev-bridge route table + page-bridge channels + main.ts handler.
 - **KABOOM-BOMB-FUSE-WIGGLE** — Bomb mesh wiggles in scale as fuse nears 0 _(pending)_
   S87 added a color pulse on bomb fuse, but the mesh sits still otherwise. Add a per-frame Transform.scale modulation in BombFuseSystem: `1 + 0.12 * Math.sin(t * pulseFreq)` where pulseFreq grows as fuseRemaining drops. The scale ratchets back to baseline when fuseRemaining > 2 (no wiggle on a freshly-placed bomb). Pure-helper `bombWiggleScale(fuseRemaining)` exported so the unit test can lock the curve.
 - **KABOOM-DEATH-FALL** — Dying bomber visibly tips over before despawn _(pending)_
