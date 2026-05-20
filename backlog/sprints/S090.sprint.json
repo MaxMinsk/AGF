@@ -8,13 +8,12 @@
     {
       "id": "AGF-RUNTIME-TIME-SCALE",
       "title": "runtime.setTimeScale(x) — engine-level slow-mo / fast-forward",
-      "status": "pending",
-      "summary": "Add an engine-level time-scale knob. RuntimeHandle gains `setTimeScale(scale: number): number` (returns the clamped value) + `getTimeScale(): number`. The loop multiplies the real `dt` by the scale before any system tick; fixed-step accumulator scales identically so deterministic systems still tick on the same simulated clock. Clamped to [0.05, 4] — 0 would freeze the world (use pause/scene.GamePaused for that) and >4 risks runaway fixed-step batches. Default 1. Used for slow-mo debugging (`0.25`) or fast-forward replays (`4`).",
+      "status": "implemented",
+      "summary": "RuntimeHandle gains `setTimeScale(scale)` + `getTimeScale()`. The loop multiplies the real wallclock dt by the scale before advanceFixedStep / setting time.dt — so fixed-step accumulator and frame dt scale identically (deterministic systems still tick on the same simulated clock, just at a different tempo). Exported `clampTimeScale(value)` enforces [0.05, 4]; non-finite inputs (NaN, ±Inf) fall back to 1.",
       "verification": [
-        "RuntimeHandle.setTimeScale(0.5) → next animation frame's TimeContext.dt is half the wallclock delta; fixedStepCount accumulates at half rate",
-        "setTimeScale(0) → clamped to 0.05; setTimeScale(10) → clamped to 4; both return the clamped value",
-        "getTimeScale() reflects the live value",
-        "+4 unit tests on a synthesised loop step covering default, clamp, and scaling math"
+        "+4 unit tests under tests/unit/runtime-time-scale.test.ts cover identity range, low-clamp, high-clamp, non-finite fallback",
+        "engine/runtime/start.ts: `timeScale` variable defaults to 1; `setTimeScale` clamps + assigns + returns; tick() reads `wallDt * timeScale`",
+        "RuntimeHandle TypeScript surface gains setTimeScale + getTimeScale with TSDoc"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

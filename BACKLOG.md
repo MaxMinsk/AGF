@@ -10,8 +10,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S090.sprint.js
 
 ### Stories
 
-- **AGF-RUNTIME-TIME-SCALE** — runtime.setTimeScale(x) — engine-level slow-mo / fast-forward _(pending)_
-  Add an engine-level time-scale knob. RuntimeHandle gains `setTimeScale(scale: number): number` (returns the clamped value) + `getTimeScale(): number`. The loop multiplies the real `dt` by the scale before any system tick; fixed-step accumulator scales identically so deterministic systems still tick on the same simulated clock. Clamped to [0.05, 4] — 0 would freeze the world (use pause/scene.GamePaused for that) and >4 risks runaway fixed-step batches. Default 1. Used for slow-mo debugging (`0.25`) or fast-forward replays (`4`).
+- **AGF-RUNTIME-TIME-SCALE** — runtime.setTimeScale(x) — engine-level slow-mo / fast-forward _(implemented)_
+  RuntimeHandle gains `setTimeScale(scale)` + `getTimeScale()`. The loop multiplies the real wallclock dt by the scale before advanceFixedStep / setting time.dt — so fixed-step accumulator and frame dt scale identically (deterministic systems still tick on the same simulated clock, just at a different tempo). Exported `clampTimeScale(value)` enforces [0.05, 4]; non-finite inputs (NaN, ±Inf) fall back to 1.
 - **AGF-DEV-BRIDGE-TIME-SCALE** — POST /__agf/runtime/timescale over the dev bridge _(pending)_
   Mirror the in-page accessor over the dev bridge so scripted playtests can flip time-scale without poking at window.__agf manually. `POST /__agf/runtime/timescale { value: 0.25 }` calls runtime.setTimeScale on the active page and returns the clamped value; `GET /__agf/runtime/timescale` returns the live value. Plumbed through page-bridge + agf-dev-bridge + main.ts the same way every other runtime surface is.
 - **KABOOM-BOMB-FUSE-WIGGLE** — Bomb mesh wiggles in scale as fuse nears 0 _(pending)_

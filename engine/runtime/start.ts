@@ -191,8 +191,28 @@ export type RuntimeHandle = {
    * when the toggle landed, false when no system matches the name.
    */
   setDebugSystem(name: string, enabled: boolean): boolean;
+  /**
+   * S90 AGF-RUNTIME-TIME-SCALE. Engine-level slow-mo / fast-forward.
+   * The loop multiplies the real wallclock `dt` by this scale before
+   * any system tick — fixed-step accumulator scales identically so
+   * deterministic systems run on the same simulated clock at a
+   * different tempo. Clamped to [0.05, 4]; values outside the range
+   * are coerced + the clamped value is returned. Default 1.
+   */
+  setTimeScale(scale: number): number;
+  /** S90 AGF-RUNTIME-TIME-SCALE. Current time-scale value. */
+  getTimeScale(): number;
   stop(): void;
 };
+
+const MIN_TIME_SCALE = 0.05;
+const MAX_TIME_SCALE = 4;
+export function clampTimeScale(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  if (value < MIN_TIME_SCALE) return MIN_TIME_SCALE;
+  if (value > MAX_TIME_SCALE) return MAX_TIME_SCALE;
+  return value;
+}
 
 const DEFAULT_FIXED_DT = 1 / 60;
 const METRICS_WINDOW_SECONDS = 0.5;
@@ -492,6 +512,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
 
   let accumulator = 0;
   let lastTimestamp = -1;
+  // S90 AGF-RUNTIME-TIME-SCALE. Mutable engine-level time-scale.
+  // Multiplied into the per-tick dt before any system runs.
+  let timeScale = 1;
   let frameRequestId = 0;
   let stopped = false;
 
@@ -578,7 +601,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       lastTimestamp = timestampSeconds;
       metricsWindowStart = timestampSeconds;
     }
-    const frameDt = timestampSeconds - lastTimestamp;
+    // S90 AGF-RUNTIME-TIME-SCALE. The wallclock dt drives the loop;
+    // multiplying by timeScale (default 1) here scales everything
+    // downstream — the fixed-step accumulator + per-frame dt — so a
+    // 0.5 scale is half-speed for every system, including deterministic
+    // fixed-step ones.
+    const wallDt = timestampSeconds - lastTimestamp;
+    const frameDt = wallDt * timeScale;
     lastTimestamp = timestampSeconds;
 
     applyCanvasSize();
@@ -736,6 +765,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     setDebugSystem(name: string, enabled: boolean): boolean {
       if (scheduler === undefined) return false;
       return scheduler.setDebugSystem(name, enabled);
+    },
+    setTimeScale(scale: number): number {
+      timeScale = clampTimeScale(scale);
+      return timeScale;
+    },
+    getTimeScale(): number {
+      return timeScale;
     },
     applyCommands(commands: ReadonlyArray<EngineCommand>): void {
       for (const command of commands) {
