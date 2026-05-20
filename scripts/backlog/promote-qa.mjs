@@ -135,8 +135,8 @@ try {
 } catch (err) {
   exit(1, `could not load target sprint ${targetSprintId}: ${err.message}`);
 }
-if (sprintData.status !== "pending") {
-  exit(1, `target sprint ${targetSprintId} has status="${sprintData.status}"; promotion only allowed into pending sprints.`);
+if (sprintData.status !== "pending" && sprintData.status !== "active") {
+  exit(1, `target sprint ${targetSprintId} has status="${sprintData.status}"; promotion only allowed into pending or active sprints.`);
 }
 if (!Array.isArray(sprintData.stories)) sprintData.stories = [];
 
