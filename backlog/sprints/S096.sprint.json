@@ -96,12 +96,11 @@
     {
       "id": "DOC-AGENT-DEBUG-RECIPES",
       "title": "docs/agent-debug-recipes.md — cookbook for common probe flows",
-      "status": "pending",
-      "summary": "Companion to docs/agent-probes.md (the reference). Recipes is the cookbook: 'how do I find out why pickup.foo isn't being collected', 'how do I verify camera shake fires on each blast', 'how do I diff state between two ticks'. Each recipe is a short titled section with the curl recipe + jq filter + expected output snippet. Targets at the 5-10 most common debug flows an agent hits. Cross-links to /__agf/snapshot, snapshot?at, snapshot?at&diff (S096), component/.../... (S096), render/debug-mode (S091), render/freecam (S095), recording start/stop, console-log.",
+      "status": "implemented",
+      "summary": "docs/agent-debug-recipes.md ships with 10 recipes, each titled, each with a copy-paste curl one-liner + jq filter where useful: (1) grab browser logs first, (2) snapshot diff to inspect last-tick changes, (3) focused component lookup live + historical, (4) detect one-shot events via diff, (5) god-view freecam for off-screen debugging, (6) render-debug-mode for wireframe / normals / uv, (7) capture a recording for regression, (8) time-scale slowdown + paired with diff, (9) audio master volume mute / restore, (10) renderer pool + handle leak hunt. Every recipe cross-links into docs/agent-probes.md for the reference. CLAUDE.md §Read First gains a one-line pointer to the new file.",
       "verification": [
-        "acceptance: docs/agent-debug-recipes.md exists and contains at least 6 recipes, each with a curl one-liner an agent can copy.",
-        "Each recipe cross-links to the relevant probe row in docs/agent-probes.md.",
-        "AGENTS.md (or CLAUDE.md) gains a one-line pointer to the new file under §Read First."
+        "acceptance: docs/agent-debug-recipes.md exists and contains 10 recipes; each has a working curl one-liner + a cross-link to the relevant probe row in docs/agent-probes.md.",
+        "CLAUDE.md §Read First lists docs/agent-debug-recipes.md alongside docs/agent-probes.md."
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
