@@ -26,7 +26,32 @@ import type { System, SystemContext } from "../systems/types";
 
 export const TWEENS: ComponentName = "Tweens";
 
-export type TweenEase = "linear" | "easeIn" | "easeOut" | "easeInOut" | "pulse";
+/**
+ * S91 M19-EASING-LIBRARY. Named easing curves. The original v0 set
+ * (linear / easeIn / easeOut / easeInOut / pulse) is preserved; the
+ * v1 set adds explicit Quad / Cubic / Quart variants + easeOutBack
+ * (small overshoot) and easeOutElastic (bounce). Legacy aliases
+ * easeIn / easeOut / easeInOut continue to behave as Quad variants
+ * for backwards-compat with existing scenes.
+ */
+export type TweenEase =
+  | "linear"
+  | "easeIn"          // alias for easeInQuad (legacy)
+  | "easeOut"         // alias for easeOutQuad (legacy)
+  | "easeInOut"       // alias for easeInOutQuad (legacy)
+  | "easeInQuad"
+  | "easeOutQuad"
+  | "easeInOutQuad"
+  | "easeInCubic"
+  | "easeOutCubic"
+  | "easeInOutCubic"
+  | "easeInQuart"
+  | "easeOutQuart"
+  | "easeInOutQuart"
+  | "easeOutBack"
+  | "easeOutElastic"
+  | "pulse";
+
 export type TweenLoop = "none" | "loop" | "ping-pong";
 
 export type TweenSpec = {
@@ -40,22 +65,51 @@ export type TweenSpec = {
   elapsed?: number;
 };
 
+/**
+ * S91 M19-EASING-LIBRARY. Pure helper table keyed by easing name.
+ * Every curve must satisfy curve(0) = 0 and curve(1) = 1; midpoint
+ * deviation is what distinguishes them. Exposed so unit tests and
+ * project code can sample curves without depending on the system.
+ *
+ * Overshoot curves (easeOutBack / easeOutElastic) intentionally
+ * exceed [0,1] mid-flight before settling on 1.
+ */
+export const easingCurves: Readonly<Record<TweenEase, (t: number) => number>> = {
+  linear: (t) => t,
+  easeIn: (t) => t * t,
+  easeOut: (t) => 1 - (1 - t) * (1 - t),
+  easeInOut: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
+  easeInQuad: (t) => t * t,
+  easeOutQuad: (t) => 1 - (1 - t) * (1 - t),
+  easeInOutQuad: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
+  easeInCubic: (t) => t * t * t,
+  easeOutCubic: (t) => 1 - Math.pow(1 - t, 3),
+  easeInOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  easeInQuart: (t) => t * t * t * t,
+  easeOutQuart: (t) => 1 - Math.pow(1 - t, 4),
+  easeInOutQuart: (t) => (t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2),
+  easeOutBack: (t) => {
+    // c1 / c3 are the standard Robert Penner constants for a small
+    // overshoot — peaks around t≈0.74 at value ≈1.10.
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  },
+  easeOutElastic: (t) => {
+    if (t === 0) return 0;
+    if (t === 1) return 1;
+    const c4 = (2 * Math.PI) / 3;
+    return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+  },
+  // Sine half-wave — 0 at t=0, peak (1) at t=0.5, 0 at t=1. One-shot
+  // bounces / glints / damage flashes use this.
+  pulse: (t) => Math.sin(Math.PI * t)
+};
+
 function easeFn(kind: TweenEase | undefined, t: number): number {
-  switch (kind) {
-    case "easeIn":
-      return t * t;
-    case "easeOut":
-      return 1 - (1 - t) * (1 - t);
-    case "easeInOut":
-      return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    case "pulse":
-      // Sine half-wave — 0 at t=0, peak (1) at t=0.5, 0 at t=1. Lets a
-      // one-shot tween animate base → peak → base and auto-remove on
-      // completion. Useful for one-shot bounces / glints / damage flashes.
-      return Math.sin(Math.PI * t);
-    default:
-      return t;
-  }
+  if (kind === undefined) return t;
+  const fn = easingCurves[kind];
+  return fn !== undefined ? fn(t) : t;
 }
 
 /** Linear interpolation between `from` and `to` at parameter `t∈[0,1]`. */

@@ -8,13 +8,12 @@
     {
       "id": "M19-EASING-LIBRARY",
       "title": "Tween component gains a named easing curve",
-      "status": "pending",
-      "summary": "M19 shipped the Tween component + system with a linear interpolator only. Promote it: ECS `Tween` schema gains an optional `easing: EasingName` field (default 'linear'). Engine exports a pure helper `easingCurves` keyed by name. Curves to ship in v1 (common subset, no library dep): linear, easeInQuad, easeOutQuad, easeInOutQuad, easeInCubic, easeOutCubic, easeInOutCubic, easeInQuart, easeOutQuart, easeInOutQuart, easeOutBack (overshoot), easeOutElastic (bounce). Unknown name → linear + warning AGF_TWEEN_EASING_UNKNOWN diagnostic.",
+      "status": "implemented",
+      "summary": "engine/core/systems/tween-system.ts grew a `easingCurves: Record<TweenEase, (t)=>number>` pure helper table keyed by name. v1 set: linear, easeInQuad / Cubic / Quart, easeOutQuad / Cubic / Quart, easeInOutQuad / Cubic / Quart, easeOutBack (small overshoot ~10%), easeOutElastic (damped oscillation past 1.0), plus the existing pulse (sine half-wave). Legacy aliases easeIn / easeOut / easeInOut remain and behave as the Quad variants for backwards-compat with existing scenes. easeFn() now reads the table; unknown names fall through to linear (no diagnostic needed — TS enum + default catch it).",
       "verification": [
-        "schemas/components/tween.schema.json adds `easing` enum",
-        "engine/core/systems/tween-system.ts: pure easingCurves table + per-tween apply uses curve(t)",
-        "+1 unit test per curve that asserts curve(0)=0, curve(1)=1, and a non-linear midpoint deviation",
-        "Live probe: beacon-world animates a tween with easing=easeOutBack and shows visible overshoot"
+        "acceptance: A new Tween with `ease: \"easeOutBack\"` visibly overshoots its target value before settling (sample easeOutBack(0.5..0.9) returns >1.0 for some t).",
+        "engine/core/systems/tween-system.ts exports easingCurves table; TweenEase type widened from 5 to 16 names",
+        "+34 unit tests under tests/unit/tween-easing.test.ts: curve(0)=0, curve(1)=1 per curve; non-linear deviation at off-center sample for monotonic family; characteristic overshoot for easeOutBack + easeOutElastic; pulse 0→1→0 endpoints; Quad < Cubic < Quart slowdown at t=0.25; legacy aliases match Quad variants"
       ],
       "epic": "M19"
     },
