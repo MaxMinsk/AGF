@@ -1,0 +1,111 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S097",
+  "title": "Game-design proposal flow + entity dump probe + component write + diagnostics-since",
+  "status": "active",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "GAME-DESIGN-PROPOSED-STORY-SCHEMA",
+      "title": "schemas/proposed-story.schema.json + AJV validation in backlog:check",
+      "status": "pending",
+      "summary": "Add the JSON Schema for `backlog/proposed-stories/*.story-proposal.json`. Required fields: `agfFormatVersion`, `id` (pattern: `GDP-YYYY-MM-DD-NNN`), `createdAt` (ISO date string via pattern), `title`, `kind` (enum: feature|mechanic|balance|content), `intent` (markdown body, minLength 20), `priority` (enum: must|should|could). Optional: `epic`, `rationale`, `acceptanceHints` (string array). `additionalProperties: false`. Wire AJV validation into `scripts/backlog/check.mjs` so the next backlog:check call validates everything under backlog/proposed-stories/.",
+      "verification": [
+        "acceptance: A malformed story-proposal (missing intent, bad priority, extra field) is rejected by `npm run backlog:check` with a structured error pointing at the offending file + field. A valid one passes silently.",
+        "schemas/proposed-story.schema.json: full JSON Schema with strict additionalProperties:false; id pattern matches QA ticket convention but with GDP prefix",
+        "scripts/backlog/check.mjs: reads backlog/proposed-stories/*.story-proposal.json and validates each via AJV",
+        "+ unit tests on the validator covering minimal-valid, missing-field, wrong-enum, additionalProperties rejection"
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    },
+    {
+      "id": "GAME-DESIGN-PROPOSE-SCAFFOLD",
+      "title": "scripts/backlog/propose.mjs + `npm run propose:new` scaffolds a fresh ticket",
+      "status": "pending",
+      "summary": "Companion to `npm run qa:ticket` (S093). `npm run propose:new -- --title \"<title>\" --kind feature --priority should` writes a fresh `backlog/proposed-stories/GDP-YYYY-MM-DD-NNN.story-proposal.json` with the boilerplate filled in (id auto-incremented from existing same-day tickets; createdAt = now; intent = empty placeholder for the agent to fill). Echoes the file path so the agent can immediately open it for editing.",
+      "verification": [
+        "acceptance: `npm run propose:new -- --title \"Bombs leave a scorch decal for 5s\" --kind feature --priority should` writes a valid file under backlog/proposed-stories/ that passes `npm run backlog:check`. ID auto-increments to the next free GDP-YYYY-MM-DD-NNN slot.",
+        "scripts/backlog/propose.mjs: arg-parsing for --title / --kind / --priority / --epic; --help prints usage",
+        "+ unit tests on the id-generation helper covering: empty dir → 001; existing 001 → 002; gap in numbering → next-after-max",
+        "package.json: `propose:new` script wired"
+      ],
+      "epic": "GAME-DESIGN-AGENT",
+      "dependsOn": ["GAME-DESIGN-PROPOSED-STORY-SCHEMA"]
+    },
+    {
+      "id": "GAME-DESIGN-PROPOSE-PROMOTE",
+      "title": "scripts/backlog/promote-proposed.mjs + `npm run propose:promote -- --into S<N>`",
+      "status": "pending",
+      "summary": "Companion to `npm run qa:promote` (S093). Walks every `backlog/proposed-stories/*.story-proposal.json`, converts each into a story entry in the target sprint JSON, then archives the source file under `backlog/proposed-stories/archive/<sprint-id>/`. Story conversion: id = proposal.id (prefix GDP→ a stable readable prefix), title = proposal.title, summary = proposal.intent (+ any rationale), epic = proposal.epic (or undefined), status='pending'. `acceptanceHints` become a `// hints:` line in summary that the dev agent will tighten when writing real verification[].",
+      "verification": [
+        "acceptance: Drop two valid proposals in backlog/proposed-stories/ + run `npm run propose:promote -- --into S100 --skip-check`. The target sprint JSON gains two new pending stories; both source files move under backlog/proposed-stories/archive/S100/.",
+        "scripts/backlog/promote-proposed.mjs: --into validates target sprint exists + status in {pending, active}; same rules as qa:promote",
+        "+ unit tests on the promotion logic covering: empty inbox → no-op; refuses to promote into archived sprint; archives source files on success"
+      ],
+      "epic": "GAME-DESIGN-AGENT",
+      "dependsOn": ["GAME-DESIGN-PROPOSED-STORY-SCHEMA"]
+    },
+    {
+      "id": "AGF-PROBE-ENTITY-DUMP",
+      "title": "GET /__agf/entity/<entityId> returns every component on a single entity",
+      "status": "pending",
+      "summary": "Companion to S096 AGF-PROBE-COMPONENT-AT. Same path style, returns ALL components on one entity rather than one named component. Useful for the common debug flow 'what's the full state of player.1 right now?' without pulling the whole world snapshot. Supports `?at=-N` for history (same ring as component-at). Errors: 404 AGF_PROBE_ENTITY_NOT_FOUND.",
+      "verification": [
+        "acceptance: GET /__agf/entity/player.1 returns `{ entityId, components: { BomberStats: {...}, GridPosition: {...}, ... } }` for every component the entity carries.",
+        "engine/runtime/start.ts: runtime.entityAt(entityId, at?) returns a tagged union: ok / entity-not-found / out-of-range",
+        "engine/dev/agf-dev-bridge.ts: new route /entity/:entityId — same path-parser style as /component/:entityId/:componentName",
+        "+ unit tests on the path parser + on the bridge's response mapping"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PROBE-COMPONENT-WRITE",
+      "title": "POST /__agf/component/<entityId>/<componentName> writes a single component value",
+      "status": "pending",
+      "summary": "Write counterpart of S096 AGF-PROBE-COMPONENT-AT. Today's only mutation surface is POST /commands (broad) and POST /project-patch (file-level). Add a focused POST that takes `{ value }` in the body and calls `world.setComponent(entityId, componentName, value)` server-side. Surface: dev-bridge only (security: same trust boundary as the rest of /__agf/*). Validates that the entity exists (404 AGF_PROBE_ENTITY_NOT_FOUND); the component name is not required to pre-exist (write can ADD components). Returns the new component value.",
+      "verification": [
+        "acceptance: POST /__agf/component/player.1/BomberStats with `{ value: { maxBombs: 10, range: 5, alive: true } }` mutates the live entity; a subsequent GET /__agf/component/player.1/BomberStats returns the same value.",
+        "engine/runtime/start.ts: runtime.setComponentAt(entityId, componentName, value) returns ok / entity-not-found",
+        "engine/dev/agf-dev-bridge.ts: POST handler validates JSON body has `value` key; missing returns 400 AGF_BRIDGE_INVALID_COMPONENT_WRITE",
+        "+ unit tests on the path parser (shared with /component GET) + on the bridge's POST validator"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PROBE-DIAGNOSTICS-SINCE",
+      "title": "GET /__agf/diagnostics?since=<timestamp> filters by timestamp",
+      "status": "pending",
+      "summary": "Today's /diagnostics returns the entire diagnostics ring buffer. For long-running sessions an agent wants 'what's new since I last asked' to avoid re-parsing every entry. Add `since` query param: ISO timestamp; only diagnostics with `t > since` are returned. Returns the live tail when `since` is omitted (current behaviour). Returns 400 AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE when `since` is non-ISO.",
+      "verification": [
+        "acceptance: GET /__agf/diagnostics returns N entries; GET /__agf/diagnostics?since=<ISO time mid-buffer> returns a strict suffix of those.",
+        "engine/dev/agf-dev-bridge.ts: parse + validate ?since; forward to a new page-bridge RPC `diagnostics-since` that filters in-page",
+        "engine/runtime/diagnostics/diagnostics-bus.ts: add `snapshotSince(timestamp)` helper",
+        "+ unit tests on the pure filter helper covering: since=undefined returns all; since=epoch returns all; since=now returns []; since beyond mid-list returns the strict suffix"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-CONTROLS-HINT-FADE",
+      "title": "Controls-hint banner fades out the same way as the title screen",
+      "status": "pending",
+      "summary": "Mirror the S096 KABOOM-TITLE-SCREEN-FADE pattern on the controls-hint banner (currently snaps off after 4 s). Use the shared `fadeOutOpacityCurve(elapsedMs, durationMs)` helper. Hint fades over 350 ms (slightly longer than the title — it appears later, the player is more focused on gameplay).",
+      "verification": [
+        "acceptance: After 4 s of round 1, the controls-hint banner fades out smoothly over ~350 ms rather than snapping.",
+        "examples/kaboom-crew/bootstrap.ts: controls-hint removal threads through fadeOutOpacityCurve",
+        "Hint widget render() accepts an opacity field"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "DOC-PROPOSED-STORY-RECIPE",
+      "title": "docs/agent-debug-recipes.md — game-design proposed-story workflow recipe",
+      "status": "pending",
+      "summary": "Adds the eleventh recipe to docs/agent-debug-recipes.md showing the game-design agent's loop: (1) read the GDD + last sprint archive, (2) `npm run propose:new -- --title \"...\" --kind feature`, (3) fill in intent + acceptanceHints in the generated file, (4) wait for the dev terminal's next sprint plan, (5) the dev terminal runs `npm run propose:promote -- --into S<N>`. Closes the loop docs-wise.",
+      "verification": [
+        "acceptance: docs/agent-debug-recipes.md gets a new section #11 'Filing a feature proposal (game-design agent)' with the 5-step recipe + the actual npm commands an agent copies.",
+        "Cross-links to docs/game-design/agent.md (the seeded role doc from S096)"
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    }
+  ]
+}
