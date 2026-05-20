@@ -23,7 +23,10 @@ const TWEENS: ComponentName = "Tweens";
 // size with a small overshoot on spawn. Drives the engine Tween system
 // via the `Tweens` component; the system removes itself on completion.
 const SPAWN_POP_DURATION_S = 0.2;
-const BOMB_FINAL_SCALE: ReadonlyArray<number> = [0.35, 0.35, 0.35];
+// S99 KABOOM-BOMB-FUSE-WIGGLE-BASESCALE-FIX — exported so the
+// fuse-system can multiply the wiggle ratio by the same baseline,
+// not overwrite Transform.scale with the ratio itself.
+export const BOMB_FINAL_SCALE: ReadonlyArray<number> = [0.35, 0.35, 0.35];
 
 type BomberStats = {
   maxBombs: number;

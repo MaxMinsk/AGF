@@ -1,0 +1,26 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-006",
+  "title": "Remote-detonate power-up — fuse pauses, player triggers blast on command",
+  "createdAt": "2026-05-20T21:38:00.000Z",
+  "kind": "mechanic",
+  "intent": "Add a Remote power-up to Kaboom Crew. A bomber holding the Remote effect places bombs that DO NOT auto-tick — fuseRemaining stays at the spawn value indefinitely. The same input key (Space) re-purposes: while the bomber has any remote-armed live bomb, pressing Space triggers the OLDEST remote-armed bomb instead of placing a new one. Bombs of a remote bomber are still triggered by chain reactions and by their owner being killed (the owner's remote-armed bombs all detonate when the owner dies — Bomberman R rule). Adding Remote turns the bomber's placement into a planned trap setter and is the second-highest-impact MVP-2 mechanic after Kick.",
+  "priority": "could",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "Source: §5.7 of notes/DynaBomber.md ('MVP power-ups: Remote — Owner can manually detonate active bombs') + GDD section 'Bombs (planned, MVP-2)'. Remote is more invasive than Kick (changes bomb-fuse-system behaviour, changes the meaning of Space-while-bomb-active), which is why it's `could` not `should`. Suggesting it as a single self-contained story so dev can defer if MVP-2 capacity is tight without losing the design intent. Bot AI usage of Remote is deliberately out of scope — Remote-aware bots are a follow-up after Kick-aware bots.",
+  "acceptanceHints": [
+    "examples/kaboom-crew/schemas/scene-extensions.schema.json: BomberStats gains optional `remote: boolean` (default false). Pickup.kind enum gains `remote`. Bomb gets an optional `remoteOwnerId: string` (set at placement time if the placer is remote-armed; absent on classic bombs).",
+    "examples/kaboom-crew/src/systems/bomb-fuse-system.ts: bombs with remoteOwnerId set DO NOT tick fuseRemaining. They still detonate from chain-reaction-trigger or owner-death.",
+    "examples/kaboom-crew/src/systems/player-input-system.ts: while the player has any live remote bomb, Space triggers the oldest of those bombs (sets fuseRemaining to 0 so bomb-fuse-system detonates it next frame) INSTEAD of placing a new bomb. Once all the player's remote bombs are gone, Space goes back to placing.",
+    "Tie-breaking: 'oldest' = lowest entity-id among the player's live remote bombs, deterministic.",
+    "examples/kaboom-crew/src/systems/round-resolve-system.ts (or where alive-flip happens): when a bomber dies, set fuseRemaining=0 on every live bomb whose remoteOwnerId matches that bomber. The standard fuse system handles detonation next frame.",
+    "Unit test: remote bomber places a bomb → 5 fixedUpdate seconds pass → bomb is still alive, fuseRemaining unchanged.",
+    "Unit test: remote bomber places a bomb → presses Space → bomb detonates within 1 fixedUpdate.",
+    "Unit test: remote bomber dies → all their remote bombs detonate within 1 fixedUpdate of death.",
+    "Unit test: remote bomber places bomb A, places bomb B, presses Space → A detonates, B is still alive.",
+    "Unit test: classic bomber (remote=false) is unaffected — fuses tick normally, Space always places.",
+    "HUD bottom-left per-bomber line shows `R` flag when remote is on; the count of live remote bombs shows next to it (e.g. `bombs 0/1 fire 2 R:2`).",
+    "Audio: emit `bomb-remote-trigger` event on a manual detonation (separate from `bomb-place`). The blast itself still emits the existing `blast` event.",
+    "Bot AI is NOT required to use Remote in this story — bot can collect the pickup, the flag flips, but BotAISystem keeps using Space as 'place' and the bomb just sits forever. This is intentional — Remote-aware bot logic is a follow-up."
+  ]
+}

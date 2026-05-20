@@ -36,6 +36,24 @@ describe("bombWiggleScale (S90 KABOOM-BOMB-FUSE-WIGGLE)", () => {
     expect(max - min).toBeLessThan(0.16);
   });
 
+  it("S99 regression: bombWiggleScale stays a UNIT-CENTERED multiplier (caller multiplies by base scale)", () => {
+    // The bomb's base Transform.scale is 0.35; if the system ever
+    // wrote bombWiggleScale's return value directly as the scale
+    // value, the mesh would jump from 0.35 → ~1.0 (≈3x). Lock the
+    // invariant that this helper returns a multiplier centered at 1.
+    const samples: number[] = [];
+    for (let f = 0; f <= 2; f += 0.05) {
+      for (let ms = 0; ms < 500; ms += 50) {
+        samples.push(bombWiggleScale(f, ms));
+      }
+    }
+    const max = Math.max(...samples);
+    const min = Math.min(...samples);
+    // Centered around 1, bounded by the max amplitude (0.07).
+    expect(max).toBeLessThan(1.15);
+    expect(min).toBeGreaterThan(0.85);
+  });
+
   it("ratchets back to 1 when fuseRemaining is negative (defensive)", () => {
     // urgency still clamped because t = max(0, fuseRemaining).
     const s = bombWiggleScale(-1, 0);

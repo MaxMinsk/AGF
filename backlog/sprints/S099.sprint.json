@@ -32,9 +32,23 @@
       "epic": "KABOOM-CREW-MVP-1"
     },
     {
+      "id": "BUG-KABOOM-BOMB-FUSE-WIGGLE-BASESCALE",
+      "title": "Bomb mesh jumps to ~3x size when fuse wiggle starts (followup to S99 wiggle-tame)",
+      "status": "implemented",
+      "summary": "Follow-up bug spotted live on the S99 KABOOM-BOMB-FUSE-WIGGLE-TAME build: 'я ее ставлю она секунду-две мигает обычного размера, потом резко становится раза в два больше'. Root cause: bomb-fuse-system was writing the wiggle helper's return value DIRECTLY into Transform.scale: `scale: [s, s, s]` where s = bombWiggleScale(next) ≈ 1.0. Bomb's resting scale is 0.35 (BOMB_FINAL_SCALE from bomb-placement-system), so the moment wiggle activated (fuse ≤ 2 s) the mesh jumped 0.35 → 1.0 (≈ 3x). Fix: export BOMB_FINAL_SCALE from bomb-placement-system, import in fuse-system, multiply: `s = base * ratio`. Locked the unit-centered invariant with a regression test.",
+      "verification": [
+        "acceptance: A bomb's mesh stays at its resting size (0.35) and oscillates ±7% AROUND that during the final 2 s — it does NOT jump to ~3x size at the wiggle onset.",
+        "examples/kaboom-crew/src/systems/bomb-placement-system.ts: BOMB_FINAL_SCALE is now `export const` so siblings can reference the same baseline.",
+        "examples/kaboom-crew/src/systems/bomb-fuse-system.ts: imports BOMB_FINAL_SCALE; wiggle write is `scale: [base * ratio, base * ratio, base * ratio]`.",
+        "examples/kaboom-crew/tests/unit/bomb-fuse-wiggle.test.ts: new regression 'bombWiggleScale stays a UNIT-CENTERED multiplier' asserts max < 1.15, min > 0.85 across the entire fuse range."
+      ],
+      "epic": "KABOOM-CREW-MVP-1",
+      "dependsOn": ["KABOOM-BOMB-FUSE-WIGGLE-TAME"]
+    },
+    {
       "id": "AGF-PROBE-DOC-S98-REFRESH",
       "title": "docs/agent-probes.md catalogues the S098 routes",
-      "status": "pending",
+      "status": "implemented",
       "summary": "S098 shipped four new probe routes that haven't made it into the reference doc yet: POST/DELETE /__agf/entity (entity create + delete), POST /__agf/input/action (input inject), POST /__agf/component/<id>/<name> (which actually shipped in S097 but never landed in the doc). Adds a section per route with the curl recipe, success payload shape, and every error code (409 AGF_PROBE_ENTITY_EXISTS, 404 AGF_PROBE_ENTITY_NOT_FOUND, 400 AGF_BRIDGE_INVALID_ENTITY_CREATE / INPUT_ACTION / COMPONENT_WRITE).",
       "verification": [
         "acceptance: docs/agent-probes.md has dedicated sections for /entity (POST + DELETE), /input/action (POST), and /component/<id>/<name> (POST). Each section has a curl one-liner.",

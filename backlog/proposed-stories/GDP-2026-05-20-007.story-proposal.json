@@ -1,0 +1,27 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-007",
+  "title": "Networked Kaboom Crew (connected profile) — two browser tabs share one arena",
+  "createdAt": "2026-05-20T21:42:00.000Z",
+  "kind": "feature",
+  "intent": "Stand up the first networked sample of Kaboom Crew. Two browser tabs (or two machines) connect to a single Node reference server (already at examples/backends/node-world-server). Both tabs see the same arena, the same bombs, the same blasts, the same pickups. Bomb placement, fuse, blast, block destruction, pickup collection, and damage are SERVER-AUTHORITATIVE — the client sends an inputIntent / placeBomb request and waits for the server snapshot to confirm. Movement uses client-prediction-plus-server-correction for responsiveness. This is the single biggest leap on the Kaboom Crew roadmap and the one that moves the project from 'prototype' to 'modern network game' — it's the user-facing goal of this design pass.",
+  "priority": "must",
+  "epic": "KABOOM-CREW-MVP-NETWORK",
+  "rationale": "Source: §6 of notes/DynaBomber.md ('Multiplayer Model' — drop-in/drop-out, server authority, three profiles) + §5 of notes/dynabomber-readiness-analysis.md (the multiplayer gap list: drop-in world ❌, client prediction ❌, snapshot relevance ❌, bomb/blast authority ❌). The protocol schema (schemas/protocol.schema.json) and WS adapter (engine/runtime/network/ws-network-adapter.ts) already exist but have no concrete consumer. Kaboom Crew is the natural first consumer because its rules are deterministic + grid-based (Rapier-free), which is exactly what AGF's protocol expects. Marked `must` priority — every other MVP-2 proposal is polish on top of single-player. Without this one, 'modern network game' stays aspirational.",
+  "acceptanceHints": [
+    "NEW epic: KABOOM-CREW-MVP-NETWORK with done-criteria covering the bullets below. The current KABOOM-CREW-MVP-1 epic stays single-player polish; multiplayer is a new epic, not an MVP-1 extension.",
+    "examples/backends/node-world-server: Kaboom Crew rules ship as a server-side module — BombFuseSystem + BlastPropagationSystem + BlockDestructionSystem + PickupCollectSystem + RoundResolveSystem all run server-side against an authoritative ECS world.",
+    "Client systems: bomb-placement, bomb-fuse, blast-propagation, pickup-collect, round-resolve become DISABLED in the connected profile — the client only renders what the server sends.",
+    "Player movement uses client prediction: the local tab applies GridMover updates immediately, then the next server snapshot reconciles. If the snapshot disagrees by > 1 cell, snap to the server position.",
+    "PlaceBombRequest becomes a protocol message: client → server { entityId, gx, gz }. Server validates (the bomber owns the entity for this connection, BomberStats.activeBombs < maxBombs, the cell is empty + in-bounds + matches the bomber's current grid cell) and either spawns a Bomb on the server world or returns a placement-rejected event.",
+    "Snapshot relevance is OPTIONAL for the first cut — the arena is small enough (15×11) that full-world snapshots are fine. A relevance filter can be added once a chunked map exists.",
+    "Two connected tabs see the same RoundState.tally. The 3-second auto-restart is server-driven (the server's RoundResolveSystem fires the scene reload, and every connected client receives the new start snapshot).",
+    "A joining player at mid-round either spectates until next round (simpler) or enters as a new bomber at a safe spawn (more interesting) — pick one and document it. Recommended: spectate-until-next-round for the first cut.",
+    "A leaving player drops their alive bomber as a 'ghost' that the next blast disposes of, OR despawns immediately. Pick one and document. Recommended: despawn immediately for the first cut.",
+    "Determinism is NOT required across the network boundary — the server's RNG seeds pickup spawns and bot decisions; clients trust the server's snapshot. Existing deterministic bot-vs-bot.test.ts continues to pass server-side as a sanity check that the rules didn't drift.",
+    "Acceptance playtest: TWO playwright tabs join the same world via ?profile=connected&world=test. Tab A and Tab B each control one bomber. Tab A places a bomb; Tab B sees the bomb spawn within 200 ms; Tab A's bomb kills Tab B's bomber; both tabs see the round resolve and auto-restart with the new tally.",
+    "Bots: in the connected profile, the server owns BotAISystem. Empty slots in a 2-bomber arena get filled by a server-side bot. No client-side bot ticks.",
+    "Diagnostics: a new `/__agf/network` probe returns peer-count + last-snapshot-bytes + last-snapshot-latency-ms so QA can verify the channel without DOM scraping.",
+    "Out of scope (separate follow-up proposals): lag compensation, snapshot-relevance filter, persistent world across server restarts, custom rooms, reconnect-on-drop, anti-cheat."
+  ]
+}

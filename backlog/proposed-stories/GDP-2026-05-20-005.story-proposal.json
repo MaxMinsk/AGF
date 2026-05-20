@@ -1,0 +1,23 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-005",
+  "title": "Bot personality variants — Hunter, Coward, Miner archetypes on top of the difficulty dial",
+  "createdAt": "2026-05-20T21:35:00.000Z",
+  "kind": "balance",
+  "intent": "Add a `?botPersonality=` URL param (or scene-file flag) alongside the existing `?difficulty=` dial. Three starter archetypes — `hunter` (biases bomb placements toward the player's predicted path), `coward` (max flee weight, will not bomb unless cornered), `miner` (prioritises soft blocks + pickups over confronting the player). The numeric dial keeps tuning reaction speed and aggression; personality tunes WHAT the bot is trying to achieve. A 'hard Coward' still won't chase the player but reacts to danger faster than 'easy Coward'. Solo replayability is the single most important thing standing between Kaboom Crew and 'real game', and adding personalities is the cheapest way to multiply the solo content.",
+  "priority": "should",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "Source: §13.1 of notes/DynaBomber.md (bot types: Miner, Hunter, Coward, Greedy, Saboteur, Guard, Monster) + GDD section 'Difficulty dial (planned, MVP-2)'. Three archetypes is the right starting cardinality — enough variety to give the player a feel of facing 'different bots' without exploding the testing surface (current bot-vs-bot.test.ts is already the regression gate; adding 3 variants × 3 difficulties = 9 cells to spot-check). Hunter and Coward are the most opposed pair on the behavior axis; Miner adds an 'ignore the player' variant that produces the most varied playtest seeds. Saboteur/Guard are deferred — they need kick + objectives respectively to express the personality, which lands later.",
+  "acceptanceHints": [
+    "examples/kaboom-crew/src/difficulty.ts (or a sibling personality.ts): exports `BotPersonality = 'balanced' | 'hunter' | 'coward' | 'miner'` and a parser for `?botPersonality=`. Default is `balanced` (current behaviour preserved).",
+    "examples/kaboom-crew/schemas/scene-extensions.schema.json: BotBrain gains optional `personality` enum field. Existing scene files keep working without it (defaults to balanced).",
+    "examples/kaboom-crew/src/systems/bot-ai-system.ts: branch on BotBrain.personality when scoring candidate actions. Concretely: hunter weights bomb-placement-near-predicted-player +30%, coward weights flee-from-bomb +50% and bomb-place −60%, miner weights move-toward-nearest-soft-block +40% and ignore-player-position.",
+    "Personality patch composes WITH the difficulty patch — difficulty sets aggression/reaction/range/speed; personality sets the action-weight bias on top. They don't fight each other.",
+    "Unit test: hunter bot vs static player dummy → bomb placement count near the dummy is higher than balanced bot's count over 30 s.",
+    "Unit test: coward bot vs an exploding bomb → bot ends up 2+ cells away within 0.8 s, more reliably than the balanced bot.",
+    "Unit test: miner bot in an arena with one accessible soft block → bot reaches the block's neighbour and places a bomb before engaging the dummy player.",
+    "HUD bottom-left bot label shows the personality tag (e.g. `bot.1 [coward]`) when non-default.",
+    "Bot-vs-bot regression test still resolves within budget for every (difficulty × personality) cell — that's the gate.",
+    "Deliberately NOT in scope here: bot kick-awareness, bot remote-detonate use, bot pickup-stealing strategy. Those are follow-ups once GDP-003 (Kick) and GDP-006 (Remote) land."
+  ]
+}

@@ -13,6 +13,7 @@
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import { BOMB_FINAL_SCALE } from "./bomb-placement-system";
 
 const BOMB: ComponentName = "Bomb";
 const BLAST_EVENT: ComponentName = "BlastEvent";
@@ -123,7 +124,15 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
         if (next <= 2) {
           const transform = world.getComponent<{ position?: ReadonlyArray<number>; rotation?: ReadonlyArray<number>; scale?: ReadonlyArray<number> }>(entityId, TRANSFORM);
           if (transform !== undefined) {
-            const s = bombWiggleScale(next);
+            // S99 KABOOM-BOMB-FUSE-WIGGLE-BASESCALE-FIX. bombWiggleScale
+            // returns a UNIT-CENTERED multiplier (1.0 ± amplitude). The
+            // bomb's resting scale is BOMB_FINAL_SCALE (0.35) — writing
+            // the multiplier directly into Transform.scale balloons the
+            // mesh from 0.35 to ~1.0 (≈ 3x). Multiply by the base scale
+            // so the wiggle oscillates around the resting size.
+            const ratio = bombWiggleScale(next);
+            const base = BOMB_FINAL_SCALE[0] ?? 0.35;
+            const s = base * ratio;
             world.setComponent(entityId, TRANSFORM, { ...transform, scale: [s, s, s] });
           }
         }

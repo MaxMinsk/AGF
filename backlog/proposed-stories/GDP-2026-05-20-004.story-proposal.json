@@ -1,0 +1,21 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-004",
+  "title": "Slapstick death animation — launch-up + spin-out tween before despawn",
+  "createdAt": "2026-05-20T21:32:00.000Z",
+  "kind": "feature",
+  "intent": "Replace the instant despawn that fires when a bomber takes a lethal blast hit with a short ~0.5 s slapstick death tween: the bomber pops upward ~1.2 units, rotates around its forward axis a couple of turns, then falls and despawns. Round resolution should NOT wait for the animation — RoundResolveSystem still sees the bomber's `alive=false` flag the same frame it flipped, so the 3-second auto-restart timing is unchanged. The tween is pure presentation. This is the cheapest possible step toward the 'modern party game' tone (Boomerang Fu, Party Animals, Bombergrounds: Reborn all use slapstick death) and softens the competitive sting of a one-hit-kill arena without adding any new mechanic.",
+  "priority": "could",
+  "epic": "KABOOM-CREW-MVP-1",
+  "rationale": "Source: GDD section 'Characters (planned MVP-3+)' notes slapstick death; pulling it down to MVP-1 because it costs almost nothing (one tween, no schema change) and the value is immediate. Reinforces the 'Local chaos, global clarity' pillar — the death moment is *more* readable when it's animated, not less. The S099 bomb-fuse-wiggle taming work has already established that AGF's Tween primitive is the right vehicle for this kind of presentation tweak. Slapstick death is also the lowest-risk lead-in to the procedural character generator in MVP-3: a rigged GLB humanoid that ragdolls is a 10x upgrade, but a primitive-capsule slapstick is a 1x stepping stone today.",
+  "acceptanceHints": [
+    "examples/kaboom-crew/src/systems/round-resolve-system.ts (or a sibling presentation system): when BomberStats.alive flips from true → false, schedule a Tween that lifts the bomber's Transform.position.y by +1.2 over 0.18 s ease-out, then drops it by ~1.5 over 0.32 s ease-in, while rotating Transform.rotation by 2π around Z.",
+    "Despawn (entity removal) happens at the END of the tween, not when alive flips. The bomber stays in the GridOccupancy index for the tween duration but is flagged non-blocking (other bombers + blasts pass through it).",
+    "RoundResolveSystem behaviour is unchanged: it still sees the alive=false flag the same frame and sets RoundState.phase. The 3 s auto-restart timing does not include the death tween.",
+    "Tween must not crash if the entity is force-despawned by scene reload before the tween completes (defensive — the round can restart while a death tween is mid-flight).",
+    "Audio: the existing `death` event still fires on the alive-flip frame; no new audio event is added by this story.",
+    "Visual: minimap marker disappears as soon as alive=false (matches the gameplay state, not the animation state). The 3D mesh is what slap-sticks.",
+    "Unit test: alive flips → entity stays present for tween-duration frames → entity removed afterwards.",
+    "Unit test: scene reload mid-tween leaves no leaked tween or entity reference."
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-003",
+  "title": "Kick power-up — bumping your own bomb pushes it one cell forward",
+  "createdAt": "2026-05-20T21:30:00.000Z",
+  "kind": "mechanic",
+  "intent": "Add a Kick power-up to Kaboom Crew. When a bomber carrying the Kick effect walks INTO a bomb (their own or anyone else's) and the next cell in the walk direction is empty + in-bounds + not a hard block, the bomb slides one cell in that direction and the bomber stops at the original cell. The fuse keeps ticking during the slide; kicked bombs can still be caught in chain reactions. Kick is the highest-impact single-pickup change in the modern bomb-em-up vocabulary (Bomberman R, Bombergrounds, Boomerang Fu all use a kick-equivalent). It opens up two new player decisions — 'should I kick this bomb away from me?' and 'should I kick this bomb AT the opponent?' — without changing any existing system contract.",
+  "priority": "should",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "Source: §5.7 of notes/DynaBomber.md ('Power-ups: MVP — Kick: Walking into a bomb kicks it forward') + GDD section 'Bombs (planned, MVP-2)'. Kick is the lowest-cost MVP-2 mechanic because it doesn't need new render passes, new audio events, or new bot policy — the bot AI just keeps walking into bombs and the existing GridMover/GridOccupancy handles the rest. It also tests AGF's component-write surface (BomberStats gets a new boolean) and the pickup-collect path (one new Pickup.kind).",
+  "acceptanceHints": [
+    "examples/kaboom-crew/schemas/scene-extensions.schema.json: BomberStats gains an optional `kick: boolean` (default false). Pickup.kind enum gains `kick`.",
+    "examples/kaboom-crew/src/systems/pickup-collect-system.ts: collecting a `kick` pickup flips BomberStats.kick to true; idempotent (already true → no-op).",
+    "examples/kaboom-crew/src/systems/pickup-spawn-system.ts: kick is in the drop table with rarity ~half of bomb-up (rough — dev tunes after playtest).",
+    "examples/kaboom-crew/src/systems/grid-movement-system.ts (or a new bomb-kick-system that runs before it): when a kicker would move into a cell that holds a Bomb entity, the bomb's GridPosition is advanced one cell in the walk direction IF the destination is empty + in bounds + not a hard block. The bomber stops at the original cell that frame; the kick consumes the queuedDirection so the bomber doesn't auto-kick again next frame.",
+    "Bomb cannot stack on another bomb or on a hard block — kick is silently refused in those cases.",
+    "Unit test: bomber with kick=true walks into bomb at (gx,gz); bomb moves to (gx+1,gz); bomber stays at (gx-1,gz); fuseRemaining is unchanged.",
+    "Unit test: bomber with kick=false walks into bomb; bomber is blocked; bomb does not move.",
+    "Unit test: kick attempt into a hard block or off-arena is refused.",
+    "HUD bottom-left per-bomber line shows `K` flag when kick is on (mirrors the existing `bombs A/B fire C` formatting).",
+    "Audio: emit `bomb-kick` event on a successful kick. Wiring uses the existing audio-binding-system; the clip itself can be a placeholder until the asset lands.",
+    "Bot AI is NOT required to understand kick in this story — the bot just keeps walking and uses kick by accident. Smart kick is a follow-up under bot personality work."
+  ]
+}
