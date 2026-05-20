@@ -120,6 +120,10 @@ type AgfApi = {
     | { kind: "entity-not-found" }
     | { kind: "component-not-found" }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
+  snapshotDiff?: (at: number) =>
+    | { kind: "ok"; entries: ReadonlyArray<unknown> }
+    | { kind: "out-of-range"; capacity: number; size: number };
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   /** S83 AGF-AGENT-RENDERER-PROBE. */
@@ -267,6 +271,16 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "snapshot":
         payload = api?.snapshot?.();
         break;
+      case "snapshot-diff": {
+        // S096 AGF-PROBE-SNAPSHOT-DIFF.
+        const at = (payloadIn as { at?: number } | undefined)?.at ?? 0;
+        if (api?.snapshotDiff === undefined) {
+          payload = undefined;
+          break;
+        }
+        payload = api.snapshotDiff(at);
+        break;
+      }
       case "component-at": {
         // S096 AGF-PROBE-COMPONENT-AT. Forward to runtime.componentAt.
         const args = payloadIn as { entityId?: string; componentName?: string; at?: number } | undefined;

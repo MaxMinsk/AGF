@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { InspectEntity, InspectResult } from "./project-inspect";
+import type { WorldSnapshot } from "../../runtime/inspect";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -73,6 +74,39 @@ export function readInspectSnapshot(filePath: string): InspectResult {
   const absolute = resolve(filePath);
   const raw = readFileSync(absolute, "utf8");
   return JSON.parse(raw) as InspectResult;
+}
+
+/**
+ * S096 AGF-PROBE-SNAPSHOT-DIFF — adapt a runtime WorldSnapshot into
+ * an InspectResult shape so the existing `diffSnapshots` pipeline can
+ * compute the diff. Cheap — just renames `entities[].components` keys
+ * into the InspectEntity shape (componentNames + components map).
+ */
+export function worldSnapshotToInspectResult(snap: WorldSnapshot): InspectResult {
+  return {
+    ok: true,
+    projectDir: "",
+    diagnostics: [],
+    scene: {
+      id: "",
+      entityCount: snap.entityCount,
+      matchedEntityCount: snap.entityCount,
+      entities: snap.entities.map((e, order) => ({
+        id: e.id,
+        order,
+        componentNames: Object.keys(e.components),
+        components: e.components as JsonObject
+      }))
+    }
+  };
+}
+
+/**
+ * S096 AGF-PROBE-SNAPSHOT-DIFF — convenience that adapts two
+ * WorldSnapshots before calling `diffSnapshots`.
+ */
+export function diffWorldSnapshots(previous: WorldSnapshot, next: WorldSnapshot): SnapshotDiffEntry[] {
+  return diffSnapshots(worldSnapshotToInspectResult(previous), worldSnapshotToInspectResult(next));
 }
 
 export function diffSnapshots(previous: InspectResult, next: InspectResult): SnapshotDiffEntry[] {

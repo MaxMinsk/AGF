@@ -40,6 +40,10 @@ declare global {
         | { kind: "entity-not-found" }
         | { kind: "component-not-found" }
         | { kind: "out-of-range"; capacity: number; size: number };
+      /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
+      snapshotDiff(at: number):
+        | { kind: "ok"; entries: ReadonlyArray<unknown> }
+        | { kind: "out-of-range"; capacity: number; size: number };
       applyCommands(commands: ReadonlyArray<EngineCommand>): void;
       /**
        * Project-local action. For Beacon World, re-arms all beacons, respawns
@@ -463,6 +467,8 @@ void (async (): Promise<void> => {
       // S096 AGF-PROBE-COMPONENT-AT.
       componentAt: (entityId: string, componentName: string, at?: number) =>
         app.componentAt(entityId, componentName, at),
+      // S096 AGF-PROBE-SNAPSHOT-DIFF.
+      snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),

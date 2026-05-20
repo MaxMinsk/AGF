@@ -14,6 +14,8 @@ import { createAudioBus } from "./audio/audio-bus";
 import { createFrameSpikeGate } from "./frame-spike-gate";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
+import { diffWorldSnapshots } from "../tools/inspect/snapshot-diff";
+import type { SnapshotDiffEntry } from "../tools/inspect/snapshot-diff";
 import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
 import type { LocalStore } from "./persistence/local-store";
 import {
@@ -192,6 +194,14 @@ export type RuntimeHandle = {
   snapshotAt(at: number): WorldSnapshot | undefined;
   /** S095 — current ring-buffer capacity (constant) + occupancy. */
   snapshotHistoryStats(): { capacity: number; size: number };
+  /**
+   * S096 AGF-PROBE-SNAPSHOT-DIFF. Returns the diff between the
+   * historical snapshot at `at` (must be negative) and the LIVE
+   * snapshot. Same out-of-range envelope as snapshotAt.
+   */
+  snapshotDiff(at: number):
+    | { kind: "ok"; entries: SnapshotDiffEntry[] }
+    | { kind: "out-of-range"; capacity: number; size: number };
   /**
    * S096 AGF-PROBE-COMPONENT-AT. Read a single component on a single
    * entity from the live world or a historical snapshot. `at`
@@ -888,6 +898,29 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
         return snapshotWorld(world, time);
       }
       return lookupSnapshotInRing(snapshotHistory, at);
+    },
+    snapshotDiff(at: number):
+      | { kind: "ok"; entries: SnapshotDiffEntry[] }
+      | { kind: "out-of-range"; capacity: number; size: number } {
+      // S096 AGF-PROBE-SNAPSHOT-DIFF. Returns the diff between the
+      // historical snapshot at `at` and the LIVE snapshot. Requires
+      // `at` to be negative (positive / zero would diff live against
+      // live, which is always empty); callers should validate that
+      // upstream. Out-of-range looks identical to the snapshotAt
+      // helper so the bridge can return the same typed error.
+      if (!Number.isFinite(at) || at >= 0) {
+        return { kind: "ok", entries: [] };
+      }
+      const historical = lookupSnapshotInRing(snapshotHistory, at);
+      if (historical === undefined) {
+        return {
+          kind: "out-of-range",
+          capacity: SNAPSHOT_HISTORY_CAPACITY,
+          size: snapshotHistory.length
+        };
+      }
+      const live = snapshotWorld(world, time);
+      return { kind: "ok", entries: diffWorldSnapshots(historical, live) };
     },
     componentAt(entityId: string, componentName: string, at?: number):
       | { kind: "ok"; value: unknown }

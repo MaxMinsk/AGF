@@ -534,6 +534,54 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             }
             at = parsed;
           }
+          // S096 AGF-PROBE-SNAPSHOT-DIFF — `&diff=1` returns the diff
+          // entries between the historical snapshot at `at` and live.
+          // Requires `at` to be negative; `at=0 + diff=1` is rejected
+          // (diff of live vs live is trivially empty + wastes a round
+          // trip).
+          const diffMode = url.searchParams.get("diff") === "1";
+          if (diffMode) {
+            if (at >= 0) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_BRIDGE_INVALID_SNAPSHOT_DIFF",
+                  message: "`diff=1` requires `at` to be negative (e.g. ?at=-1&diff=1)."
+                }
+              });
+              return;
+            }
+            const urlDiff = new URL(req.url ?? "", "http://localhost");
+            const foundDiff = findPage(urlDiff);
+            if ("error" in foundDiff) {
+              const status = foundDiff.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+              respondJson(res, status, { ok: false, error: foundDiff.error });
+              return;
+            }
+            try {
+              const diffResult = (await rpc(foundDiff.entry, "snapshot-diff", { at })) as
+                | { kind: "ok"; entries: ReadonlyArray<unknown> }
+                | { kind: "out-of-range"; capacity: number; size: number };
+              if (diffResult.kind === "out-of-range") {
+                respondJson(res, 400, {
+                  ok: false,
+                  error: {
+                    code: "AGF_PROBE_SNAPSHOT_OUT_OF_RANGE",
+                    message: `Snapshot at=${at} is out of range. Buffer capacity=${diffResult.capacity}, current size=${diffResult.size}.`
+                  }
+                });
+                return;
+              }
+              respondJson(res, 200, {
+                ok: true,
+                page: foundDiff.entry.socketId,
+                payload: { at, entries: diffResult.entries }
+              });
+            } catch (error) {
+              respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+            }
+            return;
+          }
           if (at === 0) {
             await proxyToPage(req, res, "snapshot");
             return;

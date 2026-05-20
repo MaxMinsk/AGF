@@ -161,6 +161,10 @@ export type AppHandle = {
     | { kind: "entity-not-found" }
     | { kind: "component-not-found" }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
+  snapshotDiff(at: number):
+    | { kind: "ok"; entries: ReadonlyArray<unknown> }
+    | { kind: "out-of-range"; capacity: number; size: number };
   reloadAsset(ref: string): void;
   /** Active WS adapter, if `?server=` was provided. Useful for tests. */
   readonly network: WsNetworkAdapterHandle | undefined;
@@ -608,6 +612,10 @@ export async function createApp(
     // S096 AGF-PROBE-COMPONENT-AT.
     componentAt(entityId: string, componentName: string, at?: number) {
       return runtime.componentAt(entityId, componentName, at);
+    },
+    // S096 AGF-PROBE-SNAPSHOT-DIFF.
+    snapshotDiff(at: number) {
+      return runtime.snapshotDiff(at);
     },
     reloadAsset(ref): void {
       runtime.invalidateAsset(ref);

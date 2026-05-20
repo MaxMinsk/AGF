@@ -57,13 +57,14 @@
     {
       "id": "AGF-PROBE-SNAPSHOT-DIFF",
       "title": "GET /__agf/snapshot?at=-N&diff=1 returns the diff vs live",
-      "status": "pending",
-      "summary": "Build on S095 AGF-PROBE-SNAPSHOT-HISTORY. When the snapshot probe is called with both `at` (history index) AND `diff=1`, the bridge computes the diff between the historical snapshot and the live snapshot using the existing `diffSnapshots()` helper from engine/tools/inspect/snapshot-diff.ts. Returns the diff result envelope. Useful for an agent to ask \"what changed in the last N ticks?\" without round-tripping two full snapshots.",
+      "status": "implemented",
+      "summary": "engine/tools/inspect/snapshot-diff.ts grew `worldSnapshotToInspectResult` + `diffWorldSnapshots` so the runtime's WorldSnapshot can be piped through the existing `diffSnapshots` pipeline. runtime.snapshotDiff(at) reads the historical snapshot at `at`, diffs it against the live snapshot, and returns `{ kind: 'ok', entries }` or `{ kind: 'out-of-range', capacity, size }`. The dev-bridge snapshot route now also handles `&diff=1`: validates that `at` is negative (rejects with 400 AGF_BRIDGE_INVALID_SNAPSHOT_DIFF otherwise), proxies to the new `snapshot-diff` page-bridge RPC, and maps out-of-range to 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.",
       "verification": [
-        "acceptance: GET /__agf/snapshot?at=-1&diff=1 returns a diff payload listing `entity.added` / `entity.removed` / `component.added` / `component.removed` / `component.changed` entries between t-1 and live; identical snapshots produce an empty diff.",
-        "engine/dev/agf-dev-bridge.ts: snapshot route accepts the diff=1 query and proxies to a new page-bridge RPC `snapshot-diff` that runs the diff in-page",
-        "engine/dev/page-bridge.ts: snapshot-diff returns either the diff entries or out-of-range (when the history index is past the buffer)",
-        "+ unit tests asserting the dev-bridge route validates that `diff=1` requires `at` to be negative; positive or missing at returns AGF_BRIDGE_INVALID_SNAPSHOT_DIFF"
+        "acceptance: GET /__agf/snapshot?at=-1&diff=1 returns a diff payload listing entity.added / entity.removed / component.added / component.removed / component.changed entries between t-1 and live; identical snapshots produce an empty diff.",
+        "engine/tools/inspect/snapshot-diff.ts: diffWorldSnapshots + worldSnapshotToInspectResult adapt the runtime shape to the existing diff pipeline",
+        "engine/runtime/start.ts: runtime.snapshotDiff(at) tagged-union returning entries or out-of-range",
+        "engine/dev/agf-dev-bridge.ts: snapshot route handles `&diff=1`; 400 AGF_BRIDGE_INVALID_SNAPSHOT_DIFF when at is not negative",
+        "+7 unit tests in tests/unit/snapshot-diff-runtime.test.ts covering: identical snapshots empty, entity.added/removed, component.changed/added/removed, worldSnapshotToInspectResult preserves ids + component names"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
