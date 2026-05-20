@@ -33,6 +33,11 @@ type BomberStats = {
   range: number;
   activeBombs?: number;
   alive?: boolean;
+  // S100 KABOOM-REMOTE-DETONATE-PUP — when > 0, the next bomb this
+  // bomber places is spawned with fuseRemaining=Infinity (paused) and
+  // this counter decrements. Player triggers all paused bombs via
+  // RemoteDetonateRequest.
+  remoteDetonateCharges?: number;
 };
 type GridPos = { gx: number; gz: number };
 
@@ -119,13 +124,23 @@ export function createKaboomBombPlacementSystem(
       world.setComponent(bombId, MESH_RENDERER, { mesh: "sphere", color: "#1a1a1a" });
       world.setComponent(bombId, GRID_POSITION, { gx: pos.gx, gz: pos.gz });
       world.setComponent(bombId, GRID_OCCUPANT, { layer: "bomb", blocksMovement: false, blocksBlast: false });
+      // S100 KABOOM-REMOTE-DETONATE-PUP — if the bomber has charges,
+      // consume one + spawn the bomb paused (fuseRemaining=Infinity).
+      // Player triggers all paused bombs via RemoteDetonateRequest;
+      // bomb-fuse-system reads that + drops fuseRemaining to 0.
+      const charges = stats.remoteDetonateCharges ?? 0;
+      const usesRemote = charges > 0;
       world.setComponent(bombId, BOMB, {
-        fuseRemaining: fuseSeconds,
+        fuseRemaining: usesRemote ? Number.POSITIVE_INFINITY : fuseSeconds,
         range: stats.range,
         ownerId: entityId
       });
 
-      world.setComponent(entityId, BOMBER_STATS, { ...stats, activeBombs: active + 1 });
+      world.setComponent(entityId, BOMBER_STATS, {
+        ...stats,
+        activeBombs: active + 1,
+        remoteDetonateCharges: usesRemote ? charges - 1 : charges
+      });
     }
   };
 

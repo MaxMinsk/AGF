@@ -7,6 +7,7 @@
     "BomberStats": { "$ref": "#/definitions/bomberStatsComponent" },
     "Bomb": { "$ref": "#/definitions/bombComponent" },
     "PlaceBombRequest": { "$ref": "#/definitions/placeBombRequestComponent" },
+    "RemoteDetonateRequest": { "$ref": "#/definitions/remoteDetonateRequestComponent" },
     "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
@@ -30,7 +31,8 @@
         "speed": { "type": "number", "exclusiveMinimum": 0 },
         "activeBombs": { "type": "integer", "minimum": 0, "default": 0 },
         "alive": { "type": "boolean", "default": true },
-        "canKick": { "type": "boolean", "default": false, "description": "S100 KABOOM-KICK-POWER-UP. True after collecting a 'kick' pickup. Enables sliding your own bomb forward when walking into its cell." }
+        "canKick": { "type": "boolean", "default": false, "description": "S100 KABOOM-KICK-POWER-UP. True after collecting a 'kick' pickup. Enables sliding your own bomb forward when walking into its cell." },
+        "remoteDetonateCharges": { "type": "integer", "minimum": 0, "default": 0, "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Each charge converts the NEXT placed bomb into a paused (fuseRemaining=Infinity) bomb that the player triggers manually via the 'remote-detonate' InputAction (or F key). Capped at 3 per bomber." }
       }
     },
     "bombComponent": {
@@ -48,6 +50,12 @@
       "type": "object",
       "additionalProperties": false,
       "description": "Transient input request. PlayerInputSystem + BotAISystem write this on the bomber entity; BombPlacementSystem consumes + removes it the same frame.",
+      "properties": {}
+    },
+    "remoteDetonateRequestComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Transient input request written on a player when they press F (or the 'remote-detonate' InputAction is injected). BombFuseSystem reads it: for every Bomb owned by this player with fuseRemaining=Infinity (paused), set fuseRemaining=0 so they all detonate this fixedUpdate. Component is removed after handling.",
       "properties": {}
     },
     "blastEventComponent": {
@@ -152,12 +160,12 @@
     "pickupComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true).",
+      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true), `remote-detonate` (S100 — +1 BomberStats.remoteDetonateCharges, capped at 3).",
       "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["bomb-up", "fire-up", "speed-up", "kick"]
+          "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate"]
         }
       }
     },

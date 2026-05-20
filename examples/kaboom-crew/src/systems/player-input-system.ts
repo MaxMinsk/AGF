@@ -22,6 +22,7 @@ const PLAYER_CONTROLLED: ComponentName = "PlayerControlled";
 const GRID_MOVER: ComponentName = "GridMover";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 const ROUND_RESTART_REQUEST: ComponentName = "RoundRestartRequest";
+const REMOTE_DETONATE_REQUEST: ComponentName = "RemoteDetonateRequest";
 // S098 AGF-PROBE-INPUT-INJECT — engine-side transient written by
 // runtime.injectInput. The player-input-system reads + clears it
 // each frameUpdate and fires the same downstream effect as a real
@@ -34,6 +35,8 @@ const MOVE_LEFT = new Set(["KeyA", "ArrowLeft"]);
 const MOVE_DOWN = new Set(["KeyS", "ArrowDown"]);
 const PLACE_BOMB = new Set(["Space"]);
 const ROUND_RESTART = new Set(["KeyR"]);
+// S100 KABOOM-REMOTE-DETONATE-PUP — F triggers all paused bombs.
+const REMOTE_DETONATE = new Set(["KeyF"]);
 
 type GridMoverComponent = {
   speed: number;
@@ -159,6 +162,7 @@ export function createKaboomPlayerInputSystem(
     const direction = resolveDirection();
     const placeBombEdge = someInSetNew(PLACE_BOMB);
     const restartEdge = someInSetNew(ROUND_RESTART);
+    const remoteDetonateEdge = someInSetNew(REMOTE_DETONATE);
     for (const entityId of query!.run()) {
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       if (mover === undefined) continue;
@@ -170,6 +174,7 @@ export function createKaboomPlayerInputSystem(
       let injectedDirection: { dx: number; dz: number } | undefined;
       let injectedPlaceBomb = false;
       let injectedRestart = false;
+      let injectedRemoteDetonate = false;
       const injection = world.getComponent<{ action: string; value?: unknown }>(entityId, INPUT_ACTION);
       if (injection !== undefined) {
         switch (injection.action) {
@@ -178,6 +183,12 @@ export function createKaboomPlayerInputSystem(
             break;
           case "restart":
             injectedRestart = true;
+            break;
+          case "remote-detonate":
+            // S100 KABOOM-REMOTE-DETONATE-PUP — probe-fired equivalent
+            // of the F key. bomb-fuse-system reads RemoteDetonateRequest
+            // and drops every paused bomb owned by this entity to fuse=0.
+            injectedRemoteDetonate = true;
             break;
           case "move-right":
             injectedDirection = { dx: 1, dz: 0 };
@@ -215,6 +226,12 @@ export function createKaboomPlayerInputSystem(
       }
       if ((restartEdge || injectedRestart) && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
         world.setComponent(entityId, ROUND_RESTART_REQUEST, {});
+      }
+      // S100 KABOOM-REMOTE-DETONATE-PUP — F key (or probe-injected
+      // 'remote-detonate' action) writes the request transient.
+      // bomb-fuse-system reads it the same frame.
+      if ((remoteDetonateEdge || injectedRemoteDetonate) && !world.hasComponent(entityId, REMOTE_DETONATE_REQUEST)) {
+        world.setComponent(entityId, REMOTE_DETONATE_REQUEST, {});
       }
     }
     // Use a copy so test injection of an external pressed set survives

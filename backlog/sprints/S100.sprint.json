@@ -59,7 +59,7 @@
     {
       "id": "KABOOM-REMOTE-DETONATE-PUP",
       "title": "Remote-detonate power-up — fuse pauses, player triggers blast on command (GDP-006)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-20-006. Add a 4th pickup kind 'remote-detonate' alongside bomb-up / fire-up / speed-up. While the player carries any remote-detonate charges, newly-placed bombs spawn with `Bomb.fuseRemaining = Infinity` (paused). A new keyboard binding (F key, or InputAction 'remote-detonate') decrements the charge counter + sets every paused bomb owned by the player to fuseRemaining=0, detonating them all at once. Cap charges at 3. Lays groundwork for combo plays (4 bombs in a corridor, detonate together).",
       "verification": [
         "acceptance: Picking up a remote-detonate charge enables F-key detonation. Placing 3 bombs while holding charges leaves them all paused (no countdown color/wiggle). F detonates all of them on the same fixedUpdate.",

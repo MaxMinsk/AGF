@@ -32,7 +32,7 @@ const COLLECT_FX_LIFETIME_S = 0.35;
 const COLLECT_FX_RATE = 80;
 const COLLECT_FX_MAX_PARTICLES = 30;
 
-type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" };
+type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" };
 type GridPos = { gx: number; gz: number };
 type BomberStats = {
   maxBombs: number;
@@ -41,7 +41,10 @@ type BomberStats = {
   activeBombs?: number;
   alive?: boolean;
   canKick?: boolean;
+  remoteDetonateCharges?: number;
 };
+
+const REMOTE_DETONATE_CHARGES_CAP = 3;
 type GridMoverComponent = {
   speed: number;
   queuedDirection?: { dx: number; dz: number };
@@ -141,6 +144,10 @@ function tryApplyPickup(
       // S100 KABOOM-KICK-POWER-UP — enable kick mechanic on this bomber.
       // Idempotent: collecting a second kick has no effect.
       world.setComponent(id, BOMBER_STATS, { ...stats, canKick: true });
+    } else if (kind === "remote-detonate") {
+      // S100 KABOOM-REMOTE-DETONATE-PUP — increment charges, capped.
+      const next = Math.min((stats.remoteDetonateCharges ?? 0) + 1, REMOTE_DETONATE_CHARGES_CAP);
+      world.setComponent(id, BOMBER_STATS, { ...stats, remoteDetonateCharges: next });
     } else {
       // speed-up bumps GridMover.speed AND mirrors into BomberStats.speed
       // so the HUD has a single read-from. GridMovementSystem reads from

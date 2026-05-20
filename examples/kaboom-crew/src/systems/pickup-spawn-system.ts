@@ -44,7 +44,7 @@ const IDLE_EMITTER_RATE = 8;
 const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
-type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick";
+type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate";
 
 type PickupVisual = {
   mesh: string;
@@ -63,10 +63,12 @@ const PICKUP_VISUAL: Record<PickupKind, PickupVisual> = {
   "fire-up": { mesh: "box", color: "#ff7a36", scale: [0.45, 0.45, 0.45], yOffset: 0.28 },
   "speed-up": { mesh: "cylinder", color: "#7be35f", scale: [0.3, 0.5, 0.3], yOffset: 0.3 },
   // S100 KABOOM-KICK-POWER-UP — short wide cylinder (boot-like silhouette) in yellow.
-  "kick": { mesh: "cylinder", color: "#ffd54f", scale: [0.45, 0.2, 0.45], yOffset: 0.22 }
+  "kick": { mesh: "cylinder", color: "#ffd54f", scale: [0.45, 0.2, 0.45], yOffset: 0.22 },
+  // S100 KABOOM-REMOTE-DETONATE-PUP — narrow tall sphere (trigger-button silhouette) in magenta.
+  "remote-detonate": { mesh: "sphere", color: "#e040fb", scale: [0.25, 0.45, 0.25], yOffset: 0.32 }
 };
 
-const PICKUP_KINDS: ReadonlyArray<PickupKind> = ["bomb-up", "fire-up", "speed-up", "kick"];
+const PICKUP_KINDS: ReadonlyArray<PickupKind> = ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate"];
 
 export type PickupSpawnSystemOptions = {
   name?: string;

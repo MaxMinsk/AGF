@@ -21,6 +21,10 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
+// S100 KABOOM-REMOTE-DETONATE-PUP — transient input on a bomber. We
+// read + remove it at the top of each fixedUpdate, dropping the
+// fuse on every paused bomb that bomber owns.
+const REMOTE_DETONATE_REQUEST: ComponentName = "RemoteDetonateRequest";
 
 /**
  * S87 KABOOM-BOMB-COUNTDOWN-PULSE. Pure helper — returns the bomb
@@ -96,6 +100,27 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
     // S84 KABOOM-TITLE-SCREEN — fuses freeze while the round is paused.
     if (world.hasComponent("kaboom.game-state", "GamePaused")) return;
     const dt = Math.max(0, context.time.fixedDt);
+    // S100 KABOOM-REMOTE-DETONATE-PUP — handle pending remote-detonate
+    // requests BEFORE the fuse decrement so triggered bombs explode
+    // this same fixedUpdate (rather than waiting a tick). For each
+    // bomber carrying the request, drop fuseRemaining=0 on every
+    // paused bomb they own; remove the request.
+    // agf-allow: world.query — runs at most ~once per player frame
+    // and only when the player presses F.
+    const triggers: string[] = [];
+    for (const id of world.query([REMOTE_DETONATE_REQUEST])) triggers.push(id);
+    if (triggers.length > 0) {
+      const allBombs = [...bombs!.run()];
+      for (const bomberId of triggers) {
+        for (const bombId of allBombs) {
+          const bomb = world.getComponent<BombComponent>(bombId, BOMB);
+          if (bomb === undefined || bomb.ownerId !== bomberId) continue;
+          if (Number.isFinite(bomb.fuseRemaining)) continue;
+          world.setComponent(bombId, BOMB, { ...bomb, fuseRemaining: 0 });
+        }
+        world.removeComponent(bomberId, REMOTE_DETONATE_REQUEST);
+      }
+    }
     // Materialise the entity list — we'll mutate the world below and
     // don't want the live query iterator to throw on snapshot drift.
     const candidates = [...bombs!.run()];
@@ -103,6 +128,12 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
       const bomb = world.getComponent<BombComponent>(entityId, BOMB);
       const pos = world.getComponent<GridPosition>(entityId, GRID_POSITION);
       if (bomb === undefined || pos === undefined) continue;
+      // S100 KABOOM-REMOTE-DETONATE-PUP — paused bombs (fuseRemaining
+       // = Infinity) don't tick; they sit until a RemoteDetonateRequest
+       // drops their fuse to 0 above.
+      if (!Number.isFinite(bomb.fuseRemaining)) {
+        continue;
+      }
       const next = bomb.fuseRemaining - dt;
       if (next > 0) {
         world.setComponent(entityId, BOMB, { ...bomb, fuseRemaining: next });
