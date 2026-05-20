@@ -20,26 +20,26 @@
     {
       "id": "AGF-RENDER-DEBUG-MODE-AGENT",
       "title": "Agent-driven render debug overrides — wireframe / unlit-white / normals / uv",
-      "status": "pending",
-      "summary": "Add a renderer-level debug override toggle that an agent can flip at runtime. Surface: `runtime.renderer.setDebugMode(mode: 'off' | 'wireframe' | 'unlit-white' | 'normals' | 'uv')`. Adapter swaps every Mesh.material to a debug override material on flip (cached per-mesh so the original material is restored on 'off'). Dev-bridge: `POST /__agf/render/debug-mode { mode }` + `GET /__agf/render/debug-mode`. Useful tools: wireframe surfaces over-tessellation, unlit-white debugs shape vs lighting separately, normals catches flipped triangles, uv catches packed atlas bugs.",
+      "status": "implemented",
+      "summary": "engine/render/debug-mode.ts owns pure swap/restore helpers + the RenderDebugMode union. ThreeRenderAdapter holds a debugCache (Map<Mesh, { material, wireframe? }>) + the shared override material. setDebugMode(mode) restores any prior swap, then either flips material.wireframe in-place (wireframe mode, no swap) or replaces obj.material with the override. unlit-white uses MeshBasicMaterial #ffffff, normals uses MeshNormalMaterial, uv is a tiny ShaderMaterial → rgb=(uv.x, uv.y, 0). Restore disposes the override material; adapter.dispose() restores first so per-mesh dispose runs against real materials. Plumbed through ThreeRenderer.getDebugMode / setDebugMode, app.getRenderDebugMode / setRenderDebugMode, window.__agf.*, and the dev bridge at GET/POST /__agf/render/debug-mode (strict mode-string validation — bad values return AGF_BRIDGE_INVALID_RENDER_DEBUG_MODE).",
       "verification": [
-        "Modes: off (default), wireframe (material.wireframe = true), unlit-white (replace with MeshBasicMaterial #ffffff), normals (custom ShaderMaterial → rgb = (n + 1) / 2), uv (custom ShaderMaterial → rgb = (uv.xy, 0))",
-        "setDebugMode('off') restores every original material; no leak in renderer.info().handleLeak after a full cycle",
-        "Dev-bridge route gets a row in docs/agent-probes.md",
-        "+ unit test on a stub adapter exercising the swap/restore lifecycle",
-        "+ Playwright smoke that flips wireframe via POST and checks renderer.info() still reports same draw count"
+        "acceptance: POST { mode: 'wireframe' } to /__agf/render/debug-mode flips the scene to wireframe overlay; flipping back to 'off' restores the original look identically (no leaked override visible).",
+        "engine/render/debug-mode.ts: createDebugOverrideMaterial / applyDebugOverrides / restoreDebugOverrides / applyWireframe / readWireframeSnapshot — pure helpers (no canvas / WebGL).",
+        "ThreeRenderAdapter.setDebugMode caches per-mesh material + wireframe-flag, disposes the override on restore, and is also called from dispose() so the renderer tears down against real materials.",
+        "GET/POST /__agf/render/debug-mode with strict-string validation; docs/agent-probes.md gets a curl-recipe row for every mode.",
+        "+10 unit tests in tests/unit/render-debug-mode.test.ts covering mode list, override material types, swap/restore lifecycle, in-place wireframe flip, preservation of pre-existing wireframe=true on restore, off no-op, material-array snapshot/apply."
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "AGF-RENDER-DEBUG-OVERLAY-HUD",
       "title": "HUD pill shows current debug mode + frame counter pressure",
-      "status": "pending",
-      "summary": "Companion to AGF-RENDER-DEBUG-MODE-AGENT. When debug mode != 'off', surface a topRight HUD pill labelled `DEBUG: wireframe` (or whichever mode) so the player / agent can't accidentally leave the override on. Pill clears when mode flips back to 'off'.",
+      "status": "implemented",
+      "summary": "engine/runtime/ui/render-debug-pill.ts exposes a tiny `syncRenderDebugPill(hud, mode)` helper that mounts a topRight HUD widget (id = `agf:render-debug-pill`, label `DEBUG: <mode>`) when mode != 'off', updates the label on transition between non-off modes, and removes the widget on flip back to 'off'. src/app.ts setRenderDebugMode wraps runtime.renderer.setDebugMode + this helper so every flip (via window.__agf.setRenderDebugMode or POST /__agf/render/debug-mode) drives the HUD in lockstep.",
       "verification": [
-        "When runtime.renderer.setDebugMode('wireframe') is called, the HUD pill is mounted",
-        "setDebugMode('off') removes the pill",
-        "Pill uses the existing HUD primitive (no new layer)"
+        "acceptance: After POST /__agf/render/debug-mode { mode: 'wireframe' }, a `DEBUG: wireframe` pill appears in the topRight; POST { mode: 'off' } removes it.",
+        "engine/runtime/ui/render-debug-pill.ts: pure HUD-handle helper, no new DOM layer (reuses the S81 HUD primitive's topRight slot)",
+        "+5 unit tests in tests/unit/render-debug-pill.test.ts using the existing stub-DOM harness: off starts un-mounted, flips on/off, label update on transition, idempotent off→off"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

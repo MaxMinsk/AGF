@@ -18,6 +18,7 @@ import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
 import { createDiagnosticsBus } from "../engine/runtime/diagnostics/diagnostics-bus";
+import { syncRenderDebugPill } from "../engine/runtime/ui/render-debug-pill";
 import { mountDiagnosticsOverlay, type DiagnosticsOverlayHandle } from "../engine/runtime/diagnostics/diagnostics-overlay";
 import {
   createIndexedDbStore,
@@ -634,12 +635,14 @@ export async function createApp(
     setTimeScale(scale: number) {
       return runtime.setTimeScale(scale);
     },
-    // S091 AGF-RENDER-DEBUG-MODE-AGENT.
+    // S091 AGF-RENDER-DEBUG-MODE-AGENT + AGF-RENDER-DEBUG-OVERLAY-HUD.
     getRenderDebugMode() {
       return runtime.renderer.getDebugMode();
     },
     setRenderDebugMode(mode) {
-      return runtime.renderer.setDebugMode(mode);
+      const next = runtime.renderer.setDebugMode(mode);
+      syncRenderDebugPill(runtime.hud, next);
+      return next;
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`
