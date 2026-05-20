@@ -1,0 +1,16 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-002",
+  "title": "Region-rule modifier primitive (M28)",
+  "createdAt": "2026-05-20T16:50:51.264Z",
+  "kind": "mechanic",
+  "intent": "Ship a region/sector primitive that lets a project tag a rectangular (or arbitrary-cell-set) area of the grid with rule overrides — e.g. 'in this region, bombs explode 30% faster' or 'in this region, soft blocks heal'. Engine ships the geometry + lifecycle; project code reads the region's `modifiers` payload and applies them in its own systems. The mechanic enables map-design variation without forking systems per game.",
+  "priority": "could",
+  "epic": "M28-REGION-RULES",
+  "rationale": "Source: §15 of notes/dynabomber-readiness-analysis.md. Region rules are the cleanest abstraction for the Kaboom Crew arenas we'd want to ship in MVP-2 (themed sectors with different rules). Also unblocks the roguelike sample: dungeon rooms with per-room modifiers (bossroom = +damage, shop = no-bombs).",
+  "acceptanceHints": [
+    "schemas/components/region.schema.json defines Region { cells, layer, modifiers }",
+    "Engine RegionIndexSystem keeps a fast cell→region lookup so project code can ask 'what regions cover (gx, gz)?' in O(1)",
+    "Kaboom Crew demo: a 3x3 region in the centre of the start scene tags bombs spawned inside it with fuseRemaining * 0.7 (faster fuse), verified via bomb-place-system reading the modifier"
+  ]
+}

@@ -48,12 +48,12 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[BENCHMARK-STYLE-REPORTS](backlog/epics/BENCHMARK-STYLE-REPORTS.epic.json)** — Benchmark-style reports | planned | engine | 0 / 0 / 0 |  |
 | **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 0 / 0 / 0 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |
-| **[GAME-DESIGN-AGENT](backlog/epics/GAME-DESIGN-AGENT.epic.json)** — Game designer / product-owner terminal — third role in the multi-agent loop | planned | infra | 5 / 1 / 6 | → S100 |
+| **[GAME-DESIGN-AGENT](backlog/epics/GAME-DESIGN-AGENT.epic.json)** — Game designer / product-owner terminal — third role in the multi-agent loop | planned | infra | 6 / 0 / 6 | → S100 |
 | **[M18](backlog/epics/M18.epic.json)** — M18 Picking / raycast interaction | planned | engine | 0 / 0 / 0 |  |
 | **[M19](backlog/epics/M19.epic.json)** — M19 Game-feel polish (tween + particles) | planned | engine | 5 / 0 / 5 |  |
 | **[M26](backlog/epics/M26.epic.json)** — M26 Visual fidelity polish (probes + post-FX) | planned | engine | 12 / 0 / 12 |  |
-| **[M27-DECAL-LAYER](backlog/epics/M27-DECAL-LAYER.epic.json)** — M27 Decal-on-grid renderer primitive | planned | engine | 0 / 0 / 0 | → MVP-2 |
-| **[M28-REGION-RULES](backlog/epics/M28-REGION-RULES.epic.json)** — M28 Region / sector modifier primitive | planned | engine | 0 / 0 / 0 | → MVP-2 |
+| **[M27-DECAL-LAYER](backlog/epics/M27-DECAL-LAYER.epic.json)** — M27 Decal-on-grid renderer primitive | planned | engine | 0 / 1 / 1 | → MVP-2 |
+| **[M28-REGION-RULES](backlog/epics/M28-REGION-RULES.epic.json)** — M28 Region / sector modifier primitive | planned | engine | 0 / 1 / 1 | → MVP-2 |
 | **[PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY](backlog/epics/PATCH-BASED-AGENT-WRITES-VALIDATE-DIFF-APPLY.epic.json)** — Patch-based agent writes (validate → diff → apply) | planned | research | 0 / 0 / 0 |  |
 | **[PROCEDURAL-CHARACTER-GENERATOR](backlog/epics/PROCEDURAL-CHARACTER-GENERATOR.epic.json)** — Procedural Character Generator | planned | engine | 1 / 0 / 1 |  |
 | **[REMOTE-CDN-ASSET-DELIVERY](backlog/epics/REMOTE-CDN-ASSET-DELIVERY.epic.json)** — Remote/CDN asset delivery | planned | engine | 0 / 0 / 0 |  |
