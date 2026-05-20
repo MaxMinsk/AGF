@@ -155,6 +155,16 @@ export type AppHandle = {
   /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
   snapshotAt(at: number): WorldSnapshot | undefined;
   snapshotHistoryStats(): { capacity: number; size: number };
+  /** S096 AGF-PROBE-COMPONENT-AT. */
+  componentAt(entityId: string, componentName: string, at?: number):
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" }
+    | { kind: "component-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
+  snapshotDiff(at: number):
+    | { kind: "ok"; entries: ReadonlyArray<unknown> }
+    | { kind: "out-of-range"; capacity: number; size: number };
   reloadAsset(ref: string): void;
   /** Active WS adapter, if `?server=` was provided. Useful for tests. */
   readonly network: WsNetworkAdapterHandle | undefined;
@@ -190,6 +200,15 @@ export type AppHandle = {
   /** Recording controls (Sprint 28). Used by the dev-bridge /__agf/recording/* routes. */
   startRecording(): { started: true };
   stopRecording(): unknown;
+  /** S096 AGF-PROBE-RECORDING-LIST. */
+  recordingList(): {
+    recordings: ReadonlyArray<{
+      id: string;
+      startedAt: string;
+      commandCount: number;
+      projectId?: string;
+    }>;
+  };
   /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant + light counts. */
   rendererInspect(): {
     info: Record<string, unknown>;
@@ -599,6 +618,14 @@ export async function createApp(
     snapshotHistoryStats(): { capacity: number; size: number } {
       return runtime.snapshotHistoryStats();
     },
+    // S096 AGF-PROBE-COMPONENT-AT.
+    componentAt(entityId: string, componentName: string, at?: number) {
+      return runtime.componentAt(entityId, componentName, at);
+    },
+    // S096 AGF-PROBE-SNAPSHOT-DIFF.
+    snapshotDiff(at: number) {
+      return runtime.snapshotDiff(at);
+    },
     reloadAsset(ref): void {
       runtime.invalidateAsset(ref);
     },
@@ -743,6 +770,10 @@ export async function createApp(
     },
     stopRecording(): unknown {
       return runtime.stopRecording();
+    },
+    // S096 AGF-PROBE-RECORDING-LIST.
+    recordingList() {
+      return runtime.recordingList();
     },
     dispose(): void {
       diagnosticsOverlay?.dispose();

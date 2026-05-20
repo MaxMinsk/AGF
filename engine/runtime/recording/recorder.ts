@@ -42,6 +42,43 @@ export type RecorderHandle = {
   toRecording(): Recording;
 };
 
+/**
+ * S096 AGF-PROBE-RECORDING-LIST — pure helper that turns the runtime's
+ * "live recorder + metadata" state into the `recordings` envelope the
+ * probe returns. Exposed so the shape can be unit-tested without
+ * spinning up startRuntime.
+ */
+export function buildRecordingList(state: {
+  recorder?: { count(): number };
+  startedAtMs?: number;
+  projectId?: string;
+}): {
+  recordings: ReadonlyArray<{
+    id: string;
+    startedAt: string;
+    commandCount: number;
+    projectId?: string;
+  }>;
+} {
+  if (state.recorder === undefined || state.startedAtMs === undefined) {
+    return { recordings: [] };
+  }
+  const entry: {
+    id: string;
+    startedAt: string;
+    commandCount: number;
+    projectId?: string;
+  } = {
+    id: "live",
+    startedAt: new Date(state.startedAtMs).toISOString(),
+    commandCount: state.recorder.count()
+  };
+  if (state.projectId !== undefined) {
+    entry.projectId = state.projectId;
+  }
+  return { recordings: [entry] };
+}
+
 export function createRecorder(options: RecorderOptions): RecorderHandle {
   const startedAt = (options.now ?? defaultNow)();
   const commands: RecordedCommand[] = [];

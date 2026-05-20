@@ -114,6 +114,20 @@ type AgfApi = {
   /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
   snapshotAt?: (at: number) => unknown;
   snapshotHistoryStats?: () => { capacity: number; size: number };
+  /** S096 AGF-PROBE-COMPONENT-AT. */
+  componentAt?: (entityId: string, componentName: string, at?: number) =>
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" }
+    | { kind: "component-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
+  snapshotDiff?: (at: number) =>
+    | { kind: "ok"; entries: ReadonlyArray<unknown> }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S096 AGF-PROBE-RECORDING-LIST. */
+  recordingList?: () => {
+    recordings: ReadonlyArray<{ id: string; startedAt: string; commandCount: number; projectId?: string }>;
+  };
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   /** S83 AGF-AGENT-RENDERER-PROBE. */
@@ -261,6 +275,31 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "snapshot":
         payload = api?.snapshot?.();
         break;
+      case "snapshot-diff": {
+        // S096 AGF-PROBE-SNAPSHOT-DIFF.
+        const at = (payloadIn as { at?: number } | undefined)?.at ?? 0;
+        if (api?.snapshotDiff === undefined) {
+          payload = undefined;
+          break;
+        }
+        payload = api.snapshotDiff(at);
+        break;
+      }
+      case "component-at": {
+        // S096 AGF-PROBE-COMPONENT-AT. Forward to runtime.componentAt.
+        const args = payloadIn as { entityId?: string; componentName?: string; at?: number } | undefined;
+        if (
+          args === undefined ||
+          typeof args.entityId !== "string" ||
+          typeof args.componentName !== "string" ||
+          api?.componentAt === undefined
+        ) {
+          payload = undefined;
+          break;
+        }
+        payload = api.componentAt(args.entityId, args.componentName, args.at);
+        break;
+      }
       case "snapshot-at": {
         // S095 AGF-PROBE-SNAPSHOT-HISTORY. `at: 0` is live; negative
         // values look back in the ring. We always return an envelope
@@ -380,6 +419,10 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         payload = { applied: commands.length };
         break;
       }
+      case "recording-list":
+        // S096 AGF-PROBE-RECORDING-LIST.
+        payload = api?.recordingList?.() ?? { recordings: [] };
+        break;
       case "recording-start":
         payload = api?.startRecording?.() ?? { started: true };
         break;

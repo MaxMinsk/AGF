@@ -1,0 +1,110 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S096",
+  "title": "Particles + snapshot diff probe + component probe + game-design agent seed",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/108",
+  "stories": [
+    {
+      "id": "KABOOM-PICKUP-IDLE-PULSE",
+      "title": "Pickups carry a subtle 'glow' idle emitter so they read on the floor",
+      "status": "implemented",
+      "summary": "pickup-spawn-system stamps a low-rate ParticleEmitter on every freshly-spawned pickup: preset='glow' (pale cyan), rate=8, maxParticles=6, lifetime=10 s. The emitter renders as a soft cyan shimmer drifting upward from the cell so pickups read at a glance on the arena floor. When the pickup is collected the entity is removed wholesale (the engine ParticleEmitter system handles dead entities gracefully — no leak).",
+      "verification": [
+        "acceptance: Pickups sitting on the arena visibly shimmer (slow upward cyan particles drifting from the cell) — easier to find vs the previous static look.",
+        "examples/kaboom-crew/src/systems/pickup-spawn-system.ts: stamps ParticleEmitter{preset:'glow', rate:8, maxParticles:6, lifetime:10}",
+        "+ unit test in pickup-spawn-system.test.ts asserting the freshly-spawned pickup carries a 'glow' emitter with positive rate/maxParticles + lifetime > 1 s"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-PICKUP-COLLECT-PARTICLE",
+      "title": "Pickup collection emits a spark burst at the pickup's last cell",
+      "status": "implemented",
+      "summary": "pickup-collect-system now spawns a one-shot fx entity (`${pickupId}.collect-fx`) at the moment of collection BEFORE removing the pickup. The fx entity carries Transform + ParticleEmitter(preset='spark', lifetime=0.35 s, rate=80, maxParticles=30) and nothing else — the engine ParticleEmitter system handles cleanup when lifetime elapses. Chose 'spark' over 'glow' for the burst because the idle shimmer on the pickup is already 'glow' (S096 KABOOM-PICKUP-IDLE-PULSE); contrasting the burst as spark makes the moment of pickup feel discrete and satisfying.",
+      "verification": [
+        "acceptance: Walking over a pickup spawns a small spark burst at the cell before the pickup vanishes; the burst fades naturally over ~0.35 s.",
+        "examples/kaboom-crew/src/systems/pickup-collect-system.ts: spawns a transient fx entity with ParticleEmitter preset='spark' on collect",
+        "+ unit test asserting the fx entity exists with a spark ParticleEmitter at the collection cell"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-PROBE-RECORDING-LIST",
+      "title": "GET /__agf/recording/list — enumerate active recordings",
+      "status": "implemented",
+      "summary": "engine/runtime/recording/recorder.ts grew `buildRecordingList(state)` — a pure helper that turns `{ recorder?, startedAtMs?, projectId? }` into the wire envelope `{ recordings: [{ id, startedAt (ISO), commandCount, projectId? }] }`. Runtime tracks startedAtMs + projectId alongside the recorder handle (set on startRecording, cleared on stopRecording) and calls the helper from `recordingList()`. The runtime supports at most one live recorder today; the list is `[]` or a single entry with id='live'. Plumbed through src/app.ts, window.__agf.recordingList, page-bridge `recording-list` RPC, and GET /__agf/recording/list on the dev bridge.",
+      "verification": [
+        "acceptance: GET /__agf/recording/list returns { recordings: [] } when no recording is active; after POST /__agf/recording/start it returns one entry { id: 'live', startedAt: <ISO>, commandCount, projectId? }; after POST /__agf/recording/stop the list is empty again.",
+        "engine/runtime/recording/recorder.ts: exported pure buildRecordingList helper",
+        "engine/runtime/start.ts: recordingList() on the runtime; tracks startedAtMs + projectId in lock-step with startRecording / stopRecording",
+        "+6 unit tests in tests/unit/recording-list.test.ts: empty when no recorder, defensive on missing startedAtMs, single 'live' entry with ISO startedAt + commandCount, projectId in/out, count reflected live"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-TITLE-SCREEN-FADE",
+      "title": "Title screen fades out (rather than snaps off) on game start",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/title-fade.ts exports a pure `fadeOutOpacityCurve(elapsedMs, durationMs)` helper that samples 1 - easingCurves.easeOutQuad(t) — opacity ramps from 1 → 0 with a faster early drop. bootstrap.ts threads an `opacity` field through the title HUD widget's data and replaces the snap-remove with a per-frame fade: when gameStarted flips true, capture titleFadeStartMs; each frame sample the curve and hud.update with the new opacity; remove the widget once opacity hits 0 (~250 ms).",
+      "verification": [
+        "acceptance: Pressing SPACE on the title screen fades the overlay out over ~250 ms rather than snapping; the next round starts behind it.",
+        "examples/kaboom-crew/src/title-fade.ts: pure fadeOutOpacityCurve helper; bootstrap.ts wires it into the title HUD widget + the existing update() loop",
+        "+5 unit tests in examples/kaboom-crew/tests/unit/title-fade.test.ts: endpoints 1/0, monotonic decrease, mid-curve below linear (easeOutQuad signature), defensive non-positive duration, defensive non-finite elapsed"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-PROBE-SNAPSHOT-DIFF",
+      "title": "GET /__agf/snapshot?at=-N&diff=1 returns the diff vs live",
+      "status": "implemented",
+      "summary": "engine/tools/inspect/snapshot-diff.ts grew `worldSnapshotToInspectResult` + `diffWorldSnapshots` so the runtime's WorldSnapshot can be piped through the existing `diffSnapshots` pipeline. runtime.snapshotDiff(at) reads the historical snapshot at `at`, diffs it against the live snapshot, and returns `{ kind: 'ok', entries }` or `{ kind: 'out-of-range', capacity, size }`. The dev-bridge snapshot route now also handles `&diff=1`: validates that `at` is negative (rejects with 400 AGF_BRIDGE_INVALID_SNAPSHOT_DIFF otherwise), proxies to the new `snapshot-diff` page-bridge RPC, and maps out-of-range to 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.",
+      "verification": [
+        "acceptance: GET /__agf/snapshot?at=-1&diff=1 returns a diff payload listing entity.added / entity.removed / component.added / component.removed / component.changed entries between t-1 and live; identical snapshots produce an empty diff.",
+        "engine/tools/inspect/snapshot-diff.ts: diffWorldSnapshots + worldSnapshotToInspectResult adapt the runtime shape to the existing diff pipeline",
+        "engine/runtime/start.ts: runtime.snapshotDiff(at) tagged-union returning entries or out-of-range",
+        "engine/dev/agf-dev-bridge.ts: snapshot route handles `&diff=1`; 400 AGF_BRIDGE_INVALID_SNAPSHOT_DIFF when at is not negative",
+        "+7 unit tests in tests/unit/snapshot-diff-runtime.test.ts covering: identical snapshots empty, entity.added/removed, component.changed/added/removed, worldSnapshotToInspectResult preserves ids + component names"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PROBE-COMPONENT-AT",
+      "title": "GET /__agf/component/<entityId>/<componentName> returns a focused component value",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts grew a `componentAt(entityId, componentName, at?)` helper returning a tagged union: `{ kind: 'ok', value } | { kind: 'entity-not-found' } | { kind: 'component-not-found' } | { kind: 'out-of-range', capacity, size }`. The dev bridge maps each outcome to a typed HTTP status: 200 ok, 404 AGF_PROBE_ENTITY_NOT_FOUND, 404 AGF_PROBE_COMPONENT_NOT_FOUND, 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE. Path is parsed by the new exported pure helper `parseComponentPath`. Path validation errors return 400 AGF_BRIDGE_INVALID_COMPONENT_PATH; positive `?at=` returns 400 AGF_BRIDGE_INVALID_SNAPSHOT_AT (consistent with S095). Plumbed through src/app.ts, window.__agf, and page-bridge's new `component-at` RPC.",
+      "verification": [
+        "acceptance: GET /__agf/component/player.1/BomberStats returns the live BomberStats record; GET /__agf/component/does-not-exist/Foo returns 404 AGF_PROBE_ENTITY_NOT_FOUND; GET /__agf/component/player.1/NoSuchComponent returns 404 AGF_PROBE_COMPONENT_NOT_FOUND. Adding `?at=-1` reads from the S095 history ring.",
+        "engine/dev/agf-dev-bridge.ts: exported pure `parseComponentPath` + explicit GET /component/ handler that maps the runtime tagged union to HTTP statuses",
+        "engine/runtime/start.ts: runtime.componentAt looks up via snapshotWorld (live) or lookupSnapshotInRing (history)",
+        "+7 unit tests in tests/unit/component-at-bridge.test.ts covering: clean path, URL-encoded segments, prefix rejection, empty entityId / componentName rejection, extra path segments, missing slash"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "GAME-DESIGN-AGENT-ROLE-DOC",
+      "title": "Seed docs/game-design/agent.md — third-role workflow + GDD location",
+      "status": "implemented",
+      "summary": "First concrete artifact under the GAME-DESIGN-AGENT epic. docs/game-design/agent.md mirrors docs/qa/agent.md: defines the role (game-designer / product-owner), the file-ownership table (you write the GDD + proposed-stories; you don't touch engine/, tests, sprint JSONs, or QA tickets), the proposed-story ticket shape (sketch — schema lands in a follow-up sprint), the per-sprint workflow loop, three launch options (kickoff prompt / subagent / standalone). docs/game-design/gdd.md is a stub with section headers (Overview, Mechanics, Progression, World, Characters, UX, Open questions) — content fills in over time. Updated backlog/epics/GAME-DESIGN-AGENT.epic.json notes to call out this seed + lists the remaining work.",
+      "verification": [
+        "acceptance: docs/game-design/agent.md describes role + file-ownership + ticket shape + workflow; docs/game-design/gdd.md exists with the six section headers; epic notes call out the seed and the remaining follow-up work.",
+        "Mirrors the proven docs/qa/agent.md structure so a new contributor reads it the same way.",
+        "Updated backlog/epics/GAME-DESIGN-AGENT.epic.json summary to reflect that the seed shipped in S096"
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    },
+    {
+      "id": "DOC-AGENT-DEBUG-RECIPES",
+      "title": "docs/agent-debug-recipes.md — cookbook for common probe flows",
+      "status": "implemented",
+      "summary": "docs/agent-debug-recipes.md ships with 10 recipes, each titled, each with a copy-paste curl one-liner + jq filter where useful: (1) grab browser logs first, (2) snapshot diff to inspect last-tick changes, (3) focused component lookup live + historical, (4) detect one-shot events via diff, (5) god-view freecam for off-screen debugging, (6) render-debug-mode for wireframe / normals / uv, (7) capture a recording for regression, (8) time-scale slowdown + paired with diff, (9) audio master volume mute / restore, (10) renderer pool + handle leak hunt. Every recipe cross-links into docs/agent-probes.md for the reference. CLAUDE.md §Read First gains a one-line pointer to the new file.",
+      "verification": [
+        "acceptance: docs/agent-debug-recipes.md exists and contains 10 recipes; each has a working curl one-liner + a cross-link to the relevant probe row in docs/agent-probes.md.",
+        "CLAUDE.md §Read First lists docs/agent-debug-recipes.md alongside docs/agent-probes.md."
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}

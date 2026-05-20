@@ -1,6 +1,7 @@
 import { expandScenePrefabs, type PrefabDefinition } from "../../engine/core/scene/expand-prefabs";
 import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupancy-system";
 import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
+import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type {
   ProjectBootstrap,
@@ -753,13 +754,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       // immediately on attachUi (before bannerMounted toggling
       // begins) and remove it the first time gameStarted flips true.
       const TITLE_ID = "kaboom.title";
+      type TitleData = { text: string; opacity?: number };
       hud.add({
         id: TITLE_ID,
         slot: "center" as const,
-        initial: { text: "Kaboom Crew\nPress SPACE to start" },
-        render: (data: { text: string }): HTMLElement => {
+        initial: { text: "Kaboom Crew\nPress SPACE to start", opacity: 1 } as TitleData,
+        render: (data: TitleData): HTMLElement => {
           const el = document.createElement("div");
-          el.setAttribute("style", "font-size:24px;font-weight:600;text-align:center;padding:6px 12px;white-space:pre-line;");
+          const op = data.opacity ?? 1;
+          el.setAttribute("style", `font-size:24px;font-weight:600;text-align:center;padding:6px 12px;white-space:pre-line;opacity:${op.toFixed(3)};`);
           el.textContent = data.text;
           return el;
         }
@@ -857,12 +860,30 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         id === "player.1" ? "#5fa8ff" : id === "bot.1" ? "#ff7a36" : "#ffffff";
 
       let bannerMounted = false;
+      // S096 KABOOM-TITLE-SCREEN-FADE — when gameStarted flips, kick off
+      // a requestAnimationFrame loop that fades the title overlay over
+      // TITLE_FADE_MS rather than snapping it off. titleFadeStartMs is
+      // set the first frame we observe gameStarted=true; subsequent
+      // frames sample fadeOutOpacityCurve(now - start, TITLE_FADE_MS)
+      // and either update the widget or remove it once opacity hits 0.
+      const TITLE_FADE_MS = 250;
+      let titleFadeStartMs: number | undefined;
 
       const update = (): void => {
-        // S84 KABOOM-TITLE-SCREEN — drop the overlay once Space flips gameStarted.
+        // S096 KABOOM-TITLE-SCREEN-FADE — fade rather than snap.
         if (titleScreenMounted && gameStarted) {
-          hud.remove(TITLE_ID);
-          titleScreenMounted = false;
+          if (titleFadeStartMs === undefined) {
+            titleFadeStartMs = performance.now();
+          }
+          const elapsed = performance.now() - titleFadeStartMs;
+          const opacity = fadeOutOpacityCurve(elapsed, TITLE_FADE_MS);
+          if (opacity <= 0) {
+            hud.remove(TITLE_ID);
+            titleScreenMounted = false;
+            titleFadeStartMs = undefined;
+          } else {
+            hud.update(TITLE_ID, { text: "Kaboom Crew\nPress SPACE to start", opacity });
+          }
         }
 
         const s = api.status() as {

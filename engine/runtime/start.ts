@@ -14,7 +14,9 @@ import { createAudioBus } from "./audio/audio-bus";
 import { createFrameSpikeGate } from "./frame-spike-gate";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
-import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
+import { diffWorldSnapshots } from "./snapshot-diff-runtime";
+import type { SnapshotDiffEntry } from "../tools/inspect/snapshot-diff";
+import { createRecorder, buildRecordingList, type Recording, type RecorderHandle } from "./recording/recorder";
 import type { LocalStore } from "./persistence/local-store";
 import {
   clearWorldSave,
@@ -193,6 +195,26 @@ export type RuntimeHandle = {
   /** S095 — current ring-buffer capacity (constant) + occupancy. */
   snapshotHistoryStats(): { capacity: number; size: number };
   /**
+   * S096 AGF-PROBE-SNAPSHOT-DIFF. Returns the diff between the
+   * historical snapshot at `at` (must be negative) and the LIVE
+   * snapshot. Same out-of-range envelope as snapshotAt.
+   */
+  snapshotDiff(at: number):
+    | { kind: "ok"; entries: SnapshotDiffEntry[] }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /**
+   * S096 AGF-PROBE-COMPONENT-AT. Read a single component on a single
+   * entity from the live world or a historical snapshot. `at`
+   * defaults to 0 (live); negative values look back in the ring.
+   * Returns a tagged union so the dev-bridge can map outcomes to
+   * specific HTTP statuses.
+   */
+  componentAt(entityId: string, componentName: string, at?: number):
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" }
+    | { kind: "component-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /**
    * Resolves after the first frame that actually rendered (active
    * camera acquired + `renderer.adapter.draw()` executed). Use this
    * in tests / dev-bridge clients before taking screenshots or
@@ -221,6 +243,15 @@ export type RuntimeHandle = {
    * Returns the active recorder so the caller can flush it at any time.
    */
   startRecording(projectId?: string): RecorderHandle;
+  /** S096 AGF-PROBE-RECORDING-LIST — list live recordings (0 or 1 today). */
+  recordingList(): {
+    recordings: ReadonlyArray<{
+      id: string;
+      startedAt: string;
+      commandCount: number;
+      projectId?: string;
+    }>;
+  };
   /** Finalise the active recording with a final snapshot. */
   stopRecording(): Recording | undefined;
   /**
@@ -822,6 +853,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   frameRequestId = window.requestAnimationFrame(tick);
 
   let recorder: RecorderHandle | undefined;
+  // S096 AGF-PROBE-RECORDING-LIST — track metadata alongside the live
+  // recorder handle so the probe can report it without enriching
+  // RecorderHandle itself.
+  let recorderStartedAtMs: number | undefined;
+  let recorderProjectId: string | undefined;
 
   // S83 AGF-LOG-LIFECYCLE-TRACES.
   diagnostics.emit({
@@ -877,6 +913,57 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       }
       return lookupSnapshotInRing(snapshotHistory, at);
     },
+    snapshotDiff(at: number):
+      | { kind: "ok"; entries: SnapshotDiffEntry[] }
+      | { kind: "out-of-range"; capacity: number; size: number } {
+      // S096 AGF-PROBE-SNAPSHOT-DIFF. Returns the diff between the
+      // historical snapshot at `at` and the LIVE snapshot. Requires
+      // `at` to be negative (positive / zero would diff live against
+      // live, which is always empty); callers should validate that
+      // upstream. Out-of-range looks identical to the snapshotAt
+      // helper so the bridge can return the same typed error.
+      if (!Number.isFinite(at) || at >= 0) {
+        return { kind: "ok", entries: [] };
+      }
+      const historical = lookupSnapshotInRing(snapshotHistory, at);
+      if (historical === undefined) {
+        return {
+          kind: "out-of-range",
+          capacity: SNAPSHOT_HISTORY_CAPACITY,
+          size: snapshotHistory.length
+        };
+      }
+      const live = snapshotWorld(world, time);
+      return { kind: "ok", entries: diffWorldSnapshots(historical, live) };
+    },
+    componentAt(entityId: string, componentName: string, at?: number):
+      | { kind: "ok"; value: unknown }
+      | { kind: "entity-not-found" }
+      | { kind: "component-not-found" }
+      | { kind: "out-of-range"; capacity: number; size: number } {
+      // S096 AGF-PROBE-COMPONENT-AT. Look up a single component value
+      // on a single entity. `at` (defaults to 0 / live) is the same
+      // ring index as snapshotAt — non-positive integer for history.
+      const lookupAt = at ?? 0;
+      let source: WorldSnapshot;
+      if (lookupAt === 0) {
+        source = snapshotWorld(world, time);
+      } else {
+        const historical = lookupSnapshotInRing(snapshotHistory, lookupAt);
+        if (historical === undefined) {
+          return {
+            kind: "out-of-range",
+            capacity: SNAPSHOT_HISTORY_CAPACITY,
+            size: snapshotHistory.length
+          };
+        }
+        source = historical;
+      }
+      const entity = source.entities.find((e) => e.id === entityId);
+      if (entity === undefined) return { kind: "entity-not-found" };
+      if (!(componentName in entity.components)) return { kind: "component-not-found" };
+      return { kind: "ok", value: entity.components[componentName] };
+    },
     snapshotHistoryStats(): { capacity: number; size: number } {
       return { capacity: SNAPSHOT_HISTORY_CAPACITY, size: snapshotHistory.length };
     },
@@ -917,6 +1004,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
         recorderOptions.projectId = projectId;
       }
       recorder = createRecorder(recorderOptions);
+      recorderStartedAtMs = Date.now();
+      recorderProjectId = projectId;
       return recorder;
     },
     stopRecording(): Recording | undefined {
@@ -926,7 +1015,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       recorder.setFinalSnapshot(snapshotWorld(world, time));
       const out = recorder.toRecording();
       recorder = undefined;
+      recorderStartedAtMs = undefined;
+      recorderProjectId = undefined;
       return out;
+    },
+    recordingList() {
+      // S096 AGF-PROBE-RECORDING-LIST. Pure helper turns the
+      // (recorder, startedAtMs, projectId) tuple into the wire shape.
+      return buildRecordingList({
+        ...(recorder !== undefined ? { recorder } : {}),
+        ...(recorderStartedAtMs !== undefined ? { startedAtMs: recorderStartedAtMs } : {}),
+        ...(recorderProjectId !== undefined ? { projectId: recorderProjectId } : {})
+      });
     },
     async save(): Promise<SaveBlob> {
       const config = requirePersistence(options.persistence);

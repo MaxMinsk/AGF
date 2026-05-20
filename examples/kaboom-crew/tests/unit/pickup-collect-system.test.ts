@@ -109,6 +109,30 @@ describe("createKaboomPickupCollectSystem (S82 KABOOM-PICKUPS-AND-STATS)", () =>
     expect(world.hasEntity("pickup.1")).toBe(true); // still on the floor
   });
 
+  it("S096 KABOOM-PICKUP-COLLECT-PARTICLE: collect spawns a fx entity with a 'spark' ParticleEmitter at the cell", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5, { maxBombs: 1 });
+    addPickup(world, "pickup.1", 5, 5, "bomb-up");
+    const occupancy = makeOccupancy(new Map([["5,5", ["player.1", "pickup.1"]]]));
+    const system = createKaboomPickupCollectSystem({ occupancy });
+    system.fixedUpdate!(ctx(world));
+    // Original pickup removed.
+    expect(world.hasEntity("pickup.1")).toBe(false);
+    // fx entity exists with a spark emitter at the cell.
+    const fxId = "pickup.1.collect-fx";
+    expect(world.hasEntity(fxId)).toBe(true);
+    const transform = world.getComponent(fxId, "Transform") as { position: ReadonlyArray<number> };
+    expect(transform.position[0]).toBe(5);
+    expect(transform.position[2]).toBe(5);
+    const emitter = world.getComponent(fxId, "ParticleEmitter") as
+      | { preset: string; lifetime?: number; rate?: number }
+      | undefined;
+    expect(emitter).toBeDefined();
+    expect(emitter!.preset).toBe("spark");
+    expect(emitter!.lifetime).toBeGreaterThan(0);
+    expect(emitter!.rate).toBeGreaterThan(0);
+  });
+
   it("leaves the pickup alone when no bomber shares the cell", () => {
     const world = new World();
     addPickup(world, "pickup.1", 3, 3, "fire-up");

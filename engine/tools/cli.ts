@@ -32,10 +32,10 @@ import {
 import {
   diffSnapshots,
   formatDiff,
-  readInspectSnapshot,
   tailSnapshotDiff,
   type SnapshotDiffResult
 } from "./inspect/snapshot-diff";
+import { readInspectSnapshot } from "./inspect/snapshot-io";
 import { formatSummary, summarizeProject } from "./summarize/project-summarize";
 import { applyMigration, formatPlan, planMigration } from "./migrate/project-migrate";
 import { formatDoctor, runDoctor } from "./doctor/project-doctor";

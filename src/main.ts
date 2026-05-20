@@ -34,6 +34,16 @@ declare global {
       /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
       snapshotAt(at: number): WorldSnapshot | undefined;
       snapshotHistoryStats(): { capacity: number; size: number };
+      /** S096 AGF-PROBE-COMPONENT-AT. */
+      componentAt(entityId: string, componentName: string, at?: number):
+        | { kind: "ok"; value: unknown }
+        | { kind: "entity-not-found" }
+        | { kind: "component-not-found" }
+        | { kind: "out-of-range"; capacity: number; size: number };
+      /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
+      snapshotDiff(at: number):
+        | { kind: "ok"; entries: ReadonlyArray<unknown> }
+        | { kind: "out-of-range"; capacity: number; size: number };
       applyCommands(commands: ReadonlyArray<EngineCommand>): void;
       /**
        * Project-local action. For Beacon World, re-arms all beacons, respawns
@@ -98,6 +108,15 @@ declare global {
       /** Recording v0 — used by the dev-bridge /__agf/recording/* routes. */
       startRecording(): unknown;
       stopRecording(): unknown;
+      /** S096 AGF-PROBE-RECORDING-LIST. */
+      recordingList(): {
+        recordings: ReadonlyArray<{
+          id: string;
+          startedAt: string;
+          commandCount: number;
+          projectId?: string;
+        }>;
+      };
       /** Trigger an asset HMR reload from the dev bridge. */
       reloadAsset(ref: string): void;
       /**
@@ -454,6 +473,11 @@ void (async (): Promise<void> => {
       // S095 AGF-PROBE-SNAPSHOT-HISTORY.
       snapshotAt: (at: number) => app.snapshotAt(at),
       snapshotHistoryStats: () => app.snapshotHistoryStats(),
+      // S096 AGF-PROBE-COMPONENT-AT.
+      componentAt: (entityId: string, componentName: string, at?: number) =>
+        app.componentAt(entityId, componentName, at),
+      // S096 AGF-PROBE-SNAPSHOT-DIFF.
+      snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),
@@ -465,6 +489,8 @@ void (async (): Promise<void> => {
       clearSave: () => app.clearSave(),
       startRecording: () => app.startRecording(),
       stopRecording: () => app.stopRecording(),
+      // S096 AGF-PROBE-RECORDING-LIST.
+      recordingList: () => app.recordingList(),
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererReady: app.rendererReady,
       pick: (spec) => app.pick(spec),

@@ -21,6 +21,16 @@ const PICKUP: ComponentName = "Pickup";
 const GRID_POSITION: ComponentName = "GridPosition";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_MOVER: ComponentName = "GridMover";
+const TRANSFORM: ComponentName = "Transform";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
+
+// S096 KABOOM-PICKUP-COLLECT-PARTICLE — a one-shot 'spark' burst at the
+// pickup's cell at the moment of collection. Lives on a fresh fx entity
+// (the pickup itself is removed wholesale on collect) and the engine
+// ParticleEmitter system auto-removes it when lifetime elapses.
+const COLLECT_FX_LIFETIME_S = 0.35;
+const COLLECT_FX_RATE = 80;
+const COLLECT_FX_MAX_PARTICLES = 30;
 
 type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" };
 type GridPos = { gx: number; gz: number };
@@ -83,7 +93,27 @@ export function createKaboomPickupCollectSystem(options: PickupCollectSystemOpti
         maxSpeedCap,
         speedStep
       });
-      if (taken) world.removeEntity(pickupId);
+      if (taken) {
+        // S096 KABOOM-PICKUP-COLLECT-PARTICLE — spawn a one-shot 'spark'
+        // burst at the pickup's cell BEFORE removing the entity.
+        const fxId = `${pickupId}.collect-fx`;
+        if (!world.hasEntity(fxId)) {
+          world.addEntity(fxId);
+          world.setComponent(fxId, TRANSFORM, {
+            position: [pos.gx, 0.4, pos.gz],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1]
+          });
+          world.setComponent(fxId, PARTICLE_EMITTER, {
+            preset: "spark",
+            lifetime: COLLECT_FX_LIFETIME_S,
+            elapsed: 0,
+            rate: COLLECT_FX_RATE,
+            maxParticles: COLLECT_FX_MAX_PARTICLES
+          });
+        }
+        world.removeEntity(pickupId);
+      }
     }
   };
 

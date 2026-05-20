@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import type { InspectEntity, InspectResult } from "./project-inspect";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -67,12 +65,6 @@ export function tailSnapshotDiff(
     changes: kept,
     truncated: result.changes.length - kept.length
   };
-}
-
-export function readInspectSnapshot(filePath: string): InspectResult {
-  const absolute = resolve(filePath);
-  const raw = readFileSync(absolute, "utf8");
-  return JSON.parse(raw) as InspectResult;
 }
 
 export function diffSnapshots(previous: InspectResult, next: InspectResult): SnapshotDiffEntry[] {
