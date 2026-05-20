@@ -24,7 +24,6 @@ import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
-import { createKaboomDangerDecalSystem } from "./src/systems/danger-decal-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
@@ -235,11 +234,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
-    // S98 KABOOM-BLAST-DANGER-DECAL — paints a red overlay on every
-    // cell inside a soon-to-detonate bomb's projected blast (<1 s on
-    // the fuse). Distinct from BlastTile (post-detonation) — this is
-    // the warning the player dodges off.
-    scheduler.register(createKaboomDangerDecalSystem(), { profiles: ["static"] });
+    // S98 KABOOM-BLAST-DANGER-DECAL — reverted in S99 per user
+    // feedback (design choice rejected in principle; see
+    // feedback-no-blast-prediction-decal memory).
 
     // S82 KABOOM-PICKUPS-AND-STATS. Spawn runs in fixedUpdate AFTER
     // blast-propagation so it sees the SoftBlockDestroyedEvent

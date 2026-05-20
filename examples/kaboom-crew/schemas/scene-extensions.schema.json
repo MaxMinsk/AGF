@@ -9,7 +9,6 @@
     "PlaceBombRequest": { "$ref": "#/definitions/placeBombRequestComponent" },
     "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
-    "DangerTile": { "$ref": "#/definitions/dangerTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
     "RoundState": { "$ref": "#/definitions/roundStateComponent" },
     "RoundRestartRequest": { "$ref": "#/definitions/roundRestartRequestComponent" },
@@ -71,11 +70,6 @@
         "lifetimeRemaining": { "type": "number", "minimum": 0 },
         "ownerId": { "type": "string", "minLength": 1 }
       }
-    },
-    "dangerTileComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "S98 KABOOM-BLAST-DANGER-DECAL: marker on the prediction overlay tiles spawned for cells inside a soon-to-detonate bomb's projected blast (fuseRemaining < warningFuseSeconds). Auto-removed when the cell is no longer threatened (bomb gone, fuse extended, or covered by a hard block)."
     },
     "botBrainComponent": {
       "type": "object",

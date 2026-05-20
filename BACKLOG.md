@@ -10,7 +10,7 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S099.sprint.js
 
 ### Stories
 
-- **KABOOM-DANGER-DECAL-REVERT** — Revert KABOOM-BLAST-DANGER-DECAL (S98) — design choice rejected in principle _(pending)_
+- **KABOOM-DANGER-DECAL-REVERT** — Revert KABOOM-BLAST-DANGER-DECAL (S98) — design choice rejected in principle _(implemented)_
   User feedback on the S98 KABOOM-BLAST-DANGER-DECAL feature: 'decal с подсветкой клеток захваченым взрывом мне не нравится в принципе, убираем!' Per the saved memory feedback-no-blast-prediction-decal.md, the design choice (highlighting cells inside an imminent bomb's blast radius) is rejected — not the implementation. Remove the system + the project-local DangerTile schema + the unit tests + the bootstrap registration. Leave the engine primitives alone (no M27 decal layer touched — that work was speculatively scoped against this stand-in). Snapshot diff before vs after should show DangerTile entities gone from the live world during an imminent bomb.
 - **KABOOM-BOMB-FUSE-WIGGLE-TAME** — Reduce bomb fuse wiggle amplitude — 'too puffy before detonation' _(pending)_
   User feedback: 'бомба слишком раздувается когда мигает перед взрывом' — the bomb mesh visibly inflates too much during the final-fuse wiggle. bomb-fuse-system.ts samples a triangular wave around fuseRemaining=0 and writes the result into Transform.scale; current scale envelope is too loud. Halve the amplitude (or whatever the current factor is) so the wiggle is a subtle warning, not a balloon. Read the current numbers, dial down by ~50%, update the existing bomb-fuse-system test if it asserts an exact scale value.
