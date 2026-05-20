@@ -22,6 +22,7 @@ import hardBlockPrefab from "./prefabs/hard-block.prefab.json";
 import bombPrefab from "./prefabs/bomb.prefab.json";
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
+import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
@@ -208,6 +209,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
 
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
+    // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
+    // queuedDirection, before grid-movement commits the step.
+    scheduler.register(createKaboomBombKickSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
     // S84 KABOOM-AUDIO-WIRE — register BEFORE blast-propagation so the
     // binding system sees the BlastEvent transient before propagation

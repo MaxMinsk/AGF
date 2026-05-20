@@ -19,12 +19,15 @@
     {
       "id": "KABOOM-KICK-POWER-UP",
       "title": "Bumping into your own bomb kicks it one cell forward (GDP-003)",
-      "status": "pending",
-      "summary": "Promoted from GDP-2026-05-20-003. When a bomber walks INTO a cell occupied by one of their own bombs, the bomb slides one cell in the same direction (instead of blocking movement). If the next cell is hard-blocked / has another bomb / has a wall, the kick fails silently and the bomber stays put (movement-blocked as today). Bombs already in transit (currentLerp > 0) cannot be kicked. Project-local: lives in examples/kaboom-crew/src/systems/bomb-kick-system.ts. Reuses GridOccupancy for collision checks.",
+      "status": "implemented",
+      "summary": "Promoted from GDP-2026-05-20-003. Power-up: collect a 'kick' pickup (4th kind, yellow boot-shaped cylinder) and BomberStats.canKick=true. Once enabled, every fixedUpdate the bomb-kick-system checks the cell ahead of each PlayerControlled bomber. If that cell contains a bomb the bomber owns AND the cell beyond is unblocked, the bomb slides one cell forward (GridPosition + Transform.position both update). The bomber continues their walk normally — the bomb just clears their path. Kick is gated on canKick + alive + currentLerp=0 + non-zero queuedDirection. Pickup, schema (BomberStats.canKick + Pickup.kind enum extended to include 'kick'), and the kick-system all ship under examples/kaboom-crew/src/.",
       "verification": [
-        "acceptance: Player walks east into their own bomb at (4,3); bomb slides to (5,3) and the player remains at (3,3). If (5,3) is occupied by a wall, the bomb stays at (4,3) and the player stays at (3,3).",
-        "examples/kaboom-crew/src/systems/bomb-kick-system.ts: reads PlaceBombRequest's owner + walks GridMover.queuedDirection for each PlayerControlled entity",
-        "+ unit tests: kick succeeds onto empty cell, fails onto hard block, fails onto another bomb, ignores other players' bombs (you can only kick YOUR own)"
+        "acceptance: Player at (3,3) with canKick=true and queuedDirection={dx:1,dz:0} + own bomb at (4,3) → next fixedUpdate moves the bomb to (5,3). If (5,3) is a hard wall the bomb stays at (4,3). Without canKick, nothing happens.",
+        "examples/kaboom-crew/src/systems/bomb-kick-system.ts: new system; registered in bootstrap between bomb-placement and bomb-fuse",
+        "examples/kaboom-crew/src/systems/pickup-spawn-system.ts: 'kick' kind added with yellow boot visual",
+        "examples/kaboom-crew/src/systems/pickup-collect-system.ts: 'kick' branch sets BomberStats.canKick=true",
+        "examples/kaboom-crew/schemas/scene-extensions.schema.json: BomberStats.canKick + Pickup.kind enum extended",
+        "+8 unit tests: success / no-canKick / hard-wall block / another-bomb block / not-your-bomb / mid-lerp / dead / zero-direction"
       ],
       "epic": "KABOOM-CREW-MVP-2"
     },

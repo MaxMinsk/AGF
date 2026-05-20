@@ -32,7 +32,7 @@ const COLLECT_FX_LIFETIME_S = 0.35;
 const COLLECT_FX_RATE = 80;
 const COLLECT_FX_MAX_PARTICLES = 30;
 
-type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" };
+type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" };
 type GridPos = { gx: number; gz: number };
 type BomberStats = {
   maxBombs: number;
@@ -40,6 +40,7 @@ type BomberStats = {
   speed?: number;
   activeBombs?: number;
   alive?: boolean;
+  canKick?: boolean;
 };
 type GridMoverComponent = {
   speed: number;
@@ -136,6 +137,10 @@ function tryApplyPickup(
       world.setComponent(id, BOMBER_STATS, { ...stats, maxBombs: Math.min(stats.maxBombs + 1, caps.maxBombsCap) });
     } else if (kind === "fire-up") {
       world.setComponent(id, BOMBER_STATS, { ...stats, range: Math.min(stats.range + 1, caps.maxRangeCap) });
+    } else if (kind === "kick") {
+      // S100 KABOOM-KICK-POWER-UP — enable kick mechanic on this bomber.
+      // Idempotent: collecting a second kick has no effect.
+      world.setComponent(id, BOMBER_STATS, { ...stats, canKick: true });
     } else {
       // speed-up bumps GridMover.speed AND mirrors into BomberStats.speed
       // so the HUD has a single read-from. GridMovementSystem reads from

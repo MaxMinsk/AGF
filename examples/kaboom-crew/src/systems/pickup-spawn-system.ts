@@ -44,7 +44,7 @@ const IDLE_EMITTER_RATE = 8;
 const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
-type PickupKind = "bomb-up" | "fire-up" | "speed-up";
+type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick";
 
 type PickupVisual = {
   mesh: string;
@@ -61,10 +61,12 @@ const PICKUP_VISUAL: Record<PickupKind, PickupVisual> = {
   // distinctly from the bomb-up sphere from a top-down camera.
   "bomb-up": { mesh: "sphere", color: "#5fa8ff", scale: [0.35, 0.35, 0.35], yOffset: 0.3 },
   "fire-up": { mesh: "box", color: "#ff7a36", scale: [0.45, 0.45, 0.45], yOffset: 0.28 },
-  "speed-up": { mesh: "cylinder", color: "#7be35f", scale: [0.3, 0.5, 0.3], yOffset: 0.3 }
+  "speed-up": { mesh: "cylinder", color: "#7be35f", scale: [0.3, 0.5, 0.3], yOffset: 0.3 },
+  // S100 KABOOM-KICK-POWER-UP — short wide cylinder (boot-like silhouette) in yellow.
+  "kick": { mesh: "cylinder", color: "#ffd54f", scale: [0.45, 0.2, 0.45], yOffset: 0.22 }
 };
 
-const PICKUP_KINDS: ReadonlyArray<PickupKind> = ["bomb-up", "fire-up", "speed-up"];
+const PICKUP_KINDS: ReadonlyArray<PickupKind> = ["bomb-up", "fire-up", "speed-up", "kick"];
 
 export type PickupSpawnSystemOptions = {
   name?: string;

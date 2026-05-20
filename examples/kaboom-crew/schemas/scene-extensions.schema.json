@@ -22,14 +22,15 @@
     "bomberStatsComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Per-bomber gameplay stats. `maxBombs` caps simultaneous active bombs; `range` is blast distance in cells; `speed` is GridMover speed override; `activeBombs` is the runtime counter. `alive=false` flips on blast hit + locks GridMover.",
+      "description": "Per-bomber gameplay stats. `maxBombs` caps simultaneous active bombs; `range` is blast distance in cells; `speed` is GridMover speed override; `activeBombs` is the runtime counter. `alive=false` flips on blast hit + locks GridMover. `canKick=true` enables the S100 KABOOM-KICK-POWER-UP mechanic — bombers slide their own bombs forward when walking into them.",
       "required": ["maxBombs", "range"],
       "properties": {
         "maxBombs": { "type": "integer", "minimum": 1, "default": 1 },
         "range": { "type": "integer", "minimum": 1, "default": 2 },
         "speed": { "type": "number", "exclusiveMinimum": 0 },
         "activeBombs": { "type": "integer", "minimum": 0, "default": 0 },
-        "alive": { "type": "boolean", "default": true }
+        "alive": { "type": "boolean", "default": true },
+        "canKick": { "type": "boolean", "default": false, "description": "S100 KABOOM-KICK-POWER-UP. True after collecting a 'kick' pickup. Enables sliding your own bomb forward when walking into its cell." }
       }
     },
     "bombComponent": {
@@ -146,12 +147,12 @@
     "pickupComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed).",
+      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true).",
       "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["bomb-up", "fire-up", "speed-up"]
+          "enum": ["bomb-up", "fire-up", "speed-up", "kick"]
         }
       }
     },
