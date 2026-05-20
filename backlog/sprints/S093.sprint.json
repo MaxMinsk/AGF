@@ -83,11 +83,11 @@
     {
       "id": "QA-DOCS-CLAUDE-MD",
       "title": "Update CLAUDE.md + AGENTS.md with the QA-workflow section",
-      "status": "pending",
-      "summary": "Add a §QA-Workflow block to `CLAUDE.md`: file-ownership table (dev writes engine/examples/tests/sprints/, QA writes backlog/qa-tickets/ + notes/qa/ + examples/**/playtests/qa-proposed/), the qa-intake/YYYY-WW branch convention, the rebase-from-main rule at story start. Update the §Working-Mode bullets accordingly. Add a one-line pointer in `AGENTS.md` so non-Claude agents notice the role exists. Keep both files as terse as possible.",
+      "status": "implemented",
+      "summary": "CLAUDE.md gets a new §QA-Workflow section right after Working Mode: file-ownership table (dev vs QA paths), per-story sequence on the dev terminal (rebase off main → claim → implement → acceptance: line in verification[] → done → render → commit), sprint planning (qa:promote + engine doctor's QA inbox line), unchanged sprint close. Working Mode gains one new bullet: rebase off main at every story start. AGENTS.md gains a short paragraph right after the CLAUDE.md pointer that tells the QA agent to read docs/qa/agent.md instead.",
       "verification": [
-        "acceptance: CLAUDE.md has a discoverable §QA-Workflow section; existing bullets aren't reflowed/broken; the file-ownership table renders correctly.",
-        "AGENTS.md gains a one-line pointer to docs/qa/agent.md"
+        "acceptance: A fresh dev-terminal Claude reading CLAUDE.md sees the new §QA-Workflow section, learns the file-ownership table, learns to put `acceptance:` as the first verification entry, and discovers `qa:promote` for planning.",
+        "AGENTS.md two-terminal-mode paragraph points QA agents at docs/qa/agent.md"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
