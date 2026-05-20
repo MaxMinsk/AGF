@@ -84,12 +84,12 @@
     {
       "id": "GAME-DESIGN-AGENT-ROLE-DOC",
       "title": "Seed docs/game-design/agent.md — third-role workflow + GDD location",
-      "status": "pending",
-      "summary": "First story under the planned GAME-DESIGN-AGENT epic that was seeded in S094. Define the role the way docs/qa/agent.md does for QA: who they are (game-designer / product-owner), what files they own (a new docs/game-design/gdd.md — the Game Design Document is the single source of truth for feature/mechanic intent), what tickets they emit (proposed-story-tickets that flow into the dev backlog), and how their loop connects to dev + QA terminals. No code yet — pure design doc. Captures: file ownership table, ticket schema (separate from QA tickets), ticket->story promotion path, the GDD's modular shape (one file per system: combat, economy, progression, etc.), update cadence.",
+      "status": "implemented",
+      "summary": "First concrete artifact under the GAME-DESIGN-AGENT epic. docs/game-design/agent.md mirrors docs/qa/agent.md: defines the role (game-designer / product-owner), the file-ownership table (you write the GDD + proposed-stories; you don't touch engine/, tests, sprint JSONs, or QA tickets), the proposed-story ticket shape (sketch — schema lands in a follow-up sprint), the per-sprint workflow loop, three launch options (kickoff prompt / subagent / standalone). docs/game-design/gdd.md is a stub with section headers (Overview, Mechanics, Progression, World, Characters, UX, Open questions) — content fills in over time. Updated backlog/epics/GAME-DESIGN-AGENT.epic.json notes to call out this seed + lists the remaining work.",
       "verification": [
-        "acceptance: docs/game-design/agent.md exists and describes (1) the role, (2) the file-ownership boundary, (3) the proposed-story ticket schema, (4) the promotion flow into dev sprints, (5) the GDD structure. A new contributor can read it and know what to write where.",
-        "Adds docs/game-design/gdd.md as a stub with section headers (overview, mechanics, progression, world, characters, UX) — content to be filled by the actual game-design agent later",
-        "Updates HIGH_LEVEL_BACKLOG.md GAME-DESIGN-AGENT epic notes with the seed-doc link"
+        "acceptance: docs/game-design/agent.md describes role + file-ownership + ticket shape + workflow; docs/game-design/gdd.md exists with the six section headers; epic notes call out the seed and the remaining follow-up work.",
+        "Mirrors the proven docs/qa/agent.md structure so a new contributor reads it the same way.",
+        "Updated backlog/epics/GAME-DESIGN-AGENT.epic.json summary to reflect that the seed shipped in S096"
       ],
       "epic": "GAME-DESIGN-AGENT"
     },
