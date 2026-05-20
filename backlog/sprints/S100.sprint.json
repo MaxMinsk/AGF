@@ -74,7 +74,7 @@
     {
       "id": "AGF-DOCTOR-REJECTED-INBOX",
       "title": "engine doctor reports the rejected-QA-ticket count too",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Companion to S099 AGF-DOCTOR-PROPOSED-STORIES + S093 QA-DOCTOR-INBOX. Today's doctor surfaces the live QA inbox + the proposed-story inbox. Add a one-line summary of `backlog/qa-tickets/archive/rejected/` (which exists per S98's DOC-QA-INVALID-TICKET-FLOW) so dev sees the size of the rejected pile at a glance — useful when triaging if dev is rejecting too many QA tickets in a row (signal of disagreement). Just the count + a hint to read the rejected/README.md if non-zero.",
       "verification": [
         "acceptance: `engine doctor` prints `Rejected QA tickets: N (see backlog/qa-tickets/archive/rejected/README.md for rationale)` under the QA inbox section. Empty rejected dir = line omitted.",
