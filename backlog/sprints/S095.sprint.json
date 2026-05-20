@@ -61,12 +61,12 @@
     {
       "id": "KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END",
       "title": "Briefly duck SFX while a match-* chime plays",
-      "status": "pending",
-      "summary": "Build on AGF-AUDIO-MASTER-VOLUME. When the audio-binding-system fires `match-won/-lost/-draw`, it asks the audio-fx to schedule a 600 ms duck: master gain dips to 0.3 immediately, ramps back to 1.0 over the duck window. Implemented inside Kaboom's audio-fx.ts (it owns the procedural-synth path); positional bomber events that fire during the duck inherit the lower gain. Uses requestAnimationFrame or AudioParam ramps, no scheduler change.",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/audio-fx.ts now wires a shared `masterDuckNode` (a GainNode created lazily during ensureContext, starting at gain=1.0) between every gameplay event and ctx.destination. On match-won / match-lost / match-draw, `duckFor(c, 0.6, 0.3)` snaps the duck gain to 0.3 then linearRampToValueAtTime(1, now+0.6) — anything playing through the duck node during that window inherits the attenuation, then naturally rises back. Match chimes themselves bypass the duck (connectOutput's `bypassDuck=true` path) by routing straight to ctx.destination, so the chime sits clearly on top.",
       "verification": [
         "acceptance: When a match ends, the win/lose chime is clearly audible and any bomb / footstep events that happen during the chime feel quieter than usual; volume restores afterwards without a pop.",
-        "examples/kaboom-crew/src/audio-fx.ts: `duckFor(ms, depth)` helper + match-* events trigger it",
-        "+ unit test on the audio-fx fake context: after triggering match-won, masterGain.gain has setValueAtTime(0.3, now) followed by linearRampToValueAtTime(1, now + 0.6)"
+        "examples/kaboom-crew/src/audio-fx.ts: duckFor + shared masterDuckNode; connectOutput accepts bypassDuck for match chimes",
+        "+2 unit tests on the fake AudioContext: match-won schedules setValueAtTime(0.3) + linearRampToValueAtTime(1) on the duck node; bomb-place does NOT schedule a depth=0.3 call (duck stays at 1)"
       ],
       "epic": "KABOOM-CREW-MVP-1",
       "dependsOn": ["AGF-AUDIO-MASTER-VOLUME"]

@@ -215,6 +215,13 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // without touching the AudioContext — the context stays alive so
   // unmute is a free no-arg toggle (no autoplay-policy round trip).
   let muted = masterGain === 0;
+  // S095 KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END. Shared gain node sits
+  // between every NON-match event and `c.destination`; ducked when a
+  // match chime plays so simultaneous bomb/blast/footstep events feel
+  // quieter and the chime sits on top. Match-* chimes bypass this
+  // node (they connect to destination directly) so the chime itself
+  // is unaffected.
+  let masterDuckNode: GainNodeLike | undefined;
 
   function ensureContext(): AudioContextLike | undefined {
     if (ctx !== undefined) return ctx;
@@ -226,7 +233,29 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         // Browser may still reject; play() will silently no-op.
       });
     }
+    // S095 — wire the shared duck node now so connectOutput can route
+    // through it. Gain starts at 1.0 (no duck active).
+    try {
+      masterDuckNode = ctx.createGain();
+      masterDuckNode.gain.setValueAtTime(1, ctx.currentTime);
+      masterDuckNode.connect(ctx.destination);
+    } catch {
+      masterDuckNode = undefined;
+    }
     return ctx;
+  }
+
+  function duckFor(c: AudioContextLike, durationSeconds: number, depth: number): void {
+    if (masterDuckNode === undefined) return;
+    const now = c.currentTime;
+    const clampedDepth = Math.max(0, Math.min(1, depth));
+    const safeDuration = Math.max(0.01, durationSeconds);
+    try {
+      masterDuckNode.gain.setValueAtTime(clampedDepth, now);
+      masterDuckNode.gain.linearRampToValueAtTime(1, now + safeDuration);
+    } catch {
+      // ignore — duck failure shouldn't break gameplay
+    }
   }
 
   // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Final routing step. When the
@@ -234,9 +263,21 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // createPanner, the chain ends at a PannerNode (HRTF) before
   // destination. Otherwise we connect straight to destination — the
   // pre-S91 behaviour, unchanged for UI chimes.
-  function connectOutput(c: AudioContextLike, gain: GainNodeLike, position: readonly [number, number, number] | undefined): void {
+  // S095 — `bypassDuck` is true for match-* chimes, false for every
+  // gameplay event. When false (default) the chain ends at the shared
+  // duck node so the active duck attenuates the event; when true it
+  // ends at c.destination directly so the chime itself is at full
+  // volume even while ducking other sounds.
+  function connectOutput(
+    c: AudioContextLike,
+    gain: GainNodeLike,
+    position: readonly [number, number, number] | undefined,
+    bypassDuck = false
+  ): void {
+    const terminal: AudioNodeLike =
+      !bypassDuck && masterDuckNode !== undefined ? masterDuckNode : c.destination;
     if (position === undefined || c.createPanner === undefined) {
-      gain.connect(c.destination);
+      gain.connect(terminal);
       return;
     }
     const panner = c.createPanner();
@@ -255,7 +296,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
       panner.positionZ.setValueAtTime(z, now);
     }
     gain.connect(panner);
-    panner.connect(c.destination);
+    panner.connect(terminal);
   }
 
   function envelope(c: AudioContextLike, gain: GainNodeLike, attack: number, peak: number, release: number): void {
@@ -332,7 +373,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // perfect-fifth (draw). Each is a single AudioContext frame; the
   // dial scales through `masterGain` so the existing ?audio= +
   // localStorage path keeps working.
-  function playChord(c: AudioContextLike, freqs: ReadonlyArray<number>, totalSeconds: number, gainScale = 0.45, position?: readonly [number, number, number]): void {
+  function playChord(c: AudioContextLike, freqs: ReadonlyArray<number>, totalSeconds: number, gainScale = 0.45, position?: readonly [number, number, number], bypassDuck = false): void {
     const now = c.currentTime;
     for (const f of freqs) {
       const osc = c.createOscillator();
@@ -341,17 +382,18 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
       osc.frequency.setValueAtTime(f, now);
       envelope(c, gain, 0.01, masterGain * gainScale, totalSeconds);
       osc.connect(gain);
-      connectOutput(c, gain, position);
+      connectOutput(c, gain, position, bypassDuck);
       osc.start(now);
       osc.stop(now + totalSeconds + 0.05);
     }
   }
   function playMatchWon(c: AudioContextLike, position?: readonly [number, number, number]): void {
-    // C major triad (C5 E5 G5).
-    playChord(c, [523.25, 659.25, 783.99], 0.6, 0.5);
+    // C major triad (C5 E5 G5). bypassDuck=true so the chime sits on
+    // top of the active duck rather than getting attenuated by it.
+    playChord(c, [523.25, 659.25, 783.99], 0.6, 0.5, position, true);
   }
   function playMatchLost(c: AudioContextLike, position?: readonly [number, number, number]): void {
-    // A minor descent (A4 → F4 → D4).
+    // A minor descent (A4 → F4 → D4). bypassDuck — see playMatchWon.
     const now = c.currentTime;
     const seq: Array<{ freq: number; offset: number }> = [
       { freq: 440, offset: 0 },
@@ -366,14 +408,14 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
       envelope(c, gain, 0.01, masterGain * 0.45, 0.32);
       gain.gain.setValueAtTime(0, now);
       osc.connect(gain);
-      connectOutput(c, gain, position);
+      connectOutput(c, gain, position, true);
       osc.start(now + note.offset);
       osc.stop(now + note.offset + 0.35);
     }
   }
   function playMatchDraw(c: AudioContextLike, position?: readonly [number, number, number]): void {
-    // Perfect fifth — open neutral tone.
-    playChord(c, [392.0, 587.33], 0.5, 0.4);
+    // Perfect fifth — open neutral tone. bypassDuck — see playMatchWon.
+    playChord(c, [392.0, 587.33], 0.5, 0.4, position, true);
   }
 
   // S90 KABOOM-FOOTSTEP-TICK. ~25 ms low-gain click — barely audible
@@ -408,9 +450,9 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         else if (kind === "blast") playBlast(c, pos);
         else if (kind === "pickup") playPickup(c, pos);
         else if (kind === "death") playDeath(c, pos);
-        else if (kind === "match-won") playMatchWon(c);
-        else if (kind === "match-lost") playMatchLost(c);
-        else if (kind === "match-draw") playMatchDraw(c);
+        else if (kind === "match-won") { duckFor(c, 0.6, 0.3); playMatchWon(c); }
+        else if (kind === "match-lost") { duckFor(c, 0.6, 0.3); playMatchLost(c); }
+        else if (kind === "match-draw") { duckFor(c, 0.6, 0.3); playMatchDraw(c); }
         else if (kind === "footstep") playFootstep(c, pos);
       } catch {
         // Browser quirks (e.g. context closed) — fail silent so a
