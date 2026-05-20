@@ -1,0 +1,15 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-005",
+  "title": "Add flaky-test mitigation for engine-cli inspect-summary timeout",
+  "filedAt": "2026-05-20T10:47:00Z",
+  "foundInPr": 100,
+  "severity": "minor",
+  "type": "regression-needed",
+  "regressionFor": "QA-2026-05-20-004",
+  "summary": "Companion to QA-2026-05-20-004. The 'prints a stable inspect summary' test in tests/unit/engine-cli.test.ts spawns a subprocess whose startup latency occasionally exceeds the 5000ms vitest default. Fix options: bump the per-test timeout, pre-warm the subprocess, or split the filesystem fixture setup from the subprocess invocation. No clean .playtest.json reproducer — this requires unit-test-level mitigation.",
+  "repro": [
+    "Run: npx vitest run tests/unit/engine-cli.test.ts in a loop",
+    "Observe: timeout on 'prints a stable inspect summary' roughly 1-in-3 runs"
+  ]
+}
