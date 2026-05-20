@@ -19,13 +19,13 @@
     },
     {
       "id": "KABOOM-PICKUP-COLLECT-PARTICLE",
-      "title": "Pickup collection emits a glow burst at the pickup's last cell",
-      "status": "pending",
-      "summary": "pickup-collect-system already removes the pickup entity at the moment of collection. Before removing, stamp a one-shot particle burst on a fresh `pickup.fx.<id>` entity at the same position so the player gets visual feedback. Preset='glow' (pale cyan), lifetime≈0.4 s, maxParticles≈30. The fx entity carries only Transform + ParticleEmitter — no GridOccupant, no logic — and is cleaned up when the emitter expires (the ParticleEmitter system removes itself; we then check + remove the host entity in a tiny project-local helper).",
+      "title": "Pickup collection emits a spark burst at the pickup's last cell",
+      "status": "implemented",
+      "summary": "pickup-collect-system now spawns a one-shot fx entity (`${pickupId}.collect-fx`) at the moment of collection BEFORE removing the pickup. The fx entity carries Transform + ParticleEmitter(preset='spark', lifetime=0.35 s, rate=80, maxParticles=30) and nothing else — the engine ParticleEmitter system handles cleanup when lifetime elapses. Chose 'spark' over 'glow' for the burst because the idle shimmer on the pickup is already 'glow' (S096 KABOOM-PICKUP-IDLE-PULSE); contrasting the burst as spark makes the moment of pickup feel discrete and satisfying.",
       "verification": [
-        "acceptance: Walking over a pickup spawns a small cyan glow burst at the cell before the pickup vanishes; the burst fades naturally over ~0.4 s.",
-        "examples/kaboom-crew/src/systems/pickup-collect-system.ts: spawns a transient fx entity with ParticleEmitter preset='glow' on collect",
-        "+ unit test asserting the fx entity exists with ParticleEmitter after a collect tick"
+        "acceptance: Walking over a pickup spawns a small spark burst at the cell before the pickup vanishes; the burst fades naturally over ~0.35 s.",
+        "examples/kaboom-crew/src/systems/pickup-collect-system.ts: spawns a transient fx entity with ParticleEmitter preset='spark' on collect",
+        "+ unit test asserting the fx entity exists with a spark ParticleEmitter at the collection cell"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
