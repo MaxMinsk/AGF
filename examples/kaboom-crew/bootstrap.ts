@@ -82,22 +82,37 @@ const PROJECT_PREFABS: ReadonlyMap<string, PrefabDefinition> = new Map<string, P
 ]);
 
 // S86 KABOOM-MAP-VARIANT-WIDE. Map id resolution + scene-source lookup.
-function readMapName(): "start" | "wide" {
+// S89 KABOOM-AGENT-MAP-LIST. Single registry shared by URL parsing
+// (`readMapName`), the scene builder, and the runtime accessor
+// (`runtime.kaboom.maps()` + `loadMap()`).
+const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
+  ["start", startSceneJson],
+  ["wide", wideSceneJson]
+]);
+type MapName = "start" | "wide";
+let activeMapName: MapName = "start";
+// Seed from `?map=` once at module load — module evaluation happens
+// after the page is opened, so `location.search` is already valid.
+function seedActiveMapFromUrl(): void {
+  activeMapName = readMapName();
+}
+
+function readMapName(): MapName {
   const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
   if (search === undefined || search.length === 0) return "start";
   try {
     const value = new URLSearchParams(search).get("map");
-    if (value === "wide") return "wide";
+    if (value !== null && MAP_REGISTRY.has(value)) return value as MapName;
     return "start";
   } catch {
     return "start";
   }
 }
 
-function buildFlatStartScene(): SceneInput {
-  const map = readMapName();
-  const source = (map === "wide" ? wideSceneJson : startSceneJson) as unknown as SceneInput;
-  const expansion = expandScenePrefabs(source, PROJECT_PREFABS);
+function buildFlatStartScene(map: MapName = activeMapName): SceneInput {
+  const source = MAP_REGISTRY.get(map) as SceneInput | undefined;
+  const resolved = (source ?? startSceneJson) as unknown as SceneInput;
+  const expansion = expandScenePrefabs(resolved, PROJECT_PREFABS);
   if (expansion.diagnostics.length > 0) {
     // eslint-disable-next-line no-console
     // agf-allow:console scene expansion path runs before the runtime diagnostics bus is bound to attachUi.
@@ -240,6 +255,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
   },
 
   attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
+    // S89 KABOOM-AGENT-MAP-LIST. Pick up `?map=` from the URL before
+    // any restartScene call so the very first scene.load already uses
+    // the right map (matches the legacy S86 behaviour where
+    // buildFlatStartScene re-read the URL each call).
+    seedActiveMapFromUrl();
+
     _boundRestart = (): void => {
       restartScene(runtime);
     };
@@ -599,6 +620,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       input(): ReadonlyArray<string> {
         if (_boundPlayerInput === undefined) return [];
         return Array.from(_boundPlayerInput.pressedSnapshot());
+      },
+      // S89 KABOOM-AGENT-MAP-LIST. Programmatic map swap for scripted
+      // playtests. `maps()` lists everything in the static registry;
+      // `loadMap(name)` flips activeMapName + restarts. Returns true
+      // on success, false when the name is unknown.
+      maps(): ReadonlyArray<string> {
+        return [...MAP_REGISTRY.keys()];
+      },
+      loadMap(name: string): boolean {
+        if (!MAP_REGISTRY.has(name)) return false;
+        activeMapName = name as MapName;
+        restartScene(runtime);
+        return true;
+      },
+      activeMap(): string {
+        return activeMapName;
       }
     };
 

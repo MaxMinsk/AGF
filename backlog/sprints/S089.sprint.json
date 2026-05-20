@@ -42,12 +42,13 @@
     {
       "id": "KABOOM-AGENT-MAP-LIST",
       "title": "runtime.kaboom.maps() + loadMap(name) for scripted map swap",
-      "status": "pending",
-      "summary": "Today the only way to swap maps is `?map=wide` on URL reload — an agent doing scripted playtests can't pivot maps without a full page reload. Expose `runtime.kaboom.maps()` returning `['start', 'wide']` and `runtime.kaboom.loadMap('wide')` which calls scene.load against the corresponding flat-expanded scene + reseeds the RoundState (same path as restartScene). Useful for the multi-map smoke playtest the next sprint can build.",
+      "status": "implemented",
+      "summary": "Bootstrap consolidates the start/wide map sources into a static MAP_REGISTRY, drops `readMapName`'s special-case branch in favour of a registry lookup, and exposes `runtime.kaboom.maps()` / `loadMap(name)` / `activeMap()` on window.__agf.kaboom. attachUi seeds `activeMapName` from `?map=` once at boot; subsequent loadMap calls flip it + restart the scene through the same restartScene path.",
       "verification": [
         "window.__agf.kaboom.maps() returns ['start', 'wide']",
-        "window.__agf.kaboom.loadMap('wide') triggers scene.load; subsequent snapshot.entities shape matches the wide arena (17×13)",
-        "loadMap returns false when the name is unknown; loadMap('start') re-loads start without throwing"
+        "window.__agf.kaboom.loadMap('wide') flips activeMapName + triggers scene.load (returns true)",
+        "loadMap returns false when name not in MAP_REGISTRY; loadMap('start') re-loads start cleanly",
+        "URL `?map=wide` still seeds the initial activeMap; activeMap() reports the live value"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
