@@ -66,12 +66,12 @@
     {
       "id": "KABOOM-MINIMAP-DANGER-OVERLAY",
       "title": "Minimap tints projected blast cells red",
-      "status": "pending",
-      "summary": "The minimap shows bombs as dots, but a player can't see the danger zone from a glance. Compute the same projected-blast cells the bot AI already uses (bomb origin + cardinals × range, blocked by hard walls) and overlay them as semi-transparent red rectangles before the bomb dot is drawn. Same data source as bot-ai's buildDangerMap — extracted into a tiny shared helper.",
+      "status": "implemented",
+      "summary": "MinimapData gains an optional `cells: ReadonlyArray<MinimapCellOverlay>` field — world-space cell rectangles painted UNDER the markers (default 40%-alpha red `rgba(255,90,90,0.4)`, size 1 cell). Kaboom Crew bootstrap holds a reference to the live GridOccupancyQuery (`_boundOccupancy`) and feeds the minimap with `projectedBlastCells(world, occupancy)` results each frame. Helper lives in `examples/kaboom-crew/src/danger.ts` and mirrors blast-propagation's projection rules (hard walls block, soft blocks burn-and-stop).",
       "verification": [
-        "Helper `projectedBlastCells(world, occupancy)` returns the union of every live bomb's cardinal blast cells (S82 propagation semantics)",
-        "Minimap renders one red 4px square per cell at 40% alpha under the existing markers",
-        "+1 unit test exercising the helper against a fixture with one bomb + a hard wall"
+        "+3 unit tests in tests/unit/danger.test.ts: cardinal arms + range, hard-wall stop, multi-bomb dedup union",
+        "engine/runtime/ui/minimap.ts paints `cells` below `markers`; `MinimapData.cells` is optional so non-kaboom projects are unaffected",
+        "bootstrap.ts captures `_boundOccupancy` in registerSystems; minimap update reads it + passes danger cells per frame; dispose() clears the binding"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

@@ -32,6 +32,7 @@ import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-sy
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
 import { createKaboomDeathAnimationSystem } from "./src/systems/death-animation-system";
+import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
@@ -176,6 +177,12 @@ let _boundRestart: (() => void) | undefined;
 // and the HUD key-glyph widget can poll the live pressed set.
 let _boundPlayerInput: { pressedSnapshot(): ReadonlySet<string> } | undefined;
 
+// S90 KABOOM-MINIMAP-DANGER-OVERLAY. Captured during registerSystems
+// so the per-frame minimap update can project live blast cells. The
+// occupancy query is the same one bomb-place / blast-propagation /
+// bot-ai use.
+let _boundOccupancy: import("../../engine/core/systems/grid-occupancy-system").GridOccupancyQuery | undefined;
+
 // S84 KABOOM-AUDIO-WIRE.
 // Same closure-bridge pattern: audio-binding system is registered in
 // registerSystems but the audio bus only exists once attachUi has
@@ -190,6 +197,7 @@ let _audioLog: AudioLogEntry[] = [];
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler }: ProjectBootstrapContext): void {
     const occupancy = createGridOccupancySystem();
+    _boundOccupancy = occupancy;
     scheduler.register(occupancy, { profiles: ["static"] });
 
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static"] });
@@ -970,7 +978,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           const color = pk.kind === "bomb-up" ? "#5fa8ff" : pk.kind === "fire-up" ? "#ff7a36" : "#7be35f";
           markers.push({ x: pk.gx, z: pk.gz, color, shape: "rect", size: 4 });
         }
-        hud.update(MINIMAP_ID, { markers });
+        // S90 KABOOM-MINIMAP-DANGER-OVERLAY — project live blast
+        // cells and paint them as red cell-sized overlays under the
+        // marker list. Skipped when occupancy isn't bound yet.
+        const cells: Array<{ x: number; z: number; size?: number; color?: string }> = [];
+        if (_boundOccupancy !== undefined) {
+          const danger = projectedBlastCells(runtime.world, _boundOccupancy);
+          for (const d of danger) {
+            cells.push({ x: d.gx, z: d.gz, size: 1 });
+          }
+        }
+        hud.update(MINIMAP_ID, { markers, cells });
 
         rafId = requestAnimationFrame(update);
       };
@@ -996,6 +1014,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         _boundRestart = undefined;
         _boundAudioEvent = undefined;
         _boundPlayerInput = undefined;
+        _boundOccupancy = undefined;
         _audioLog = [];
         audioFx.dispose();
         if (hudCleanup !== undefined) hudCleanup();
