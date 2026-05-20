@@ -1,0 +1,21 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-001",
+  "title": "notes/qa/** is gitignored — QA artifact files cannot be committed",
+  "filedAt": "2026-05-20T10:30:00Z",
+  "foundInPr": 101,
+  "foundInSprint": "S092",
+  "severity": "major",
+  "type": "doc",
+  "summary": "S092 design §7 designates notes/qa/** as QA's writable output directory for screenshots, console dumps and repro artifacts. However, .gitignore contains the pattern Notes/ and git config core.ignoreCase=true, which causes git to silently ignore all notes/ paths as well (case-insensitive match). Any file QA writes to notes/qa/ will never be tracked, making the artifact capture part of the workflow (screenshots, log excerpts) permanently broken. Companion to QA-2026-05-20-002.",
+  "repro": [
+    "Open .gitignore at repo root — locate the pattern `Notes/` on line 30.",
+    "Run: echo 'notes/qa/test.txt' | git check-ignore --stdin -v",
+    "Observe: git reports `.gitignore:30:Notes/  notes/qa/test.txt` — the file is ignored despite the lowercase path.",
+    "Run: git config core.ignoreCase — returns `true`, confirming case-insensitive .gitignore matching.",
+    "Attempt to create notes/qa/QA-2026-05-20-001/screenshot.png and git add it — git silently skips the file."
+  ],
+  "expected": "notes/qa/** is a tracked path so QA agents can commit screenshots, console dumps, and other repro artifacts alongside ticket JSON files.",
+  "actual": ".gitignore pattern Notes/ with core.ignoreCase=true matches notes/ too. Every file written to notes/qa/ is silently ignored by git. The field screenshot in qa-ticket.schema.json can reference a path but the file will never land in the repository.",
+  "logs": ".gitignore:30:Notes/\tnotes/qa/test.txt (from git check-ignore --stdin -v)"
+}
