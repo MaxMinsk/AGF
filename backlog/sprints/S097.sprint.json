@@ -35,12 +35,12 @@
     {
       "id": "GAME-DESIGN-PROPOSE-PROMOTE",
       "title": "scripts/backlog/promote-proposed.mjs + `npm run propose:promote -- --into S<N>`",
-      "status": "pending",
-      "summary": "Companion to `npm run qa:promote` (S093). Walks every `backlog/proposed-stories/*.story-proposal.json`, converts each into a story entry in the target sprint JSON, then archives the source file under `backlog/proposed-stories/archive/<sprint-id>/`. Story conversion: id = proposal.id (prefix GDP→ a stable readable prefix), title = proposal.title, summary = proposal.intent (+ any rationale), epic = proposal.epic (or undefined), status='pending'. `acceptanceHints` become a `// hints:` line in summary that the dev agent will tighten when writing real verification[].",
+      "status": "implemented",
+      "summary": "Mirrors scripts/backlog/promote-qa.mjs. Walks every `backlog/proposed-stories/*.story-proposal.json`, validates against the schema, filters by `--min-priority` (could|should|must), generates a story per proposal with kind-based id prefix (feature/mechanic→FEAT, balance→BAL, content→CONTENT), appends to the target sprint's stories[], runs inline backlog:check (skippable via `--skip-check` for test isolation), restores the sprint JSON on check failure, and archives source files to `backlog/proposed-stories/archive/<sprint-id>/`. `--dry-run` prints the plan without writing. Test-time overrides: `--proposed-dir`, `--sprints-dir`. Summary body embeds the proposal's intent + rationale + a bulleted 'Acceptance hints' list + a source-proposal footer.",
       "verification": [
-        "acceptance: Drop two valid proposals in backlog/proposed-stories/ + run `npm run propose:promote -- --into S100 --skip-check`. The target sprint JSON gains two new pending stories; both source files move under backlog/proposed-stories/archive/S100/.",
-        "scripts/backlog/promote-proposed.mjs: --into validates target sprint exists + status in {pending, active}; same rules as qa:promote",
-        "+ unit tests on the promotion logic covering: empty inbox → no-op; refuses to promote into archived sprint; archives source files on success"
+        "acceptance: With two valid proposals (kinds feature + balance + content), `node scripts/backlog/promote-proposed.mjs --into S<N> --skip-check` adds three pending stories with the right id prefixes and archives the source files under archive/S<N>/.",
+        "scripts/backlog/promote-proposed.mjs: --into validates target sprint exists + status in {pending, active}; refuses archived; --min-priority + --dry-run + --skip-check all work",
+        "+7 unit tests in tests/unit/promote-proposed.test.ts (spawn-driven, parallels qa-promote.test.ts): single-proposal happy path, empty inbox no-op, archived-sprint rejection, active-sprint acceptance, --min-priority filtering, --dry-run no-modify, kind-based id-prefix routing (FEAT / BAL / CONTENT)"
       ],
       "epic": "GAME-DESIGN-AGENT",
       "dependsOn": ["GAME-DESIGN-PROPOSED-STORY-SCHEMA"]
