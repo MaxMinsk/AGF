@@ -27,7 +27,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 
 | Epic | Status | Category | Stories (impl / open / total) | Notes |
 |---|---|---|---|---|
-| **[AGF-BACKLOG-ENGINE](backlog/epics/AGF-BACKLOG-ENGINE.epic.json)** — JSON-first backlog engine — source of truth + tooling | active | infra | 28 / 2 / 30 | → S082 |
+| **[AGF-BACKLOG-ENGINE](backlog/epics/AGF-BACKLOG-ENGINE.epic.json)** — JSON-first backlog engine — source of truth + tooling | active | infra | 29 / 1 / 30 | → S082 |
 | **[AGF-ENGINE-OBSERVABILITY](backlog/epics/AGF-ENGINE-OBSERVABILITY.epic.json)** — Engine observability — diagnostics, logging, motion + renderer probes | active | engine | 34 / 6 / 40 |  |
 | **[BEACON-WORLD-SAMPLE](backlog/epics/BEACON-WORLD-SAMPLE.epic.json)** — Beacon World sample | active | engine | 1 / 0 / 1 |  |
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |

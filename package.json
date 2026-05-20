@@ -45,6 +45,7 @@
     "backlog:done": "node scripts/backlog/mutate.mjs done",
     "backlog:defer": "node scripts/backlog/mutate.mjs defer",
     "qa:ticket": "node scripts/backlog/qa-ticket.mjs",
+    "qa:promote": "node scripts/backlog/promote-qa.mjs",
     "backlog:pr-body": "node scripts/backlog/pr-body.mjs",
     "backlog:migrate-history": "node scripts/backlog/migrate-history.mjs",
     "backlog:epics": "node scripts/backlog/epics.mjs",

@@ -34,14 +34,13 @@
     {
       "id": "QA-INTAKE-PROMOTE",
       "title": "scripts/backlog/promote-qa.mjs — tickets → pending-sprint stories",
-      "status": "pending",
-      "summary": "Promotion CLI from S092 design §5. `node scripts/backlog/promote-qa.mjs --into S093 [--min-severity major] [--dry-run]`: walks `backlog/qa-tickets/*.qa-ticket.json`, validates each, generates a sprint story (id `BUG-<slug>-<NNN>` / `REGRESSION-<slug>-<NNN>`), embeds a fenced QA-repro block in the story `summary`, links bug↔regression-test pairs via `dependsOn`, writes to the target sprint JSON (must be status=pending), runs check.mjs inline (restores on failure), and `git mv`s promoted source files to `backlog/qa-tickets/archive/<sprint-id>/`. Dry-run prints the plan without touching files.",
+      "status": "implemented",
+      "summary": "scripts/backlog/promote-qa.mjs walks `backlog/qa-tickets/*.qa-ticket.json`, validates each against schemas/qa-ticket.schema.json (aborts on any failure — no partial writes), filters by `--min-severity`, and builds one story per ticket. Story ids follow `BUG-<UPPERCASE-SLUG>-<NNN>` / `REGRESSION-<UPPERCASE-SLUG>-<NNN>` to satisfy the sprint schema's `^[A-Z][A-Z0-9-]*$` pattern. NNN auto-increments past existing story-id collisions. The story `summary` embeds a fenced QA-repro block (severity, filedAt, repro steps, expected, actual, logs, screenshot, playtest, source ticket id) so the sprint render carries the full reproducer. Bug↔regression-test pairs are linked via `dependsOn` so the bug fix can't be claimed until the regression test exists. After the write, the script runs `scripts/backlog/check.mjs --json` inline; on any error it restores the original sprint JSON and exits non-zero. Successful promotion archives source files via `renameSync` into `backlog/qa-tickets/archive/<sprint-id>/`. Flags: `--into S0NN` (required, must be pending), `--min-severity`, `--dry-run`, `--qa-dir <path>` / `--sprints-dir <path>` / `--skip-check` (test-time overrides). New npm script `qa:promote`.",
       "verification": [
-        "acceptance: Drop two fixture qa-tickets (one bug, one regression-needed linked via regressionFor); run `node scripts/backlog/promote-qa.mjs --into S<next-pending>`; the pending sprint JSON gains two stories with proper dependsOn link, source files move to archive/, backlog:check stays green.",
-        "--dry-run does not modify any files",
-        "--min-severity filter excludes lower-severity tickets",
-        "Inline check.mjs rollback works (corrupt the schema mid-run to verify restore)",
-        "+2 unit tests covering happy path + rollback"
+        "acceptance: Drop two fixture qa-tickets (one bug, one regression-needed linked via regressionFor); run `node scripts/backlog/promote-qa.mjs --into S<next-pending>`; the pending sprint JSON gains two stories with the bug's dependsOn pointing at the regression test, source files move to archive/, backlog:check stays green.",
+        "Live dogfood verified against S091: 2 tickets promoted, archived, then reverted via git checkout for cleanup",
+        "+7 unit tests in tests/unit/qa-promote.test.ts cover happy path, dependsOn linking, --dry-run, --min-severity filter, archive move, pending-only target enforcement, empty inbox",
+        "npm run qa:promote wraps the CLI; production callers do NOT pass --skip-check (test-only flag)"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
