@@ -120,6 +120,15 @@ type AgfApi = {
     | { kind: "entity-not-found" }
     | { kind: "component-not-found" }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-ENTITY-DUMP. */
+  entityAt?: (entityId: string, at?: number) =>
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-COMPONENT-WRITE. */
+  setComponentAt?: (entityId: string, componentName: string, value: unknown) =>
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff?: (at: number) =>
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -283,6 +292,31 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
           break;
         }
         payload = api.snapshotDiff(at);
+        break;
+      }
+      case "entity-at": {
+        // S097 AGF-PROBE-ENTITY-DUMP.
+        const args = payloadIn as { entityId?: string; at?: number } | undefined;
+        if (args === undefined || typeof args.entityId !== "string" || api?.entityAt === undefined) {
+          payload = undefined;
+          break;
+        }
+        payload = api.entityAt(args.entityId, args.at);
+        break;
+      }
+      case "component-write": {
+        // S097 AGF-PROBE-COMPONENT-WRITE.
+        const args = payloadIn as { entityId?: string; componentName?: string; value?: unknown } | undefined;
+        if (
+          args === undefined ||
+          typeof args.entityId !== "string" ||
+          typeof args.componentName !== "string" ||
+          api?.setComponentAt === undefined
+        ) {
+          payload = undefined;
+          break;
+        }
+        payload = api.setComponentAt(args.entityId, args.componentName, args.value);
         break;
       }
       case "component-at": {

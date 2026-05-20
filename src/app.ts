@@ -161,6 +161,15 @@ export type AppHandle = {
     | { kind: "entity-not-found" }
     | { kind: "component-not-found" }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-ENTITY-DUMP. */
+  entityAt(entityId: string, at?: number):
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-COMPONENT-WRITE. */
+  setComponentAt(entityId: string, componentName: string, value: unknown):
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff(at: number):
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -621,6 +630,14 @@ export async function createApp(
     // S096 AGF-PROBE-COMPONENT-AT.
     componentAt(entityId: string, componentName: string, at?: number) {
       return runtime.componentAt(entityId, componentName, at);
+    },
+    // S097 AGF-PROBE-ENTITY-DUMP.
+    entityAt(entityId: string, at?: number) {
+      return runtime.entityAt(entityId, at);
+    },
+    // S097 AGF-PROBE-COMPONENT-WRITE.
+    setComponentAt(entityId: string, componentName: string, value: unknown) {
+      return runtime.setComponentAt(entityId, componentName, value);
     },
     // S096 AGF-PROBE-SNAPSHOT-DIFF.
     snapshotDiff(at: number) {

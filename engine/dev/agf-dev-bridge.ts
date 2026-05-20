@@ -33,6 +33,41 @@ export const DEV_BRIDGE_PATH_PREFIX = "/__agf/";
 export const DEV_BRIDGE_WS_PATH = "/__agf/ws";
 
 /**
+ * S097 AGF-PROBE-ENTITY-DUMP — pure URL path parser for `/entity/<entityId>`.
+ * Exported for unit tests.
+ */
+export type EntityPathResult =
+  | { kind: "ok"; entityId: string }
+  | { kind: "error"; code: string; message: string };
+
+export function parseEntityPath(route: string): EntityPathResult {
+  if (!route.startsWith("/entity/")) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_ENTITY_PATH",
+      message: "Route must start with /entity/"
+    };
+  }
+  const tail = route.slice("/entity/".length);
+  if (tail.length === 0 || tail.includes("/")) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_ENTITY_PATH",
+      message: "Route must match /entity/<entityId> with no further path segments."
+    };
+  }
+  const entityId = decodeURIComponent(tail);
+  if (entityId.length === 0) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_ENTITY_PATH",
+      message: "entityId must be non-empty."
+    };
+  }
+  return { kind: "ok", entityId };
+}
+
+/**
  * S096 AGF-PROBE-COMPONENT-AT — pure URL path parser for
  * `/component/<entityId>/<componentName>`. Exported for unit tests.
  * Accepts URL-safe IDs (period, dash, underscore, alphanumeric).
@@ -418,6 +453,122 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             return;
           }
           await proxyToPage(req, res, "runtime-timescale-set", { value });
+          return;
+        }
+
+        // S097 AGF-PROBE-ENTITY-DUMP. `/entity/<entityId>` returns the
+        // full component map for one entity. `?at=-N` reads history.
+        if (route.startsWith("/entity/") && req.method === "GET") {
+          const parsed = parseEntityPath(route);
+          if (parsed.kind === "error") {
+            respondJson(res, 400, { ok: false, error: { code: parsed.code, message: parsed.message } });
+            return;
+          }
+          const atRaw = url.searchParams.get("at");
+          let at = 0;
+          if (atRaw !== null) {
+            const parsedAt = Number.parseInt(atRaw, 10);
+            if (!Number.isFinite(parsedAt) || parsedAt > 0) {
+              respondJson(res, 400, {
+                ok: false,
+                error: { code: "AGF_BRIDGE_INVALID_SNAPSHOT_AT", message: "`at` must be a non-positive integer." }
+              });
+              return;
+            }
+            at = parsedAt;
+          }
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "entity-at", { entityId: parsed.entityId, at })) as
+              | { kind: "ok"; components: Record<string, unknown> }
+              | { kind: "entity-not-found" }
+              | { kind: "out-of-range"; capacity: number; size: number };
+            if (result.kind === "ok") {
+              respondJson(res, 200, {
+                ok: true,
+                page: found.entry.socketId,
+                payload: { entityId: parsed.entityId, components: result.components }
+              });
+              return;
+            }
+            if (result.kind === "entity-not-found") {
+              respondJson(res, 404, {
+                ok: false,
+                error: { code: "AGF_PROBE_ENTITY_NOT_FOUND", message: `No entity with id "${parsed.entityId}".` }
+              });
+              return;
+            }
+            // out-of-range
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_PROBE_SNAPSHOT_OUT_OF_RANGE",
+                message: `Snapshot at=${at} is out of range. Buffer capacity=${result.capacity}, current size=${result.size}.`
+              }
+            });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
+          return;
+        }
+
+        // S097 AGF-PROBE-COMPONENT-WRITE. POST /component/<entityId>/<componentName>
+        // writes a single component value. Body must be { value: ... }.
+        if (route.startsWith("/component/") && req.method === "POST") {
+          const parsed = parseComponentPath(route);
+          if (parsed.kind === "error") {
+            respondJson(res, 400, { ok: false, error: { code: parsed.code, message: parsed.message } });
+            return;
+          }
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          if (!Object.prototype.hasOwnProperty.call(body, "value")) {
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_BRIDGE_INVALID_COMPONENT_WRITE",
+                message: "Body must be JSON with a `value` field (any JSON-compatible shape; the entity gets this verbatim)."
+              }
+            });
+            return;
+          }
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "component-write", {
+              entityId: parsed.entityId,
+              componentName: parsed.componentName,
+              value: (body as { value: unknown }).value
+            })) as { kind: "ok"; value: unknown } | { kind: "entity-not-found" };
+            if (result.kind === "ok") {
+              respondJson(res, 200, {
+                ok: true,
+                page: found.entry.socketId,
+                payload: { entityId: parsed.entityId, component: parsed.componentName, value: result.value }
+              });
+              return;
+            }
+            respondJson(res, 404, {
+              ok: false,
+              error: { code: "AGF_PROBE_ENTITY_NOT_FOUND", message: `No entity with id "${parsed.entityId}".` }
+            });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
           return;
         }
 
