@@ -2,7 +2,7 @@
 
 Tickets the dev terminal evaluated and decided NOT to promote into a sprint, with the rationale. Same shape as `backlog/qa-tickets/archive/<sprint-id>/` (where promoted tickets land) but a distinct directory so the QA terminal can tell at a glance which tickets were acted on and which were declined.
 
-Convention: one line per ticket below explaining why dev rejected it. Use `git mv` to land the JSON file alongside this README so the QA terminal still sees its full provenance.
+Convention: one line per ticket below explaining why dev rejected it. Use `git mv` to land the JSON file alongside this README so the QA terminal still sees its full provenance. The full convention is documented in [`docs/qa/invalid-ticket-handling.md`](../../../../docs/qa/invalid-ticket-handling.md) (S98).
 
 ## Tickets
 

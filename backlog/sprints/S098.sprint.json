@@ -83,11 +83,11 @@
     {
       "id": "DOC-QA-INVALID-TICKET-FLOW",
       "title": "docs/qa/invalid-ticket-handling.md — how dev rejects QA tickets that don't apply",
-      "status": "pending",
-      "summary": "Define the convention captured ad-hoc in this sprint (rejecting QA-001 + QA-003). When dev decides a QA ticket should NOT promote into a sprint (already-fixed, intentional behavior, duplicate, etc.), they `git mv` the JSON file under `backlog/qa-tickets/archive/rejected/` and append a one-line rationale to that directory's README.md. QA can still see the ticket; the directory tells them dev considered it and declined. Documents both halves: when dev rejects (and why), and what QA does when they see a ticket get rejected (don't refile; argue in a comment if needed).",
+      "status": "implemented",
+      "summary": "docs/qa/invalid-ticket-handling.md documents the convention used ad-hoc this sprint when rejecting QA-001 + QA-003. Four common rejection cases (already-fixed, intentional behavior, duplicate, out-of-scope) each get a row in a table with examples + a uniform mechanic: `git mv` to backlog/qa-tickets/archive/rejected/, append a bullet to that directory's README.md with severity / type / category / rationale + commit/sprint references. Also covers the QA-side: read the rationale, don't refile (PR-comment if you disagree, file a fresh ticket with new context if there's more to say). Cross-links to design.md, agent.md, regression-promotion.md, and the live rejected/README.md ledger. The rejected README itself got a back-link to the new doc.",
       "verification": [
-        "acceptance: docs/qa/invalid-ticket-handling.md exists and answers: 'when does dev reject a ticket?', 'where does it land?', 'what does QA do next?'. Cross-links to docs/qa/design.md and docs/qa/agent.md.",
-        "The README.md inside backlog/qa-tickets/archive/rejected/ (already created this sprint) gets a link to the new doc."
+        "acceptance: docs/qa/invalid-ticket-handling.md exists and answers all three audience questions: 'when does dev reject a ticket?', 'how does the file move?', 'what does QA do next?'. Table of four common cases each with a real example from this sprint.",
+        "backlog/qa-tickets/archive/rejected/README.md gains a back-link to the new doc."
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
