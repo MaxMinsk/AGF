@@ -28,8 +28,13 @@ import Ajv from "ajv";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const sprintsDir = resolve(repoRoot, "backlog/sprints");
 const epicsDir = resolve(repoRoot, "backlog/epics");
+// S093 QA-INTAKE-SCHEMA — QA tickets live alongside sprints but in
+// their own directory so the two-Claude workflow never edits the
+// same files. `archive/` is the post-promotion graveyard; we skip it.
+const qaTicketsDir = resolve(repoRoot, "backlog/qa-tickets");
 const schemaPath = resolve(repoRoot, "schemas/backlog/sprint.schema.json");
 const epicSchemaPath = resolve(repoRoot, "schemas/backlog/epic.schema.json");
+const qaTicketSchemaPath = resolve(repoRoot, "schemas/qa-ticket.schema.json");
 
 const args = new Set(process.argv.slice(2));
 const jsonOutput = args.has("--json");
@@ -74,6 +79,24 @@ try {
     { file: epicSchemaPath }
   );
   validateEpic = null;
+}
+
+// S093 QA-INTAKE-SCHEMA. QA tickets validate against their own schema;
+// the AJV instance is shared so unknown formats are tolerated the same
+// way the sprint loader does. Missing schema file = skip QA validation
+// (the directory itself is optional).
+let validateQaTicket;
+try {
+  const qaTicketSchema = JSON.parse(readFileSync(qaTicketSchemaPath, "utf8"));
+  validateQaTicket = ajv.compile(qaTicketSchema);
+} catch (err) {
+  diag(
+    "AGF_QA_TICKET_SCHEMA_LOAD_FAILED",
+    "warning",
+    `Could not load qa-ticket schema (QA validation skipped): ${err.message}`,
+    { file: qaTicketSchemaPath }
+  );
+  validateQaTicket = null;
 }
 
 /** @type {Array<{ file: string; data: any }>} */
@@ -412,6 +435,52 @@ if (epicTable.size > 0) {
         { file: entry.file, suggestion: "Either un-park the epic (flip to active) or move the stories to a different epic." }
       );
     }
+  }
+}
+
+// S093 QA-INTAKE-SCHEMA. Walk every qa-ticket file (skip `archive/`),
+// parse + validate. Diagnostics surface alongside the sprint ones.
+// Empty inbox is fine — no warning when there are zero tickets.
+const qaTickets = [];
+if (validateQaTicket !== null) {
+  let qaFileNames = [];
+  try {
+    if (statSync(qaTicketsDir).isDirectory()) {
+      qaFileNames = readdirSync(qaTicketsDir)
+        .filter((name) => name.endsWith(".qa-ticket.json"))
+        .sort();
+    }
+  } catch {
+    qaFileNames = [];
+  }
+  const qaIdsSeen = new Map();
+  for (const name of qaFileNames) {
+    const file = resolve(qaTicketsDir, name);
+    let data;
+    try {
+      data = JSON.parse(readFileSync(file, "utf8"));
+    } catch (err) {
+      diag("AGF_QA_TICKET_PARSE", "error", `JSON parse failed: ${err.message}`, { file });
+      continue;
+    }
+    const ok = validateQaTicket(data);
+    if (!ok) {
+      for (const e of validateQaTicket.errors ?? []) {
+        diag("AGF_QA_TICKET_SCHEMA", "error", `${e.instancePath || "/"} ${e.message ?? "schema error"}`, { file, path: e.instancePath });
+      }
+      continue;
+    }
+    if (qaIdsSeen.has(data.id)) {
+      diag(
+        "AGF_QA_TICKET_DUPLICATE_ID",
+        "error",
+        `QA ticket id "${data.id}" appears in multiple files.`,
+        { file, suggestion: `Also seen in ${qaIdsSeen.get(data.id)}` }
+      );
+    } else {
+      qaIdsSeen.set(data.id, file);
+    }
+    qaTickets.push({ file, data });
   }
 }
 

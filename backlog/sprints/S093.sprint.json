@@ -8,13 +8,14 @@
     {
       "id": "QA-INTAKE-SCHEMA",
       "title": "QA-ticket JSON schema + check.mjs validation",
-      "status": "pending",
-      "summary": "Land `schemas/qa-ticket.schema.json` (the field list from S092 design §4: agfFormatVersion, id, title, filedAt, foundInPr, foundInSprint, severity {critical|major|minor|polish}, type {bug|regression-needed|doc|ux}, summary, repro[], expected, actual, logs, screenshot, playtest, regressionFor, epicHint). Conditional rule: when type='regression-needed', regressionFor is required. Extend `scripts/backlog/check.mjs` to walk `backlog/qa-tickets/**/*.qa-ticket.json` (skip `archive/`), parse + validate via Ajv (same AJV instance the sprint loader uses), and surface diagnostics under codes AGF_QA_TICKET_PARSE / AGF_QA_TICKET_SCHEMA / AGF_QA_TICKET_DUPLICATE_ID. Empty directory is fine — no warning when there are zero tickets.",
+      "status": "implemented",
+      "summary": "Landed `schemas/qa-ticket.schema.json` (every field from S092 design §4) and extended `scripts/backlog/check.mjs` to walk `backlog/qa-tickets/*.qa-ticket.json` (skipping `archive/`), parse + validate via the existing AJV instance, and emit AGF_QA_TICKET_PARSE / _SCHEMA / _DUPLICATE_ID diagnostics. Empty inbox is silent. Conditional rule baked into the schema: when type='regression-needed', regressionFor must be set.",
       "verification": [
-        "acceptance: Drop a hand-written `backlog/qa-tickets/QA-2026-05-20-001.qa-ticket.json` with the required fields; `npm run backlog:check` validates it cleanly. Break the file (drop `repro`, set `type: 'regression-needed'` without `regressionFor`) — check.mjs reports AGF_QA_TICKET_SCHEMA with the right path.",
-        "schemas/qa-ticket.schema.json exists; structure matches design §4",
-        "scripts/backlog/check.mjs loads + validates qa-tickets; AGF_QA_TICKET_* diagnostics surface in --json output",
-        "+1 unit test on the validator against a fixture pair (valid + invalid tickets)"
+        "acceptance: Drop a hand-written `backlog/qa-tickets/QA-2026-05-20-001.qa-ticket.json` with the required fields; `npm run backlog:check` validates it cleanly. Break it (drop `repro`, set `type: 'regression-needed'` without `regressionFor`) — check.mjs reports AGF_QA_TICKET_SCHEMA with the right path.",
+        "schemas/qa-ticket.schema.json (17 properties, additionalProperties:false, allOf conditional)",
+        "scripts/backlog/check.mjs adds a QA-ticket walk; reuses the sprint AJV instance",
+        "+5 unit tests under tests/unit/qa-ticket-schema.test.ts covering valid pair, missing regressionFor, missing repro, bad id pattern, unknown severity",
+        "Live integration smoke verified: dropping a valid ticket into backlog/qa-tickets/ → 0 errors; dropping the invalid fixture → AGF_QA_TICKET_SCHEMA surfaces with the right path"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },

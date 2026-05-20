@@ -10,8 +10,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S093.sprint.js
 
 ### Stories
 
-- **QA-INTAKE-SCHEMA** — QA-ticket JSON schema + check.mjs validation _(pending)_
-  Land `schemas/qa-ticket.schema.json` (the field list from S092 design §4: agfFormatVersion, id, title, filedAt, foundInPr, foundInSprint, severity {critical|major|minor|polish}, type {bug|regression-needed|doc|ux}, summary, repro[], expected, actual, logs, screenshot, playtest, regressionFor, epicHint). Conditional rule: when type='regression-needed', regressionFor is required. Extend `scripts/backlog/check.mjs` to walk `backlog/qa-tickets/**/*.qa-ticket.json` (skip `archive/`), parse + validate via Ajv (same AJV instance the sprint loader uses), and surface diagnostics under codes AGF_QA_TICKET_PARSE / AGF_QA_TICKET_SCHEMA / AGF_QA_TICKET_DUPLICATE_ID. Empty directory is fine — no warning when there are zero tickets.
+- **QA-INTAKE-SCHEMA** — QA-ticket JSON schema + check.mjs validation _(implemented)_
+  Landed `schemas/qa-ticket.schema.json` (every field from S092 design §4) and extended `scripts/backlog/check.mjs` to walk `backlog/qa-tickets/*.qa-ticket.json` (skipping `archive/`), parse + validate via the existing AJV instance, and emit AGF_QA_TICKET_PARSE / _SCHEMA / _DUPLICATE_ID diagnostics. Empty inbox is silent. Conditional rule baked into the schema: when type='regression-needed', regressionFor must be set.
 - **QA-INTAKE-NEW** — scripts/backlog/qa-ticket.mjs new "<title>" scaffold helper _(pending)_
   Scaffolds a fresh `QA-YYYY-MM-DD-NNN.qa-ticket.json` with today's date and the next-free three-digit NNN slot for that date. Pre-fills agfFormatVersion=1, filedAt=now, id, title (from arg), empty repro[""], TODO markers on severity/type. Accepts `--severity`, `--type`, `--found-in-pr <N>` to skip the TODOs. Refuses to clobber existing files. Prints the created path so a wrapper can pipe it to `$EDITOR`.
 - **QA-INTAKE-PROMOTE** — scripts/backlog/promote-qa.mjs — tickets → pending-sprint stories _(pending)_

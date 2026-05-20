@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-001",
+  "title": "Bot suicides when stepping into its own fresh blast on the wide map",
+  "filedAt": "2026-05-20T14:23:00Z",
+  "foundInPr": 100,
+  "foundInSprint": "S090",
+  "severity": "major",
+  "type": "bug",
+  "summary": "Bot's wander path picks the cell its newly-placed bomb covers. Reproducible on hard difficulty.",
+  "repro": [
+    "Load examples/kaboom-crew with ?difficulty=hard&map=wide",
+    "Wait for the bot to reach the corridor between (6,5) and (8,5)",
+    "Observe: bot places a bomb, then walks into the projected blast"
+  ],
+  "expected": "Bot should treat its own about-to-explode bomb's projected cells as danger and pick a different direction.",
+  "actual": "Bot steps into the projected blast and dies; KABOOM-BOT-DANGER-AVOID does not include the bot's own freshly-placed bombs."
+}
