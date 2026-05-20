@@ -1,0 +1,19 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-002",
+  "title": "notes/qa-workflow-design.md lives in gitignored Notes/ — Read-first link broken on fresh clones",
+  "filedAt": "2026-05-20T10:31:00Z",
+  "foundInPr": 101,
+  "foundInSprint": "S093",
+  "severity": "minor",
+  "type": "doc",
+  "summary": "The S092 planning sprint's acceptance criterion and docs/qa/agent.md (landing in S093) both point readers to notes/qa-workflow-design.md as the primary design reference. The file was written to Notes/qa-workflow-design.md, which is gitignored. On any fresh clone or CI system the file is absent, making the Read-first link a dead reference. The actionable QA workflow is fully documented in the committed docs/qa/*.md triad, so the practical impact is limited to discoverability and onboarding friction. Root cause is shared with QA-2026-05-20-001.",
+  "repro": [
+    "Clone the repo fresh (after S093 merges) or check out main on a machine that does not have the local Notes/ folder.",
+    "Open docs/qa/agent.md and find the Read-first section.",
+    "Follow the link to notes/qa-workflow-design.md.",
+    "Observe: the file does not exist — ls notes/qa-workflow-design.md returns 'No such file or directory'."
+  ],
+  "expected": "notes/qa-workflow-design.md is either committed to the repo or the docs/qa/agent.md Read-first section clearly marks it as an optional local-only reference.",
+  "actual": "The file exists only in the gitignored Notes/ folder on the author's machine. Fresh clones see a dead link with no explanation."
+}
