@@ -4,6 +4,8 @@ This repository is optimized for coding agents. Follow these rules unless a task
 
 Claude Code should read `CLAUDE.md` first. Project slash commands live in `.claude/commands/`, and project subagents live in `.claude/agents/`.
 
+**Two-terminal mode (S93+):** the repo supports a parallel **QA terminal** that reviews merged PRs and files bug tickets back into the backlog. If you are the QA terminal, read `docs/qa/agent.md` first instead of `CLAUDE.md` — it lists what files you may write, the qa-ticket schema, and the ticket-filing loop. Dev terminal stays on `CLAUDE.md`'s §QA-Workflow section.
+
 This folder is the public engine repository root. Example games live under `examples/` as nested projects (`hello-3d`, `beacon-world`, `batch-bench`, `physics-bench`, `shadows-bench`, `material-bench`).
 
 ## Default Workflow

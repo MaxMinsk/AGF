@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agf.local/schemas/qa-ticket.schema.json",
+  "title": "AGF QA ticket",
+  "description": "S093 QA-INTAKE-SCHEMA. A bug / regression / doc / ux ticket filed by the QA-agent terminal while reviewing a merged PR. Lives under backlog/qa-tickets/*.qa-ticket.json. Promoted into sprint stories by scripts/backlog/promote-qa.mjs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agfFormatVersion", "id", "title", "filedAt", "severity", "type", "repro"],
+  "properties": {
+    "agfFormatVersion": {
+      "const": 1,
+      "description": "Schema version. Bump on a breaking change."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^QA-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{3}$",
+      "description": "Stable ticket id. Pattern: QA-YYYY-MM-DD-NNN. NNN is the next free three-digit slot for that date — auto-assigned by scripts/backlog/qa-ticket.mjs."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "description": "One-line ticket title. Mirrors the future story title when promoted."
+    },
+    "filedAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "ISO-8601 timestamp of when the ticket was created (advisory; pattern-checked only)."
+    },
+    "foundInPr": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "GitHub PR number where QA observed the bug. Optional — set when known."
+    },
+    "foundInSprint": {
+      "type": "string",
+      "pattern": "^S[0-9]{2,4}$",
+      "description": "Sprint id under review when the bug was filed. Optional — useful when the PR isn't merged yet."
+    },
+    "severity": {
+      "enum": ["critical", "major", "minor", "polish"],
+      "description": "critical = build is broken / unplayable; major = core feature regression; minor = edge-case glitch; polish = cosmetic only."
+    },
+    "type": {
+      "enum": ["bug", "regression-needed", "doc", "ux"],
+      "description": "bug = fix needed; regression-needed = old-functionality bug that also warrants an automated regression test (requires regressionFor); doc = missing/wrong documentation or acceptance line; ux = friction without a strict behaviour bug."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Free-form context. Embedded into the promoted story's summary."
+    },
+    "repro": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "description": "Ordered repro steps in user-facing language. Required so anyone (human or other agent) can re-walk the bug."
+    },
+    "expected": {
+      "type": "string",
+      "description": "What should have happened."
+    },
+    "actual": {
+      "type": "string",
+      "description": "What actually happened."
+    },
+    "logs": {
+      "type": "string",
+      "description": "Optional console / diagnostics excerpt — quote sparingly, link to a file under notes/qa/ for long captures."
+    },
+    "screenshot": {
+      "type": "string",
+      "description": "Repo-relative path to a screenshot under notes/qa/. Optional."
+    },
+    "playtest": {
+      "type": "string",
+      "description": "Repo-relative path to a draft .playtest.json under examples/<project>/playtests/qa-proposed/ that reproduces the bug. Strongly preferred for regression-needed tickets."
+    },
+    "regressionFor": {
+      "type": "string",
+      "pattern": "^QA-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{3}$",
+      "description": "When type='regression-needed', the bug ticket id this regression test would cover."
+    },
+    "epicHint": {
+      "type": "string",
+      "description": "Optional epic id to nudge promotion into a specific epic. Promote script honours it; otherwise the story inherits the sprint's default epic."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "regression-needed" } }, "required": ["type"] },
+      "then": { "required": ["regressionFor"] }
+    }
+  ]
+}

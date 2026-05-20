@@ -26,6 +26,39 @@ This folder is the public repository root for the engine. Example games are nest
 - Exception: if a single change needs to merge before the sprint closes (hotfix, urgent doc), cherry-pick it onto a focused `feature/<slug>` branch and open a small PR.
 - Run `npm run preflight` only at sprint close, not on every story. Preflight includes `npm run backlog:check` and `npm run backlog:render -- --check` (CI fails if the rendered Markdown is stale vs the JSON).
 - Default to making the reasonable call and continuing; flag the decisions in the end-of-turn summary so they can be redirected.
+- **Rebase off `main` at the start of every story** (`git pull --rebase origin main`). The QA terminal lands bug tickets directly on main via its own branch; rebasing keeps the active sprint branch aware of them.
+
+## QA Workflow
+
+S93 onwards: the repo runs **two-terminal Dev + QA** (full design at `docs/qa/design.md`). This terminal — the dev terminal — owns the sprint loop above. A second `claude` session, the **QA terminal**, reads `docs/qa/agent.md` and files bug tickets that this terminal harvests during planning.
+
+**File ownership** — strict no-overlap so the two terminals can't merge-conflict:
+
+| Path | Dev (this terminal) | QA terminal |
+|---|---|---|
+| `engine/**`, `examples/**/src/**`, `tests/**`, `scripts/**`, `docs/**` (except `docs/qa/`) | write | read |
+| `backlog/sprints/*.sprint.json`, `backlog/epics/*.epic.json` | write | read |
+| `BACKLOG.md`, `BACKLOG_ARCHIVE.md` (generated) | write (via `backlog:render`) | read |
+| `backlog/qa-tickets/*.qa-ticket.json` | **read + delete-on-promote** | write |
+| `examples/**/playtests/qa-proposed/**` | **read + move-on-promote** | write |
+| `notes/qa/**` | read | write |
+| `docs/qa/**` | write (during a planning sprint) | read |
+
+**Per-story sequence on this terminal:**
+
+1. `git pull --rebase origin main` — picks up any merged QA tickets and prior PRs.
+2. Pick the next pending story via `npm run backlog:next` (or hand-pick).
+3. `npm run backlog:claim <story-id>` → status `in_progress`.
+4. Implement. Use the smallest relevant verification (typecheck / unit / `engine check`).
+5. `npm run backlog:done <story-id> --verification "acceptance: ..." --verification "..."` — **the first verification entry must start with `acceptance:`** (case-insensitive). It's the contract QA reads to verify the story; missing it surfaces `AGF_BACKLOG_NO_ACCEPTANCE` from `backlog:check`.
+6. `npm run backlog:check && npm run backlog:render`, commit, push.
+
+**Sprint planning:**
+
+- Before opening a new sprint, run `npm run qa:promote -- --into S<new>` to pull every QA ticket into the new sprint as proper stories (bug + regression-needed pairs auto-`dependsOn`-link; source files archive under `backlog/qa-tickets/archive/<sprint-id>/`).
+- `engine doctor` prints a `QA inbox: N ticket(s)` line so you see the queue. A `⚠ critical` warning means a critical ticket is > 24h old — promote it now.
+
+**Sprint close (unchanged):** flip `status: "archived"`, fill `archivedAt` + `prUrl`, `backlog:render`, push, open the sprint PR, merge.
 
 ## Current Project Phase
 

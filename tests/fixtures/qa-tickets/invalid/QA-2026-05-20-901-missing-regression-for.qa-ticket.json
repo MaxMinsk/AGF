@@ -1,0 +1,11 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-901",
+  "title": "Regression-needed ticket without regressionFor (should fail schema)",
+  "filedAt": "2026-05-20T14:30:00Z",
+  "severity": "major",
+  "type": "regression-needed",
+  "repro": ["Steps go here"],
+  "expected": "Schema rejects this because type=regression-needed requires regressionFor",
+  "actual": "If this validates we have a bug in the conditional schema rule"
+}

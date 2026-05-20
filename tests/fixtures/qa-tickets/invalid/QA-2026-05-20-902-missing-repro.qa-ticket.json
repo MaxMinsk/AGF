@@ -1,0 +1,8 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-902",
+  "title": "Bug ticket without repro steps (should fail schema)",
+  "filedAt": "2026-05-20T14:31:00Z",
+  "severity": "minor",
+  "type": "bug"
+}

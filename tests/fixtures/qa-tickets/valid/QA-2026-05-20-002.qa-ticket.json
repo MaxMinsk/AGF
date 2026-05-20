@@ -1,0 +1,16 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-002",
+  "title": "Add automated regression test for the bot-self-blast bug",
+  "filedAt": "2026-05-20T14:25:00Z",
+  "severity": "major",
+  "type": "regression-needed",
+  "regressionFor": "QA-2026-05-20-001",
+  "summary": "Companion regression test for the bot-self-blast bug. Bot AI's danger map should include its own freshly-placed bombs; if it ever stops doing so, this test should catch the regression.",
+  "repro": [
+    "Load examples/kaboom-crew with ?difficulty=hard&map=wide",
+    "Bot places a bomb; observe that it walks AWAY from the projected blast cells"
+  ],
+  "expected": "Playtest .playtest.json under examples/kaboom-crew/playtests/qa-proposed/ asserts the bot is alive 1.5 s after placing a bomb on a corridor cell.",
+  "playtest": "examples/kaboom-crew/playtests/qa-proposed/bot-self-blast-regression.playtest.json"
+}

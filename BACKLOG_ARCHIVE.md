@@ -97,5 +97,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S089](backlog/sprints/S089.sprint.json)** — Kaboom Crew polish r4 + engine observability tail — 8 implemented · archived 2026-05-20
 - **[S090](backlog/sprints/S090.sprint.json)** — Engine time-scale primitive + Kaboom Crew feel pass — 7 implemented · archived 2026-05-20
 - **[S092](backlog/sprints/S092.sprint.json)** — QA-workflow design — plan the two-terminal Dev + QA split — 1 implemented · archived 2026-05-20
+- **[S093](backlog/sprints/S093.sprint.json)** — QA workflow engine + docs (S092 follow-up) — 8 implemented · archived 2026-05-20
 
 <!-- backlog:render:end -->
