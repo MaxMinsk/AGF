@@ -127,6 +127,99 @@ Payload shape:
 
 ---
 
+## Entity + component CRUD (S97 / S98)
+
+Focused per-entity probes complement `POST /__agf/commands` (broad, batched) and `GET /__agf/snapshot` (the whole world). Use these when you want to read or write exactly one entity or component without round-tripping the full snapshot.
+
+### `GET /__agf/entity/<entityId>` · `GET /__agf/entity/<entityId>?at=-N`
+
+S97 AGF-PROBE-ENTITY-DUMP. Returns the full component map for one entity. Add `?at=-N` to read from the snapshot history ring (same indexing as `/snapshot?at=`).
+
+```bash
+curl -s 'http://localhost:5173/__agf/entity/player.1' | jq '.payload'
+# → { entityId: "player.1", components: { BomberStats: {...}, GridPosition: {...}, ... } }
+
+curl -s 'http://localhost:5173/__agf/entity/player.1?at=-3' | jq '.payload.components.GridPosition'
+```
+
+Error codes:
+- `404 AGF_PROBE_ENTITY_NOT_FOUND` — id unknown
+- `400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE` — `at` exceeds the 32-entry ring
+- `400 AGF_BRIDGE_INVALID_ENTITY_PATH` — empty or extra path segments
+- `400 AGF_BRIDGE_INVALID_SNAPSHOT_AT` — positive `at` (must be non-positive integer)
+
+### `POST /__agf/entity`
+
+S98 AGF-PROBE-ENTITY-CREATE. Creates a new entity with an initial component map.
+
+```bash
+curl -X POST 'http://localhost:5173/__agf/entity' \
+  -H 'Content-Type: application/json' \
+  -d '{"entityId":"qa-probe-1","components":{"Foo":{"x":1}}}'
+# → { entityId: "qa-probe-1", components: { Foo: { x: 1 } } }
+```
+
+Error codes:
+- `400 AGF_BRIDGE_INVALID_ENTITY_CREATE` — bad body shape (missing `entityId`, missing `components`, non-object components, array-as-components, etc.)
+- `409 AGF_PROBE_ENTITY_EXISTS` — id already taken; DELETE first if you want to replace it.
+
+### `DELETE /__agf/entity/<entityId>`
+
+S98 AGF-PROBE-ENTITY-DELETE. Removes the entity wholesale.
+
+```bash
+curl -X DELETE 'http://localhost:5173/__agf/entity/qa-probe-1'
+# → { deleted: "qa-probe-1" }
+```
+
+Error codes: `404 AGF_PROBE_ENTITY_NOT_FOUND`, `400 AGF_BRIDGE_INVALID_ENTITY_PATH`.
+
+### `GET /__agf/component/<entityId>/<componentName>` · `?at=-N`
+
+S96 AGF-PROBE-COMPONENT-AT. Returns one component value on one entity. Same `?at=` semantics as the entity probe.
+
+```bash
+curl -s 'http://localhost:5173/__agf/component/player.1/BomberStats' | jq '.payload.value'
+```
+
+Error codes: `404 AGF_PROBE_ENTITY_NOT_FOUND`, `404 AGF_PROBE_COMPONENT_NOT_FOUND`, `400 AGF_BRIDGE_INVALID_COMPONENT_PATH`, `400 AGF_BRIDGE_INVALID_SNAPSHOT_AT`, `400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE`.
+
+### `POST /__agf/component/<entityId>/<componentName>`
+
+S97 AGF-PROBE-COMPONENT-WRITE. Writes one component value on one entity. The component name is allowed to be new (write can ADD a component the entity didn't already carry).
+
+```bash
+curl -X POST 'http://localhost:5173/__agf/component/player.1/BomberStats' \
+  -H 'Content-Type: application/json' \
+  -d '{"value":{"maxBombs":10,"range":5,"alive":true}}'
+# → { entityId: "player.1", component: "BomberStats", value: { maxBombs: 10, ... } }
+```
+
+Error codes: `404 AGF_PROBE_ENTITY_NOT_FOUND`, `400 AGF_BRIDGE_INVALID_COMPONENT_WRITE` (missing `value` key), `400 AGF_BRIDGE_INVALID_COMPONENT_PATH`.
+
+---
+
+## Input injection (S98)
+
+### `POST /__agf/input/action`
+
+S98 AGF-PROBE-INPUT-INJECT. Writes a generic `InputAction { action, value? }` transient on an entity. Project input systems read + clear it each frame, translating the abstract action name into project-specific transients (e.g. `'place-bomb'` → `PlaceBombRequest` in Kaboom Crew). Use this when Playwright keyboard.press can't reach the in-game input system because of the focus chain.
+
+Engine stays project-agnostic; the supported action names depend on the project's input system. Kaboom Crew's recognised actions: `'place-bomb'`, `'restart'`, `'move-up'`, `'move-down'`, `'move-left'`, `'move-right'`, `'stop'`. Unknown actions are silently consumed.
+
+```bash
+curl -X POST 'http://localhost:5173/__agf/input/action' \
+  -H 'Content-Type: application/json' \
+  -d '{"entityId":"player.1","action":"place-bomb"}'
+# → { entityId: "player.1", action: "place-bomb" }
+```
+
+Error codes:
+- `404 AGF_PROBE_ENTITY_NOT_FOUND` — entity id unknown
+- `400 AGF_BRIDGE_INVALID_INPUT_ACTION` — missing/empty `entityId` or `action` field
+
+---
+
 ## Commands
 
 ### `POST /__agf/commands`

@@ -1,20 +1,88 @@
 {
   "agfFormatVersion": 1,
   "id": "S099",
-  "title": "Pending — seeded by S098 GAME-DESIGN-DOGFOOD",
-  "status": "pending",
+  "title": "Revert S98 danger-decal + tame bomb-fuse wiggle + agent-probe docs + game-design doctor inbox",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/114",
   "stories": [
+    {
+      "id": "KABOOM-DANGER-DECAL-REVERT",
+      "title": "Revert KABOOM-BLAST-DANGER-DECAL (S98) — design choice rejected in principle",
+      "status": "implemented",
+      "summary": "User feedback on the S98 KABOOM-BLAST-DANGER-DECAL feature: 'I don't like the decal highlighting blast-covered cells in principle, removing it!' Per the saved memory feedback-no-blast-prediction-decal.md, the design choice (highlighting cells inside an imminent bomb's blast radius) is rejected — not the implementation. Remove the system + the project-local DangerTile schema + the unit tests + the bootstrap registration. Leave the engine primitives alone (no M27 decal layer touched — that work was speculatively scoped against this stand-in). Snapshot diff before vs after should show DangerTile entities gone from the live world during an imminent bomb.",
+      "verification": [
+        "acceptance: While any bomb is about to detonate, the floor stays clean — no red cells, no DangerTile entities in the snapshot. Gameplay verification: the player still has audio + bomb-mesh wiggle as warning signals; we did NOT remove those.",
+        "examples/kaboom-crew/src/systems/danger-decal-system.ts deleted",
+        "examples/kaboom-crew/tests/unit/danger-decal-system.test.ts deleted",
+        "DangerTile entry + dangerTileComponent definition removed from examples/kaboom-crew/schemas/scene-extensions.schema.json",
+        "examples/kaboom-crew/bootstrap.ts: createKaboomDangerDecalSystem import + scheduler.register call removed"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BOMB-FUSE-WIGGLE-TAME",
+      "title": "Reduce bomb fuse wiggle amplitude — 'too puffy before detonation'",
+      "status": "implemented",
+      "summary": "User feedback: 'the bomb inflates too much when it flashes before the blast' — the bomb mesh visibly inflated too much during the final-fuse wiggle. bombWiggleScale() in examples/kaboom-crew/src/systems/bomb-fuse-system.ts samples a sine around the urgency-scaled amplitude; the old formula was `0.04 + 0.10 * urgency` (peak 0.14 = ±14% scale at fuse=0). Halved both terms to `0.02 + 0.05 * urgency` (peak 0.07 = ±7% scale at fuse=0). Frequency ramp is unchanged so the strobe still reads as urgency; only the size pulse is tamed. Existing tests in bomb-fuse-wiggle.test.ts retargeted to the new amplitude bands.",
+      "verification": [
+        "acceptance: A bomb in its final 0.6 s of fuse wiggles VISIBLY but the peak scale is noticeably smaller than before — peak amplitude went from 14% to 7% growth at fuse=0.",
+        "examples/kaboom-crew/src/systems/bomb-fuse-system.ts: amplitude formula `0.02 + 0.05 * urgency` (was `0.04 + 0.10 * urgency`).",
+        "examples/kaboom-crew/tests/unit/bomb-fuse-wiggle.test.ts: assertion windows updated for fuse=2 (peak-to-peak in [0.02, 0.06]) + fuse=0 (peak-to-peak in [0.1, 0.16])."
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "BUG-KABOOM-BOMB-FUSE-WIGGLE-BASESCALE",
+      "title": "Bomb mesh jumps to ~3x size when fuse wiggle starts (followup to S99 wiggle-tame)",
+      "status": "implemented",
+      "summary": "Follow-up bug spotted live on the S99 KABOOM-BOMB-FUSE-WIGGLE-TAME build: 'I place a bomb, it flashes at normal size for a second or two, then suddenly becomes about 2x larger'. Root cause: bomb-fuse-system was writing the wiggle helper's return value DIRECTLY into Transform.scale: `scale: [s, s, s]` where s = bombWiggleScale(next) ≈ 1.0. Bomb's resting scale is 0.35 (BOMB_FINAL_SCALE from bomb-placement-system), so the moment wiggle activated (fuse ≤ 2 s) the mesh jumped 0.35 → 1.0 (≈ 3x). Fix: export BOMB_FINAL_SCALE from bomb-placement-system, import in fuse-system, multiply: `s = base * ratio`. Locked the unit-centered invariant with a regression test.",
+      "verification": [
+        "acceptance: A bomb's mesh stays at its resting size (0.35) and oscillates ±7% AROUND that during the final 2 s — it does NOT jump to ~3x size at the wiggle onset.",
+        "examples/kaboom-crew/src/systems/bomb-placement-system.ts: BOMB_FINAL_SCALE is now `export const` so siblings can reference the same baseline.",
+        "examples/kaboom-crew/src/systems/bomb-fuse-system.ts: imports BOMB_FINAL_SCALE; wiggle write is `scale: [base * ratio, base * ratio, base * ratio]`.",
+        "examples/kaboom-crew/tests/unit/bomb-fuse-wiggle.test.ts: new regression 'bombWiggleScale stays a UNIT-CENTERED multiplier' asserts max < 1.15, min > 0.85 across the entire fuse range."
+      ],
+      "epic": "KABOOM-CREW-MVP-1",
+      "dependsOn": ["KABOOM-BOMB-FUSE-WIGGLE-TAME"]
+    },
+    {
+      "id": "AGF-PROBE-DOC-S98-REFRESH",
+      "title": "docs/agent-probes.md catalogues the S098 routes",
+      "status": "implemented",
+      "summary": "S098 shipped four new probe routes that haven't made it into the reference doc yet: POST/DELETE /__agf/entity (entity create + delete), POST /__agf/input/action (input inject), POST /__agf/component/<id>/<name> (which actually shipped in S097 but never landed in the doc). Adds a section per route with the curl recipe, success payload shape, and every error code (409 AGF_PROBE_ENTITY_EXISTS, 404 AGF_PROBE_ENTITY_NOT_FOUND, 400 AGF_BRIDGE_INVALID_ENTITY_CREATE / INPUT_ACTION / COMPONENT_WRITE).",
+      "verification": [
+        "acceptance: docs/agent-probes.md has dedicated sections for /entity (POST + DELETE), /input/action (POST), and /component/<id>/<name> (POST). Each section has a curl one-liner.",
+        "Each section calls out its error codes."
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-DOCTOR-PROPOSED-STORIES",
+      "title": "engine doctor reports the proposed-story inbox (count + age of oldest)",
+      "status": "implemented",
+      "summary": "Companion to the QA-inbox doctor line shipped in S093. `engine doctor` reads backlog/proposed-stories/*.story-proposal.json and prints `Proposed-story inbox: N pending (oldest: <createdAt>)`. A warning (⚠) fires when the oldest pending proposal is > 7 days old — the kind of signal that says 'dev should plan an MVP-2 sprint to drain the queue'. Empty inbox is a silent OK line (mirrors the QA inbox formatting).",
+      "verification": [
+        "acceptance: `npm run engine:check -- examples/kaboom-crew` prints a `Proposed-story inbox: N pending` line under the same section as the QA inbox line. With an empty inbox the line still appears (showing 0) for symmetry with the QA line. With a > 7-day-old pending proposal a ⚠ marker is added.",
+        "engine/tools/doctor/project-doctor.ts: new section reading backlog/proposed-stories/ via the same walker pattern as the QA inbox",
+        "+ unit test stubbing a temp proposed-stories dir + asserting the doctor output contains the count + warning logic"
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    },
     {
       "id": "FEAT-DECAL-ON-GRID-RENDERER-P-001",
       "title": "Decal-on-grid renderer primitive (M27)",
-      "status": "pending",
+      "status": "deferred",
+      "deferredReason": "Original justification (collapse the S98 danger-decal stand-in into one instanced draw) is gone — that feature was rejected in principle in S99 (see feedback-no-blast-prediction-decal memory). The M27 primitive may still be valuable for OTHER game types (RTS, tower defense, roguelike room previews where the player IS supposed to plan around telegraphs), but without an immediate Kaboom Crew consumer the work is speculative. Defer until a project genuinely needs it.",
       "summary": "Ship an ECS-native decal layer for flat textured overlays on a grid: blast-prediction overlays (currently faked with per-cell box meshes in S98 KABOOM-BLAST-DANGER-DECAL), danger zones, footprints, telegraphs. Component shape: `Decal { texture, gridCell|worldPos, layer, lifetimeMs?, colorTint? }`. Renderer keeps decals as a small instanced quad mesh so 100+ decals stay cheap on WebGPU and WebGL. Required by every grid-game readability story (roguelike, RTS, tower defense) and lets the Kaboom Crew danger overlay (which currently spawns 9+ box mesh entities per imminent bomb) collapse into a single instanced draw.\n\nRationale:\nSource: §14 of notes/dynabomber-readiness-analysis.md. Confirmed by the S98 sprint where the Kaboom Crew blast-danger overlay was a stand-in: each warning cell allocates a full Mesh entity with Transform + MeshRenderer + GridPosition + DangerTile. Fine for an arena of ~10 imminent cells; would not scale to 100+ for a roguelike. The decal primitive is the proper fix.\n\nAcceptance hints (game-design proposal — dev to tighten into verification[]):\n  - schemas/components/decal.schema.json ships with the Decal component shape\n  - Engine system (DecalSystem under engine/render/systems/) renders a tagged set of decals as one instanced bucket per material profile\n  - Per-decal lifetime expires the entity automatically (re-uses Tween / TimeBased machinery)\n  - Doctor's renderer-pool section shows decal bucket counts\n  - Kaboom Crew danger-decal-system migrates onto the new primitive — the per-cell box-mesh spawn pattern is replaced by stamping Decal components, single bucketed draw\n\nSource proposal: GDP-2026-05-20-001 (kind=feature, priority=should)",
       "epic": "M27-DECAL-LAYER"
     },
     {
       "id": "FEAT-REGION-RULE-MODIFIER-PRI-001",
       "title": "Region-rule modifier primitive (M28)",
-      "status": "pending",
+      "status": "deferred",
+      "deferredReason": "Promoted from the S98 GAME-DESIGN-DOGFOOD run. Defer to a later sprint with its own focused breakdown (schema + system + Kaboom adoption). Needs a real first-consumer in Kaboom Crew or a sibling sample before the work is grounded.",
       "summary": "Ship a region/sector primitive that lets a project tag a rectangular (or arbitrary-cell-set) area of the grid with rule overrides — e.g. 'in this region, bombs explode 30% faster' or 'in this region, soft blocks heal'. Engine ships the geometry + lifecycle; project code reads the region's `modifiers` payload and applies them in its own systems. The mechanic enables map-design variation without forking systems per game.\n\nRationale:\nSource: §15 of notes/dynabomber-readiness-analysis.md. Region rules are the cleanest abstraction for the Kaboom Crew arenas we'd want to ship in MVP-2 (themed sectors with different rules). Also unblocks the roguelike sample: dungeon rooms with per-room modifiers (bossroom = +damage, shop = no-bombs).\n\nAcceptance hints (game-design proposal — dev to tighten into verification[]):\n  - schemas/components/region.schema.json defines Region { cells, layer, modifiers }\n  - Engine RegionIndexSystem keeps a fast cell→region lookup so project code can ask 'what regions cover (gx, gz)?' in O(1)\n  - Kaboom Crew demo: a 3x3 region in the centre of the start scene tags bombs spawned inside it with fuseRemaining * 0.7 (faster fuse), verified via bomb-place-system reading the modifier\n\nSource proposal: GDP-2026-05-20-002 (kind=mechanic, priority=could)",
       "epic": "M28-REGION-RULES"
     }

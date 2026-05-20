@@ -245,6 +245,21 @@ export type BacklogReport = {
     /** Critical tickets whose filedAt is older than 24h — flagged as a recommendation. */
     staleCritical: ReadonlyArray<{ id: string; filedAt: string }>;
   };
+  /**
+   * S99 AGF-DOCTOR-PROPOSED-STORIES: snapshot of backlog/proposed-stories/
+   * (skipping archive/) so dev sees at a glance what the game-design
+   * terminal has filed but not yet been promoted. Always present when
+   * the directory exists (even at 0) so the symmetry with the QA inbox
+   * line in the formatted output is preserved.
+   */
+  proposedInbox?: {
+    total: number;
+    byPriority: { must: number; should: number; could: number };
+    /** Up to 5 oldest proposals (highest-priority first, then oldest createdAt). */
+    oldest: ReadonlyArray<{ id: string; priority: string; createdAt: string; title: string }>;
+    /** Any pending proposal older than 7 days — surface as a 'drain the queue' hint. */
+    stalePending: ReadonlyArray<{ id: string; createdAt: string }>;
+  };
 };
 
 export type EpicsReport = {
@@ -1753,6 +1768,56 @@ export function summarizeBacklog(repoRoot: string): BacklogReport {
     return { total: tickets.length, bySeverity, oldest, staleCritical };
   })();
 
+  // S99 AGF-DOCTOR-PROPOSED-STORIES. Mirrors the QA inbox walker
+  // against backlog/proposed-stories/*.story-proposal.json. Present
+  // when the directory exists (even with 0 files inside) so the
+  // formatted output gets the symmetric `Proposed-story inbox: N`
+  // line under the QA inbox line.
+  const proposedInbox = (() => {
+    const proposedDir = resolve(repoRoot, "backlog/proposed-stories");
+    if (!existsSync(proposedDir)) return undefined;
+    let names: string[] = [];
+    try {
+      names = readdirSync(proposedDir).filter((n) => n.endsWith(".story-proposal.json"));
+    } catch {
+      return undefined;
+    }
+    type Proposal = { id?: string; title?: string; priority?: string; createdAt?: string };
+    const proposals: Array<Proposal & { id: string }> = [];
+    for (const name of names) {
+      try {
+        const data = JSON.parse(readFileSync(resolve(proposedDir, name), "utf8")) as Proposal;
+        if (typeof data.id !== "string") continue;
+        proposals.push({ ...data, id: data.id });
+      } catch {
+        // surfaced by backlog:check
+      }
+    }
+    const byPriority = { must: 0, should: 0, could: 0 };
+    for (const p of proposals) {
+      const k = (p.priority ?? "could") as keyof typeof byPriority;
+      if (k in byPriority) byPriority[k] += 1;
+    }
+    const rank = { must: 3, should: 2, could: 1 } as const;
+    const sorted = [...proposals].sort((a, b) => {
+      const ra = (rank as Record<string, number>)[a.priority ?? "could"] ?? 0;
+      const rb = (rank as Record<string, number>)[b.priority ?? "could"] ?? 0;
+      if (ra !== rb) return rb - ra;
+      return (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
+    });
+    const oldest = sorted.slice(0, 5).map((p) => ({
+      id: p.id,
+      priority: p.priority ?? "could",
+      createdAt: p.createdAt ?? "",
+      title: p.title ?? ""
+    }));
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const stalePending = proposals
+      .filter((p) => typeof p.createdAt === "string" && Date.parse(p.createdAt) < weekAgo)
+      .map((p) => ({ id: p.id, createdAt: p.createdAt ?? "" }));
+    return { total: proposals.length, byPriority, oldest, stalePending };
+  })();
+
   return {
     sprintFiles: sprints.length,
     active: activeReport,
@@ -1761,7 +1826,8 @@ export function summarizeBacklog(repoRoot: string): BacklogReport {
     epics,
     followUps,
     recentCommits,
-    ...(qaInbox !== undefined ? { qaInbox } : {})
+    ...(qaInbox !== undefined ? { qaInbox } : {}),
+    ...(proposedInbox !== undefined ? { proposedInbox } : {})
   };
 }
 
@@ -1937,6 +2003,25 @@ export function formatBacklog(report: BacklogReport): string {
     }
     if (report.qaInbox.staleCritical.length > 0) {
       lines.push(`    ⚠ ${report.qaInbox.staleCritical.length} critical ticket(s) older than 24h — promote ASAP via \`npm run qa:promote\`.`);
+    }
+  }
+
+  // S99 AGF-DOCTOR-PROPOSED-STORIES — symmetric line under the QA
+  // inbox showing what the game-design terminal has filed but not yet
+  // been promoted. Always printed when the directory exists.
+  if (report.proposedInbox !== undefined) {
+    const pri = report.proposedInbox.byPriority;
+    const counts: string[] = [];
+    if (pri.must > 0) counts.push(`${pri.must} must`);
+    if (pri.should > 0) counts.push(`${pri.should} should`);
+    if (pri.could > 0) counts.push(`${pri.could} could`);
+    lines.push(`  Proposed-story inbox: ${report.proposedInbox.total} pending${counts.length > 0 ? ` (${counts.join(", ")})` : ""}`);
+    for (const p of report.proposedInbox.oldest) {
+      const titlePreview = p.title.length > 80 ? `${p.title.slice(0, 77)}...` : p.title;
+      lines.push(`    ${p.id} [${p.priority}] ${titlePreview}`);
+    }
+    if (report.proposedInbox.stalePending.length > 0) {
+      lines.push(`    ⚠ ${report.proposedInbox.stalePending.length} proposal(s) older than 7 days — plan a sprint via \`npm run propose:promote\`.`);
     }
   }
 
