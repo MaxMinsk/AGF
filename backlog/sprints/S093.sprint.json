@@ -94,11 +94,12 @@
     {
       "id": "QA-AGENT-DEFINITION",
       "title": ".claude/agents/qa-reviewer.md subagent definition",
-      "status": "pending",
-      "summary": "Land `.claude/agents/qa-reviewer.md`: name + description (so the parent agent can route to it via subagent_type), model (Sonnet — cheaper for verification work), tools allowlist (Read, Bash limited to read-only commands + qa-ticket.mjs + playtest runner, WebFetch off, Write restricted to backlog/qa-tickets/** + notes/qa/** + examples/**/playtests/qa-proposed/**), short system prompt that points at docs/qa/agent.md as the canonical onboarding read.",
+      "status": "implemented",
+      "summary": ".claude/agents/qa-reviewer.md follows the same name + description frontmatter shape as playtest-runner.md / engine-architect.md. The body points at docs/qa/agent.md as the canonical onboarding read (the agent doc carries the full ruleset; the subagent file is a stub that delegates). Enforces the file-ownership rules from the design doc inline: writable paths are backlog/qa-tickets/, notes/qa/, examples/**/playtests/qa-proposed/. Lists allowed tools (gh, qa:ticket, backlog:check, /__agf/* curl, watch-playtests) and forbidden tools (backlog:claim/done/defer, qa:promote, pushes to non-qa-intake branches). When invoked via the Agent tool or `claude --agent qa-reviewer`, the new subagent gets the QA workflow loaded as its system prompt without the parent agent's dev context bleeding in.",
       "verification": [
-        "acceptance: From a fresh repo state, `claude --subagent qa-reviewer` (or programmatic invocation via the Agent tool) loads the definition, refuses to write to engine/, accepts a `backlog/qa-tickets/new` task.",
-        ".claude/agents/qa-reviewer.md follows the same frontmatter shape as the existing playtest-runner.md / engine-architect.md"
+        "acceptance: A fresh Claude session invoking the qa-reviewer subagent (via the Agent tool or `--agent qa-reviewer`) loads docs/qa/agent.md first, refuses to write to engine/ or examples/**/src/, and can file a qa-ticket via `npm run qa:ticket -- new ...`.",
+        "Frontmatter matches the shape of the other agents under .claude/agents/ (name + description)",
+        "Hard-rules + allowed/forbidden tool list duplicated inline so the subagent doesn't need to read docs/qa/agent.md to know not to break things"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
