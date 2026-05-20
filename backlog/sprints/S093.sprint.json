@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S093",
   "title": "QA workflow engine + docs (S092 follow-up)",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/103",
   "stories": [
     {
       "id": "QA-INTAKE-SCHEMA",
