@@ -1,0 +1,22 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-001",
+  "title": "node:fs in browser bundle blocks Kaboom Crew boot — canvas never mounts, all probes broken",
+  "filedAt": "2026-05-20T13:50:25.899Z",
+  "foundInPr": 108,
+  "foundInSprint": "S096",
+  "severity": "critical",
+  "type": "bug",
+  "summary": "S096 AGF-PROBE-SNAPSHOT-DIFF added a static import in engine/runtime/start.ts: `import { diffWorldSnapshots } from \"../tools/inspect/snapshot-diff\"`. The target module engine/tools/inspect/snapshot-diff.ts has `import { readFileSync } from \"node:fs\"` at the top, originally placed there for the CLI snapshot loader. The new browser-side use of diffWorldSnapshots pulls the entire module — including the node:fs side-effects — into the Vite client bundle. When the page loads, Vite's `node:fs` browser stub throws on property access, killing the main entry's async init before the renderer is constructed. Result: the kaboom-crew canvas never mounts, window.__agf is never populated, and every probe S95/S096 added (snapshot history, snapshot diff, component-at, freecam, audio master volume, recording-list) is unreachable from a browser session. Found by Playwright headed probe + visible `[PAGEERROR]` in the console buffer.",
+  "repro": [
+    "From a fresh main checkout (HEAD c91d6b0, post-S096 merge), start `npm run dev` and let Vite bind on port 5173.",
+    "Open http://localhost:5173/examples/kaboom-crew/ in any browser (or via Playwright headed).",
+    "Inspect DevTools / page console — there will be a single thrown error: `Module \"node:fs\" has been externalized for browser compatibility. Cannot access \"node:fs.readFileSync\" in client code.`",
+    "Evaluate `document.querySelector('canvas')` in DevTools — returns null even after 5 s.",
+    "Evaluate `window.__agf` in DevTools — `undefined`. The kaboom-crew bootstrap's window.__agf.kaboom polling (30 × 100 ms) runs but the parent `window.__agf` is never assigned by src/main.ts because the renderer-init async chain threw earlier.",
+    "Run `curl http://localhost:5173/__agf/snapshot` — fails with an empty page-bridge envelope (or hangs waiting for a page that never connected)."
+  ],
+  "expected": "Loading examples/kaboom-crew/ in the browser mounts the canvas, populates window.__agf (including kaboom and the S095/S096 probe helpers), and `curl /__agf/snapshot` returns a live snapshot. No top-level pageerror about node:fs in the console.",
+  "actual": "Page load throws `Module \"node:fs\" has been externalized for browser compatibility. Cannot access \"node:fs.readFileSync\" in client code.` during module evaluation. Canvas is never inserted into the DOM. window.__agf stays undefined. Every S095/S096 probe is unreachable — the entire dev-bridge surface that the QA + dev terminals rely on for live verification is broken on main.",
+  "logs": "[PAGEERROR] Module \"node:fs\" has been externalized for browser compatibility. Cannot access \"node:fs.readFileSync\" in client code.  See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.\n\nGrep evidence (post-S96 main):\n  engine/runtime/start.ts:17: import { diffWorldSnapshots } from \"../tools/inspect/snapshot-diff\";\n  engine/runtime/start.ts:18: import type { SnapshotDiffEntry } from \"../tools/inspect/snapshot-diff\";\n  engine/tools/inspect/snapshot-diff.ts:1: import { readFileSync } from \"node:fs\";\n  engine/tools/inspect/snapshot-diff.ts:75: const raw = readFileSync(absolute, \"utf8\");\n\nRule violated: CLAUDE.md §Non-Negotiable Rules — `Do not import Three.js, DOM APIs, Vite or Playwright from engine/core.` The same boundary applies in spirit to node:fs from engine/runtime: anything imported by the runtime ships in the browser bundle. Static-importing a CLI-shaped module that owns a node:fs handle silently breaches that boundary."
+}
