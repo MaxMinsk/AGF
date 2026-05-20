@@ -1,8 +1,9 @@
 {
   "agfFormatVersion": 1,
   "id": "S091",
-  "title": "Tween easings + agent-driven render debug overrides (candidates)",
-  "status": "pending",
+  "title": "Tween easings + agent-driven render debug overrides + positional audio",
+  "status": "active",
+  "startedAt": "2026-05-20",
   "stories": [
     {
       "id": "M19-EASING-LIBRARY",
