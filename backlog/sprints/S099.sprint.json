@@ -59,7 +59,7 @@
     {
       "id": "AGF-DOCTOR-PROPOSED-STORIES",
       "title": "engine doctor reports the proposed-story inbox (count + age of oldest)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Companion to the QA-inbox doctor line shipped in S093. `engine doctor` reads backlog/proposed-stories/*.story-proposal.json and prints `Proposed-story inbox: N pending (oldest: <createdAt>)`. A warning (⚠) fires when the oldest pending proposal is > 7 days old — the kind of signal that says 'dev should plan an MVP-2 sprint to drain the queue'. Empty inbox is a silent OK line (mirrors the QA inbox formatting).",
       "verification": [
         "acceptance: `npm run engine:check -- examples/kaboom-crew` prints a `Proposed-story inbox: N pending` line under the same section as the QA inbox line. With an empty inbox the line still appears (showing 0) for symmetry with the QA line. With a > 7-day-old pending proposal a ⚠ marker is added.",
