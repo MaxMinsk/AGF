@@ -45,12 +45,12 @@
     {
       "id": "KABOOM-TITLE-SCREEN-FADE",
       "title": "Title screen fades out (rather than snaps off) on game start",
-      "status": "pending",
-      "summary": "Title overlay is currently mounted via HUD and `hud.remove(TITLE_ID)` snaps it off when the player presses SPACE. Replace the snap with a 250 ms fade-out by tweening the title element's opacity 1 → 0 with easeOutQuad (using the engine easingCurves table directly — no Tween component on a DOM element). Remove the widget once opacity reaches 0. Pure cosmetic, no schema changes.",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/title-fade.ts exports a pure `fadeOutOpacityCurve(elapsedMs, durationMs)` helper that samples 1 - easingCurves.easeOutQuad(t) — opacity ramps from 1 → 0 with a faster early drop. bootstrap.ts threads an `opacity` field through the title HUD widget's data and replaces the snap-remove with a per-frame fade: when gameStarted flips true, capture titleFadeStartMs; each frame sample the curve and hud.update with the new opacity; remove the widget once opacity hits 0 (~250 ms).",
       "verification": [
         "acceptance: Pressing SPACE on the title screen fades the overlay out over ~250 ms rather than snapping; the next round starts behind it.",
-        "examples/kaboom-crew/bootstrap.ts: title removal goes through a requestAnimationFrame loop driven by easingCurves.easeOutQuad before calling hud.remove",
-        "+ unit test on a pure `fadeOutOpacityCurve(elapsedMs, durationMs)` helper covering endpoints + monotonicity"
+        "examples/kaboom-crew/src/title-fade.ts: pure fadeOutOpacityCurve helper; bootstrap.ts wires it into the title HUD widget + the existing update() loop",
+        "+5 unit tests in examples/kaboom-crew/tests/unit/title-fade.test.ts: endpoints 1/0, monotonic decrease, mid-curve below linear (easeOutQuad signature), defensive non-positive duration, defensive non-finite elapsed"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
