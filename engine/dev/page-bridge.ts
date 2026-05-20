@@ -139,6 +139,10 @@ type AgfApi = {
   deleteEntity?: (entityId: string) =>
     | { kind: "ok" }
     | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-INPUT-INJECT. */
+  injectInput?: (entityId: string, action: string, value?: unknown) =>
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff?: (at: number) =>
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -353,6 +357,21 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
           break;
         }
         payload = api.deleteEntity(args.entityId);
+        break;
+      }
+      case "input-inject": {
+        // S098 AGF-PROBE-INPUT-INJECT.
+        const args = payloadIn as { entityId?: string; action?: string; value?: unknown } | undefined;
+        if (
+          args === undefined ||
+          typeof args.entityId !== "string" ||
+          typeof args.action !== "string" ||
+          api?.injectInput === undefined
+        ) {
+          payload = undefined;
+          break;
+        }
+        payload = api.injectInput(args.entityId, args.action, args.value);
         break;
       }
       case "component-at": {

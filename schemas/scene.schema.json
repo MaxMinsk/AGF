@@ -233,6 +233,9 @@
             "ParticleEmitter": {
               "$ref": "components/gamefeel.schema.json#/definitions/particleEmitterComponent"
             },
+            "InputAction": {
+              "$ref": "components/gamefeel.schema.json#/definitions/inputActionComponent"
+            },
             "CinematicCamera": {
               "$ref": "components/camera.schema.json#/definitions/cinematicCameraComponent"
             },

@@ -34,14 +34,14 @@
     {
       "id": "AGF-PROBE-INPUT-INJECT",
       "title": "POST /__agf/input/action lets QA fire game inputs without DOM focus (QA-006)",
-      "status": "pending",
-      "summary": "Promoted from QA-2026-05-20-006. Today's player-input-system listens on window keydown events, and browsers refuse to dispatch trusted KeyboardEvents from page.evaluate / Playwright keyboard.press once the HUD overlay grabs focus. QA can't verify visual gameplay features (bomb-wiggle, death-fall, danger overlay) because they can't fire the bomb-place action from automation. Add a project-agnostic POST /__agf/input/action that takes `{ entityId, action, value? }` and writes a generic `InputAction` transient onto the entity. Project-local input systems can consume that component the same way they consume keyboard events. Reuses the engine's existing `applyCommands` machinery on the runtime; no new auth surface. Pairs with the planned game-design dogfood (proposals written this sprint will be verified next sprint using this probe).",
+      "status": "implemented",
+      "summary": "Promoted from QA-2026-05-20-006. Project-agnostic input-injection surface: engine ships a generic `InputAction { action, value? }` transient component (schema in schemas/components/gamefeel.schema.json, referenced from scene.schema.json). runtime.injectInput(entityId, action, value?) writes the transient + returns { kind: 'ok' | 'entity-not-found' }. Project input systems read + clear it each frame, same way they translate keyboard events into project-specific transients. examples/kaboom-crew/src/systems/player-input-system.ts grows the consumer path: 'place-bomb' → PlaceBombRequest, 'restart' → RoundRestartRequest, 'move-up/down/left/right' → GridMover.queuedDirection vector, 'stop' → {0,0}. Unknown action names are silently consumed (engine remains project-agnostic; projects can grow new verbs without engine changes). Dev-bridge POST /input/action runs the new exported `validateInputInjectBody`; missing/empty entityId or action returns 400 AGF_BRIDGE_INVALID_INPUT_ACTION; entity-not-found maps to 404.",
       "verification": [
-        "acceptance: POST /__agf/input/action { entityId: 'player.1', action: 'place-bomb' } from a Playwright session triggers the same downstream effect as pressing Space in the page — a Bomb entity spawns on the player's cell on the next fixedUpdate. Idempotent within a tick (multiple POSTs in the same frame still produce one bomb due to the BomberStats cap).",
-        "engine/runtime/start.ts: runtime.injectInput(entityId, action, value?) writes an InputAction transient; the runtime returns { kind: 'ok' | 'entity-not-found' }.",
-        "engine/dev/agf-dev-bridge.ts: POST /input/action validates the body shape; missing entityId / action returns 400 AGF_BRIDGE_INVALID_INPUT_ACTION.",
-        "examples/kaboom-crew/src/systems/player-input-system.ts grows an InputAction reader path so 'place-bomb' / 'move-up' / 'move-down' / 'move-left' / 'move-right' / 'restart' all work via the probe.",
-        "+ unit tests on the body validator + on the Kaboom Crew adoption (place-bomb via InputAction component spawns a bomb)"
+        "acceptance: POST /__agf/input/action { entityId: 'player.1', action: 'place-bomb' } triggers the same downstream effect as pressing Space — a Bomb entity spawns on the player's cell on the next fixedUpdate. Verified in unit test 'InputAction place-bomb fires PlaceBombRequest the same frame and removes itself'.",
+        "engine/runtime/start.ts: runtime.injectInput tagged-union return; InputAction component schema in gamefeel.schema.json",
+        "engine/dev/agf-dev-bridge.ts: exported validateInputInjectBody + POST /input/action route",
+        "examples/kaboom-crew/src/systems/player-input-system.ts: 7-verb consumer (place-bomb / restart / move-{up,down,left,right} / stop) + safe no-op for unknown verbs",
+        "+6 unit tests on validateInputInjectBody (canonical shape, optional value, non-object body, missing entityId/action, arbitrary action string acceptance) +5 on the Kaboom Crew adoption (place-bomb, move-right, all 5 cardinals, restart, unknown-action no-op)"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

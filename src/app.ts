@@ -178,6 +178,10 @@ export type AppHandle = {
   deleteEntity(entityId: string):
     | { kind: "ok" }
     | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-INPUT-INJECT. */
+  injectInput(entityId: string, action: string, value?: unknown):
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff(at: number):
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -656,6 +660,10 @@ export async function createApp(
     // S098 AGF-PROBE-ENTITY-DELETE.
     deleteEntity(entityId: string) {
       return runtime.deleteEntity(entityId);
+    },
+    // S098 AGF-PROBE-INPUT-INJECT.
+    injectInput(entityId: string, action: string, value?: unknown) {
+      return runtime.injectInput(entityId, action, value);
     },
     // S096 AGF-PROBE-SNAPSHOT-DIFF.
     snapshotDiff(at: number) {

@@ -57,6 +57,10 @@ declare global {
       deleteEntity(entityId: string):
         | { kind: "ok" }
         | { kind: "entity-not-found" };
+      /** S098 AGF-PROBE-INPUT-INJECT. */
+      injectInput(entityId: string, action: string, value?: unknown):
+        | { kind: "ok" }
+        | { kind: "entity-not-found" };
       /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
       snapshotDiff(at: number):
         | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -512,6 +516,9 @@ void (async (): Promise<void> => {
         app.createEntity(entityId, components),
       // S098 AGF-PROBE-ENTITY-DELETE.
       deleteEntity: (entityId: string) => app.deleteEntity(entityId),
+      // S098 AGF-PROBE-INPUT-INJECT.
+      injectInput: (entityId: string, action: string, value?: unknown) =>
+        app.injectInput(entityId, action, value),
       // S096 AGF-PROBE-SNAPSHOT-DIFF.
       snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),
