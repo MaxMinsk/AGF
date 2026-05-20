@@ -295,25 +295,123 @@ then, the prototype's capsule + sphere bombers are fine.
 
 ---
 
-## 6. Open questions (visual-only)
+## 6. Resolved questions (2026-05-20)
 
-These are the things the procedural pipeline can't decide on its own
-and that I'd want the user to answer before promotion:
+The four open visual questions are answered. Recording the decision +
+the reasoning so future sessions don't have to re-derive them.
 
-1. **Archetypes — humanoid only, or include drone / puffball?**
-   Recommended: ship humanoid first, add drone in a follow-up. But if
-   you'd rather have visual variety on day one, all three can land in
-   one sprint at ~2x the cost.
-2. **Player-customisable recipe in the URL?** Cute, low cost, but it
-   tells QA / dev that recipe-shareability is a user-facing feature
-   instead of just an internal generator. Worth knowing before
-   committing.
-3. **Cosmetic unlocks?** GDD currently says no live-service progression
-   (Brawl Stars line). Cosmetic unlocks are NOT live-service, but they
-   imply persistent player profile. Probably "not in MVP, revisit
-   post-MVP-3."
-4. **Voice / vocal grunts?** Authored audio is allowed (we already have
-   the audio bus) but no voice-actor budget. A single procedural
-   synthesiser ("blip on jump, lower blip on hit, sad blip on death")
-   would be cheap and on-brand. Decision deferred until first audio
-   pass past MVP-1.
+### 6.1 Archetypes — humanoid first, others reserved
+
+**Decision: humanoid only in the starter generator.** Drone and
+puffball stay in the schema as future enum values but the generator
+does not produce them yet. User position: "не решил окончательно" —
+this is a "ship one, evaluate, then expand" call.
+
+Consequence for the generator:
+- Recipe schema keeps the `archetype` field with the full enum.
+- Starter generator implements `archetype: "humanoid"` only and
+  throws / falls back on the others.
+- When a non-humanoid bot is needed (e.g. the "Monster" bot from
+  `notes/DynaBomber.md §13.1`), the relevant archetype lands as a
+  follow-up story — same recipe schema, different mesh composer
+  function.
+
+### 6.2 Recipe URL — debug + agent-probe only, NOT a user share-feature
+
+**Decision: `?recipe=<base64-json>` works for debug and agent control,
+does not appear in UI, is not covered by user-facing acceptance
+tests.** User left the call to me; this is the recommendation.
+
+Reasoning:
+- Agent-driven testing: `?recipe=...` lets a Playwright probe or QA
+  test pin a specific bomber appearance deterministically. That's
+  unambiguously valuable today.
+- Schema stability: if `?recipe=...` is advertised as "share your
+  bomber with friends", every recipe-format change becomes a breaking
+  change for that user surface. We're not paying that cost before
+  there's a player base.
+- Cheap to upgrade later: when multiplayer lands and there's a real
+  share-with-friends moment, promoting the URL to a marketed
+  share-link is a docs-and-UI change, not a re-architecture.
+
+Implementation hint:
+- Bootstrap parses `?recipe=...` on attach; if present, applies to
+  `player.1` after the static prefab loads.
+- Agent surface: `window.__agf.kaboom.spawnWithRecipe(entityId, recipe)`
+  parallel to the existing `gotoCell` / `placeBomb` probes.
+- No HUD button to copy/share the recipe. No README section about
+  recipe URLs in the MVP-2 docs.
+
+### 6.3 Cosmetic unlocks — yes, but MVP-3+ scope
+
+**Decision: cosmetic unlocks are in the long-term plan, NOT in
+MVP-2.** User confirmed "да". This unlocks a tier of design work:
+unlock conditions, achievement tracking, persistent player profile.
+
+Critical scope guardrails:
+- **Cosmetic ≠ live-service.** No daily challenges, no battle pass,
+  no monetisation. The Brawl-Stars-line in §3 of the GDD ("no
+  live-service progression economy") still stands. Unlocks are
+  "play X games → an accessory becomes available in your recipe
+  pool", full stop.
+- Requires a **persistent player profile** to exist first. Local
+  storage works for offline play; the connected / authoritative
+  profile (GDP-2026-05-20-007) lets unlocks cross devices.
+- Reasonable first set of unlock conditions: "won 1 round", "won 10
+  rounds", "killed yourself with your own bomb 5 times" (achievement
+  for the slapstick death animation), "survived a chain reaction".
+- Each unlock adds an accessory to the recipe pool — it doesn't
+  change stats. Cosmetic-only is non-negotiable; stats-on-cosmetics
+  drift into pay-to-win territory and the GDD's "agent-friendly
+  rules" pillar wants gameplay decided by data, not by accumulated
+  hidden modifiers.
+
+This is **not promoted into a proposed-story right now** — it depends
+on multiplayer + persistent profile landing first. The decision is
+captured here so dev sees the intent before designing the profile
+schema.
+
+### 6.4 Procedural vocal synth — yes, ships as its own story
+
+**Decision: a small procedural vocal synthesiser drives a tiny
+vocabulary of bomber grunts.** User confirmed "да". Promoted into
+proposal GDP-2026-05-20-010.
+
+Design intent:
+- Five emotional slots: `place-bomb`, `hit`, `pickup`, `death`,
+  `victory`. (Victory fires when the round resolves in this
+  bomber's favour.)
+- Each bomber has a "voice colour" derived from their recipe seed —
+  a base pitch + a base timbre (sine vs saw vs triangle) + an
+  envelope shape. Same seed → same voice, always.
+- Slot expressions are short (< 0.4 s) and procedurally generated by
+  the synth at play time; no pre-rendered audio assets.
+- Implementation surface: a `VocalSynthesisSystem` that subscribes
+  to existing audio-event triggers (`bomb-place`, `blast`, etc.)
+  and emits one synth note alongside the existing clip. Doesn't
+  replace the clip — adds the voice on top.
+- Out of scope: speech, longer-form taunts, custom voice slots per
+  player. The synth's job is "the bomber has a tiny vocal
+  personality". Talking bombers are a separate creative direction.
+
+See `GDP-2026-05-20-010.story-proposal.json` for the dev-facing
+breakdown.
+
+---
+
+## 7. Future open questions (visual)
+
+The §6 set is closed. New ones, lower priority:
+
+1. **Bot vocal vs player vocal — same synth or different?** Probably
+   same synth, different seed pool — bot voices skew toward harsher
+   timbres so the player can hear "an AI bomber is near" without
+   looking. Decide when GDP-010 lands.
+2. **Slapstick death intensity vs procedural-character variant
+   readability.** A ragdoll body of separate primitive nodes scatters
+   well; a one-piece body doesn't. GDP-009 (animation pack) needs to
+   confirm the ragdoll-friendly composition.
+3. **Recipe migration story.** When the schema changes in v2 of the
+   generator, what happens to a v1 recipe? Cheap: silently fall back
+   to defaults for unknown fields. Expensive: write a migrator. Don't
+   solve until v2 actually arrives.

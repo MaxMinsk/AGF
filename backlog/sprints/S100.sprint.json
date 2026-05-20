@@ -1,0 +1,116 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S100",
+  "title": "Promote GDP power-ups + bot personality + MVP-2 epic kickoff",
+  "status": "active",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "CHORE-MVP2-EPIC-KICKOFF",
+      "title": "Create the MVP-2 / NETWORK / CHARACTERS epic JSONs referenced by GDP-003..010",
+      "status": "implemented",
+      "summary": "Game-design terminal filed 8 proposals (GDP-003 through GDP-010) referencing three epics that didn't exist yet: KABOOM-CREW-MVP-2 (mechanic depth), KABOOM-CREW-MVP-NETWORK (planned, multi-sprint), KABOOM-CREW-CHARACTERS (planned, procedural-everything pipeline). Created all three with summaries + doneCriteria + dependency notes so backlog:check stays clean once the proposals promote into stories with those epic refs. Epic statuses chosen to reflect S100's plan: MVP-2 active (4 stories landing this sprint), NETWORK + CHARACTERS planned (no work in S100).",
+      "verification": [
+        "acceptance: backlog/epics/KABOOM-CREW-MVP-2.epic.json + KABOOM-CREW-MVP-NETWORK.epic.json + KABOOM-CREW-CHARACTERS.epic.json all exist + pass backlog:check.",
+        "Each new epic has a summary, doneCriteria, and a notes section referencing the GDP proposals it groups."
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "KABOOM-KICK-POWER-UP",
+      "title": "Bumping into your own bomb kicks it one cell forward (GDP-003)",
+      "status": "pending",
+      "summary": "Promoted from GDP-2026-05-20-003. When a bomber walks INTO a cell occupied by one of their own bombs, the bomb slides one cell in the same direction (instead of blocking movement). If the next cell is hard-blocked / has another bomb / has a wall, the kick fails silently and the bomber stays put (movement-blocked as today). Bombs already in transit (currentLerp > 0) cannot be kicked. Project-local: lives in examples/kaboom-crew/src/systems/bomb-kick-system.ts. Reuses GridOccupancy for collision checks.",
+      "verification": [
+        "acceptance: Player walks east into their own bomb at (4,3); bomb slides to (5,3) and the player remains at (3,3). If (5,3) is occupied by a wall, the bomb stays at (4,3) and the player stays at (3,3).",
+        "examples/kaboom-crew/src/systems/bomb-kick-system.ts: reads PlaceBombRequest's owner + walks GridMover.queuedDirection for each PlayerControlled entity",
+        "+ unit tests: kick succeeds onto empty cell, fails onto hard block, fails onto another bomb, ignores other players' bombs (you can only kick YOUR own)"
+      ],
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "KABOOM-SLAPSTICK-DEATH",
+      "title": "Death launch-up + spin-out tween before despawn (GDP-004)",
+      "status": "pending",
+      "summary": "Promoted from GDP-2026-05-20-004. Extend the existing DeathAnim tween (S90 KABOOM-DEATH-FALL — tips bomber to 90°) with a +Y launch + Y-axis spin for a more slapstick feel. Modify the death-animation-system to add a vertical hop component (Transform.position.y arcs up by ~1.5 cells over 0.4 s, then falls; gravity feel via easeOutQuad up + easeInQuad down) AND a Y-axis rotation that completes ~1 full revolution during the fall. Existing color + falling-pitch behavior stays.",
+      "verification": [
+        "acceptance: When a bomber dies, they launch upward, spin around the Y axis once, fall back down, and end up tipped over and despawned — feels slapstick rather than just dropping.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: add vertical arc + Y-spin alongside the existing pitch curve",
+        "+ unit test on the pure helpers covering: launch peak at the right elapsed mid-point, Y spin completes ~360°, end state matches the S90 acceptance (tipped over)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BOT-PERSONALITY-VARIANTS",
+      "title": "Bot personality variants — Hunter / Coward / Miner (GDP-005)",
+      "status": "pending",
+      "summary": "Promoted from GDP-2026-05-20-005. Today's bot AI has a single difficulty axis (easy/normal/hard) tuning decision cadence + aggression. Add a `personality` dial on top: 'hunter' biases bot toward shortest path to player + bomb-when-adjacent; 'coward' biases toward distance-from-bombs + place-bombs-when-cornered; 'miner' biases toward destroying soft blocks for pickups + ignores the player unless adjacent. URL: ?botPersonality=hunter|coward|miner (defaults to 'hunter' for backwards-compat with the current behavior). Implementation: extend the BotBrain component with a 'personality' field; bot-ai-system reads it + applies the corresponding decision weights.",
+      "verification": [
+        "acceptance: ?botPersonality=miner — the bot visibly avoids the player and prefers placing bombs near soft-block clusters. ?botPersonality=coward — the bot keeps maximum distance from live bombs.",
+        "examples/kaboom-crew/src/systems/bot-ai-system.ts: personality switch on top of the existing aggression dial",
+        "BotBrain schema entry grows `personality` field",
+        "+ unit tests on the decision helper: 'miner' picks a soft-block-adjacent cell over a player-adjacent one when both are reachable in the same number of steps"
+      ],
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "KABOOM-REMOTE-DETONATE-PUP",
+      "title": "Remote-detonate power-up — fuse pauses, player triggers blast on command (GDP-006)",
+      "status": "pending",
+      "summary": "Promoted from GDP-2026-05-20-006. Add a 4th pickup kind 'remote-detonate' alongside bomb-up / fire-up / speed-up. While the player carries any remote-detonate charges, newly-placed bombs spawn with `Bomb.fuseRemaining = Infinity` (paused). A new keyboard binding (F key, or InputAction 'remote-detonate') decrements the charge counter + sets every paused bomb owned by the player to fuseRemaining=0, detonating them all at once. Cap charges at 3. Lays groundwork for combo plays (4 bombs in a corridor, detonate together).",
+      "verification": [
+        "acceptance: Picking up a remote-detonate charge enables F-key detonation. Placing 3 bombs while holding charges leaves them all paused (no countdown color/wiggle). F detonates all of them on the same fixedUpdate.",
+        "Pickup spawn adds 'remote-detonate' as a 4th kind with a distinct color/mesh",
+        "BomberStats grows a remoteDetonateCharges?: number field",
+        "examples/kaboom-crew/src/systems/bomb-placement-system.ts: when remoteDetonateCharges > 0 + paused-bomb-mode is active, spawn bomb with Infinity fuse + decrement charges",
+        "examples/kaboom-crew/src/systems/player-input-system.ts: F key (or 'remote-detonate' InputAction) fires the trigger transient",
+        "+ unit tests covering: charge increment on pickup, paused bomb spawn, trigger detonates all paused bombs owned by the player"
+      ],
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "AGF-DOCTOR-REJECTED-INBOX",
+      "title": "engine doctor reports the rejected-QA-ticket count too",
+      "status": "pending",
+      "summary": "Companion to S099 AGF-DOCTOR-PROPOSED-STORIES + S093 QA-DOCTOR-INBOX. Today's doctor surfaces the live QA inbox + the proposed-story inbox. Add a one-line summary of `backlog/qa-tickets/archive/rejected/` (which exists per S98's DOC-QA-INVALID-TICKET-FLOW) so dev sees the size of the rejected pile at a glance — useful when triaging if dev is rejecting too many QA tickets in a row (signal of disagreement). Just the count + a hint to read the rejected/README.md if non-zero.",
+      "verification": [
+        "acceptance: `engine doctor` prints `Rejected QA tickets: N (see backlog/qa-tickets/archive/rejected/README.md for rationale)` under the QA inbox section. Empty rejected dir = line omitted.",
+        "engine/tools/doctor/project-doctor.ts: new section reading backlog/qa-tickets/archive/rejected/*.qa-ticket.json",
+        "+ unit test stubbing a temp rejected dir + asserting the count + suppression-when-empty"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "FEAT-NETWORKED-KABOOM-CREW-CON-001",
+      "title": "Networked Kaboom Crew (connected profile) — two browser tabs share one arena",
+      "status": "deferred",
+      "deferredReason": "Promoted from GDP-2026-05-20-007 (priority: must). Multi-sprint track — depends on M20 (netcode rework) and the AGF protocol contract. Defer until M20 has a concrete shape; opening this story now would block S100 on infrastructure decisions that need their own design pass.",
+      "summary": "Two browser tabs hitting the same room id share one Kaboom Crew arena via the AGF backend-agnostic protocol. First implementable shape: lockstep + input rollback on top of the fixed-step simulation, served by the Node reference backend. (GDP-007)",
+      "epic": "KABOOM-CREW-MVP-NETWORK"
+    },
+    {
+      "id": "FEAT-PROCGEN-CHARACTERS-008",
+      "title": "Starter procedural character generator (humanoid-only) — GDP-008",
+      "status": "deferred",
+      "deferredReason": "Promoted from GDP-2026-05-20-008. Substantial work — needs its own focused sprint with the mesh-generation pipeline + skinning + materialisation pattern locked down. Defer to S101 or later, where it can be the centerpiece rather than one item among power-ups.",
+      "summary": "Seeded humanoid mesh generator for Kaboom Crew avatars. Replaces the primitive sphere/box bomber meshes. No Mixamo / rigged GLBs — everything generates from code (per project-procedural-characters memory). (GDP-008)",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "FEAT-PROCGEN-ANIM-SYSTEMS-009",
+      "title": "Procedural animation systems pack — six small ECS systems (GDP-009)",
+      "status": "deferred",
+      "deferredReason": "Promoted from GDP-2026-05-20-009. Depends on the procedural character mesh (GDP-008) — nothing to animate without a skeleton. Defer until GDP-008 ships at least the minimal mesh + bone hierarchy.",
+      "summary": "Six small ECS animation systems for character motion: idle bob, walk swing, place-bomb wind-up, hit reaction, victory pose, death rag-doll. Each lives in engine/core/systems/ + reads a generic AnimationState component. (GDP-009)",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "FEAT-PROCGEN-VOCAL-010",
+      "title": "Procedural vocal synthesiser — each bomber gets a tiny seed-derived voice (GDP-010)",
+      "status": "deferred",
+      "deferredReason": "Promoted from GDP-2026-05-20-010. Could-priority + depends on the broader procedural character pipeline landing first. Defer.",
+      "summary": "Each bomber's BomberStats grows a `voiceSeed`. A vocal synth (new audio-fx path or extension to the existing Kaboom audio-fx) plays a short seed-derived snippet on bomb-place / hit / victory. (GDP-010)",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    }
+  ]
+}
