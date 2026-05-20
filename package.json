@@ -47,6 +47,8 @@
     "qa:ticket": "node scripts/backlog/qa-ticket.mjs",
     "qa:promote": "node scripts/backlog/promote-qa.mjs",
     "qa:next-pr": "node scripts/backlog/qa-next-pr.mjs",
+    "propose:new": "node scripts/backlog/propose.mjs new",
+    "propose:promote": "node scripts/backlog/promote-proposed.mjs",
     "backlog:pr-body": "node scripts/backlog/pr-body.mjs",
     "backlog:migrate-history": "node scripts/backlog/migrate-history.mjs",
     "backlog:epics": "node scripts/backlog/epics.mjs",
