@@ -1,0 +1,106 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S089",
+  "title": "Kaboom Crew polish r4 + engine observability tail",
+  "status": "active",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "KABOOM-BOT-PICKUP-MAGNET",
+      "title": "Bot wander pulls toward nearby pickups",
+      "status": "pending",
+      "summary": "BotAISystem's wander path is uniform-random over safe neighbours. When a Pickup is visible within ~5 cells (manhattan) the bot should pick the safe neighbour that reduces distance to the nearest pickup — turns the bot from a drunken wanderer into a basic loot collector without changing the danger-avoid rules. Cell preference, not BFS, so the cost is cheap.",
+      "verification": [
+        "unit test: bot at (3,3) with a Pickup at (5,3) (no obstacles) picks +X over the other safe directions",
+        "unit test: a pickup in a dangerous cell does NOT magnetise the bot (danger still wins)",
+        "Live probe: 60 s bot-vs-bot at hard difficulty — both bots converge on pickups noticeably faster than current random walk"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-MATCH-WIN-PARTICLES",
+      "title": "Particle burst at the winner's cell when matchPhase resolves",
+      "status": "pending",
+      "summary": "Currently the match resolution gets a banner + chord but nothing visual. Spawn a short-lived 'pulse' ParticleEmitter at the winning bomber's cell (or both cells on draw) when matchPhase transitions out of 'in-progress'. Lifetime ~1 s, high rate so it reads as a celebratory burst. Reuses the engine pre-warmed pool — no extra preset.",
+      "verification": [
+        "audio-binding-system (the existing matchPhase-transition watcher) also spawns the puff entity",
+        "unit test: matchPhase=won → ParticleEmitter entity appears on the player.1 cell with preset='pulse'",
+        "unit test: matchPhase=draw → puff on BOTH player.1 and bot.1 cells"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-ROUND-TIMER-BAR",
+      "title": "HUD shows round elapsed / timeLimit as a thin progress bar",
+      "status": "pending",
+      "summary": "The HUD stats line shows `t: 12s / 90s` — readable but not glanceable. Add a thin 4 px horizontal bar above the stats slot that fills as elapsed / timeLimit grows; color shifts orange in the last 15 s, red in the last 5 s. Text line stays as the precise readout. When timeLimit=0 the bar hides.",
+      "verification": [
+        "live probe: bar visible at top of bottomLeft stats slot, fills smoothly across a 90 s round",
+        "bar hides when project sets ?roundTimeLimit=0",
+        "color crosses orange threshold at remaining <= 15 s, red at <= 5 s"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-AGENT-MAP-LIST",
+      "title": "runtime.kaboom.maps() + loadMap(name) for scripted map swap",
+      "status": "pending",
+      "summary": "Today the only way to swap maps is `?map=wide` on URL reload — an agent doing scripted playtests can't pivot maps without a full page reload. Expose `runtime.kaboom.maps()` returning `['start', 'wide']` and `runtime.kaboom.loadMap('wide')` which calls scene.load against the corresponding flat-expanded scene + reseeds the RoundState (same path as restartScene). Useful for the multi-map smoke playtest the next sprint can build.",
+      "verification": [
+        "window.__agf.kaboom.maps() returns ['start', 'wide']",
+        "window.__agf.kaboom.loadMap('wide') triggers scene.load; subsequent snapshot.entities shape matches the wide arena (17×13)",
+        "loadMap returns false when the name is unknown; loadMap('start') re-loads start without throwing"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-PAUSE-AUDIO-MUTE",
+      "title": "Pause menu gets an Audio toggle (mute / unmute)",
+      "status": "pending",
+      "summary": "S86 shipped the volume dial via ?audio= + localStorage. The pause menu (Esc) doesn't surface it — players have to know about the URL param. Add an 'Audio: ON / OFF' toggle button to the pause menu that calls a new audioFx.setMuted(boolean) and persists the new dial value to localStorage (off ↔ saved-volume).",
+      "verification": [
+        "audio-fx.ts exports setMuted(); muted=true short-circuits play() at the AudioContext level",
+        "Pause menu gains an 'Audio: ON|OFF' button alongside Resume / Restart / Difficulty",
+        "Setting persists to localStorage under the same key the volume dial uses"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-DOCTOR-SYSTEMS-SECTION",
+      "title": "engine doctor surfaces a Systems: section from a diagnostics snapshot",
+      "status": "pending",
+      "summary": "S88 closed the lifecycle-trace wiring (`AGF_SCHEDULER_SYSTEM_REGISTERED` info diagnostics now reach /__agf/diagnostics). Doctor's --diagnostics-from path already ingests the snapshot for the boot-noise budget — extend it to also extract `Systems:` (count + names of last-registered systems) so an agent reading the doctor output gets the live system list without inspecting the scheduler.",
+      "verification": [
+        "DoctorReport.systems: { count: number; names: string[] } populated when the diagnostics snapshot contains AGF_SCHEDULER_SYSTEM_REGISTERED entries; null otherwise",
+        "format pass prints 'Systems (N):' followed by name list",
+        "+1 unit test using a fixture diagnostics snapshot"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE",
+      "title": "Per-system debug toggle via runtime.setDebugSystem(name, on)",
+      "status": "pending",
+      "summary": "Engine observability follow-up from S082 — every system can opt into per-tick state-diff diagnostics when toggled on at runtime. RuntimeHandle gains `setDebugSystem(name: string, enabled: boolean): boolean`; when enabled, an info-level `AGF_SYSTEM_TICK` diagnostic fires once per fixed step with the system's name + tick number. Systems that don't have hooks get the generic emission; systems can opt into structured details later.",
+      "verification": [
+        "RuntimeHandle.setDebugSystem(name, true) → next tick emits AGF_SYSTEM_TICK { name, tick }",
+        "setDebugSystem(name, false) restores silence",
+        "setDebugSystem returns false when the system name is not registered",
+        "+1 unit test exercising the toggle on a stub scheduler"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-DEV-BRIDGE-POOL-INVENTORY-TEST",
+      "title": "Playwright smoke test for GET /__agf/pool-inventory",
+      "status": "pending",
+      "summary": "S88 shipped /__agf/pool-inventory but only unit-tests cover the registry math. Add a Playwright smoke test that boots hello-3d, awaits rendererReady, fetches the route, and asserts the JSON shape. Locks the surface so a future refactor that drops a pool name surfaces immediately.",
+      "verification": [
+        "tests/e2e/dev-bridge.spec.ts (or sibling) gets a `/__agf/pool-inventory` case",
+        "Asserts response contains three named pools (instanced/batched/particle) with numeric live + peak",
+        "Runs under the existing smoke project"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}
