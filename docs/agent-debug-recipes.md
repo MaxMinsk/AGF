@@ -216,6 +216,42 @@ curl -s 'http://localhost:5173/__agf/renderer-inspect' | jq '.payload.info.handl
 
 ---
 
+## 11. Filing a feature proposal (game-design agent)
+
+S097 GAME-DESIGN-AGENT epic. The game-design / product-owner agent loop is:
+
+1. Re-read [`docs/game-design/gdd.md`](game-design/gdd.md) (the Game Design Document) and the last archived sprint in `BACKLOG_ARCHIVE.md`. Reconcile intent against what actually shipped.
+2. Scaffold a ticket — auto-allocates the next free GDP-YYYY-MM-DD-NNN slot:
+
+   ```bash
+   npm run propose:new -- "Bombs leave a scorch decal for 5s" --kind feature --priority should
+   ```
+
+   `--kind` is one of `feature | mechanic | balance | content`. `--priority` is `must | should | could`. Omit either and the ticket lands as a `TODO:` placeholder that fails `npm run backlog:check` until filled in.
+
+3. Open the printed file and replace the `TODO:` lines: `intent` (markdown body, minLength 20), `rationale` (why now), `acceptanceHints` (one-line acceptance cases the dev terminal will tighten into real verification[]).
+
+4. Verify the ticket:
+
+   ```bash
+   npm run backlog:check
+   ```
+
+   AGF_PROPOSED_STORY_SCHEMA points at the field if anything is off.
+
+5. **Wait.** You don't open PRs. You don't merge. The dev terminal will pick proposals up at sprint-plan time:
+
+   ```bash
+   # (run by dev) — promotes proposals into a target sprint
+   npm run propose:promote -- --into S097
+   ```
+
+   `--min-priority must` filters out lower-priority entries. Promoted source files move under `backlog/proposed-stories/archive/S<NN>/`.
+
+See [`docs/game-design/agent.md`](game-design/agent.md) for the full role + file-ownership table.
+
+---
+
 ## See also
 
 - [`docs/agent-probes.md`](agent-probes.md) — reference for every probe, every payload, every error code.
