@@ -1,0 +1,101 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S095",
+  "title": "Polish — camera shake / spawn pop + agent free-cam + audio dial + snapshot history",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/106",
+  "stories": [
+    {
+      "id": "KABOOM-CAMERA-EASING-ADOPT",
+      "title": "Kaboom Crew adopts S091 named easings — death tip + camera shake decay",
+      "status": "implemented",
+      "summary": "death-animation-system.ts now imports `easingCurves` from engine/core/systems/tween-system.ts; `deathFallPitch()` samples `easingCurves.easeOutBack(t)` instead of the previous inline `1 - (1 - t) * (1 - t)` — dying bombers tip past 90° (~110% of target) and rock back to settle. camera-shake-system.ts dropped the `decayPerSecond` knob in favor of `durationSeconds` (default 0.45 s); a new pure helper `cameraShakeEnvelope(elapsed, duration)` returns `1 - easingCurves.easeOutElastic(t)`, which opens at 1 and dips below zero mid-curve before settling at 0 — gives the shake a small bouncy stop instead of monotonic exponential fade. The system tracks `peakIntensity` + `elapsed` per shake window; a fresh BlastEvent resets `elapsed` so the bounce stays in sync with the latest detonation.",
+      "verification": [
+        "acceptance: A dying bomber visibly tips past 90° and settles back (theatrical overshoot, not a smooth monotonic glide). Camera shake on a nearby blast stops with a tiny oscillation rather than fading evenly.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: easingCurves.easeOutBack drives deathFallPitch",
+        "examples/kaboom-crew/src/systems/camera-shake-system.ts: cameraShakeEnvelope exported; shake intensity sampled from 1 - easingCurves.easeOutElastic over the active shake window",
+        "+2 unit tests on deathFallPitch: peak sample exceeds Math.PI/2 by <15%, pre-peak segment is monotonic, endpoint lands at Math.PI/2",
+        "+3 unit tests on cameraShakeEnvelope: endpoints 0/1 exact, defensive duration<=0 returns 0, mid-curve dips below 0 (bounce signature)",
+        "Existing camera-shake tests updated to track durationSeconds option (decayPerSecond removed)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-SPAWN-POP-TWEEN",
+      "title": "Bomb / pickup mesh scale 0 → 1 with easeOutBack on spawn",
+      "status": "implemented",
+      "summary": "bomb-placement-system.ts + pickup-spawn-system.ts now stamp `Transform.scale = [0, 0, 0]` on the freshly-spawned entity and attach a `Tweens` component driving scale to the final size over 200 ms with `easeOutBack`. The engine's TweenSystem (registered by start.ts) advances each tween in fixedUpdate and removes the Tween component on completion — no per-project advance code needed. Final scales: bombs `[0.35, 0.35, 0.35]`, pickups inherit the per-kind PICKUP_VISUAL.scale.",
+      "verification": [
+        "acceptance: New bombs visibly pop into existence (scale jumps from 0 to slightly past 1 then settles to full); pickups dropped on a softblock-destroyed cell do the same — no longer flash in at full size.",
+        "bomb-placement-system.ts: stamps Tweens[{component:'Transform', property:'scale', from:[0,0,0], to:[0.35,0.35,0.35], duration:0.2, ease:'easeOutBack'}]",
+        "pickup-spawn-system.ts: same shape, `to` matches per-kind visual.scale",
+        "+2 unit tests verifying the Tween component shape on both spawn paths"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-RENDER-DEBUG-FREECAM",
+      "title": "Agent-driven free-fly camera for debugging — POST /__agf/render/freecam",
+      "status": "implemented",
+      "summary": "engine/render/three-render-adapter.ts grew a `freeCamCamera: PerspectiveCamera` override. `setFreeCam({ position, lookAt } | null)` creates / repositions the camera (added to the scene, FOV 60°, near 0.1, far 1000) or tears it down. `activeCamera()` now returns the freecam first when set, so render / resize / pickAtNdc all observe the override. Adapter.dispose() clears it. Forwarded through ThreeRenderer.{getFreeCam,setFreeCam}, app.{getRenderFreeCam, setRenderFreeCam}, window.__agf.{getRenderFreeCam, setRenderFreeCam}, and GET/POST /__agf/render/freecam on the dev bridge. POST body is validated by the exported pure `validateFreeCamBody` helper (accepts `{ off: true }` to clear OR `{ position, lookAt }` of finite-number tuples); invalid bodies return 400 AGF_BRIDGE_INVALID_FREECAM.",
+      "verification": [
+        "acceptance: POST /__agf/render/freecam { position: [10, 8, 10], lookAt: [0, 0, 0] } moves the rendered view to that pose immediately; POST { off: true } restores the previous active camera and the player can keep playing.",
+        "engine/render/three-render-adapter.ts: freeCamCamera override + setFreeCam/getFreeCam; activeCamera() returns the override when set; dispose tears it down",
+        "engine/dev/agf-dev-bridge.ts: GET / POST /render/freecam wired; exported pure `validateFreeCamBody` for body validation",
+        "+9 unit tests in tests/unit/render-freecam-bridge.test.ts covering: off acceptance, valid pose acceptance, missing position / lookAt, wrong array length, non-finite components, non-number components, null / non-object body rejection, off=true precedence over malformed pose"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-AUDIO-MASTER-VOLUME",
+      "title": "AudioBus grows a master volume dial — POST /__agf/audio/master-volume",
+      "status": "implemented",
+      "summary": "engine/runtime/audio/audio-bus.ts grew `setMasterVolume(value): number` + `getMasterVolume(): number`. Master multiplies per-call volume in `play()`: `el.volume = clamp(master * (volume ?? 1), 0, 1)`. Non-finite inputs to setMasterVolume are ignored. Plumbed through src/app.ts (getAudioMasterVolume / setAudioMasterVolume), window.__agf, and GET/POST /__agf/audio/master-volume on the dev bridge (AGF_BRIDGE_INVALID_AUDIO_VOLUME on non-number).",
+      "verification": [
+        "acceptance: POST /__agf/audio/master-volume { value: 0 } silences subsequent plays; POST { value: 1 } restores; per-play `volume: 0.5` plays at 50% of master.",
+        "engine/runtime/audio/audio-bus.ts: setMasterVolume / getMasterVolume on the AudioBus interface; play() applies master * per-call",
+        "+3 unit tests in tests/unit/audio-bus.test.ts: getMasterVolume default 1 + clamp + non-finite ignored; master * per-call multiplication; final clamp at 1.0 against excessive per-call volume"
+      ],
+      "epic": "AUDIO"
+    },
+    {
+      "id": "KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END",
+      "title": "Briefly duck SFX while a match-* chime plays",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/audio-fx.ts now wires a shared `masterDuckNode` (a GainNode created lazily during ensureContext, starting at gain=1.0) between every gameplay event and ctx.destination. On match-won / match-lost / match-draw, `duckFor(c, 0.6, 0.3)` snaps the duck gain to 0.3 then linearRampToValueAtTime(1, now+0.6) — anything playing through the duck node during that window inherits the attenuation, then naturally rises back. Match chimes themselves bypass the duck (connectOutput's `bypassDuck=true` path) by routing straight to ctx.destination, so the chime sits clearly on top.",
+      "verification": [
+        "acceptance: When a match ends, the win/lose chime is clearly audible and any bomb / footstep events that happen during the chime feel quieter than usual; volume restores afterwards without a pop.",
+        "examples/kaboom-crew/src/audio-fx.ts: duckFor + shared masterDuckNode; connectOutput accepts bypassDuck for match chimes",
+        "+2 unit tests on the fake AudioContext: match-won schedules setValueAtTime(0.3) + linearRampToValueAtTime(1) on the duck node; bomb-place does NOT schedule a depth=0.3 call (duck stays at 1)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1",
+      "dependsOn": ["AGF-AUDIO-MASTER-VOLUME"]
+    },
+    {
+      "id": "AGF-PROBE-SNAPSHOT-HISTORY",
+      "title": "Snapshot ring buffer — GET /__agf/snapshot?at=-N replays history",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts now keeps a 32-entry ring buffer of WorldSnapshot captured at the end of each fixedUpdate burst. Pure helper `lookupSnapshotInRing(ring, at)` exposes the index math (at=0 → undefined / caller falls back to live, at=-1 → most-recent entry, at=-N → N steps back, |-at|>size → undefined). runtime.snapshotAt(at) wraps the helper + live-snapshot fallback; runtime.snapshotHistoryStats() returns `{ capacity, size }`. Plumbed through src/app.ts, window.__agf, and a new explicit handler in agf-dev-bridge.ts on `/snapshot` that parses `?at=` (rejecting positives with AGF_BRIDGE_INVALID_SNAPSHOT_AT) and translates the page-bridge's `{ outOfRange: true, capacity, size }` envelope into HTTP 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.",
+      "verification": [
+        "acceptance: GET /__agf/snapshot returns the live snapshot; GET /__agf/snapshot?at=-1 returns the previous fixedUpdate's snapshot; GET /__agf/snapshot?at=1 returns 400 AGF_BRIDGE_INVALID_SNAPSHOT_AT; GET /__agf/snapshot?at=-99 returns 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.",
+        "engine/runtime/start.ts: SNAPSHOT_HISTORY_CAPACITY=32; ring push after each fixedUpdate burst; snapshotAt + snapshotHistoryStats on the runtime handle",
+        "engine/dev/agf-dev-bridge.ts: explicit `/snapshot` handler parses `?at=`; engine/dev/page-bridge.ts: `snapshot-at` returns `{ snapshot } | { outOfRange, capacity, size }`",
+        "+7 unit tests in tests/unit/snapshot-history-ring.test.ts: at=0 undefined; at=-1..-N indexing; out-of-range; empty ring; non-finite / positive at; non-integer floor behaviour"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "DOC-AGENT-PROBES-REFRESH",
+      "title": "Refresh docs/agent-probes.md — freecam, audio master, snapshot history",
+      "status": "implemented",
+      "summary": "docs/agent-probes.md grew sections for the S095 probes: `/__agf/snapshot?at=-N` (history ring) with the live + historical payload shapes and the two error codes (AGF_BRIDGE_INVALID_SNAPSHOT_AT for positives, AGF_PROBE_SNAPSHOT_OUT_OF_RANGE for past-end); `/__agf/render/freecam` (POST + GET) with both `{ position, lookAt }` and `{ off: true }` recipes plus the AGF_BRIDGE_INVALID_FREECAM error; `/__agf/audio/master-volume` (POST + GET) with the master * per-call semantic + AGF_BRIDGE_INVALID_AUDIO_VOLUME.",
+      "verification": [
+        "acceptance: docs/agent-probes.md table-of-contents lists all three new routes; each section contains a curl recipe an agent can copy-paste.",
+        "Each new section calls out its error code (AGF_PROBE_SNAPSHOT_OUT_OF_RANGE / AGF_BRIDGE_INVALID_SNAPSHOT_AT, AGF_BRIDGE_INVALID_AUDIO_VOLUME, AGF_BRIDGE_INVALID_FREECAM)"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}

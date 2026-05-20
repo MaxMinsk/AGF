@@ -3,7 +3,10 @@
 import { describe, expect, it } from "vitest";
 
 import { World } from "../../../../engine/core/ecs/world";
-import { createKaboomCameraShakeSystem } from "../../src/systems/camera-shake-system";
+import {
+  cameraShakeEnvelope,
+  createKaboomCameraShakeSystem
+} from "../../src/systems/camera-shake-system";
 
 function ctx(world: World, fixedDt = 1 / 60) {
   return {
@@ -47,8 +50,8 @@ describe("createKaboomCameraShakeSystem (S87 KABOOM-CAMERA-SHAKE)", () => {
     // No new BlastEvents are spawned.
     for (const id of world.createQuery(["BlastEvent"]).run()) world.removeEntity(id);
 
-    // Default decayPerSecond is 6 → from 0.18 to below 0.001 ≈ 0.87 s
-    // → 60 fixed steps at 1/60 s.
+    // S095 — default durationSeconds is 0.45 → 30 fixed steps at 1/60 s
+    // would reach the end of the shake window; 60 steps is well past.
     for (let i = 0; i < 60; i += 1) {
       system.fixedUpdate!(ctx(world));
     }
@@ -58,13 +61,14 @@ describe("createKaboomCameraShakeSystem (S87 KABOOM-CAMERA-SHAKE)", () => {
   it("snaps Transform.position back to baseline once intensity reaches 0", () => {
     const world = new World();
     addCamera(world, [7, 10, 10]);
-    const system = createKaboomCameraShakeSystem({ rng: () => 0.5, decayPerSecond: 20 });
+    const system = createKaboomCameraShakeSystem({ rng: () => 0.5, durationSeconds: 0.1 });
     fireBlast(world, 3);
     system.fixedUpdate!(ctx(world));
     // Remove the blast event so it can't re-bump.
     for (const id of world.createQuery(["BlastEvent"]).run()) world.removeEntity(id);
 
-    // Let intensity decay completely.
+    // Let intensity decay completely. With durationSeconds=0.1, 60 ticks
+    // at 1/60 s = 1 s — well past the shake window.
     for (let i = 0; i < 60; i += 1) system.fixedUpdate!(ctx(world));
     const t = world.getComponent("camera.main", "Transform") as { position: number[] };
     expect(t.position).toEqual([7, 10, 10]);
@@ -107,5 +111,30 @@ describe("createKaboomCameraShakeSystem (S87 KABOOM-CAMERA-SHAKE)", () => {
     for (let i = 0; i < 5; i += 1) fireBlast(world, 5);
     system.fixedUpdate!(ctx(world));
     expect(system.intensity()).toBeLessThanOrEqual(0.3);
+  });
+});
+
+describe("cameraShakeEnvelope (S095 KABOOM-CAMERA-EASING-ADOPT)", () => {
+  it("opens at intensity 1 and closes at 0 — endpoints are exact", () => {
+    expect(cameraShakeEnvelope(0, 0.5)).toBe(1);
+    expect(cameraShakeEnvelope(0.5, 0.5)).toBe(0);
+    expect(cameraShakeEnvelope(10, 0.5)).toBe(0);
+  });
+
+  it("returns 0 for non-positive durations (defensive)", () => {
+    expect(cameraShakeEnvelope(0.1, 0)).toBe(0);
+    expect(cameraShakeEnvelope(0.1, -1)).toBe(0);
+  });
+
+  it("oscillates past zero before settling (bounce signature of easeOutElastic)", () => {
+    // easeOutElastic(t) overshoots 1 at t ≈ 0.25 and undershoots
+    // 1 near t ≈ 0.5; the inverted envelope (`1 - easeOutElastic(t)`)
+    // therefore dips BELOW zero somewhere mid-curve. That negative
+    // sample is what gives the shake its bouncy stop.
+    const samples = Array.from({ length: 41 }, (_, i) =>
+      cameraShakeEnvelope(i / 80, 0.5)
+    );
+    const min = Math.min(...samples);
+    expect(min).toBeLessThan(0);
   });
 });

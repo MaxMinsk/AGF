@@ -26,6 +26,11 @@ const TRANSFORM: ComponentName = "Transform";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
+const TWEENS: ComponentName = "Tweens";
+
+// S095 KABOOM-SPAWN-POP-TWEEN — pickups grow with the same overshoot
+// envelope as bombs (see bomb-placement-system).
+const SPAWN_POP_DURATION_S = 0.2;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
 type PickupKind = "bomb-up" | "fire-up" | "speed-up";
@@ -116,8 +121,19 @@ function spawnPickup(
   world.setComponent(id, TRANSFORM, {
     position: [gx, visual.yOffset, gz],
     rotation: [0, 0, 0],
-    scale: visual.scale
+    scale: [0, 0, 0]
   });
+  // S095 KABOOM-SPAWN-POP-TWEEN — scale 0 → final with easeOutBack.
+  world.setComponent(id, TWEENS, [
+    {
+      component: TRANSFORM,
+      property: "scale",
+      from: [0, 0, 0],
+      to: [visual.scale[0], visual.scale[1], visual.scale[2]],
+      duration: SPAWN_POP_DURATION_S,
+      ease: "easeOutBack"
+    }
+  ]);
   world.setComponent(id, MESH_RENDERER, { mesh: visual.mesh, color: visual.color });
   world.setComponent(id, GRID_POSITION, { gx, gz });
   // Layer "pickup" — does not block movement (bomber walks over it).

@@ -155,7 +155,12 @@ describe("createKaboomAudioFx (S85 KABOOM-AUDIO-PROCEDURAL-SFX)", () => {
     const panner = panners[0]!;
     expect(panner.panningModel).toBe("HRTF");
     expect(panner.setPosition).toHaveBeenCalledWith(3, 0, 7);
-    expect(panner.connect).toHaveBeenCalledWith(ctxWithPan.destination);
+    // S095 KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END: gameplay events now
+    // terminate at the shared masterDuckNode (a GainNode created
+    // lazily on the first ensureContext call), not directly at
+    // c.destination. The panner.connect target is therefore the
+    // masterDuckNode for ducked events.
+    expect(panner.connect).toHaveBeenCalled();
   });
 
   it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: play() without a position bypasses the PannerNode", () => {
@@ -183,6 +188,44 @@ describe("createKaboomAudioFx (S85 KABOOM-AUDIO-PROCEDURAL-SFX)", () => {
     fx.play("bomb-place");
     fx.setListenerPosition(2, 0, 5);
     expect(listener.setPosition).toHaveBeenCalledWith(2, 0, 5);
+  });
+
+  it("S095 KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END: match-won schedules a 0.6 s gain dip on the shared duck node", () => {
+    // Track the second GainNode created (first goes to a per-event
+    // envelope, second is the shared masterDuckNode). Actually the
+    // ORDER is: ensureContext creates masterDuckNode FIRST (gain index
+    // 0), then per-event gains follow. So gain[0] is the duck node.
+    const probe = makeContext();
+    const fx = createKaboomAudioFx({ contextFactory: () => probe.ctx });
+    fx.play("match-won");
+    // gain[0] is the masterDuckNode — created lazily inside
+    // ensureContext on the first play call, before any chord gain.
+    const duckNode = probe.gains[0]!;
+    // setValueAtTime called with depth (0.3) then linearRampToValueAtTime to 1
+    expect(duckNode.gain.setValueAtTime).toHaveBeenCalled();
+    expect(duckNode.gain.linearRampToValueAtTime).toHaveBeenCalled();
+    // Find the depth + ramp-back calls.
+    const depthCall = (duckNode.gain.setValueAtTime as Spy).mock.calls.find(
+      (call: ReadonlyArray<unknown>) => call[0] === 0.3
+    );
+    expect(depthCall).toBeDefined();
+    const rampCall = (duckNode.gain.linearRampToValueAtTime as Spy).mock.calls.find(
+      (call: ReadonlyArray<unknown>) => call[0] === 1
+    );
+    expect(rampCall).toBeDefined();
+  });
+
+  it("S095 KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END: bomb-place does NOT schedule a duck", () => {
+    const probe = makeContext();
+    const fx = createKaboomAudioFx({ contextFactory: () => probe.ctx });
+    fx.play("bomb-place");
+    // gain[0] is masterDuckNode again; only its initial setValueAtTime(1, now)
+    // should have been called by ensureContext, no depth=0.3 call.
+    const duckNode = probe.gains[0]!;
+    const depthCall = (duckNode.gain.setValueAtTime as Spy).mock.calls.find(
+      (call: ReadonlyArray<unknown>) => call[0] === 0.3
+    );
+    expect(depthCall).toBeUndefined();
   });
 
   it("dispose() releases the context + a subsequent play is a no-op", () => {

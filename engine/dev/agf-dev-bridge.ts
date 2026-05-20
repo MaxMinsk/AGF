@@ -32,6 +32,38 @@ export const DEV_BRIDGE_VERSION = "0.1.0-m15-multi-page";
 export const DEV_BRIDGE_PATH_PREFIX = "/__agf/";
 export const DEV_BRIDGE_WS_PATH = "/__agf/ws";
 
+/**
+ * S095 AGF-RENDER-DEBUG-FREECAM — pure body validator for the
+ * POST /__agf/render/freecam route. Exported for unit tests so the
+ * accept/reject rules can be locked without spinning up Vite.
+ */
+export type FreeCamBodyResult =
+  | { kind: "off" }
+  | { kind: "set"; position: [number, number, number]; lookAt: [number, number, number] }
+  | { kind: "error"; code: string; message: string };
+
+export function validateFreeCamBody(body: unknown): FreeCamBodyResult {
+  if (body === null || typeof body !== "object") {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_FREECAM",
+      message: "Body must be a JSON object."
+    };
+  }
+  const b = body as { off?: unknown; position?: unknown; lookAt?: unknown };
+  if (b.off === true) return { kind: "off" };
+  const isVec3 = (v: unknown): v is [number, number, number] =>
+    Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === "number" && Number.isFinite(n));
+  if (!isVec3(b.position) || !isVec3(b.lookAt)) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_FREECAM",
+      message: "Body must be JSON with `position: [x, y, z]` + `lookAt: [x, y, z]` (finite numbers), or `{ off: true }` to clear."
+    };
+  }
+  return { kind: "set", position: b.position, lookAt: b.lookAt };
+}
+
 const DEFAULT_RPC_TIMEOUT_MS = 3000;
 
 type PendingRpc = {
@@ -342,6 +374,68 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S095 AGF-PROBE-SNAPSHOT-HISTORY. `?at=-N` looks back in the
+        // ring of past fixedUpdate snapshots. `at` is an integer ≤ 0
+        // (positive values are rejected at the bridge, default 0 →
+        // live snapshot). Out-of-range lookups (|-at| > history size)
+        // return HTTP 400 with AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.
+        if (route === "/snapshot" && req.method === "GET") {
+          const atRaw = url.searchParams.get("at");
+          let at = 0;
+          if (atRaw !== null) {
+            const parsed = Number.parseInt(atRaw, 10);
+            if (!Number.isFinite(parsed) || parsed > 0) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_BRIDGE_INVALID_SNAPSHOT_AT",
+                  message: "`at` must be a non-positive integer (e.g. 0, -1, -2, ...)."
+                }
+              });
+              return;
+            }
+            at = parsed;
+          }
+          if (at === 0) {
+            await proxyToPage(req, res, "snapshot");
+            return;
+          }
+          // proxyToPage wraps the payload; the page-bridge handler for
+          // snapshot-at returns either `{ snapshot }` (in-range) or
+          // `{ outOfRange: true, capacity, size }` (history too short).
+          // We translate the latter into a typed 400 here, in front of
+          // the standard payload wrapping.
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "snapshot-at", { at })) as {
+              snapshot?: unknown;
+              outOfRange?: boolean;
+              capacity?: number;
+              size?: number;
+            };
+            if (result?.outOfRange === true) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_PROBE_SNAPSHOT_OUT_OF_RANGE",
+                  message: `Snapshot at=${at} is out of range. Buffer capacity=${result.capacity ?? 0}, current size=${result.size ?? 0}.`
+                }
+              });
+              return;
+            }
+            respondJson(res, 200, { ok: true, page: found.entry.socketId, payload: result.snapshot });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
+          return;
+        }
+
         // S091 AGF-RENDER-DEBUG-MODE-AGENT. POST forwards a mode; GET
         // returns the live mode. Invalid modes are rejected at the
         // bridge before reaching the page so misconfigured agents fail
@@ -369,6 +463,63 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             return;
           }
           await proxyToPage(req, res, "render-debug-mode-set", { mode });
+          return;
+        }
+
+        // S095 AGF-RENDER-DEBUG-FREECAM. POST sets the override (or
+        // clears it with { off: true }); GET reads the current pose.
+        if (route === "/render/freecam" && req.method === "GET") {
+          await proxyToPage(req, res, "render-freecam-get");
+          return;
+        }
+        if (route === "/render/freecam" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const validated = validateFreeCamBody(body);
+          if (validated.kind === "error") {
+            respondJson(res, 400, {
+              ok: false,
+              error: { code: validated.code, message: validated.message }
+            });
+            return;
+          }
+          if (validated.kind === "off") {
+            await proxyToPage(req, res, "render-freecam-set", { off: true });
+            return;
+          }
+          await proxyToPage(req, res, "render-freecam-set", {
+            position: validated.position,
+            lookAt: validated.lookAt
+          });
+          return;
+        }
+
+        // S095 AGF-AUDIO-MASTER-VOLUME.
+        if (route === "/audio/master-volume" && req.method === "GET") {
+          await proxyToPage(req, res, "audio-master-volume-get");
+          return;
+        }
+        if (route === "/audio/master-volume" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const value = (body as { value?: unknown }).value;
+          if (typeof value !== "number") {
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_BRIDGE_INVALID_AUDIO_VOLUME",
+                message: "Body must be JSON with a `value` number in [0, 1] (non-finite values are ignored)."
+              }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "audio-master-volume-set", { value });
           return;
         }
 

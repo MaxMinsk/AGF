@@ -19,16 +19,31 @@ Every route is GET unless marked POST. Responses are wrapped in
 
 ## Snapshot the world
 
-### `GET /__agf/snapshot`
+### `GET /__agf/snapshot` · `GET /__agf/snapshot?at=-N`
 
 Returns the full ECS snapshot. Same shape `runtime.snapshot()`
 produces in-page.
 
+S095 AGF-PROBE-SNAPSHOT-HISTORY adds the optional `at` query param:
+`at=0` (default) returns the LIVE snapshot, `at=-1` returns the
+snapshot captured at the end of the previous fixedUpdate burst,
+`at=-N` returns N steps back. The ring holds 32 entries. `at` must
+be a non-positive integer:
+
+- Positive values return HTTP 400 `AGF_BRIDGE_INVALID_SNAPSHOT_AT`.
+- Negative values beyond the ring size return HTTP 400
+  `AGF_PROBE_SNAPSHOT_OUT_OF_RANGE` (the error body reports the
+  current `capacity` + `size`).
+
 ```bash
-curl -s http://localhost:5173/__agf/snapshot | jq '.payload.snapshot.entities | length'
+curl -s 'http://localhost:5173/__agf/snapshot' | jq '.payload.snapshot.entities | length'
+curl -s 'http://localhost:5173/__agf/snapshot?at=-1' | jq '.payload.entities | length'
+# Diff live vs. one tick ago:
+diff <(curl -s 'http://localhost:5173/__agf/snapshot?at=0' | jq -S '.payload.snapshot') \
+     <(curl -s 'http://localhost:5173/__agf/snapshot?at=-1' | jq -S '.payload')
 ```
 
-Payload shape:
+Payload shape for the LIVE call (`at=0` or omitted):
 
 ```ts
 {
@@ -43,6 +58,10 @@ Payload shape:
   reloadEvents: HotReloadEvent[]
 }
 ```
+
+Payload shape for a HISTORY call (`at=-N`) is the raw `WorldSnapshot`
+in `payload` (no diagnostics / renderer-info envelope — historical
+snapshots are just ECS state).
 
 ---
 
@@ -221,6 +240,61 @@ curl -X POST 'http://localhost:5173/__agf/render/debug-mode' \
 
 Invalid mode strings (anything outside the v1 set above) return
 HTTP 400 with `AGF_BRIDGE_INVALID_RENDER_DEBUG_MODE`.
+
+### `GET /__agf/render/freecam` · `POST /__agf/render/freecam`
+
+S095 AGF-RENDER-DEBUG-FREECAM. Agent-driven free-fly camera override.
+When set, the renderer creates (and pins active) a debug
+`PerspectiveCamera` at the supplied pose; the project's normal active
+camera is suspended. Sending `{ off: true }` releases the override and
+the project camera takes over again. Pure agent observability — not
+a player feature; useful for inspecting blast aftermath, off-screen
+entities, prefab layout.
+
+POST body shapes:
+
+- `{ position: [x, y, z], lookAt: [x, y, z] }` — set the override.
+- `{ off: true }` — clear the override.
+
+```bash
+# Look down at the arena from above-and-behind.
+curl -X POST 'http://localhost:5173/__agf/render/freecam' \
+  -H 'Content-Type: application/json' \
+  -d '{"position":[10,12,10],"lookAt":[0,0,0]}'
+# → { "freecam": { "position": [10,12,10], "lookAt": [0,0,0] } }
+
+# Read the live override (null when off).
+curl -s 'http://localhost:5173/__agf/render/freecam' | jq '.payload.freecam'
+
+# Release the override.
+curl -X POST 'http://localhost:5173/__agf/render/freecam' \
+  -H 'Content-Type: application/json' \
+  -d '{"off":true}'
+```
+
+Body validation rejects non-finite numbers, wrong-length tuples, and
+non-object payloads with HTTP 400 `AGF_BRIDGE_INVALID_FREECAM`.
+
+### `GET /__agf/audio/master-volume` · `POST /__agf/audio/master-volume`
+
+S095 AGF-AUDIO-MASTER-VOLUME. Master multiplier applied to every
+subsequent `runtime.audio.play(id, { volume })` call:
+`el.volume = clamp(master * (volume ?? 1), 0, 1)`. Calling this does
+NOT retroactively change clips that are already playing — those keep
+their captured volume until they restart on the next `play()`.
+
+```bash
+curl 'http://localhost:5173/__agf/audio/master-volume'
+# → { "value": 1 }
+curl -X POST 'http://localhost:5173/__agf/audio/master-volume' \
+  -H 'Content-Type: application/json' \
+  -d '{"value":0.3}'
+# → { "value": 0.3 }
+```
+
+Non-number bodies return HTTP 400 `AGF_BRIDGE_INVALID_AUDIO_VOLUME`.
+Non-finite values (NaN, Infinity) are ignored on the runtime side —
+the response carries the unchanged master.
 
 ### `POST /__agf/asset/invalidate?playerId=<id>`
 

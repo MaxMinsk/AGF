@@ -30,6 +30,17 @@ export type AudioBus = {
   dispose(): void;
   /** Listed clip ids (insertion order). Useful for diagnostics + tests. */
   clips(): ReadonlyArray<string>;
+  /**
+   * S095 AGF-AUDIO-MASTER-VOLUME. Master multiplier (clamped to [0, 1])
+   * applied to every subsequent `play(id, { volume })` call:
+   * `el.volume = clamp(masterVolume * (volume ?? 1), 0, 1)`. Calling
+   * setMasterVolume() does NOT affect clips that are already playing —
+   * those keep their current volume until they restart on the next
+   * `play()`. Default 1.
+   */
+  setMasterVolume(value: number): number;
+  /** Read the current master volume (0..1). */
+  getMasterVolume(): number;
 };
 
 type Entry = {
@@ -50,6 +61,8 @@ export function createAudioBus(parent?: HTMLElement): AudioBus | undefined {
   const order: string[] = [];
   const entries = new Map<string, Entry>();
   let disposed = false;
+  // S095 AGF-AUDIO-MASTER-VOLUME — master multiplier, clamp [0, 1].
+  let masterVolume = 1;
 
   function ensureElement(entry: Entry): HTMLAudioElement {
     if (entry.element !== undefined) return entry.element;
@@ -86,7 +99,8 @@ export function createAudioBus(parent?: HTMLElement): AudioBus | undefined {
       const entry = entries.get(id);
       if (entry === undefined) return;
       const el = ensureElement(entry);
-      el.volume = Math.max(0, Math.min(1, options.volume ?? 1));
+      // S095 AGF-AUDIO-MASTER-VOLUME — master multiplies per-call volume.
+      el.volume = Math.max(0, Math.min(1, masterVolume * (options.volume ?? 1)));
       el.playbackRate = Math.max(0.1, options.rate ?? 1);
       // Restart from the top so back-to-back triggers don't queue silence.
       try {
@@ -137,6 +151,14 @@ export function createAudioBus(parent?: HTMLElement): AudioBus | undefined {
     },
     clips(): ReadonlyArray<string> {
       return [...order];
+    },
+    setMasterVolume(value: number): number {
+      if (!Number.isFinite(value)) return masterVolume;
+      masterVolume = Math.max(0, Math.min(1, value));
+      return masterVolume;
+    },
+    getMasterVolume(): number {
+      return masterVolume;
     }
   };
 }

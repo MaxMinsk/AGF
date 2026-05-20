@@ -100,5 +100,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S092](backlog/sprints/S092.sprint.json)** — QA-workflow design — plan the two-terminal Dev + QA split — 1 implemented · archived 2026-05-20
 - **[S093](backlog/sprints/S093.sprint.json)** — QA workflow engine + docs (S092 follow-up) — 8 implemented · archived 2026-05-20
 - **[S094](backlog/sprints/S094.sprint.json)** — QA flow automation — auto-merge + auto-pickup of merged sprint PRs — 7 implemented, 2 deferred · archived 2026-05-20
+- **[S095](backlog/sprints/S095.sprint.json)** — Polish — camera shake / spawn pop + agent free-cam + audio dial + snapshot history — 7 implemented · archived 2026-05-20
 
 <!-- backlog:render:end -->

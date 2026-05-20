@@ -61,6 +61,31 @@ describe("createKaboomPickupSpawnSystem (S82 KABOOM-PICKUPS-AND-STATS)", () => {
     expect(occ?.blocksMovement).toBe(false);
   });
 
+  it("S095 KABOOM-SPAWN-POP-TWEEN: pickup spawns at scale 0 with an easeOutBack Tween to visual.scale", () => {
+    const world = new World();
+    emitSoftBlockDestroyed(world, "evt.1", 5, 5);
+    const system = createKaboomPickupSpawnSystem({ dropChance: 1, seed: 7 });
+    system.fixedUpdate!(ctx(world));
+    const pickup = [...world.createQuery(["Pickup"]).run()][0]!;
+    const transform = world.getComponent(pickup, "Transform") as { scale: ReadonlyArray<number> };
+    expect(transform.scale).toEqual([0, 0, 0]);
+    const tweens = world.getComponent(pickup, "Tweens") as ReadonlyArray<{
+      component: string;
+      property: string;
+      from: ReadonlyArray<number>;
+      to: ReadonlyArray<number>;
+      duration: number;
+      ease: string;
+    }>;
+    expect(tweens.length).toBe(1);
+    expect(tweens[0]!.ease).toBe("easeOutBack");
+    expect(tweens[0]!.duration).toBeCloseTo(0.2, 3);
+    expect(tweens[0]!.from).toEqual([0, 0, 0]);
+    // Final scale matches the per-kind visual scale; assert at least
+    // that it's non-zero on all axes.
+    expect(tweens[0]!.to.every((c) => c > 0)).toBe(true);
+  });
+
   it("different seeds at the same cell may produce different kinds", () => {
     // Smoke-test that the seed actually mixes in. We don't assert
     // *which* kinds — just that the seeded surface isn't constant.

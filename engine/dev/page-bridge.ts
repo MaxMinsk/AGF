@@ -111,6 +111,9 @@ function stopEventStream(): void {
 
 type AgfApi = {
   snapshot?: () => unknown;
+  /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
+  snapshotAt?: (at: number) => unknown;
+  snapshotHistoryStats?: () => { capacity: number; size: number };
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   /** S83 AGF-AGENT-RENDERER-PROBE. */
@@ -134,6 +137,16 @@ type AgfApi = {
   setRenderDebugMode?: (
     mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"
   ) => "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+  /** S095 AGF-AUDIO-MASTER-VOLUME. GET returns the live master volume. */
+  getAudioMasterVolume?: () => number;
+  /** S095 AGF-AUDIO-MASTER-VOLUME. POST forwards a [0,1] value; returns the clamped result. */
+  setAudioMasterVolume?: (value: number) => number;
+  /** S095 AGF-RENDER-DEBUG-FREECAM. GET returns the current pose or undefined. */
+  getRenderFreeCam?: () => unknown;
+  /** S095 AGF-RENDER-DEBUG-FREECAM. POST sets/clears the override. */
+  setRenderFreeCam?: (
+    spec: { position: readonly [number, number, number]; lookAt: readonly [number, number, number] } | null
+  ) => boolean;
   reloadEvents?: unknown;
   applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
   startRecording?: () => unknown;
@@ -248,6 +261,19 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "snapshot":
         payload = api?.snapshot?.();
         break;
+      case "snapshot-at": {
+        // S095 AGF-PROBE-SNAPSHOT-HISTORY. `at: 0` is live; negative
+        // values look back in the ring. We always return an envelope
+        // so the dev-bridge can tell "history too short" apart from
+        // a missing-handler condition.
+        const at = (payloadIn as { at?: number } | undefined)?.at ?? 0;
+        const snap = api?.snapshotAt?.(at);
+        const stats = api?.snapshotHistoryStats?.() ?? { capacity: 0, size: 0 };
+        payload = snap === undefined
+          ? { outOfRange: true, capacity: stats.capacity, size: stats.size }
+          : { snapshot: snap };
+        break;
+      }
       case "diagnostics":
         payload = api?.diagnostics?.();
         break;
@@ -275,6 +301,44 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         // S091 AGF-RENDER-DEBUG-MODE-AGENT — GET path.
         payload = { mode: api?.getRenderDebugMode?.() ?? "off" };
         break;
+      case "audio-master-volume-get":
+        // S095 AGF-AUDIO-MASTER-VOLUME — GET path.
+        payload = { value: api?.getAudioMasterVolume?.() ?? 1 };
+        break;
+      case "render-freecam-get":
+        // S095 AGF-RENDER-DEBUG-FREECAM — GET path.
+        payload = { freecam: api?.getRenderFreeCam?.() ?? null };
+        break;
+      case "render-freecam-set": {
+        // S095 AGF-RENDER-DEBUG-FREECAM — POST path. Body is either
+        // { off: true } to clear or { position, lookAt } to set.
+        const body = payloadIn as { off?: boolean; position?: readonly [number, number, number]; lookAt?: readonly [number, number, number] } | undefined;
+        if (body?.off === true) {
+          api?.setRenderFreeCam?.(null);
+          payload = { freecam: null };
+        } else if (
+          body !== undefined &&
+          body.position !== undefined &&
+          body.lookAt !== undefined &&
+          api?.setRenderFreeCam !== undefined
+        ) {
+          api.setRenderFreeCam({ position: body.position, lookAt: body.lookAt });
+          payload = { freecam: api?.getRenderFreeCam?.() ?? null };
+        } else {
+          payload = { freecam: api?.getRenderFreeCam?.() ?? null };
+        }
+        break;
+      }
+      case "audio-master-volume-set": {
+        // S095 AGF-AUDIO-MASTER-VOLUME — POST path. Body contains `value`.
+        const value = (payloadIn as { value?: number } | undefined)?.value;
+        if (typeof value !== "number" || api?.setAudioMasterVolume === undefined) {
+          payload = { value: api?.getAudioMasterVolume?.() ?? 1 };
+        } else {
+          payload = { value: api.setAudioMasterVolume(value) };
+        }
+        break;
+      }
       case "render-debug-mode-set": {
         // S091 AGF-RENDER-DEBUG-MODE-AGENT — POST path.
         const mode = (payloadIn as { mode?: string } | undefined)?.mode;

@@ -42,6 +42,32 @@ describe("createKaboomBombPlacementSystem (S82 KABOOM-BOMB-PLACE)", () => {
     expect(world.hasComponent("player.1", "PlaceBombRequest")).toBe(false);
   });
 
+  it("S095 KABOOM-SPAWN-POP-TWEEN: bomb spawns at scale 0 with an easeOutBack Tween to its final size", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4);
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.test" });
+    system.frameUpdate!(ctx(world));
+    const transform = world.getComponent("bomb.test", "Transform") as { scale: ReadonlyArray<number> };
+    expect(transform.scale).toEqual([0, 0, 0]);
+    const tweens = world.getComponent("bomb.test", "Tweens") as ReadonlyArray<{
+      component: string;
+      property: string;
+      from: ReadonlyArray<number>;
+      to: ReadonlyArray<number>;
+      duration: number;
+      ease: string;
+    }>;
+    expect(tweens.length).toBe(1);
+    expect(tweens[0]!.component).toBe("Transform");
+    expect(tweens[0]!.property).toBe("scale");
+    expect(tweens[0]!.from).toEqual([0, 0, 0]);
+    expect(tweens[0]!.to).toEqual([0.35, 0.35, 0.35]);
+    expect(tweens[0]!.duration).toBeCloseTo(0.2, 3);
+    expect(tweens[0]!.ease).toBe("easeOutBack");
+  });
+
   it("refuses when activeBombs already hits maxBombs", () => {
     const world = new World();
     makePlayer(world, "player.1", 3, 4, { maxBombs: 1, activeBombs: 1 });

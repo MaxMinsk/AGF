@@ -181,6 +181,18 @@ export type RuntimeHandle = {
    */
   snapshot(): WorldSnapshot;
   /**
+   * S095 AGF-PROBE-SNAPSHOT-HISTORY. Look back in the ring buffer of
+   * snapshots captured at the end of each fixedUpdate phase. Defaults
+   * to the LIVE snapshot (same as `snapshot()` with no args). `at` is
+   * a non-positive integer index: `at: 0` (or omitted) → live, `at: -1`
+   * → previous fixed step, `at: -N` → N steps back. Returns undefined
+   * when `-at` exceeds the buffer (the dev-bridge translates that into
+   * an AGF_PROBE_SNAPSHOT_OUT_OF_RANGE HTTP 400).
+   */
+  snapshotAt(at: number): WorldSnapshot | undefined;
+  /** S095 — current ring-buffer capacity (constant) + occupancy. */
+  snapshotHistoryStats(): { capacity: number; size: number };
+  /**
    * Resolves after the first frame that actually rendered (active
    * camera acquired + `renderer.adapter.draw()` executed). Use this
    * in tests / dev-bridge clients before taking screenshots or
@@ -258,6 +270,27 @@ export function clampTimeScale(value: number): number {
 
 const DEFAULT_FIXED_DT = 1 / 60;
 const METRICS_WINDOW_SECONDS = 0.5;
+
+// S095 AGF-PROBE-SNAPSHOT-HISTORY. Ring buffer of WorldSnapshot taken
+// at the end of each fixedUpdate phase. 32 entries ≈ 0.5 s at 60 Hz —
+// enough to diff against several ticks back without burning much heap.
+const SNAPSHOT_HISTORY_CAPACITY = 32;
+
+/**
+ * S095 AGF-PROBE-SNAPSHOT-HISTORY — pure lookup helper. Exposed for
+ * unit tests so the index math can be locked without spinning up the
+ * full runtime loop. Returns the snapshot at relative index `at`:
+ * `at: 0` → caller should fall back to live snapshot (returns
+ * undefined here); `at: -1` → most-recent ring entry; `at: -N` → N
+ * steps back. Returns undefined when `|-at|` exceeds the ring size.
+ */
+export function lookupSnapshotInRing<T>(ring: ReadonlyArray<T>, at: number): T | undefined {
+  if (!Number.isFinite(at)) return undefined;
+  const back = Math.floor(-at);
+  if (back <= 0) return undefined;
+  if (back > ring.length) return undefined;
+  return ring[ring.length - back];
+}
 
 // S54 RUNTIME-progressive-loading: returns true once every critical asset
 // has reached `applied` or `failed` — anything still `pending` blocks the
@@ -584,6 +617,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   const rendererReady = new Promise<void>((resolve) => {
     rendererReadyResolve = resolve;
   });
+  // S095 AGF-PROBE-SNAPSHOT-HISTORY — ring buffer of past snapshots.
+  // The buffer is append-only with O(1) push + bounded growth.
+  const snapshotHistory: WorldSnapshot[] = [];
   let fixedStepsInWindow = 0;
   let fixedAccumMs = 0;
   let frameAccumMs = 0;
@@ -681,6 +717,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       }
       time.elapsed = fixedTime.elapsed;
       time.fixedStepCount = fixedTime.fixedStepCount;
+      // S095 AGF-PROBE-SNAPSHOT-HISTORY — capture the post-fixedUpdate
+      // world state. Once per fixed step burst (not once per step) is
+      // sufficient and keeps the buffer cheap: most simulation changes
+      // settle by the time we exit the burst.
+      snapshotHistory.push(snapshotWorld(world, time));
+      if (snapshotHistory.length > SNAPSHOT_HISTORY_CAPACITY) {
+        snapshotHistory.shift();
+      }
     } else {
       time.elapsed += frameDt;
     }
@@ -823,6 +867,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     },
     snapshot(): WorldSnapshot {
       return snapshotWorld(world, time);
+    },
+    snapshotAt(at: number): WorldSnapshot | undefined {
+      // at=0 or non-finite → live snapshot. Positive values fall back
+      // to live too (the bridge already rejects positive `at` with
+      // AGF_BRIDGE_INVALID_SNAPSHOT_AT, but be defensive in-process).
+      if (!Number.isFinite(at) || at >= 0) {
+        return snapshotWorld(world, time);
+      }
+      return lookupSnapshotInRing(snapshotHistory, at);
+    },
+    snapshotHistoryStats(): { capacity: number; size: number } {
+      return { capacity: SNAPSHOT_HISTORY_CAPACITY, size: snapshotHistory.length };
     },
     frameTiming(): FrameTiming {
       return lastFrameTiming;
