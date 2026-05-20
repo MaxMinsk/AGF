@@ -773,18 +773,26 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       // for the first 4 s of the first round, dismissed once the
       // banner needs the slot or the 4 s window expires.
       const CONTROLS_HINT_ID = "kaboom.controls-hint";
+      // S097 KABOOM-CONTROLS-HINT-FADE — render reads an `opacity`
+      // field so the fade-out loop (later in update()) can modulate
+      // it. Default 0.85 (the pre-S097 baseline).
       const controlsHintSpec = {
         id: CONTROLS_HINT_ID,
         slot: "center" as const,
-        initial: undefined,
-        render: (): HTMLElement => {
+        initial: { opacity: 0.85 } as { opacity: number },
+        render: (data: { opacity?: number } = { opacity: 0.85 }): HTMLElement => {
           const el = document.createElement("div");
-          el.setAttribute("style", "font-size:14px;font-weight:500;text-align:center;padding:4px 10px;opacity:0.85;");
+          const op = data.opacity ?? 0.85;
+          el.setAttribute("style", `font-size:14px;font-weight:500;text-align:center;padding:4px 10px;opacity:${op.toFixed(3)};`);
           el.textContent = "WASD / arrows  ·  Space = bomb  ·  R = restart";
           return el;
         }
       };
       let controlsHintMounted = false;
+      // S097 KABOOM-CONTROLS-HINT-FADE — track the start of the fade
+      // so the update loop can compute opacity each frame.
+      const CONTROLS_HINT_FADE_MS = 350;
+      let controlsHintFadeStartMs: number | undefined;
 
       // Banner widget is added on demand because the engine's HUD
       // WIDGET_STYLE always paints a dark pill around the slot — even
@@ -959,9 +967,25 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (hintWindowOpen && !controlsHintMounted && !bannerMounted) {
           hud.add(controlsHintSpec);
           controlsHintMounted = true;
+          controlsHintFadeStartMs = undefined;
         } else if (controlsHintMounted && (!hintWindowOpen || bannerMounted)) {
-          hud.remove(CONTROLS_HINT_ID);
-          controlsHintMounted = false;
+          // S097 KABOOM-CONTROLS-HINT-FADE — kick the fade on the
+          // first frame the hint should leave, then unmount after
+          // CONTROLS_HINT_FADE_MS. Setting controlsHintFadeStartMs
+          // here means subsequent ticks land in the else-if-fading
+          // branch below.
+          if (controlsHintFadeStartMs === undefined) {
+            controlsHintFadeStartMs = performance.now();
+          }
+          const elapsed = performance.now() - controlsHintFadeStartMs;
+          const opacity = fadeOutOpacityCurve(elapsed, CONTROLS_HINT_FADE_MS) * 0.85;
+          if (opacity <= 0) {
+            hud.remove(CONTROLS_HINT_ID);
+            controlsHintMounted = false;
+            controlsHintFadeStartMs = undefined;
+          } else {
+            hud.update(CONTROLS_HINT_ID, { opacity });
+          }
         }
 
         // Banner — empty while playing, mounted otherwise.
