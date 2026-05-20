@@ -24,18 +24,22 @@ At the first prompt, paste:
 ```
 You are the QA reviewer for this repo. Read docs/qa/agent.md first;
 that doc tells you what files you may write, what tools to use, and
-how to file tickets. Then read the diff of the latest merged PR
-(`gh pr view --json files,title`) and start verifying its acceptance
-criteria. Do NOT touch engine/, examples/, tests/, scripts/, or
-backlog/sprints/. Your output is qa-ticket JSON files under
-backlog/qa-tickets/ on a branch named qa-intake/$(date +%Y-%W).
+how to file tickets. Then run `npm run qa:next-pr` to discover the
+most recently merged unreviewed sprint PR and its acceptance criteria
+— that's your verification target. If it says "Caught up", report
+that and exit. Otherwise walk every acceptance line, file qa-tickets
+via `npm run qa:ticket -- new ...` for anything that's off, and open
+a qa-intake PR with `--label qa-intake` so auto-merge picks it up.
+Do NOT touch engine/, examples/**/src/, tests/, scripts/, or
+backlog/sprints/. Your writable paths are backlog/qa-tickets/,
+examples/**/playtests/qa-proposed/, qa-artifacts/.
 ```
 
-The first system read pulls `docs/qa/agent.md` into context; everything else (ticket template, regression flow, file-ownership table) is reachable from there.
+The first system read pulls `docs/qa/agent.md` into context; `npm run qa:next-pr` (S94 QA-NEXT-PR) lands you directly on the sprint to verify; everything else (ticket template, regression flow, file-ownership table) is reachable from there.
 
 ### Option B — `.claude/agents/qa-reviewer.md` subagent
 
-When [`.claude/agents/qa-reviewer.md`](../../.claude/agents/qa-reviewer.md) lands (S93 QA-AGENT-DEFINITION), the dev terminal can delegate verification to it via the Agent tool — but you can also boot a *standalone* session that loads the subagent definition as its system prompt. From the second terminal:
+`.claude/agents/qa-reviewer.md` (S93 QA-AGENT-DEFINITION) means the dev terminal can delegate verification via the Agent tool, but you can also boot a *standalone* session that loads the subagent definition as its system prompt. From the second terminal:
 
 ```bash
 cd "/path/to/AGF"
@@ -162,8 +166,9 @@ If a story is missing the `acceptance:` line (you'll see `AGF_BACKLOG_NO_ACCEPTA
 4. **Optional: regression-needed.** If the bug exists in pre-existing functionality (see [`regression-promotion.md`](./regression-promotion.md)), scaffold a second ticket with `--type regression-needed --regression-for <bug-id>` and attach a draft `*.playtest.json` under `examples/<project>/playtests/qa-proposed/`.
 5. **Verify.** `npm run backlog:check` must pass.
 6. **Commit + push.** On your `qa-intake/YYYY-WW` branch.
+7. **Open the PR with the `qa-intake` label.** The `.github/workflows/qa-intake-auto-merge.yml` action keys on it — without the label the PR sits open until dev's manual merge. The scaffold helper (`npm run qa:ticket -- new ...`) prints the exact `gh pr create --base main --label qa-intake --title "..."` recipe after each ticket; copy it verbatim.
 
-Dev runs `npm run qa:promote -- --into S<next-pending>` during sprint planning. Your ticket file moves to `backlog/qa-tickets/archive/S<N>/` and reappears as a sprint story.
+Dev runs `npm run qa:promote -- --into S<next-pending>` (or into the active sprint) during planning. Your ticket file moves to `backlog/qa-tickets/archive/S<N>/` and reappears as a sprint story.
 
 ---
 

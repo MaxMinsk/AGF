@@ -2,17 +2,18 @@
   "agfFormatVersion": 1,
   "id": "S094",
   "title": "QA flow automation — auto-merge + auto-pickup of merged sprint PRs",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
   "stories": [
     {
       "id": "QA-AUTO-MERGE-ACTION",
       "title": ".github/workflows/qa-intake-auto-merge.yml — auto-merge qa-intake PRs",
-      "status": "pending",
-      "summary": "GitHub Action that auto-merges PRs labelled `qa-intake` once safety checks pass. Triggered on pull_request_target with the label event. Pipeline: (1) verify every changed file path matches one of `backlog/qa-tickets/**`, `examples/**/playtests/qa-proposed/**`, `qa-artifacts/**` — fail otherwise (`qa-intake PR must touch only QA-writable paths`); (2) wait for CI checks to finish via `gh pr checks --watch`; (3) on green, `gh pr merge --squash --auto`. Action runs on the repo's `GITHUB_TOKEN` (write-perm on contents/pulls). Eliminates the dev-terminal relay so QA tickets flow into main without human prompting.",
+      "status": "implemented",
+      "summary": ".github/workflows/qa-intake-auto-merge.yml runs on pull_request_target [opened, reopened, synchronize, labeled] when the PR carries the `qa-intake` label. Steps: (1) checkout PR head; (2) diff against base to enumerate touched files; (3) regex-guard each path against `^(backlog/qa-tickets/|examples/.*/playtests/qa-proposed/|qa-artifacts/)` — any other path fails the job; (4) `gh pr checks --watch --fail-fast` blocks until CI is terminal-green; (5) `gh pr merge --squash --auto --delete-branch`. Per-PR concurrency group prevents racing on resync events.",
       "verification": [
-        "acceptance: QA opens a PR with the `qa-intake` label that only touches `backlog/qa-tickets/`. CI runs (smoke + unit + check). Within 1 minute of green CI, the PR is squash-merged automatically; main picks up the tickets.",
-        "Path-guard step rejects any PR touching engine/, examples/**/src/, tests/, etc. — even if labelled qa-intake — with a clear failure message",
+        "acceptance: QA opens a PR with the `qa-intake` label that only touches `backlog/qa-tickets/`. CI runs. Within ~1 minute of green CI, the PR is squash-merged automatically; main picks up the tickets without dev relay.",
+        "Path-guard step rejects any PR touching engine/, examples/**/src/, tests/, etc. — even if labelled qa-intake — with a clear `::error::` message",
         "If CI fails the action exits non-zero and leaves the PR open for QA to fix"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
@@ -20,45 +21,45 @@
     {
       "id": "QA-INTAKE-LABEL-CONVENTION",
       "title": "QA scaffold helper prints the `gh pr create --label qa-intake` recipe",
-      "status": "pending",
-      "summary": "The auto-merge action keys on the `qa-intake` label. Today the QA agent has to remember to add it. Update `scripts/backlog/qa-ticket.mjs` to print, after a successful scaffold, the exact `gh pr create --base main --label qa-intake --title \"qa-intake: ...\"` invocation the agent should run when ready to push the batch. Also document the convention in `docs/qa/agent.md` so a fresh agent finds it without needing the print-out.",
+      "status": "implemented",
+      "summary": "scripts/backlog/qa-ticket.mjs's `new` subcommand now ends with a 6-line stderr block printing the exact canonical sequence: `git checkout -B qa-intake/YYYY-WW`, stage commands for QA-writable dirs, commit + push, and the `gh pr create --label qa-intake --title ...` invocation. ISO-week derived from today's UTC date so the branch name is always right. docs/qa/agent.md's filing-loop section gains step 7 explicitly documenting that the `qa-intake` label is required for auto-merge.",
       "verification": [
-        "acceptance: Running `npm run qa:ticket -- new \"<title>\"` ends with a stderr `[qa-ticket] when ready to push, open the PR with: gh pr create ... --label qa-intake`. The QA agent can copy that line verbatim.",
-        "docs/qa/agent.md notes the `qa-intake` label is required for auto-merge"
+        "acceptance: `npm run qa:ticket -- new \"<title>\" --severity major --type bug` ends with stderr `[qa-ticket] gh pr create --base main --label qa-intake --title \"qa-intake: ...\" ...`. QA can copy verbatim.",
+        "docs/qa/agent.md step 7 documents the label requirement"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
     {
       "id": "QA-SPRINT-PR-LABEL",
-      "title": "Sprint PRs auto-label with `sprint` for QA discoverability",
-      "status": "pending",
-      "summary": "Companion to the next story (QA-NEXT-PR). For QA's `gh pr list --label sprint --state merged` to actually return merged dev sprints, every sprint PR must carry the `sprint` label. Extend `scripts/backlog/pr-body.mjs` (or wherever the sprint PR open path lives) to default to `--label sprint`. Existing PRs are not retroactively labelled — convention applies to S094+ sprint PRs.",
+      "title": "Sprint PRs labelled `sprint` for QA discoverability",
+      "status": "implemented",
+      "summary": "CLAUDE.md §QA-Workflow sprint-close section now spells out the canonical `gh pr create --base main --label sprint --title \"S<NN>: ...\" --body-file <(node scripts/backlog/pr-body.mjs)` command so every sprint PR from S094 forward carries the `sprint` label. Convention only — no script wrapping, since pr-body.mjs renders only the body and the gh call is one line. Existing/closed PRs unchanged.",
       "verification": [
-        "acceptance: After this lands, the next sprint PR I open via the standard workflow carries the `sprint` label by default. `gh pr list --label sprint --state merged` returns it after merge.",
-        "Existing/closed PRs not retroactively touched"
+        "acceptance: Next sprint PR I open via the documented command carries `sprint` label; `gh pr list --label sprint --state merged` returns it after merge, and `npm run qa:next-pr` picks it up.",
+        "CLAUDE.md sprint-close docs updated with the canonical command"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
     {
       "id": "QA-NEXT-PR",
       "title": "scripts/backlog/qa-next-pr.mjs — find the most recently merged sprint PR",
-      "status": "pending",
-      "summary": "Helper command for the QA terminal: `npm run qa:next-pr` returns the most-recently-merged PR labelled `sprint` (or matching `^S\\d+:` in the title as a fallback for un-labelled legacy PRs) that QA hasn't reviewed yet. \"Reviewed\" = a marker file `qa-artifacts/reviewed/PR-<N>.txt` exists OR a qa-ticket in `backlog/qa-tickets/` (including archive/) references the PR via `foundInPr`. Prints PR number, title, merged-at timestamp, and the `acceptance:` lines from the sprint's stories so the QA agent immediately sees what to verify. Wrap as `npm run qa:next-pr`.",
+      "status": "implemented",
+      "summary": "scripts/backlog/qa-next-pr.mjs uses `gh pr list --label sprint --state merged` to enumerate dev sprint PRs, walks every qa-ticket file (live AND archived) to build a set of already-reviewed PR numbers (via the ticket's foundInPr field), and returns the newest unreviewed entry. Reads the matching sprint JSON to extract every implemented story's `acceptance:` line so the QA agent immediately sees its verification contract. Two output modes: human (default, multi-line printout) and `--json` for tooling. Exits 0 with `Caught up` when nothing is unreviewed. New npm script `qa:next-pr`.",
       "verification": [
-        "acceptance: `npm run qa:next-pr` on a fresh state shows the most recent merged sprint PR + its acceptance lines. After QA files a ticket with foundInPr=<N>, re-running it shows the next-older PR.",
-        "Returns 'no unreviewed PR' (exit 0) when caught up",
-        "+ unit test against a stub gh response"
+        "acceptance: `npm run qa:next-pr` on a state where PR #1000 is the newest unreviewed sprint PR prints PR meta + every `acceptance:` line from the sprint JSON; after QA files a ticket with foundInPr=1000, re-running it returns the next-older sprint PR (or 'Caught up').",
+        "Returns exit 0 + 'Caught up' when no unreviewed PR exists",
+        "+4 unit tests in tests/unit/qa-next-pr.test.ts using a PATH-stubbed `gh` binary: caught-up text path, --json caught-up path, newest-mergedAt selection, acceptance lines surfaced from a real sprint JSON"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
     {
       "id": "QA-AGENT-AUTOLOAD",
       "title": "QA agent runs qa:next-pr automatically when invoked",
-      "status": "pending",
-      "summary": "Update `.claude/agents/qa-reviewer.md` system prompt + `docs/qa/agent.md` 'How to launch' section so the very first thing a QA session does is `npm run qa:next-pr`. If it returns a PR, the agent starts verifying it; if not, the agent reports 'caught up — exiting'. Eliminates the user-prompt 'go check the new sprint' step.",
+      "status": "implemented",
+      "summary": "docs/qa/agent.md 'How to launch' kickoff prompt now starts the QA session with `npm run qa:next-pr` and tells the agent to exit cleanly on `Caught up`. .claude/agents/qa-reviewer.md gains an explicit Step 0 in the per-PR job list calling out qa:next-pr as the first action. Together: a fresh QA session needs no user nudging — it lands directly on the next sprint PR's acceptance criteria.",
       "verification": [
-        "acceptance: A fresh QA session invocation lands on the latest unreviewed sprint PR's acceptance criteria without user prompting beyond the kickoff prompt.",
-        ".claude/agents/qa-reviewer.md and docs/qa/agent.md updated; kickoff prompt template includes the qa:next-pr step"
+        "acceptance: A fresh QA session pasting the Option-A kickoff prompt from docs/qa/agent.md lands on the most recent unreviewed sprint PR (or exits with 'caught up') without any further user prompting.",
+        ".claude/agents/qa-reviewer.md step 0 documents qa:next-pr first; docs/qa/agent.md kickoff text aligned"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },

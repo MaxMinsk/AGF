@@ -114,6 +114,27 @@ if (todo.length > 0) {
 } else {
   console.error(`[qa-ticket] created ${file}`);
 }
+
+// S94 QA-INTAKE-LABEL-CONVENTION. Remind the agent that the
+// auto-merge GitHub Action keys on the `qa-intake` label. Without
+// it the PR sits open until dev's manual relay.
+const isoWeek = (() => {
+  // Approx ISO-week: just use UTC week-of-year for the suggested branch name.
+  const tmp = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${tmp.getUTCFullYear()}-${week.toString().padStart(2, "0")}`;
+})();
+console.error("");
+console.error("[qa-ticket] When ready to push the batch, the canonical commands are:");
+console.error(`[qa-ticket]   git checkout -B qa-intake/${isoWeek}`);
+console.error(`[qa-ticket]   git add backlog/qa-tickets/ examples/*/playtests/qa-proposed/ qa-artifacts/`);
+console.error(`[qa-ticket]   git commit -m "qa-intake: <one-line summary>"`);
+console.error(`[qa-ticket]   git push -u origin qa-intake/${isoWeek}`);
+console.error(`[qa-ticket]   gh pr create --base main --label qa-intake --title "qa-intake: ${datePrefix}" --body "<list of tickets>"`);
+console.error("[qa-ticket] The --label qa-intake is REQUIRED — the qa-intake auto-merge action keys on it.");
+
 process.stdout.write(file + "\n");
 
 function exit(code, message) {
