@@ -8,13 +8,13 @@
     {
       "id": "GAME-DESIGN-PROPOSED-STORY-SCHEMA",
       "title": "schemas/proposed-story.schema.json + AJV validation in backlog:check",
-      "status": "pending",
-      "summary": "Add the JSON Schema for `backlog/proposed-stories/*.story-proposal.json`. Required fields: `agfFormatVersion`, `id` (pattern: `GDP-YYYY-MM-DD-NNN`), `createdAt` (ISO date string via pattern), `title`, `kind` (enum: feature|mechanic|balance|content), `intent` (markdown body, minLength 20), `priority` (enum: must|should|could). Optional: `epic`, `rationale`, `acceptanceHints` (string array). `additionalProperties: false`. Wire AJV validation into `scripts/backlog/check.mjs` so the next backlog:check call validates everything under backlog/proposed-stories/.",
+      "status": "implemented",
+      "summary": "schemas/proposed-story.schema.json defines the wire shape for `backlog/proposed-stories/*.story-proposal.json` (strict additionalProperties:false). Required: agfFormatVersion (const 1), id (^GDP-YYYY-MM-DD-NNN), title (minLength 5), createdAt (ISO pattern), kind (feature|mechanic|balance|content), intent (minLength 20), priority (must|should|could). Optional: epic, rationale, acceptanceHints (string array minLength 5 each), notes. scripts/backlog/check.mjs now reads + AJV-validates every file under backlog/proposed-stories/ (skipping archive/) using the same shared AJV instance + same diagnostic style as the QA ticket loader. Missing dir is fine; missing schema downgrades to a warning.",
       "verification": [
-        "acceptance: A malformed story-proposal (missing intent, bad priority, extra field) is rejected by `npm run backlog:check` with a structured error pointing at the offending file + field. A valid one passes silently.",
+        "acceptance: A malformed story-proposal (missing intent, bad priority, extra field) is rejected by `npm run backlog:check` with AGF_PROPOSED_STORY_SCHEMA pointing at the offending file + field. A valid one passes silently.",
         "schemas/proposed-story.schema.json: full JSON Schema with strict additionalProperties:false; id pattern matches QA ticket convention but with GDP prefix",
-        "scripts/backlog/check.mjs: reads backlog/proposed-stories/*.story-proposal.json and validates each via AJV",
-        "+ unit tests on the validator covering minimal-valid, missing-field, wrong-enum, additionalProperties rejection"
+        "scripts/backlog/check.mjs: reads backlog/proposed-stories/*.story-proposal.json and validates each via AJV (skips archive/ subdir)",
+        "+9 unit tests in tests/unit/proposed-story-schema.test.ts covering: valid canonical, minimal required, bad id pattern, intent too short, unknown kind, unknown priority, additionalProperties rejection, acceptanceHints minLength, non-numeric agfFormatVersion"
       ],
       "epic": "GAME-DESIGN-AGENT"
     },
