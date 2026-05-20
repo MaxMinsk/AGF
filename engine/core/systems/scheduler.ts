@@ -27,6 +27,10 @@ export class SystemScheduler {
   private readonly index = new Map<string, number>();
   private readonly activeProfiles: ReadonlySet<string>;
   private readonly diagnostics: DiagnosticsBus | undefined;
+  // S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE. Systems whose per-tick
+  // `AGF_SYSTEM_TICK` info trace is currently enabled. Empty by
+  // default; toggled via setDebugSystem(name, enabled).
+  private readonly debugSystems = new Set<string>();
 
   constructor(options: SystemSchedulerOptions = {}) {
     this.activeProfiles = new Set(options.activeProfiles ?? []);
@@ -72,6 +76,7 @@ export class SystemScheduler {
     }
     this.order.splice(position, 1);
     this.index.delete(name);
+    this.debugSystems.delete(name);
     for (let i = position; i < this.order.length; i += 1) {
       const remaining = this.order[i];
       if (remaining !== undefined) {
@@ -99,10 +104,37 @@ export class SystemScheduler {
     return this.order.length;
   }
 
+  /**
+   * S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE. Flip per-tick debug emission
+   * for a registered system. Returns true when the toggle landed,
+   * false when the name doesn't match a registered system. Disabled
+   * systems are scrubbed on unregister so a stale toggle never fires.
+   */
+  setDebugSystem(name: string, enabled: boolean): boolean {
+    if (!this.index.has(name)) return false;
+    if (enabled) this.debugSystems.add(name);
+    else this.debugSystems.delete(name);
+    return true;
+  }
+
+  /** S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE. Inspect the live toggle set (for tests + doctor). */
+  debugSystemNames(): ReadonlyArray<string> {
+    return [...this.debugSystems];
+  }
+
   runFixedStep(context: SystemContext): void {
     for (const system of this.order) {
       if (system.fixedUpdate !== undefined) {
         system.fixedUpdate(context);
+      }
+      if (this.debugSystems.has(system.name) && this.diagnostics !== undefined) {
+        this.diagnostics.emit({
+          severity: "info",
+          code: "AGF_SYSTEM_TICK",
+          source: "scheduler",
+          message: `system "${system.name}" tick`,
+          details: { name: system.name, tick: context.time.fixedStepCount, phase: "fixed" }
+        });
       }
     }
   }
@@ -111,6 +143,15 @@ export class SystemScheduler {
     for (const system of this.order) {
       if (system.frameUpdate !== undefined) {
         system.frameUpdate(context);
+      }
+      if (this.debugSystems.has(system.name) && this.diagnostics !== undefined) {
+        this.diagnostics.emit({
+          severity: "info",
+          code: "AGF_SYSTEM_TICK",
+          source: "scheduler",
+          message: `system "${system.name}" tick`,
+          details: { name: system.name, tick: context.time.frameCount, phase: "frame" }
+        });
       }
     }
   }
