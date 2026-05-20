@@ -101,13 +101,13 @@
     },
     {
       "id": "AGF-LOG-LIFECYCLE-SCHEDULER",
-      "title": "scheduler.register emits an info-level AGF_SCHEDULER_REGISTER diagnostic",
-      "status": "pending",
-      "summary": "Engine lifecycle traces follow-up from S082 — partially shipped via AGF_SCENE_LOAD_APPLIED + AGF_ENTITY_RECREATED. Closes the loop by making scheduler.register emit `info` AGF_SCHEDULER_REGISTER { systemName, phase, profile } so a snapshot reconstructs the boot-time system list without inspecting the scheduler object. No-ops in production via the diagnostics severity filter (info-level diagnostics already dropped under the default warning gate).",
+      "title": "scheduler.register emits an info-level AGF_SCHEDULER_SYSTEM_REGISTERED diagnostic",
+      "status": "implemented",
+      "summary": "Engine lifecycle traces follow-up from S082 — the SystemScheduler already emitted AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED info events when a DiagnosticsBus was supplied (with unit-test coverage under tests/unit/lifecycle-traces.test.ts), but the production wiring in src/app.ts constructed the scheduler without the bus, so the events never surfaced in /__agf/diagnostics. This story finishes the loop by passing the shared diagnostics bus into the scheduler constructor.",
       "verification": [
-        "Scheduler.register pipes through diagnostics when a bus is supplied; emission count == registered systems",
-        "+1 unit test exercises register/unregister + asserts the diagnostic ledger",
-        "boot-noise budget regression check stays green (info-level diagnostics filtered out)"
+        "src/app.ts constructs SystemScheduler with `{ activeProfiles: [...], diagnostics }`",
+        "Existing tests/unit/lifecycle-traces.test.ts covers the emission contract — AGF_SCHEDULER_SYSTEM_REGISTERED on register, _DEREGISTERED on unregister",
+        "Info-level diagnostics filtered out by the default warning gate so boot-noise budget stays green"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }

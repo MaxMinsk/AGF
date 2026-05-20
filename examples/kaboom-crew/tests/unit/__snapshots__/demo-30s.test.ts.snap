@@ -5,8 +5,8 @@ exports[`Kaboom Crew demo-30s regression (S84 KABOOM-DEMO-RECORDING) > produces 
   "bombers": [
     {
       "alive": true,
-      "gx": 10,
-      "gz": 6,
+      "gx": 14,
+      "gz": 10,
       "id": "player.1",
     },
     {

@@ -337,8 +337,13 @@ export async function createApp(
   shell.append(canvas, status);
   root.append(shell);
 
-  const scheduler = new SystemScheduler({ activeProfiles: [activeProfile] });
   const diagnostics = createDiagnosticsBus();
+  // S88 AGF-LOG-LIFECYCLE-SCHEDULER. Forward the shared diagnostics
+  // bus into the scheduler so AGF_SCHEDULER_SYSTEM_REGISTERED /
+  // _DEREGISTERED info traces show up in /__agf/diagnostics —
+  // reconstructing the live system list from one snapshot no longer
+  // needs inspecting the SystemScheduler object.
+  const scheduler = new SystemScheduler({ activeProfiles: [activeProfile], diagnostics });
   let network: WsNetworkAdapterHandle | undefined;
   const playerInputSystem = networked
     ? createPlayerInputSystem({
