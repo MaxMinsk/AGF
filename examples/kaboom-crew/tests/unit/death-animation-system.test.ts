@@ -31,9 +31,28 @@ describe("deathFallPitch (S90 KABOOM-DEATH-FALL pure helper)", () => {
     expect(deathFallPitch(10, 0)).toBeCloseTo(Math.PI / 2, 5);
   });
 
-  it("interpolates monotonically between baseline and target", () => {
+  it("S095 KABOOM-CAMERA-EASING-ADOPT: easeOutBack overshoots the target before settling", () => {
+    // Sample across the duration. easeOutBack peaks > 1 around t ≈ 0.74
+    // (the named curve from engine/core/systems/tween-system.ts), so
+    // deathFallPitch samples to a pitch GREATER than the 90° target at
+    // some mid-curve sample before settling on the target at t=duration.
     const samples: number[] = [];
-    for (let t = 0; t <= 0.4; t += 0.05) samples.push(deathFallPitch(t, 0));
+    for (let t = 0; t <= 0.4; t += 0.01) samples.push(deathFallPitch(t, 0));
+    const peak = Math.max(...samples);
+    expect(peak).toBeGreaterThan(Math.PI / 2);
+    // End-of-curve (and beyond) still lands on the target — the loop
+    // may stop just shy of 0.4 due to fp accumulation, so probe explicitly.
+    expect(deathFallPitch(0.4, 0)).toBeCloseTo(Math.PI / 2, 5);
+    expect(deathFallPitch(1, 0)).toBeCloseTo(Math.PI / 2, 5);
+    // The peak should be only a small overshoot (~10%), not a wild jump.
+    expect(peak).toBeLessThan(Math.PI / 2 * 1.15);
+  });
+
+  it("S095 KABOOM-CAMERA-EASING-ADOPT: monotonic up to the overshoot peak", () => {
+    // Pre-peak segment (t in [0, 0.5]) is still monotonic — only the
+    // back-half overshoots and returns.
+    const samples: number[] = [];
+    for (let t = 0; t <= 0.20; t += 0.01) samples.push(deathFallPitch(t, 0));
     for (let i = 1; i < samples.length; i += 1) {
       expect(samples[i]!).toBeGreaterThanOrEqual(samples[i - 1]!);
     }

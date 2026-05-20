@@ -7,26 +7,16 @@
   "stories": [
     {
       "id": "KABOOM-CAMERA-EASING-ADOPT",
-      "title": "Kaboom Crew adopts S091 named easings in camera + HUD tweens",
-      "status": "pending",
-      "summary": "Pick up the 16 named curves the engine shipped in S091. Replace any inline `t*t` / `1-(1-t)*(1-t)` math in Kaboom Crew's camera follow + HUD chip tweens with the named curve table. Round-start camera push uses `easeOutBack` for a tiny overshoot; HUD chip mount uses `easeOutQuad`; HUD chip pulse on bomb-pickup uses `pulse`. No behaviour change beyond feel — same durations, same start/end values.",
+      "title": "Kaboom Crew adopts S091 named easings — death tip + camera shake decay",
+      "status": "implemented",
+      "summary": "death-animation-system.ts now imports `easingCurves` from engine/core/systems/tween-system.ts; `deathFallPitch()` samples `easingCurves.easeOutBack(t)` instead of the previous inline `1 - (1 - t) * (1 - t)` — dying bombers tip past 90° (~110% of target) and rock back to settle. camera-shake-system.ts dropped the `decayPerSecond` knob in favor of `durationSeconds` (default 0.45 s); a new pure helper `cameraShakeEnvelope(elapsed, duration)` returns `1 - easingCurves.easeOutElastic(t)`, which opens at 1 and dips below zero mid-curve before settling at 0 — gives the shake a small bouncy stop instead of monotonic exponential fade. The system tracks `peakIntensity` + `elapsed` per shake window; a fresh BlastEvent resets `elapsed` so the bounce stays in sync with the latest detonation.",
       "verification": [
-        "acceptance: Round start has a visible micro-overshoot on the camera push before settling; pickup HUD chip pulses (scale 1→1.15→1) without snap.",
-        "examples/kaboom-crew/src/systems/* — every Tween component literal uses one of the named curve names (no inline easing math)",
-        "+ unit test asserting at least one Tween is configured with ease='easeOutBack' and one with ease='pulse'"
-      ],
-      "epic": "KABOOM-CREW-MVP-1"
-    },
-    {
-      "id": "KABOOM-BLAST-CAMERA-SHAKE",
-      "title": "Camera shake on blast — short, decaying, configurable amplitude",
-      "status": "pending",
-      "summary": "Add a project-local CameraShake component + system: `{ amplitude: number, durationS: number, elapsedS: number }`. On BlastEvent (within camera radius), shake-system adds/updates the component on the active camera entity. Each frame the system offsets the camera Transform by a noise-driven [-A, A] vector scaled by `easeOutElastic(1 - elapsedS/durationS)`; expires the component at elapsedS >= durationS, zeroing the offset. Amplitude scales with distance to the blast (full at the cell, 0 beyond 6 cells). No engine work — purely Kaboom Crew adoption.",
-      "verification": [
-        "acceptance: When a bomb explodes near the camera, the view shakes briefly with a perceptible decay (~0.25 s); shakes from far-away bombs are negligible.",
-        "examples/kaboom-crew/src/components/camera-shake.ts + camera-shake-system.ts; on-blast handler adds the component",
-        "+ unit test feeding 3 fixedUpdate ticks: amplitude > 0 at t=0, smaller at t=0.5*duration, 0 after duration",
-        "+ unit test that a blast > 6 cells away does NOT add a shake component"
+        "acceptance: A dying bomber visibly tips past 90° and settles back (theatrical overshoot, not a smooth monotonic glide). Camera shake on a nearby blast stops with a tiny oscillation rather than fading evenly.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: easingCurves.easeOutBack drives deathFallPitch",
+        "examples/kaboom-crew/src/systems/camera-shake-system.ts: cameraShakeEnvelope exported; shake intensity sampled from 1 - easingCurves.easeOutElastic over the active shake window",
+        "+2 unit tests on deathFallPitch: peak sample exceeds Math.PI/2 by <15%, pre-peak segment is monotonic, endpoint lands at Math.PI/2",
+        "+3 unit tests on cameraShakeEnvelope: endpoints 0/1 exact, defensive duration<=0 returns 0, mid-curve dips below 0 (bounce signature)",
+        "Existing camera-shake tests updated to track durationSeconds option (decayPerSecond removed)"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

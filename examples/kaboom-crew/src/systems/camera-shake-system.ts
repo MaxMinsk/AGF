@@ -14,6 +14,7 @@
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import { easingCurves } from "../../../../engine/core/systems/tween-system";
 
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const CAMERA: ComponentName = "Camera";
@@ -37,8 +38,14 @@ export type KaboomCameraShakeOptions = {
   intensityPerRange?: number;
   /** Hard cap on shake intensity (world-units). Default 0.5. */
   maxIntensity?: number;
-  /** Exponential decay rate per second. Default 6 → intensity halves about every 0.12 s. */
-  decayPerSecond?: number;
+  /**
+   * S095 KABOOM-CAMERA-EASING-ADOPT — total shake duration once
+   * triggered. Replaces the old exponential `decayPerSecond` knob: the
+   * envelope is now sampled as `peak * (1 - easeOutElastic(t/duration))`
+   * so the shake stops with a small bouncy oscillation instead of
+   * monotonic decay. Default 0.45 s.
+   */
+  durationSeconds?: number;
   /** Deterministic pseudo-random source for unit tests. Defaults to Math.random. */
   rng?: () => number;
 };
@@ -48,11 +55,28 @@ export type CameraShakeApi = {
   intensity(): number;
 };
 
+/**
+ * S095 KABOOM-CAMERA-EASING-ADOPT — pure helper. Returns the active
+ * intensity multiplier at `elapsed` seconds into a shake of total
+ * `duration`, sampled from `easeOutElastic`. The envelope drops past
+ * zero and rebounds (small bouncy stop) before settling at zero.
+ * Exposed so tests can lock the curve.
+ */
+export function cameraShakeEnvelope(elapsed: number, duration: number): number {
+  if (duration <= 0) return 0;
+  if (elapsed <= 0) return 1;
+  if (elapsed >= duration) return 0;
+  const t = elapsed / duration;
+  // easeOutElastic settles at 1 at t=1 with oscillation. We want the
+  // opposite shape — start at 1, oscillate, end at 0 — so flip:
+  return 1 - easingCurves.easeOutElastic(t);
+}
+
 export function createKaboomCameraShakeSystem(options: KaboomCameraShakeOptions = {}): System & CameraShakeApi {
   const name = options.name ?? "kaboom.camera-shake";
   const intensityPerRange = options.intensityPerRange ?? 0.06;
   const maxIntensity = options.maxIntensity ?? 0.5;
-  const decayPerSecond = options.decayPerSecond ?? 6;
+  const durationSeconds = options.durationSeconds ?? 0.45;
   const rng = options.rng ?? Math.random;
 
   let cachedWorld: World | undefined;
@@ -60,7 +84,12 @@ export function createKaboomCameraShakeSystem(options: KaboomCameraShakeOptions 
   let cameras: QueryHandle | undefined;
   let baseline: Vec3 | undefined;
   let baselineCameraId: EntityId | undefined;
-  let intensity = 0;
+  // S095 — track peak intensity at the moment of the most recent blast
+  // event + how far we are into the duration window. The envelope is
+  // sampled from `cameraShakeEnvelope(elapsed, duration)`.
+  let peakIntensity = 0;
+  let elapsed = 0;
+  let currentIntensity = 0;
 
   const findActiveCamera = (world: World): EntityId | undefined => {
     for (const id of cameras!.run()) {
@@ -82,7 +111,8 @@ export function createKaboomCameraShakeSystem(options: KaboomCameraShakeOptions 
       cachedWorld = world;
       baseline = undefined;
       baselineCameraId = undefined;
-      intensity = 0;
+      peakIntensity = 0;
+      elapsed = 0;
     }
 
     const cameraId = findActiveCamera(world);
@@ -94,17 +124,27 @@ export function createKaboomCameraShakeSystem(options: KaboomCameraShakeOptions 
       baselineCameraId = cameraId;
     }
 
-    // Watch for BlastEvent transients — bump intensity per detonation.
+    // Watch for BlastEvent transients — bump peak per detonation. A
+    // new blast during a still-active shake resets the timeline so the
+    // bounce stays in sync with the freshest event.
     for (const eventId of blastEvents!.run()) {
       const event = world.getComponent<BlastEvent>(eventId, BLAST_EVENT);
       const range = Math.max(1, event?.range ?? 2);
-      intensity = Math.min(maxIntensity, intensity + intensityPerRange * range);
+      peakIntensity = Math.min(maxIntensity, peakIntensity + intensityPerRange * range);
+      elapsed = 0;
     }
 
-    // Decay + apply. Use fixedDt because we run in fixedUpdate.
+    // S095 KABOOM-CAMERA-EASING-ADOPT — sample the envelope from
+    // easeOutElastic so the shake stops with a tiny bouncy oscillation
+    // rather than monotonic exponential fade.
     const dt = Math.max(0, context.time.fixedDt);
-    intensity = Math.max(0, intensity * Math.exp(-decayPerSecond * dt));
-    if (intensity < 0.001) {
+    elapsed = peakIntensity > 0 ? elapsed + dt : 0;
+    currentIntensity = peakIntensity * cameraShakeEnvelope(elapsed, durationSeconds);
+    if (peakIntensity > 0 && elapsed >= durationSeconds) {
+      peakIntensity = 0;
+      elapsed = 0;
+    }
+    if (currentIntensity < 0.001) {
       // Snap back to baseline.
       if (
         t.position[0] !== baseline[0] ||
@@ -113,12 +153,12 @@ export function createKaboomCameraShakeSystem(options: KaboomCameraShakeOptions 
       ) {
         world.setComponent(cameraId, TRANSFORM, { ...t, position: [baseline[0], baseline[1], baseline[2]] });
       }
-      intensity = 0;
+      currentIntensity = 0;
       return;
     }
-    const ox = (rng() * 2 - 1) * intensity;
-    const oy = (rng() * 2 - 1) * intensity * 0.5;
-    const oz = (rng() * 2 - 1) * intensity;
+    const ox = (rng() * 2 - 1) * currentIntensity;
+    const oy = (rng() * 2 - 1) * currentIntensity * 0.5;
+    const oz = (rng() * 2 - 1) * currentIntensity;
     world.setComponent(cameraId, TRANSFORM, {
       ...t,
       position: [baseline[0] + ox, baseline[1] + oy, baseline[2] + oz]
@@ -129,7 +169,7 @@ export function createKaboomCameraShakeSystem(options: KaboomCameraShakeOptions 
     name,
     fixedUpdate,
     intensity(): number {
-      return intensity;
+      return currentIntensity;
     }
   };
 }

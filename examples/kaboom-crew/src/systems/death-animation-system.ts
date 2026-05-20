@@ -10,6 +10,7 @@
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import { easingCurves } from "../../../../engine/core/systems/tween-system";
 
 const DEATH_ANIM: ComponentName = "DeathAnim";
 const TRANSFORM: ComponentName = "Transform";
@@ -32,9 +33,11 @@ type TransformComponent = {
 export function deathFallPitch(elapsedSeconds: number, baseX: number): number {
   if (elapsedSeconds <= 0) return baseX;
   if (elapsedSeconds >= FALL_DURATION_S) return TARGET_PITCH_RAD;
-  // Ease-out quadratic so the topple lands softly.
+  // S095 KABOOM-CAMERA-EASING-ADOPT — easeOutBack gives a small
+  // overshoot before settling: the bomber tips past 90° and rocks
+  // back, more theatrical than the previous monotonic ease-out-quad.
   const t = elapsedSeconds / FALL_DURATION_S;
-  const eased = 1 - (1 - t) * (1 - t);
+  const eased = easingCurves.easeOutBack(t);
   return baseX + (TARGET_PITCH_RAD - baseX) * eased;
 }
 
