@@ -67,12 +67,10 @@
     {
       "id": "AGF-DOCTOR-SYSTEMS-SECTION",
       "title": "engine doctor surfaces a Systems: section from a diagnostics snapshot",
-      "status": "pending",
-      "summary": "S88 closed the lifecycle-trace wiring (`AGF_SCHEDULER_SYSTEM_REGISTERED` info diagnostics now reach /__agf/diagnostics). Doctor's --diagnostics-from path already ingests the snapshot for the boot-noise budget — extend it to also extract `Systems:` (count + names of last-registered systems) so an agent reading the doctor output gets the live system list without inspecting the scheduler.",
+      "status": "implemented",
+      "summary": "DoctorReport gains `systems: SystemsReport | null` populated by walking the --diagnostics-from snapshot for AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED traces (HMR re-registers dedupe; deregister removes by name). formatSystems renders 'Systems (N):' followed by the name list; the section is suppressed when no lifecycle traces are present.",
       "verification": [
-        "DoctorReport.systems: { count: number; names: string[] } populated when the diagnostics snapshot contains AGF_SCHEDULER_SYSTEM_REGISTERED entries; null otherwise",
-        "format pass prints 'Systems (N):' followed by name list",
-        "+1 unit test using a fixture diagnostics snapshot"
+        "+7 unit tests under tests/unit/doctor-systems.test.ts: null without --diagnostics-from; null when traces absent; reconstructs list; honors DEREGISTERED; dedupes HMR re-registers; format pass and empty-list path"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
