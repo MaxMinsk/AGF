@@ -14,7 +14,7 @@ import { createAudioBus } from "./audio/audio-bus";
 import { createFrameSpikeGate } from "./frame-spike-gate";
 import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnostics-bus";
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
-import { diffWorldSnapshots } from "../tools/inspect/snapshot-diff";
+import { diffWorldSnapshots } from "./snapshot-diff-runtime";
 import type { SnapshotDiffEntry } from "../tools/inspect/snapshot-diff";
 import { createRecorder, buildRecordingList, type Recording, type RecorderHandle } from "./recording/recorder";
 import type { LocalStore } from "./persistence/local-store";

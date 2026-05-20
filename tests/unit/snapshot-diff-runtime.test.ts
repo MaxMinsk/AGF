@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { diffWorldSnapshots, worldSnapshotToInspectResult } from "../../engine/tools/inspect/snapshot-diff";
+import { diffWorldSnapshots, worldSnapshotToInspectResult } from "../../engine/runtime/snapshot-diff-runtime";
 
 function makeSnap(entities: ReadonlyArray<{ id: string; components: Record<string, unknown> }>) {
   return {
