@@ -219,13 +219,25 @@ after that.
 
 ### Planned (MVP-3+)
 
-- **Procedural avatars** — capsule body + sphere head + accessory mesh
-  + colour palette + minimap-icon colour, all data-driven from one
-  generator. The current humanoid-generator design draft in
-  `notes/humanoid_generator_analysis.md` is the starting point.
+- **Procedural avatars (locked, 2026-05-20)** — chunky toy-scale bodies
+  composed from primitive nodes (capsule torso + sphere head + accessory
+  meshes), a seed-driven palette per bomber, a minimap-icon colour
+  derived from the same seed. Full design rationale in
+  `docs/game-design/characters-and-visual.md`. The starting point is
+  the draft in `notes/humanoid_generator_analysis.md`, but the new
+  doc supersedes it where they disagree.
+- **Procedural animation (locked, 2026-05-20)** — idle bob, walk cycle
+  (two-bone leg IK + hip rotation), bomb-place arm reach, hit recoil
+  and slapstick death are all driven by ECS systems (sine waves, IK
+  solvers, spring physics, Tween) acting on the generated mesh nodes
+  directly. **Mixamo / hand-authored rigged-GLB humanoid clips are
+  out of scope.** Rationale: no artist on the team, and the engine's
+  flagship sample should not depend on an external animation library.
+  See `docs/game-design/characters-and-visual.md`.
 - **Slapstick death**: a launch-up + ragdoll tween instead of instant
   disappearance. Lowers the competitive sting of a one-hit-kill and
   fits the "modern party game" tone — without rebuilding combat rules.
+  Already promoted to MVP-1 via proposal GDP-2026-05-20-004.
 
 ---
 
@@ -340,9 +352,11 @@ lock them by implementing one branch silently.
 4. **Arena modifier rotation** — does the modifier change per round, per
    match, or per real-time hour? Undecided; will pick once at least one
    modifier ships.
-5. **Procedural avatar scope** — primitive-shapes-only forever, or
-   rigged GLB humanoids eventually? Working notes lean GLB-eventual but
-   no engine work is committed yet.
+~~5. **Procedural avatar scope** — primitive-shapes-only forever, or
+   rigged GLB humanoids eventually?~~ **Closed 2026-05-20**: procedural
+   mesh + procedural animation, no Mixamo / authored rigs. See
+   `docs/game-design/characters-and-visual.md` and the "Characters →
+   Planned (MVP-3+)" section above.
 
 When one of these gets answered (in chat or in a sprint commit), move
 the resolution into the matching section above and remove the question
