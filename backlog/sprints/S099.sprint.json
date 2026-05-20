@@ -22,12 +22,12 @@
     {
       "id": "KABOOM-BOMB-FUSE-WIGGLE-TAME",
       "title": "Reduce bomb fuse wiggle amplitude — 'too puffy before detonation'",
-      "status": "pending",
-      "summary": "User feedback: 'бомба слишком раздувается когда мигает перед взрывом' — the bomb mesh visibly inflates too much during the final-fuse wiggle. bomb-fuse-system.ts samples a triangular wave around fuseRemaining=0 and writes the result into Transform.scale; current scale envelope is too loud. Halve the amplitude (or whatever the current factor is) so the wiggle is a subtle warning, not a balloon. Read the current numbers, dial down by ~50%, update the existing bomb-fuse-system test if it asserts an exact scale value.",
+      "status": "implemented",
+      "summary": "User feedback: 'бомба слишком раздувается когда мигает перед взрывом' — the bomb mesh visibly inflated too much during the final-fuse wiggle. bombWiggleScale() in examples/kaboom-crew/src/systems/bomb-fuse-system.ts samples a sine around the urgency-scaled amplitude; the old formula was `0.04 + 0.10 * urgency` (peak 0.14 = ±14% scale at fuse=0). Halved both terms to `0.02 + 0.05 * urgency` (peak 0.07 = ±7% scale at fuse=0). Frequency ramp is unchanged so the strobe still reads as urgency; only the size pulse is tamed. Existing tests in bomb-fuse-wiggle.test.ts retargeted to the new amplitude bands.",
       "verification": [
-        "acceptance: A bomb in its final 0.6 s of fuse wiggles VISIBLY but the peak scale is noticeably smaller than before. The player should be able to read the warning at a glance without the bomb looking comically inflated.",
-        "examples/kaboom-crew/src/systems/bomb-fuse-system.ts: scale envelope amplitude is reduced (precise number recorded in the sprint summary at implementation time)",
-        "Updated bomb-fuse-system unit test if it locks the exact peak scale"
+        "acceptance: A bomb in its final 0.6 s of fuse wiggles VISIBLY but the peak scale is noticeably smaller than before — peak amplitude went from 14% to 7% growth at fuse=0.",
+        "examples/kaboom-crew/src/systems/bomb-fuse-system.ts: amplitude formula `0.02 + 0.05 * urgency` (was `0.04 + 0.10 * urgency`).",
+        "examples/kaboom-crew/tests/unit/bomb-fuse-wiggle.test.ts: assertion windows updated for fuse=2 (peak-to-peak in [0.02, 0.06]) + fuse=0 (peak-to-peak in [0.1, 0.16])."
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

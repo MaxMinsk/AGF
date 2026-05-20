@@ -17,23 +17,23 @@ describe("bombWiggleScale (S90 KABOOM-BOMB-FUSE-WIGGLE)", () => {
     for (let ms = 0; ms < 1000; ms += 50) {
       samples.push(bombWiggleScale(2, ms));
     }
-    // Amplitude at fuse=2 ≈ 0.04 (urgency=0 → amplitude=0.04).
+    // S99 KABOOM-BOMB-FUSE-WIGGLE-TAME: amplitude at fuse=2 ≈ 0.02 (was 0.04 before S99).
     const min = Math.min(...samples);
     const max = Math.max(...samples);
-    expect(max - min).toBeGreaterThan(0.04);
-    expect(max - min).toBeLessThan(0.12);
+    expect(max - min).toBeGreaterThan(0.02);
+    expect(max - min).toBeLessThan(0.06);
   });
 
-  it("modulates with high amplitude near fuse=0 (urgency=1)", () => {
+  it("modulates with higher amplitude near fuse=0 (urgency=1)", () => {
     const samples: number[] = [];
     for (let ms = 0; ms < 1000; ms += 25) {
       samples.push(bombWiggleScale(0.05, ms));
     }
     const min = Math.min(...samples);
     const max = Math.max(...samples);
-    // Amplitude near fuse=0 ≈ 0.14 (0.04 + 0.10 * urgency=1).
-    expect(max - min).toBeGreaterThan(0.2);
-    expect(max - min).toBeLessThan(0.32);
+    // S99 KABOOM-BOMB-FUSE-WIGGLE-TAME: amplitude near fuse=0 ≈ 0.07 (was 0.14 before S99).
+    expect(max - min).toBeGreaterThan(0.1);
+    expect(max - min).toBeLessThan(0.16);
   });
 
   it("ratchets back to 1 when fuseRemaining is negative (defensive)", () => {

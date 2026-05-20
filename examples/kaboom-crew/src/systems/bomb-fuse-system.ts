@@ -63,7 +63,12 @@ export function bombWiggleScale(fuseRemaining: number, now: number = Date.now())
   if (t > 2) return 1;
   // Linear ramp 0 → 1 as fuseRemaining drops from 2 → 0.
   const urgency = 1 - t / 2;
-  const amplitude = 0.04 + 0.10 * urgency;
+  // S99 KABOOM-BOMB-FUSE-WIGGLE-TAME: halved the amplitudes from
+  // (0.04 + 0.10 * urgency) → (0.02 + 0.05 * urgency). User reported
+  // the previous wiggle was over-inflating the bomb visually
+  // ('слишком раздувается'). The frequency ramp is unchanged so the
+  // strobe still reads as urgency; only the size pulse is tamed.
+  const amplitude = 0.02 + 0.05 * urgency;
   // Frequency: 4 Hz at fuse=2, ~12 Hz near zero.
   const frequency = 4 + 8 * urgency;
   const phase = (now / 1000) * frequency * Math.PI * 2;
