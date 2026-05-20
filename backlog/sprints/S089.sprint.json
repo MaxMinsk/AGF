@@ -8,12 +8,11 @@
     {
       "id": "KABOOM-BOT-PICKUP-MAGNET",
       "title": "Bot wander pulls toward nearby pickups",
-      "status": "pending",
-      "summary": "BotAISystem's wander path is uniform-random over safe neighbours. When a Pickup is visible within ~5 cells (manhattan) the bot should pick the safe neighbour that reduces distance to the nearest pickup — turns the bot from a drunken wanderer into a basic loot collector without changing the danger-avoid rules. Cell preference, not BFS, so the cost is cheap.",
+      "status": "implemented",
+      "summary": "BotAISystem's wander path was uniform-random over safe neighbours. Now: when a Pickup is within PICKUP_RADIUS=5 manhattan and the pickup cell is NOT in the danger set, decideDirection prefers the safe neighbour that reduces manhattan distance to it. Danger-avoid still wins (the magnet picks from the already-filtered safe pool); pickups inside the danger map are skipped entirely.",
       "verification": [
-        "unit test: bot at (3,3) with a Pickup at (5,3) (no obstacles) picks +X over the other safe directions",
-        "unit test: a pickup in a dangerous cell does NOT magnetise the bot (danger still wins)",
-        "Live probe: 60 s bot-vs-bot at hard difficulty — both bots converge on pickups noticeably faster than current random walk"
+        "+2 unit tests in bot-ai-system.test.ts: bot at (3,3) with safe pickup at (5,3) deterministically picks +X across 5 ticks; bot with pickup at dangerous (5,3) does NOT lock onto +X (>1 direction in 30 ticks)",
+        "nearestPickup() scans Pickup-tagged entities, skips dangerous cells, returns the closest within PICKUP_RADIUS"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

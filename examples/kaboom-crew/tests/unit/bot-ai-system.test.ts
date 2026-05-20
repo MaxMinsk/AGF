@@ -153,6 +153,59 @@ describe("createKaboomBotAISystem (S82 KABOOM-BOT-AI)", () => {
     }
   });
 
+  it("S89 KABOOM-BOT-PICKUP-MAGNET: bot picks the direction that reduces distance to a nearby pickup", () => {
+    // Bot at (3,3); pickup at (5,3) — east. All other neighbours are
+    // farther from the pickup. Expect dx=+1 consistently.
+    const world = new World();
+    addBot(world, "bot.1", 3, 3);
+    world.setComponent("bot.1", "BotBrain", { aggression: 0, nextDecisionIn: 0 });
+    world.addEntity("pickup.1");
+    world.setComponent("pickup.1", "GridPosition", { gx: 5, gz: 3 });
+    world.setComponent("pickup.1", "GridOccupant", { layer: "pickup", blocksMovement: false, blocksBlast: false });
+    world.setComponent("pickup.1", "Pickup", { kind: "bomb-up" });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const ai = createKaboomBotAISystem({ occupancy: occ, seed: 42 });
+    for (let i = 0; i < 5; i += 1) {
+      const brain = world.getComponent("bot.1", "BotBrain") as { aggression: number };
+      world.setComponent("bot.1", "BotBrain", { ...brain, nextDecisionIn: 0 });
+      ai.fixedUpdate!(ctx(world));
+      const mover = world.getComponent("bot.1", "GridMover") as { queuedDirection: { dx: number; dz: number } };
+      expect(mover.queuedDirection).toEqual({ dx: 1, dz: 0 });
+    }
+  });
+
+  it("S89 KABOOM-BOT-PICKUP-MAGNET: pickups in dangerous cells do not magnetise the bot", () => {
+    // Bot at (3,3), pickup at (5,3) but bomb at (5,3) too (range 0
+    // covers the pickup cell). The pickup should be ignored — bot
+    // either wanders OR avoids danger, but never deterministically
+    // heads toward the dangerous pickup.
+    const world = new World();
+    addBot(world, "bot.1", 3, 3);
+    world.setComponent("bot.1", "BotBrain", { aggression: 0, nextDecisionIn: 0 });
+    world.addEntity("pickup.1");
+    world.setComponent("pickup.1", "GridPosition", { gx: 5, gz: 3 });
+    world.setComponent("pickup.1", "GridOccupant", { layer: "pickup", blocksMovement: false, blocksBlast: false });
+    world.setComponent("pickup.1", "Pickup", { kind: "fire-up" });
+    // Bomb at the pickup cell with range 1 → covers (5,3) + neighbours.
+    addBomb(world, "bomb.danger", 5, 3, 1);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const ai = createKaboomBotAISystem({ occupancy: occ, seed: 99 });
+    // Run many ticks; collect direction choices.
+    const dirs = new Set<string>();
+    for (let i = 0; i < 30; i += 1) {
+      const brain = world.getComponent("bot.1", "BotBrain") as { aggression: number };
+      world.setComponent("bot.1", "BotBrain", { ...brain, nextDecisionIn: 0 });
+      ai.fixedUpdate!(ctx(world));
+      const mover = world.getComponent("bot.1", "GridMover") as { queuedDirection: { dx: number; dz: number } };
+      dirs.add(`${mover.queuedDirection.dx},${mover.queuedDirection.dz}`);
+    }
+    // Wander spread — the bot does NOT lock onto +X. The magnet only
+    // kicks in when the pickup is reachable safely.
+    expect(dirs.size).toBeGreaterThan(1);
+  });
+
   it("S88 KABOOM-BOT-DANGER-AVOID: falls back to any neighbour when every direction is dangerous", () => {
     // Bot surrounded by danger on every cardinal — must still move
     // (don't freeze). Bomb at (3,3) with range 2 covers the four

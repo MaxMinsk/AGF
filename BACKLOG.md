@@ -10,8 +10,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S089.sprint.js
 
 ### Stories
 
-- **KABOOM-BOT-PICKUP-MAGNET** — Bot wander pulls toward nearby pickups _(pending)_
-  BotAISystem's wander path is uniform-random over safe neighbours. When a Pickup is visible within ~5 cells (manhattan) the bot should pick the safe neighbour that reduces distance to the nearest pickup — turns the bot from a drunken wanderer into a basic loot collector without changing the danger-avoid rules. Cell preference, not BFS, so the cost is cheap.
+- **KABOOM-BOT-PICKUP-MAGNET** — Bot wander pulls toward nearby pickups _(implemented)_
+  BotAISystem's wander path was uniform-random over safe neighbours. Now: when a Pickup is within PICKUP_RADIUS=5 manhattan and the pickup cell is NOT in the danger set, decideDirection prefers the safe neighbour that reduces manhattan distance to it. Danger-avoid still wins (the magnet picks from the already-filtered safe pool); pickups inside the danger map are skipped entirely.
 - **KABOOM-MATCH-WIN-PARTICLES** — Particle burst at the winner's cell when matchPhase resolves _(pending)_
   Currently the match resolution gets a banner + chord but nothing visual. Spawn a short-lived 'pulse' ParticleEmitter at the winning bomber's cell (or both cells on draw) when matchPhase transitions out of 'in-progress'. Lifetime ~1 s, high rate so it reads as a celebratory burst. Reuses the engine pre-warmed pool — no extra preset.
 - **KABOOM-ROUND-TIMER-BAR** — HUD shows round elapsed / timeLimit as a thin progress bar _(pending)_
