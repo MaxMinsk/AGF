@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S092",
   "title": "QA-workflow design — plan the two-terminal Dev + QA split",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/101",
   "stories": [
     {
       "id": "AGF-QA-WORKFLOW-DESIGN",
