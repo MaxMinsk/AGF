@@ -7,7 +7,7 @@ You sometimes hit a bug that has nothing to do with the PR you're reviewing. The
 
 The second ticket becomes the story for adding an automated test that would have caught the regression. Dev links the two via `dependsOn` at promotion time so the bug fix can't be marked implemented until the regression test exists.
 
-The decision tree below is what `notes/qa-workflow-design.md` §6 spells out. Memorise the two worked examples — they cover 90% of cases.
+The decision tree below is what [`docs/qa/design.md`](./design.md) §6 spells out. Memorise the two worked examples — they cover 90% of cases.
 
 ---
 

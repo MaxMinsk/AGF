@@ -29,7 +29,7 @@ function stageRepo(tickets: Array<Record<string, unknown>>): { repoRoot: string;
     const qaDir = join(root, "backlog", "qa-tickets");
     mkdirSync(qaDir, { recursive: true });
     for (const t of tickets) {
-      const id = t.id as string;
+      const id = t["id"] as string;
       writeFileSync(join(qaDir, `${id}.qa-ticket.json`), JSON.stringify(t, null, 2) + "\n", "utf8");
     }
   }

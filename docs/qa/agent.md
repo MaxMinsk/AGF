@@ -68,7 +68,7 @@ Two QA sessions in parallel on the same day can race on the `QA-YYYY-MM-DD-NNN` 
 
 These four docs tell you everything else you need:
 
-- [`notes/qa-workflow-design.md`](../../notes/qa-workflow-design.md) — full design, including the why behind every rule below
+- [`docs/qa/design.md`](./design.md) — full design, including the why behind every rule below
 - [`docs/qa/ticket-template.md`](./ticket-template.md) — fill-in-the-blanks scaffold for a fresh ticket
 - [`docs/qa/regression-promotion.md`](./regression-promotion.md) — decide when an old-functionality bug also gets a regression-test ticket
 - [`docs/agent-probes.md`](../agent-probes.md) — catalogue of `/__agf/*` HTTP probes you'll lean on

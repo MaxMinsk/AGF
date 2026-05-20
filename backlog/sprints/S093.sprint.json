@@ -75,7 +75,7 @@
       "summary": "Three docs landed under docs/qa/: (1) agent.md — onboarding (read-first list, file-ownership table, qa-intake branch convention, CLI tools, live probes, the acceptance: contract, ticket filing loop, what counts as a bug, what to never do); (2) ticket-template.md — minimum body, full body with example, per-field reference table, severity tiers, type guide; (3) regression-promotion.md — decision tree, two worked examples (new-PR-only bug vs old-functionality regression), heuristics on .playtest.json + flaky-bug handling.",
       "verification": [
         "acceptance: A fresh agent loads docs/qa/agent.md, identifies its file ownership, finds the ticket scaffold helper, finds the acceptance contract, and files its first ticket — all without leaving the doc.",
-        "All three files exist under docs/qa/ and cross-link to schemas/qa-ticket.schema.json + notes/qa-workflow-design.md",
+        "All three files exist under docs/qa/ and cross-link to schemas/qa-ticket.schema.json + docs/qa/design.md",
         "No broken relative paths"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"

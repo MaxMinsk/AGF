@@ -30,7 +30,7 @@ This folder is the public repository root for the engine. Example games are nest
 
 ## QA Workflow
 
-S93 onwards: the repo runs **two-terminal Dev + QA** (full design at `notes/qa-workflow-design.md`). This terminal — the dev terminal — owns the sprint loop above. A second `claude` session, the **QA terminal**, reads `docs/qa/agent.md` and files bug tickets that this terminal harvests during planning.
+S93 onwards: the repo runs **two-terminal Dev + QA** (full design at `docs/qa/design.md`). This terminal — the dev terminal — owns the sprint loop above. A second `claude` session, the **QA terminal**, reads `docs/qa/agent.md` and files bug tickets that this terminal harvests during planning.
 
 **File ownership** — strict no-overlap so the two terminals can't merge-conflict:
 
