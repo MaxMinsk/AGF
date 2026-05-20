@@ -46,26 +46,23 @@
     {
       "id": "AGF-AUDIO-POSITIONAL",
       "title": "Positional / spatial audio via Web Audio PannerNode",
-      "status": "pending",
+      "status": "deferred",
+      "deferredReason": "First iteration ships project-local in Kaboom Crew (see KABOOM-AUDIO-POSITIONAL-ADOPT) — engine AudioBus is HTMLAudio-based and cannot panel-route, while Kaboom's audio-fx already owns a Web Audio AudioContext for procedural synth. Promote to engine when a second project needs spatial audio; the Kaboom implementation (PannerNode HRTF + listener wiring) will be the reference.",
       "summary": "Engine audio currently routes every play() through the destination directly — fine for UI sounds, wrong for in-world events. Add an opt-in positional path: AudioBus.play accepts an optional `position: [x, y, z]` and a `listenerPosition` cached on the bus. When position is set, the synth chain ends at a PannerNode (HRTF / equal-power per option) instead of destination; the listener position is set from the active Camera each frame. Kaboom Crew picks this up for footstep + bomb-place + blast + death (each event's caller passes the bomber's world position).",
-      "verification": [
-        "engine/runtime/audio/audio-bus.ts: play() signature gains optional positional payload; bus owns the PannerNode lifecycle",
-        "Per-frame the bus reads the active camera Transform and updates listener position",
-        "Kaboom Crew audio-binding-system forwards bomber world positions for footstep / bomb-place / death; audio-fx routes through the new path",
-        "+ unit tests on the bus with a stub AudioContext that records the pan node graph",
-        "Live probe: footsteps to the left of the camera pan left; far-side bombs are quieter"
-      ],
       "epic": "AUDIO"
     },
     {
       "id": "KABOOM-AUDIO-POSITIONAL-ADOPT",
       "title": "Kaboom Crew wires positional audio for in-world events",
-      "status": "pending",
-      "summary": "Follow-up to AGF-AUDIO-POSITIONAL once the engine surface lands. audio-binding-system passes the entity's GridPosition (resolved to world coords via the cell-size factor) to onEvent for footstep / bomb-place / blast / death / pickup. audio-fx routes positional events through the new bus API; non-positional events (match-won/-lost/-draw, UI chimes) keep using the destination path.",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/audio-fx.ts grew an HRTF PannerNode path. `play(kind, context?)` takes an optional `PositionalPlayContext { position?: [x, y, z] }`; when supplied, the gain chain ends at a PannerNode (panningModel:HRTF, distanceModel:inverse, refDistance:2, rolloff:1, maxDistance:60) instead of context.destination. A new `setListenerPosition(x, y, z)` proxies to AudioListener (modern positionX/Y/Z AudioParam if available, else legacy setPosition). audio-binding-system resolves a `cellPos(entityId)` from GridPosition and forwards it on bomb-place / death / footstep / blast (pickup omits position — the entity is already despawned). bootstrap.ts pulls the player.1 cell from the status snapshot every fixedUpdate and calls audioFx.setListenerPosition(gx, 0, gz).",
       "verification": [
-        "AudioEventListener context grows an optional `position?: [x, y, z]` field",
-        "Bomber-driven events include position; UI events don't",
-        "Live probe: footsteps localise; positional bombs near camera louder than far ones"
+        "acceptance: In Kaboom Crew, footsteps from a bomber positioned to the left of the camera pan audibly to the left ear and feel distance-attenuated when the bomber is far; match-win/-lose/-draw chimes still feel uniform/centered (they are intentionally non-positional UI chimes).",
+        "examples/kaboom-crew/src/audio-fx.ts: new PositionalPlayContext type + connectOutput helper that ends the chain in a PannerNode when position is set, otherwise direct-to-destination",
+        "examples/kaboom-crew/src/systems/audio-binding-system.ts: cellPos(id) helper resolves [gx, 0, gz] from GridPosition; bomber-driven events forward it; match-* chimes don't",
+        "examples/kaboom-crew/bootstrap.ts: per fixedUpdate, reads playerSelf.{gx,gz} from status snapshot and calls audioFx.setListenerPosition",
+        "+4 unit tests in examples/kaboom-crew/tests/unit/audio-binding-system.test.ts: footstep / bomb-place carry [gx,0,gz]; blast carries BlastEvent origin; match-* chimes carry no position",
+        "+3 unit tests in examples/kaboom-crew/tests/unit/audio-fx.test.ts: play(kind, {position}) creates a PannerNode and routes gain → panner → destination; play() without position bypasses the panner; setListenerPosition forwards to AudioListener.setPosition"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     }

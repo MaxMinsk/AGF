@@ -129,6 +129,62 @@ describe("createKaboomAudioFx (S85 KABOOM-AUDIO-PROCEDURAL-SFX)", () => {
     expect(() => fx.play("bomb-place")).not.toThrow();
   });
 
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: play() with a position routes the gain chain through a PannerNode", () => {
+    const probe = makeContext();
+    const panners: Array<{ panningModel: string; setPosition: Spy; connect: Spy }> = [];
+    const ctxWithPan: AudioContextLike = {
+      ...probe.ctx,
+      createPanner() {
+        const panner = {
+          panningModel: "",
+          distanceModel: "",
+          refDistance: 0,
+          rolloffFactor: 0,
+          maxDistance: 0,
+          setPosition: vi.fn(),
+          connect: vi.fn()
+        };
+        panners.push(panner);
+        return panner as unknown as ReturnType<NonNullable<AudioContextLike["createPanner"]>>;
+      },
+      listener: { setPosition: vi.fn() }
+    } as AudioContextLike;
+    const fx = createKaboomAudioFx({ contextFactory: () => ctxWithPan });
+    fx.play("footstep", { position: [3, 0, 7] });
+    expect(panners.length).toBeGreaterThan(0);
+    const panner = panners[0]!;
+    expect(panner.panningModel).toBe("HRTF");
+    expect(panner.setPosition).toHaveBeenCalledWith(3, 0, 7);
+    expect(panner.connect).toHaveBeenCalledWith(ctxWithPan.destination);
+  });
+
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: play() without a position bypasses the PannerNode", () => {
+    const probe = makeContext();
+    const panners: unknown[] = [];
+    const ctxWithPan: AudioContextLike = {
+      ...probe.ctx,
+      createPanner() {
+        const panner = { setPosition: vi.fn(), connect: vi.fn() } as unknown;
+        panners.push(panner);
+        return panner as ReturnType<NonNullable<AudioContextLike["createPanner"]>>;
+      }
+    } as AudioContextLike;
+    const fx = createKaboomAudioFx({ contextFactory: () => ctxWithPan });
+    fx.play("match-won");
+    expect(panners.length).toBe(0);
+  });
+
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: setListenerPosition forwards to AudioListener.setPosition", () => {
+    const probe = makeContext();
+    const listener = { setPosition: vi.fn() };
+    const ctxWithListener: AudioContextLike = { ...probe.ctx, listener } as AudioContextLike;
+    const fx = createKaboomAudioFx({ contextFactory: () => ctxWithListener });
+    // need to lazy-construct context first
+    fx.play("bomb-place");
+    fx.setListenerPosition(2, 0, 5);
+    expect(listener.setPosition).toHaveBeenCalledWith(2, 0, 5);
+  });
+
   it("dispose() releases the context + a subsequent play is a no-op", () => {
     const probe = makeContext();
     const fx = createKaboomAudioFx({ contextFactory: () => probe.ctx });

@@ -41,7 +41,16 @@ export type AudioEventKind =
   | "match-lost"
   | "match-draw"
   | "footstep";
-export type AudioEventListener = (kind: AudioEventKind, context?: { entityId?: EntityId }) => void;
+/**
+ * S91 KABOOM-AUDIO-POSITIONAL-ADOPT. `position` is the world-space
+ * source of the SFX, [gx, 0, gz] in our grid space. Bomber-driven
+ * events fill it from the entity's GridPosition; UI chimes leave
+ * it undefined so audio-fx routes them straight to destination.
+ */
+export type AudioEventListener = (
+  kind: AudioEventKind,
+  context?: { entityId?: EntityId; position?: readonly [number, number, number] }
+) => void;
 
 export type KaboomAudioBindingOptions = {
   name?: string;
@@ -95,14 +104,26 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       prevMatchPhase = "in-progress";
     }
 
+    // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Resolve [gx, 0, gz] from
+    // GridPosition for any entity that still exists. Returns undefined
+    // when the entity is already gone (e.g. pickup just removed) — the
+    // public play() then routes through destination instead of a panner.
+    function cellPos(id: EntityId): readonly [number, number, number] | undefined {
+      const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+      if (gp === undefined || gp.gx === undefined || gp.gz === undefined) return undefined;
+      return [gp.gx, 0, gp.gz] as const;
+    }
+
     // Bomb births → bomb-place.
     const currentBombIds = new Set<EntityId>(bombs!.run());
     for (const id of currentBombIds) {
-      if (!prevBombIds.has(id)) onEvent("bomb-place", { entityId: id });
+      if (!prevBombIds.has(id)) onEvent("bomb-place", { entityId: id, ...(cellPos(id) !== undefined ? { position: cellPos(id)! } : {}) });
     }
     prevBombIds = currentBombIds;
 
-    // Pickup deaths → pickup.
+    // Pickup deaths → pickup. The Pickup entity is gone by the time we
+    // detect the disappearance, so position is undefined — the click
+    // plays at destination (non-positional). Acceptable tradeoff.
     const currentPickupIds = new Set<EntityId>(pickups!.run());
     for (const id of prevPickupIds) {
       if (!currentPickupIds.has(id)) onEvent("pickup", { entityId: id });
@@ -118,7 +139,8 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     for (const [id, wasAlive] of prevAlive) {
       const nowAlive = currentAlive.get(id) ?? false;
       if (wasAlive && !nowAlive) {
-        onEvent("death", { entityId: id });
+        const deathPos = cellPos(id);
+        onEvent("death", { entityId: id, ...(deathPos !== undefined ? { position: deathPos } : {}) });
         // S90 KABOOM-DEATH-FALL — tag the bomber with a per-entity
         // animation component the dedicated system will tween + freeze
         // movement so a dying bomber stops mid-stride.
@@ -162,8 +184,18 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     // bootstrap registration order, so seeing the transient is the
     // happy path; if it's already been consumed, we'd still see the
     // BlastTile fan-out, which the dedicated death/pickup paths skip.
+    // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Multiple bombs can detonate
+    // on the same step; we play one 'blast' event but tag it with the
+    // first observed BlastEvent origin so the panner has a position.
+    let blastPos: readonly [number, number, number] | undefined;
+    for (const eventId of blastEvents!.run()) {
+      const event = world.getComponent<{ originGx?: number; originGz?: number }>(eventId, BLAST_EVENT);
+      if (event === undefined || event.originGx === undefined || event.originGz === undefined) continue;
+      blastPos = [event.originGx, 0, event.originGz] as const;
+      break;
+    }
     const anyBlast = blastEvents!.run().length > 0;
-    if (anyBlast) onEvent("blast");
+    if (anyBlast) onEvent("blast", blastPos !== undefined ? { position: blastPos } : undefined);
 
     // S90 KABOOM-FOOTSTEP-TICK. Walk every bomber's GridPosition;
     // a cell change since last tick fires one 'footstep' event per
@@ -181,7 +213,7 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       currentCells.set(id, key);
       const prev = prevBomberCell.get(id);
       if (prev !== undefined && prev !== key) {
-        onEvent("footstep", { entityId: id });
+        onEvent("footstep", { entityId: id, position: [gp.gx, 0, gp.gz] as const });
       }
     }
     prevBomberCell = currentCells;
