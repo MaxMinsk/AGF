@@ -193,6 +193,18 @@ export type RuntimeHandle = {
   /** S095 — current ring-buffer capacity (constant) + occupancy. */
   snapshotHistoryStats(): { capacity: number; size: number };
   /**
+   * S096 AGF-PROBE-COMPONENT-AT. Read a single component on a single
+   * entity from the live world or a historical snapshot. `at`
+   * defaults to 0 (live); negative values look back in the ring.
+   * Returns a tagged union so the dev-bridge can map outcomes to
+   * specific HTTP statuses.
+   */
+  componentAt(entityId: string, componentName: string, at?: number):
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" }
+    | { kind: "component-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /**
    * Resolves after the first frame that actually rendered (active
    * camera acquired + `renderer.adapter.draw()` executed). Use this
    * in tests / dev-bridge clients before taking screenshots or
@@ -876,6 +888,34 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
         return snapshotWorld(world, time);
       }
       return lookupSnapshotInRing(snapshotHistory, at);
+    },
+    componentAt(entityId: string, componentName: string, at?: number):
+      | { kind: "ok"; value: unknown }
+      | { kind: "entity-not-found" }
+      | { kind: "component-not-found" }
+      | { kind: "out-of-range"; capacity: number; size: number } {
+      // S096 AGF-PROBE-COMPONENT-AT. Look up a single component value
+      // on a single entity. `at` (defaults to 0 / live) is the same
+      // ring index as snapshotAt — non-positive integer for history.
+      const lookupAt = at ?? 0;
+      let source: WorldSnapshot;
+      if (lookupAt === 0) {
+        source = snapshotWorld(world, time);
+      } else {
+        const historical = lookupSnapshotInRing(snapshotHistory, lookupAt);
+        if (historical === undefined) {
+          return {
+            kind: "out-of-range",
+            capacity: SNAPSHOT_HISTORY_CAPACITY,
+            size: snapshotHistory.length
+          };
+        }
+        source = historical;
+      }
+      const entity = source.entities.find((e) => e.id === entityId);
+      if (entity === undefined) return { kind: "entity-not-found" };
+      if (!(componentName in entity.components)) return { kind: "component-not-found" };
+      return { kind: "ok", value: entity.components[componentName] };
     },
     snapshotHistoryStats(): { capacity: number; size: number } {
       return { capacity: SNAPSHOT_HISTORY_CAPACITY, size: snapshotHistory.length };

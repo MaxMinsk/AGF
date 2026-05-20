@@ -33,6 +33,53 @@ export const DEV_BRIDGE_PATH_PREFIX = "/__agf/";
 export const DEV_BRIDGE_WS_PATH = "/__agf/ws";
 
 /**
+ * S096 AGF-PROBE-COMPONENT-AT — pure URL path parser for
+ * `/component/<entityId>/<componentName>`. Exported for unit tests.
+ * Accepts URL-safe IDs (period, dash, underscore, alphanumeric).
+ * Empty segments fail the parse.
+ */
+export type ComponentPathResult =
+  | { kind: "ok"; entityId: string; componentName: string }
+  | { kind: "error"; code: string; message: string };
+
+export function parseComponentPath(route: string): ComponentPathResult {
+  if (!route.startsWith("/component/")) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_COMPONENT_PATH",
+      message: "Route must start with /component/"
+    };
+  }
+  const tail = route.slice("/component/".length);
+  const slash = tail.indexOf("/");
+  if (slash <= 0 || slash === tail.length - 1) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_COMPONENT_PATH",
+      message: "Route must match /component/<entityId>/<componentName> with non-empty segments."
+    };
+  }
+  const entityId = decodeURIComponent(tail.slice(0, slash));
+  const componentName = decodeURIComponent(tail.slice(slash + 1));
+  if (entityId.length === 0 || componentName.length === 0) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_COMPONENT_PATH",
+      message: "entityId and componentName must be non-empty."
+    };
+  }
+  // Reject extra path segments (e.g. /component/a/b/c).
+  if (componentName.includes("/")) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_COMPONENT_PATH",
+      message: "componentName must not contain '/'."
+    };
+  }
+  return { kind: "ok", entityId, componentName };
+}
+
+/**
  * S095 AGF-RENDER-DEBUG-FREECAM — pure body validator for the
  * POST /__agf/render/freecam route. Exported for unit tests so the
  * accept/reject rules can be locked without spinning up Vite.
@@ -371,6 +418,97 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             return;
           }
           await proxyToPage(req, res, "runtime-timescale-set", { value });
+          return;
+        }
+
+        // S096 AGF-PROBE-COMPONENT-AT. `/component/<entityId>/<componentName>`
+        // returns a single component's value. Optional `?at=-N` reads
+        // the history ring. Typed errors:
+        //   404 AGF_PROBE_ENTITY_NOT_FOUND, 404 AGF_PROBE_COMPONENT_NOT_FOUND,
+        //   400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE, 400 AGF_BRIDGE_INVALID_COMPONENT_PATH,
+        //   400 AGF_BRIDGE_INVALID_SNAPSHOT_AT.
+        if (route.startsWith("/component/") && req.method === "GET") {
+          const parsed = parseComponentPath(route);
+          if (parsed.kind === "error") {
+            respondJson(res, 400, { ok: false, error: { code: parsed.code, message: parsed.message } });
+            return;
+          }
+          const atRaw = url.searchParams.get("at");
+          let at = 0;
+          if (atRaw !== null) {
+            const parsedAt = Number.parseInt(atRaw, 10);
+            if (!Number.isFinite(parsedAt) || parsedAt > 0) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_BRIDGE_INVALID_SNAPSHOT_AT",
+                  message: "`at` must be a non-positive integer (e.g. 0, -1, -2, ...)."
+                }
+              });
+              return;
+            }
+            at = parsedAt;
+          }
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "component-at", {
+              entityId: parsed.entityId,
+              componentName: parsed.componentName,
+              at
+            })) as
+              | { kind: "ok"; value: unknown }
+              | { kind: "entity-not-found" }
+              | { kind: "component-not-found" }
+              | { kind: "out-of-range"; capacity: number; size: number };
+            if (result.kind === "ok") {
+              respondJson(res, 200, {
+                ok: true,
+                page: found.entry.socketId,
+                payload: {
+                  entityId: parsed.entityId,
+                  component: parsed.componentName,
+                  value: result.value
+                }
+              });
+              return;
+            }
+            if (result.kind === "entity-not-found") {
+              respondJson(res, 404, {
+                ok: false,
+                error: {
+                  code: "AGF_PROBE_ENTITY_NOT_FOUND",
+                  message: `No entity with id "${parsed.entityId}".`
+                }
+              });
+              return;
+            }
+            if (result.kind === "component-not-found") {
+              respondJson(res, 404, {
+                ok: false,
+                error: {
+                  code: "AGF_PROBE_COMPONENT_NOT_FOUND",
+                  message: `Entity "${parsed.entityId}" has no component "${parsed.componentName}".`
+                }
+              });
+              return;
+            }
+            // out-of-range
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_PROBE_SNAPSHOT_OUT_OF_RANGE",
+                message: `Snapshot at=${at} is out of range. Buffer capacity=${result.capacity}, current size=${result.size}.`
+              }
+            });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
           return;
         }
 

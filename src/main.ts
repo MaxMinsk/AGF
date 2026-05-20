@@ -34,6 +34,12 @@ declare global {
       /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
       snapshotAt(at: number): WorldSnapshot | undefined;
       snapshotHistoryStats(): { capacity: number; size: number };
+      /** S096 AGF-PROBE-COMPONENT-AT. */
+      componentAt(entityId: string, componentName: string, at?: number):
+        | { kind: "ok"; value: unknown }
+        | { kind: "entity-not-found" }
+        | { kind: "component-not-found" }
+        | { kind: "out-of-range"; capacity: number; size: number };
       applyCommands(commands: ReadonlyArray<EngineCommand>): void;
       /**
        * Project-local action. For Beacon World, re-arms all beacons, respawns
@@ -454,6 +460,9 @@ void (async (): Promise<void> => {
       // S095 AGF-PROBE-SNAPSHOT-HISTORY.
       snapshotAt: (at: number) => app.snapshotAt(at),
       snapshotHistoryStats: () => app.snapshotHistoryStats(),
+      // S096 AGF-PROBE-COMPONENT-AT.
+      componentAt: (entityId: string, componentName: string, at?: number) =>
+        app.componentAt(entityId, componentName, at),
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),

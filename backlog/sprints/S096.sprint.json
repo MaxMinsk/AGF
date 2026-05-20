@@ -70,13 +70,13 @@
     {
       "id": "AGF-PROBE-COMPONENT-AT",
       "title": "GET /__agf/component/<entityId>/<componentName> returns a focused component value",
-      "status": "pending",
-      "summary": "Add a focused inspection probe so an agent can read a single component without pulling a whole snapshot. Path-based: `GET /__agf/component/player.1/BomberStats` returns `{ entityId, component, value }`. Returns 404 `AGF_PROBE_ENTITY_NOT_FOUND` when the entity is unknown and 404 `AGF_PROBE_COMPONENT_NOT_FOUND` when the entity exists but doesn't carry the component. Supports `?at=-N` (defaults to live) to read historical values via the S095 ring buffer.",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts grew a `componentAt(entityId, componentName, at?)` helper returning a tagged union: `{ kind: 'ok', value } | { kind: 'entity-not-found' } | { kind: 'component-not-found' } | { kind: 'out-of-range', capacity, size }`. The dev bridge maps each outcome to a typed HTTP status: 200 ok, 404 AGF_PROBE_ENTITY_NOT_FOUND, 404 AGF_PROBE_COMPONENT_NOT_FOUND, 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE. Path is parsed by the new exported pure helper `parseComponentPath`. Path validation errors return 400 AGF_BRIDGE_INVALID_COMPONENT_PATH; positive `?at=` returns 400 AGF_BRIDGE_INVALID_SNAPSHOT_AT (consistent with S095). Plumbed through src/app.ts, window.__agf, and page-bridge's new `component-at` RPC.",
       "verification": [
-        "acceptance: GET /__agf/component/player.1/BomberStats returns the live BomberStats record; GET /__agf/component/does-not-exist/Foo returns 404 AGF_PROBE_ENTITY_NOT_FOUND; GET /__agf/component/player.1/NoSuchComponent returns 404 AGF_PROBE_COMPONENT_NOT_FOUND.",
-        "engine/dev/agf-dev-bridge.ts: new path-parameterised route /component/:entityId/:componentName",
-        "engine/dev/page-bridge.ts: component-at RPC reads from runtime.snapshotAt(at) and looks up the entity + component",
-        "+ unit tests on the pure path-parser asserting it splits a clean route into { entityId, componentName }, accepts URL-safe IDs (player.1), rejects empty segments"
+        "acceptance: GET /__agf/component/player.1/BomberStats returns the live BomberStats record; GET /__agf/component/does-not-exist/Foo returns 404 AGF_PROBE_ENTITY_NOT_FOUND; GET /__agf/component/player.1/NoSuchComponent returns 404 AGF_PROBE_COMPONENT_NOT_FOUND. Adding `?at=-1` reads from the S095 history ring.",
+        "engine/dev/agf-dev-bridge.ts: exported pure `parseComponentPath` + explicit GET /component/ handler that maps the runtime tagged union to HTTP statuses",
+        "engine/runtime/start.ts: runtime.componentAt looks up via snapshotWorld (live) or lookupSnapshotInRing (history)",
+        "+7 unit tests in tests/unit/component-at-bridge.test.ts covering: clean path, URL-encoded segments, prefix rejection, empty entityId / componentName rejection, extra path segments, missing slash"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

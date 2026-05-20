@@ -114,6 +114,12 @@ type AgfApi = {
   /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
   snapshotAt?: (at: number) => unknown;
   snapshotHistoryStats?: () => { capacity: number; size: number };
+  /** S096 AGF-PROBE-COMPONENT-AT. */
+  componentAt?: (entityId: string, componentName: string, at?: number) =>
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" }
+    | { kind: "component-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   /** S83 AGF-AGENT-RENDERER-PROBE. */
@@ -261,6 +267,21 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "snapshot":
         payload = api?.snapshot?.();
         break;
+      case "component-at": {
+        // S096 AGF-PROBE-COMPONENT-AT. Forward to runtime.componentAt.
+        const args = payloadIn as { entityId?: string; componentName?: string; at?: number } | undefined;
+        if (
+          args === undefined ||
+          typeof args.entityId !== "string" ||
+          typeof args.componentName !== "string" ||
+          api?.componentAt === undefined
+        ) {
+          payload = undefined;
+          break;
+        }
+        payload = api.componentAt(args.entityId, args.componentName, args.at);
+        break;
+      }
       case "snapshot-at": {
         // S095 AGF-PROBE-SNAPSHOT-HISTORY. `at: 0` is live; negative
         // values look back in the ring. We always return an envelope
