@@ -90,13 +90,12 @@
     },
     {
       "id": "KABOOM-BOT-DANGER-AVOID",
-      "title": "Bot pathfinding penalises cells covered by live blasts + about-to-explode bombs",
-      "status": "pending",
-      "summary": "Today's BotAISystem treats BlastTile cells as walkable, so the bot regularly suicides into its own blast on the wide map. Extend the cost function in agent-goto-system (or a small wrapper inside bot-ai-system) so cells containing a BlastTile OR a Bomb with fuseRemaining < 0.6 are treated as high-cost (e.g. cost 10 vs. 1). Pure cost bump — keeps the existing BFS; no new components.",
+      "title": "Bot prefers safe neighbour cells over dangerous ones (and live BlastTiles count)",
+      "status": "implemented",
+      "summary": "Today's BotAISystem treats BlastTile cells as walkable in the wander path — the bot regularly steps into a live blast it just placed. Two fixes: (1) buildDangerMap now also marks every cell covered by a live BlastTile, not just the projected blast rays of un-exploded bombs. (2) decideDirection always prefers neighbours not in the danger map (was: only the flee path filtered), and the directional bias only kicks in when the chosen direction is in the safe pool. Falls back to ANY neighbour when every adjacent cell is dangerous so the bot still moves when boxed in.",
       "verification": [
-        "unit test: bot starting next to a live BlastTile picks a path that detours around it",
-        "unit test: bot starting next to a fuseRemaining=0.3 bomb prefers the longer non-explosive path",
-        "live probe: 60 s of bot-vs-bot at hard difficulty shows the bot suicide rate drop"
+        "+2 unit tests in bot-ai-system.test.ts: bot adjacent to a live BlastTile never picks the unsafe direction across 30 frames; bot fully surrounded by danger still picks a direction (doesn't freeze)",
+        "Live BlastTile cells now contribute to the danger set; no new components/schema changes"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

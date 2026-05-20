@@ -128,4 +128,47 @@ describe("createKaboomBotAISystem (S82 KABOOM-BOT-AI)", () => {
     const mover = world.getComponent("bot.1", "GridMover") as { queuedDirection?: unknown };
     expect(mover.queuedDirection).toBeUndefined();
   });
+
+  it("S88 KABOOM-BOT-DANGER-AVOID: wander path skips a neighbour cell that contains a live BlastTile", () => {
+    // Bot at (3,3). Safe neighbour to the east; a live blast covers
+    // the west neighbour (2,3). The bot must never pick west.
+    const world = new World();
+    addBot(world, "bot.1", 3, 3);
+    world.setComponent("bot.1", "BotBrain", { aggression: 0, nextDecisionIn: 0 });
+    // Live blast at the west neighbour.
+    world.addEntity("blast-tile.1");
+    world.setComponent("blast-tile.1", "GridPosition", { gx: 2, gz: 3 });
+    world.setComponent("blast-tile.1", "BlastTile", { ownerId: "player.1", remaining: 0.2 });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+    for (let i = 0; i < 30; i += 1) {
+      // Reset cooldown each round so decideDirection actually runs.
+      const brain = world.getComponent("bot.1", "BotBrain") as { aggression: number };
+      world.setComponent("bot.1", "BotBrain", { ...brain, nextDecisionIn: 0 });
+      ai.fixedUpdate!(ctx(world));
+      const mover = world.getComponent("bot.1", "GridMover") as { queuedDirection?: { dx: number; dz: number } };
+      // Picked west means dx=-1, dz=0 — the unsafe direction.
+      expect(mover.queuedDirection).not.toEqual({ dx: -1, dz: 0 });
+    }
+  });
+
+  it("S88 KABOOM-BOT-DANGER-AVOID: falls back to any neighbour when every direction is dangerous", () => {
+    // Bot surrounded by danger on every cardinal — must still move
+    // (don't freeze). Bomb at (3,3) with range 2 covers the four
+    // cardinal neighbours of (3,3) — but the bot is AT (3,3) so it
+    // is in danger; the surrounding cells are danger too. Even so,
+    // the bot picks SOME direction.
+    const world = new World();
+    addBot(world, "bot.1", 3, 3);
+    world.setComponent("bot.1", "BotBrain", { aggression: 0, nextDecisionIn: 0 });
+    addBomb(world, "bomb.surround", 3, 3, 2);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const ai = createKaboomBotAISystem({ occupancy: occ, seed: 13 });
+    ai.fixedUpdate!(ctx(world));
+    const mover = world.getComponent("bot.1", "GridMover") as { queuedDirection: { dx: number; dz: number } };
+    // SOMETHING was picked — not frozen at (0,0).
+    expect(Math.abs(mover.queuedDirection.dx) + Math.abs(mover.queuedDirection.dz)).toBeGreaterThan(0);
+  });
 });
