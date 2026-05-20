@@ -180,6 +180,15 @@
           "uniqueItems": true,
           "description": "S54 RUNTIME-progressive-loading: asset refs (`runtime/materials/hero.material.json`, `runtime/models/hero.glb`, …) that must finish loading before `window.__agf.rendererReady` resolves. Every other asset stays on the existing placeholder-then-swap path. Tests / dev-bridge / Playwright `await` `rendererReady` instead of guessing how many frames the first draw takes."
         },
+        "particlePreWarmPresets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["spark", "glow", "pulse"]
+          },
+          "uniqueItems": true,
+          "description": "S88 AGF-PARTICLE-PREWARM-SYSTEM: preset names whose ParticleEmitter shader the engine should compile on boot. The engine acquires one offscreen pool per preset, holds it for a few frames so the renderer compiles the program + uploads the InstancedMesh buffer, then releases. A real gameplay emit afterwards gets the cached shader for free, removing the first-burst stall."
+        },
         "batching": {
           "type": "object",
           "additionalProperties": false,

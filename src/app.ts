@@ -84,6 +84,8 @@ export type ProjectMeta = {
     idleMode?: "always" | "on-demand";
     /** S54 RUNTIME-progressive-loading: asset refs that must finish loading before `rendererReady` resolves. */
     criticalAssets?: ReadonlyArray<string>;
+    /** S88 AGF-PARTICLE-PREWARM-SYSTEM: preset names whose ParticleEmitter shader should be compiled on boot. */
+    particlePreWarmPresets?: ReadonlyArray<string>;
   };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
@@ -392,6 +394,10 @@ export async function createApp(
   }
   if (project.render?.criticalAssets !== undefined && project.render.criticalAssets.length > 0) {
     runtimeOptions.criticalAssets = project.render.criticalAssets;
+  }
+  // S88 AGF-PARTICLE-PREWARM-SYSTEM: forward project.json#render.particlePreWarmPresets to the runtime.
+  if (project.render?.particlePreWarmPresets !== undefined && project.render.particlePreWarmPresets.length > 0) {
+    runtimeOptions.particlePreWarmPresets = project.render.particlePreWarmPresets;
   }
   if (import.meta.env.DEV) {
     // S60 stutter investigation. Allow disabling the dev overlay via

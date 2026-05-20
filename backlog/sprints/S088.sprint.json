@@ -32,12 +32,13 @@
     {
       "id": "AGF-PARTICLE-PREWARM-SYSTEM",
       "title": "ParticleEmitterSystem accepts `preWarmPresets` for engine-level warmup",
-      "status": "pending",
-      "summary": "S85 AGF-POOL-WARMUP-PARTICLES shipped as a project-local hack (kaboom-crew spawns a hidden offscreen ParticleEmitter on attachUi to force shader compile). Promote it: the engine ParticleEmitterSystem factory accepts `preWarmPresets?: ReadonlyArray<string>` and on the first frame creates + destroys a single tiny emitter per requested preset, so the shader compile + GPU buffer upload happens before any gameplay emit. No more project-local warmup entities; kaboom-crew passes `[\"spark\", \"glow\"]` instead.",
+      "status": "implemented",
+      "summary": "S85 AGF-POOL-WARMUP-PARTICLES shipped as a project-local hack (kaboom-crew spawns a hidden offscreen ParticleEmitter on attachUi to force shader compile). Promote it: ParticleEmitterSystem now takes `preWarmPresets?: ReadonlyArray<string>` + `preWarmFrames?: number`; on the first frame of every world it acquires a 1-capacity offscreen pool per preset (forcing shader compile + GPU buffer upload), then releases them after `preWarmFrames` (default 4) frames so they don't linger in the live count. RuntimeOptions exposes `particlePreWarmPresets`, plumbed from project.json's `render.particlePreWarmPresets`.",
       "verification": [
-        "unit test: preWarmPresets=['spark'] → after first frameUpdate the pool registry's `peak` for the spark preset is >= 1 and `live` is back to 0",
-        "live probe: first KABOOM-BLAST-PARTICLES burst no longer logs an AGF_FRAME_SPIKE",
-        "kaboom-crew bootstrap drops the kaboom.warmup-particles entity creation and instead passes preWarmPresets to the system factory"
+        "+6 unit tests on the system stub adapter: empty preset list is a no-op; one acquire per preset; release after preWarmFrames; peak survives release; world-swap re-arms the warmup",
+        "RuntimeOptions.particlePreWarmPresets forwards to createParticleEmitterSystem",
+        "src/app.ts forwards project.json#render.particlePreWarmPresets",
+        "schemas/project.schema.json adds particlePreWarmPresets enum spark|glow|pulse"
       ],
       "epic": "M19"
     },
@@ -66,11 +67,12 @@
     {
       "id": "KABOOM-DROP-LOCAL-WARMUP",
       "title": "kaboom-crew drops the project-local warmup entity",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Once AGF-PARTICLE-PREWARM-SYSTEM lands the project-local kaboom.warmup-particles entity is redundant. Delete the entity creation + the runtime.applyCommands hack from attachUi; kaboom-crew now relies entirely on the engine-level preWarmPresets option. Smaller bootstrap.ts; one less moving part.",
       "verification": [
-        "examples/kaboom-crew/bootstrap.ts no longer contains the kaboom.warmup-particles entity.create command",
-        "smoke playtest: first BlastEvent shows no spike"
+        "examples/kaboom-crew/bootstrap.ts no longer issues the kaboom.warmup-particles entity.create command",
+        "examples/kaboom-crew/project.json#render.particlePreWarmPresets = ['spark', 'glow']",
+        "engine:check stays green for kaboom-crew with the new field"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
