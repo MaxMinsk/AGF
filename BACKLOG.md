@@ -24,8 +24,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S089.sprint.js
   DoctorReport gains `systems: SystemsReport | null` populated by walking the --diagnostics-from snapshot for AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED traces (HMR re-registers dedupe; deregister removes by name). formatSystems renders 'Systems (N):' followed by the name list; the section is suppressed when no lifecycle traces are present.
 - **AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE** — Per-system debug toggle via runtime.setDebugSystem(name, on) _(implemented)_
   SystemScheduler gains a debugSystems Set + setDebugSystem(name, enabled) toggle. When a system is on, runFixedStep / runFrame emit an info-level AGF_SYSTEM_TICK diagnostic per pass with { name, tick, phase: 'fixed'|'frame' }. unregister clears the toggle so stale entries can't fire after a scene swap. RuntimeHandle forwards via setDebugSystem; returns false when the system isn't registered.
-- **AGF-DEV-BRIDGE-POOL-INVENTORY-TEST** — Playwright smoke test for GET /__agf/pool-inventory _(pending)_
-  S88 shipped /__agf/pool-inventory but only unit-tests cover the registry math. Add a Playwright smoke test that boots hello-3d, awaits rendererReady, fetches the route, and asserts the JSON shape. Locks the surface so a future refactor that drops a pool name surfaces immediately.
+- **AGF-DEV-BRIDGE-POOL-INVENTORY-TEST** — Playwright smoke test for GET /__agf/pool-inventory _(implemented)_
+  Extends the existing dev-bridge round-trip smoke test (smoke project) with a /__agf/pool-inventory fetch + shape assertions: three named pools (instanced/batched/particle), live and peak are non-negative numbers, peak >= live. Locks the API contract so a renderer refactor that drops a pool name fails the smoke test immediately.
 
 <!-- backlog:render:end -->
 

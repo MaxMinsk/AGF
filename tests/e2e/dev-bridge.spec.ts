@@ -86,6 +86,23 @@ test("dev bridge round-trips snapshot, diagnostics, renderer-info, reload-events
     expect(info[key]).toBeGreaterThanOrEqual(0);
   }
 
+  // S89 AGF-DEV-BRIDGE-POOL-INVENTORY-TEST. The /__agf/pool-inventory
+  // probe (S88) must return the three named render pools with numeric
+  // live + peak fields so doctor + future automation can lean on the
+  // contract.
+  const poolInv = await fetchJson("/__agf/pool-inventory");
+  expect(poolInv.status).toBe(200);
+  expect(poolInv.body.ok).toBe(true);
+  const pools = poolInv.body.payload as ReadonlyArray<{ name: string; live: number; peak: number }>;
+  const poolNames = pools.map((p) => p.name).sort();
+  expect(poolNames).toEqual(["batched", "instanced", "particle"]);
+  for (const p of pools) {
+    expect(typeof p.live).toBe("number");
+    expect(typeof p.peak).toBe("number");
+    expect(p.live).toBeGreaterThanOrEqual(0);
+    expect(p.peak).toBeGreaterThanOrEqual(p.live);
+  }
+
   // Reload events: starts empty after a fresh boot.
   const reload = await fetchJson("/__agf/reload-events");
   expect(reload.status).toBe(200);

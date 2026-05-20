@@ -87,12 +87,12 @@
     {
       "id": "AGF-DEV-BRIDGE-POOL-INVENTORY-TEST",
       "title": "Playwright smoke test for GET /__agf/pool-inventory",
-      "status": "pending",
-      "summary": "S88 shipped /__agf/pool-inventory but only unit-tests cover the registry math. Add a Playwright smoke test that boots hello-3d, awaits rendererReady, fetches the route, and asserts the JSON shape. Locks the surface so a future refactor that drops a pool name surfaces immediately.",
+      "status": "implemented",
+      "summary": "Extends the existing dev-bridge round-trip smoke test (smoke project) with a /__agf/pool-inventory fetch + shape assertions: three named pools (instanced/batched/particle), live and peak are non-negative numbers, peak >= live. Locks the API contract so a renderer refactor that drops a pool name fails the smoke test immediately.",
       "verification": [
-        "tests/e2e/dev-bridge.spec.ts (or sibling) gets a `/__agf/pool-inventory` case",
-        "Asserts response contains three named pools (instanced/batched/particle) with numeric live + peak",
-        "Runs under the existing smoke project"
+        "tests/e2e/dev-bridge.spec.ts now also fetches /__agf/pool-inventory inside the existing round-trip test",
+        "Asserts pool names == ['batched','instanced','particle'] (sorted) and peak >= live for each",
+        "Runs under the existing smoke project (no new spec file)"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
