@@ -26,7 +26,12 @@ secrets/
 .agent/
 .claude/settings.local.json
 
-# Local private notes and reference checkouts
+# Local private notes and reference checkouts.
+# WARNING: `Notes/` matches `notes/` too on case-insensitive
+# filesystems (default on macOS/Windows). Git does not allow
+# `!notes/qa/`-style re-inclusion under an ignored parent
+# directory, so we use a dedicated tracked path for QA artefacts.
+# See `qa-artifacts/` for screenshots / repro captures.
 Notes/
 References/
 

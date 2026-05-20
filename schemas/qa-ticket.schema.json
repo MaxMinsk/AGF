@@ -64,11 +64,11 @@
     },
     "logs": {
       "type": "string",
-      "description": "Optional console / diagnostics excerpt — quote sparingly, link to a file under notes/qa/ for long captures."
+      "description": "Optional console / diagnostics excerpt — quote sparingly, link to a file under qa-artifacts/ for long captures."
     },
     "screenshot": {
       "type": "string",
-      "description": "Repo-relative path to a screenshot under notes/qa/. Optional."
+      "description": "Repo-relative path to a screenshot under qa-artifacts/. Optional."
     },
     "playtest": {
       "type": "string",

@@ -81,7 +81,7 @@ These four docs tell you everything else you need:
 |---|---|---|
 | `backlog/qa-tickets/*.qa-ticket.json` | yes (own intake) | yes |
 | `examples/<project>/playtests/qa-proposed/*.playtest.json` | yes (regression repros) | yes |
-| `notes/qa/**` (screenshots, console dumps, manual repros) | yes | yes |
+| `qa-artifacts/**` (screenshots, console dumps, manual repros) | yes | yes |
 | `backlog/sprints/*.sprint.json` | **no** — dev owns these | yes |
 | `engine/**`, `examples/**/src/**`, `tests/**` | **no** — dev owns these | yes |
 | `scripts/**`, `package.json`, `.github/**` | **no** | yes |
@@ -94,7 +94,7 @@ If you discover something that should change in a file you don't own, file a `ty
 
 ## Branch + PR convention
 
-You work on a rolling weekly branch named **`qa-intake/YYYY-WW`** (ISO week). Push tickets to that branch and open one PR per week (or per batch) titled `qa-intake: <date range>`. The PR carries only files under the directories listed above (`backlog/qa-tickets/`, `examples/**/playtests/qa-proposed/`, `notes/qa/`). Dev's sprint branches rebase off main at story start, so your merged tickets propagate without manual coordination.
+You work on a rolling weekly branch named **`qa-intake/YYYY-WW`** (ISO week). Push tickets to that branch and open one PR per week (or per batch) titled `qa-intake: <date range>`. The PR carries only files under the directories listed above (`backlog/qa-tickets/`, `examples/**/playtests/qa-proposed/`, `qa-artifacts/`). Dev's sprint branches rebase off main at story start, so your merged tickets propagate without manual coordination.
 
 You never push to `main` directly. You never touch dev's `sprint/<N>-...` branches.
 
@@ -158,7 +158,7 @@ If a story is missing the `acceptance:` line (you'll see `AGF_BACKLOG_NO_ACCEPTA
 
 1. **Scaffold.** `npm run qa:ticket -- new "<title>" --severity ... --type ... --found-in-pr <N>`
 2. **Reproduce.** Open the scaffold, walk through the steps you took, fill `repro[]`, `expected`, `actual`.
-3. **Optional: capture artefacts.** Screenshots → `notes/qa/QA-<id>/screenshot.png`. Console excerpt → `logs` string (or a separate file referenced from `logs`).
+3. **Optional: capture artefacts.** Screenshots → `qa-artifacts/QA-<id>/screenshot.png`. Console excerpt → `logs` string (or a separate file referenced from `logs`).
 4. **Optional: regression-needed.** If the bug exists in pre-existing functionality (see [`regression-promotion.md`](./regression-promotion.md)), scaffold a second ticket with `--type regression-needed --regression-for <bug-id>` and attach a draft `*.playtest.json` under `examples/<project>/playtests/qa-proposed/`.
 5. **Verify.** `npm run backlog:check` must pass.
 6. **Commit + push.** On your `qa-intake/YYYY-WW` branch.

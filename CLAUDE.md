@@ -41,7 +41,7 @@ S93 onwards: the repo runs **two-terminal Dev + QA** (full design at `docs/qa/de
 | `BACKLOG.md`, `BACKLOG_ARCHIVE.md` (generated) | write (via `backlog:render`) | read |
 | `backlog/qa-tickets/*.qa-ticket.json` | **read + delete-on-promote** | write |
 | `examples/**/playtests/qa-proposed/**` | **read + move-on-promote** | write |
-| `notes/qa/**` | read | write |
+| `qa-artifacts/**` | read | write |
 | `docs/qa/**` | write (during a planning sprint) | read |
 
 **Per-story sequence on this terminal:**

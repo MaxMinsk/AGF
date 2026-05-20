@@ -13,7 +13,7 @@ Run two Claude terminals in parallel against the same AGF repository:
 | Terminal | Role | Owns |
 |---|---|---|
 | **dev** | implements sprint stories, opens / merges PRs (current behaviour) | `engine/`, `examples/`, `tests/`, `backlog/sprints/`, `scripts/` |
-| **qa** | reviews each merged PR, files bug tickets back into the backlog | `backlog/qa-tickets/` (new), `notes/qa/` (repros, screenshots) |
+| **qa** | reviews each merged PR, files bug tickets back into the backlog | `backlog/qa-tickets/` (new), `qa-artifacts/` (repros, screenshots) |
 
 QA does **not** run a regression suite — its scope is "did the PR that just landed work?". When QA happens to hit a bug in pre-existing functionality, it files **two** tickets: the bug itself, and a companion ticket for adding an automated regression test that would have caught it.
 
@@ -91,7 +91,7 @@ New file: `schemas/qa-ticket.schema.json`.
     "expected":      { "type": "string" },
     "actual":        { "type": "string" },
     "logs":          { "type": "string", "description": "Optional console / diagnostics excerpt." },
-    "screenshot":    { "type": "string", "description": "Repo-relative path under notes/qa/." },
+    "screenshot":    { "type": "string", "description": "Repo-relative path under qa-artifacts/." },
     "playtest":      { "type": "string", "description": "Optional .playtest.json scenario the agent built as a reproducer." },
     "regressionFor": { "type": "string", "description": "When type='regression-needed', the bug ticket id this regression test would cover." },
     "epicHint":      { "type": "string", "description": "Optional epic id to nudge promotion into a specific epic." }
@@ -178,14 +178,14 @@ The critical invariant: **the two agents never write to the same files**.
 | `BACKLOG.md`, `BACKLOG_ARCHIVE.md` (generated) | write (via render) | read only |
 | `backlog/qa-tickets/*.qa-ticket.json` | read + delete-on-promote | write |
 | `examples/<project>/playtests/qa-proposed/**` | read + move-on-promote | write |
-| `notes/qa/**` (screenshots, console dumps) | read | write |
+| `qa-artifacts/**` (screenshots, console dumps) | read | write |
 | `docs/qa/**` (QA-flow docs) | write (during a planning sprint) | read |
 
 **Branch policy:**
 
 - Dev keeps the current `sprint/<N>-<slug>` branch convention.
 - QA works on rolling `qa-intake/YYYY-WW` branches (one per ISO calendar week) — keeps PR titles meaningful and avoids one giant always-open PR.
-- QA's PR is labelled `qa-intake` and targets `main`. It carries only files under `backlog/qa-tickets/`, `examples/**/playtests/qa-proposed/`, and `notes/qa/`. The PR description lists each ticket id + one-line summary.
+- QA's PR is labelled `qa-intake` and targets `main`. It carries only files under `backlog/qa-tickets/`, `examples/**/playtests/qa-proposed/`, and `qa-artifacts/`. The PR description lists each ticket id + one-line summary.
 - Dev's sprint branch rebases off `main` at the start of every story so it picks up freshly-merged QA tickets without explicit coordination.
 
 **Why this can't merge-conflict:** QA only adds new files in directories that dev never modifies. Dev only modifies files in directories QA never touches. Both agents read each other's outputs. Git can fast-forward both sides independently.
