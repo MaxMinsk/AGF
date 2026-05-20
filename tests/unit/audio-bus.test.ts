@@ -107,6 +107,41 @@ describe("createAudioBus (S84 AGF-AUDIO-PRIMITIVE)", () => {
     expect(createdElements[0]?.pause).toHaveBeenCalledTimes(1);
   });
 
+  it("S095 AGF-AUDIO-MASTER-VOLUME: getMasterVolume defaults to 1; setMasterVolume clamps + returns the applied value", () => {
+    const bus = createAudioBus()!;
+    expect(bus.getMasterVolume()).toBe(1);
+    expect(bus.setMasterVolume(0.5)).toBe(0.5);
+    expect(bus.getMasterVolume()).toBe(0.5);
+    // Clamping: above 1, below 0.
+    expect(bus.setMasterVolume(99)).toBe(1);
+    expect(bus.setMasterVolume(-5)).toBe(0);
+    // Non-finite values are ignored — current master stays.
+    bus.setMasterVolume(0.4);
+    expect(bus.setMasterVolume(Number.NaN)).toBe(0.4);
+    expect(bus.setMasterVolume(Infinity)).toBe(0.4);
+  });
+
+  it("S095 AGF-AUDIO-MASTER-VOLUME: play() multiplies master * per-call volume on el.volume", () => {
+    const bus = createAudioBus()!;
+    bus.load("a", "/a.wav");
+    bus.setMasterVolume(0.4);
+    bus.play("a", { volume: 0.5 });
+    expect(createdElements[0]?.volume).toBeCloseTo(0.2, 5);
+    // Subsequent play with new master + default volume → master * 1.
+    bus.setMasterVolume(0.6);
+    bus.play("a");
+    expect(createdElements[0]?.volume).toBeCloseTo(0.6, 5);
+  });
+
+  it("S095 AGF-AUDIO-MASTER-VOLUME: master * volume clamps at 1.0 so excessive per-call volume can't overshoot", () => {
+    const bus = createAudioBus()!;
+    bus.load("a", "/a.wav");
+    bus.setMasterVolume(0.5);
+    // Per-call volume 5 would push final to 2.5 — must clamp to 1.0.
+    bus.play("a", { volume: 5 });
+    expect(createdElements[0]?.volume).toBe(1);
+  });
+
   it("dispose() pauses every clip + removes from the DOM + is idempotent", () => {
     const bus = createAudioBus()!;
     bus.load("a", "/a.wav");

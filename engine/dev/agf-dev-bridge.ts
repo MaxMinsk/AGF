@@ -372,6 +372,32 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S095 AGF-AUDIO-MASTER-VOLUME.
+        if (route === "/audio/master-volume" && req.method === "GET") {
+          await proxyToPage(req, res, "audio-master-volume-get");
+          return;
+        }
+        if (route === "/audio/master-volume" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const value = (body as { value?: unknown }).value;
+          if (typeof value !== "number") {
+            respondJson(res, 400, {
+              ok: false,
+              error: {
+                code: "AGF_BRIDGE_INVALID_AUDIO_VOLUME",
+                message: "Body must be JSON with a `value` number in [0, 1] (non-finite values are ignored)."
+              }
+            });
+            return;
+          }
+          await proxyToPage(req, res, "audio-master-volume-set", { value });
+          return;
+        }
+
         if (route === "/project-patch" && req.method === "POST") {
           // S53 DEVBRIDGE-project-patch: shallow merge-patch onto a
           // project.json on disk. Dev-only (the whole `/__agf/*`

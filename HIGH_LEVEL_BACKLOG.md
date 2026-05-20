@@ -44,7 +44,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M9](backlog/epics/M9.epic.json)** — M9 Build / deploy contract for static + connected | active | engine | 0 / 0 / 0 |  |
 | **[REFERENCE-BACKEND-IMPLEMENTATIONS](backlog/epics/REFERENCE-BACKEND-IMPLEMENTATIONS.epic.json)** — Reference backend implementations | active | engine | 0 / 0 / 0 |  |
 | **[TEMPLATE-POLICY](backlog/epics/TEMPLATE-POLICY.epic.json)** — Template policy | active | engine | 0 / 0 / 0 |  |
-| **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 3 / 1 / 5 |  |
+| **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 4 / 0 / 5 |  |
 | **[BENCHMARK-STYLE-REPORTS](backlog/epics/BENCHMARK-STYLE-REPORTS.epic.json)** — Benchmark-style reports | planned | engine | 0 / 0 / 0 |  |
 | **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 0 / 0 / 0 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |

@@ -134,6 +134,10 @@ type AgfApi = {
   setRenderDebugMode?: (
     mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"
   ) => "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+  /** S095 AGF-AUDIO-MASTER-VOLUME. GET returns the live master volume. */
+  getAudioMasterVolume?: () => number;
+  /** S095 AGF-AUDIO-MASTER-VOLUME. POST forwards a [0,1] value; returns the clamped result. */
+  setAudioMasterVolume?: (value: number) => number;
   reloadEvents?: unknown;
   applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
   startRecording?: () => unknown;
@@ -275,6 +279,20 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         // S091 AGF-RENDER-DEBUG-MODE-AGENT — GET path.
         payload = { mode: api?.getRenderDebugMode?.() ?? "off" };
         break;
+      case "audio-master-volume-get":
+        // S095 AGF-AUDIO-MASTER-VOLUME — GET path.
+        payload = { value: api?.getAudioMasterVolume?.() ?? 1 };
+        break;
+      case "audio-master-volume-set": {
+        // S095 AGF-AUDIO-MASTER-VOLUME — POST path. Body contains `value`.
+        const value = (payloadIn as { value?: number } | undefined)?.value;
+        if (typeof value !== "number" || api?.setAudioMasterVolume === undefined) {
+          payload = { value: api?.getAudioMasterVolume?.() ?? 1 };
+        } else {
+          payload = { value: api.setAudioMasterVolume(value) };
+        }
+        break;
+      }
       case "render-debug-mode-set": {
         // S091 AGF-RENDER-DEBUG-MODE-AGENT — POST path.
         const mode = (payloadIn as { mode?: string } | undefined)?.mode;

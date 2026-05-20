@@ -233,6 +233,9 @@ export type AppHandle = {
   getRenderDebugMode(): "off" | "wireframe" | "unlit-white" | "normals" | "uv";
   setRenderDebugMode(mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"):
     "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+  /** S095 AGF-AUDIO-MASTER-VOLUME. */
+  getAudioMasterVolume(): number;
+  setAudioMasterVolume(value: number): number;
   /**
    * RUNTIME-renderer-ready: resolves once the renderer has drawn its
    * first frame (active camera acquired). Tests + dev-bridge clients
@@ -643,6 +646,13 @@ export async function createApp(
       const next = runtime.renderer.setDebugMode(mode);
       syncRenderDebugPill(runtime.hud, next);
       return next;
+    },
+    // S095 AGF-AUDIO-MASTER-VOLUME.
+    getAudioMasterVolume() {
+      return runtime.audio?.getMasterVolume() ?? 1;
+    },
+    setAudioMasterVolume(value: number) {
+      return runtime.audio?.setMasterVolume(value) ?? 1;
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

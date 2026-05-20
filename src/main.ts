@@ -166,6 +166,9 @@ declare global {
       getRenderDebugMode(): "off" | "wireframe" | "unlit-white" | "normals" | "uv";
       setRenderDebugMode(mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"):
         "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+      /** S095 AGF-AUDIO-MASTER-VOLUME. */
+      getAudioMasterVolume(): number;
+      setAudioMasterVolume(value: number): number;
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -467,6 +470,9 @@ void (async (): Promise<void> => {
       // S091 AGF-RENDER-DEBUG-MODE-AGENT.
       getRenderDebugMode: () => app.getRenderDebugMode(),
       setRenderDebugMode: (mode) => app.setRenderDebugMode(mode),
+      // S095 AGF-AUDIO-MASTER-VOLUME.
+      getAudioMasterVolume: () => app.getAudioMasterVolume(),
+      setAudioMasterVolume: (value: number) => app.setAudioMasterVolume(value),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

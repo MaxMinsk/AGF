@@ -49,12 +49,12 @@
     {
       "id": "AGF-AUDIO-MASTER-VOLUME",
       "title": "AudioBus grows a master volume dial — POST /__agf/audio/master-volume",
-      "status": "pending",
-      "summary": "Today every `play()` clamps to its per-call `volume` option; there is no global dial. Add a master volume multiplier on AudioBus: `setMasterVolume(v)` clamps [0,1] and `getMasterVolume()` returns it; the bus multiplies the master against each play()'s per-call volume so existing callers don't change. Dev-bridge route: GET/POST `/__agf/audio/master-volume`. `window.__agf.setAudioMasterVolume(v)`.",
+      "status": "implemented",
+      "summary": "engine/runtime/audio/audio-bus.ts grew `setMasterVolume(value): number` + `getMasterVolume(): number`. Master multiplies per-call volume in `play()`: `el.volume = clamp(master * (volume ?? 1), 0, 1)`. Non-finite inputs to setMasterVolume are ignored. Plumbed through src/app.ts (getAudioMasterVolume / setAudioMasterVolume), window.__agf, and GET/POST /__agf/audio/master-volume on the dev bridge (AGF_BRIDGE_INVALID_AUDIO_VOLUME on non-number).",
       "verification": [
         "acceptance: POST /__agf/audio/master-volume { value: 0 } silences subsequent plays; POST { value: 1 } restores; per-play `volume: 0.5` plays at 50% of master.",
-        "engine/runtime/audio/audio-bus.ts: setMasterVolume / getMasterVolume on the AudioBus interface",
-        "+ unit test that play(id, { volume: 0.5 }) with master=0.4 sets el.volume to 0.2"
+        "engine/runtime/audio/audio-bus.ts: setMasterVolume / getMasterVolume on the AudioBus interface; play() applies master * per-call",
+        "+3 unit tests in tests/unit/audio-bus.test.ts: getMasterVolume default 1 + clamp + non-finite ignored; master * per-call multiplication; final clamp at 1.0 against excessive per-call volume"
       ],
       "epic": "AUDIO"
     },
