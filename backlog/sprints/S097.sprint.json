@@ -21,13 +21,13 @@
     {
       "id": "GAME-DESIGN-PROPOSE-SCAFFOLD",
       "title": "scripts/backlog/propose.mjs + `npm run propose:new` scaffolds a fresh ticket",
-      "status": "pending",
-      "summary": "Companion to `npm run qa:ticket` (S093). `npm run propose:new -- --title \"<title>\" --kind feature --priority should` writes a fresh `backlog/proposed-stories/GDP-YYYY-MM-DD-NNN.story-proposal.json` with the boilerplate filled in (id auto-incremented from existing same-day tickets; createdAt = now; intent = empty placeholder for the agent to fill). Echoes the file path so the agent can immediately open it for editing.",
+      "status": "implemented",
+      "summary": "scripts/backlog/propose.mjs mirrors scripts/backlog/qa-ticket.mjs: `node scripts/backlog/propose.mjs new \"<title>\" [--kind X] [--priority Y] [--epic Z] [--into DIR]` writes a fresh `backlog/proposed-stories/GDP-YYYY-MM-DD-NNN.story-proposal.json` with the next free three-digit slot for the date (UTC). Helpers `computeDatePrefix` + `nextFreeSlot` are exported so tests can lock the slot-allocation logic. CLI body runs only when invoked as a script (test imports don't trigger process.exit). package.json gets `propose:new` and a placeholder `propose:promote` script. Echoes the absolute path to stdout so the agent can pipe to $EDITOR.",
       "verification": [
-        "acceptance: `npm run propose:new -- --title \"Bombs leave a scorch decal for 5s\" --kind feature --priority should` writes a valid file under backlog/proposed-stories/ that passes `npm run backlog:check`. ID auto-increments to the next free GDP-YYYY-MM-DD-NNN slot.",
-        "scripts/backlog/propose.mjs: arg-parsing for --title / --kind / --priority / --epic; --help prints usage",
-        "+ unit tests on the id-generation helper covering: empty dir → 001; existing 001 → 002; gap in numbering → next-after-max",
-        "package.json: `propose:new` script wired"
+        "acceptance: `node scripts/backlog/propose.mjs new \"Test\" --kind feature --priority should --into /tmp/...` writes a valid file with GDP-YYYY-MM-DD-NNN id, ascending NNN on each invocation. Empty title (status 2) and clobber-refusal both fire as expected.",
+        "scripts/backlog/propose.mjs: arg-parsing for --kind / --priority / --epic / --into; safe to import for tests via `if (invokedAsScript) main()` guard",
+        "package.json: `propose:new` and `propose:promote` scripts wired",
+        "+10 unit tests in tests/unit/propose-scaffold.test.ts covering computeDatePrefix (zero-padding, end-of-year), nextFreeSlot (missing dir, empty, take-002, gap-skip, ignore-unrelated), CLI smoke (valid file written, ascending id, empty-title exit-2, idempotent reruns)"
       ],
       "epic": "GAME-DESIGN-AGENT",
       "dependsOn": ["GAME-DESIGN-PROPOSED-STORY-SCHEMA"]
