@@ -33,7 +33,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
 | **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 20 / 0 / 20 | → MVP-0 |
-| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 43 / 1 / 44 |  |
+| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 44 / 0 / 44 |  |
 | **[KABOOM-CREW-MVP-2](backlog/epics/KABOOM-CREW-MVP-2.epic.json)** — Kaboom Crew — MVP 2 (mechanic depth + bot personality + power-up variety) | active | sample-game | 1 / 2 / 3 |  |
 | **[M10](backlog/epics/M10.epic.json)** — M10 Security / trust boundary for agent-authored projects | active | engine | 0 / 0 / 0 |  |
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
