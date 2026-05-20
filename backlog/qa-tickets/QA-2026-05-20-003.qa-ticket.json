@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-003",
+  "title": "promote-qa.mjs accepts active sprint targets — pending-only guard missing",
+  "filedAt": "2026-05-20T10:45:00Z",
+  "foundInSprint": "S093",
+  "severity": "major",
+  "type": "bug",
+  "summary": "scripts/backlog/promote-qa.mjs line 138 checks `status !== 'pending' && status !== 'active'`, meaning active sprints are silently accepted. The S93 story QA-INTAKE-PROMOTE specifies 'must be pending' and the unit test 'refuses to promote into an active or archived sprint' asserts exit code != 0 for active targets, but the script exits 0. Discovered while running the full test suite: `npm run test` reports 1 failure in tests/unit/qa-promote.test.ts.",
+  "repro": [
+    "Create a sprint JSON file with status: 'active' and a qa-ticket fixture.",
+    "Run: node scripts/backlog/promote-qa.mjs --into S999 --qa-dir <dir> --sprints-dir <dir> --skip-check",
+    "Observe: exit code 0; the sprint JSON gains the promoted story despite being active."
+  ],
+  "expected": "Exit code non-zero with a message containing 'pending'. Source ticket file untouched.",
+  "actual": "Promotion succeeds. Line 138 of promote-qa.mjs: `if (sprintData.status !== 'pending' && sprintData.status !== 'active')` — active is treated as a valid target.",
+  "logs": "tests/unit/qa-promote.test.ts:194 AssertionError: expected +0 not to be +0 (exit status should not be 0)"
+}
