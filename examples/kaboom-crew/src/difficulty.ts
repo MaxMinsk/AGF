@@ -52,6 +52,28 @@ export function readDifficultyFromUrl(search: string | undefined): DifficultyPre
  * BotAISystem unit) so the existing system code doesn't have to
  * branch on milliseconds.
  */
+// S100 KABOOM-BOT-PERSONALITY-VARIANTS. Same parse pattern as
+// difficulty: `?botPersonality=hunter|coward|miner`. Default
+// 'hunter' (current behaviour). Pure helper — applied by the
+// bootstrap on bot spawn alongside difficultyComponentPatch.
+export type BotPersonality = "hunter" | "coward" | "miner";
+
+export function isBotPersonality(v: string): v is BotPersonality {
+  return v === "hunter" || v === "coward" || v === "miner";
+}
+
+export function readBotPersonalityFromUrl(search: string | undefined): BotPersonality {
+  if (search === undefined || search.length === 0) return "hunter";
+  try {
+    const params = new URLSearchParams(search);
+    const raw = params.get("botPersonality");
+    if (raw !== null && isBotPersonality(raw)) return raw;
+  } catch {
+    // ignored — fall through
+  }
+  return "hunter";
+}
+
 export function difficultyComponentPatch(preset: DifficultyPreset): {
   BotBrain: { aggression: number; nextDecisionIn: number };
   BomberStats: { maxBombs: number; range: number; activeBombs: number; alive: true };

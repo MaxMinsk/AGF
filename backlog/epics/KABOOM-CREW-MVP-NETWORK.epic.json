@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "KABOOM-CREW-MVP-NETWORK",
+  "title": "Kaboom Crew — networked play (connected profile, two browser tabs share one arena)",
+  "status": "planned",
+  "category": "sample-game",
+  "summary": "Land the network track for Kaboom Crew: two browser tabs share a single live arena via the AGF backend-agnostic protocol (M20 epic). First implementable shape: lockstep + input rollback on top of the existing fixed-step simulation, served by the Node reference backend. Driven by GDP-007 (Networked Kaboom Crew). Out of scope for MVP-1 and MVP-2 — this epic is its own multi-sprint track.",
+  "dependsOn": ["M20"],
+  "doneCriteria": [
+    "Two browser tabs hitting the same room id see the same arena state",
+    "Inputs from both tabs reach both simulations within ~1 RTT",
+    "A disconnect from one tab pauses the round (not the whole sim) and resumes on reconnect"
+  ],
+  "notes": [
+    "The dev-bridge POST /__agf/commands and POST /__agf/input/action surfaces are NOT the multiplayer surface — they're dev-only.",
+    "Real multiplayer goes through the protocol contract under engine/protocol/ which already has Node + .NET reference backends."
+  ]
+}

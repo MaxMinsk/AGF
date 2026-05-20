@@ -7,6 +7,7 @@
     "BomberStats": { "$ref": "#/definitions/bomberStatsComponent" },
     "Bomb": { "$ref": "#/definitions/bombComponent" },
     "PlaceBombRequest": { "$ref": "#/definitions/placeBombRequestComponent" },
+    "RemoteDetonateRequest": { "$ref": "#/definitions/remoteDetonateRequestComponent" },
     "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
@@ -22,14 +23,16 @@
     "bomberStatsComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Per-bomber gameplay stats. `maxBombs` caps simultaneous active bombs; `range` is blast distance in cells; `speed` is GridMover speed override; `activeBombs` is the runtime counter. `alive=false` flips on blast hit + locks GridMover.",
+      "description": "Per-bomber gameplay stats. `maxBombs` caps simultaneous active bombs; `range` is blast distance in cells; `speed` is GridMover speed override; `activeBombs` is the runtime counter. `alive=false` flips on blast hit + locks GridMover. `canKick=true` enables the S100 KABOOM-KICK-POWER-UP mechanic — bombers slide their own bombs forward when walking into them.",
       "required": ["maxBombs", "range"],
       "properties": {
         "maxBombs": { "type": "integer", "minimum": 1, "default": 1 },
         "range": { "type": "integer", "minimum": 1, "default": 2 },
         "speed": { "type": "number", "exclusiveMinimum": 0 },
         "activeBombs": { "type": "integer", "minimum": 0, "default": 0 },
-        "alive": { "type": "boolean", "default": true }
+        "alive": { "type": "boolean", "default": true },
+        "canKick": { "type": "boolean", "default": false, "description": "S100 KABOOM-KICK-POWER-UP. True after collecting a 'kick' pickup. Enables sliding your own bomb forward when walking into its cell." },
+        "remoteDetonateCharges": { "type": "integer", "minimum": 0, "default": 0, "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Each charge converts the NEXT placed bomb into a paused (fuseRemaining=Infinity) bomb that the player triggers manually via the 'remote-detonate' InputAction (or F key). Capped at 3 per bomber." }
       }
     },
     "bombComponent": {
@@ -47,6 +50,12 @@
       "type": "object",
       "additionalProperties": false,
       "description": "Transient input request. PlayerInputSystem + BotAISystem write this on the bomber entity; BombPlacementSystem consumes + removes it the same frame.",
+      "properties": {}
+    },
+    "remoteDetonateRequestComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Transient input request written on a player when they press F (or the 'remote-detonate' InputAction is injected). BombFuseSystem reads it: for every Bomb owned by this player with fuseRemaining=Infinity (paused), set fuseRemaining=0 so they all detonate this fixedUpdate. Component is removed after handling.",
       "properties": {}
     },
     "blastEventComponent": {
@@ -78,6 +87,11 @@
       "required": ["aggression"],
       "properties": {
         "aggression": { "type": "number", "minimum": 0, "maximum": 1 },
+        "personality": {
+          "type": "string",
+          "enum": ["hunter", "coward", "miner"],
+          "description": "S100 KABOOM-BOT-PERSONALITY-VARIANTS. 'hunter' (default) chases the nearest player + bombs when adjacent to soft blocks. 'coward' has no chase goal + bombs more eagerly when threatened (defensive shield). 'miner' chases soft blocks AND pickups, ignores the player unless in path; bombs more eagerly toward soft blocks."
+        },
         "nextDecisionIn": { "type": "number", "minimum": 0 },
         "lastDecisionDx": { "type": "integer", "minimum": -1, "maximum": 1 },
         "lastDecisionDz": { "type": "integer", "minimum": -1, "maximum": 1 }
@@ -146,12 +160,12 @@
     "pickupComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed).",
+      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true), `remote-detonate` (S100 — +1 BomberStats.remoteDetonateCharges, capped at 3).",
       "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["bomb-up", "fire-up", "speed-up"]
+          "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate"]
         }
       }
     },

@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "KABOOM-CREW-MVP-2",
+  "title": "Kaboom Crew — MVP 2 (mechanic depth + bot personality + power-up variety)",
+  "status": "active",
+  "category": "sample-game",
+  "summary": "Second-pass polish on the MVP-1 vertical slice: mechanic depth (kick, remote-detonate), bot personality variants beyond difficulty, content variety. Driven by game-design proposals filed in S98-S99: GDP-003 (kick), GDP-005 (bot personality), GDP-006 (remote-detonate), and future power-up additions. Follows KABOOM-CREW-MVP-1.",
+  "doneCriteria": [
+    "Bumping into your own bomb kicks it one cell forward (GDP-003 KABOOM-KICK-POWER-UP)",
+    "Bot personality dial (Hunter / Coward / Miner) tunable from URL (GDP-005)",
+    "Remote-detonate power-up: fuse pauses, player triggers blast (GDP-006)",
+    "At least one additional content variety landed (arena, skin, or sound bank)"
+  ],
+  "notes": [
+    "Decoupled from the network epic (KABOOM-CREW-MVP-NETWORK) — local solo + bot is the MVP-2 surface; multiplayer is a parallel track.",
+    "Proposals 008-010 (procedural characters / animation / voice) are tracked under the KABOOM-CREW-CHARACTERS epic, not this one."
+  ]
+}

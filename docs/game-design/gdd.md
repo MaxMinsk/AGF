@@ -163,6 +163,24 @@ reaction speed and aggression; the personality axis swaps in archetypes
 - MVP-3+: persistent world. Players enter the world, play a couple of
   matches, leave; the world holds tally / win-streak / seasonal state.
 
+### Cosmetic unlocks (planned, MVP-3+)
+
+**Decided 2026-05-20**: cosmetic unlocks are in the long-term plan
+but DO NOT land before MVP-3. Unlocks add accessories to the player's
+procedural-character recipe pool — they never change stats.
+
+- Unlock conditions are achievement-shaped ("won 10 rounds",
+  "survived a chain reaction"). No daily challenges, no battle pass,
+  no monetisation — the GDD's "no live-service progression" line
+  still holds.
+- Requires a persistent player profile (local storage minimum;
+  multiplayer profile once GDP-2026-05-20-007 ships).
+- Cosmetic-only is non-negotiable. Stats-on-cosmetics drift into
+  pay-to-win even without money in the loop and contradict the
+  agent-friendly-rules pillar.
+
+Full design intent: `docs/game-design/characters-and-visual.md` §6.3.
+
 ---
 
 ## World
@@ -285,6 +303,14 @@ primary danger telegraph (alongside bomb-mesh wiggle in the final
   scale grows past a single screen.
 - **Stylised stereo cue** for distant blasts (off-screen events) — pairs
   with the minimap ping.
+- **Procedural vocal synth (decided 2026-05-20)** — each bomber has a
+  tiny voice synthesised from its recipe seed. Five emotional slots:
+  place-bomb, hit, pickup, death, victory. Voice colour (pitch +
+  timbre + envelope) is seed-derived so a given character always
+  sounds the same. Layered on top of the existing audio clips, not
+  replacing them. No pre-rendered voice assets — all synthesised at
+  play time. See `docs/game-design/characters-and-visual.md` §6.4 and
+  proposal `GDP-2026-05-20-010`.
 
 ### Accessibility
 

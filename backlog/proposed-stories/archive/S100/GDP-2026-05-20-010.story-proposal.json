@@ -1,0 +1,25 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-010",
+  "title": "Procedural vocal synthesiser — each bomber gets a tiny seed-derived voice",
+  "createdAt": "2026-05-20T22:20:00.000Z",
+  "kind": "feature",
+  "intent": "Every bomber has a tiny vocal personality — a short synthesised grunt / chirp at five emotional moments (place-bomb, hit, pickup, death, victory). The voice 'colour' (base pitch, waveform shape, envelope) is derived deterministically from the bomber's CharacterRecipe seed, so seed=42 always sounds the same. All audio is generated at play time via Web Audio API (oscillator + envelope + a touch of vibrato) — no pre-rendered voice assets, no voice-actor budget. Layered on top of the existing bomb-place / blast / pickup / death clips from MVP-1, not replacing them. Adds 'personality' to characters that otherwise look distinct but sound identical.",
+  "priority": "could",
+  "epic": "KABOOM-CREW-CHARACTERS",
+  "rationale": "Source: `docs/game-design/characters-and-visual.md` §6.4 (user-confirmed 'yes' on 2026-05-20). Independent of GDP-008 and GDP-009 — vocal synth doesn't need the procedural mesh tree or the animation systems to ship. Can land before or after them. Bigger payoff once GDP-008 is in (you can hear the difference between two procedurally generated bombers across BOTH visual and audio), but no hard ordering dependency. `could` priority because it's a polish layer on top of an already-shipped audio bus; if MVP-2 sprint capacity is tight this slots out without blocking anything.",
+  "acceptanceHints": [
+    "examples/kaboom-crew/src/systems/vocal-synthesis-system.ts — subscribes to the existing audio-binding-system event stream. When `bomb-place` / `blast` (filtered to the dying bomber's death-frame) / `pickup` / round-resolve fires, it ALSO emits a short synth note alongside the clip. The original clip is unchanged — voice is additive.",
+    "Voice slot mapping: `place-bomb` → 0.15 s downward chirp; `hit` → 0.12 s sharp 'oof'; `pickup` → 0.18 s upward chirp; `death` → 0.30 s descending whine; `victory` → 0.40 s rising tritone over the round-resolve fanfare.",
+    "Voice colour from recipe seed: a small XOR-shift on recipe.seed produces { basePitchHz: 180..480, waveform: 'sine'|'triangle'|'sawtooth', envelopeAttackMs: 5..30, envelopeReleaseMs: 80..250, vibratoDepth: 0..0.3 }. Stable across calls — same seed always sounds identical.",
+    "Implementation: use the existing AudioContext from the audio bus. Each utterance allocates an OscillatorNode + GainNode (envelope) + optional vibrato LFO, schedules them via the audio clock, disconnects them when the envelope completes. Cap simultaneous utterances at 4 — extras drop silently.",
+    "Bot vs player voices: pull from the SAME synth, but the recipe-seed table favours harsher timbres (saw / triangle) for bot.* entities, smoother (sine / triangle) for player.* entities. This is a generator-side bias, not a hard rule — agent probes / recipe URLs can override.",
+    "Unit test: synth output is deterministic for a given recipe + event slot + AudioContext sampling — same inputs produce structurally identical scheduling calls (durations, waveform choices, gain envelope points).",
+    "Unit test: voice fires alongside the existing audio clip (the existing audio-binding-system event still produces its clip; the vocal-synthesis-system adds its synth note in the same tick — they don't cancel each other).",
+    "Unit test: utterance cap — schedule 10 simultaneous events, only 4 audible nodes are created, no exceptions.",
+    "Acceptance playtest: load two tabs with `?recipe=<seed=1>` and `?recipe=<seed=99>` — pause briefly, place a bomb in each — the two place-bomb chirps are AUDIBLY different. Hard to assert in a unit test; QA verifies by ear.",
+    "Acceptance playtest: a round resolves — the winning bomber's victory voice fires once on round-resolve; the losing bomber's death voice fires on alive-flip; tally HUD updates. Both audible.",
+    "Optional accessibility flag: `?vocals=off` mutes the synth without affecting the existing clips. Sound-sensitive players (or robot playtests) keep their existing audio surface clean.",
+    "Out of scope (explicit): full taunts / phrases / speech synthesis, per-player voice slot customisation, voice 'mood' that shifts mid-round (always-the-same-voice keeps the deterministic-by-seed property)."
+  ]
+}

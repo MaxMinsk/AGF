@@ -260,6 +260,14 @@ export type BacklogReport = {
     /** Any pending proposal older than 7 days — surface as a 'drain the queue' hint. */
     stalePending: ReadonlyArray<{ id: string; createdAt: string }>;
   };
+  /**
+   * S100 AGF-DOCTOR-REJECTED-INBOX: count of QA tickets dev has
+   * declined to promote (lives at backlog/qa-tickets/archive/rejected/).
+   * Useful as a triage signal — a growing rejected pile means dev and
+   * QA disagree on what's actionable. Absent when the directory is
+   * missing or empty.
+   */
+  rejectedInbox?: { total: number };
 };
 
 export type EpicsReport = {
@@ -1818,6 +1826,22 @@ export function summarizeBacklog(repoRoot: string): BacklogReport {
     return { total: proposals.length, byPriority, oldest, stalePending };
   })();
 
+  // S100 AGF-DOCTOR-REJECTED-INBOX. Count QA tickets dev declined to
+  // promote. The directory was seeded in S98 alongside the
+  // invalid-ticket-handling doc.
+  const rejectedInbox = (() => {
+    const rejectedDir = resolve(repoRoot, "backlog/qa-tickets/archive/rejected");
+    if (!existsSync(rejectedDir)) return undefined;
+    let names: string[] = [];
+    try {
+      names = readdirSync(rejectedDir).filter((n) => n.endsWith(".qa-ticket.json"));
+    } catch {
+      return undefined;
+    }
+    if (names.length === 0) return undefined;
+    return { total: names.length };
+  })();
+
   return {
     sprintFiles: sprints.length,
     active: activeReport,
@@ -1827,7 +1851,8 @@ export function summarizeBacklog(repoRoot: string): BacklogReport {
     followUps,
     recentCommits,
     ...(qaInbox !== undefined ? { qaInbox } : {}),
-    ...(proposedInbox !== undefined ? { proposedInbox } : {})
+    ...(proposedInbox !== undefined ? { proposedInbox } : {}),
+    ...(rejectedInbox !== undefined ? { rejectedInbox } : {})
   };
 }
 
@@ -2004,6 +2029,13 @@ export function formatBacklog(report: BacklogReport): string {
     if (report.qaInbox.staleCritical.length > 0) {
       lines.push(`    ⚠ ${report.qaInbox.staleCritical.length} critical ticket(s) older than 24h — promote ASAP via \`npm run qa:promote\`.`);
     }
+  }
+
+  // S100 AGF-DOCTOR-REJECTED-INBOX — a one-line summary of the
+  // rejected-QA-ticket pile (dev declined to promote). Empty pile
+  // suppresses the line so it doesn't add visual noise.
+  if (report.rejectedInbox !== undefined) {
+    lines.push(`  Rejected QA tickets: ${report.rejectedInbox.total} (see backlog/qa-tickets/archive/rejected/README.md for rationale)`);
   }
 
   // S99 AGF-DOCTOR-PROPOSED-STORIES — symmetric line under the QA
