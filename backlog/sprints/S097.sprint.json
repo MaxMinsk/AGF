@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S097",
   "title": "Game-design proposal flow + entity dump probe + component write + diagnostics-since",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/110",
   "stories": [
     {
       "id": "GAME-DESIGN-PROPOSED-STORY-SCHEMA",
