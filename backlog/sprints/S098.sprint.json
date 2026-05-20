@@ -8,26 +8,26 @@
     {
       "id": "AGF-PROBE-ENTITY-CREATE",
       "title": "POST /__agf/entity creates a new entity with an initial component map",
-      "status": "pending",
-      "summary": "Write counterpart to S097 AGF-PROBE-ENTITY-DUMP. Body: `{ entityId: string, components: Record<string, unknown> }`. Server-side calls world.addEntity(entityId) + world.setComponent for each entry. Refuses to clobber an existing id with 409 AGF_PROBE_ENTITY_EXISTS. Returns the same shape as the GET path so the caller can confirm. Useful for tests + for game-design agent dogfooding (drop a fixture entity to verify a system).",
+      "status": "implemented",
+      "summary": "runtime.createEntity(entityId, components) calls world.addEntity + iterative world.setComponent for each [name, value] pair; returns { kind: 'ok', components } on success or { kind: 'entity-exists' } when the id is taken. The dev-bridge POST /entity route runs the new exported pure helper `validateEntityCreateBody` (rejects non-object body, empty/non-string entityId, missing/non-object/array components with 400 AGF_BRIDGE_INVALID_ENTITY_CREATE), forwards via the new page-bridge `entity-create` RPC, and maps `entity-exists` to 409 AGF_PROBE_ENTITY_EXISTS. Plumbed end-to-end through src/app.ts + window.__agf.createEntity.",
       "verification": [
-        "acceptance: POST /__agf/entity with { entityId: 'qa-probe-1', components: { Foo: { x: 1 } } } creates the entity; a subsequent GET /__agf/entity/qa-probe-1 returns the same components. Re-posting the same id returns 409 AGF_PROBE_ENTITY_EXISTS.",
-        "engine/runtime/start.ts: createEntity helper returns { kind: 'ok' | 'entity-exists' }",
-        "engine/dev/agf-dev-bridge.ts: POST /entity validates body shape (entityId string + components object); reuses parseEntityPath where it can",
-        "+ unit tests on body validator: missing entityId, missing components, components non-object, entity-exists conflict"
+        "acceptance: POST /__agf/entity { entityId: 'qa-probe-1', components: { Foo: { x: 1 } } } returns 200; a subsequent GET /__agf/entity/qa-probe-1 returns the same components. Re-posting the same id returns 409 AGF_PROBE_ENTITY_EXISTS.",
+        "engine/runtime/start.ts: createEntity helper on the runtime handle + interface entry",
+        "engine/dev/agf-dev-bridge.ts: exported validateEntityCreateBody + POST /entity route mapping entity-exists → 409",
+        "+8 unit tests in tests/unit/entity-create-bridge.test.ts: canonical shape, empty components, non-object body (null/string/number/undefined), missing entityId, empty/non-string entityId, missing/non-object components, array-as-components rejection"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "AGF-PROBE-ENTITY-DELETE",
       "title": "DELETE /__agf/entity/<entityId> removes an entity wholesale",
-      "status": "pending",
-      "summary": "Completes the entity CRUD triplet (create / read / delete + S097's component write). Server-side calls world.removeEntity(entityId). Reuses parseEntityPath. Returns 404 AGF_PROBE_ENTITY_NOT_FOUND when the entity is unknown. Useful when an agent's automation script needs to clean up after itself, or when running probes against an isolated test entity that should not leak between runs.",
+      "status": "implemented",
+      "summary": "Completes the entity CRUD triplet (create / read / delete + S097's component write). runtime.deleteEntity(entityId) calls world.removeEntity and returns { kind: 'ok' } | { kind: 'entity-not-found' }. The dev-bridge DELETE /entity/:entityId route reuses parseEntityPath (S097), forwards via the new page-bridge `entity-delete` RPC, maps entity-not-found to 404. Required widening the method gate from {GET, POST} to {GET, POST, DELETE}. Plumbed through src/app.ts + window.__agf.deleteEntity.",
       "verification": [
         "acceptance: After POST /__agf/entity { entityId: 'test.1', components: {} }, DELETE /__agf/entity/test.1 returns 200 with { deleted: 'test.1' }; a subsequent GET /__agf/entity/test.1 returns 404 AGF_PROBE_ENTITY_NOT_FOUND.",
-        "engine/runtime/start.ts: deleteEntity(entityId) returns { kind: 'ok' | 'entity-not-found' }",
-        "engine/dev/agf-dev-bridge.ts: DELETE /entity/:entityId reuses parseEntityPath",
-        "+ unit test on the entity-not-found path"
+        "engine/runtime/start.ts: deleteEntity + interface entry",
+        "engine/dev/agf-dev-bridge.ts: DELETE /entity/:entityId reuses parseEntityPath; method gate widened to include DELETE",
+        "Reuses the parseEntityPath unit tests from S097 (entity-at-bridge.test.ts) — same path parser, no new path tests needed"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

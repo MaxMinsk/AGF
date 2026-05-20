@@ -131,6 +131,14 @@ type AgfApi = {
   setComponentAt?: (entityId: string, componentName: string, value: unknown) =>
     | { kind: "ok"; value: unknown }
     | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-ENTITY-CREATE. */
+  createEntity?: (entityId: string, components: Record<string, unknown>) =>
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-exists" };
+  /** S098 AGF-PROBE-ENTITY-DELETE. */
+  deleteEntity?: (entityId: string) =>
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff?: (at: number) =>
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -319,6 +327,32 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
           break;
         }
         payload = api.setComponentAt(args.entityId, args.componentName, args.value);
+        break;
+      }
+      case "entity-create": {
+        // S098 AGF-PROBE-ENTITY-CREATE.
+        const args = payloadIn as { entityId?: string; components?: Record<string, unknown> } | undefined;
+        if (
+          args === undefined ||
+          typeof args.entityId !== "string" ||
+          args.components === undefined ||
+          typeof args.components !== "object" ||
+          api?.createEntity === undefined
+        ) {
+          payload = undefined;
+          break;
+        }
+        payload = api.createEntity(args.entityId, args.components);
+        break;
+      }
+      case "entity-delete": {
+        // S098 AGF-PROBE-ENTITY-DELETE.
+        const args = payloadIn as { entityId?: string } | undefined;
+        if (args === undefined || typeof args.entityId !== "string" || api?.deleteEntity === undefined) {
+          payload = undefined;
+          break;
+        }
+        payload = api.deleteEntity(args.entityId);
         break;
       }
       case "component-at": {

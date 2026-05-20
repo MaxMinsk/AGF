@@ -223,6 +223,14 @@ export type RuntimeHandle = {
   setComponentAt(entityId: string, componentName: string, value: unknown):
     | { kind: "ok"; value: unknown }
     | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-ENTITY-CREATE — create an entity with an initial component map. */
+  createEntity(entityId: string, components: Record<string, unknown>):
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-exists" };
+  /** S098 AGF-PROBE-ENTITY-DELETE — remove an entity wholesale. */
+  deleteEntity(entityId: string):
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
   /**
    * Resolves after the first frame that actually rendered (active
    * camera acquired + `renderer.adapter.draw()` executed). Use this
@@ -979,6 +987,25 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       if (!world.hasEntity(entityId)) return { kind: "entity-not-found" };
       world.setComponent(entityId, componentName, value);
       return { kind: "ok", value };
+    },
+    createEntity(entityId: string, components: Record<string, unknown>):
+      | { kind: "ok"; components: Record<string, unknown> }
+      | { kind: "entity-exists" } {
+      // S098 AGF-PROBE-ENTITY-CREATE. Refuses to clobber an existing id.
+      if (world.hasEntity(entityId)) return { kind: "entity-exists" };
+      world.addEntity(entityId);
+      for (const [name, value] of Object.entries(components)) {
+        world.setComponent(entityId, name, value);
+      }
+      return { kind: "ok", components };
+    },
+    deleteEntity(entityId: string):
+      | { kind: "ok" }
+      | { kind: "entity-not-found" } {
+      // S098 AGF-PROBE-ENTITY-DELETE.
+      if (!world.hasEntity(entityId)) return { kind: "entity-not-found" };
+      world.removeEntity(entityId);
+      return { kind: "ok" };
     },
     componentAt(entityId: string, componentName: string, at?: number):
       | { kind: "ok"; value: unknown }
