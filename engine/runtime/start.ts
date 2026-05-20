@@ -92,6 +92,14 @@ export type RuntimeOptions = {
   diagnostics?: DiagnosticsBus;
   /** S86 AGF-FRAME-TIMING-SPIKE-DIAGNOSTIC. Single-frame total-ms threshold above which the runtime emits an AGF_FRAME_SPIKE warning. Default 50 ms. Set to 0 to disable the gate. */
   spikeMs?: number;
+  /**
+   * S88 AGF-PARTICLE-PREWARM-SYSTEM. Preset names whose ParticleEmitter
+   * shaders the engine should warm up on boot — one offscreen pool per
+   * preset is acquired then released after a few frames so a real
+   * gameplay emit doesn't pay the shader-compile cost. Defaults to
+   * empty (no warmup).
+   */
+  particlePreWarmPresets?: ReadonlyArray<string>;
   /** Minimum gap (ms) between consecutive AGF_FRAME_SPIKE emissions. Default 1000 ms. */
   spikeCooldownMs?: number;
   /**
@@ -375,7 +383,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     // M19-particle-preset: emit + advance particles in a renderer-side
     // pool. Stays in frame-update (visual only, no gameplay impact).
     const { createParticleEmitterSystem } = await import("../render/systems/particle-emitter-system");
-    const particles = createParticleEmitterSystem({ adapter: renderer.adapter });
+    const particles = createParticleEmitterSystem({
+      adapter: renderer.adapter,
+      ...(options.particlePreWarmPresets !== undefined ? { preWarmPresets: options.particlePreWarmPresets } : {})
+    });
     if (!scheduler.has(particles.name)) scheduler.register(particles);
     const cs = createCameraSyncSystem();
     if (!scheduler.has(cs.name)) scheduler.register(cs);

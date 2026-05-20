@@ -73,4 +73,47 @@ describe("RenderPoolRegistry (S53)", () => {
     expect(drained).toEqual(["alpha", "beta"]);
     expect(reg.size()).toBe(0);
   });
+
+  describe("S88 AGF-POOL-INVENTORY-API peak tracking", () => {
+    it("peak() bumps as live size grows", () => {
+      const reg = new RenderPoolRegistry<string>();
+      expect(reg.peak()).toBe(0);
+      reg.acquire("alpha");
+      expect(reg.peak()).toBe(1);
+      reg.acquire("beta");
+      reg.acquire("gamma");
+      expect(reg.peak()).toBe(3);
+    });
+
+    it("peak() does NOT decrease on release — retains the high-water mark", () => {
+      const reg = new RenderPoolRegistry<string>();
+      const a = reg.acquire("alpha");
+      const b = reg.acquire("beta");
+      expect(reg.peak()).toBe(2);
+      reg.release(a);
+      reg.release(b);
+      expect(reg.size()).toBe(0);
+      expect(reg.peak()).toBe(2);
+    });
+
+    it("reset() drops both the handle counter and the peak", () => {
+      const reg = new RenderPoolRegistry<string>();
+      const a = reg.acquire("alpha");
+      reg.release(a);
+      expect(reg.peak()).toBe(1);
+      reg.reset();
+      expect(reg.peak()).toBe(0);
+      // After reset, the next acquire restarts the monotonic counter at 1.
+      expect(reg.acquire("beta")).toBe(1);
+    });
+
+    it("drain does NOT touch the peak — that's only reset()'s job", () => {
+      const reg = new RenderPoolRegistry<string>();
+      reg.acquire("alpha");
+      reg.acquire("beta");
+      [...reg.drain()];
+      expect(reg.size()).toBe(0);
+      expect(reg.peak()).toBe(2);
+    });
+  });
 });

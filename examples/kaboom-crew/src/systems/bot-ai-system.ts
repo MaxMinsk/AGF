@@ -27,6 +27,9 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const BOMB: ComponentName = "Bomb";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
+// S88 KABOOM-BOT-DANGER-AVOID. Live BlastTiles cover an active
+// explosion for a fraction of a second — walking onto one kills.
+const BLAST_TILE: ComponentName = "BlastTile";
 
 const DIRECTIONS: ReadonlyArray<{ dx: number; dz: number }> = [
   { dx: 1, dz: 0 },
@@ -69,9 +72,21 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   let cachedWorld: World | undefined;
   let bots: QueryHandle | undefined;
   let bombs: QueryHandle | undefined;
+  let blastTiles: QueryHandle | undefined;
 
   function buildDangerMap(world: World): Set<string> {
     const danger = new Set<string>();
+    // S88 KABOOM-BOT-DANGER-AVOID. Live BlastTile cells: walking onto
+    // one means instant death. Treat them as danger so the bot picks
+    // a longer path that avoids the active fan-out of an explosion
+    // that's still in flight.
+    if (blastTiles !== undefined) {
+      for (const id of blastTiles.run()) {
+        const pos = world.getComponent<GridPos>(id, GRID_POSITION);
+        if (pos === undefined) continue;
+        danger.add(cellKey(pos.gx, pos.gz));
+      }
+    }
     for (const id of bombs!.run()) {
       const pos = world.getComponent<GridPos>(id, GRID_POSITION);
       const bomb = world.getComponent<Bomb>(id, BOMB);
@@ -121,27 +136,34 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     if (neighbours.length === 0) return { dx: 0, dz: 0 };
 
     const inDanger = danger.has(cellKey(pos.gx, pos.gz));
+    // S88 KABOOM-BOT-DANGER-AVOID. Always prefer neighbours that are
+    // NOT in the danger map. Previously, only the flee path filtered;
+    // the wander path could (and regularly did) randomly step into a
+    // live blast or about-to-explode bomb. Falls back to ANY neighbour
+    // when every adjacent cell is dangerous so the bot still moves
+    // when boxed in.
+    const safeNeighbours = neighbours.filter((n) => !danger.has(cellKey(n.gx, n.gz)));
+    const pool = safeNeighbours.length > 0 ? safeNeighbours : neighbours;
+
     if (inDanger) {
-      // Flee — prefer neighbours NOT in the danger set.
-      const safe = neighbours.filter((n) => !danger.has(cellKey(n.gx, n.gz)));
-      const pool = safe.length > 0 ? safe : neighbours;
+      // Flee — uniform random over the safe pool so we don't bias
+      // toward the bot's last heading (which got it into danger).
       const choice = pool[Math.floor(rng.next() * pool.length)]!;
       return { dx: choice.dx, dz: choice.dz };
     }
 
     // Wander — light bias to continue in last direction if still
-    // passable, otherwise random. Drives smoother movement than pure
-    // re-roll-every-tick.
+    // passable AND not dangerous, otherwise pick from the safe pool.
     if (
       brain.lastDecisionDx !== undefined &&
       brain.lastDecisionDz !== undefined &&
       (brain.lastDecisionDx !== 0 || brain.lastDecisionDz !== 0) &&
       rng.next() < 0.6
     ) {
-      const match = neighbours.find((n) => n.dx === brain.lastDecisionDx && n.dz === brain.lastDecisionDz);
+      const match = pool.find((n) => n.dx === brain.lastDecisionDx && n.dz === brain.lastDecisionDz);
       if (match !== undefined) return { dx: match.dx, dz: match.dz };
     }
-    const choice = neighbours[Math.floor(rng.next() * neighbours.length)]!;
+    const choice = pool[Math.floor(rng.next() * pool.length)]!;
     return { dx: choice.dx, dz: choice.dz };
   }
 
@@ -177,6 +199,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     if (world !== cachedWorld) {
       bots = world.createQuery([BOT_BRAIN, GRID_MOVER, GRID_POSITION]);
       bombs = world.createQuery([BOMB, GRID_POSITION]);
+      blastTiles = world.createQuery([BLAST_TILE, GRID_POSITION]);
       cachedWorld = world;
     }
     // S84 KABOOM-TITLE-SCREEN. Game freezes while a GamePaused

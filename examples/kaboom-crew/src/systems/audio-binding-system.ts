@@ -32,7 +32,14 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const TRANSFORM: ComponentName = "Transform";
 const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
-export type AudioEventKind = "bomb-place" | "blast" | "pickup" | "death";
+export type AudioEventKind =
+  | "bomb-place"
+  | "blast"
+  | "pickup"
+  | "death"
+  | "match-won"
+  | "match-lost"
+  | "match-draw";
 export type AudioEventListener = (kind: AudioEventKind, context?: { entityId?: EntityId }) => void;
 
 export type KaboomAudioBindingOptions = {
@@ -54,6 +61,11 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
   let prevBombIds = new Set<EntityId>();
   let prevPickupIds = new Set<EntityId>();
   let prevAlive = new Map<EntityId, boolean>();
+  // S88 KABOOM-WIN-CHIME. Track previous matchPhase so we fire a
+  // 'match-{won|lost|draw}' event exactly once per matchPhase
+  // transition out of 'in-progress'. Defaults to 'in-progress' so
+  // the very first frame after a world swap doesn't spuriously fire.
+  let prevMatchPhase: string = "in-progress";
 
   // S85 KABOOM-AUDIO-PROCEDURAL-SFX fix — runs in fixedUpdate because
   // BlastEvent transients are emitted AND consumed inside the
@@ -74,6 +86,7 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       prevBombIds = new Set();
       prevPickupIds = new Set();
       prevAlive = new Map();
+      prevMatchPhase = "in-progress";
     }
 
     // Bomb births → bomb-place.
@@ -135,6 +148,18 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     // BlastTile fan-out, which the dedicated death/pickup paths skip.
     const anyBlast = blastEvents!.run().length > 0;
     if (anyBlast) onEvent("blast");
+
+    // S88 KABOOM-WIN-CHIME. Detect a matchPhase transition out of
+    // 'in-progress' on the kaboom.round-state singleton and fire the
+    // matching chord exactly once.
+    const round = world.getComponent<{ matchPhase?: string }>("kaboom.round-state", "RoundState");
+    const currentMatchPhase = round?.matchPhase ?? "in-progress";
+    if (prevMatchPhase === "in-progress" && currentMatchPhase !== "in-progress") {
+      if (currentMatchPhase === "won") onEvent("match-won");
+      else if (currentMatchPhase === "lost") onEvent("match-lost");
+      else if (currentMatchPhase === "draw") onEvent("match-draw");
+    }
+    prevMatchPhase = currentMatchPhase;
   };
 
   return { name, fixedUpdate };

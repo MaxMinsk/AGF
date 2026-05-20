@@ -86,6 +86,8 @@ type ParsedArgs = {
   diagnosticsFrom?: string;
   /** S84 AGF-DOCTOR-RENDERER-INSPECT-SECTION — optional path to a /__agf/renderer-inspect dump. */
   rendererInspectFrom?: string;
+  /** S88 AGF-POOL-DOCTOR-SECTION — optional path to a /__agf/pool-inventory dump. */
+  poolInventoryFrom?: string;
   /** S81 KABOOM-GENERATOR-FRAMEWORK. */
   seed: number | undefined;
   template: string | undefined;
@@ -139,7 +141,8 @@ if (parsedArgs.command === "check") {
   const report = runDoctor(parsedArgs.projectDir, undefined, {
     build: parsedArgs.build,
     ...(parsedArgs.diagnosticsFrom !== undefined ? { diagnosticsFrom: parsedArgs.diagnosticsFrom } : {}),
-    ...(parsedArgs.rendererInspectFrom !== undefined ? { rendererInspectFrom: parsedArgs.rendererInspectFrom } : {})
+    ...(parsedArgs.rendererInspectFrom !== undefined ? { rendererInspectFrom: parsedArgs.rendererInspectFrom } : {}),
+    ...(parsedArgs.poolInventoryFrom !== undefined ? { poolInventoryFrom: parsedArgs.poolInventoryFrom } : {})
   });
   emitResult(report, parsedArgs, () => formatDoctor(report));
   process.exitCode = report.ok ? 0 : 1;
@@ -685,6 +688,11 @@ function parseArgs(args: string[]): ParsedArgs {
     if (current === "--renderer-inspect-from") {
       const value = args[++index];
       if (value !== undefined && value.length > 0) result.rendererInspectFrom = value;
+      continue;
+    }
+    if (current === "--pool-inventory-from") {
+      const value = args[++index];
+      if (value !== undefined && value.length > 0) result.poolInventoryFrom = value;
       continue;
     }
     if (current === "--seed") {

@@ -290,6 +290,15 @@ export class ThreeRenderer {
   }
 
   /**
+   * S88 AGF-POOL-INVENTORY-API. Forwards to the adapter's pool
+   * snapshot — instanced + batched + particle pools each report
+   * `live` (current size) + `peak` (highest live ever observed).
+   */
+  pools(): ReturnType<ThreeRenderAdapter["pools"]> {
+    return this.adapter.pools();
+  }
+
+  /**
    * S83 AGF-AGENT-RENDERER-PROBE. Compact JSON dump for agent
    * inspection: every renderer-internal counter from `info()` plus
    * the explicit list of entity ids currently holding mesh handles.

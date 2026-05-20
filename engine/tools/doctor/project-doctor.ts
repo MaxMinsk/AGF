@@ -180,6 +180,12 @@ export type DoctorReport = {
    * sample). Null when no --renderer-inspect-from path is supplied.
    */
   rendererInspect: RendererInspectReport | null;
+  /**
+   * S88 AGF-POOL-DOCTOR-SECTION. Pool live/peak snapshot from a
+   * /__agf/pool-inventory dump. Null when no --pool-inventory-from
+   * path is supplied.
+   */
+  pools: PoolInventoryReport | null;
   recommendations: string[];
 };
 
@@ -340,12 +346,24 @@ export type DoctorOptions = {
    * DoctorReport.rendererInspect.
    */
   rendererInspectFrom?: string;
+  /**
+   * S88 AGF-POOL-DOCTOR-SECTION. Filesystem path to a JSON dump of
+   * `GET /__agf/pool-inventory` (e.g. `curl ... -o pool-inventory.json`).
+   * Doctor parses it into DoctorReport.pools when present.
+   */
+  poolInventoryFrom?: string;
 };
 
 export type RendererInspectReport = {
   info: Record<string, unknown>;
   handles: { count: number; entityIds: ReadonlyArray<string>; sample: ReadonlyArray<string> };
   handleLeak: number;
+};
+
+export type PoolInventoryReport = {
+  pools: ReadonlyArray<{ name: string; live: number; peak: number }>;
+  /** Subset whose peak === 0 — preset was warmed but the project never emitted it (dead preset). */
+  unused: ReadonlyArray<string>;
 };
 
 export function runDoctor(
@@ -407,6 +425,46 @@ export function runDoctor(
     }
   })();
 
+  // S88 AGF-POOL-DOCTOR-SECTION. Parse the pool-inventory JSON file
+  // (raw array form OR wrapped { pools: [...] }, plus the dev-bridge
+  // `{ payload: ... }` envelope). `unused` flags presets whose peak
+  // is 0 — they were warmed but the project never emitted them.
+  const poolsSummary = ((): PoolInventoryReport | null => {
+    const path = options.poolInventoryFrom;
+    if (path === undefined) return null;
+    const absolute = resolve(path);
+    if (!existsSync(absolute)) return null;
+    try {
+      const raw = readFileSync(absolute, "utf8");
+      const parsed = JSON.parse(raw) as unknown;
+      const body = (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        "payload" in parsed &&
+        (parsed as { payload?: unknown }).payload !== undefined
+          ? (parsed as { payload: unknown }).payload
+          : parsed
+      );
+      const items: ReadonlyArray<unknown> =
+        Array.isArray(body)
+          ? body
+          : (body as { pools?: ReadonlyArray<unknown> })?.pools ?? [];
+      const pools = items
+        .filter((x): x is { name: string; live: number; peak: number } =>
+          x !== null &&
+          typeof x === "object" &&
+          typeof (x as { name?: unknown }).name === "string" &&
+          typeof (x as { live?: unknown }).live === "number" &&
+          typeof (x as { peak?: unknown }).peak === "number"
+        )
+        .map((x) => ({ name: x.name, live: x.live, peak: x.peak }));
+      const unused = pools.filter((p) => p.peak === 0).map((p) => p.name);
+      return { pools, unused };
+    } catch {
+      return null;
+    }
+  })();
+
   const recommendations: string[] = [];
   const errorCount = check.diagnostics.filter((d) => d.severity === "error").length;
   const warningCount = check.diagnostics.filter((d) => d.severity === "warning").length;
@@ -417,6 +475,14 @@ export function runDoctor(
   } else if (warningCount > 0) {
     recommendations.push(
       `Address ${warningCount} engine-check warning(s) when convenient (\`npm run engine:check -- ${projectDir}\`).`
+    );
+  }
+  // S88 AGF-POOL-DOCTOR-SECTION. Flag any pool that was pre-warmed
+  // but the project never emitted into — common after a refactor
+  // leaves a stale preset in particlePreWarmPresets.
+  if (poolsSummary !== null && poolsSummary.unused.length > 0) {
+    recommendations.push(
+      `Pool(s) [${poolsSummary.unused.join(", ")}] reported peak=0 — either the project never emits into them, or the pre-warm pass ran but no real emitter followed. Drop the unused preset from project.json#render.particlePreWarmPresets if it's dead, or check that the system that emits is registered.`
     );
   }
   // S85 AGF-DOCTOR-RECOMMENDATION-HANDLE-LEAK.
@@ -618,6 +684,7 @@ export function runDoctor(
       }
     })(),
     rendererInspect: rendererInspectSummary,
+    pools: poolsSummary,
     webgpuReadiness: (() => {
       const wgpu = summarizeWebGpuReadiness(projectDir, reflectionProbes);
       // S61 DOCTOR-webgpu-readiness-actionable: when a project actually
@@ -1234,9 +1301,36 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatBacklog(report.backlog));
   lines.push("");
 
+  if (report.pools !== null) {
+    lines.push(formatPoolInventory(report.pools));
+    lines.push("");
+  }
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * S88 AGF-POOL-DOCTOR-SECTION. Renders the live/peak snapshot of
+ * every renderer pool. `(no live, no peak)` flags a dead pool the
+ * project never used.
+ */
+export function formatPoolInventory(report: PoolInventoryReport): string {
+  const lines: string[] = [];
+  lines.push(`Pools: ${report.pools.length} reported.`);
+  if (report.pools.length === 0) {
+    lines.push("  (snapshot was empty)");
+    return lines.join("\n");
+  }
+  for (const p of report.pools) {
+    const flag = p.peak === 0 ? "  (no live, no peak — never used)" : "";
+    lines.push(`  ${p.name.padEnd(10)} live ${p.live}, peak ${p.peak}${flag}`);
+  }
+  if (report.unused.length > 0) {
+    lines.push(`  Unused pools (peak=0): ${report.unused.join(", ")}`);
   }
   return lines.join("\n");
 }

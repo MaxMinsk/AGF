@@ -84,6 +84,8 @@ export type ProjectMeta = {
     idleMode?: "always" | "on-demand";
     /** S54 RUNTIME-progressive-loading: asset refs that must finish loading before `rendererReady` resolves. */
     criticalAssets?: ReadonlyArray<string>;
+    /** S88 AGF-PARTICLE-PREWARM-SYSTEM: preset names whose ParticleEmitter shader should be compiled on boot. */
+    particlePreWarmPresets?: ReadonlyArray<string>;
   };
   /**
    * Profile names this project supports, mirroring `project.json.profiles`.
@@ -191,6 +193,8 @@ export type AppHandle = {
   };
   /** S86 AGF-ASSET-INVENTORY-PROBE. */
   assetInventory(): ReadonlyArray<{ ref: string; status: "loaded" | "pending" | "failed" }>;
+  /** S88 AGF-POOL-INVENTORY-PROBE. */
+  poolInventory(): ReadonlyArray<{ name: "instanced" | "batched" | "particle"; live: number; peak: number }>;
   rendererInfo(): {
     geometries: number;
     textures: number;
@@ -333,8 +337,13 @@ export async function createApp(
   shell.append(canvas, status);
   root.append(shell);
 
-  const scheduler = new SystemScheduler({ activeProfiles: [activeProfile] });
   const diagnostics = createDiagnosticsBus();
+  // S88 AGF-LOG-LIFECYCLE-SCHEDULER. Forward the shared diagnostics
+  // bus into the scheduler so AGF_SCHEDULER_SYSTEM_REGISTERED /
+  // _DEREGISTERED info traces show up in /__agf/diagnostics —
+  // reconstructing the live system list from one snapshot no longer
+  // needs inspecting the SystemScheduler object.
+  const scheduler = new SystemScheduler({ activeProfiles: [activeProfile], diagnostics });
   let network: WsNetworkAdapterHandle | undefined;
   const playerInputSystem = networked
     ? createPlayerInputSystem({
@@ -390,6 +399,10 @@ export async function createApp(
   }
   if (project.render?.criticalAssets !== undefined && project.render.criticalAssets.length > 0) {
     runtimeOptions.criticalAssets = project.render.criticalAssets;
+  }
+  // S88 AGF-PARTICLE-PREWARM-SYSTEM: forward project.json#render.particlePreWarmPresets to the runtime.
+  if (project.render?.particlePreWarmPresets !== undefined && project.render.particlePreWarmPresets.length > 0) {
+    runtimeOptions.particlePreWarmPresets = project.render.particlePreWarmPresets;
   }
   if (import.meta.env.DEV) {
     // S60 stutter investigation. Allow disabling the dev overlay via
@@ -602,6 +615,10 @@ export async function createApp(
     // S86 AGF-ASSET-INVENTORY-PROBE.
     assetInventory() {
       return assetRegistry?.inventory() ?? [];
+    },
+    // S88 AGF-POOL-INVENTORY-PROBE.
+    poolInventory() {
+      return runtime.renderer.pools();
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

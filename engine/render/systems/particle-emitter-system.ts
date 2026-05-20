@@ -89,9 +89,22 @@ export function createParticleEmitterSystem(deps: {
     "acquireParticlePool" | "setParticleInstances" | "releaseParticlePool"
   >;
   name?: string;
+  /**
+   * S88 AGF-PARTICLE-PREWARM-SYSTEM. Preset names to warm up on the
+   * first frame. The system acquires a 1-capacity pool per preset,
+   * places one offscreen instance so Three compiles the shader +
+   * uploads the InstancedMesh buffer, then releases the pools after
+   * a handful of frames. Replaces the S85 project-local kaboom hack
+   * (`kaboom.warmup-particles` entity in attachUi).
+   */
+  preWarmPresets?: ReadonlyArray<string>;
+  /** Frames to hold each warmup pool alive. Defaults to 4 — enough for sync WebGL compile + a couple async WebGPU compile passes. */
+  preWarmFrames?: number;
 }): System {
   const name = deps.name ?? "render.particle-emitter";
   const adapter = deps.adapter;
+  const preWarmPresets = deps.preWarmPresets ?? [];
+  const preWarmFrames = deps.preWarmFrames ?? 4;
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
   const runtimes = new Map<EntityId, EmitterRuntime>();
@@ -100,6 +113,15 @@ export function createParticleEmitterSystem(deps: {
   const scratchPos = new Vector3();
   const scratchRot = new Quaternion();
   const matrixBuffer: Matrix4[] = [];
+  // S88 AGF-PARTICLE-PREWARM-SYSTEM. Set the first frameUpdate sees a
+  // fresh world; we acquire one pool per preWarmPresets entry, hold
+  // them alive for `preWarmFrames`, then release. After release the
+  // shader cache in Three's renderer means a real emitter sharing
+  // the same preset gets the compiled program for free.
+  let preWarmDone = false;
+  let preWarmHandles: import("../three-render-adapter").ParticlePoolHandle[] = [];
+  let preWarmFramesLeft = preWarmFrames;
+  const farOffscreenMatrix = new Matrix4().makeTranslation(-9999, -9999, -9999);
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
@@ -109,6 +131,34 @@ export function createParticleEmitterSystem(deps: {
       // Drop runtimes from the previous world; pools were also wiped when
       // the adapter rebuilt its scene, so do not call releaseParticlePool.
       runtimes.clear();
+      // Re-arm pre-warm: every fresh world (scene.load) wipes the
+      // adapter's pool registry, so the previous warmup is also gone.
+      preWarmDone = false;
+      preWarmHandles = [];
+      preWarmFramesLeft = preWarmFrames;
+    }
+    // Pre-warm on the first frame of each world.
+    if (!preWarmDone && preWarmPresets.length > 0) {
+      for (const presetName of preWarmPresets) {
+        const preset = getPreset(presetName);
+        const handle = adapter.acquireParticlePool({
+          color: preset.color,
+          capacity: 1,
+          radius: preset.radius
+        });
+        adapter.setParticleInstances(handle, [farOffscreenMatrix], 1);
+        preWarmHandles.push(handle);
+      }
+      preWarmDone = true;
+    }
+    // Tear down the warmup pools after `preWarmFrames` frames so they
+    // don't linger in the live count past their useful life.
+    if (preWarmDone && preWarmHandles.length > 0) {
+      preWarmFramesLeft -= 1;
+      if (preWarmFramesLeft <= 0) {
+        for (const h of preWarmHandles) adapter.releaseParticlePool(h);
+        preWarmHandles.length = 0;
+      }
     }
     const dt = context.time.dt;
     const seen = new Set<EntityId>();

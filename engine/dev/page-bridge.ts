@@ -117,6 +117,8 @@ type AgfApi = {
   rendererInspect?: () => unknown;
   /** S86 AGF-ASSET-INVENTORY-PROBE. */
   assetInventory?: () => unknown;
+  /** S88 AGF-POOL-INVENTORY-PROBE. */
+  poolInventory?: () => unknown;
   reloadEvents?: unknown;
   applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
   startRecording?: () => unknown;
@@ -245,6 +247,10 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "asset-inventory":
         // S86 AGF-ASSET-INVENTORY-PROBE.
         payload = api?.assetInventory?.();
+        break;
+      case "pool-inventory":
+        // S88 AGF-POOL-INVENTORY-PROBE.
+        payload = api?.poolInventory?.();
         break;
       case "reload-events":
         payload = api?.reloadEvents ?? [];

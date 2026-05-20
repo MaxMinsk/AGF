@@ -3091,6 +3091,20 @@ export class ThreeRenderAdapter {
     geometry.setDrawRange(0, vertices.length / 3);
   }
 
+  /**
+   * S88 AGF-POOL-INVENTORY-API. Snapshot of each renderer pool's
+   * live + peak handle count. Used by `runtime.pools.inventory()` +
+   * the engine doctor's Pools: section to verify pool warmup ran
+   * and to spot pools that have never seen a live entry.
+   */
+  pools(): ReadonlyArray<{ name: "instanced" | "batched" | "particle"; live: number; peak: number }> {
+    return [
+      { name: "instanced", live: this.buckets.size(), peak: this.buckets.peak() },
+      { name: "batched", live: this.batchedBuckets.size(), peak: this.batchedBuckets.peak() },
+      { name: "particle", live: this.particlePools.size(), peak: this.particlePools.peak() }
+    ];
+  }
+
   info(): AdapterInfo {
     const memory = this.device.info.memory;
     const renderStats = this.device.info.render;

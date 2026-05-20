@@ -12,7 +12,14 @@
 // context; dispose() tears it down so HMR replays don't leak audio
 // graphs.
 
-export type AudioEventKind = "bomb-place" | "blast" | "pickup" | "death";
+export type AudioEventKind =
+  | "bomb-place"
+  | "blast"
+  | "pickup"
+  | "death"
+  | "match-won"
+  | "match-lost"
+  | "match-draw";
 
 export type KaboomAudioFx = {
   play(kind: AudioEventKind): void;
@@ -237,6 +244,55 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     osc.stop(now + 0.4);
   }
 
+  // S88 KABOOM-WIN-CHIME. Three short procedural chords on match
+  // resolution. Triumph triad (won), descending minor (lost), neutral
+  // perfect-fifth (draw). Each is a single AudioContext frame; the
+  // dial scales through `masterGain` so the existing ?audio= +
+  // localStorage path keeps working.
+  function playChord(c: AudioContextLike, freqs: ReadonlyArray<number>, totalSeconds: number, gainScale = 0.45): void {
+    const now = c.currentTime;
+    for (const f of freqs) {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(f, now);
+      envelope(c, gain, 0.01, masterGain * gainScale, totalSeconds);
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.start(now);
+      osc.stop(now + totalSeconds + 0.05);
+    }
+  }
+  function playMatchWon(c: AudioContextLike): void {
+    // C major triad (C5 E5 G5).
+    playChord(c, [523.25, 659.25, 783.99], 0.6, 0.5);
+  }
+  function playMatchLost(c: AudioContextLike): void {
+    // A minor descent (A4 → F4 → D4).
+    const now = c.currentTime;
+    const seq: Array<{ freq: number; offset: number }> = [
+      { freq: 440, offset: 0 },
+      { freq: 349.23, offset: 0.18 },
+      { freq: 293.66, offset: 0.36 }
+    ];
+    for (const note of seq) {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(note.freq, now + note.offset);
+      envelope(c, gain, 0.01, masterGain * 0.45, 0.32);
+      gain.gain.setValueAtTime(0, now);
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.start(now + note.offset);
+      osc.stop(now + note.offset + 0.35);
+    }
+  }
+  function playMatchDraw(c: AudioContextLike): void {
+    // Perfect fifth — open neutral tone.
+    playChord(c, [392.0, 587.33], 0.5, 0.4);
+  }
+
   return {
     play(kind: AudioEventKind): void {
       const c = ensureContext();
@@ -246,6 +302,9 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         else if (kind === "blast") playBlast(c);
         else if (kind === "pickup") playPickup(c);
         else if (kind === "death") playDeath(c);
+        else if (kind === "match-won") playMatchWon(c);
+        else if (kind === "match-lost") playMatchLost(c);
+        else if (kind === "match-draw") playMatchDraw(c);
       } catch {
         // Browser quirks (e.g. context closed) — fail silent so a
         // misbehaving audio path doesn't break gameplay.

@@ -25,12 +25,17 @@
 export class RenderPoolRegistry<Entry> {
   private readonly entries = new Map<number, Entry>();
   private nextHandle = 1;
+  // S88 AGF-POOL-INVENTORY-API. Peak live-size; bumps on acquire,
+  // never decreases on release. Useful for "did this pool ever hold
+  // anything" warm-up diagnostics. Reset only via `reset()`.
+  private peakLive = 0;
 
   /** Allocate a fresh monotonic handle and store the entry. */
   acquire(entry: Entry): number {
     const handle = this.nextHandle;
     this.nextHandle += 1;
     this.entries.set(handle, entry);
+    if (this.entries.size > this.peakLive) this.peakLive = this.entries.size;
     return handle;
   }
 
@@ -74,5 +79,21 @@ export class RenderPoolRegistry<Entry> {
   *drain(): Generator<Entry> {
     for (const entry of this.entries.values()) yield entry;
     this.entries.clear();
+  }
+
+  /** S88 AGF-POOL-INVENTORY-API. Highest `size()` ever observed since last `reset()`. */
+  peak(): number {
+    return this.peakLive;
+  }
+
+  /**
+   * S88 AGF-POOL-INVENTORY-API. Forget the handle counter + peak.
+   * Used by adapter teardown / unit tests. `entries` should already
+   * be empty (callers drain first); we don't force-clear so a
+   * caller never leaks entries past a registry reset.
+   */
+  reset(): void {
+    this.nextHandle = 1;
+    this.peakLive = 0;
   }
 }

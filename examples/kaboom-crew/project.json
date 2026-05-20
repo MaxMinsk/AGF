@@ -7,7 +7,8 @@
   "render": {
     "mode": "webgpu",
     "background": "#0a0e1c",
-    "batching": { "auto": true }
+    "batching": { "auto": true },
+    "particlePreWarmPresets": ["spark", "glow"]
   },
   "profiles": ["static"]
 }

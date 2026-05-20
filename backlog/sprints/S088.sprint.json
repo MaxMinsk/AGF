@@ -1,0 +1,117 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S088",
+  "title": "Render-pool warmup + unification + Kaboom Crew polish r3",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "AGF-POOL-INVENTORY-API",
+      "title": "runtime.renderer.pools() lists every render pool's live + peak",
+      "status": "implemented",
+      "summary": "Surface a programmatic accessor on the renderer so an agent can ask which pools exist + how loaded they are. Mirrors AssetRegistry.inventory() shape. The adapter (`ThreeRenderAdapter`) already owns three RenderPoolRegistry instances (instanced, batched, particle); add a `pools(): ReadonlyArray<{ name; live; peak }>` method on the adapter and forward via `ThreeRenderer.pools()`. Includes peak-tracking on RenderPoolRegistry so the value survives release.",
+      "verification": [
+        "runtime.renderer.pools() returns ReadonlyArray<{ name: 'instanced'|'batched'|'particle'; live: number; peak: number }>",
+        "RenderPoolRegistry gains peak() + reset(); acquire bumps peak; release does NOT decrease it; reset() drops counter+peak",
+        "unit test exercises acquire/release/peak retention + reset"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-POOL-INVENTORY-PROBE",
+      "title": "GET /__agf/pool-inventory exposes the same shape over the dev bridge",
+      "status": "implemented",
+      "summary": "Mirror the S86 asset-inventory probe: dev bridge route `/__agf/pool-inventory` returns JSON identical to runtime.renderer.pools(). Lets the live-debug Playwright skill grab pool state in a single curl. Documented in docs/agent-probes.md.",
+      "verification": [
+        "GET /__agf/pool-inventory returns ReadonlyArray<{ name, live, peak }>",
+        "page-bridge.ts forwards window.__agf.poolInventory(); agf-dev-bridge maps /pool-inventory → pool-inventory channel",
+        "docs/agent-probes.md adds a /__agf/pool-inventory section beside asset/invalidate"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PARTICLE-PREWARM-SYSTEM",
+      "title": "ParticleEmitterSystem accepts `preWarmPresets` for engine-level warmup",
+      "status": "implemented",
+      "summary": "S85 AGF-POOL-WARMUP-PARTICLES shipped as a project-local hack (kaboom-crew spawns a hidden offscreen ParticleEmitter on attachUi to force shader compile). Promote it: ParticleEmitterSystem now takes `preWarmPresets?: ReadonlyArray<string>` + `preWarmFrames?: number`; on the first frame of every world it acquires a 1-capacity offscreen pool per preset (forcing shader compile + GPU buffer upload), then releases them after `preWarmFrames` (default 4) frames so they don't linger in the live count. RuntimeOptions exposes `particlePreWarmPresets`, plumbed from project.json's `render.particlePreWarmPresets`.",
+      "verification": [
+        "+6 unit tests on the system stub adapter: empty preset list is a no-op; one acquire per preset; release after preWarmFrames; peak survives release; world-swap re-arms the warmup",
+        "RuntimeOptions.particlePreWarmPresets forwards to createParticleEmitterSystem",
+        "src/app.ts forwards project.json#render.particlePreWarmPresets",
+        "schemas/project.schema.json adds particlePreWarmPresets enum spark|glow|pulse"
+      ],
+      "epic": "M19"
+    },
+    {
+      "id": "AGF-POOL-DOCTOR-SECTION",
+      "title": "engine doctor surfaces a Pools: section",
+      "status": "implemented",
+      "summary": "Read a /__agf/pool-inventory dump from disk (via `--pool-inventory-from <path>`, mirroring the existing `--renderer-inspect-from`) and print a 'Pools:' section: per pool, `name live N, peak N`. Recommendation when any pool has `peak === 0` — warmed but never emitted into (dead preset).",
+      "verification": [
+        "DoctorReport.pools populated from JSON file; supports raw array + { pools: [...] } + dev-bridge { payload: { pools: [...] } } envelopes",
+        "formatPoolInventory prints 'Pools:' section with live/peak per pool + 'Unused pools' line when any peak=0",
+        "Recommendation added when peak=0 on any pool — suggests dropping the preset from particlePreWarmPresets",
+        "+6 unit tests under tests/unit/doctor-pool-inventory.test.ts"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-POOL-INVENTORY-TEST",
+      "title": "Unit test for RenderPoolRegistry peak + reset tracking",
+      "status": "implemented",
+      "summary": "RenderPoolRegistry ships acquire/release but no test covers the peak-tracking invariant introduced by AGF-POOL-INVENTORY-API. Add: acquire bumps peak; release does NOT decrease peak; reset() drops to 0; drain() does NOT touch peak.",
+      "verification": [
+        "+4 unit tests under 'S88 AGF-POOL-INVENTORY-API peak tracking' describe block; existing RenderPoolRegistry suite stays green"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-DROP-LOCAL-WARMUP",
+      "title": "kaboom-crew drops the project-local warmup entity",
+      "status": "implemented",
+      "summary": "Once AGF-PARTICLE-PREWARM-SYSTEM lands the project-local kaboom.warmup-particles entity is redundant. Delete the entity creation + the runtime.applyCommands hack from attachUi; kaboom-crew now relies entirely on the engine-level preWarmPresets option. Smaller bootstrap.ts; one less moving part.",
+      "verification": [
+        "examples/kaboom-crew/bootstrap.ts no longer issues the kaboom.warmup-particles entity.create command",
+        "examples/kaboom-crew/project.json#render.particlePreWarmPresets = ['spark', 'glow']",
+        "engine:check stays green for kaboom-crew with the new field"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-WIN-CHIME",
+      "title": "Short procedural chime on match win/lost/draw",
+      "status": "implemented",
+      "summary": "AudioEventKind grows three new values — match-won / match-lost / match-draw — and audio-binding-system tracks the RoundState.matchPhase singleton each fixed step, firing the matching event exactly once per transition out of 'in-progress'. audio-fx.ts adds matching procedural chords: C major triad (won), A minor descent (lost), neutral perfect-fifth (draw). Inherits the existing volume dial through masterGain.",
+      "verification": [
+        "+3 unit tests in audio-binding-system.test.ts: matchPhase=won fires match-won once; matchPhase=lost fires match-lost; matchPhase=draw fires match-draw",
+        "audio-fx.ts plays a different chord for won / lost / draw, gated by ensureContext + masterGain"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BOT-DANGER-AVOID",
+      "title": "Bot prefers safe neighbour cells over dangerous ones (and live BlastTiles count)",
+      "status": "implemented",
+      "summary": "Today's BotAISystem treats BlastTile cells as walkable in the wander path — the bot regularly steps into a live blast it just placed. Two fixes: (1) buildDangerMap now also marks every cell covered by a live BlastTile, not just the projected blast rays of un-exploded bombs. (2) decideDirection always prefers neighbours not in the danger map (was: only the flee path filtered), and the directional bias only kicks in when the chosen direction is in the safe pool. Falls back to ANY neighbour when every adjacent cell is dangerous so the bot still moves when boxed in.",
+      "verification": [
+        "+2 unit tests in bot-ai-system.test.ts: bot adjacent to a live BlastTile never picks the unsafe direction across 30 frames; bot fully surrounded by danger still picks a direction (doesn't freeze)",
+        "Live BlastTile cells now contribute to the danger set; no new components/schema changes"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-LOG-LIFECYCLE-SCHEDULER",
+      "title": "scheduler.register emits an info-level AGF_SCHEDULER_SYSTEM_REGISTERED diagnostic",
+      "status": "implemented",
+      "summary": "Engine lifecycle traces follow-up from S082 — the SystemScheduler already emitted AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED info events when a DiagnosticsBus was supplied (with unit-test coverage under tests/unit/lifecycle-traces.test.ts), but the production wiring in src/app.ts constructed the scheduler without the bus, so the events never surfaced in /__agf/diagnostics. This story finishes the loop by passing the shared diagnostics bus into the scheduler constructor.",
+      "verification": [
+        "src/app.ts constructs SystemScheduler with `{ activeProfiles: [...], diagnostics }`",
+        "Existing tests/unit/lifecycle-traces.test.ts covers the emission contract — AGF_SCHEDULER_SYSTEM_REGISTERED on register, _DEREGISTERED on unregister",
+        "Info-level diagnostics filtered out by the default warning gate so boot-noise budget stays green"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ],
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/98"
+}
