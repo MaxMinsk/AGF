@@ -741,6 +741,12 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S096 AGF-PROBE-RECORDING-LIST.
+        if (route === "/recording/list" && req.method === "GET") {
+          await proxyToPage(req, res, "recording-list");
+          return;
+        }
+
         if (route === "/recording/start" && req.method === "POST") {
           await proxyToPage(req, res, "recording-start");
           return;

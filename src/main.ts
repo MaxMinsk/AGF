@@ -108,6 +108,15 @@ declare global {
       /** Recording v0 — used by the dev-bridge /__agf/recording/* routes. */
       startRecording(): unknown;
       stopRecording(): unknown;
+      /** S096 AGF-PROBE-RECORDING-LIST. */
+      recordingList(): {
+        recordings: ReadonlyArray<{
+          id: string;
+          startedAt: string;
+          commandCount: number;
+          projectId?: string;
+        }>;
+      };
       /** Trigger an asset HMR reload from the dev bridge. */
       reloadAsset(ref: string): void;
       /**
@@ -480,6 +489,8 @@ void (async (): Promise<void> => {
       clearSave: () => app.clearSave(),
       startRecording: () => app.startRecording(),
       stopRecording: () => app.stopRecording(),
+      // S096 AGF-PROBE-RECORDING-LIST.
+      recordingList: () => app.recordingList(),
       reloadAsset: (ref) => app.reloadAsset(ref),
       rendererReady: app.rendererReady,
       pick: (spec) => app.pick(spec),

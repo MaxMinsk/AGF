@@ -124,6 +124,10 @@ type AgfApi = {
   snapshotDiff?: (at: number) =>
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S096 AGF-PROBE-RECORDING-LIST. */
+  recordingList?: () => {
+    recordings: ReadonlyArray<{ id: string; startedAt: string; commandCount: number; projectId?: string }>;
+  };
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   /** S83 AGF-AGENT-RENDERER-PROBE. */
@@ -415,6 +419,10 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         payload = { applied: commands.length };
         break;
       }
+      case "recording-list":
+        // S096 AGF-PROBE-RECORDING-LIST.
+        payload = api?.recordingList?.() ?? { recordings: [] };
+        break;
       case "recording-start":
         payload = api?.startRecording?.() ?? { started: true };
         break;

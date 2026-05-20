@@ -200,6 +200,15 @@ export type AppHandle = {
   /** Recording controls (Sprint 28). Used by the dev-bridge /__agf/recording/* routes. */
   startRecording(): { started: true };
   stopRecording(): unknown;
+  /** S096 AGF-PROBE-RECORDING-LIST. */
+  recordingList(): {
+    recordings: ReadonlyArray<{
+      id: string;
+      startedAt: string;
+      commandCount: number;
+      projectId?: string;
+    }>;
+  };
   /** Three.js renderer resource counters (for HMR leak tests) + the M21-g handleLeak invariant + light counts. */
   rendererInspect(): {
     info: Record<string, unknown>;
@@ -761,6 +770,10 @@ export async function createApp(
     },
     stopRecording(): unknown {
       return runtime.stopRecording();
+    },
+    // S096 AGF-PROBE-RECORDING-LIST.
+    recordingList() {
+      return runtime.recordingList();
     },
     dispose(): void {
       diagnosticsOverlay?.dispose();

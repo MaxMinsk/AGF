@@ -16,7 +16,7 @@ import { createDiagnosticsBus, type DiagnosticsBus } from "./diagnostics/diagnos
 import { snapshotWorld, type WorldSnapshot } from "./inspect";
 import { diffWorldSnapshots } from "../tools/inspect/snapshot-diff";
 import type { SnapshotDiffEntry } from "../tools/inspect/snapshot-diff";
-import { createRecorder, type Recording, type RecorderHandle } from "./recording/recorder";
+import { createRecorder, buildRecordingList, type Recording, type RecorderHandle } from "./recording/recorder";
 import type { LocalStore } from "./persistence/local-store";
 import {
   clearWorldSave,
@@ -243,6 +243,15 @@ export type RuntimeHandle = {
    * Returns the active recorder so the caller can flush it at any time.
    */
   startRecording(projectId?: string): RecorderHandle;
+  /** S096 AGF-PROBE-RECORDING-LIST — list live recordings (0 or 1 today). */
+  recordingList(): {
+    recordings: ReadonlyArray<{
+      id: string;
+      startedAt: string;
+      commandCount: number;
+      projectId?: string;
+    }>;
+  };
   /** Finalise the active recording with a final snapshot. */
   stopRecording(): Recording | undefined;
   /**
@@ -844,6 +853,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
   frameRequestId = window.requestAnimationFrame(tick);
 
   let recorder: RecorderHandle | undefined;
+  // S096 AGF-PROBE-RECORDING-LIST — track metadata alongside the live
+  // recorder handle so the probe can report it without enriching
+  // RecorderHandle itself.
+  let recorderStartedAtMs: number | undefined;
+  let recorderProjectId: string | undefined;
 
   // S83 AGF-LOG-LIFECYCLE-TRACES.
   diagnostics.emit({
@@ -990,6 +1004,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
         recorderOptions.projectId = projectId;
       }
       recorder = createRecorder(recorderOptions);
+      recorderStartedAtMs = Date.now();
+      recorderProjectId = projectId;
       return recorder;
     },
     stopRecording(): Recording | undefined {
@@ -999,7 +1015,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       recorder.setFinalSnapshot(snapshotWorld(world, time));
       const out = recorder.toRecording();
       recorder = undefined;
+      recorderStartedAtMs = undefined;
+      recorderProjectId = undefined;
       return out;
+    },
+    recordingList() {
+      // S096 AGF-PROBE-RECORDING-LIST. Pure helper turns the
+      // (recorder, startedAtMs, projectId) tuple into the wire shape.
+      return buildRecordingList({
+        ...(recorder !== undefined ? { recorder } : {}),
+        ...(recorderStartedAtMs !== undefined ? { startedAtMs: recorderStartedAtMs } : {}),
+        ...(recorderProjectId !== undefined ? { projectId: recorderProjectId } : {})
+      });
     },
     async save(): Promise<SaveBlob> {
       const config = requirePersistence(options.persistence);

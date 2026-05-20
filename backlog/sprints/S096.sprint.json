@@ -32,13 +32,13 @@
     {
       "id": "AGF-PROBE-RECORDING-LIST",
       "title": "GET /__agf/recording/list — enumerate active recordings",
-      "status": "pending",
-      "summary": "Today `recording/start` returns a handle but agents have no way to ask 'what recordings am I currently building?'. Add a read-only list probe that returns `{ recordings: [{ id, startedAt, commandCount, projectId }] }` for every live recording the runtime is tracking. Pure observability — no behaviour change.",
+      "status": "implemented",
+      "summary": "engine/runtime/recording/recorder.ts grew `buildRecordingList(state)` — a pure helper that turns `{ recorder?, startedAtMs?, projectId? }` into the wire envelope `{ recordings: [{ id, startedAt (ISO), commandCount, projectId? }] }`. Runtime tracks startedAtMs + projectId alongside the recorder handle (set on startRecording, cleared on stopRecording) and calls the helper from `recordingList()`. The runtime supports at most one live recorder today; the list is `[]` or a single entry with id='live'. Plumbed through src/app.ts, window.__agf.recordingList, page-bridge `recording-list` RPC, and GET /__agf/recording/list on the dev bridge.",
       "verification": [
-        "acceptance: GET /__agf/recording/list returns an array (empty when no recording is active); after POST /__agf/recording/start it contains at least one entry; after POST /__agf/recording/stop the list is empty again.",
-        "engine/dev/agf-dev-bridge.ts: GET /recording/list route",
-        "engine/dev/page-bridge.ts: recording-list RPC reads from a new runtime helper that enumerates live recorder handles",
-        "+ unit test on the runtime helper asserting it returns the live recording set"
+        "acceptance: GET /__agf/recording/list returns { recordings: [] } when no recording is active; after POST /__agf/recording/start it returns one entry { id: 'live', startedAt: <ISO>, commandCount, projectId? }; after POST /__agf/recording/stop the list is empty again.",
+        "engine/runtime/recording/recorder.ts: exported pure buildRecordingList helper",
+        "engine/runtime/start.ts: recordingList() on the runtime; tracks startedAtMs + projectId in lock-step with startRecording / stopRecording",
+        "+6 unit tests in tests/unit/recording-list.test.ts: empty when no recorder, defensive on missing startedAtMs, single 'live' entry with ISO startedAt + commandCount, projectId in/out, count reflected live"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
