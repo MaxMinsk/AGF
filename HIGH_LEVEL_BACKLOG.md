@@ -28,12 +28,12 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | Epic | Status | Category | Stories (impl / open / total) | Notes |
 |---|---|---|---|---|
 | **[AGF-BACKLOG-ENGINE](backlog/epics/AGF-BACKLOG-ENGINE.epic.json)** — JSON-first backlog engine — source of truth + tooling | active | infra | 26 / 0 / 26 | → S082 |
-| **[AGF-ENGINE-OBSERVABILITY](backlog/epics/AGF-ENGINE-OBSERVABILITY.epic.json)** — Engine observability — diagnostics, logging, motion + renderer probes | active | engine | 22 / 0 / 22 |  |
+| **[AGF-ENGINE-OBSERVABILITY](backlog/epics/AGF-ENGINE-OBSERVABILITY.epic.json)** — Engine observability — diagnostics, logging, motion + renderer probes | active | engine | 22 / 5 / 27 |  |
 | **[BEACON-WORLD-SAMPLE](backlog/epics/BEACON-WORLD-SAMPLE.epic.json)** — Beacon World sample | active | engine | 1 / 0 / 1 |  |
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
 | **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 20 / 0 / 20 | → MVP-0 |
-| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 19 / 0 / 19 |  |
+| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 19 / 3 / 22 |  |
 | **[M10](backlog/epics/M10.epic.json)** — M10 Security / trust boundary for agent-authored projects | active | engine | 0 / 0 / 0 |  |
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
@@ -49,7 +49,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 0 / 0 / 0 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |
 | **[M18](backlog/epics/M18.epic.json)** — M18 Picking / raycast interaction | planned | engine | 0 / 0 / 0 |  |
-| **[M19](backlog/epics/M19.epic.json)** — M19 Game-feel polish (tween + particles) | planned | engine | 3 / 0 / 3 |  |
+| **[M19](backlog/epics/M19.epic.json)** — M19 Game-feel polish (tween + particles) | planned | engine | 3 / 1 / 4 |  |
 | **[M26](backlog/epics/M26.epic.json)** — M26 Visual fidelity polish (probes + post-FX) | planned | engine | 12 / 0 / 12 |  |
 | **[M27-DECAL-LAYER](backlog/epics/M27-DECAL-LAYER.epic.json)** — M27 Decal-on-grid renderer primitive | planned | engine | 0 / 0 / 0 | → MVP-2 |
 | **[M28-REGION-RULES](backlog/epics/M28-REGION-RULES.epic.json)** — M28 Region / sector modifier primitive | planned | engine | 0 / 0 / 0 | → MVP-2 |
