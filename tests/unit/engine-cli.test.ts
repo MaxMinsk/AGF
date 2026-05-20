@@ -14,6 +14,12 @@ const tsxBin = resolve(repositoryRoot, "node_modules/.bin/tsx");
 const cliPath = resolve(repositoryRoot, "engine/tools/cli.ts");
 const fixturesRoot = resolve(repositoryRoot, "tests/fixtures");
 
+// S98 BUG-ENGINE-CLI-INSPECT-SUMMARY-FLAKE — each `it()` here spawns a
+// fresh `tsx engine/tools/cli.ts` process. Cold-start of tsx + the
+// full CLI dep graph reliably blows the 5000 ms vitest default on
+// slower CI workers. Override per-test to 15000 ms.
+const CLI_TEST_TIMEOUT_MS = 15000;
+
 describe("engine CLI", () => {
   it("exits with 0 for a valid project", async () => {
     const result = await runCli(["check", resolve(fixturesRoot, "valid-project"), "--json"]);
@@ -22,7 +28,7 @@ describe("engine CLI", () => {
     expect(result.code).toBe(0);
     expect(payload.ok).toBe(true);
     expect(payload.diagnostics).toEqual([]);
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it("exits with 1 for an invalid project", async () => {
     const result = await runCli(["check", resolve(fixturesRoot, "invalid-project"), "--json"]);
@@ -31,7 +37,7 @@ describe("engine CLI", () => {
     expect(result.code).toBe(1);
     expect(payload.ok).toBe(false);
     expect(payload.diagnostics.some((diagnostic) => diagnostic.code === "AGF_SCHEMA_UNKNOWN_COMPONENT")).toBe(true);
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it("prints inspect JSON for a valid project", async () => {
     const result = await runCli(["inspect", resolve(fixturesRoot, "valid-project"), "--json"]);
@@ -49,7 +55,7 @@ describe("engine CLI", () => {
         componentNames: ["Camera", "Transform"]
       })
     );
-  });
+  }, CLI_TEST_TIMEOUT_MS);
 
   it("prints a stable inspect summary", async () => {
     const result = await runCli(["inspect", resolve(fixturesRoot, "valid-project")]);
@@ -63,7 +69,22 @@ describe("engine CLI", () => {
       - camera.main: Camera, Transform
       - cube: MeshRenderer, Name, Transform"
     `);
-  });
+  }, CLI_TEST_TIMEOUT_MS);
+
+  // S98 REGRESSION-ENGINE-CLI-INSPECT-SUMMARY — locks the flake fix.
+  // The original test ran a single inspect and blew the 5000 ms default
+  // on slower workers; if a future change re-introduces cold-start
+  // bloat (heavy top-level imports in cli.ts, etc.) this 3x serial run
+  // will trip the per-test timeout long before CI does.
+  it("S98 regression: 3x warm inspect runs finish under 10s each", async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const t0 = Date.now();
+      const result = await runCli(["inspect", resolve(fixturesRoot, "valid-project")]);
+      const elapsedMs = Date.now() - t0;
+      expect(result.code).toBe(0);
+      expect(elapsedMs).toBeLessThan(10000);
+    }
+  }, CLI_TEST_TIMEOUT_MS * 3);
 });
 
 function runCli(args: string[]): Promise<CliResult> {
