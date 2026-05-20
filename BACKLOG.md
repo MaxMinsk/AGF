@@ -12,8 +12,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S089.sprint.js
 
 - **KABOOM-BOT-PICKUP-MAGNET** — Bot wander pulls toward nearby pickups _(implemented)_
   BotAISystem's wander path was uniform-random over safe neighbours. Now: when a Pickup is within PICKUP_RADIUS=5 manhattan and the pickup cell is NOT in the danger set, decideDirection prefers the safe neighbour that reduces manhattan distance to it. Danger-avoid still wins (the magnet picks from the already-filtered safe pool); pickups inside the danger map are skipped entirely.
-- **KABOOM-MATCH-WIN-PARTICLES** — Particle burst at the winner's cell when matchPhase resolves _(pending)_
-  Currently the match resolution gets a banner + chord but nothing visual. Spawn a short-lived 'pulse' ParticleEmitter at the winning bomber's cell (or both cells on draw) when matchPhase transitions out of 'in-progress'. Lifetime ~1 s, high rate so it reads as a celebratory burst. Reuses the engine pre-warmed pool — no extra preset.
+- **KABOOM-MATCH-WIN-PARTICLES** — Particle burst at the winner's cell when matchPhase resolves _(implemented)_
+  audio-binding-system grew spawnMatchEndCelebration: when matchPhase transitions out of in-progress, it spawns a `pulse` ParticleEmitter at the winner's grid cell (`won`/`lost` use RoundState.winnerId) or one at every living bomber on `draw`. Lifetime 1 s, rate 80, maxParticles 40 — reads as a celebratory burst and the engine pre-warmed pool absorbs the cost. project.json#render.particlePreWarmPresets adds 'pulse' so the shader is compiled at boot.
 - **KABOOM-ROUND-TIMER-BAR** — HUD shows round elapsed / timeLimit as a thin progress bar _(pending)_
   The HUD stats line shows `t: 12s / 90s` — readable but not glanceable. Add a thin 4 px horizontal bar above the stats slot that fills as elapsed / timeLimit grows; color shifts orange in the last 15 s, red in the last 5 s. Text line stays as the precise readout. When timeLimit=0 the bar hides.
 - **KABOOM-AGENT-MAP-LIST** — runtime.kaboom.maps() + loadMap(name) for scripted map swap _(pending)_

@@ -19,12 +19,11 @@
     {
       "id": "KABOOM-MATCH-WIN-PARTICLES",
       "title": "Particle burst at the winner's cell when matchPhase resolves",
-      "status": "pending",
-      "summary": "Currently the match resolution gets a banner + chord but nothing visual. Spawn a short-lived 'pulse' ParticleEmitter at the winning bomber's cell (or both cells on draw) when matchPhase transitions out of 'in-progress'. Lifetime ~1 s, high rate so it reads as a celebratory burst. Reuses the engine pre-warmed pool — no extra preset.",
+      "status": "implemented",
+      "summary": "audio-binding-system grew spawnMatchEndCelebration: when matchPhase transitions out of in-progress, it spawns a `pulse` ParticleEmitter at the winner's grid cell (`won`/`lost` use RoundState.winnerId) or one at every living bomber on `draw`. Lifetime 1 s, rate 80, maxParticles 40 — reads as a celebratory burst and the engine pre-warmed pool absorbs the cost. project.json#render.particlePreWarmPresets adds 'pulse' so the shader is compiled at boot.",
       "verification": [
-        "audio-binding-system (the existing matchPhase-transition watcher) also spawns the puff entity",
-        "unit test: matchPhase=won → ParticleEmitter entity appears on the player.1 cell with preset='pulse'",
-        "unit test: matchPhase=draw → puff on BOTH player.1 and bot.1 cells"
+        "+2 unit tests: matchPhase=won spawns one pulse emitter on the winner's cell; matchPhase=draw spawns one on every BomberStats entity",
+        "examples/kaboom-crew/project.json adds 'pulse' to render.particlePreWarmPresets"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

@@ -152,15 +152,53 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     // S88 KABOOM-WIN-CHIME. Detect a matchPhase transition out of
     // 'in-progress' on the kaboom.round-state singleton and fire the
     // matching chord exactly once.
-    const round = world.getComponent<{ matchPhase?: string }>("kaboom.round-state", "RoundState");
+    // S89 KABOOM-MATCH-WIN-PARTICLES — additionally spawns a 'pulse'
+    // ParticleEmitter at the winner's cell (both bombers on draw).
+    const round = world.getComponent<{ matchPhase?: string; winnerId?: string }>("kaboom.round-state", "RoundState");
     const currentMatchPhase = round?.matchPhase ?? "in-progress";
     if (prevMatchPhase === "in-progress" && currentMatchPhase !== "in-progress") {
       if (currentMatchPhase === "won") onEvent("match-won");
       else if (currentMatchPhase === "lost") onEvent("match-lost");
       else if (currentMatchPhase === "draw") onEvent("match-draw");
+      spawnMatchEndCelebration(world, currentMatchPhase, round?.winnerId);
     }
     prevMatchPhase = currentMatchPhase;
   };
+
+  // S89 KABOOM-MATCH-WIN-PARTICLES. Adds one tiny 'pulse' emitter at
+  // the winner's cell on won/lost (winnerId is set by
+  // RoundResolveSystem) — or one at each living bomber on draw. The
+  // engine ParticleEmitterSystem cleans up when lifetime elapses.
+  function spawnMatchEndCelebration(world: World, phase: string, winnerId: EntityId | undefined): void {
+    const burst = (bomberId: EntityId, idTag: string): void => {
+      const pos = world.getComponent<{ gx?: number; gz?: number }>(bomberId, GRID_POSITION);
+      if (pos === undefined) return;
+      const puffId = `${bomberId}.match-burst-${idTag}`;
+      if (world.hasEntity(puffId)) return;
+      world.addEntity(puffId);
+      world.setComponent(puffId, TRANSFORM, {
+        position: [pos.gx ?? 0, 0.8, pos.gz ?? 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+      world.setComponent(puffId, PARTICLE_EMITTER, {
+        preset: "pulse",
+        lifetime: 1.0,
+        elapsed: 0,
+        rate: 80,
+        maxParticles: 40
+      });
+    };
+    if (phase === "won" || phase === "lost") {
+      if (winnerId !== undefined) burst(winnerId, phase);
+      return;
+    }
+    if (phase === "draw") {
+      if (bombers !== undefined) {
+        for (const id of bombers.run()) burst(id, "draw");
+      }
+    }
+  }
 
   return { name, fixedUpdate };
 }

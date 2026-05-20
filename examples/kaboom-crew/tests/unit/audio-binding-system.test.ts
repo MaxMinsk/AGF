@@ -120,6 +120,42 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     expect(onEvent).toHaveBeenCalledWith("match-lost");
   });
 
+  it("S89 KABOOM-MATCH-WIN-PARTICLES: matchPhase=won spawns a pulse ParticleEmitter at the winner cell", () => {
+    const world = new World();
+    world.addEntity("player.1");
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, activeBombs: 0, alive: true });
+    world.setComponent("player.1", "GridPosition", { gx: 4, gz: 5 });
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const system = createKaboomAudioBindingSystem({ onEvent: vi.fn() });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "won", matchPhase: "won", winnerId: "player.1" });
+    system.fixedUpdate!(ctx(world));
+    const puffId = "player.1.match-burst-won";
+    expect(world.hasEntity(puffId)).toBe(true);
+    const emitter = world.getComponent(puffId, "ParticleEmitter") as { preset: string; maxParticles: number };
+    expect(emitter.preset).toBe("pulse");
+    expect(emitter.maxParticles).toBe(40);
+  });
+
+  it("S89 KABOOM-MATCH-WIN-PARTICLES: matchPhase=draw spawns a burst at every BomberStats entity", () => {
+    const world = new World();
+    world.addEntity("player.1");
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, activeBombs: 0, alive: true });
+    world.setComponent("player.1", "GridPosition", { gx: 1, gz: 1 });
+    world.addEntity("bot.1");
+    world.setComponent("bot.1", "BomberStats", { maxBombs: 1, range: 2, activeBombs: 0, alive: true });
+    world.setComponent("bot.1", "GridPosition", { gx: 9, gz: 9 });
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const system = createKaboomAudioBindingSystem({ onEvent: vi.fn() });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "draw", matchPhase: "draw" });
+    system.fixedUpdate!(ctx(world));
+    expect(world.hasEntity("player.1.match-burst-draw")).toBe(true);
+    expect(world.hasEntity("bot.1.match-burst-draw")).toBe(true);
+  });
+
   it("S88 KABOOM-WIN-CHIME: matchPhase=draw fires 'match-draw'", () => {
     const world = new World();
     world.addEntity("kaboom.round-state");

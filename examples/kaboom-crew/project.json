@@ -8,7 +8,7 @@
     "mode": "webgpu",
     "background": "#0a0e1c",
     "batching": { "auto": true },
-    "particlePreWarmPresets": ["spark", "glow"]
+    "particlePreWarmPresets": ["spark", "glow", "pulse"]
   },
   "profiles": ["static"]
 }
