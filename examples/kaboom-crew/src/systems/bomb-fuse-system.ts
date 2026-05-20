@@ -105,9 +105,8 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
     // this same fixedUpdate (rather than waiting a tick). For each
     // bomber carrying the request, drop fuseRemaining=0 on every
     // paused bomb they own; remove the request.
-    // agf-allow: world.query — runs at most ~once per player frame
-    // and only when the player presses F.
     const triggers: string[] = [];
+    // agf-allow: world.query — runs at most ~once per player frame and only when the player presses F.
     for (const id of world.query([REMOTE_DETONATE_REQUEST])) triggers.push(id);
     if (triggers.length > 0) {
       const allBombs = [...bombs!.run()];
