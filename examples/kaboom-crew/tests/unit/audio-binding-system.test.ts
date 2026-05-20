@@ -91,4 +91,44 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     // — that wasn't a collect, just a world reset.
     expect(onEvent).not.toHaveBeenCalledWith("pickup", expect.anything());
   });
+
+  it("S88 KABOOM-WIN-CHIME: matchPhase transitioning to 'won' fires 'match-won' once", () => {
+    const world = new World();
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).not.toHaveBeenCalledWith("match-won");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "won", matchPhase: "won" });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("match-won");
+    const calls = onEvent.mock.calls.filter((c) => c[0] === "match-won").length;
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent.mock.calls.filter((c) => c[0] === "match-won").length).toBe(calls);
+  });
+
+  it("S88 KABOOM-WIN-CHIME: matchPhase=lost fires 'match-lost'", () => {
+    const world = new World();
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "lost", matchPhase: "lost" });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("match-lost");
+  });
+
+  it("S88 KABOOM-WIN-CHIME: matchPhase=draw fires 'match-draw'", () => {
+    const world = new World();
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "draw", matchPhase: "draw" });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("match-draw");
+  });
 });

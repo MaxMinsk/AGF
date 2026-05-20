@@ -80,12 +80,11 @@
     {
       "id": "KABOOM-WIN-CHIME",
       "title": "Short procedural chime on match win/lost/draw",
-      "status": "pending",
-      "summary": "When matchPhase flips from in-progress to won/lost/draw, audio-binding-system fires a new `match-end` AudioEventKind. audio-fx.ts adds three short procedural chimes (triumph triad / descending minor / neutral perfect-fifth). Inherits the existing volume dial. Defaults to one play per match resolution.",
+      "status": "implemented",
+      "summary": "AudioEventKind grows three new values — match-won / match-lost / match-draw — and audio-binding-system tracks the RoundState.matchPhase singleton each fixed step, firing the matching event exactly once per transition out of 'in-progress'. audio-fx.ts adds matching procedural chords: C major triad (won), A minor descent (lost), neutral perfect-fifth (draw). Inherits the existing volume dial through masterGain.",
       "verification": [
-        "audio-binding-system emits 'match-end' exactly once per matchPhase transition out of in-progress",
-        "audio-fx.ts plays a different chord for won / lost / draw",
-        "+1 unit test in audio-binding-system.test.ts covers the transition edge"
+        "+3 unit tests in audio-binding-system.test.ts: matchPhase=won fires match-won once; matchPhase=lost fires match-lost; matchPhase=draw fires match-draw",
+        "audio-fx.ts plays a different chord for won / lost / draw, gated by ensureContext + masterGain"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
