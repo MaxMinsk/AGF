@@ -1,0 +1,107 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S096",
+  "title": "Particles + snapshot diff probe + component probe + game-design agent seed",
+  "status": "active",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "KABOOM-BLAST-PARTICLE-BURST",
+      "title": "Blast cells emit a spark burst via the engine ParticleEmitter primitive",
+      "status": "pending",
+      "summary": "Reuse the engine ParticleEmitter (S047 M19-particle-preset, presets: spark/glow/pulse) to make blast cells visually pop. blast-propagation-system stamps `ParticleEmitter` with preset='spark', lifetime≈0.35 s, rate≈80, maxParticles≈40 on each blast cell at the moment of detonation. The emitter auto-removes itself after lifetime — no cleanup code needed. World-position offset uses the cell's grid (gx, 0.4, gz). MVP-1 doneCriteria item.",
+      "verification": [
+        "acceptance: When a bomb detonates, each blast cell visibly emits a brief spark burst (small orange particles flying outward and falling).",
+        "examples/kaboom-crew/src/systems/blast-propagation-system.ts: stamps ParticleEmitter component on the BlastTile entity it just spawned",
+        "+ unit test on a stub world: after a blast propagates, every BlastTile entity carries a ParticleEmitter with preset='spark' + finite lifetime"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-PICKUP-COLLECT-PARTICLE",
+      "title": "Pickup collection emits a glow burst at the pickup's last cell",
+      "status": "pending",
+      "summary": "pickup-collect-system already removes the pickup entity at the moment of collection. Before removing, stamp a one-shot particle burst on a fresh `pickup.fx.<id>` entity at the same position so the player gets visual feedback. Preset='glow' (pale cyan), lifetime≈0.4 s, maxParticles≈30. The fx entity carries only Transform + ParticleEmitter — no GridOccupant, no logic — and is cleaned up when the emitter expires (the ParticleEmitter system removes itself; we then check + remove the host entity in a tiny project-local helper).",
+      "verification": [
+        "acceptance: Walking over a pickup spawns a small cyan glow burst at the cell before the pickup vanishes; the burst fades naturally over ~0.4 s.",
+        "examples/kaboom-crew/src/systems/pickup-collect-system.ts: spawns a transient fx entity with ParticleEmitter preset='glow' on collect",
+        "+ unit test asserting the fx entity exists with ParticleEmitter after a collect tick"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-DEATH-PARTICLE-PUFF",
+      "title": "Bomber death emits a pulse particle puff",
+      "status": "pending",
+      "summary": "Companion to the death-fall animation that landed in S090. audio-binding-system already detects the alive→dead transition and writes DeathAnim. Extend that handler to also stamp ParticleEmitter on the dying bomber with preset='pulse' (warm magenta), lifetime≈0.5 s, maxParticles≈50, vertical offset≈0.5. The puff plays during the tip-over animation; both expire by the same time.",
+      "verification": [
+        "acceptance: When a bomber dies, a small magenta pulse burst plays at their feet while the body tips over.",
+        "examples/kaboom-crew/src/systems/audio-binding-system.ts: alive→dead handler stamps ParticleEmitter with preset='pulse'",
+        "+ unit test asserting that on the death tick the bomber entity carries a ParticleEmitter with preset='pulse'"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-TITLE-SCREEN-FADE",
+      "title": "Title screen fades out (rather than snaps off) on game start",
+      "status": "pending",
+      "summary": "Title overlay is currently mounted via HUD and `hud.remove(TITLE_ID)` snaps it off when the player presses SPACE. Replace the snap with a 250 ms fade-out by tweening the title element's opacity 1 → 0 with easeOutQuad (using the engine easingCurves table directly — no Tween component on a DOM element). Remove the widget once opacity reaches 0. Pure cosmetic, no schema changes.",
+      "verification": [
+        "acceptance: Pressing SPACE on the title screen fades the overlay out over ~250 ms rather than snapping; the next round starts behind it.",
+        "examples/kaboom-crew/bootstrap.ts: title removal goes through a requestAnimationFrame loop driven by easingCurves.easeOutQuad before calling hud.remove",
+        "+ unit test on a pure `fadeOutOpacityCurve(elapsedMs, durationMs)` helper covering endpoints + monotonicity"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-PROBE-SNAPSHOT-DIFF",
+      "title": "GET /__agf/snapshot?at=-N&diff=1 returns the diff vs live",
+      "status": "pending",
+      "summary": "Build on S095 AGF-PROBE-SNAPSHOT-HISTORY. When the snapshot probe is called with both `at` (history index) AND `diff=1`, the bridge computes the diff between the historical snapshot and the live snapshot using the existing `diffSnapshots()` helper from engine/tools/inspect/snapshot-diff.ts. Returns the diff result envelope. Useful for an agent to ask \"what changed in the last N ticks?\" without round-tripping two full snapshots.",
+      "verification": [
+        "acceptance: GET /__agf/snapshot?at=-1&diff=1 returns a diff payload listing `entity.added` / `entity.removed` / `component.added` / `component.removed` / `component.changed` entries between t-1 and live; identical snapshots produce an empty diff.",
+        "engine/dev/agf-dev-bridge.ts: snapshot route accepts the diff=1 query and proxies to a new page-bridge RPC `snapshot-diff` that runs the diff in-page",
+        "engine/dev/page-bridge.ts: snapshot-diff returns either the diff entries or out-of-range (when the history index is past the buffer)",
+        "+ unit tests asserting the dev-bridge route validates that `diff=1` requires `at` to be negative; positive or missing at returns AGF_BRIDGE_INVALID_SNAPSHOT_DIFF"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PROBE-COMPONENT-AT",
+      "title": "GET /__agf/component/<entityId>/<componentName> returns a focused component value",
+      "status": "pending",
+      "summary": "Add a focused inspection probe so an agent can read a single component without pulling a whole snapshot. Path-based: `GET /__agf/component/player.1/BomberStats` returns `{ entityId, component, value }`. Returns 404 `AGF_PROBE_ENTITY_NOT_FOUND` when the entity is unknown and 404 `AGF_PROBE_COMPONENT_NOT_FOUND` when the entity exists but doesn't carry the component. Supports `?at=-N` (defaults to live) to read historical values via the S095 ring buffer.",
+      "verification": [
+        "acceptance: GET /__agf/component/player.1/BomberStats returns the live BomberStats record; GET /__agf/component/does-not-exist/Foo returns 404 AGF_PROBE_ENTITY_NOT_FOUND; GET /__agf/component/player.1/NoSuchComponent returns 404 AGF_PROBE_COMPONENT_NOT_FOUND.",
+        "engine/dev/agf-dev-bridge.ts: new path-parameterised route /component/:entityId/:componentName",
+        "engine/dev/page-bridge.ts: component-at RPC reads from runtime.snapshotAt(at) and looks up the entity + component",
+        "+ unit tests on the pure path-parser asserting it splits a clean route into { entityId, componentName }, accepts URL-safe IDs (player.1), rejects empty segments"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "GAME-DESIGN-AGENT-ROLE-DOC",
+      "title": "Seed docs/game-design/agent.md — third-role workflow + GDD location",
+      "status": "pending",
+      "summary": "First story under the planned GAME-DESIGN-AGENT epic that was seeded in S094. Define the role the way docs/qa/agent.md does for QA: who they are (game-designer / product-owner), what files they own (a new docs/game-design/gdd.md — the Game Design Document is the single source of truth for feature/mechanic intent), what tickets they emit (proposed-story-tickets that flow into the dev backlog), and how their loop connects to dev + QA terminals. No code yet — pure design doc. Captures: file ownership table, ticket schema (separate from QA tickets), ticket->story promotion path, the GDD's modular shape (one file per system: combat, economy, progression, etc.), update cadence.",
+      "verification": [
+        "acceptance: docs/game-design/agent.md exists and describes (1) the role, (2) the file-ownership boundary, (3) the proposed-story ticket schema, (4) the promotion flow into dev sprints, (5) the GDD structure. A new contributor can read it and know what to write where.",
+        "Adds docs/game-design/gdd.md as a stub with section headers (overview, mechanics, progression, world, characters, UX) — content to be filled by the actual game-design agent later",
+        "Updates HIGH_LEVEL_BACKLOG.md GAME-DESIGN-AGENT epic notes with the seed-doc link"
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    },
+    {
+      "id": "DOC-AGENT-DEBUG-RECIPES",
+      "title": "docs/agent-debug-recipes.md — cookbook for common probe flows",
+      "status": "pending",
+      "summary": "Companion to docs/agent-probes.md (the reference). Recipes is the cookbook: 'how do I find out why pickup.foo isn't being collected', 'how do I verify camera shake fires on each blast', 'how do I diff state between two ticks'. Each recipe is a short titled section with the curl recipe + jq filter + expected output snippet. Targets at the 5-10 most common debug flows an agent hits. Cross-links to /__agf/snapshot, snapshot?at, snapshot?at&diff (S096), component/.../... (S096), render/debug-mode (S091), render/freecam (S095), recording start/stop, console-log.",
+      "verification": [
+        "acceptance: docs/agent-debug-recipes.md exists and contains at least 6 recipes, each with a curl one-liner an agent can copy.",
+        "Each recipe cross-links to the relevant probe row in docs/agent-probes.md.",
+        "AGENTS.md (or CLAUDE.md) gains a one-line pointer to the new file under §Read First."
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}
