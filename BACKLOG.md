@@ -4,7 +4,29 @@ This file is **generated**. The active sprint section between the marker pair be
 
 <!-- backlog:render:start -->
 
-_No sprint is currently `active`. Edit a `backlog/sprints/S<NN>.sprint.json` to `status: "active"` and re-run `npm run backlog:render`._
+## Current Sprint: S095 — Polish — camera shake / spawn pop + agent free-cam + audio dial + snapshot history
+
+Status: **active** (started 2026-05-20). Source: `backlog/sprints/S095.sprint.json`.
+
+### Stories
+
+- **KABOOM-CAMERA-EASING-ADOPT** — Kaboom Crew adopts S091 named easings in camera + HUD tweens _(pending)_
+  Pick up the 16 named curves the engine shipped in S091. Replace any inline `t*t` / `1-(1-t)*(1-t)` math in Kaboom Crew's camera follow + HUD chip tweens with the named curve table. Round-start camera push uses `easeOutBack` for a tiny overshoot; HUD chip mount uses `easeOutQuad`; HUD chip pulse on bomb-pickup uses `pulse`. No behaviour change beyond feel — same durations, same start/end values.
+- **KABOOM-BLAST-CAMERA-SHAKE** — Camera shake on blast — short, decaying, configurable amplitude _(pending)_
+  Add a project-local CameraShake component + system: `{ amplitude: number, durationS: number, elapsedS: number }`. On BlastEvent (within camera radius), shake-system adds/updates the component on the active camera entity. Each frame the system offsets the camera Transform by a noise-driven [-A, A] vector scaled by `easeOutElastic(1 - elapsedS/durationS)`; expires the component at elapsedS >= durationS, zeroing the offset. Amplitude scales with distance to the blast (full at the cell, 0 beyond 6 cells). No engine work — purely Kaboom Crew adoption.
+- **KABOOM-SPAWN-POP-TWEEN** — Bomb / pickup mesh scale 0 → 1 with easeOutBack on spawn _(pending)_
+  On bomb-place and pickup-spawn, tween the entity's Transform.scale from 0 → 1 over 200 ms using `easeOutBack`. The renderer already reads Transform.scale per frame so no adapter change is needed. Uses the existing Tween component / system path — the spawn handler attaches a Tween on the just-created entity. Tween component removes itself on completion.
+- **AGF-RENDER-DEBUG-FREECAM** — Agent-driven free-fly camera for debugging — POST /__agf/render/freecam _(pending)_
+  Add an opt-in free-fly camera the agent can position arbitrarily without touching the game's camera control. Surface: `runtime.renderer.setFreeCam({ position, lookAt } | null)` — when non-null, the renderer creates (and pins active) a debug PerspectiveCamera at the given pose; when null, the project's normal active camera takes over again. Dev-bridge: `POST /__agf/render/freecam { position, lookAt }` + `POST /__agf/render/freecam { off: true }` + `GET /__agf/render/freecam`. Useful for inspecting blast aftermath, off-screen entities, prefab layout. Pure agent observability, not a player feature.
+- **AGF-AUDIO-MASTER-VOLUME** — AudioBus grows a master volume dial — POST /__agf/audio/master-volume _(pending)_
+  Today every `play()` clamps to its per-call `volume` option; there is no global dial. Add a master volume multiplier on AudioBus: `setMasterVolume(v)` clamps [0,1] and `getMasterVolume()` returns it; the bus multiplies the master against each play()'s per-call volume so existing callers don't change. Dev-bridge route: GET/POST `/__agf/audio/master-volume`. `window.__agf.setAudioMasterVolume(v)`.
+- **KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END** — Briefly duck SFX while a match-* chime plays _(pending)_
+  Build on AGF-AUDIO-MASTER-VOLUME. When the audio-binding-system fires `match-won/-lost/-draw`, it asks the audio-fx to schedule a 600 ms duck: master gain dips to 0.3 immediately, ramps back to 1.0 over the duck window. Implemented inside Kaboom's audio-fx.ts (it owns the procedural-synth path); positional bomber events that fire during the duck inherit the lower gain. Uses requestAnimationFrame or AudioParam ramps, no scheduler change.
+  Depends on: AGF-AUDIO-MASTER-VOLUME.
+- **AGF-PROBE-SNAPSHOT-HISTORY** — Snapshot ring buffer — GET /__agf/snapshot?at=-N replays history _(pending)_
+  The current /__agf/snapshot probe returns only the live snapshot. Keep a fixed-size ring buffer (default 32) of past snapshots so an agent can diff against history (e.g. `snapshot?at=-1` vs live to see what changed last frame). New route param `at` accepts a non-positive integer index; -0 (or omitted) returns live, -1 returns the previous, etc. `at` beyond the buffer returns 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE. The ring is filled cheaply — one entry per fixedUpdate.
+- **DOC-AGENT-PROBES-REFRESH** — Refresh docs/agent-probes.md — freecam, audio master, snapshot history _(pending)_
+  Pure docs sweep. Add rows for `/__agf/render/freecam`, `/__agf/audio/master-volume`, and the `at` query param on `/__agf/snapshot`. Include curl recipes + the error code for each. Verify every probe documented in the file still matches its handler signature (catch drift).
 
 <!-- backlog:render:end -->
 

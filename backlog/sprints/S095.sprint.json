@@ -1,0 +1,107 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S095",
+  "title": "Polish — camera shake / spawn pop + agent free-cam + audio dial + snapshot history",
+  "status": "active",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "KABOOM-CAMERA-EASING-ADOPT",
+      "title": "Kaboom Crew adopts S091 named easings in camera + HUD tweens",
+      "status": "pending",
+      "summary": "Pick up the 16 named curves the engine shipped in S091. Replace any inline `t*t` / `1-(1-t)*(1-t)` math in Kaboom Crew's camera follow + HUD chip tweens with the named curve table. Round-start camera push uses `easeOutBack` for a tiny overshoot; HUD chip mount uses `easeOutQuad`; HUD chip pulse on bomb-pickup uses `pulse`. No behaviour change beyond feel — same durations, same start/end values.",
+      "verification": [
+        "acceptance: Round start has a visible micro-overshoot on the camera push before settling; pickup HUD chip pulses (scale 1→1.15→1) without snap.",
+        "examples/kaboom-crew/src/systems/* — every Tween component literal uses one of the named curve names (no inline easing math)",
+        "+ unit test asserting at least one Tween is configured with ease='easeOutBack' and one with ease='pulse'"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-BLAST-CAMERA-SHAKE",
+      "title": "Camera shake on blast — short, decaying, configurable amplitude",
+      "status": "pending",
+      "summary": "Add a project-local CameraShake component + system: `{ amplitude: number, durationS: number, elapsedS: number }`. On BlastEvent (within camera radius), shake-system adds/updates the component on the active camera entity. Each frame the system offsets the camera Transform by a noise-driven [-A, A] vector scaled by `easeOutElastic(1 - elapsedS/durationS)`; expires the component at elapsedS >= durationS, zeroing the offset. Amplitude scales with distance to the blast (full at the cell, 0 beyond 6 cells). No engine work — purely Kaboom Crew adoption.",
+      "verification": [
+        "acceptance: When a bomb explodes near the camera, the view shakes briefly with a perceptible decay (~0.25 s); shakes from far-away bombs are negligible.",
+        "examples/kaboom-crew/src/components/camera-shake.ts + camera-shake-system.ts; on-blast handler adds the component",
+        "+ unit test feeding 3 fixedUpdate ticks: amplitude > 0 at t=0, smaller at t=0.5*duration, 0 after duration",
+        "+ unit test that a blast > 6 cells away does NOT add a shake component"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-SPAWN-POP-TWEEN",
+      "title": "Bomb / pickup mesh scale 0 → 1 with easeOutBack on spawn",
+      "status": "pending",
+      "summary": "On bomb-place and pickup-spawn, tween the entity's Transform.scale from 0 → 1 over 200 ms using `easeOutBack`. The renderer already reads Transform.scale per frame so no adapter change is needed. Uses the existing Tween component / system path — the spawn handler attaches a Tween on the just-created entity. Tween component removes itself on completion.",
+      "verification": [
+        "acceptance: New bombs and pickups visibly 'pop' into existence with a small overshoot rather than appearing at full size instantly.",
+        "examples/kaboom-crew/src/systems/bomb-place-system.ts attaches Tween on the new bomb entity",
+        "+ unit test on a stub world: after placing a bomb the new entity carries a Tween component with target=1, ease='easeOutBack', duration ~0.2"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-RENDER-DEBUG-FREECAM",
+      "title": "Agent-driven free-fly camera for debugging — POST /__agf/render/freecam",
+      "status": "pending",
+      "summary": "Add an opt-in free-fly camera the agent can position arbitrarily without touching the game's camera control. Surface: `runtime.renderer.setFreeCam({ position, lookAt } | null)` — when non-null, the renderer creates (and pins active) a debug PerspectiveCamera at the given pose; when null, the project's normal active camera takes over again. Dev-bridge: `POST /__agf/render/freecam { position, lookAt }` + `POST /__agf/render/freecam { off: true }` + `GET /__agf/render/freecam`. Useful for inspecting blast aftermath, off-screen entities, prefab layout. Pure agent observability, not a player feature.",
+      "verification": [
+        "acceptance: POST /__agf/render/freecam { position: [10, 8, 10], lookAt: [0, 0, 0] } moves the rendered view to that pose immediately; POST { off: true } restores the previous active camera and the player can keep playing.",
+        "engine/render/three-render-adapter.ts: setFreeCam() owns a private PerspectiveCamera; `pickAtNdc` and CameraSyncSystem must observe the override",
+        "Dev-bridge route gets a row in docs/agent-probes.md",
+        "+ unit test on a fake adapter scene verifying that setFreeCam swaps the active camera and clearing it restores the prior one"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-AUDIO-MASTER-VOLUME",
+      "title": "AudioBus grows a master volume dial — POST /__agf/audio/master-volume",
+      "status": "pending",
+      "summary": "Today every `play()` clamps to its per-call `volume` option; there is no global dial. Add a master volume multiplier on AudioBus: `setMasterVolume(v)` clamps [0,1] and `getMasterVolume()` returns it; the bus multiplies the master against each play()'s per-call volume so existing callers don't change. Dev-bridge route: GET/POST `/__agf/audio/master-volume`. `window.__agf.setAudioMasterVolume(v)`.",
+      "verification": [
+        "acceptance: POST /__agf/audio/master-volume { value: 0 } silences subsequent plays; POST { value: 1 } restores; per-play `volume: 0.5` plays at 50% of master.",
+        "engine/runtime/audio/audio-bus.ts: setMasterVolume / getMasterVolume on the AudioBus interface",
+        "+ unit test that play(id, { volume: 0.5 }) with master=0.4 sets el.volume to 0.2"
+      ],
+      "epic": "AUDIO"
+    },
+    {
+      "id": "KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END",
+      "title": "Briefly duck SFX while a match-* chime plays",
+      "status": "pending",
+      "summary": "Build on AGF-AUDIO-MASTER-VOLUME. When the audio-binding-system fires `match-won/-lost/-draw`, it asks the audio-fx to schedule a 600 ms duck: master gain dips to 0.3 immediately, ramps back to 1.0 over the duck window. Implemented inside Kaboom's audio-fx.ts (it owns the procedural-synth path); positional bomber events that fire during the duck inherit the lower gain. Uses requestAnimationFrame or AudioParam ramps, no scheduler change.",
+      "verification": [
+        "acceptance: When a match ends, the win/lose chime is clearly audible and any bomb / footstep events that happen during the chime feel quieter than usual; volume restores afterwards without a pop.",
+        "examples/kaboom-crew/src/audio-fx.ts: `duckFor(ms, depth)` helper + match-* events trigger it",
+        "+ unit test on the audio-fx fake context: after triggering match-won, masterGain.gain has setValueAtTime(0.3, now) followed by linearRampToValueAtTime(1, now + 0.6)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1",
+      "dependsOn": ["AGF-AUDIO-MASTER-VOLUME"]
+    },
+    {
+      "id": "AGF-PROBE-SNAPSHOT-HISTORY",
+      "title": "Snapshot ring buffer — GET /__agf/snapshot?at=-N replays history",
+      "status": "pending",
+      "summary": "The current /__agf/snapshot probe returns only the live snapshot. Keep a fixed-size ring buffer (default 32) of past snapshots so an agent can diff against history (e.g. `snapshot?at=-1` vs live to see what changed last frame). New route param `at` accepts a non-positive integer index; -0 (or omitted) returns live, -1 returns the previous, etc. `at` beyond the buffer returns 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE. The ring is filled cheaply — one entry per fixedUpdate.",
+      "verification": [
+        "acceptance: GET /__agf/snapshot returns the live snapshot; GET /__agf/snapshot?at=-1 returns the previous fixedUpdate's snapshot; both are deeply different on a tick where a known component changed.",
+        "engine/runtime/start.ts: ring buffer + indexed lookup; engine/dev/page-bridge.ts: snapshot kind accepts `{ at }` payload",
+        "+ unit test ringing 5 frames and verifying at=-0/-1/-2/-3 each return the right historical snapshot; at=-99 returns the AGF_PROBE_SNAPSHOT_OUT_OF_RANGE error"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "DOC-AGENT-PROBES-REFRESH",
+      "title": "Refresh docs/agent-probes.md — freecam, audio master, snapshot history",
+      "status": "pending",
+      "summary": "Pure docs sweep. Add rows for `/__agf/render/freecam`, `/__agf/audio/master-volume`, and the `at` query param on `/__agf/snapshot`. Include curl recipes + the error code for each. Verify every probe documented in the file still matches its handler signature (catch drift).",
+      "verification": [
+        "acceptance: docs/agent-probes.md table-of-contents lists all three new routes; the section for each contains a working curl recipe.",
+        "Each new section calls out its error code (AGF_PROBE_SNAPSHOT_OUT_OF_RANGE, AGF_BRIDGE_INVALID_AUDIO_VOLUME, AGF_BRIDGE_INVALID_FREECAM)"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}
