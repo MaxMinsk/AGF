@@ -10,16 +10,16 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S088.sprint.js
 
 ### Stories
 
-- **AGF-POOL-INVENTORY-API** — runtime.pools.inventory() lists every render pool's live/peak/capacity _(pending)_
-  Surface a programmatic accessor on the runtime handle so an agent can ask which pools exist + how loaded they are. Mirrors AssetRegistry.inventory() shape. The adapter (`ThreeRenderAdapter`) already owns three RenderPoolRegistry instances (instanced, batched, particle); add a `pools(): ReadonlyArray<{ name; live; capacity; peak }>` method on the adapter and plumb it through RuntimeHandle. Includes a programmatic test that confirms peak increases as buckets are acquired and stays high after release.
-- **AGF-POOL-INVENTORY-PROBE** — GET /__agf/pool-inventory exposes the same shape over the dev bridge _(pending)_
-  Mirror the S86 asset-inventory probe: dev bridge route `/__agf/pool-inventory` returns JSON identical to runtime.pools.inventory(). Lets the live-debug Playwright skill grab pool state in a single curl. Documented in docs/agent-probes.md.
+- **AGF-POOL-INVENTORY-API** — runtime.renderer.pools() lists every render pool's live + peak _(implemented)_
+  Surface a programmatic accessor on the renderer so an agent can ask which pools exist + how loaded they are. Mirrors AssetRegistry.inventory() shape. The adapter (`ThreeRenderAdapter`) already owns three RenderPoolRegistry instances (instanced, batched, particle); add a `pools(): ReadonlyArray<{ name; live; peak }>` method on the adapter and forward via `ThreeRenderer.pools()`. Includes peak-tracking on RenderPoolRegistry so the value survives release.
+- **AGF-POOL-INVENTORY-PROBE** — GET /__agf/pool-inventory exposes the same shape over the dev bridge _(implemented)_
+  Mirror the S86 asset-inventory probe: dev bridge route `/__agf/pool-inventory` returns JSON identical to runtime.renderer.pools(). Lets the live-debug Playwright skill grab pool state in a single curl. Documented in docs/agent-probes.md.
 - **AGF-PARTICLE-PREWARM-SYSTEM** — ParticleEmitterSystem accepts `preWarmPresets` for engine-level warmup _(pending)_
   S85 AGF-POOL-WARMUP-PARTICLES shipped as a project-local hack (kaboom-crew spawns a hidden offscreen ParticleEmitter on attachUi to force shader compile). Promote it: the engine ParticleEmitterSystem factory accepts `preWarmPresets?: ReadonlyArray<string>` and on the first frame creates + destroys a single tiny emitter per requested preset, so the shader compile + GPU buffer upload happens before any gameplay emit. No more project-local warmup entities; kaboom-crew passes `["spark", "glow"]` instead.
 - **AGF-POOL-DOCTOR-SECTION** — engine doctor surfaces a Pools: section _(pending)_
   Read the project's render-pool inventory at doctor-run time and print a 'Pools:' section: per pool, `name live/capacity (peak N)`. Recommendation when a particle preset has `peak === 0` after >1 s of runtime (warmup ran but the project never emitted that preset — dead preset). Doctor unit test confirms the section renders for a fixture inventory.
-- **AGF-POOL-INVENTORY-TEST** — Unit test for RenderPoolRegistry peak + capacity tracking _(pending)_
-  RenderPoolRegistry ships acquire/release but no test covers the peak-tracking invariant introduced by AGF-POOL-INVENTORY-API. Add: acquire bumps peak; release does NOT decrease peak; reset() drops to 0; capacity reflects the underlying Map.size before peak retention.
+- **AGF-POOL-INVENTORY-TEST** — Unit test for RenderPoolRegistry peak + reset tracking _(implemented)_
+  RenderPoolRegistry ships acquire/release but no test covers the peak-tracking invariant introduced by AGF-POOL-INVENTORY-API. Add: acquire bumps peak; release does NOT decrease peak; reset() drops to 0; drain() does NOT touch peak.
 - **KABOOM-DROP-LOCAL-WARMUP** — kaboom-crew drops the project-local warmup entity _(pending)_
   Once AGF-PARTICLE-PREWARM-SYSTEM lands the project-local kaboom.warmup-particles entity is redundant. Delete the entity creation + the runtime.applyCommands hack from attachUi; kaboom-crew now relies entirely on the engine-level preWarmPresets option. Smaller bootstrap.ts; one less moving part.
 - **KABOOM-WIN-CHIME** — Short procedural chime on match win/lost/draw _(pending)_

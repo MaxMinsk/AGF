@@ -150,6 +150,23 @@ Hot-reload event log (Vite HMR → AGF reload propagation). Useful
 when the page didn't update after a save — sift through the event
 stream to see what fired and what was skipped.
 
+### `GET /__agf/pool-inventory`
+
+S88 AGF-POOL-INVENTORY-PROBE. Snapshot of every renderer pool's
+`live` (current size) + `peak` (high-water mark since boot) handle
+counts. Use it to confirm a project's pre-warm pass actually ran
+(`peak >= 1` on the relevant pool) or to spot pools that grew under
+live demand and are now over-provisioned.
+
+```bash
+curl 'http://localhost:5173/__agf/pool-inventory'
+# → { "pools": [
+#       { "name": "instanced", "live": 1, "peak": 1 },
+#       { "name": "batched",   "live": 0, "peak": 0 },
+#       { "name": "particle",  "live": 1, "peak": 2 }
+#     ] }
+```
+
 ### `POST /__agf/asset/invalidate?playerId=<id>`
 
 Manually invalidate an asset binding on the page (used by the

@@ -153,6 +153,12 @@ declare global {
         readonly ref: string;
         readonly status: "loaded" | "pending" | "failed";
       }>;
+      /** S88 AGF-POOL-INVENTORY-PROBE. */
+      poolInventory(): ReadonlyArray<{
+        readonly name: "instanced" | "batched" | "particle";
+        readonly live: number;
+        readonly peak: number;
+      }>;
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -446,6 +452,8 @@ void (async (): Promise<void> => {
       rendererInspect: () => app.rendererInspect(),
       // S86 AGF-ASSET-INVENTORY-PROBE.
       assetInventory: () => app.assetInventory(),
+      // S88 AGF-POOL-INVENTORY-PROBE.
+      poolInventory: () => app.poolInventory(),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

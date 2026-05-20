@@ -191,6 +191,8 @@ export type AppHandle = {
   };
   /** S86 AGF-ASSET-INVENTORY-PROBE. */
   assetInventory(): ReadonlyArray<{ ref: string; status: "loaded" | "pending" | "failed" }>;
+  /** S88 AGF-POOL-INVENTORY-PROBE. */
+  poolInventory(): ReadonlyArray<{ name: "instanced" | "batched" | "particle"; live: number; peak: number }>;
   rendererInfo(): {
     geometries: number;
     textures: number;
@@ -602,6 +604,10 @@ export async function createApp(
     // S86 AGF-ASSET-INVENTORY-PROBE.
     assetInventory() {
       return assetRegistry?.inventory() ?? [];
+    },
+    // S88 AGF-POOL-INVENTORY-PROBE.
+    poolInventory() {
+      return runtime.renderer.pools();
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

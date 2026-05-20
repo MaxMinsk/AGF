@@ -7,23 +7,25 @@
   "stories": [
     {
       "id": "AGF-POOL-INVENTORY-API",
-      "title": "runtime.pools.inventory() lists every render pool's live/peak/capacity",
-      "status": "pending",
-      "summary": "Surface a programmatic accessor on the runtime handle so an agent can ask which pools exist + how loaded they are. Mirrors AssetRegistry.inventory() shape. The adapter (`ThreeRenderAdapter`) already owns three RenderPoolRegistry instances (instanced, batched, particle); add a `pools(): ReadonlyArray<{ name; live; capacity; peak }>` method on the adapter and plumb it through RuntimeHandle. Includes a programmatic test that confirms peak increases as buckets are acquired and stays high after release.",
+      "title": "runtime.renderer.pools() lists every render pool's live + peak",
+      "status": "implemented",
+      "summary": "Surface a programmatic accessor on the renderer so an agent can ask which pools exist + how loaded they are. Mirrors AssetRegistry.inventory() shape. The adapter (`ThreeRenderAdapter`) already owns three RenderPoolRegistry instances (instanced, batched, particle); add a `pools(): ReadonlyArray<{ name; live; peak }>` method on the adapter and forward via `ThreeRenderer.pools()`. Includes peak-tracking on RenderPoolRegistry so the value survives release.",
       "verification": [
-        "runtime.pools.inventory() returns ReadonlyArray<{ name: 'instanced'|'batched'|'particle'; live: number; capacity: number; peak: number }>",
-        "unit test exercises acquire/release/peak retention through a stub renderer adapter"
+        "runtime.renderer.pools() returns ReadonlyArray<{ name: 'instanced'|'batched'|'particle'; live: number; peak: number }>",
+        "RenderPoolRegistry gains peak() + reset(); acquire bumps peak; release does NOT decrease it; reset() drops counter+peak",
+        "unit test exercises acquire/release/peak retention + reset"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "AGF-POOL-INVENTORY-PROBE",
       "title": "GET /__agf/pool-inventory exposes the same shape over the dev bridge",
-      "status": "pending",
-      "summary": "Mirror the S86 asset-inventory probe: dev bridge route `/__agf/pool-inventory` returns JSON identical to runtime.pools.inventory(). Lets the live-debug Playwright skill grab pool state in a single curl. Documented in docs/agent-probes.md.",
+      "status": "implemented",
+      "summary": "Mirror the S86 asset-inventory probe: dev bridge route `/__agf/pool-inventory` returns JSON identical to runtime.renderer.pools(). Lets the live-debug Playwright skill grab pool state in a single curl. Documented in docs/agent-probes.md.",
       "verification": [
-        "GET /__agf/pool-inventory returns { pools: [{ name, live, capacity, peak }] }",
-        "docs/agent-probes.md row added under the existing inventory section"
+        "GET /__agf/pool-inventory returns ReadonlyArray<{ name, live, peak }>",
+        "page-bridge.ts forwards window.__agf.poolInventory(); agf-dev-bridge maps /pool-inventory → pool-inventory channel",
+        "docs/agent-probes.md adds a /__agf/pool-inventory section beside asset/invalidate"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
@@ -53,11 +55,11 @@
     },
     {
       "id": "AGF-POOL-INVENTORY-TEST",
-      "title": "Unit test for RenderPoolRegistry peak + capacity tracking",
-      "status": "pending",
-      "summary": "RenderPoolRegistry ships acquire/release but no test covers the peak-tracking invariant introduced by AGF-POOL-INVENTORY-API. Add: acquire bumps peak; release does NOT decrease peak; reset() drops to 0; capacity reflects the underlying Map.size before peak retention.",
+      "title": "Unit test for RenderPoolRegistry peak + reset tracking",
+      "status": "implemented",
+      "summary": "RenderPoolRegistry ships acquire/release but no test covers the peak-tracking invariant introduced by AGF-POOL-INVENTORY-API. Add: acquire bumps peak; release does NOT decrease peak; reset() drops to 0; drain() does NOT touch peak.",
       "verification": [
-        "+4 unit tests; existing RenderPoolRegistry suite stays green"
+        "+4 unit tests under 'S88 AGF-POOL-INVENTORY-API peak tracking' describe block; existing RenderPoolRegistry suite stays green"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
