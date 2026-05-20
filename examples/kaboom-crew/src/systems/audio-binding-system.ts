@@ -113,6 +113,16 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       const nowAlive = currentAlive.get(id) ?? false;
       if (wasAlive && !nowAlive) {
         onEvent("death", { entityId: id });
+        // S90 KABOOM-DEATH-FALL — tag the bomber with a per-entity
+        // animation component the dedicated system will tween + freeze
+        // movement so a dying bomber stops mid-stride.
+        if (!world.hasComponent(id, "DeathAnim")) {
+          world.setComponent(id, "DeathAnim", { elapsed: 0 });
+        }
+        const mover = world.getComponent<{ queuedDirection?: { dx: number; dz: number } }>(id, "GridMover");
+        if (mover !== undefined && (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0)) {
+          world.setComponent(id, "GridMover", { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+        }
         // S86 KABOOM-DEATH-PARTICLES. Spawn a short-lived 'glow' puff
         // at the dead bomber's cell. The M19 ParticleEmitterSystem
         // cleans the entity up when lifetime elapses.

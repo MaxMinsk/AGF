@@ -31,6 +31,7 @@ import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
+import { createKaboomDeathAnimationSystem } from "./src/systems/death-animation-system";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl } from "./src/difficulty";
 
@@ -216,6 +217,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // blast-propagation consumes them. Perturbs the active camera's
     // Transform.position; intensity scales with blast range.
     scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static"] });
+
+    // S90 KABOOM-DEATH-FALL — tweens the dying bomber's rotation
+    // toward a tipped-over pose. Reads `DeathAnim` written by
+    // audio-binding-system on the alive→dead edge.
+    scheduler.register(createKaboomDeathAnimationSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
