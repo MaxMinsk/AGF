@@ -30,12 +30,12 @@
     {
       "id": "KABOOM-ROUND-TIMER-BAR",
       "title": "HUD shows round elapsed / timeLimit as a thin progress bar",
-      "status": "pending",
-      "summary": "The HUD stats line shows `t: 12s / 90s` — readable but not glanceable. Add a thin 4 px horizontal bar above the stats slot that fills as elapsed / timeLimit grows; color shifts orange in the last 15 s, red in the last 5 s. Text line stays as the precise readout. When timeLimit=0 the bar hides.",
+      "status": "implemented",
+      "summary": "kaboom.stats HUD widget now renders a 4 px horizontal bar above the text lines, filled as elapsed / timeLimit grows. Color shifts orange when remaining <= 15 s, red when <= 5 s. Hidden when timeLimit=0 / undefined OR phase != playing — the text line keeps the precise readout.",
       "verification": [
-        "live probe: bar visible at top of bottomLeft stats slot, fills smoothly across a 90 s round",
-        "bar hides when project sets ?roundTimeLimit=0",
-        "color crosses orange threshold at remaining <= 15 s, red at <= 5 s"
+        "bootstrap.ts: STATS_ID widget render reads { lines, timeFrac, timeColor }; trough + fill DIVs render when timeFrac > 0",
+        "Live computation: timeFrac = elapsed/timeLimit clamped 0..1; color tiers `#5fa8ff` > 15 s, `#ff9b3a` 5–15 s, `#ff5a5a` <= 5 s",
+        "Bar suppressed when timeLimit is undefined / 0 OR phase != 'playing' (post-round banner takes over)"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

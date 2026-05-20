@@ -650,13 +650,27 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       hud.add({
         id: STATS_ID,
         slot: "bottomLeft",
-        initial: { lines: ["Kaboom Crew"] },
+        initial: { lines: ["Kaboom Crew"], timeFrac: 0, timeColor: "#5fa8ff" },
         // Build a node so per-line `<div>`s render as actual line
         // breaks (HUD's string path uses textContent, which collapses
         // \n into a single line under the default white-space rules).
-        render: (data: { lines: ReadonlyArray<string> }): HTMLElement => {
+        // S89 KABOOM-ROUND-TIMER-BAR — top of the widget shows a
+        // 4 px progress bar that fills as the round timer drains.
+        // `timeFrac` 0..1 (0 hides the bar); `timeColor` shifts hue
+        // for the last-15 s / last-5 s urgency tiers.
+        render: (data: { lines: ReadonlyArray<string>; timeFrac?: number; timeColor?: string }): HTMLElement => {
           const el = document.createElement("div");
           el.setAttribute("style", "display:flex;flex-direction:column;gap:2px;");
+          const frac = data.timeFrac ?? 0;
+          if (frac > 0) {
+            const trough = document.createElement("div");
+            trough.setAttribute("style", "height:4px;width:160px;background:rgba(0,0,0,0.45);border-radius:2px;margin-bottom:4px;");
+            const fill = document.createElement("div");
+            const color = data.timeColor ?? "#5fa8ff";
+            fill.setAttribute("style", `height:100%;width:${Math.max(0, Math.min(100, frac * 100)).toFixed(1)}%;background:${color};border-radius:2px;`);
+            trough.appendChild(fill);
+            el.appendChild(trough);
+          }
           for (const line of data.lines) {
             const row = document.createElement("div");
             row.textContent = line;
@@ -813,7 +827,20 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
           );
         }
-        hud.update(STATS_ID, { lines });
+        // S89 KABOOM-ROUND-TIMER-BAR — compute fill fraction + urgency
+        // color from elapsed / timeLimit. 0 hides the bar (no time
+        // limit / round already resolved).
+        const elapsedExact = s.round?.elapsed ?? 0;
+        let timeFrac = 0;
+        let timeColor = "#5fa8ff";
+        if (timeLimit !== undefined && timeLimit > 0 && phase === "playing") {
+          timeFrac = Math.max(0, Math.min(1, elapsedExact / timeLimit));
+          const remaining = Math.max(0, timeLimit - elapsedExact);
+          if (remaining <= 5) timeColor = "#ff5a5a";
+          else if (remaining <= 15) timeColor = "#ff9b3a";
+          else timeColor = "#5fa8ff";
+        }
+        hud.update(STATS_ID, { lines, timeFrac, timeColor });
 
         // S87 KABOOM-HUD-KEY-GLYPHS — push live pressed-key set into
         // the glyph widget. api.input() returns the same snapshot that
