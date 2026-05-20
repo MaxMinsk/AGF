@@ -40,6 +40,15 @@ declare global {
         | { kind: "entity-not-found" }
         | { kind: "component-not-found" }
         | { kind: "out-of-range"; capacity: number; size: number };
+      /** S097 AGF-PROBE-ENTITY-DUMP. */
+      entityAt(entityId: string, at?: number):
+        | { kind: "ok"; components: Record<string, unknown> }
+        | { kind: "entity-not-found" }
+        | { kind: "out-of-range"; capacity: number; size: number };
+      /** S097 AGF-PROBE-COMPONENT-WRITE. */
+      setComponentAt(entityId: string, componentName: string, value: unknown):
+        | { kind: "ok"; value: unknown }
+        | { kind: "entity-not-found" };
       /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
       snapshotDiff(at: number):
         | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -476,6 +485,11 @@ void (async (): Promise<void> => {
       // S096 AGF-PROBE-COMPONENT-AT.
       componentAt: (entityId: string, componentName: string, at?: number) =>
         app.componentAt(entityId, componentName, at),
+      // S097 AGF-PROBE-ENTITY-DUMP.
+      entityAt: (entityId: string, at?: number) => app.entityAt(entityId, at),
+      // S097 AGF-PROBE-COMPONENT-WRITE.
+      setComponentAt: (entityId: string, componentName: string, value: unknown) =>
+        app.setComponentAt(entityId, componentName, value),
       // S096 AGF-PROBE-SNAPSHOT-DIFF.
       snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),

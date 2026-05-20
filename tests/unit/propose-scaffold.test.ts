@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
+// @ts-expect-error — propose.mjs is plain ESM; allowJs is off project-wide.
 import { computeDatePrefix, nextFreeSlot } from "../../scripts/backlog/propose.mjs";
 
 const repoRoot = resolve(__dirname, "../..");

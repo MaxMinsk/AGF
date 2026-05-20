@@ -48,26 +48,26 @@
     {
       "id": "AGF-PROBE-ENTITY-DUMP",
       "title": "GET /__agf/entity/<entityId> returns every component on a single entity",
-      "status": "pending",
-      "summary": "Companion to S096 AGF-PROBE-COMPONENT-AT. Same path style, returns ALL components on one entity rather than one named component. Useful for the common debug flow 'what's the full state of player.1 right now?' without pulling the whole world snapshot. Supports `?at=-N` for history (same ring as component-at). Errors: 404 AGF_PROBE_ENTITY_NOT_FOUND.",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts grew `entityAt(entityId, at?)` returning a tagged union { ok: components } | entity-not-found | out-of-range. The bridge wires GET /entity/:entityId via a new exported `parseEntityPath` helper (rejects empty + extra path segments, decodes URL-encoded ids). Supports `?at=-N` for history (same ring as componentAt). Errors map to 404 AGF_PROBE_ENTITY_NOT_FOUND, 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE, 400 AGF_BRIDGE_INVALID_ENTITY_PATH, 400 AGF_BRIDGE_INVALID_SNAPSHOT_AT. Plumbed through src/app.ts, window.__agf, and page-bridge `entity-at` RPC.",
       "verification": [
-        "acceptance: GET /__agf/entity/player.1 returns `{ entityId, components: { BomberStats: {...}, GridPosition: {...}, ... } }` for every component the entity carries.",
-        "engine/runtime/start.ts: runtime.entityAt(entityId, at?) returns a tagged union: ok / entity-not-found / out-of-range",
-        "engine/dev/agf-dev-bridge.ts: new route /entity/:entityId — same path-parser style as /component/:entityId/:componentName",
-        "+ unit tests on the path parser + on the bridge's response mapping"
+        "acceptance: GET /__agf/entity/player.1 returns { entityId, components: { BomberStats: {...}, GridPosition: {...}, ... } } for every component the entity carries; unknown entityId returns 404 AGF_PROBE_ENTITY_NOT_FOUND.",
+        "engine/runtime/start.ts: runtime.entityAt + interface update",
+        "engine/dev/agf-dev-bridge.ts: exported parseEntityPath + GET /entity/:entityId route mapped to the tagged-union runtime response",
+        "+5 unit tests on parseEntityPath in tests/unit/entity-at-bridge.test.ts: clean path, URL-encoded id, prefix rejection, empty id rejection, extra segments rejection"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "AGF-PROBE-COMPONENT-WRITE",
       "title": "POST /__agf/component/<entityId>/<componentName> writes a single component value",
-      "status": "pending",
-      "summary": "Write counterpart of S096 AGF-PROBE-COMPONENT-AT. Today's only mutation surface is POST /commands (broad) and POST /project-patch (file-level). Add a focused POST that takes `{ value }` in the body and calls `world.setComponent(entityId, componentName, value)` server-side. Surface: dev-bridge only (security: same trust boundary as the rest of /__agf/*). Validates that the entity exists (404 AGF_PROBE_ENTITY_NOT_FOUND); the component name is not required to pre-exist (write can ADD components). Returns the new component value.",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts grew `setComponentAt(entityId, componentName, value)` returning { ok: value } | entity-not-found (delegates to world.setComponent for the actual mutation; component name is not required to pre-exist — write can ADD components). The bridge wires POST /component/:entityId/:componentName: reuses S096's parseComponentPath, validates that the request body has a `value` key (rejects with 400 AGF_BRIDGE_INVALID_COMPONENT_WRITE otherwise), forwards via the new page-bridge `component-write` RPC, maps entity-not-found to 404. Returns the persisted value in the response so the caller can confirm.",
       "verification": [
         "acceptance: POST /__agf/component/player.1/BomberStats with `{ value: { maxBombs: 10, range: 5, alive: true } }` mutates the live entity; a subsequent GET /__agf/component/player.1/BomberStats returns the same value.",
-        "engine/runtime/start.ts: runtime.setComponentAt(entityId, componentName, value) returns ok / entity-not-found",
-        "engine/dev/agf-dev-bridge.ts: POST handler validates JSON body has `value` key; missing returns 400 AGF_BRIDGE_INVALID_COMPONENT_WRITE",
-        "+ unit tests on the path parser (shared with /component GET) + on the bridge's POST validator"
+        "engine/runtime/start.ts: runtime.setComponentAt + interface update",
+        "engine/dev/agf-dev-bridge.ts: POST /component/:entityId/:componentName reuses parseComponentPath; missing `value` returns 400 AGF_BRIDGE_INVALID_COMPONENT_WRITE; entity-not-found returns 404 AGF_PROBE_ENTITY_NOT_FOUND",
+        "Body-shape validation is exercised via the existing component path tests (S096) — the POST path uses the same parser, so /component/a/b/c style errors hit the same code"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

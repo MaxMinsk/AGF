@@ -58,11 +58,11 @@ function proposal(id: string, opts: Partial<Proposal> = {}): Proposal {
   return {
     agfFormatVersion: 1,
     id,
-    title: opts.title ?? `Sample feature ${id}`,
+    title: opts["title"] ?? `Sample feature ${id}`,
     createdAt: "2026-05-20T12:00:00Z",
-    kind: opts.kind ?? "feature",
-    intent: opts.intent ?? "This is a long enough intent body to clear the schema minLength check.",
-    priority: opts.priority ?? "should",
+    kind: opts["kind"] ?? "feature",
+    intent: opts["intent"] ?? "This is a long enough intent body to clear the schema minLength check.",
+    priority: opts["priority"] ?? "should",
     ...opts
   };
 }
