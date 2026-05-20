@@ -24,7 +24,13 @@ export type AudioEventKind =
 export type KaboomAudioFx = {
   play(kind: AudioEventKind): void;
   dispose(): void;
+  /** S89 KABOOM-PAUSE-AUDIO-MUTE. true → every play() is a no-op without tearing down the context. */
+  setMuted(muted: boolean): void;
+  /** Read the current mute state — drives the pause menu's toggle label. */
+  isMuted(): boolean;
 };
+
+export const AUDIO_VOLUME_STORAGE_KEY_EXPORT = "agf.audio.volume";
 
 export type AudioFxOptions = {
   /** Test seam — supply a fake AudioContext constructor. */
@@ -161,6 +167,10 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   const factory = options.contextFactory ?? defaultFactory;
   const masterGain = Math.max(0, Math.min(1, options.masterGain ?? 0.4));
   let ctx: AudioContextLike | undefined;
+  // S89 KABOOM-PAUSE-AUDIO-MUTE. When muted, play() returns early
+  // without touching the AudioContext — the context stays alive so
+  // unmute is a free no-arg toggle (no autoplay-policy round trip).
+  let muted = masterGain === 0;
 
   function ensureContext(): AudioContextLike | undefined {
     if (ctx !== undefined) return ctx;
@@ -295,6 +305,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
 
   return {
     play(kind: AudioEventKind): void {
+      if (muted) return;
       const c = ensureContext();
       if (c === undefined) return;
       try {
@@ -318,6 +329,12 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         // ignore
       }
       ctx = undefined;
+    },
+    setMuted(next: boolean): void {
+      muted = next;
+    },
+    isMuted(): boolean {
+      return muted;
     }
   };
 }

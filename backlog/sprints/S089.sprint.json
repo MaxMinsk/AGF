@@ -55,12 +55,12 @@
     {
       "id": "KABOOM-PAUSE-AUDIO-MUTE",
       "title": "Pause menu gets an Audio toggle (mute / unmute)",
-      "status": "pending",
-      "summary": "S86 shipped the volume dial via ?audio= + localStorage. The pause menu (Esc) doesn't surface it — players have to know about the URL param. Add an 'Audio: ON / OFF' toggle button to the pause menu that calls a new audioFx.setMuted(boolean) and persists the new dial value to localStorage (off ↔ saved-volume).",
+      "status": "implemented",
+      "summary": "audio-fx.ts gains setMuted/isMuted; play() returns early when muted (no AudioContext teardown so unmute is a free no-arg toggle). The Esc pause menu picks up a fourth button alongside Resume / Restart / Difficulty: `Audio: ON|OFF`. The toggle persists to the same localStorage key the existing ?audio= volume dial uses (`agf.audio.volume`) — '0' on mute, '1' on unmute.",
       "verification": [
-        "audio-fx.ts exports setMuted(); muted=true short-circuits play() at the AudioContext level",
-        "Pause menu gains an 'Audio: ON|OFF' button alongside Resume / Restart / Difficulty",
-        "Setting persists to localStorage under the same key the volume dial uses"
+        "audio-fx.ts: muted flag short-circuits play(); existing audio-fx unit tests stay green",
+        "bootstrap.ts pause menu button toggles audioFx.setMuted + writes localStorage",
+        "Muted state survives a reload (localStorage takes precedence absent a ?audio= override)"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

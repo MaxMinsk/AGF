@@ -419,6 +419,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             diffBtn.textContent = `Difficulty: ${next}`;
           });
           root.appendChild(diffBtn);
+          // S89 KABOOM-PAUSE-AUDIO-MUTE — toggle audioFx.setMuted +
+          // persist to the same localStorage key the volume dial uses.
+          // Muted state writes "0"; unmuting restores "1" so a future
+          // ?audio= override still takes precedence over the stored value.
+          const audioBtn = mkBtn(`Audio: ${audioFx.isMuted() ? "OFF" : "ON"}`, () => {
+            const next = !audioFx.isMuted();
+            audioFx.setMuted(next);
+            try {
+              const storage = (globalThis as unknown as { localStorage?: Storage }).localStorage;
+              storage?.setItem("agf.audio.volume", next ? "0" : "1");
+            } catch {
+              // ignore quota / disabled storage
+            }
+            audioBtn.textContent = `Audio: ${next ? "OFF" : "ON"}`;
+          });
+          root.appendChild(audioBtn);
           return root;
         }
       });
