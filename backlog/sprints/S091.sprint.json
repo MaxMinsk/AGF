@@ -1,0 +1,47 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S091",
+  "title": "Tween easings + agent-driven render debug overrides (candidates)",
+  "status": "pending",
+  "stories": [
+    {
+      "id": "M19-EASING-LIBRARY",
+      "title": "Tween component gains a named easing curve",
+      "status": "pending",
+      "summary": "M19 shipped the Tween component + system with a linear interpolator only. Promote it: ECS `Tween` schema gains an optional `easing: EasingName` field (default 'linear'). Engine exports a pure helper `easingCurves` keyed by name. Curves to ship in v1 (common subset, no library dep): linear, easeInQuad, easeOutQuad, easeInOutQuad, easeInCubic, easeOutCubic, easeInOutCubic, easeInQuart, easeOutQuart, easeInOutQuart, easeOutBack (overshoot), easeOutElastic (bounce). Unknown name → linear + warning AGF_TWEEN_EASING_UNKNOWN diagnostic.",
+      "verification": [
+        "schemas/components/tween.schema.json adds `easing` enum",
+        "engine/core/systems/tween-system.ts: pure easingCurves table + per-tween apply uses curve(t)",
+        "+1 unit test per curve that asserts curve(0)=0, curve(1)=1, and a non-linear midpoint deviation",
+        "Live probe: beacon-world animates a tween with easing=easeOutBack and shows visible overshoot"
+      ],
+      "epic": "M19"
+    },
+    {
+      "id": "AGF-RENDER-DEBUG-MODE-AGENT",
+      "title": "Agent-driven render debug overrides — wireframe / unlit-white / normals / uv",
+      "status": "pending",
+      "summary": "Add a renderer-level debug override toggle that an agent can flip at runtime. Surface: `runtime.renderer.setDebugMode(mode: 'off' | 'wireframe' | 'unlit-white' | 'normals' | 'uv')`. Adapter swaps every Mesh.material to a debug override material on flip (cached per-mesh so the original material is restored on 'off'). Dev-bridge: `POST /__agf/render/debug-mode { mode }` + `GET /__agf/render/debug-mode`. Useful tools: wireframe surfaces over-tessellation, unlit-white debugs shape vs lighting separately, normals catches flipped triangles, uv catches packed atlas bugs.",
+      "verification": [
+        "Modes: off (default), wireframe (material.wireframe = true), unlit-white (replace with MeshBasicMaterial #ffffff), normals (custom ShaderMaterial → rgb = (n + 1) / 2), uv (custom ShaderMaterial → rgb = (uv.xy, 0))",
+        "setDebugMode('off') restores every original material; no leak in renderer.info().handleLeak after a full cycle",
+        "Dev-bridge route gets a row in docs/agent-probes.md",
+        "+ unit test on a stub adapter exercising the swap/restore lifecycle",
+        "+ Playwright smoke that flips wireframe via POST and checks renderer.info() still reports same draw count"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-RENDER-DEBUG-OVERLAY-HUD",
+      "title": "HUD pill shows current debug mode + frame counter pressure",
+      "status": "pending",
+      "summary": "Companion to AGF-RENDER-DEBUG-MODE-AGENT. When debug mode != 'off', surface a topRight HUD pill labelled `DEBUG: wireframe` (or whichever mode) so the player / agent can't accidentally leave the override on. Pill clears when mode flips back to 'off'.",
+      "verification": [
+        "When runtime.renderer.setDebugMode('wireframe') is called, the HUD pill is mounted",
+        "setDebugMode('off') removes the pill",
+        "Pill uses the existing HUD primitive (no new layer)"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ]
+}
