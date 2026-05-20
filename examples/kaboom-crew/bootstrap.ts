@@ -82,22 +82,37 @@ const PROJECT_PREFABS: ReadonlyMap<string, PrefabDefinition> = new Map<string, P
 ]);
 
 // S86 KABOOM-MAP-VARIANT-WIDE. Map id resolution + scene-source lookup.
-function readMapName(): "start" | "wide" {
+// S89 KABOOM-AGENT-MAP-LIST. Single registry shared by URL parsing
+// (`readMapName`), the scene builder, and the runtime accessor
+// (`runtime.kaboom.maps()` + `loadMap()`).
+const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
+  ["start", startSceneJson],
+  ["wide", wideSceneJson]
+]);
+type MapName = "start" | "wide";
+let activeMapName: MapName = "start";
+// Seed from `?map=` once at module load — module evaluation happens
+// after the page is opened, so `location.search` is already valid.
+function seedActiveMapFromUrl(): void {
+  activeMapName = readMapName();
+}
+
+function readMapName(): MapName {
   const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
   if (search === undefined || search.length === 0) return "start";
   try {
     const value = new URLSearchParams(search).get("map");
-    if (value === "wide") return "wide";
+    if (value !== null && MAP_REGISTRY.has(value)) return value as MapName;
     return "start";
   } catch {
     return "start";
   }
 }
 
-function buildFlatStartScene(): SceneInput {
-  const map = readMapName();
-  const source = (map === "wide" ? wideSceneJson : startSceneJson) as unknown as SceneInput;
-  const expansion = expandScenePrefabs(source, PROJECT_PREFABS);
+function buildFlatStartScene(map: MapName = activeMapName): SceneInput {
+  const source = MAP_REGISTRY.get(map) as SceneInput | undefined;
+  const resolved = (source ?? startSceneJson) as unknown as SceneInput;
+  const expansion = expandScenePrefabs(resolved, PROJECT_PREFABS);
   if (expansion.diagnostics.length > 0) {
     // eslint-disable-next-line no-console
     // agf-allow:console scene expansion path runs before the runtime diagnostics bus is bound to attachUi.
@@ -240,6 +255,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
   },
 
   attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
+    // S89 KABOOM-AGENT-MAP-LIST. Pick up `?map=` from the URL before
+    // any restartScene call so the very first scene.load already uses
+    // the right map (matches the legacy S86 behaviour where
+    // buildFlatStartScene re-read the URL each call).
+    seedActiveMapFromUrl();
+
     _boundRestart = (): void => {
       restartScene(runtime);
     };
@@ -398,6 +419,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             diffBtn.textContent = `Difficulty: ${next}`;
           });
           root.appendChild(diffBtn);
+          // S89 KABOOM-PAUSE-AUDIO-MUTE — toggle audioFx.setMuted +
+          // persist to the same localStorage key the volume dial uses.
+          // Muted state writes "0"; unmuting restores "1" so a future
+          // ?audio= override still takes precedence over the stored value.
+          const audioBtn = mkBtn(`Audio: ${audioFx.isMuted() ? "OFF" : "ON"}`, () => {
+            const next = !audioFx.isMuted();
+            audioFx.setMuted(next);
+            try {
+              const storage = (globalThis as unknown as { localStorage?: Storage }).localStorage;
+              storage?.setItem("agf.audio.volume", next ? "0" : "1");
+            } catch {
+              // ignore quota / disabled storage
+            }
+            audioBtn.textContent = `Audio: ${next ? "OFF" : "ON"}`;
+          });
+          root.appendChild(audioBtn);
           return root;
         }
       });
@@ -599,6 +636,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       input(): ReadonlyArray<string> {
         if (_boundPlayerInput === undefined) return [];
         return Array.from(_boundPlayerInput.pressedSnapshot());
+      },
+      // S89 KABOOM-AGENT-MAP-LIST. Programmatic map swap for scripted
+      // playtests. `maps()` lists everything in the static registry;
+      // `loadMap(name)` flips activeMapName + restarts. Returns true
+      // on success, false when the name is unknown.
+      maps(): ReadonlyArray<string> {
+        return [...MAP_REGISTRY.keys()];
+      },
+      loadMap(name: string): boolean {
+        if (!MAP_REGISTRY.has(name)) return false;
+        activeMapName = name as MapName;
+        restartScene(runtime);
+        return true;
+      },
+      activeMap(): string {
+        return activeMapName;
       }
     };
 
@@ -650,13 +703,27 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       hud.add({
         id: STATS_ID,
         slot: "bottomLeft",
-        initial: { lines: ["Kaboom Crew"] },
+        initial: { lines: ["Kaboom Crew"], timeFrac: 0, timeColor: "#5fa8ff" },
         // Build a node so per-line `<div>`s render as actual line
         // breaks (HUD's string path uses textContent, which collapses
         // \n into a single line under the default white-space rules).
-        render: (data: { lines: ReadonlyArray<string> }): HTMLElement => {
+        // S89 KABOOM-ROUND-TIMER-BAR — top of the widget shows a
+        // 4 px progress bar that fills as the round timer drains.
+        // `timeFrac` 0..1 (0 hides the bar); `timeColor` shifts hue
+        // for the last-15 s / last-5 s urgency tiers.
+        render: (data: { lines: ReadonlyArray<string>; timeFrac?: number; timeColor?: string }): HTMLElement => {
           const el = document.createElement("div");
           el.setAttribute("style", "display:flex;flex-direction:column;gap:2px;");
+          const frac = data.timeFrac ?? 0;
+          if (frac > 0) {
+            const trough = document.createElement("div");
+            trough.setAttribute("style", "height:4px;width:160px;background:rgba(0,0,0,0.45);border-radius:2px;margin-bottom:4px;");
+            const fill = document.createElement("div");
+            const color = data.timeColor ?? "#5fa8ff";
+            fill.setAttribute("style", `height:100%;width:${Math.max(0, Math.min(100, frac * 100)).toFixed(1)}%;background:${color};border-radius:2px;`);
+            trough.appendChild(fill);
+            el.appendChild(trough);
+          }
           for (const line of data.lines) {
             const row = document.createElement("div");
             row.textContent = line;
@@ -813,7 +880,20 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
           );
         }
-        hud.update(STATS_ID, { lines });
+        // S89 KABOOM-ROUND-TIMER-BAR — compute fill fraction + urgency
+        // color from elapsed / timeLimit. 0 hides the bar (no time
+        // limit / round already resolved).
+        const elapsedExact = s.round?.elapsed ?? 0;
+        let timeFrac = 0;
+        let timeColor = "#5fa8ff";
+        if (timeLimit !== undefined && timeLimit > 0 && phase === "playing") {
+          timeFrac = Math.max(0, Math.min(1, elapsedExact / timeLimit));
+          const remaining = Math.max(0, timeLimit - elapsedExact);
+          if (remaining <= 5) timeColor = "#ff5a5a";
+          else if (remaining <= 15) timeColor = "#ff9b3a";
+          else timeColor = "#5fa8ff";
+        }
+        hud.update(STATS_ID, { lines, timeFrac, timeColor });
 
         // S87 KABOOM-HUD-KEY-GLYPHS — push live pressed-key set into
         // the glyph widget. api.input() returns the same snapshot that

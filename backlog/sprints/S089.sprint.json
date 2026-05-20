@@ -1,0 +1,102 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S089",
+  "title": "Kaboom Crew polish r4 + engine observability tail",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "KABOOM-BOT-PICKUP-MAGNET",
+      "title": "Bot wander pulls toward nearby pickups",
+      "status": "implemented",
+      "summary": "BotAISystem's wander path was uniform-random over safe neighbours. Now: when a Pickup is within PICKUP_RADIUS=5 manhattan and the pickup cell is NOT in the danger set, decideDirection prefers the safe neighbour that reduces manhattan distance to it. Danger-avoid still wins (the magnet picks from the already-filtered safe pool); pickups inside the danger map are skipped entirely.",
+      "verification": [
+        "+2 unit tests in bot-ai-system.test.ts: bot at (3,3) with safe pickup at (5,3) deterministically picks +X across 5 ticks; bot with pickup at dangerous (5,3) does NOT lock onto +X (>1 direction in 30 ticks)",
+        "nearestPickup() scans Pickup-tagged entities, skips dangerous cells, returns the closest within PICKUP_RADIUS"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-MATCH-WIN-PARTICLES",
+      "title": "Particle burst at the winner's cell when matchPhase resolves",
+      "status": "implemented",
+      "summary": "audio-binding-system grew spawnMatchEndCelebration: when matchPhase transitions out of in-progress, it spawns a `pulse` ParticleEmitter at the winner's grid cell (`won`/`lost` use RoundState.winnerId) or one at every living bomber on `draw`. Lifetime 1 s, rate 80, maxParticles 40 — reads as a celebratory burst and the engine pre-warmed pool absorbs the cost. project.json#render.particlePreWarmPresets adds 'pulse' so the shader is compiled at boot.",
+      "verification": [
+        "+2 unit tests: matchPhase=won spawns one pulse emitter on the winner's cell; matchPhase=draw spawns one on every BomberStats entity",
+        "examples/kaboom-crew/project.json adds 'pulse' to render.particlePreWarmPresets"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-ROUND-TIMER-BAR",
+      "title": "HUD shows round elapsed / timeLimit as a thin progress bar",
+      "status": "implemented",
+      "summary": "kaboom.stats HUD widget now renders a 4 px horizontal bar above the text lines, filled as elapsed / timeLimit grows. Color shifts orange when remaining <= 15 s, red when <= 5 s. Hidden when timeLimit=0 / undefined OR phase != playing — the text line keeps the precise readout.",
+      "verification": [
+        "bootstrap.ts: STATS_ID widget render reads { lines, timeFrac, timeColor }; trough + fill DIVs render when timeFrac > 0",
+        "Live computation: timeFrac = elapsed/timeLimit clamped 0..1; color tiers `#5fa8ff` > 15 s, `#ff9b3a` 5–15 s, `#ff5a5a` <= 5 s",
+        "Bar suppressed when timeLimit is undefined / 0 OR phase != 'playing' (post-round banner takes over)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-AGENT-MAP-LIST",
+      "title": "runtime.kaboom.maps() + loadMap(name) for scripted map swap",
+      "status": "implemented",
+      "summary": "Bootstrap consolidates the start/wide map sources into a static MAP_REGISTRY, drops `readMapName`'s special-case branch in favour of a registry lookup, and exposes `runtime.kaboom.maps()` / `loadMap(name)` / `activeMap()` on window.__agf.kaboom. attachUi seeds `activeMapName` from `?map=` once at boot; subsequent loadMap calls flip it + restart the scene through the same restartScene path.",
+      "verification": [
+        "window.__agf.kaboom.maps() returns ['start', 'wide']",
+        "window.__agf.kaboom.loadMap('wide') flips activeMapName + triggers scene.load (returns true)",
+        "loadMap returns false when name not in MAP_REGISTRY; loadMap('start') re-loads start cleanly",
+        "URL `?map=wide` still seeds the initial activeMap; activeMap() reports the live value"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "KABOOM-PAUSE-AUDIO-MUTE",
+      "title": "Pause menu gets an Audio toggle (mute / unmute)",
+      "status": "implemented",
+      "summary": "audio-fx.ts gains setMuted/isMuted; play() returns early when muted (no AudioContext teardown so unmute is a free no-arg toggle). The Esc pause menu picks up a fourth button alongside Resume / Restart / Difficulty: `Audio: ON|OFF`. The toggle persists to the same localStorage key the existing ?audio= volume dial uses (`agf.audio.volume`) — '0' on mute, '1' on unmute.",
+      "verification": [
+        "audio-fx.ts: muted flag short-circuits play(); existing audio-fx unit tests stay green",
+        "bootstrap.ts pause menu button toggles audioFx.setMuted + writes localStorage",
+        "Muted state survives a reload (localStorage takes precedence absent a ?audio= override)"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "AGF-DOCTOR-SYSTEMS-SECTION",
+      "title": "engine doctor surfaces a Systems: section from a diagnostics snapshot",
+      "status": "implemented",
+      "summary": "DoctorReport gains `systems: SystemsReport | null` populated by walking the --diagnostics-from snapshot for AGF_SCHEDULER_SYSTEM_REGISTERED / _DEREGISTERED traces (HMR re-registers dedupe; deregister removes by name). formatSystems renders 'Systems (N):' followed by the name list; the section is suppressed when no lifecycle traces are present.",
+      "verification": [
+        "+7 unit tests under tests/unit/doctor-systems.test.ts: null without --diagnostics-from; null when traces absent; reconstructs list; honors DEREGISTERED; dedupes HMR re-registers; format pass and empty-list path"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE",
+      "title": "Per-system debug toggle via runtime.setDebugSystem(name, on)",
+      "status": "implemented",
+      "summary": "SystemScheduler gains a debugSystems Set + setDebugSystem(name, enabled) toggle. When a system is on, runFixedStep / runFrame emit an info-level AGF_SYSTEM_TICK diagnostic per pass with { name, tick, phase: 'fixed'|'frame' }. unregister clears the toggle so stale entries can't fire after a scene swap. RuntimeHandle forwards via setDebugSystem; returns false when the system isn't registered.",
+      "verification": [
+        "+4 unit tests under tests/unit/system-scheduler.test.ts: unknown-name returns false, fixedUpdate emits, disable silences, unregister clears the toggle"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-DEV-BRIDGE-POOL-INVENTORY-TEST",
+      "title": "Playwright smoke test for GET /__agf/pool-inventory",
+      "status": "implemented",
+      "summary": "Extends the existing dev-bridge round-trip smoke test (smoke project) with a /__agf/pool-inventory fetch + shape assertions: three named pools (instanced/batched/particle), live and peak are non-negative numbers, peak >= live. Locks the API contract so a renderer refactor that drops a pool name fails the smoke test immediately.",
+      "verification": [
+        "tests/e2e/dev-bridge.spec.ts now also fetches /__agf/pool-inventory inside the existing round-trip test",
+        "Asserts pool names == ['batched','instanced','particle'] (sorted) and peak >= live for each",
+        "Runs under the existing smoke project (no new spec file)"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    }
+  ],
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/99"
+}

@@ -186,6 +186,13 @@ export type DoctorReport = {
    * path is supplied.
    */
   pools: PoolInventoryReport | null;
+  /**
+   * S89 AGF-DOCTOR-SYSTEMS-SECTION. Registered-system list parsed
+   * from `AGF_SCHEDULER_SYSTEM_{REGISTERED,DEREGISTERED}` lifecycle
+   * traces inside the diagnostics snapshot. Null when no diagnostics
+   * snapshot was supplied or none of the lifecycle traces are present.
+   */
+  systems: SystemsReport | null;
   recommendations: string[];
 };
 
@@ -364,6 +371,13 @@ export type PoolInventoryReport = {
   pools: ReadonlyArray<{ name: string; live: number; peak: number }>;
   /** Subset whose peak === 0 — preset was warmed but the project never emitted it (dead preset). */
   unused: ReadonlyArray<string>;
+};
+
+export type SystemsReport = {
+  /** Live count after walking REGISTERED + DEREGISTERED traces. */
+  count: number;
+  /** System names in registration order; deduped (last write wins). */
+  names: ReadonlyArray<string>;
 };
 
 export function runDoctor(
@@ -685,6 +699,45 @@ export function runDoctor(
     })(),
     rendererInspect: rendererInspectSummary,
     pools: poolsSummary,
+    // S89 AGF-DOCTOR-SYSTEMS-SECTION. Walk the diagnostics snapshot
+    // for AGF_SCHEDULER_SYSTEM_{REGISTERED,DEREGISTERED} traces and
+    // reconstruct the live system list. Null when no snapshot was
+    // supplied OR no lifecycle traces are present (e.g. a diagnostics
+    // bus that filters info-level events).
+    systems: ((): SystemsReport | null => {
+      const path = options.diagnosticsFrom;
+      if (path === undefined) return null;
+      const absolute = resolve(path);
+      if (!existsSync(absolute)) return null;
+      try {
+        const raw = readFileSync(absolute, "utf8");
+        const parsed = JSON.parse(raw) as { snapshot?: unknown[] } | unknown[];
+        const events = (Array.isArray(parsed) ? parsed : (Array.isArray(parsed.snapshot) ? parsed.snapshot : [])) as ReadonlyArray<{
+          code?: string;
+          details?: { name?: string };
+        }>;
+        const ordered: string[] = [];
+        let saw = false;
+        for (const e of events) {
+          if (e?.code === "AGF_SCHEDULER_SYSTEM_REGISTERED") {
+            saw = true;
+            const name = e.details?.name;
+            if (typeof name === "string" && !ordered.includes(name)) ordered.push(name);
+          } else if (e?.code === "AGF_SCHEDULER_SYSTEM_DEREGISTERED") {
+            saw = true;
+            const name = e.details?.name;
+            if (typeof name === "string") {
+              const idx = ordered.indexOf(name);
+              if (idx !== -1) ordered.splice(idx, 1);
+            }
+          }
+        }
+        if (!saw) return null;
+        return { count: ordered.length, names: ordered };
+      } catch {
+        return null;
+      }
+    })(),
     webgpuReadiness: (() => {
       const wgpu = summarizeWebGpuReadiness(projectDir, reflectionProbes);
       // S61 DOCTOR-webgpu-readiness-actionable: when a project actually
@@ -1306,9 +1359,32 @@ export function formatDoctor(report: DoctorReport): string {
     lines.push("");
   }
 
+  if (report.systems !== null) {
+    lines.push(formatSystems(report.systems));
+    lines.push("");
+  }
+
   lines.push("Recommendations:");
   for (const reco of report.recommendations) {
     lines.push(`  - ${reco}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * S89 AGF-DOCTOR-SYSTEMS-SECTION. Renders the reconstructed system
+ * list from the lifecycle-trace walk. Empty list still prints the
+ * header so an agent reading the snapshot sees the live count.
+ */
+export function formatSystems(report: SystemsReport): string {
+  const lines: string[] = [];
+  lines.push(`Systems (${report.count}):`);
+  if (report.names.length === 0) {
+    lines.push("  (no AGF_SCHEDULER_SYSTEM_REGISTERED traces in the snapshot)");
+    return lines.join("\n");
+  }
+  for (const name of report.names) {
+    lines.push(`  ${name}`);
   }
   return lines.join("\n");
 }

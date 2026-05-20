@@ -30,6 +30,16 @@ const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 // S88 KABOOM-BOT-DANGER-AVOID. Live BlastTiles cover an active
 // explosion for a fraction of a second — walking onto one kills.
 const BLAST_TILE: ComponentName = "BlastTile";
+// S89 KABOOM-BOT-PICKUP-MAGNET. Pickup entities live in the world
+// with a GridPosition + Pickup component; the bot prefers safe
+// neighbours that reduce manhattan distance to the nearest one.
+const PICKUP: ComponentName = "Pickup";
+/** Pickups beyond this radius are ignored (cheap nearest-search). */
+const PICKUP_RADIUS = 5;
+
+function manhattan(ax: number, az: number, bx: number, bz: number): number {
+  return Math.abs(ax - bx) + Math.abs(az - bz);
+}
 
 const DIRECTIONS: ReadonlyArray<{ dx: number; dz: number }> = [
   { dx: 1, dz: 0 },
@@ -73,6 +83,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   let bots: QueryHandle | undefined;
   let bombs: QueryHandle | undefined;
   let blastTiles: QueryHandle | undefined;
+  let pickups: QueryHandle | undefined;
 
   function buildDangerMap(world: World): Set<string> {
     const danger = new Set<string>();
@@ -127,10 +138,31 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return out;
   }
 
+  /**
+   * S89 KABOOM-BOT-PICKUP-MAGNET. Cheap nearest-search over Pickup
+   * entities within PICKUP_RADIUS manhattan; pickups in dangerous
+   * cells are skipped so the magnet never overrides danger-avoid.
+   */
+  function nearestPickup(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
+    if (pickups === undefined) return undefined;
+    let best: { gx: number; gz: number; dist: number } | undefined;
+    for (const id of pickups.run()) {
+      const p = world.getComponent<GridPos>(id, GRID_POSITION);
+      if (p === undefined) continue;
+      if (danger.has(cellKey(p.gx, p.gz))) continue;
+      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
+      if (dist > PICKUP_RADIUS) continue;
+      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+    }
+    if (best === undefined) return undefined;
+    return { gx: best.gx, gz: best.gz };
+  }
+
   function decideDirection(
     pos: GridPos,
     brain: BotBrain,
-    danger: Set<string>
+    danger: Set<string>,
+    pickupGoal: { gx: number; gz: number } | undefined
   ): { dx: number; dz: number } {
     const neighbours = passableNeighbours(pos);
     if (neighbours.length === 0) return { dx: 0, dz: 0 };
@@ -150,6 +182,21 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       // toward the bot's last heading (which got it into danger).
       const choice = pool[Math.floor(rng.next() * pool.length)]!;
       return { dx: choice.dx, dz: choice.dz };
+    }
+
+    // S89 KABOOM-BOT-PICKUP-MAGNET. When a non-dangerous pickup is
+    // within PICKUP_RADIUS, prefer the safe neighbour that minimises
+    // manhattan distance to it. Falls through to normal wander when
+    // no pickup is in range OR every distance-reducing neighbour is
+    // dangerous. Danger-avoid still wins (pool is the safe-filtered
+    // set above).
+    if (pickupGoal !== undefined) {
+      const here = manhattan(pos.gx, pos.gz, pickupGoal.gx, pickupGoal.gz);
+      const closer = pool.filter((n) => manhattan(n.gx, n.gz, pickupGoal.gx, pickupGoal.gz) < here);
+      if (closer.length > 0) {
+        const choice = closer[Math.floor(rng.next() * closer.length)]!;
+        return { dx: choice.dx, dz: choice.dz };
+      }
     }
 
     // Wander — light bias to continue in last direction if still
@@ -200,6 +247,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       bots = world.createQuery([BOT_BRAIN, GRID_MOVER, GRID_POSITION]);
       bombs = world.createQuery([BOMB, GRID_POSITION]);
       blastTiles = world.createQuery([BLAST_TILE, GRID_POSITION]);
+      pickups = world.createQuery([PICKUP, GRID_POSITION]);
       cachedWorld = world;
     }
     // S84 KABOOM-TITLE-SCREEN. Game freezes while a GamePaused
@@ -225,7 +273,8 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         continue;
       }
       if (danger === undefined) danger = buildDangerMap(world);
-      const direction = decideDirection(pos, brain, danger);
+      const pickupGoal = nearestPickup(world, pos, danger);
+      const direction = decideDirection(pos, brain, danger, pickupGoal);
 
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
       if (mover !== undefined) {

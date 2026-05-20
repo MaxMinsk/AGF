@@ -183,6 +183,14 @@ export type RuntimeHandle = {
   save(): Promise<SaveBlob>;
   load(): Promise<{ blob: SaveBlob | undefined; restoredEntities: string[] }>;
   clearSave(): Promise<void>;
+  /**
+   * S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE. Flip per-tick debug
+   * tracing for a registered system. While enabled, the scheduler
+   * emits an info-level `AGF_SYSTEM_TICK { name, tick, phase }`
+   * diagnostic on every fixedUpdate/frameUpdate pass. Returns true
+   * when the toggle landed, false when no system matches the name.
+   */
+  setDebugSystem(name: string, enabled: boolean): boolean;
   stop(): void;
 };
 
@@ -724,6 +732,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       } else {
         renderer.forgetAssetBinding(ref);
       }
+    },
+    setDebugSystem(name: string, enabled: boolean): boolean {
+      if (scheduler === undefined) return false;
+      return scheduler.setDebugSystem(name, enabled);
     },
     applyCommands(commands: ReadonlyArray<EngineCommand>): void {
       for (const command of commands) {

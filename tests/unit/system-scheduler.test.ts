@@ -153,6 +153,50 @@ describe("SystemScheduler", () => {
     expect(ran).toEqual(["network-sync"]);
   });
 
+  it("S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE: setDebugSystem returns false for unknown systems", () => {
+    const scheduler = new SystemScheduler();
+    expect(scheduler.setDebugSystem("nope", true)).toBe(false);
+    expect(scheduler.debugSystemNames()).toEqual([]);
+  });
+
+  it("S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE: enabling emits AGF_SYSTEM_TICK each fixed step", async () => {
+    const { createDiagnosticsBus } = await import("../../engine/runtime/diagnostics/diagnostics-bus");
+    const bus = createDiagnosticsBus({ nowSeconds: () => 0 });
+    const scheduler = new SystemScheduler({ diagnostics: bus });
+    scheduler.register({ name: "physics", fixedUpdate(): void {} });
+    // No emissions yet — debug off by default.
+    scheduler.runFixedStep(makeContext());
+    expect(bus.snapshot().filter((d) => d.code === "AGF_SYSTEM_TICK")).toHaveLength(0);
+    // Enable + step → one emission.
+    expect(scheduler.setDebugSystem("physics", true)).toBe(true);
+    scheduler.runFixedStep(makeContext());
+    const events = bus.snapshot().filter((d) => d.code === "AGF_SYSTEM_TICK");
+    expect(events).toHaveLength(1);
+    expect(events[0]?.severity).toBe("info");
+    expect((events[0]?.details as { name?: string } | undefined)?.name).toBe("physics");
+  });
+
+  it("S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE: disabling silences future ticks", async () => {
+    const { createDiagnosticsBus } = await import("../../engine/runtime/diagnostics/diagnostics-bus");
+    const bus = createDiagnosticsBus({ nowSeconds: () => 0 });
+    const scheduler = new SystemScheduler({ diagnostics: bus });
+    scheduler.register({ name: "ai", fixedUpdate(): void {} });
+    scheduler.setDebugSystem("ai", true);
+    scheduler.runFixedStep(makeContext());
+    scheduler.setDebugSystem("ai", false);
+    scheduler.runFixedStep(makeContext());
+    expect(bus.snapshot().filter((d) => d.code === "AGF_SYSTEM_TICK")).toHaveLength(1);
+  });
+
+  it("S89 AGF-RUNTIME-DEBUG-SYSTEM-TOGGLE: unregister clears the debug toggle", () => {
+    const scheduler = new SystemScheduler();
+    scheduler.register({ name: "ai", fixedUpdate(): void {} });
+    scheduler.setDebugSystem("ai", true);
+    expect(scheduler.debugSystemNames()).toEqual(["ai"]);
+    scheduler.unregister("ai");
+    expect(scheduler.debugSystemNames()).toEqual([]);
+  });
+
   it("passes a consistent context to each system", () => {
     const scheduler = new SystemScheduler();
     const seen: SystemContext[] = [];
