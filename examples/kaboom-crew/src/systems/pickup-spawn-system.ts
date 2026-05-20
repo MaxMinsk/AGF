@@ -27,10 +27,21 @@ const MESH_RENDERER: ComponentName = "MeshRenderer";
 const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const TWEENS: ComponentName = "Tweens";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
 // S095 KABOOM-SPAWN-POP-TWEEN — pickups grow with the same overshoot
 // envelope as bombs (see bomb-placement-system).
 const SPAWN_POP_DURATION_S = 0.2;
+
+// S096 KABOOM-PICKUP-IDLE-PULSE — every pickup carries a low-rate
+// 'glow' emitter so it shimmers on the floor and reads at a glance.
+// Lifetime is intentionally long (10 s) so the emitter outlives the
+// pickup pickup cycle; pickup-collect-system removes the entity at
+// collection, which the engine ParticleEmitter system handles
+// gracefully (the dead entity stops emitting on its own).
+const IDLE_EMITTER_LIFETIME_S = 10;
+const IDLE_EMITTER_RATE = 8;
+const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
 type PickupKind = "bomb-up" | "fire-up" | "speed-up";
@@ -139,4 +150,13 @@ function spawnPickup(
   // Layer "pickup" — does not block movement (bomber walks over it).
   world.setComponent(id, GRID_OCCUPANT, { layer: "pickup", blocksMovement: false, blocksBlast: false });
   world.setComponent(id, PICKUP, { kind });
+  // S096 KABOOM-PICKUP-IDLE-PULSE — subtle 'glow' shimmer so pickups
+  // are visible at a glance on the arena floor.
+  world.setComponent(id, PARTICLE_EMITTER, {
+    preset: "glow",
+    lifetime: IDLE_EMITTER_LIFETIME_S,
+    elapsed: 0,
+    rate: IDLE_EMITTER_RATE,
+    maxParticles: IDLE_EMITTER_MAX_PARTICLES
+  });
 }

@@ -86,6 +86,22 @@ describe("createKaboomPickupSpawnSystem (S82 KABOOM-PICKUPS-AND-STATS)", () => {
     expect(tweens[0]!.to.every((c) => c > 0)).toBe(true);
   });
 
+  it("S096 KABOOM-PICKUP-IDLE-PULSE: freshly-spawned pickup carries a 'glow' ParticleEmitter shimmer", () => {
+    const world = new World();
+    emitSoftBlockDestroyed(world, "evt.1", 6, 6);
+    const system = createKaboomPickupSpawnSystem({ dropChance: 1, seed: 3 });
+    system.fixedUpdate!(ctx(world));
+    const pickup = [...world.createQuery(["Pickup"]).run()][0]!;
+    const emitter = world.getComponent(pickup, "ParticleEmitter") as
+      | { preset: string; rate?: number; maxParticles?: number; lifetime?: number }
+      | undefined;
+    expect(emitter).toBeDefined();
+    expect(emitter!.preset).toBe("glow");
+    expect(emitter!.rate).toBeGreaterThan(0);
+    expect(emitter!.maxParticles).toBeGreaterThan(0);
+    expect(emitter!.lifetime).toBeGreaterThan(1);
+  });
+
   it("different seeds at the same cell may produce different kinds", () => {
     // Smoke-test that the seed actually mixes in. We don't assert
     // *which* kinds — just that the seeded surface isn't constant.

@@ -6,14 +6,14 @@
   "startedAt": "2026-05-20",
   "stories": [
     {
-      "id": "KABOOM-BLAST-PARTICLE-BURST",
-      "title": "Blast cells emit a spark burst via the engine ParticleEmitter primitive",
-      "status": "pending",
-      "summary": "Reuse the engine ParticleEmitter (S047 M19-particle-preset, presets: spark/glow/pulse) to make blast cells visually pop. blast-propagation-system stamps `ParticleEmitter` with preset='spark', lifetime≈0.35 s, rate≈80, maxParticles≈40 on each blast cell at the moment of detonation. The emitter auto-removes itself after lifetime — no cleanup code needed. World-position offset uses the cell's grid (gx, 0.4, gz). MVP-1 doneCriteria item.",
+      "id": "KABOOM-PICKUP-IDLE-PULSE",
+      "title": "Pickups carry a subtle 'glow' idle emitter so they read on the floor",
+      "status": "implemented",
+      "summary": "pickup-spawn-system stamps a low-rate ParticleEmitter on every freshly-spawned pickup: preset='glow' (pale cyan), rate=8, maxParticles=6, lifetime=10 s. The emitter renders as a soft cyan shimmer drifting upward from the cell so pickups read at a glance on the arena floor. When the pickup is collected the entity is removed wholesale (the engine ParticleEmitter system handles dead entities gracefully — no leak).",
       "verification": [
-        "acceptance: When a bomb detonates, each blast cell visibly emits a brief spark burst (small orange particles flying outward and falling).",
-        "examples/kaboom-crew/src/systems/blast-propagation-system.ts: stamps ParticleEmitter component on the BlastTile entity it just spawned",
-        "+ unit test on a stub world: after a blast propagates, every BlastTile entity carries a ParticleEmitter with preset='spark' + finite lifetime"
+        "acceptance: Pickups sitting on the arena visibly shimmer (slow upward cyan particles drifting from the cell) — easier to find vs the previous static look.",
+        "examples/kaboom-crew/src/systems/pickup-spawn-system.ts: stamps ParticleEmitter{preset:'glow', rate:8, maxParticles:6, lifetime:10}",
+        "+ unit test in pickup-spawn-system.test.ts asserting the freshly-spawned pickup carries a 'glow' emitter with positive rate/maxParticles + lifetime > 1 s"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
@@ -30,16 +30,17 @@
       "epic": "KABOOM-CREW-MVP-1"
     },
     {
-      "id": "KABOOM-DEATH-PARTICLE-PUFF",
-      "title": "Bomber death emits a pulse particle puff",
+      "id": "AGF-PROBE-RECORDING-LIST",
+      "title": "GET /__agf/recording/list — enumerate active recordings",
       "status": "pending",
-      "summary": "Companion to the death-fall animation that landed in S090. audio-binding-system already detects the alive→dead transition and writes DeathAnim. Extend that handler to also stamp ParticleEmitter on the dying bomber with preset='pulse' (warm magenta), lifetime≈0.5 s, maxParticles≈50, vertical offset≈0.5. The puff plays during the tip-over animation; both expire by the same time.",
+      "summary": "Today `recording/start` returns a handle but agents have no way to ask 'what recordings am I currently building?'. Add a read-only list probe that returns `{ recordings: [{ id, startedAt, commandCount, projectId }] }` for every live recording the runtime is tracking. Pure observability — no behaviour change.",
       "verification": [
-        "acceptance: When a bomber dies, a small magenta pulse burst plays at their feet while the body tips over.",
-        "examples/kaboom-crew/src/systems/audio-binding-system.ts: alive→dead handler stamps ParticleEmitter with preset='pulse'",
-        "+ unit test asserting that on the death tick the bomber entity carries a ParticleEmitter with preset='pulse'"
+        "acceptance: GET /__agf/recording/list returns an array (empty when no recording is active); after POST /__agf/recording/start it contains at least one entry; after POST /__agf/recording/stop the list is empty again.",
+        "engine/dev/agf-dev-bridge.ts: GET /recording/list route",
+        "engine/dev/page-bridge.ts: recording-list RPC reads from a new runtime helper that enumerates live recorder handles",
+        "+ unit test on the runtime helper asserting it returns the live recording set"
       ],
-      "epic": "KABOOM-CREW-MVP-1"
+      "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "KABOOM-TITLE-SCREEN-FADE",

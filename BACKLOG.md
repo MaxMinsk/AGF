@@ -10,12 +10,12 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S096.sprint.js
 
 ### Stories
 
-- **KABOOM-BLAST-PARTICLE-BURST** — Blast cells emit a spark burst via the engine ParticleEmitter primitive _(pending)_
-  Reuse the engine ParticleEmitter (S047 M19-particle-preset, presets: spark/glow/pulse) to make blast cells visually pop. blast-propagation-system stamps `ParticleEmitter` with preset='spark', lifetime≈0.35 s, rate≈80, maxParticles≈40 on each blast cell at the moment of detonation. The emitter auto-removes itself after lifetime — no cleanup code needed. World-position offset uses the cell's grid (gx, 0.4, gz). MVP-1 doneCriteria item.
+- **KABOOM-PICKUP-IDLE-PULSE** — Pickups carry a subtle 'glow' idle emitter so they read on the floor _(implemented)_
+  pickup-spawn-system stamps a low-rate ParticleEmitter on every freshly-spawned pickup: preset='glow' (pale cyan), rate=8, maxParticles=6, lifetime=10 s. The emitter renders as a soft cyan shimmer drifting upward from the cell so pickups read at a glance on the arena floor. When the pickup is collected the entity is removed wholesale (the engine ParticleEmitter system handles dead entities gracefully — no leak).
 - **KABOOM-PICKUP-COLLECT-PARTICLE** — Pickup collection emits a glow burst at the pickup's last cell _(pending)_
   pickup-collect-system already removes the pickup entity at the moment of collection. Before removing, stamp a one-shot particle burst on a fresh `pickup.fx.<id>` entity at the same position so the player gets visual feedback. Preset='glow' (pale cyan), lifetime≈0.4 s, maxParticles≈30. The fx entity carries only Transform + ParticleEmitter — no GridOccupant, no logic — and is cleaned up when the emitter expires (the ParticleEmitter system removes itself; we then check + remove the host entity in a tiny project-local helper).
-- **KABOOM-DEATH-PARTICLE-PUFF** — Bomber death emits a pulse particle puff _(pending)_
-  Companion to the death-fall animation that landed in S090. audio-binding-system already detects the alive→dead transition and writes DeathAnim. Extend that handler to also stamp ParticleEmitter on the dying bomber with preset='pulse' (warm magenta), lifetime≈0.5 s, maxParticles≈50, vertical offset≈0.5. The puff plays during the tip-over animation; both expire by the same time.
+- **AGF-PROBE-RECORDING-LIST** — GET /__agf/recording/list — enumerate active recordings _(pending)_
+  Today `recording/start` returns a handle but agents have no way to ask 'what recordings am I currently building?'. Add a read-only list probe that returns `{ recordings: [{ id, startedAt, commandCount, projectId }] }` for every live recording the runtime is tracking. Pure observability — no behaviour change.
 - **KABOOM-TITLE-SCREEN-FADE** — Title screen fades out (rather than snaps off) on game start _(pending)_
   Title overlay is currently mounted via HUD and `hud.remove(TITLE_ID)` snaps it off when the player presses SPACE. Replace the snap with a 250 ms fade-out by tweening the title element's opacity 1 → 0 with easeOutQuad (using the engine easingCurves table directly — no Tween component on a DOM element). Remove the widget once opacity reaches 0. Pure cosmetic, no schema changes.
 - **AGF-PROBE-SNAPSHOT-DIFF** — GET /__agf/snapshot?at=-N&diff=1 returns the diff vs live _(pending)_
