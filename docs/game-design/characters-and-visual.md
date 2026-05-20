@@ -304,7 +304,7 @@ the reasoning so future sessions don't have to re-derive them.
 
 **Decision: humanoid only in the starter generator.** Drone and
 puffball stay in the schema as future enum values but the generator
-does not produce them yet. User position: "не решил окончательно" —
+does not produce them yet. User position: "not finally decided" —
 this is a "ship one, evaluate, then expand" call.
 
 Consequence for the generator:
@@ -345,7 +345,7 @@ Implementation hint:
 ### 6.3 Cosmetic unlocks — yes, but MVP-3+ scope
 
 **Decision: cosmetic unlocks are in the long-term plan, NOT in
-MVP-2.** User confirmed "да". This unlocks a tier of design work:
+MVP-2.** User confirmed "yes". This unlocks a tier of design work:
 unlock conditions, achievement tracking, persistent player profile.
 
 Critical scope guardrails:
@@ -374,7 +374,7 @@ schema.
 ### 6.4 Procedural vocal synth — yes, ships as its own story
 
 **Decision: a small procedural vocal synthesiser drives a tiny
-vocabulary of bomber grunts.** User confirmed "да". Promoted into
+vocabulary of bomber grunts.** User confirmed "yes". Promoted into
 proposal GDP-2026-05-20-010.
 
 Design intent:
