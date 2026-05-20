@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-05-20-001",
+  "title": "Decal-on-grid renderer primitive (M27)",
+  "createdAt": "2026-05-20T16:50:51.176Z",
+  "kind": "feature",
+  "intent": "Ship an ECS-native decal layer for flat textured overlays on a grid: blast-prediction overlays (currently faked with per-cell box meshes in S98 KABOOM-BLAST-DANGER-DECAL), danger zones, footprints, telegraphs. Component shape: `Decal { texture, gridCell|worldPos, layer, lifetimeMs?, colorTint? }`. Renderer keeps decals as a small instanced quad mesh so 100+ decals stay cheap on WebGPU and WebGL. Required by every grid-game readability story (roguelike, RTS, tower defense) and lets the Kaboom Crew danger overlay (which currently spawns 9+ box mesh entities per imminent bomb) collapse into a single instanced draw.",
+  "priority": "should",
+  "epic": "M27-DECAL-LAYER",
+  "rationale": "Source: §14 of notes/dynabomber-readiness-analysis.md. Confirmed by the S98 sprint where the Kaboom Crew blast-danger overlay was a stand-in: each warning cell allocates a full Mesh entity with Transform + MeshRenderer + GridPosition + DangerTile. Fine for an arena of ~10 imminent cells; would not scale to 100+ for a roguelike. The decal primitive is the proper fix.",
+  "acceptanceHints": [
+    "schemas/components/decal.schema.json ships with the Decal component shape",
+    "Engine system (DecalSystem under engine/render/systems/) renders a tagged set of decals as one instanced bucket per material profile",
+    "Per-decal lifetime expires the entity automatically (re-uses Tween / TimeBased machinery)",
+    "Doctor's renderer-pool section shows decal bucket counts",
+    "Kaboom Crew danger-decal-system migrates onto the new primitive — the per-cell box-mesh spawn pattern is replaced by stamping Decal components, single bucketed draw"
+  ]
+}

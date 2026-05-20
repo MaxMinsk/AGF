@@ -49,6 +49,18 @@ declare global {
       setComponentAt(entityId: string, componentName: string, value: unknown):
         | { kind: "ok"; value: unknown }
         | { kind: "entity-not-found" };
+      /** S098 AGF-PROBE-ENTITY-CREATE. */
+      createEntity(entityId: string, components: Record<string, unknown>):
+        | { kind: "ok"; components: Record<string, unknown> }
+        | { kind: "entity-exists" };
+      /** S098 AGF-PROBE-ENTITY-DELETE. */
+      deleteEntity(entityId: string):
+        | { kind: "ok" }
+        | { kind: "entity-not-found" };
+      /** S098 AGF-PROBE-INPUT-INJECT. */
+      injectInput(entityId: string, action: string, value?: unknown):
+        | { kind: "ok" }
+        | { kind: "entity-not-found" };
       /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
       snapshotDiff(at: number):
         | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -499,6 +511,14 @@ void (async (): Promise<void> => {
       // S097 AGF-PROBE-COMPONENT-WRITE.
       setComponentAt: (entityId: string, componentName: string, value: unknown) =>
         app.setComponentAt(entityId, componentName, value),
+      // S098 AGF-PROBE-ENTITY-CREATE.
+      createEntity: (entityId: string, components: Record<string, unknown>) =>
+        app.createEntity(entityId, components),
+      // S098 AGF-PROBE-ENTITY-DELETE.
+      deleteEntity: (entityId: string) => app.deleteEntity(entityId),
+      // S098 AGF-PROBE-INPUT-INJECT.
+      injectInput: (entityId: string, action: string, value?: unknown) =>
+        app.injectInput(entityId, action, value),
       // S096 AGF-PROBE-SNAPSHOT-DIFF.
       snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),

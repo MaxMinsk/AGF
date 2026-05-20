@@ -33,6 +33,81 @@ export const DEV_BRIDGE_PATH_PREFIX = "/__agf/";
 export const DEV_BRIDGE_WS_PATH = "/__agf/ws";
 
 /**
+ * S098 AGF-PROBE-INPUT-INJECT — pure body validator for the
+ * POST /__agf/input/action route. Exported for unit tests.
+ */
+export type InputInjectBodyResult =
+  | { kind: "ok"; entityId: string; action: string; value?: unknown }
+  | { kind: "error"; code: string; message: string };
+
+export function validateInputInjectBody(body: unknown): InputInjectBodyResult {
+  if (body === null || typeof body !== "object") {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_INPUT_ACTION",
+      message: "Body must be a JSON object with { entityId, action, value? }."
+    };
+  }
+  const b = body as { entityId?: unknown; action?: unknown; value?: unknown };
+  if (typeof b.entityId !== "string" || b.entityId.length === 0) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_INPUT_ACTION",
+      message: "`entityId` must be a non-empty string."
+    };
+  }
+  if (typeof b.action !== "string" || b.action.length === 0) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_INPUT_ACTION",
+      message: "`action` must be a non-empty string (e.g. 'place-bomb', 'move-right')."
+    };
+  }
+  const out: InputInjectBodyResult = { kind: "ok", entityId: b.entityId, action: b.action };
+  if (b.value !== undefined) out.value = b.value;
+  return out;
+}
+
+/**
+ * S098 AGF-PROBE-ENTITY-CREATE — pure body validator for the
+ * POST /__agf/entity route. Exported for unit tests.
+ */
+export type EntityCreateBodyResult =
+  | { kind: "ok"; entityId: string; components: Record<string, unknown> }
+  | { kind: "error"; code: string; message: string };
+
+export function validateEntityCreateBody(body: unknown): EntityCreateBodyResult {
+  if (body === null || typeof body !== "object") {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_ENTITY_CREATE",
+      message: "Body must be a JSON object with { entityId, components }."
+    };
+  }
+  const b = body as { entityId?: unknown; components?: unknown };
+  if (typeof b.entityId !== "string" || b.entityId.length === 0) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_ENTITY_CREATE",
+      message: "`entityId` must be a non-empty string."
+    };
+  }
+  if (
+    b.components === undefined ||
+    b.components === null ||
+    typeof b.components !== "object" ||
+    Array.isArray(b.components)
+  ) {
+    return {
+      kind: "error",
+      code: "AGF_BRIDGE_INVALID_ENTITY_CREATE",
+      message: "`components` must be a JSON object (string → component value)."
+    };
+  }
+  return { kind: "ok", entityId: b.entityId, components: b.components as Record<string, unknown> };
+}
+
+/**
  * S097 AGF-PROBE-ENTITY-DUMP — pure URL path parser for `/entity/<entityId>`.
  * Exported for unit tests.
  */
@@ -394,7 +469,7 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
       };
 
       server.middlewares.use(DEV_BRIDGE_PATH_PREFIX, async (req, res, next) => {
-        if (req.method !== "GET" && req.method !== "POST") {
+        if (req.method !== "GET" && req.method !== "POST" && req.method !== "DELETE") {
           next();
           return;
         }
@@ -474,6 +549,141 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
             return;
           }
           await proxyToPage(req, res, "runtime-timescale-set", { value });
+          return;
+        }
+
+        // S098 AGF-PROBE-INPUT-INJECT. POST /input/action { entityId, action, value? }
+        // writes a generic InputAction transient onto the entity. The
+        // game's input system reads it the next fixedUpdate and maps
+        // to project-specific transients (PlaceBombRequest, etc.).
+        if (route === "/input/action" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const validated = validateInputInjectBody(body);
+          if (validated.kind === "error") {
+            respondJson(res, 400, { ok: false, error: { code: validated.code, message: validated.message } });
+            return;
+          }
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const args: { entityId: string; action: string; value?: unknown } = {
+              entityId: validated.entityId,
+              action: validated.action
+            };
+            if (validated.value !== undefined) args.value = validated.value;
+            const result = (await rpc(found.entry, "input-inject", args)) as
+              | { kind: "ok" }
+              | { kind: "entity-not-found" };
+            if (result.kind === "ok") {
+              const payload: { entityId: string; action: string; value?: unknown } = {
+                entityId: validated.entityId,
+                action: validated.action
+              };
+              if (validated.value !== undefined) payload.value = validated.value;
+              respondJson(res, 200, { ok: true, page: found.entry.socketId, payload });
+              return;
+            }
+            respondJson(res, 404, {
+              ok: false,
+              error: { code: "AGF_PROBE_ENTITY_NOT_FOUND", message: `No entity with id "${validated.entityId}".` }
+            });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
+          return;
+        }
+
+        // S098 AGF-PROBE-ENTITY-CREATE. POST /entity { entityId, components }
+        // creates a new entity. Refuses to clobber an existing id with
+        // 409 AGF_PROBE_ENTITY_EXISTS.
+        if (route === "/entity" && req.method === "POST") {
+          const body = await readJsonBody(req).catch((e) => e as { code: string; message: string });
+          if ("code" in (body as object)) {
+            respondJson(res, 400, { ok: false, error: body });
+            return;
+          }
+          const validated = validateEntityCreateBody(body);
+          if (validated.kind === "error") {
+            respondJson(res, 400, { ok: false, error: { code: validated.code, message: validated.message } });
+            return;
+          }
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "entity-create", {
+              entityId: validated.entityId,
+              components: validated.components
+            })) as
+              | { kind: "ok"; components: Record<string, unknown> }
+              | { kind: "entity-exists" };
+            if (result.kind === "ok") {
+              respondJson(res, 200, {
+                ok: true,
+                page: found.entry.socketId,
+                payload: { entityId: validated.entityId, components: result.components }
+              });
+              return;
+            }
+            respondJson(res, 409, {
+              ok: false,
+              error: {
+                code: "AGF_PROBE_ENTITY_EXISTS",
+                message: `Entity "${validated.entityId}" already exists; refusing to clobber. Use DELETE /__agf/entity/${encodeURIComponent(validated.entityId)} first if you want to replace it.`
+              }
+            });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
+          return;
+        }
+
+        // S098 AGF-PROBE-ENTITY-DELETE. DELETE /entity/<entityId>.
+        if (route.startsWith("/entity/") && req.method === "DELETE") {
+          const parsed = parseEntityPath(route);
+          if (parsed.kind === "error") {
+            respondJson(res, 400, { ok: false, error: { code: parsed.code, message: parsed.message } });
+            return;
+          }
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "entity-delete", { entityId: parsed.entityId })) as
+              | { kind: "ok" }
+              | { kind: "entity-not-found" };
+            if (result.kind === "ok") {
+              respondJson(res, 200, {
+                ok: true,
+                page: found.entry.socketId,
+                payload: { deleted: parsed.entityId }
+              });
+              return;
+            }
+            respondJson(res, 404, {
+              ok: false,
+              error: { code: "AGF_PROBE_ENTITY_NOT_FOUND", message: `No entity with id "${parsed.entityId}".` }
+            });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
           return;
         }
 

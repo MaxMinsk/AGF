@@ -157,4 +157,65 @@ describe("createKaboomPlayerInputSystem (S82 KABOOM-PLAYER-INPUT)", () => {
     system.frameUpdate!(ctx(world));
     expect(world.hasComponent("player", "PlaceBombRequest")).toBe(false);
   });
+
+  it("S98 AGF-PROBE-INPUT-INJECT: InputAction 'place-bomb' fires PlaceBombRequest the same frame and removes itself", () => {
+    const world = new World();
+    addPlayer(world);
+    world.setComponent("player", "InputAction", { action: "place-bomb" });
+    const system = createKaboomPlayerInputSystem({ pressedKeys: new Set() });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "PlaceBombRequest")).toBe(true);
+    // InputAction is consumed (removed) so it doesn't re-fire on the next tick.
+    expect(world.hasComponent("player", "InputAction")).toBe(false);
+  });
+
+  it("S98 AGF-PROBE-INPUT-INJECT: InputAction 'move-right' sets queuedDirection {+1, 0}", () => {
+    const world = new World();
+    addPlayer(world);
+    world.setComponent("player", "InputAction", { action: "move-right" });
+    const system = createKaboomPlayerInputSystem({ pressedKeys: new Set() });
+    system.frameUpdate!(ctx(world));
+    expect(snapshotDirection(world)).toEqual({ dx: 1, dz: 0 });
+    expect(world.hasComponent("player", "InputAction")).toBe(false);
+  });
+
+  it("S98 AGF-PROBE-INPUT-INJECT: each cardinal action maps to its vector; 'stop' clears", () => {
+    const cases: Array<{ action: string; expected: { dx: number; dz: number } }> = [
+      { action: "move-up", expected: { dx: 0, dz: -1 } },
+      { action: "move-down", expected: { dx: 0, dz: 1 } },
+      { action: "move-left", expected: { dx: -1, dz: 0 } },
+      { action: "move-right", expected: { dx: 1, dz: 0 } },
+      { action: "stop", expected: { dx: 0, dz: 0 } }
+    ];
+    for (const { action, expected } of cases) {
+      const world = new World();
+      addPlayer(world);
+      world.setComponent("player", "InputAction", { action });
+      const system = createKaboomPlayerInputSystem({ pressedKeys: new Set() });
+      system.frameUpdate!(ctx(world));
+      expect(snapshotDirection(world), `action=${action}`).toEqual(expected);
+    }
+  });
+
+  it("S98 AGF-PROBE-INPUT-INJECT: 'restart' fires RoundRestartRequest", () => {
+    const world = new World();
+    addPlayer(world);
+    world.setComponent("player", "InputAction", { action: "restart" });
+    const system = createKaboomPlayerInputSystem({ pressedKeys: new Set() });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "RoundRestartRequest")).toBe(true);
+  });
+
+  it("S98 AGF-PROBE-INPUT-INJECT: unknown actions silently no-op (engine project-agnostic)", () => {
+    const world = new World();
+    addPlayer(world);
+    world.setComponent("player", "InputAction", { action: "harvest-resource" });
+    const system = createKaboomPlayerInputSystem({ pressedKeys: new Set() });
+    expect(() => system.frameUpdate!(ctx(world))).not.toThrow();
+    // The InputAction is still consumed, even if the project didn't recognise the verb.
+    expect(world.hasComponent("player", "InputAction")).toBe(false);
+    // No project-specific transients fired.
+    expect(world.hasComponent("player", "PlaceBombRequest")).toBe(false);
+    expect(world.hasComponent("player", "RoundRestartRequest")).toBe(false);
+  });
 });

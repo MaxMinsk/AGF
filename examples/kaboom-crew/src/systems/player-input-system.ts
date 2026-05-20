@@ -22,6 +22,11 @@ const PLAYER_CONTROLLED: ComponentName = "PlayerControlled";
 const GRID_MOVER: ComponentName = "GridMover";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 const ROUND_RESTART_REQUEST: ComponentName = "RoundRestartRequest";
+// S098 AGF-PROBE-INPUT-INJECT — engine-side transient written by
+// runtime.injectInput. The player-input-system reads + clears it
+// each frameUpdate and fires the same downstream effect as a real
+// keyboard event would.
+const INPUT_ACTION: ComponentName = "InputAction";
 
 const MOVE_RIGHT = new Set(["KeyD", "ArrowRight"]);
 const MOVE_UP = new Set(["KeyW", "ArrowUp"]);
@@ -157,16 +162,58 @@ export function createKaboomPlayerInputSystem(
     for (const entityId of query!.run()) {
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       if (mover === undefined) continue;
+
+      // S098 AGF-PROBE-INPUT-INJECT — read + consume an injected
+      // InputAction BEFORE the keyboard path so a probe-driven action
+      // wins over no-keys-pressed default state. Keyboard edges still
+      // fire if they coincide; the action injection is additive.
+      let injectedDirection: { dx: number; dz: number } | undefined;
+      let injectedPlaceBomb = false;
+      let injectedRestart = false;
+      const injection = world.getComponent<{ action: string; value?: unknown }>(entityId, INPUT_ACTION);
+      if (injection !== undefined) {
+        switch (injection.action) {
+          case "place-bomb":
+            injectedPlaceBomb = true;
+            break;
+          case "restart":
+            injectedRestart = true;
+            break;
+          case "move-right":
+            injectedDirection = { dx: 1, dz: 0 };
+            break;
+          case "move-up":
+            injectedDirection = { dx: 0, dz: -1 };
+            break;
+          case "move-left":
+            injectedDirection = { dx: -1, dz: 0 };
+            break;
+          case "move-down":
+            injectedDirection = { dx: 0, dz: 1 };
+            break;
+          case "stop":
+            injectedDirection = { dx: 0, dz: 0 };
+            break;
+          default:
+            // Unknown action — leave as-is; the probe-side validator
+            // already accepts any string so projects can grow new
+            // verbs without engine changes.
+            break;
+        }
+        world.removeComponent(entityId, INPUT_ACTION);
+      }
+
+      const targetDirection = injectedDirection ?? direction;
       const prev = mover.queuedDirection;
-      if (prev?.dx !== direction.dx || prev?.dz !== direction.dz) {
-        world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: direction });
+      if (prev?.dx !== targetDirection.dx || prev?.dz !== targetDirection.dz) {
+        world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: targetDirection });
       }
       // Edge-trigger transients. BombPlacementSystem (and RoundResolveSystem)
       // consume + remove these the same frame they're written.
-      if (placeBombEdge && !world.hasComponent(entityId, PLACE_BOMB_REQUEST)) {
+      if ((placeBombEdge || injectedPlaceBomb) && !world.hasComponent(entityId, PLACE_BOMB_REQUEST)) {
         world.setComponent(entityId, PLACE_BOMB_REQUEST, {});
       }
-      if (restartEdge && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
+      if ((restartEdge || injectedRestart) && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
         world.setComponent(entityId, ROUND_RESTART_REQUEST, {});
       }
     }

@@ -170,6 +170,18 @@ export type AppHandle = {
   setComponentAt(entityId: string, componentName: string, value: unknown):
     | { kind: "ok"; value: unknown }
     | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-ENTITY-CREATE. */
+  createEntity(entityId: string, components: Record<string, unknown>):
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-exists" };
+  /** S098 AGF-PROBE-ENTITY-DELETE. */
+  deleteEntity(entityId: string):
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-INPUT-INJECT. */
+  injectInput(entityId: string, action: string, value?: unknown):
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff(at: number):
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -640,6 +652,18 @@ export async function createApp(
     // S097 AGF-PROBE-COMPONENT-WRITE.
     setComponentAt(entityId: string, componentName: string, value: unknown) {
       return runtime.setComponentAt(entityId, componentName, value);
+    },
+    // S098 AGF-PROBE-ENTITY-CREATE.
+    createEntity(entityId: string, components: Record<string, unknown>) {
+      return runtime.createEntity(entityId, components);
+    },
+    // S098 AGF-PROBE-ENTITY-DELETE.
+    deleteEntity(entityId: string) {
+      return runtime.deleteEntity(entityId);
+    },
+    // S098 AGF-PROBE-INPUT-INJECT.
+    injectInput(entityId: string, action: string, value?: unknown) {
+      return runtime.injectInput(entityId, action, value);
     },
     // S096 AGF-PROBE-SNAPSHOT-DIFF.
     snapshotDiff(at: number) {

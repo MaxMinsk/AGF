@@ -223,6 +223,23 @@ export type RuntimeHandle = {
   setComponentAt(entityId: string, componentName: string, value: unknown):
     | { kind: "ok"; value: unknown }
     | { kind: "entity-not-found" };
+  /** S098 AGF-PROBE-ENTITY-CREATE — create an entity with an initial component map. */
+  createEntity(entityId: string, components: Record<string, unknown>):
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-exists" };
+  /** S098 AGF-PROBE-ENTITY-DELETE — remove an entity wholesale. */
+  deleteEntity(entityId: string):
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
+  /**
+   * S098 AGF-PROBE-INPUT-INJECT — write a generic `InputAction`
+   * transient on an entity. Project input systems translate it into
+   * project-specific transients (PlaceBombRequest, queuedDirection,
+   * etc.). Engine stays project-agnostic.
+   */
+  injectInput(entityId: string, action: string, value?: unknown):
+    | { kind: "ok" }
+    | { kind: "entity-not-found" };
   /**
    * Resolves after the first frame that actually rendered (active
    * camera acquired + `renderer.adapter.draw()` executed). Use this
@@ -979,6 +996,40 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       if (!world.hasEntity(entityId)) return { kind: "entity-not-found" };
       world.setComponent(entityId, componentName, value);
       return { kind: "ok", value };
+    },
+    createEntity(entityId: string, components: Record<string, unknown>):
+      | { kind: "ok"; components: Record<string, unknown> }
+      | { kind: "entity-exists" } {
+      // S098 AGF-PROBE-ENTITY-CREATE. Refuses to clobber an existing id.
+      if (world.hasEntity(entityId)) return { kind: "entity-exists" };
+      world.addEntity(entityId);
+      for (const [name, value] of Object.entries(components)) {
+        world.setComponent(entityId, name, value);
+      }
+      return { kind: "ok", components };
+    },
+    deleteEntity(entityId: string):
+      | { kind: "ok" }
+      | { kind: "entity-not-found" } {
+      // S098 AGF-PROBE-ENTITY-DELETE.
+      if (!world.hasEntity(entityId)) return { kind: "entity-not-found" };
+      world.removeEntity(entityId);
+      return { kind: "ok" };
+    },
+    injectInput(entityId: string, action: string, value?: unknown):
+      | { kind: "ok" }
+      | { kind: "entity-not-found" } {
+      // S098 AGF-PROBE-INPUT-INJECT. Generic input transient: writes
+      // `InputAction { action, value? }` onto the entity. Project
+      // input systems read + clear it in their frameUpdate, the same
+      // way they translate keyboard events into project-specific
+      // transients (PlaceBombRequest, queuedDirection, etc.). Engine
+      // stays project-agnostic.
+      if (!world.hasEntity(entityId)) return { kind: "entity-not-found" };
+      const payload: { action: string; value?: unknown } = { action };
+      if (value !== undefined) payload.value = value;
+      world.setComponent(entityId, "InputAction", payload);
+      return { kind: "ok" };
     },
     componentAt(entityId: string, componentName: string, at?: number):
       | { kind: "ok"; value: unknown }

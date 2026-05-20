@@ -168,6 +168,22 @@
           ]
         }
       }
+    },
+    "inputActionComponent": {
+      "description": "S098 AGF-PROBE-INPUT-INJECT: engine-side transient written by runtime.injectInput (or directly via POST /__agf/input/action). Project input systems read + remove it each frame, translating the abstract action name into project-specific transients (e.g. 'place-bomb' → PlaceBombRequest in Kaboom Crew). Engine stays project-agnostic; new actions don't require schema changes. `value` is optional free-form JSON the action handler interprets.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Abstract action identifier. Conventional names used by examples/kaboom-crew: 'place-bomb', 'restart', 'move-up', 'move-down', 'move-left', 'move-right', 'stop'. Projects can grow new verbs without engine changes."
+        },
+        "value": {
+          "description": "Optional payload the action handler interprets. JSON-compatible."
+        }
+      }
     }
   }
 }
