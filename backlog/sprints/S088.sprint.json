@@ -45,12 +45,13 @@
     {
       "id": "AGF-POOL-DOCTOR-SECTION",
       "title": "engine doctor surfaces a Pools: section",
-      "status": "pending",
-      "summary": "Read the project's render-pool inventory at doctor-run time and print a 'Pools:' section: per pool, `name  live/capacity (peak N)`. Recommendation when a particle preset has `peak === 0` after >1 s of runtime (warmup ran but the project never emitted that preset — dead preset). Doctor unit test confirms the section renders for a fixture inventory.",
+      "status": "implemented",
+      "summary": "Read a /__agf/pool-inventory dump from disk (via `--pool-inventory-from <path>`, mirroring the existing `--renderer-inspect-from`) and print a 'Pools:' section: per pool, `name live N, peak N`. Recommendation when any pool has `peak === 0` — warmed but never emitted into (dead preset).",
       "verification": [
-        "DoctorReport.pools populated from runtime.pools.inventory() snapshot taken via the doctor probe path",
-        "format pass prints a 'Pools:' section",
-        "recommendation when preWarm preset has peak=0 after 1 s of runtime"
+        "DoctorReport.pools populated from JSON file; supports raw array + { pools: [...] } + dev-bridge { payload: { pools: [...] } } envelopes",
+        "formatPoolInventory prints 'Pools:' section with live/peak per pool + 'Unused pools' line when any peak=0",
+        "Recommendation added when peak=0 on any pool — suggests dropping the preset from particlePreWarmPresets",
+        "+6 unit tests under tests/unit/doctor-pool-inventory.test.ts"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
