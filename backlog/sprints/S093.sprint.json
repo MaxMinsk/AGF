@@ -22,12 +22,12 @@
     {
       "id": "QA-INTAKE-NEW",
       "title": "scripts/backlog/qa-ticket.mjs new \"<title>\" scaffold helper",
-      "status": "pending",
-      "summary": "Scaffolds a fresh `QA-YYYY-MM-DD-NNN.qa-ticket.json` with today's date and the next-free three-digit NNN slot for that date. Pre-fills agfFormatVersion=1, filedAt=now, id, title (from arg), empty repro[\"\"], TODO markers on severity/type. Accepts `--severity`, `--type`, `--found-in-pr <N>` to skip the TODOs. Refuses to clobber existing files. Prints the created path so a wrapper can pipe it to `$EDITOR`.",
+      "status": "implemented",
+      "summary": "scripts/backlog/qa-ticket.mjs implements the `new` subcommand: writes a fresh `QA-YYYY-MM-DD-NNN.qa-ticket.json` (date in UTC; NNN auto-incremented past the highest existing for today) into `--into <dir>` (default `backlog/qa-tickets/`). Pre-fills agfFormatVersion=1, filedAt=now, id, title (from positional arg). Flags: `--severity`, `--type`, `--found-in-pr`, `--found-in-sprint`, `--regression-for`. Body uses literal `TODO: ...` placeholders for repro / expected / actual / summary so a `grep TODO backlog/qa-tickets/` lists every unfinished ticket, AND the placeholders are long enough to satisfy schema minLength so the file passes backlog:check on first save. Refuses to clobber an existing path. Prints the absolute path to stdout for `$EDITOR` piping. New npm script `qa:ticket` wraps the CLI.",
       "verification": [
         "acceptance: `node scripts/backlog/qa-ticket.mjs new \"Bot suicides on fire-up pickup\" --severity major --type bug --found-in-pr 100` writes a new file under backlog/qa-tickets/, prints its path, validates clean via backlog:check.",
-        "Auto-id scans existing QA-YYYY-MM-DD-* files + bumps NNN; never clobbers",
-        "+1 unit test stubbing the date to a fixed value and asserting the created file shape"
+        "+6 unit tests under tests/unit/qa-ticket-cli.test.ts: id pattern, NNN auto-increment, schema-valid output, regression-for flow, no-clobber path, short-title rejection",
+        "npm run qa:ticket -- new ... script wired in package.json"
       ],
       "epic": "AGF-BACKLOG-ENGINE"
     },
