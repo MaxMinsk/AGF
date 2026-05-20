@@ -33,12 +33,10 @@
     {
       "id": "KABOOM-BOMB-FUSE-WIGGLE",
       "title": "Bomb mesh wiggles in scale as fuse nears 0",
-      "status": "pending",
-      "summary": "S87 added a color pulse on bomb fuse, but the mesh sits still otherwise. Add a per-frame Transform.scale modulation in BombFuseSystem: `1 + 0.12 * Math.sin(t * pulseFreq)` where pulseFreq grows as fuseRemaining drops. The scale ratchets back to baseline when fuseRemaining > 2 (no wiggle on a freshly-placed bomb). Pure-helper `bombWiggleScale(fuseRemaining)` exported so the unit test can lock the curve.",
+      "status": "implemented",
+      "summary": "Added pure helper `bombWiggleScale(fuseRemaining, now?)` to bomb-fuse-system: returns 1 when fuseRemaining > 2 (fresh bomb sits still), otherwise sin(t * frequency) modulation around 1 with amplitude 0.04 → 0.14 and frequency 4 → 12 Hz as urgency rises (fuseRemaining → 0). The system rewrites Transform.scale on the bomb each fixed step when fuse <= 2; otherwise leaves it untouched so the mutation counter doesn't churn.",
       "verification": [
-        "bombWiggleScale(2.5) returns ~1.0 (effectively still); bombWiggleScale(0.2) oscillates with high amplitude + high frequency",
-        "Bomb mesh Transform.scale is rewritten each fixed step when fuseRemaining < 2",
-        "+1 unit test covers the helper's shape"
+        "+4 unit tests under tests/unit/bomb-fuse-wiggle.test.ts: fresh fuse=1 baseline, mid-fuse amplitude, near-zero amplitude, negative fuse defensive return"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },

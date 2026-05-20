@@ -19,6 +19,7 @@ const BLAST_EVENT: ComponentName = "BlastEvent";
 const GRID_POSITION: ComponentName = "GridPosition";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
+const TRANSFORM: ComponentName = "Transform";
 
 /**
  * S87 KABOOM-BOMB-COUNTDOWN-PULSE. Pure helper — returns the bomb
@@ -45,6 +46,28 @@ export function bombPulseColor(fuseRemaining: number): string {
   const g = lerp(0x2a, 0x5a);
   const b = lerp(0x2a, 0x2a);
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+/**
+ * S90 KABOOM-BOMB-FUSE-WIGGLE. Per-frame Transform.scale modifier
+ * for a bomb mesh. Returns a uniform scale ratio (1.0 = baseline).
+ * Stays at 1 when fuseRemaining > 2 so a freshly-placed bomb sits
+ * still. Below the threshold the wiggle ramps up: amplitude grows
+ * as fuseRemaining drops, frequency rises so it strobes near zero.
+ *
+ * Pure helper — exported so unit tests can lock the curve shape
+ * without spinning the system or stubbing Date.now.
+ */
+export function bombWiggleScale(fuseRemaining: number, now: number = Date.now()): number {
+  const t = Math.max(0, fuseRemaining);
+  if (t > 2) return 1;
+  // Linear ramp 0 → 1 as fuseRemaining drops from 2 → 0.
+  const urgency = 1 - t / 2;
+  const amplitude = 0.04 + 0.10 * urgency;
+  // Frequency: 4 Hz at fuse=2, ~12 Hz near zero.
+  const frequency = 4 + 8 * urgency;
+  const phase = (now / 1000) * frequency * Math.PI * 2;
+  return 1 + Math.sin(phase) * amplitude;
 }
 
 type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId };
@@ -85,6 +108,18 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
           const nextColor = bombPulseColor(next);
           if (renderer.color !== nextColor) {
             world.setComponent(entityId, MESH_RENDERER, { ...renderer, color: nextColor });
+          }
+        }
+        // S90 KABOOM-BOMB-FUSE-WIGGLE. Modulate the bomb's
+        // Transform.scale uniformly so the mesh visibly throbs as
+        // the fuse runs down. Skipped when fuse > 2 — the helper
+        // returns 1 and we still bypass the setComponent so we
+        // don't churn the world's mutation counter.
+        if (next <= 2) {
+          const transform = world.getComponent<{ position?: ReadonlyArray<number>; rotation?: ReadonlyArray<number>; scale?: ReadonlyArray<number> }>(entityId, TRANSFORM);
+          if (transform !== undefined) {
+            const s = bombWiggleScale(next);
+            world.setComponent(entityId, TRANSFORM, { ...transform, scale: [s, s, s] });
           }
         }
         continue;
