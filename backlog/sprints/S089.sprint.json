@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S089",
   "title": "Kaboom Crew polish r4 + engine observability tail",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
   "stories": [
     {
@@ -96,5 +96,7 @@
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
-  ]
+  ],
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/99"
 }
