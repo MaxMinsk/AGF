@@ -87,11 +87,11 @@
     {
       "id": "DOC-AGENT-PROBES-REFRESH",
       "title": "Refresh docs/agent-probes.md — freecam, audio master, snapshot history",
-      "status": "pending",
-      "summary": "Pure docs sweep. Add rows for `/__agf/render/freecam`, `/__agf/audio/master-volume`, and the `at` query param on `/__agf/snapshot`. Include curl recipes + the error code for each. Verify every probe documented in the file still matches its handler signature (catch drift).",
+      "status": "implemented",
+      "summary": "docs/agent-probes.md grew sections for the S095 probes: `/__agf/snapshot?at=-N` (history ring) with the live + historical payload shapes and the two error codes (AGF_BRIDGE_INVALID_SNAPSHOT_AT for positives, AGF_PROBE_SNAPSHOT_OUT_OF_RANGE for past-end); `/__agf/render/freecam` (POST + GET) with both `{ position, lookAt }` and `{ off: true }` recipes plus the AGF_BRIDGE_INVALID_FREECAM error; `/__agf/audio/master-volume` (POST + GET) with the master * per-call semantic + AGF_BRIDGE_INVALID_AUDIO_VOLUME.",
       "verification": [
-        "acceptance: docs/agent-probes.md table-of-contents lists all three new routes; the section for each contains a working curl recipe.",
-        "Each new section calls out its error code (AGF_PROBE_SNAPSHOT_OUT_OF_RANGE, AGF_BRIDGE_INVALID_AUDIO_VOLUME, AGF_BRIDGE_INVALID_FREECAM)"
+        "acceptance: docs/agent-probes.md table-of-contents lists all three new routes; each section contains a curl recipe an agent can copy-paste.",
+        "Each new section calls out its error code (AGF_PROBE_SNAPSHOT_OUT_OF_RANGE / AGF_BRIDGE_INVALID_SNAPSHOT_AT, AGF_BRIDGE_INVALID_AUDIO_VOLUME, AGF_BRIDGE_INVALID_FREECAM)"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }

@@ -23,8 +23,8 @@ Status: **active** (started 2026-05-20). Source: `backlog/sprints/S095.sprint.js
   Depends on: AGF-AUDIO-MASTER-VOLUME.
 - **AGF-PROBE-SNAPSHOT-HISTORY** — Snapshot ring buffer — GET /__agf/snapshot?at=-N replays history _(implemented)_
   engine/runtime/start.ts now keeps a 32-entry ring buffer of WorldSnapshot captured at the end of each fixedUpdate burst. Pure helper `lookupSnapshotInRing(ring, at)` exposes the index math (at=0 → undefined / caller falls back to live, at=-1 → most-recent entry, at=-N → N steps back, |-at|>size → undefined). runtime.snapshotAt(at) wraps the helper + live-snapshot fallback; runtime.snapshotHistoryStats() returns `{ capacity, size }`. Plumbed through src/app.ts, window.__agf, and a new explicit handler in agf-dev-bridge.ts on `/snapshot` that parses `?at=` (rejecting positives with AGF_BRIDGE_INVALID_SNAPSHOT_AT) and translates the page-bridge's `{ outOfRange: true, capacity, size }` envelope into HTTP 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.
-- **DOC-AGENT-PROBES-REFRESH** — Refresh docs/agent-probes.md — freecam, audio master, snapshot history _(pending)_
-  Pure docs sweep. Add rows for `/__agf/render/freecam`, `/__agf/audio/master-volume`, and the `at` query param on `/__agf/snapshot`. Include curl recipes + the error code for each. Verify every probe documented in the file still matches its handler signature (catch drift).
+- **DOC-AGENT-PROBES-REFRESH** — Refresh docs/agent-probes.md — freecam, audio master, snapshot history _(implemented)_
+  docs/agent-probes.md grew sections for the S095 probes: `/__agf/snapshot?at=-N` (history ring) with the live + historical payload shapes and the two error codes (AGF_BRIDGE_INVALID_SNAPSHOT_AT for positives, AGF_PROBE_SNAPSHOT_OUT_OF_RANGE for past-end); `/__agf/render/freecam` (POST + GET) with both `{ position, lookAt }` and `{ off: true }` recipes plus the AGF_BRIDGE_INVALID_FREECAM error; `/__agf/audio/master-volume` (POST + GET) with the master * per-call semantic + AGF_BRIDGE_INVALID_AUDIO_VOLUME.
 
 <!-- backlog:render:end -->
 
