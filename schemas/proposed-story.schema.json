@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agf.local/schemas/proposed-story.schema.json",
+  "title": "AGF proposed-story ticket",
+  "description": "S097 GAME-DESIGN-PROPOSED-STORY-SCHEMA. A feature / mechanic / balance / content proposal filed by the game-design-agent terminal. Lives under backlog/proposed-stories/*.story-proposal.json. Promoted into sprint stories by scripts/backlog/promote-proposed.mjs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agfFormatVersion", "id", "title", "createdAt", "kind", "intent", "priority"],
+  "properties": {
+    "agfFormatVersion": {
+      "const": 1,
+      "description": "Schema version. Bump on a breaking change."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^GDP-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{3}$",
+      "description": "Stable ticket id. Pattern: GDP-YYYY-MM-DD-NNN (Game-Design Proposal). NNN is the next free three-digit slot for that date — auto-assigned by scripts/backlog/propose.mjs."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "description": "One-line proposal title. Mirrors the future story title when promoted."
+    },
+    "createdAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "ISO-8601 timestamp of when the proposal was created (advisory; pattern-checked only)."
+    },
+    "kind": {
+      "enum": ["feature", "mechanic", "balance", "content"],
+      "description": "feature = new player-facing capability; mechanic = new gameplay rule / system; balance = tuning an existing rule; content = new assets / levels / characters that fit existing systems."
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 20,
+      "description": "Markdown body describing what the player should experience and why. The dev terminal uses this to write the story summary."
+    },
+    "priority": {
+      "enum": ["must", "should", "could"],
+      "description": "MoSCoW priority. The dev terminal sorts proposals by priority at sprint-plan time."
+    },
+    "epic": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]*$",
+      "description": "Target epic id (matches an existing backlog/epics/*.epic.json). Optional — the dev terminal can re-assign at promotion time."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Why this matters now — playtest finding, market reference, GDD section it derives from. Embedded into the promoted story's summary."
+    },
+    "acceptanceHints": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 5 },
+      "description": "Hint list the dev terminal turns into proper verification entries. The first hint should be the human-visible acceptance case."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form notes (open questions, references). Not promoted into the story."
+    }
+  }
+}

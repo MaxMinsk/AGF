@@ -32,9 +32,13 @@ const epicsDir = resolve(repoRoot, "backlog/epics");
 // their own directory so the two-Claude workflow never edits the
 // same files. `archive/` is the post-promotion graveyard; we skip it.
 const qaTicketsDir = resolve(repoRoot, "backlog/qa-tickets");
+// S097 GAME-DESIGN-PROPOSED-STORY-SCHEMA. Same pattern as qa-tickets:
+// own directory, own schema, archive/ skipped during validation.
+const proposedStoriesDir = resolve(repoRoot, "backlog/proposed-stories");
 const schemaPath = resolve(repoRoot, "schemas/backlog/sprint.schema.json");
 const epicSchemaPath = resolve(repoRoot, "schemas/backlog/epic.schema.json");
 const qaTicketSchemaPath = resolve(repoRoot, "schemas/qa-ticket.schema.json");
+const proposedStorySchemaPath = resolve(repoRoot, "schemas/proposed-story.schema.json");
 
 const args = new Set(process.argv.slice(2));
 const jsonOutput = args.has("--json");
@@ -97,6 +101,23 @@ try {
     { file: qaTicketSchemaPath }
   );
   validateQaTicket = null;
+}
+
+// S097 GAME-DESIGN-PROPOSED-STORY-SCHEMA. Same shape as qa-ticket
+// validation: shared AJV instance, optional schema file (skip when
+// missing), optional dir (skip when absent).
+let validateProposedStory;
+try {
+  const proposedStorySchema = JSON.parse(readFileSync(proposedStorySchemaPath, "utf8"));
+  validateProposedStory = ajv.compile(proposedStorySchema);
+} catch (err) {
+  diag(
+    "AGF_PROPOSED_STORY_SCHEMA_LOAD_FAILED",
+    "warning",
+    `Could not load proposed-story schema (proposed-story validation skipped): ${err.message}`,
+    { file: proposedStorySchemaPath }
+  );
+  validateProposedStory = null;
 }
 
 /** @type {Array<{ file: string; data: any }>} */
@@ -507,6 +528,51 @@ if (validateQaTicket !== null) {
       qaIdsSeen.set(data.id, file);
     }
     qaTickets.push({ file, data });
+  }
+}
+
+// S097 GAME-DESIGN-PROPOSED-STORY-SCHEMA. Walk every proposed-story
+// file (skip `archive/`), parse + validate. Same pattern as QA tickets.
+const proposedStories = [];
+if (validateProposedStory !== null) {
+  let proposedFileNames = [];
+  try {
+    if (statSync(proposedStoriesDir).isDirectory()) {
+      proposedFileNames = readdirSync(proposedStoriesDir)
+        .filter((name) => name.endsWith(".story-proposal.json"))
+        .sort();
+    }
+  } catch {
+    proposedFileNames = [];
+  }
+  const proposedIdsSeen = new Map();
+  for (const name of proposedFileNames) {
+    const file = resolve(proposedStoriesDir, name);
+    let data;
+    try {
+      data = JSON.parse(readFileSync(file, "utf8"));
+    } catch (err) {
+      diag("AGF_PROPOSED_STORY_PARSE", "error", `JSON parse failed: ${err.message}`, { file });
+      continue;
+    }
+    const ok = validateProposedStory(data);
+    if (!ok) {
+      for (const e of validateProposedStory.errors ?? []) {
+        diag("AGF_PROPOSED_STORY_SCHEMA", "error", `${e.instancePath || "/"} ${e.message ?? "schema error"}`, { file, path: e.instancePath });
+      }
+      continue;
+    }
+    if (proposedIdsSeen.has(data.id)) {
+      diag(
+        "AGF_PROPOSED_STORY_DUPLICATE_ID",
+        "error",
+        `Proposed-story id "${data.id}" appears in multiple files.`,
+        { file, suggestion: `Also seen in ${proposedIdsSeen.get(data.id)}` }
+      );
+    } else {
+      proposedIdsSeen.set(data.id, file);
+    }
+    proposedStories.push({ file, data });
   }
 }
 
