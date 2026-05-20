@@ -24,7 +24,7 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     world.addEntity("bomb.1");
     world.setComponent("bomb.1", "Bomb", { fuseRemaining: 2.5, range: 2, ownerId: "p" });
     system.fixedUpdate!(ctx(world));
-    expect(onEvent).toHaveBeenCalledWith("bomb-place", { entityId: "bomb.1" });
+    expect(onEvent).toHaveBeenCalledWith("bomb-place", expect.objectContaining({ entityId: "bomb.1" }));
   });
 
   it("emits 'blast' when a BlastEvent transient is in flight", () => {
@@ -34,7 +34,7 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     world.addEntity("evt.1");
     world.setComponent("evt.1", "BlastEvent", { originGx: 0, originGz: 0, range: 1, ownerId: "p" });
     system.fixedUpdate!(ctx(world));
-    expect(onEvent).toHaveBeenCalledWith("blast");
+    expect(onEvent).toHaveBeenCalledWith("blast", expect.anything());
   });
 
   it("emits 'pickup' when a Pickup entity disappears", () => {
@@ -62,7 +62,7 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     expect(onEvent).not.toHaveBeenCalled();
     world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: false });
     system.fixedUpdate!(ctx(world));
-    expect(onEvent).toHaveBeenCalledWith("death", { entityId: "p" });
+    expect(onEvent).toHaveBeenCalledWith("death", expect.objectContaining({ entityId: "p" }));
   });
 
   it("doesn't re-emit on subsequent frames with the same world state", () => {
@@ -172,7 +172,7 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     // Tick 3: position changed → one event.
     world.setComponent("player.1", "GridPosition", { gx: 2, gz: 1 });
     system.fixedUpdate!(ctx(world));
-    expect(onEvent).toHaveBeenCalledWith("footstep", { entityId: "player.1" });
+    expect(onEvent).toHaveBeenCalledWith("footstep", expect.objectContaining({ entityId: "player.1" }));
   });
 
   it("S90 KABOOM-FOOTSTEP-TICK: dead bombers don't tick", () => {
@@ -186,6 +186,54 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     world.setComponent("player.1", "GridPosition", { gx: 2, gz: 1 });
     system.fixedUpdate!(ctx(world));
     expect(onEvent).not.toHaveBeenCalledWith("footstep", expect.anything());
+  });
+
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: footstep carries the bomber's [gx,0,gz] position", () => {
+    const world = new World();
+    world.addEntity("player.1");
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+    world.setComponent("player.1", "GridPosition", { gx: 4, gz: 7 });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("player.1", "GridPosition", { gx: 5, gz: 7 });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("footstep", expect.objectContaining({ entityId: "player.1", position: [5, 0, 7] }));
+  });
+
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: bomb-place carries the bomb's [gx,0,gz] position", () => {
+    const world = new World();
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.addEntity("bomb.1");
+    world.setComponent("bomb.1", "Bomb", { fuseRemaining: 2.5, range: 2, ownerId: "p" });
+    world.setComponent("bomb.1", "GridPosition", { gx: 3, gz: 2 });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("bomb-place", expect.objectContaining({ entityId: "bomb.1", position: [3, 0, 2] }));
+  });
+
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: blast carries the BlastEvent origin", () => {
+    const world = new World();
+    world.addEntity("evt.1");
+    world.setComponent("evt.1", "BlastEvent", { originGx: 9, originGz: 5, range: 1, ownerId: "p" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("blast", expect.objectContaining({ position: [9, 0, 5] }));
+  });
+
+  it("S91 KABOOM-AUDIO-POSITIONAL-ADOPT: match-* chimes do NOT carry a position", () => {
+    const world = new World();
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "won", matchPhase: "won" });
+    system.fixedUpdate!(ctx(world));
+    const wonCall = onEvent.mock.calls.find((c) => c[0] === "match-won");
+    expect(wonCall?.[1]).toBeUndefined();
   });
 
   it("S88 KABOOM-WIN-CHIME: matchPhase=draw fires 'match-draw'", () => {

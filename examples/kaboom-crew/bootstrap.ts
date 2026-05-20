@@ -191,7 +191,7 @@ let _boundOccupancy: import("../../engine/core/systems/grid-occupancy-system").G
 // the probe surface (`__agf.kaboom.audioLog`) can verify the sequence
 // without depending on the HTMLAudioElement state.
 type AudioLogEntry = { kind: AudioEventKind; entityId?: string; ts: number };
-let _boundAudioEvent: ((kind: AudioEventKind, ctx?: { entityId?: string }) => void) | undefined;
+let _boundAudioEvent: ((kind: AudioEventKind, ctx?: { entityId?: string; position?: readonly [number, number, number] }) => void) | undefined;
 let _audioLog: AudioLogEntry[] = [];
 
 export const kaboomCrewBootstrap: ProjectBootstrap = {
@@ -362,7 +362,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       _audioLog.push(entry);
       // Cap the log so a long-running session doesn't grow unbounded.
       if (_audioLog.length > 200) _audioLog.splice(0, _audioLog.length - 200);
-      audioFx.play(kind);
+      // S91 KABOOM-AUDIO-POSITIONAL-ADOPT — forward the world-space
+      // position to audioFx so it routes through a PannerNode.
+      audioFx.play(kind, c?.position !== undefined ? { position: c.position } : undefined);
     };
 
     // S86 KABOOM-PAUSE-MENU. Mutable presets list for the Difficulty
@@ -915,6 +917,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         // is also stuck (and the bug is upstream).
         const pressed = api.input();
         hud.update(KEYS_ID, { pressed });
+
+        // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Update the AudioListener
+        // to track the local player so positional SFX pan relative
+        // to them. Read player.1's live cell from the status snapshot
+        // we already paid for above.
+        const playerSelf = s.players.find((p) => p.id === "player.1");
+        if (playerSelf?.gx !== undefined && playerSelf?.gz !== undefined) {
+          audioFx.setListenerPosition(playerSelf.gx, 0, playerSelf.gz);
+        }
 
         // S85 KABOOM-CONTROLS-HINT — gate against the banner (which
         // also wants the centre slot once the round resolves). Mount

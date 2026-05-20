@@ -22,13 +22,31 @@ export type AudioEventKind =
   | "match-draw"
   | "footstep";
 
+/**
+ * S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Optional world-space position
+ * carried alongside each event. Bomber-driven events (footstep,
+ * bomb-place, blast, death, pickup) pass [gx, 0, gz]; UI chimes
+ * (match-won/lost/draw) omit it. When set, play() routes through a
+ * PannerNode so the SFX pans by the listener's relative offset.
+ */
+export type PositionalPlayContext = {
+  position?: readonly [number, number, number];
+};
+
 export type KaboomAudioFx = {
-  play(kind: AudioEventKind): void;
+  play(kind: AudioEventKind, context?: PositionalPlayContext): void;
   dispose(): void;
   /** S89 KABOOM-PAUSE-AUDIO-MUTE. true → every play() is a no-op without tearing down the context. */
   setMuted(muted: boolean): void;
   /** Read the current mute state — drives the pause menu's toggle label. */
   isMuted(): boolean;
+  /**
+   * S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Update the AudioListener's
+   * world-space position so positional clips pan relative to it.
+   * No-op when the AudioContext isn't initialised yet (browser
+   * autoplay policy may delay creation until the first play()).
+   */
+  setListenerPosition(x: number, y: number, z: number): void;
 };
 
 export const AUDIO_VOLUME_STORAGE_KEY_EXPORT = "agf.audio.volume";
@@ -126,6 +144,10 @@ export type AudioContextLike = {
   createBufferSource(): BufferSourceLike;
   createBuffer(channels: number, length: number, sampleRate: number): AudioBufferLike;
   createBiquadFilter(): BiquadFilterLike;
+  /** S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Optional — the bus skips positional routing when unavailable. */
+  createPanner?(): PannerNodeLike;
+  /** S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Optional — bus skips listener updates when unavailable. */
+  listener?: AudioListenerLike;
   resume?(): Promise<void>;
   close?(): Promise<void>;
 };
@@ -148,6 +170,27 @@ type AudioBufferLike = { getChannelData(channel: number): Float32Array };
 type BiquadFilterLike = AudioNodeLike & {
   type: string;
   frequency: { setValueAtTime(value: number, when: number): void };
+};
+// S91 KABOOM-AUDIO-POSITIONAL-ADOPT. PannerNode pans the gain chain by
+// world-space position relative to the listener. Two APIs exist in
+// browsers — the legacy mutator (setPosition) and the modern AudioParam
+// (positionX). Type accepts both via optional members.
+type PannerNodeLike = AudioNodeLike & {
+  panningModel?: string;
+  distanceModel?: string;
+  refDistance?: number;
+  maxDistance?: number;
+  rolloffFactor?: number;
+  setPosition?(x: number, y: number, z: number): void;
+  positionX?: { setValueAtTime(value: number, when: number): void };
+  positionY?: { setValueAtTime(value: number, when: number): void };
+  positionZ?: { setValueAtTime(value: number, when: number): void };
+};
+type AudioListenerLike = {
+  setPosition?(x: number, y: number, z: number): void;
+  positionX?: { setValueAtTime(value: number, when: number): void };
+  positionY?: { setValueAtTime(value: number, when: number): void };
+  positionZ?: { setValueAtTime(value: number, when: number): void };
 };
 
 function defaultFactory(): AudioContextLike | undefined {
@@ -186,6 +229,35 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     return ctx;
   }
 
+  // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Final routing step. When the
+  // event carries a world-space position AND the AudioContext exposes
+  // createPanner, the chain ends at a PannerNode (HRTF) before
+  // destination. Otherwise we connect straight to destination — the
+  // pre-S91 behaviour, unchanged for UI chimes.
+  function connectOutput(c: AudioContextLike, gain: GainNodeLike, position: readonly [number, number, number] | undefined): void {
+    if (position === undefined || c.createPanner === undefined) {
+      gain.connect(c.destination);
+      return;
+    }
+    const panner = c.createPanner();
+    panner.panningModel = "HRTF";
+    panner.distanceModel = "inverse";
+    panner.refDistance = 2;
+    panner.rolloffFactor = 1;
+    panner.maxDistance = 60;
+    const [x, y, z] = position;
+    if (typeof panner.setPosition === "function") {
+      panner.setPosition(x, y, z);
+    } else if (panner.positionX !== undefined && panner.positionY !== undefined && panner.positionZ !== undefined) {
+      const now = c.currentTime;
+      panner.positionX.setValueAtTime(x, now);
+      panner.positionY.setValueAtTime(y, now);
+      panner.positionZ.setValueAtTime(z, now);
+    }
+    gain.connect(panner);
+    panner.connect(c.destination);
+  }
+
   function envelope(c: AudioContextLike, gain: GainNodeLike, attack: number, peak: number, release: number): void {
     const now = c.currentTime;
     gain.gain.setValueAtTime(0, now);
@@ -193,7 +265,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     gain.gain.exponentialRampToValueAtTime(0.0001, now + attack + release);
   }
 
-  function playBombPlace(c: AudioContextLike): void {
+  function playBombPlace(c: AudioContextLike, position?: readonly [number, number, number]): void {
     const osc = c.createOscillator();
     const gain = c.createGain();
     osc.type = "square";
@@ -202,12 +274,12 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
     envelope(c, gain, 0.005, masterGain * 0.6, 0.08);
     osc.connect(gain);
-    gain.connect(c.destination);
+    connectOutput(c, gain, position);
     osc.start(now);
     osc.stop(now + 0.12);
   }
 
-  function playBlast(c: AudioContextLike): void {
+  function playBlast(c: AudioContextLike, position?: readonly [number, number, number]): void {
     // White-noise burst → low-pass filter → envelope.
     const duration = 0.28;
     const buffer = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * duration)), c.sampleRate);
@@ -222,12 +294,12 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     envelope(c, gain, 0.005, masterGain * 1.0, duration);
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(c.destination);
+    connectOutput(c, gain, position);
     source.start(c.currentTime);
     source.stop(c.currentTime + duration + 0.02);
   }
 
-  function playPickup(c: AudioContextLike): void {
+  function playPickup(c: AudioContextLike, position?: readonly [number, number, number]): void {
     const osc = c.createOscillator();
     const gain = c.createGain();
     osc.type = "triangle";
@@ -236,12 +308,12 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     osc.frequency.linearRampToValueAtTime(720, now + 0.08);
     envelope(c, gain, 0.005, masterGain * 0.5, 0.16);
     osc.connect(gain);
-    gain.connect(c.destination);
+    connectOutput(c, gain, position);
     osc.start(now);
     osc.stop(now + 0.18);
   }
 
-  function playDeath(c: AudioContextLike): void {
+  function playDeath(c: AudioContextLike, position?: readonly [number, number, number]): void {
     const osc = c.createOscillator();
     const gain = c.createGain();
     osc.type = "sawtooth";
@@ -250,7 +322,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     osc.frequency.exponentialRampToValueAtTime(60, now + 0.36);
     envelope(c, gain, 0.01, masterGain * 0.7, 0.36);
     osc.connect(gain);
-    gain.connect(c.destination);
+    connectOutput(c, gain, position);
     osc.start(now);
     osc.stop(now + 0.4);
   }
@@ -260,7 +332,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // perfect-fifth (draw). Each is a single AudioContext frame; the
   // dial scales through `masterGain` so the existing ?audio= +
   // localStorage path keeps working.
-  function playChord(c: AudioContextLike, freqs: ReadonlyArray<number>, totalSeconds: number, gainScale = 0.45): void {
+  function playChord(c: AudioContextLike, freqs: ReadonlyArray<number>, totalSeconds: number, gainScale = 0.45, position?: readonly [number, number, number]): void {
     const now = c.currentTime;
     for (const f of freqs) {
       const osc = c.createOscillator();
@@ -269,16 +341,16 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
       osc.frequency.setValueAtTime(f, now);
       envelope(c, gain, 0.01, masterGain * gainScale, totalSeconds);
       osc.connect(gain);
-      gain.connect(c.destination);
+      connectOutput(c, gain, position);
       osc.start(now);
       osc.stop(now + totalSeconds + 0.05);
     }
   }
-  function playMatchWon(c: AudioContextLike): void {
+  function playMatchWon(c: AudioContextLike, position?: readonly [number, number, number]): void {
     // C major triad (C5 E5 G5).
     playChord(c, [523.25, 659.25, 783.99], 0.6, 0.5);
   }
-  function playMatchLost(c: AudioContextLike): void {
+  function playMatchLost(c: AudioContextLike, position?: readonly [number, number, number]): void {
     // A minor descent (A4 → F4 → D4).
     const now = c.currentTime;
     const seq: Array<{ freq: number; offset: number }> = [
@@ -294,12 +366,12 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
       envelope(c, gain, 0.01, masterGain * 0.45, 0.32);
       gain.gain.setValueAtTime(0, now);
       osc.connect(gain);
-      gain.connect(c.destination);
+      connectOutput(c, gain, position);
       osc.start(now + note.offset);
       osc.stop(now + note.offset + 0.35);
     }
   }
-  function playMatchDraw(c: AudioContextLike): void {
+  function playMatchDraw(c: AudioContextLike, position?: readonly [number, number, number]): void {
     // Perfect fifth — open neutral tone.
     playChord(c, [392.0, 587.33], 0.5, 0.4);
   }
@@ -307,7 +379,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // S90 KABOOM-FOOTSTEP-TICK. ~25 ms low-gain click — barely audible
   // solo, satisfying when chained one per cell crossing. Triangle wave
   // around 180 Hz with a sharp gain envelope; lowpass shaves harshness.
-  function playFootstep(c: AudioContextLike): void {
+  function playFootstep(c: AudioContextLike, position?: readonly [number, number, number]): void {
     const osc = c.createOscillator();
     const gain = c.createGain();
     osc.type = "triangle";
@@ -316,25 +388,30 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     osc.frequency.exponentialRampToValueAtTime(120, now + 0.025);
     envelope(c, gain, 0.002, masterGain * 0.18, 0.025);
     osc.connect(gain);
-    gain.connect(c.destination);
+    connectOutput(c, gain, position);
     osc.start(now);
     osc.stop(now + 0.05);
   }
 
   return {
-    play(kind: AudioEventKind): void {
+    play(kind: AudioEventKind, context?: PositionalPlayContext): void {
       if (muted) return;
       const c = ensureContext();
       if (c === undefined) return;
+      // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Bomber-driven events pass
+      // through the panner when a position is provided; UI chimes
+      // (match-*) ignore the position even if the caller supplies one
+      // — players expect those at full stereo, not localised.
+      const pos = context?.position;
       try {
-        if (kind === "bomb-place") playBombPlace(c);
-        else if (kind === "blast") playBlast(c);
-        else if (kind === "pickup") playPickup(c);
-        else if (kind === "death") playDeath(c);
+        if (kind === "bomb-place") playBombPlace(c, pos);
+        else if (kind === "blast") playBlast(c, pos);
+        else if (kind === "pickup") playPickup(c, pos);
+        else if (kind === "death") playDeath(c, pos);
         else if (kind === "match-won") playMatchWon(c);
         else if (kind === "match-lost") playMatchLost(c);
         else if (kind === "match-draw") playMatchDraw(c);
-        else if (kind === "footstep") playFootstep(c);
+        else if (kind === "footstep") playFootstep(c, pos);
       } catch {
         // Browser quirks (e.g. context closed) — fail silent so a
         // misbehaving audio path doesn't break gameplay.
@@ -354,6 +431,26 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     },
     isMuted(): boolean {
       return muted;
+    },
+    setListenerPosition(x: number, y: number, z: number): void {
+      // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. AudioContext may not exist
+      // yet (autoplay policy delays creation until first play). When
+      // it does, push the new listener position. Two API styles —
+      // legacy setPosition vs modern positionX AudioParam.
+      if (ctx === undefined || ctx.listener === undefined) return;
+      const listener = ctx.listener;
+      try {
+        if (typeof listener.setPosition === "function") {
+          listener.setPosition(x, y, z);
+        } else if (listener.positionX !== undefined && listener.positionY !== undefined && listener.positionZ !== undefined) {
+          const now = ctx.currentTime;
+          listener.positionX.setValueAtTime(x, now);
+          listener.positionY.setValueAtTime(y, now);
+          listener.positionZ.setValueAtTime(z, now);
+        }
+      } catch {
+        // ignore — listener update failure isn't worth breaking gameplay
+      }
     }
   };
 }

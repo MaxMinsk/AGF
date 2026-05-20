@@ -123,6 +123,17 @@ type AgfApi = {
   getTimeScale?: () => number;
   /** S90 AGF-DEV-BRIDGE-TIME-SCALE. POST forwards a new scale; returns the clamped value. */
   setTimeScale?: (scale: number) => number;
+  /** S091 AGF-RENDER-DEBUG-MODE-AGENT. GET returns the live mode. */
+  getRenderDebugMode?: () =>
+    | "off"
+    | "wireframe"
+    | "unlit-white"
+    | "normals"
+    | "uv";
+  /** S091 AGF-RENDER-DEBUG-MODE-AGENT. POST swaps materials and returns the active mode. */
+  setRenderDebugMode?: (
+    mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"
+  ) => "off" | "wireframe" | "unlit-white" | "normals" | "uv";
   reloadEvents?: unknown;
   applyCommands?: (commands: ReadonlyArray<unknown>) => unknown;
   startRecording?: () => unknown;
@@ -260,6 +271,20 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
         // S90 AGF-DEV-BRIDGE-TIME-SCALE — GET path.
         payload = { scale: api?.getTimeScale?.() ?? 1 };
         break;
+      case "render-debug-mode-get":
+        // S091 AGF-RENDER-DEBUG-MODE-AGENT — GET path.
+        payload = { mode: api?.getRenderDebugMode?.() ?? "off" };
+        break;
+      case "render-debug-mode-set": {
+        // S091 AGF-RENDER-DEBUG-MODE-AGENT — POST path.
+        const mode = (payloadIn as { mode?: string } | undefined)?.mode;
+        if (typeof mode !== "string" || api?.setRenderDebugMode === undefined) {
+          payload = { mode: api?.getRenderDebugMode?.() ?? "off" };
+        } else {
+          payload = { mode: api.setRenderDebugMode(mode as never) };
+        }
+        break;
+      }
       case "runtime-timescale-set": {
         // S90 AGF-DEV-BRIDGE-TIME-SCALE — POST path. Body contains `value`.
         const value = (payloadIn as { value?: number } | undefined)?.value;

@@ -42,7 +42,7 @@ describe("scripts/backlog/qa-next-pr.mjs (S94 QA-NEXT-PR)", () => {
   it("prints 'Caught up' + exit 0 when gh returns no sprint PRs", () => {
     const stub = stubGh("[]");
     try {
-      const out = runCli({ PATH: `${stub.binDir}:${process.env.PATH ?? ""}` });
+      const out = runCli({ PATH: `${stub.binDir}:${process.env["PATH"] ?? ""}` });
       expect(out.status).toBe(0);
       expect(out.stdout).toContain("Caught up");
     } finally {
@@ -53,7 +53,7 @@ describe("scripts/backlog/qa-next-pr.mjs (S94 QA-NEXT-PR)", () => {
   it("--json output reports { status: 'caught-up' } when nothing pending", () => {
     const stub = stubGh("[]");
     try {
-      const out = runCli({ PATH: `${stub.binDir}:${process.env.PATH ?? ""}` }, ["--json"]);
+      const out = runCli({ PATH: `${stub.binDir}:${process.env["PATH"] ?? ""}` }, ["--json"]);
       expect(out.status).toBe(0);
       const parsed = JSON.parse(out.stdout);
       expect(parsed.status).toBe("caught-up");
@@ -70,7 +70,7 @@ describe("scripts/backlog/qa-next-pr.mjs (S94 QA-NEXT-PR)", () => {
       { number: 1000, title: "S1000: future sprint", mergedAt: "2026-05-10T10:00:00Z", headRefName: "sprint/1000-future" }
     ]));
     try {
-      const out = runCli({ PATH: `${stub.binDir}:${process.env.PATH ?? ""}` }, ["--json"]);
+      const out = runCli({ PATH: `${stub.binDir}:${process.env["PATH"] ?? ""}` }, ["--json"]);
       expect(out.status).toBe(0);
       const parsed = JSON.parse(out.stdout);
       expect(parsed.status).toBe("review");
@@ -87,7 +87,7 @@ describe("scripts/backlog/qa-next-pr.mjs (S94 QA-NEXT-PR)", () => {
       { number: 1001, title: "S093: QA workflow engine + docs (S092 follow-up)", mergedAt: "2026-05-20T10:00:00Z", headRefName: "sprint/93-qa-workflow-engine" }
     ]));
     try {
-      const out = runCli({ PATH: `${stub.binDir}:${process.env.PATH ?? ""}` }, ["--json"]);
+      const out = runCli({ PATH: `${stub.binDir}:${process.env["PATH"] ?? ""}` }, ["--json"]);
       expect(out.status).toBe(0);
       const parsed = JSON.parse(out.stdout);
       expect(parsed.sprintId).toBe("S093");

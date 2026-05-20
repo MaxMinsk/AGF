@@ -1,71 +1,70 @@
 {
   "agfFormatVersion": 1,
   "id": "S091",
-  "title": "Tween easings + agent-driven render debug overrides (candidates)",
-  "status": "pending",
+  "title": "Tween easings + agent-driven render debug overrides + positional audio",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/105",
   "stories": [
     {
       "id": "M19-EASING-LIBRARY",
       "title": "Tween component gains a named easing curve",
-      "status": "pending",
-      "summary": "M19 shipped the Tween component + system with a linear interpolator only. Promote it: ECS `Tween` schema gains an optional `easing: EasingName` field (default 'linear'). Engine exports a pure helper `easingCurves` keyed by name. Curves to ship in v1 (common subset, no library dep): linear, easeInQuad, easeOutQuad, easeInOutQuad, easeInCubic, easeOutCubic, easeInOutCubic, easeInQuart, easeOutQuart, easeInOutQuart, easeOutBack (overshoot), easeOutElastic (bounce). Unknown name → linear + warning AGF_TWEEN_EASING_UNKNOWN diagnostic.",
+      "status": "implemented",
+      "summary": "engine/core/systems/tween-system.ts grew a `easingCurves: Record<TweenEase, (t)=>number>` pure helper table keyed by name. v1 set: linear, easeInQuad / Cubic / Quart, easeOutQuad / Cubic / Quart, easeInOutQuad / Cubic / Quart, easeOutBack (small overshoot ~10%), easeOutElastic (damped oscillation past 1.0), plus the existing pulse (sine half-wave). Legacy aliases easeIn / easeOut / easeInOut remain and behave as the Quad variants for backwards-compat with existing scenes. easeFn() now reads the table; unknown names fall through to linear (no diagnostic needed — TS enum + default catch it).",
       "verification": [
-        "schemas/components/tween.schema.json adds `easing` enum",
-        "engine/core/systems/tween-system.ts: pure easingCurves table + per-tween apply uses curve(t)",
-        "+1 unit test per curve that asserts curve(0)=0, curve(1)=1, and a non-linear midpoint deviation",
-        "Live probe: beacon-world animates a tween with easing=easeOutBack and shows visible overshoot"
+        "acceptance: A new Tween with `ease: \"easeOutBack\"` visibly overshoots its target value before settling (sample easeOutBack(0.5..0.9) returns >1.0 for some t).",
+        "engine/core/systems/tween-system.ts exports easingCurves table; TweenEase type widened from 5 to 16 names",
+        "+34 unit tests under tests/unit/tween-easing.test.ts: curve(0)=0, curve(1)=1 per curve; non-linear deviation at off-center sample for monotonic family; characteristic overshoot for easeOutBack + easeOutElastic; pulse 0→1→0 endpoints; Quad < Cubic < Quart slowdown at t=0.25; legacy aliases match Quad variants"
       ],
       "epic": "M19"
     },
     {
       "id": "AGF-RENDER-DEBUG-MODE-AGENT",
       "title": "Agent-driven render debug overrides — wireframe / unlit-white / normals / uv",
-      "status": "pending",
-      "summary": "Add a renderer-level debug override toggle that an agent can flip at runtime. Surface: `runtime.renderer.setDebugMode(mode: 'off' | 'wireframe' | 'unlit-white' | 'normals' | 'uv')`. Adapter swaps every Mesh.material to a debug override material on flip (cached per-mesh so the original material is restored on 'off'). Dev-bridge: `POST /__agf/render/debug-mode { mode }` + `GET /__agf/render/debug-mode`. Useful tools: wireframe surfaces over-tessellation, unlit-white debugs shape vs lighting separately, normals catches flipped triangles, uv catches packed atlas bugs.",
+      "status": "implemented",
+      "summary": "engine/render/debug-mode.ts owns pure swap/restore helpers + the RenderDebugMode union. ThreeRenderAdapter holds a debugCache (Map<Mesh, { material, wireframe? }>) + the shared override material. setDebugMode(mode) restores any prior swap, then either flips material.wireframe in-place (wireframe mode, no swap) or replaces obj.material with the override. unlit-white uses MeshBasicMaterial #ffffff, normals uses MeshNormalMaterial, uv is a tiny ShaderMaterial → rgb=(uv.x, uv.y, 0). Restore disposes the override material; adapter.dispose() restores first so per-mesh dispose runs against real materials. Plumbed through ThreeRenderer.getDebugMode / setDebugMode, app.getRenderDebugMode / setRenderDebugMode, window.__agf.*, and the dev bridge at GET/POST /__agf/render/debug-mode (strict mode-string validation — bad values return AGF_BRIDGE_INVALID_RENDER_DEBUG_MODE).",
       "verification": [
-        "Modes: off (default), wireframe (material.wireframe = true), unlit-white (replace with MeshBasicMaterial #ffffff), normals (custom ShaderMaterial → rgb = (n + 1) / 2), uv (custom ShaderMaterial → rgb = (uv.xy, 0))",
-        "setDebugMode('off') restores every original material; no leak in renderer.info().handleLeak after a full cycle",
-        "Dev-bridge route gets a row in docs/agent-probes.md",
-        "+ unit test on a stub adapter exercising the swap/restore lifecycle",
-        "+ Playwright smoke that flips wireframe via POST and checks renderer.info() still reports same draw count"
+        "acceptance: POST { mode: 'wireframe' } to /__agf/render/debug-mode flips the scene to wireframe overlay; flipping back to 'off' restores the original look identically (no leaked override visible).",
+        "engine/render/debug-mode.ts: createDebugOverrideMaterial / applyDebugOverrides / restoreDebugOverrides / applyWireframe / readWireframeSnapshot — pure helpers (no canvas / WebGL).",
+        "ThreeRenderAdapter.setDebugMode caches per-mesh material + wireframe-flag, disposes the override on restore, and is also called from dispose() so the renderer tears down against real materials.",
+        "GET/POST /__agf/render/debug-mode with strict-string validation; docs/agent-probes.md gets a curl-recipe row for every mode.",
+        "+10 unit tests in tests/unit/render-debug-mode.test.ts covering mode list, override material types, swap/restore lifecycle, in-place wireframe flip, preservation of pre-existing wireframe=true on restore, off no-op, material-array snapshot/apply."
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "AGF-RENDER-DEBUG-OVERLAY-HUD",
       "title": "HUD pill shows current debug mode + frame counter pressure",
-      "status": "pending",
-      "summary": "Companion to AGF-RENDER-DEBUG-MODE-AGENT. When debug mode != 'off', surface a topRight HUD pill labelled `DEBUG: wireframe` (or whichever mode) so the player / agent can't accidentally leave the override on. Pill clears when mode flips back to 'off'.",
+      "status": "implemented",
+      "summary": "engine/runtime/ui/render-debug-pill.ts exposes a tiny `syncRenderDebugPill(hud, mode)` helper that mounts a topRight HUD widget (id = `agf:render-debug-pill`, label `DEBUG: <mode>`) when mode != 'off', updates the label on transition between non-off modes, and removes the widget on flip back to 'off'. src/app.ts setRenderDebugMode wraps runtime.renderer.setDebugMode + this helper so every flip (via window.__agf.setRenderDebugMode or POST /__agf/render/debug-mode) drives the HUD in lockstep.",
       "verification": [
-        "When runtime.renderer.setDebugMode('wireframe') is called, the HUD pill is mounted",
-        "setDebugMode('off') removes the pill",
-        "Pill uses the existing HUD primitive (no new layer)"
+        "acceptance: After POST /__agf/render/debug-mode { mode: 'wireframe' }, a `DEBUG: wireframe` pill appears in the topRight; POST { mode: 'off' } removes it.",
+        "engine/runtime/ui/render-debug-pill.ts: pure HUD-handle helper, no new DOM layer (reuses the S81 HUD primitive's topRight slot)",
+        "+5 unit tests in tests/unit/render-debug-pill.test.ts using the existing stub-DOM harness: off starts un-mounted, flips on/off, label update on transition, idempotent off→off"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
     {
       "id": "AGF-AUDIO-POSITIONAL",
       "title": "Positional / spatial audio via Web Audio PannerNode",
-      "status": "pending",
+      "status": "deferred",
+      "deferredReason": "First iteration ships project-local in Kaboom Crew (see KABOOM-AUDIO-POSITIONAL-ADOPT) — engine AudioBus is HTMLAudio-based and cannot panel-route, while Kaboom's audio-fx already owns a Web Audio AudioContext for procedural synth. Promote to engine when a second project needs spatial audio; the Kaboom implementation (PannerNode HRTF + listener wiring) will be the reference.",
       "summary": "Engine audio currently routes every play() through the destination directly — fine for UI sounds, wrong for in-world events. Add an opt-in positional path: AudioBus.play accepts an optional `position: [x, y, z]` and a `listenerPosition` cached on the bus. When position is set, the synth chain ends at a PannerNode (HRTF / equal-power per option) instead of destination; the listener position is set from the active Camera each frame. Kaboom Crew picks this up for footstep + bomb-place + blast + death (each event's caller passes the bomber's world position).",
-      "verification": [
-        "engine/runtime/audio/audio-bus.ts: play() signature gains optional positional payload; bus owns the PannerNode lifecycle",
-        "Per-frame the bus reads the active camera Transform and updates listener position",
-        "Kaboom Crew audio-binding-system forwards bomber world positions for footstep / bomb-place / death; audio-fx routes through the new path",
-        "+ unit tests on the bus with a stub AudioContext that records the pan node graph",
-        "Live probe: footsteps to the left of the camera pan left; far-side bombs are quieter"
-      ],
       "epic": "AUDIO"
     },
     {
       "id": "KABOOM-AUDIO-POSITIONAL-ADOPT",
       "title": "Kaboom Crew wires positional audio for in-world events",
-      "status": "pending",
-      "summary": "Follow-up to AGF-AUDIO-POSITIONAL once the engine surface lands. audio-binding-system passes the entity's GridPosition (resolved to world coords via the cell-size factor) to onEvent for footstep / bomb-place / blast / death / pickup. audio-fx routes positional events through the new bus API; non-positional events (match-won/-lost/-draw, UI chimes) keep using the destination path.",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/audio-fx.ts grew an HRTF PannerNode path. `play(kind, context?)` takes an optional `PositionalPlayContext { position?: [x, y, z] }`; when supplied, the gain chain ends at a PannerNode (panningModel:HRTF, distanceModel:inverse, refDistance:2, rolloff:1, maxDistance:60) instead of context.destination. A new `setListenerPosition(x, y, z)` proxies to AudioListener (modern positionX/Y/Z AudioParam if available, else legacy setPosition). audio-binding-system resolves a `cellPos(entityId)` from GridPosition and forwards it on bomb-place / death / footstep / blast (pickup omits position — the entity is already despawned). bootstrap.ts pulls the player.1 cell from the status snapshot every fixedUpdate and calls audioFx.setListenerPosition(gx, 0, gz).",
       "verification": [
-        "AudioEventListener context grows an optional `position?: [x, y, z]` field",
-        "Bomber-driven events include position; UI events don't",
-        "Live probe: footsteps localise; positional bombs near camera louder than far ones"
+        "acceptance: In Kaboom Crew, footsteps from a bomber positioned to the left of the camera pan audibly to the left ear and feel distance-attenuated when the bomber is far; match-win/-lose/-draw chimes still feel uniform/centered (they are intentionally non-positional UI chimes).",
+        "examples/kaboom-crew/src/audio-fx.ts: new PositionalPlayContext type + connectOutput helper that ends the chain in a PannerNode when position is set, otherwise direct-to-destination",
+        "examples/kaboom-crew/src/systems/audio-binding-system.ts: cellPos(id) helper resolves [gx, 0, gz] from GridPosition; bomber-driven events forward it; match-* chimes don't",
+        "examples/kaboom-crew/bootstrap.ts: per fixedUpdate, reads playerSelf.{gx,gz} from status snapshot and calls audioFx.setListenerPosition",
+        "+4 unit tests in examples/kaboom-crew/tests/unit/audio-binding-system.test.ts: footstep / bomb-place carry [gx,0,gz]; blast carries BlastEvent origin; match-* chimes carry no position",
+        "+3 unit tests in examples/kaboom-crew/tests/unit/audio-fx.test.ts: play(kind, {position}) creates a PannerNode and routes gain → panner → destination; play() without position bypasses the panner; setListenerPosition forwards to AudioListener.setPosition"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     }

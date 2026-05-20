@@ -18,6 +18,7 @@ import type { EngineCommand } from "../engine/core/commands/types";
 import type { SceneInput } from "../engine/core/ecs/types";
 import type { WorldSnapshot } from "../engine/runtime/inspect";
 import { createDiagnosticsBus } from "../engine/runtime/diagnostics/diagnostics-bus";
+import { syncRenderDebugPill } from "../engine/runtime/ui/render-debug-pill";
 import { mountDiagnosticsOverlay, type DiagnosticsOverlayHandle } from "../engine/runtime/diagnostics/diagnostics-overlay";
 import {
   createIndexedDbStore,
@@ -228,6 +229,10 @@ export type AppHandle = {
     invalidateShadowMap(): void;
     setShadowMapAutoUpdate(enabled: boolean): void;
   };
+  /** S091 AGF-RENDER-DEBUG-MODE-AGENT. */
+  getRenderDebugMode(): "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+  setRenderDebugMode(mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"):
+    "off" | "wireframe" | "unlit-white" | "normals" | "uv";
   /**
    * RUNTIME-renderer-ready: resolves once the renderer has drawn its
    * first frame (active camera acquired). Tests + dev-bridge clients
@@ -629,6 +634,15 @@ export async function createApp(
     },
     setTimeScale(scale: number) {
       return runtime.setTimeScale(scale);
+    },
+    // S091 AGF-RENDER-DEBUG-MODE-AGENT + AGF-RENDER-DEBUG-OVERLAY-HUD.
+    getRenderDebugMode() {
+      return runtime.renderer.getDebugMode();
+    },
+    setRenderDebugMode(mode) {
+      const next = runtime.renderer.setDebugMode(mode);
+      syncRenderDebugPill(runtime.hud, next);
+      return next;
     },
     // S66 WEBGPU-shadermaterial-audit: temp debug hook for diagnosing
     // which `ShaderMaterial` instances `three/webgpu`'s `PostProcessing`

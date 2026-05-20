@@ -162,6 +162,10 @@ declare global {
       /** S90 AGF-DEV-BRIDGE-TIME-SCALE. */
       getTimeScale(): number;
       setTimeScale(scale: number): number;
+      /** S091 AGF-RENDER-DEBUG-MODE-AGENT. */
+      getRenderDebugMode(): "off" | "wireframe" | "unlit-white" | "normals" | "uv";
+      setRenderDebugMode(mode: "off" | "wireframe" | "unlit-white" | "normals" | "uv"):
+        "off" | "wireframe" | "unlit-white" | "normals" | "uv";
       /** S66 WEBGPU-shadermaterial-audit (temp debug hook) — counts every material class in the scene + custom depth + composer. */
       __auditMaterials?(): Record<string, number>;
       /**
@@ -460,6 +464,9 @@ void (async (): Promise<void> => {
       // S90 AGF-DEV-BRIDGE-TIME-SCALE.
       getTimeScale: () => app.getTimeScale(),
       setTimeScale: (scale: number) => app.setTimeScale(scale),
+      // S091 AGF-RENDER-DEBUG-MODE-AGENT.
+      getRenderDebugMode: () => app.getRenderDebugMode(),
+      setRenderDebugMode: (mode) => app.setRenderDebugMode(mode),
       __auditMaterials: () => app.__auditMaterials(),
       frameTiming: () => app.frameTiming(),
       renderer: app.renderer,

@@ -183,16 +183,18 @@ describe("scripts/backlog/promote-qa.mjs (S93 QA-INTAKE-PROMOTE)", () => {
     }
   });
 
-  it("refuses to promote into an active or archived sprint", () => {
+  it("refuses to promote into an archived sprint", () => {
     const fx = setupFixture([{ name: "QA-2026-05-20-001.qa-ticket.json", body: bugTicket("QA-2026-05-20-001") }]);
     try {
-      // Re-write the target sprint as active.
+      // Re-write the target sprint as archived. Active is allowed now
+      // (QA can promote into the live sprint mid-polish); archived
+      // sprints are immutable so they stay rejected.
       const data = JSON.parse(readFileSync(fx.sprintFile, "utf8")) as { status: string };
-      data.status = "active";
+      data.status = "archived";
       writeFileSync(fx.sprintFile, JSON.stringify(data, null, 2) + "\n", "utf8");
       const result = run(["--into", "S999", "--qa-dir", fx.qaDir, "--sprints-dir", fx.sprintsDir, "--skip-check"]);
       expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain("pending");
+      expect(result.stderr).toContain("archived");
       // Source ticket untouched.
       expect(readdirSync(fx.qaDir)).toContain("QA-2026-05-20-001.qa-ticket.json");
     } finally {
