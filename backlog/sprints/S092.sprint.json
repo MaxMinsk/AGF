@@ -8,16 +8,27 @@
     {
       "id": "AGF-QA-WORKFLOW-DESIGN",
       "title": "Plan the two-terminal Dev + QA Claude workflow (thorough design doc)",
-      "status": "in_progress",
-      "summary": "User wants to run two Claude terminals in parallel: terminal 1 is the developer (current setup — closes sprint stories, opens + merges PRs); terminal 2 is a QA agent who reviews the functionality shipped in each PR and files bug tickets back into the backlog. QA does NOT run regression — but if QA hits a bug in old functionality, it files BOTH a bug ticket AND a story for adding a regression test to the automated suite. This sprint is planning-only: produce `notes/qa-workflow-design.md` covering the design end-to-end, including: (1) the role split (what each agent owns / never does), (2) where bug tickets land (next-sprint backlog vs a dedicated bug-stream sprint vs in-place follow-ups — pick the cleanest fit with the JSON-first backlog engine), (3) ticket format (story id naming, severity, repro-steps shape, links to the PR that introduced the regression), (4) regression-suite escalation flow (the QA agent's heuristic for deciding when an old-functionality bug warrants automation, the new-story format that points back to the bug), (5) backlog-engine schema changes needed (e.g. `source: 'qa'` flag on stories, optional `repro` field, optional `regressionTest` field), (6) concurrency rules (how do two Claudes share `backlog/sprints/*.sprint.json` without stepping on each other — file locks? lane convention? branch policy?), (7) acceptance-criteria checklist that the developer agent must produce per story so the QA agent has something concrete to verify against, (8) documentation deliverables (CLAUDE.md updates, AGENTS.md, a new QA-AGENTS.md or similar), (9) tooling — does QA need a dedicated playwright skill / probe / fixture set, (10) success criteria + dogfood plan (the first sprint where both agents actually run side by side). The deliverable is the design doc itself; this sprint does NOT ship any engine code or tooling — those follow-up sprints are seeded as `followUps` on this sprint JSON when the design lands.",
+      "status": "implemented",
+      "summary": "User wants to run two Claude terminals in parallel: terminal 1 is the developer (current setup); terminal 2 is a QA agent reviewing each merged PR and filing bug tickets back into the backlog. QA does NOT run regression — but on an old-functionality bug it files BOTH the bug AND a regression-test escalation. Deliverable is `notes/qa-workflow-design.md`, a thorough design covering: role split, ticket destination (new artefact dir `backlog/qa-tickets/` to dodge sprint-JSON conflicts), ticket schema (`schemas/qa-ticket.schema.json`), regression-promotion heuristic, concurrency rules (file-ownership table + qa-intake branch convention), acceptance-criteria standard on `verification[]`, documentation deliverables (CLAUDE.md / docs/qa/* / .claude/agents/qa-reviewer.md), tooling reuse (existing `/__agf/*` probes + playtest framework), success criteria + dogfood plan, and risks. Implementation is split across two follow-up sprints (S093 engine + docs; S094 first dogfood) seeded as followUps[] below.",
       "verification": [
-        "notes/qa-workflow-design.md exists and covers the ten topic areas above",
-        "Document references concrete files (backlog/sprints/*.sprint.json schema, scripts/backlog/*, AGENTS.md, CLAUDE.md) — no hand-waving",
-        "Decides where bug tickets land + names the schema additions required",
-        "Decides the concurrency story (how two Claudes coexist without merge conflicts on the backlog JSONs)",
-        "Sprint JSON's followUps[] lists the implementation stories the next sprint should pull from"
+        "acceptance: Read `notes/qa-workflow-design.md` end-to-end; the 13 numbered sections cover role split, ticket destination + schema, promotion CLI, regression escalation, concurrency, acceptance-criteria, docs, tooling, dogfood, risks, and implementation sprints.",
+        "Document picks a concrete bug-intake home: `backlog/qa-tickets/*.qa-ticket.json` (separate artefact dir, no overlap with sprint JSONs). Alternatives weighed in §3 with explicit reject reasons.",
+        "Document names the schema additions required (no edit to sprint schema; new `schemas/qa-ticket.schema.json` with full field list).",
+        "Document resolves the concurrency story (file-ownership table in §7; the two agents never write the same files, so git can never conflict).",
+        "Sprint JSON's followUps[] enumerates the implementation stories the next sprint should pull from."
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
+  ],
+  "followUps": [
+    "S093 QA-INTAKE-SCHEMA — add schemas/qa-ticket.schema.json + extend scripts/backlog/check.mjs to validate backlog/qa-tickets/**.",
+    "S093 QA-INTAKE-PROMOTE — scripts/backlog/promote-qa.mjs with --into / --min-severity / --dry-run; archives source files on success.",
+    "S093 QA-INTAKE-NEW — scripts/backlog/qa-ticket.mjs new \"<title>\" scaffold helper (auto-id, today's date, empty repro skeleton).",
+    "S093 QA-DOCS-AGENT-ONBOARD — write docs/qa/agent.md + docs/qa/ticket-template.md + docs/qa/regression-promotion.md.",
+    "S093 QA-DOCS-CLAUDE-MD — update CLAUDE.md (file-ownership table + QA section) + AGENTS.md (note the role).",
+    "S093 QA-AGENT-DEFINITION — .claude/agents/qa-reviewer.md subagent definition; tools allowlist, model, system prompt pointing at docs/qa/agent.md.",
+    "S093 QA-DOCTOR-INBOX — engine doctor surfaces a \"QA inbox: N tickets, M critical\" line; preflight warns on critical tickets older than one sprint.",
+    "S093 QA-ACCEPTANCE-CONVENTION — extend backlog:check with AGF_BACKLOG_NO_ACCEPTANCE warning on implemented stories whose verification[] lacks an `acceptance: ...` first entry.",
+    "S094 QA-FIRST-DOGFOOD — run a normal Kaboom Crew polish sprint with the QA terminal active; success = ≥1 filed ticket per merged PR + ≥1 regression-needed ticket promoted + zero backlog/** merge conflicts."
   ]
 }
