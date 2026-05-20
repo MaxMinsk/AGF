@@ -99,11 +99,11 @@
     {
       "id": "DOC-PROPOSED-STORY-RECIPE",
       "title": "docs/agent-debug-recipes.md — game-design proposed-story workflow recipe",
-      "status": "pending",
-      "summary": "Adds the eleventh recipe to docs/agent-debug-recipes.md showing the game-design agent's loop: (1) read the GDD + last sprint archive, (2) `npm run propose:new -- --title \"...\" --kind feature`, (3) fill in intent + acceptanceHints in the generated file, (4) wait for the dev terminal's next sprint plan, (5) the dev terminal runs `npm run propose:promote -- --into S<N>`. Closes the loop docs-wise.",
+      "status": "implemented",
+      "summary": "Recipe #11 ships in docs/agent-debug-recipes.md: the 5-step game-design agent loop with copy-paste npm commands. (1) re-read gdd.md + last archive entry, (2) `npm run propose:new -- \"<title>\" --kind feature --priority should`, (3) replace TODO: lines, (4) `npm run backlog:check` to validate, (5) wait for the dev terminal's `npm run propose:promote -- --into S<N>`. Cross-links to docs/game-design/agent.md and docs/game-design/gdd.md so the recipe is the entry point for someone discovering the workflow.",
       "verification": [
-        "acceptance: docs/agent-debug-recipes.md gets a new section #11 'Filing a feature proposal (game-design agent)' with the 5-step recipe + the actual npm commands an agent copies.",
-        "Cross-links to docs/game-design/agent.md (the seeded role doc from S096)"
+        "acceptance: docs/agent-debug-recipes.md has section #11 'Filing a feature proposal' with the 5-step recipe and the actual `npm run propose:new` / `propose:promote` invocations copy-pasted.",
+        "Cross-links to docs/game-design/agent.md + gdd.md."
       ],
       "epic": "GAME-DESIGN-AGENT"
     }
