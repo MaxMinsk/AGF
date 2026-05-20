@@ -105,5 +105,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S097](backlog/sprints/S097.sprint.json)** — Game-design proposal flow + entity dump probe + component write + diagnostics-since — 8 implemented · archived 2026-05-20
 - **[S098](backlog/sprints/S098.sprint.json)** — QA followups (S90/S96 verification) + entity create/delete probes + input inject + game-design dogfood — 8 implemented · archived 2026-05-20
 - **[S099](backlog/sprints/S099.sprint.json)** — Revert S98 danger-decal + tame bomb-fuse wiggle + agent-probe docs + game-design doctor inbox — 5 implemented, 2 deferred · archived 2026-05-20
+- **[S100](backlog/sprints/S100.sprint.json)** — Promote GDP power-ups + bot personality + MVP-2 epic kickoff — 6 implemented, 4 deferred · archived 2026-05-20
 
 <!-- backlog:render:end -->

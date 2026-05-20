@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S100",
   "title": "Promote GDP power-ups + bot personality + MVP-2 epic kickoff",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/116",
   "stories": [
     {
       "id": "CHORE-MVP2-EPIC-KICKOFF",
