@@ -161,6 +161,15 @@ export type AppHandle = {
     | { kind: "entity-not-found" }
     | { kind: "component-not-found" }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-ENTITY-DUMP. */
+  entityAt(entityId: string, at?: number):
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-COMPONENT-WRITE. */
+  setComponentAt(entityId: string, componentName: string, value: unknown):
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" };
   /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
   snapshotDiff(at: number):
     | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -176,6 +185,8 @@ export type AppHandle = {
   resetRound(): number;
   /** Snapshot of the runtime diagnostics bus. */
   diagnostics(): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
+  /** S097 AGF-PROBE-DIAGNOSTICS-SINCE. */
+  diagnosticsSince(thresholdSeconds: number): ReadonlyArray<import("../engine/runtime/diagnostics/diagnostics-bus").RuntimeDiagnostic>;
   /**
    * Subscribe to live diagnostic emissions. Used by the dev-bridge SSE
    * stream (`GET /__agf/events`) to fan diagnostics out to subscribed agents.
@@ -622,6 +633,14 @@ export async function createApp(
     componentAt(entityId: string, componentName: string, at?: number) {
       return runtime.componentAt(entityId, componentName, at);
     },
+    // S097 AGF-PROBE-ENTITY-DUMP.
+    entityAt(entityId: string, at?: number) {
+      return runtime.entityAt(entityId, at);
+    },
+    // S097 AGF-PROBE-COMPONENT-WRITE.
+    setComponentAt(entityId: string, componentName: string, value: unknown) {
+      return runtime.setComponentAt(entityId, componentName, value);
+    },
     // S096 AGF-PROBE-SNAPSHOT-DIFF.
     snapshotDiff(at: number) {
       return runtime.snapshotDiff(at);
@@ -637,6 +656,10 @@ export async function createApp(
     },
     diagnostics() {
       return runtime.diagnostics.snapshot();
+    },
+    // S097 AGF-PROBE-DIAGNOSTICS-SINCE.
+    diagnosticsSince(thresholdSeconds: number) {
+      return runtime.diagnostics.snapshotSince(thresholdSeconds);
     },
     subscribeDiagnostics(listener) {
       return runtime.diagnostics.subscribe(listener);

@@ -40,6 +40,15 @@ declare global {
         | { kind: "entity-not-found" }
         | { kind: "component-not-found" }
         | { kind: "out-of-range"; capacity: number; size: number };
+      /** S097 AGF-PROBE-ENTITY-DUMP. */
+      entityAt(entityId: string, at?: number):
+        | { kind: "ok"; components: Record<string, unknown> }
+        | { kind: "entity-not-found" }
+        | { kind: "out-of-range"; capacity: number; size: number };
+      /** S097 AGF-PROBE-COMPONENT-WRITE. */
+      setComponentAt(entityId: string, componentName: string, value: unknown):
+        | { kind: "ok"; value: unknown }
+        | { kind: "entity-not-found" };
       /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
       snapshotDiff(at: number):
         | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -79,6 +88,15 @@ declare global {
         readonly component?: string;
         readonly assetRef?: string;
         readonly details?: Record<string, unknown>;
+      }>;
+      /** S097 AGF-PROBE-DIAGNOSTICS-SINCE. */
+      diagnosticsSince(thresholdSeconds: number): ReadonlyArray<{
+        readonly id: number;
+        readonly emittedAtSeconds: number;
+        readonly severity: "info" | "warning" | "error" | "debug" | "trace";
+        readonly code: string;
+        readonly source: string;
+        readonly message: string;
       }>;
       /** Drop retained diagnostics. Subscribers stay alive. */
       clearDiagnostics(): void;
@@ -476,11 +494,18 @@ void (async (): Promise<void> => {
       // S096 AGF-PROBE-COMPONENT-AT.
       componentAt: (entityId: string, componentName: string, at?: number) =>
         app.componentAt(entityId, componentName, at),
+      // S097 AGF-PROBE-ENTITY-DUMP.
+      entityAt: (entityId: string, at?: number) => app.entityAt(entityId, at),
+      // S097 AGF-PROBE-COMPONENT-WRITE.
+      setComponentAt: (entityId: string, componentName: string, value: unknown) =>
+        app.setComponentAt(entityId, componentName, value),
       // S096 AGF-PROBE-SNAPSHOT-DIFF.
       snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),
+      // S097 AGF-PROBE-DIAGNOSTICS-SINCE.
+      diagnosticsSince: (thresholdSeconds: number) => app.diagnosticsSince(thresholdSeconds),
       clearDiagnostics: () => app.clearDiagnostics(),
       subscribeDiagnostics: (listener) => app.subscribeDiagnostics(listener),
       copyDiagnostics: () => app.copyDiagnostics(),

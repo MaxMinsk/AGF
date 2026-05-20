@@ -214,6 +214,15 @@ export type RuntimeHandle = {
     | { kind: "entity-not-found" }
     | { kind: "component-not-found" }
     | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-ENTITY-DUMP — full component map for one entity. */
+  entityAt(entityId: string, at?: number):
+    | { kind: "ok"; components: Record<string, unknown> }
+    | { kind: "entity-not-found" }
+    | { kind: "out-of-range"; capacity: number; size: number };
+  /** S097 AGF-PROBE-COMPONENT-WRITE — write a single component value. */
+  setComponentAt(entityId: string, componentName: string, value: unknown):
+    | { kind: "ok"; value: unknown }
+    | { kind: "entity-not-found" };
   /**
    * Resolves after the first frame that actually rendered (active
    * camera acquired + `renderer.adapter.draw()` executed). Use this
@@ -935,6 +944,41 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
       }
       const live = snapshotWorld(world, time);
       return { kind: "ok", entries: diffWorldSnapshots(historical, live) };
+    },
+    entityAt(entityId: string, at?: number):
+      | { kind: "ok"; components: Record<string, unknown> }
+      | { kind: "entity-not-found" }
+      | { kind: "out-of-range"; capacity: number; size: number } {
+      // S097 AGF-PROBE-ENTITY-DUMP. Full component map for one entity
+      // at the requested ring index (defaults to live).
+      const lookupAt = at ?? 0;
+      let source: WorldSnapshot;
+      if (lookupAt === 0) {
+        source = snapshotWorld(world, time);
+      } else {
+        const historical = lookupSnapshotInRing(snapshotHistory, lookupAt);
+        if (historical === undefined) {
+          return {
+            kind: "out-of-range",
+            capacity: SNAPSHOT_HISTORY_CAPACITY,
+            size: snapshotHistory.length
+          };
+        }
+        source = historical;
+      }
+      const entity = source.entities.find((e) => e.id === entityId);
+      if (entity === undefined) return { kind: "entity-not-found" };
+      return { kind: "ok", components: entity.components };
+    },
+    setComponentAt(entityId: string, componentName: string, value: unknown):
+      | { kind: "ok"; value: unknown }
+      | { kind: "entity-not-found" } {
+      // S097 AGF-PROBE-COMPONENT-WRITE. Direct mutation surface on top
+      // of world.setComponent. Validates that the entity exists; the
+      // component name is allowed to be new (write can ADD components).
+      if (!world.hasEntity(entityId)) return { kind: "entity-not-found" };
+      world.setComponent(entityId, componentName, value);
+      return { kind: "ok", value };
     },
     componentAt(entityId: string, componentName: string, at?: number):
       | { kind: "ok"; value: unknown }

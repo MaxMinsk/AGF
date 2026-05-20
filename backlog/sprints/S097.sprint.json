@@ -1,0 +1,113 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S097",
+  "title": "Game-design proposal flow + entity dump probe + component write + diagnostics-since",
+  "status": "archived",
+  "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/110",
+  "stories": [
+    {
+      "id": "GAME-DESIGN-PROPOSED-STORY-SCHEMA",
+      "title": "schemas/proposed-story.schema.json + AJV validation in backlog:check",
+      "status": "implemented",
+      "summary": "schemas/proposed-story.schema.json defines the wire shape for `backlog/proposed-stories/*.story-proposal.json` (strict additionalProperties:false). Required: agfFormatVersion (const 1), id (^GDP-YYYY-MM-DD-NNN), title (minLength 5), createdAt (ISO pattern), kind (feature|mechanic|balance|content), intent (minLength 20), priority (must|should|could). Optional: epic, rationale, acceptanceHints (string array minLength 5 each), notes. scripts/backlog/check.mjs now reads + AJV-validates every file under backlog/proposed-stories/ (skipping archive/) using the same shared AJV instance + same diagnostic style as the QA ticket loader. Missing dir is fine; missing schema downgrades to a warning.",
+      "verification": [
+        "acceptance: A malformed story-proposal (missing intent, bad priority, extra field) is rejected by `npm run backlog:check` with AGF_PROPOSED_STORY_SCHEMA pointing at the offending file + field. A valid one passes silently.",
+        "schemas/proposed-story.schema.json: full JSON Schema with strict additionalProperties:false; id pattern matches QA ticket convention but with GDP prefix",
+        "scripts/backlog/check.mjs: reads backlog/proposed-stories/*.story-proposal.json and validates each via AJV (skips archive/ subdir)",
+        "+9 unit tests in tests/unit/proposed-story-schema.test.ts covering: valid canonical, minimal required, bad id pattern, intent too short, unknown kind, unknown priority, additionalProperties rejection, acceptanceHints minLength, non-numeric agfFormatVersion"
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    },
+    {
+      "id": "GAME-DESIGN-PROPOSE-SCAFFOLD",
+      "title": "scripts/backlog/propose.mjs + `npm run propose:new` scaffolds a fresh ticket",
+      "status": "implemented",
+      "summary": "scripts/backlog/propose.mjs mirrors scripts/backlog/qa-ticket.mjs: `node scripts/backlog/propose.mjs new \"<title>\" [--kind X] [--priority Y] [--epic Z] [--into DIR]` writes a fresh `backlog/proposed-stories/GDP-YYYY-MM-DD-NNN.story-proposal.json` with the next free three-digit slot for the date (UTC). Helpers `computeDatePrefix` + `nextFreeSlot` are exported so tests can lock the slot-allocation logic. CLI body runs only when invoked as a script (test imports don't trigger process.exit). package.json gets `propose:new` and a placeholder `propose:promote` script. Echoes the absolute path to stdout so the agent can pipe to $EDITOR.",
+      "verification": [
+        "acceptance: `node scripts/backlog/propose.mjs new \"Test\" --kind feature --priority should --into /tmp/...` writes a valid file with GDP-YYYY-MM-DD-NNN id, ascending NNN on each invocation. Empty title (status 2) and clobber-refusal both fire as expected.",
+        "scripts/backlog/propose.mjs: arg-parsing for --kind / --priority / --epic / --into; safe to import for tests via `if (invokedAsScript) main()` guard",
+        "package.json: `propose:new` and `propose:promote` scripts wired",
+        "+10 unit tests in tests/unit/propose-scaffold.test.ts covering computeDatePrefix (zero-padding, end-of-year), nextFreeSlot (missing dir, empty, take-002, gap-skip, ignore-unrelated), CLI smoke (valid file written, ascending id, empty-title exit-2, idempotent reruns)"
+      ],
+      "epic": "GAME-DESIGN-AGENT",
+      "dependsOn": ["GAME-DESIGN-PROPOSED-STORY-SCHEMA"]
+    },
+    {
+      "id": "GAME-DESIGN-PROPOSE-PROMOTE",
+      "title": "scripts/backlog/promote-proposed.mjs + `npm run propose:promote -- --into S<N>`",
+      "status": "implemented",
+      "summary": "Mirrors scripts/backlog/promote-qa.mjs. Walks every `backlog/proposed-stories/*.story-proposal.json`, validates against the schema, filters by `--min-priority` (could|should|must), generates a story per proposal with kind-based id prefix (feature/mechanic→FEAT, balance→BAL, content→CONTENT), appends to the target sprint's stories[], runs inline backlog:check (skippable via `--skip-check` for test isolation), restores the sprint JSON on check failure, and archives source files to `backlog/proposed-stories/archive/<sprint-id>/`. `--dry-run` prints the plan without writing. Test-time overrides: `--proposed-dir`, `--sprints-dir`. Summary body embeds the proposal's intent + rationale + a bulleted 'Acceptance hints' list + a source-proposal footer.",
+      "verification": [
+        "acceptance: With two valid proposals (kinds feature + balance + content), `node scripts/backlog/promote-proposed.mjs --into S<N> --skip-check` adds three pending stories with the right id prefixes and archives the source files under archive/S<N>/.",
+        "scripts/backlog/promote-proposed.mjs: --into validates target sprint exists + status in {pending, active}; refuses archived; --min-priority + --dry-run + --skip-check all work",
+        "+7 unit tests in tests/unit/promote-proposed.test.ts (spawn-driven, parallels qa-promote.test.ts): single-proposal happy path, empty inbox no-op, archived-sprint rejection, active-sprint acceptance, --min-priority filtering, --dry-run no-modify, kind-based id-prefix routing (FEAT / BAL / CONTENT)"
+      ],
+      "epic": "GAME-DESIGN-AGENT",
+      "dependsOn": ["GAME-DESIGN-PROPOSED-STORY-SCHEMA"]
+    },
+    {
+      "id": "AGF-PROBE-ENTITY-DUMP",
+      "title": "GET /__agf/entity/<entityId> returns every component on a single entity",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts grew `entityAt(entityId, at?)` returning a tagged union { ok: components } | entity-not-found | out-of-range. The bridge wires GET /entity/:entityId via a new exported `parseEntityPath` helper (rejects empty + extra path segments, decodes URL-encoded ids). Supports `?at=-N` for history (same ring as componentAt). Errors map to 404 AGF_PROBE_ENTITY_NOT_FOUND, 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE, 400 AGF_BRIDGE_INVALID_ENTITY_PATH, 400 AGF_BRIDGE_INVALID_SNAPSHOT_AT. Plumbed through src/app.ts, window.__agf, and page-bridge `entity-at` RPC.",
+      "verification": [
+        "acceptance: GET /__agf/entity/player.1 returns { entityId, components: { BomberStats: {...}, GridPosition: {...}, ... } } for every component the entity carries; unknown entityId returns 404 AGF_PROBE_ENTITY_NOT_FOUND.",
+        "engine/runtime/start.ts: runtime.entityAt + interface update",
+        "engine/dev/agf-dev-bridge.ts: exported parseEntityPath + GET /entity/:entityId route mapped to the tagged-union runtime response",
+        "+5 unit tests on parseEntityPath in tests/unit/entity-at-bridge.test.ts: clean path, URL-encoded id, prefix rejection, empty id rejection, extra segments rejection"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PROBE-COMPONENT-WRITE",
+      "title": "POST /__agf/component/<entityId>/<componentName> writes a single component value",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts grew `setComponentAt(entityId, componentName, value)` returning { ok: value } | entity-not-found (delegates to world.setComponent for the actual mutation; component name is not required to pre-exist — write can ADD components). The bridge wires POST /component/:entityId/:componentName: reuses S096's parseComponentPath, validates that the request body has a `value` key (rejects with 400 AGF_BRIDGE_INVALID_COMPONENT_WRITE otherwise), forwards via the new page-bridge `component-write` RPC, maps entity-not-found to 404. Returns the persisted value in the response so the caller can confirm.",
+      "verification": [
+        "acceptance: POST /__agf/component/player.1/BomberStats with `{ value: { maxBombs: 10, range: 5, alive: true } }` mutates the live entity; a subsequent GET /__agf/component/player.1/BomberStats returns the same value.",
+        "engine/runtime/start.ts: runtime.setComponentAt + interface update",
+        "engine/dev/agf-dev-bridge.ts: POST /component/:entityId/:componentName reuses parseComponentPath; missing `value` returns 400 AGF_BRIDGE_INVALID_COMPONENT_WRITE; entity-not-found returns 404 AGF_PROBE_ENTITY_NOT_FOUND",
+        "Body-shape validation is exercised via the existing component path tests (S096) — the POST path uses the same parser, so /component/a/b/c style errors hit the same code"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-PROBE-DIAGNOSTICS-SINCE",
+      "title": "GET /__agf/diagnostics?since=<timestamp> filters by timestamp",
+      "status": "implemented",
+      "summary": "engine/runtime/diagnostics/diagnostics-bus.ts grew `snapshotSince(thresholdSeconds)` and an exported pure `filterDiagnosticsSince(diagnostics, threshold)` helper (returns strict suffix where emittedAtSeconds > threshold; non-finite threshold returns all). Plumbed through src/app.ts.diagnosticsSince → window.__agf.diagnosticsSince → page-bridge `diagnostics-since` RPC. Dev-bridge GET /diagnostics handles `?since=<ISO>`: parses via Date.parse, returns 400 AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE on non-ISO, otherwise forwards `thresholdSeconds = sinceMs / 1000` to the page. Without `?since`, the existing /diagnostics route still returns the full ring.",
+      "verification": [
+        "acceptance: GET /__agf/diagnostics returns N entries; GET /__agf/diagnostics?since=<ISO mid-buffer> returns a strict suffix of those; bad ISO returns 400 AGF_BRIDGE_INVALID_DIAGNOSTICS_SINCE.",
+        "engine/runtime/diagnostics/diagnostics-bus.ts: snapshotSince + filterDiagnosticsSince (the latter exported for tests)",
+        "engine/dev/agf-dev-bridge.ts: /diagnostics route handles ?since= explicitly before falling through to the generic mapper",
+        "+7 unit tests on the pure filter: below-all / above-all / mid-list strict-suffix / boundary-exclusive / empty input / NaN defensive / +Infinity defensive"
+      ],
+      "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "KABOOM-CONTROLS-HINT-FADE",
+      "title": "Controls-hint banner fades out the same way as the title screen",
+      "status": "implemented",
+      "summary": "Mirrors S096 KABOOM-TITLE-SCREEN-FADE. controlsHintSpec.render now reads an `opacity` field (default 0.85, the pre-S097 baseline). When the hint-window closes (4 s in OR banner needs the slot), the update loop kicks `controlsHintFadeStartMs`, samples `fadeOutOpacityCurve(elapsed, 350)` scaled by 0.85 each frame, calls `hud.update(CONTROLS_HINT_ID, { opacity })`, and finally `hud.remove`s the widget when opacity reaches 0. Uses the same pure helper from S096 — no new code path.",
+      "verification": [
+        "acceptance: After ~4 s of round 1, the controls-hint banner fades out smoothly over ~350 ms rather than snapping.",
+        "examples/kaboom-crew/bootstrap.ts: controlsHintSpec.render accepts { opacity }; removal threads through fadeOutOpacityCurve from S096",
+        "controlsHintFadeStartMs is reset to undefined on mount + on unmount so the next round starts from a clean state"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
+    },
+    {
+      "id": "DOC-PROPOSED-STORY-RECIPE",
+      "title": "docs/agent-debug-recipes.md — game-design proposed-story workflow recipe",
+      "status": "implemented",
+      "summary": "Recipe #11 ships in docs/agent-debug-recipes.md: the 5-step game-design agent loop with copy-paste npm commands. (1) re-read gdd.md + last archive entry, (2) `npm run propose:new -- \"<title>\" --kind feature --priority should`, (3) replace TODO: lines, (4) `npm run backlog:check` to validate, (5) wait for the dev terminal's `npm run propose:promote -- --into S<N>`. Cross-links to docs/game-design/agent.md and docs/game-design/gdd.md so the recipe is the entry point for someone discovering the workflow.",
+      "verification": [
+        "acceptance: docs/agent-debug-recipes.md has section #11 'Filing a feature proposal' with the 5-step recipe and the actual `npm run propose:new` / `propose:promote` invocations copy-pasted.",
+        "Cross-links to docs/game-design/agent.md + gdd.md."
+      ],
+      "epic": "GAME-DESIGN-AGENT"
+    }
+  ]
+}

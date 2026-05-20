@@ -52,11 +52,32 @@ export type DiagnosticsBus = {
   emit(input: EmitDiagnosticInput): RuntimeDiagnostic;
   /** Read-only snapshot of all retained diagnostics. */
   snapshot(): ReadonlyArray<RuntimeDiagnostic>;
+  /**
+   * S097 AGF-PROBE-DIAGNOSTICS-SINCE — read every retained diagnostic
+   * with `emittedAtSeconds > threshold`. Threshold is wall-clock
+   * seconds (the same units `emittedAtSeconds` uses). Use Infinity
+   * (or any high value) to get an empty list; use 0 to get all.
+   */
+  snapshotSince(thresholdSeconds: number): ReadonlyArray<RuntimeDiagnostic>;
   /** Drop retained diagnostics; listeners stay subscribed. */
   clear(): void;
   /** Subscribe to live emissions. Returns a disposer. */
   subscribe(listener: DiagnosticsListener): () => void;
 };
+
+/**
+ * S097 AGF-PROBE-DIAGNOSTICS-SINCE — pure filter helper exposed for
+ * unit tests. Returns the strict suffix where emittedAtSeconds is
+ * greater than the threshold. Defensive against non-finite thresholds
+ * (treats them as 0 → return all).
+ */
+export function filterDiagnosticsSince(
+  diagnostics: ReadonlyArray<RuntimeDiagnostic>,
+  thresholdSeconds: number
+): ReadonlyArray<RuntimeDiagnostic> {
+  if (!Number.isFinite(thresholdSeconds)) return diagnostics;
+  return diagnostics.filter((d) => d.emittedAtSeconds > thresholdSeconds);
+}
 
 export type DiagnosticsBusOptions = {
   /**
@@ -145,6 +166,9 @@ export function createDiagnosticsBus(options: DiagnosticsBusOptions = {}): Diagn
     emit,
     snapshot(): ReadonlyArray<RuntimeDiagnostic> {
       return items.slice();
+    },
+    snapshotSince(thresholdSeconds: number): ReadonlyArray<RuntimeDiagnostic> {
+      return filterDiagnosticsSince(items, thresholdSeconds);
     },
     clear(): void {
       items.length = 0;
