@@ -111,6 +111,9 @@ function stopEventStream(): void {
 
 type AgfApi = {
   snapshot?: () => unknown;
+  /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
+  snapshotAt?: (at: number) => unknown;
+  snapshotHistoryStats?: () => { capacity: number; size: number };
   diagnostics?: () => unknown;
   rendererInfo?: () => unknown;
   /** S83 AGF-AGENT-RENDERER-PROBE. */
@@ -252,6 +255,19 @@ function handleRpc(socket: WebSocket, id: number, kind: string, payloadIn?: unkn
       case "snapshot":
         payload = api?.snapshot?.();
         break;
+      case "snapshot-at": {
+        // S095 AGF-PROBE-SNAPSHOT-HISTORY. `at: 0` is live; negative
+        // values look back in the ring. We always return an envelope
+        // so the dev-bridge can tell "history too short" apart from
+        // a missing-handler condition.
+        const at = (payloadIn as { at?: number } | undefined)?.at ?? 0;
+        const snap = api?.snapshotAt?.(at);
+        const stats = api?.snapshotHistoryStats?.() ?? { capacity: 0, size: 0 };
+        payload = snap === undefined
+          ? { outOfRange: true, capacity: stats.capacity, size: stats.size }
+          : { snapshot: snap };
+        break;
+      }
       case "diagnostics":
         payload = api?.diagnostics?.();
         break;

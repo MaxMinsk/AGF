@@ -152,6 +152,9 @@ export type AppHandle = {
   readonly world: import("../engine/core/ecs/world").World;
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
   snapshot(): WorldSnapshot;
+  /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
+  snapshotAt(at: number): WorldSnapshot | undefined;
+  snapshotHistoryStats(): { capacity: number; size: number };
   reloadAsset(ref: string): void;
   /** Active WS adapter, if `?server=` was provided. Useful for tests. */
   readonly network: WsNetworkAdapterHandle | undefined;
@@ -583,6 +586,13 @@ export async function createApp(
     },
     snapshot(): WorldSnapshot {
       return runtime.snapshot();
+    },
+    // S095 AGF-PROBE-SNAPSHOT-HISTORY.
+    snapshotAt(at: number): WorldSnapshot | undefined {
+      return runtime.snapshotAt(at);
+    },
+    snapshotHistoryStats(): { capacity: number; size: number } {
+      return runtime.snapshotHistoryStats();
     },
     reloadAsset(ref): void {
       runtime.invalidateAsset(ref);

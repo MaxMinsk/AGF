@@ -74,12 +74,13 @@
     {
       "id": "AGF-PROBE-SNAPSHOT-HISTORY",
       "title": "Snapshot ring buffer — GET /__agf/snapshot?at=-N replays history",
-      "status": "pending",
-      "summary": "The current /__agf/snapshot probe returns only the live snapshot. Keep a fixed-size ring buffer (default 32) of past snapshots so an agent can diff against history (e.g. `snapshot?at=-1` vs live to see what changed last frame). New route param `at` accepts a non-positive integer index; -0 (or omitted) returns live, -1 returns the previous, etc. `at` beyond the buffer returns 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE. The ring is filled cheaply — one entry per fixedUpdate.",
+      "status": "implemented",
+      "summary": "engine/runtime/start.ts now keeps a 32-entry ring buffer of WorldSnapshot captured at the end of each fixedUpdate burst. Pure helper `lookupSnapshotInRing(ring, at)` exposes the index math (at=0 → undefined / caller falls back to live, at=-1 → most-recent entry, at=-N → N steps back, |-at|>size → undefined). runtime.snapshotAt(at) wraps the helper + live-snapshot fallback; runtime.snapshotHistoryStats() returns `{ capacity, size }`. Plumbed through src/app.ts, window.__agf, and a new explicit handler in agf-dev-bridge.ts on `/snapshot` that parses `?at=` (rejecting positives with AGF_BRIDGE_INVALID_SNAPSHOT_AT) and translates the page-bridge's `{ outOfRange: true, capacity, size }` envelope into HTTP 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.",
       "verification": [
-        "acceptance: GET /__agf/snapshot returns the live snapshot; GET /__agf/snapshot?at=-1 returns the previous fixedUpdate's snapshot; both are deeply different on a tick where a known component changed.",
-        "engine/runtime/start.ts: ring buffer + indexed lookup; engine/dev/page-bridge.ts: snapshot kind accepts `{ at }` payload",
-        "+ unit test ringing 5 frames and verifying at=-0/-1/-2/-3 each return the right historical snapshot; at=-99 returns the AGF_PROBE_SNAPSHOT_OUT_OF_RANGE error"
+        "acceptance: GET /__agf/snapshot returns the live snapshot; GET /__agf/snapshot?at=-1 returns the previous fixedUpdate's snapshot; GET /__agf/snapshot?at=1 returns 400 AGF_BRIDGE_INVALID_SNAPSHOT_AT; GET /__agf/snapshot?at=-99 returns 400 AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.",
+        "engine/runtime/start.ts: SNAPSHOT_HISTORY_CAPACITY=32; ring push after each fixedUpdate burst; snapshotAt + snapshotHistoryStats on the runtime handle",
+        "engine/dev/agf-dev-bridge.ts: explicit `/snapshot` handler parses `?at=`; engine/dev/page-bridge.ts: `snapshot-at` returns `{ snapshot } | { outOfRange, capacity, size }`",
+        "+7 unit tests in tests/unit/snapshot-history-ring.test.ts: at=0 undefined; at=-1..-N indexing; out-of-range; empty ring; non-finite / positive at; non-integer floor behaviour"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },

@@ -31,6 +31,9 @@ declare global {
   interface Window {
     __agf?: {
       snapshot(): WorldSnapshot;
+      /** S095 AGF-PROBE-SNAPSHOT-HISTORY. */
+      snapshotAt(at: number): WorldSnapshot | undefined;
+      snapshotHistoryStats(): { capacity: number; size: number };
       applyCommands(commands: ReadonlyArray<EngineCommand>): void;
       /**
        * Project-local action. For Beacon World, re-arms all beacons, respawns
@@ -443,6 +446,9 @@ void (async (): Promise<void> => {
     });
     window.__agf = {
       snapshot: () => app.snapshot(),
+      // S095 AGF-PROBE-SNAPSHOT-HISTORY.
+      snapshotAt: (at: number) => app.snapshotAt(at),
+      snapshotHistoryStats: () => app.snapshotHistoryStats(),
       applyCommands: (commands) => app.applyCommands(commands),
       resetRound: () => app.resetRound(),
       diagnostics: () => app.diagnostics(),

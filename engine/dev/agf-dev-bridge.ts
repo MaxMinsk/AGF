@@ -342,6 +342,68 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
           return;
         }
 
+        // S095 AGF-PROBE-SNAPSHOT-HISTORY. `?at=-N` looks back in the
+        // ring of past fixedUpdate snapshots. `at` is an integer ≤ 0
+        // (positive values are rejected at the bridge, default 0 →
+        // live snapshot). Out-of-range lookups (|-at| > history size)
+        // return HTTP 400 with AGF_PROBE_SNAPSHOT_OUT_OF_RANGE.
+        if (route === "/snapshot" && req.method === "GET") {
+          const atRaw = url.searchParams.get("at");
+          let at = 0;
+          if (atRaw !== null) {
+            const parsed = Number.parseInt(atRaw, 10);
+            if (!Number.isFinite(parsed) || parsed > 0) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_BRIDGE_INVALID_SNAPSHOT_AT",
+                  message: "`at` must be a non-positive integer (e.g. 0, -1, -2, ...)."
+                }
+              });
+              return;
+            }
+            at = parsed;
+          }
+          if (at === 0) {
+            await proxyToPage(req, res, "snapshot");
+            return;
+          }
+          // proxyToPage wraps the payload; the page-bridge handler for
+          // snapshot-at returns either `{ snapshot }` (in-range) or
+          // `{ outOfRange: true, capacity, size }` (history too short).
+          // We translate the latter into a typed 400 here, in front of
+          // the standard payload wrapping.
+          const url2 = new URL(req.url ?? "", "http://localhost");
+          const found = findPage(url2);
+          if ("error" in found) {
+            const status = found.error.code === "AGF_BRIDGE_PAGE_NOT_CONNECTED" ? 503 : 404;
+            respondJson(res, status, { ok: false, error: found.error });
+            return;
+          }
+          try {
+            const result = (await rpc(found.entry, "snapshot-at", { at })) as {
+              snapshot?: unknown;
+              outOfRange?: boolean;
+              capacity?: number;
+              size?: number;
+            };
+            if (result?.outOfRange === true) {
+              respondJson(res, 400, {
+                ok: false,
+                error: {
+                  code: "AGF_PROBE_SNAPSHOT_OUT_OF_RANGE",
+                  message: `Snapshot at=${at} is out of range. Buffer capacity=${result.capacity ?? 0}, current size=${result.size ?? 0}.`
+                }
+              });
+              return;
+            }
+            respondJson(res, 200, { ok: true, page: found.entry.socketId, payload: result.snapshot });
+          } catch (error) {
+            respondJson(res, 502, { ok: false, error: error as { code: string; message: string } });
+          }
+          return;
+        }
+
         // S091 AGF-RENDER-DEBUG-MODE-AGENT. POST forwards a mode; GET
         // returns the live mode. Invalid modes are rejected at the
         // bridge before reaching the page so misconfigured agents fail
