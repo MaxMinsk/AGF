@@ -231,6 +231,20 @@ export type BacklogReport = {
    * Empty when git is unavailable / not a repo.
    */
   recentCommits: ReadonlyArray<{ hash: string; subject: string }>;
+  /**
+   * S93 QA-DOCTOR-INBOX: snapshot of backlog/qa-tickets/*.qa-ticket.json
+   * (skipping archive/) so the dev agent can see at a glance what QA
+   * has filed but not yet been promoted. Absent when the directory
+   * doesn't exist or is empty.
+   */
+  qaInbox?: {
+    total: number;
+    bySeverity: { critical: number; major: number; minor: number; polish: number };
+    /** Up to 5 oldest critical / major tickets — useful for "what should I promote first?". */
+    oldest: ReadonlyArray<{ id: string; severity: string; filedAt: string; title: string }>;
+    /** Critical tickets whose filedAt is older than 24h — flagged as a recommendation. */
+    staleCritical: ReadonlyArray<{ id: string; filedAt: string }>;
+  };
 };
 
 export type EpicsReport = {
@@ -1567,7 +1581,7 @@ const EMPTY_EPICS_REPORT: EpicsReport = {
 };
 const STALE_THRESHOLD_SPRINTS = 8;
 
-function summarizeBacklog(repoRoot: string): BacklogReport {
+export function summarizeBacklog(repoRoot: string): BacklogReport {
   const sprintsDir = resolve(repoRoot, "backlog/sprints");
   if (!existsSync(sprintsDir)) {
     return { sprintFiles: 0, active: undefined, multipleActive: [], archivedCount: 0, epics: EMPTY_EPICS_REPORT, followUps: [], recentCommits: [] };
@@ -1687,6 +1701,58 @@ function summarizeBacklog(repoRoot: string): BacklogReport {
     // git absent → leave recentCommits empty.
   }
 
+  // S93 QA-DOCTOR-INBOX. Walk backlog/qa-tickets/*.qa-ticket.json
+  // (skipping archive/) so dev's doctor run highlights what QA has
+  // filed but not yet been promoted. Absent block when the directory
+  // doesn't exist or has zero tickets.
+  const qaInbox = (() => {
+    const qaDir = resolve(repoRoot, "backlog/qa-tickets");
+    if (!existsSync(qaDir)) return undefined;
+    let qaNames: string[] = [];
+    try {
+      qaNames = readdirSync(qaDir).filter((n) => n.endsWith(".qa-ticket.json"));
+    } catch {
+      return undefined;
+    }
+    if (qaNames.length === 0) return undefined;
+    type Ticket = { id?: string; title?: string; severity?: string; filedAt?: string };
+    const tickets: Array<Ticket & { id: string }> = [];
+    for (const name of qaNames) {
+      try {
+        const data = JSON.parse(readFileSync(resolve(qaDir, name), "utf8")) as Ticket;
+        if (typeof data.id !== "string") continue;
+        tickets.push({ ...data, id: data.id });
+      } catch {
+        // surfaced by backlog:check
+      }
+    }
+    if (tickets.length === 0) return undefined;
+    const bySeverity = { critical: 0, major: 0, minor: 0, polish: 0 };
+    for (const t of tickets) {
+      const s = (t.severity ?? "polish") as keyof typeof bySeverity;
+      if (s in bySeverity) bySeverity[s] += 1;
+    }
+    // Sort: critical > major > minor > polish, then oldest filedAt first.
+    const rank = { critical: 4, major: 3, minor: 2, polish: 1 } as const;
+    const sorted = [...tickets].sort((a, b) => {
+      const ra = (rank as Record<string, number>)[a.severity ?? "polish"] ?? 0;
+      const rb = (rank as Record<string, number>)[b.severity ?? "polish"] ?? 0;
+      if (ra !== rb) return rb - ra;
+      return (a.filedAt ?? "").localeCompare(b.filedAt ?? "");
+    });
+    const oldest = sorted.slice(0, 5).map((t) => ({
+      id: t.id,
+      severity: t.severity ?? "polish",
+      filedAt: t.filedAt ?? "",
+      title: t.title ?? ""
+    }));
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const staleCritical = tickets
+      .filter((t) => t.severity === "critical" && typeof t.filedAt === "string" && Date.parse(t.filedAt) < dayAgo)
+      .map((t) => ({ id: t.id, filedAt: t.filedAt ?? "" }));
+    return { total: tickets.length, bySeverity, oldest, staleCritical };
+  })();
+
   return {
     sprintFiles: sprints.length,
     active: activeReport,
@@ -1694,7 +1760,8 @@ function summarizeBacklog(repoRoot: string): BacklogReport {
     archivedCount,
     epics,
     followUps,
-    recentCommits
+    recentCommits,
+    ...(qaInbox !== undefined ? { qaInbox } : {})
   };
 }
 
@@ -1852,6 +1919,24 @@ export function formatBacklog(report: BacklogReport): string {
     for (const f of report.followUps) {
       const preview = f.text.length > 140 ? `${f.text.slice(0, 137)}...` : f.text;
       lines.push(`    [${f.sprintId}] ${preview}`);
+    }
+  }
+
+  // S93 QA-DOCTOR-INBOX.
+  if (report.qaInbox !== undefined) {
+    const sev = report.qaInbox.bySeverity;
+    const counts: string[] = [];
+    if (sev.critical > 0) counts.push(`${sev.critical} critical`);
+    if (sev.major > 0) counts.push(`${sev.major} major`);
+    if (sev.minor > 0) counts.push(`${sev.minor} minor`);
+    if (sev.polish > 0) counts.push(`${sev.polish} polish`);
+    lines.push(`  QA inbox: ${report.qaInbox.total} ticket(s)${counts.length > 0 ? ` (${counts.join(", ")})` : ""}`);
+    for (const t of report.qaInbox.oldest) {
+      const titlePreview = t.title.length > 80 ? `${t.title.slice(0, 77)}...` : t.title;
+      lines.push(`    ${t.id} [${t.severity}] ${titlePreview}`);
+    }
+    if (report.qaInbox.staleCritical.length > 0) {
+      lines.push(`    ⚠ ${report.qaInbox.staleCritical.length} critical ticket(s) older than 24h — promote ASAP via \`npm run qa:promote\`.`);
     }
   }
 

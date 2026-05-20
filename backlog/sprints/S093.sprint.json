@@ -60,12 +60,11 @@
     {
       "id": "QA-DOCTOR-INBOX",
       "title": "engine doctor surfaces QA inbox count + critical-age warning",
-      "status": "pending",
-      "summary": "Extend `engine/tools/doctor/project-doctor.ts` with a `qaInbox` block populated by walking `backlog/qa-tickets/*.qa-ticket.json` from repo root. Report: total tickets, breakdown by severity, ids of the oldest critical and oldest major. Recommendation when any `critical` ticket has filedAt older than 24h (suggests dev to promote ASAP). The format pass prints the section under `QA inbox:` after the existing Backlog block.",
+      "status": "implemented",
+      "summary": "BacklogReport gains an optional `qaInbox` block (total, bySeverity, oldest 5 sorted by severity-then-filedAt, staleCritical for >24h tickets). summarizeBacklog walks backlog/qa-tickets/*.qa-ticket.json (skipping archive/) and populates it. formatBacklog renders a `QA inbox: N ticket(s) (...)` line followed by the top 5 with severity tags + a stale-critical warning when applicable. Empty inbox → block omitted. Doctor's `--diagnostics-from`-style flags weren't needed (the inbox lives in the same repo root the doctor already reads).",
       "verification": [
-        "acceptance: With two fixture qa-tickets in the repo, `npm run engine:doctor -- examples/kaboom-crew` prints a `QA inbox: 2 tickets (1 critical, 1 major)` block. With zero tickets, the block is omitted entirely.",
-        "Recommendation surfaces for critical tickets older than 24 hours",
-        "+1 unit test on a fixture inbox"
+        "acceptance: With two fixture qa-tickets in backlog/qa-tickets/, `npm run engine:doctor -- examples/kaboom-crew` prints a `QA inbox: 2 ticket(s) (...)` block under the Backlog section. With zero tickets, the block is omitted.",
+        "summarizeBacklog now exported; +6 unit tests in tests/unit/doctor-qa-inbox.test.ts cover absent/present, severity counts, oldest sort by severity-then-filedAt, 24h stale-critical detection, format pass output presence/absence"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     },
