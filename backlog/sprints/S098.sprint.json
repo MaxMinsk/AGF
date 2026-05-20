@@ -93,12 +93,14 @@
     {
       "id": "KABOOM-BLAST-DANGER-DECAL",
       "title": "Danger overlay on cells inside a bomb's projected blast radius",
-      "status": "pending",
-      "summary": "Visual readability polish: while a bomb's fuse is < 1 s remaining, paint a translucent red overlay on every cell that the eventual blast will cover. Distinct from the post-detonation BlastTile (which already exists) — this is the PREDICTION layer so the player can dodge in time. Uses the existing `projectedBlastCells(world, gx, gz, range)` helper from examples/kaboom-crew/src/danger.ts. Tile component: project-local DangerTile entity (color: '#ff3a3a', alpha: 0.35, layer: 'fx-below') auto-removed when the bomb detonates or its fuse > 1 s again. Lays groundwork for the M27 decal layer epic without requiring it.",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/danger-decal-system.ts spawns a translucent red box on every cell inside a bomb's projected blast while the fuse is below the warning threshold (default 1 s; configurable via `warningFuseSeconds` option). Stable entity ids per cell (`danger.<gx>.<gz>`) so the system can `hasEntity`-check rather than carry a side map. Each fixedUpdate computes the should-be-on cell set, spawns missing DangerTiles, removes DangerTiles whose cell is no longer threatened. Hard-block GridOccupants stop the fan (same rule as the actual blast propagation). Project-local `DangerTile` component is a pure marker (no fields) registered in the project's scene-extensions schema. Uses standard Transform + MeshRenderer + GridPosition primitives — no renderer changes, no decal layer (M27 still planned).",
       "verification": [
-        "acceptance: As any bomb's fuse drops below 1 s, every cell it will eventually scorch lights up red until detonation; the red disappears cleanly when the blast resolves.",
-        "examples/kaboom-crew/src/systems/danger-decal-system.ts: walks Bomb entities with fuseRemaining < 1 s; reuses projectedBlastCells; spawns/removes per-cell DangerTile entities",
-        "+ unit tests: a bomb with fuseRemaining=0.5 spawns DangerTiles for every projected cell; fuseRemaining=2 spawns none; removing the bomb removes its DangerTiles"
+        "acceptance: As a bomb's fuse drops below 1 s, every cell it will eventually scorch lights up red until detonation; the red disappears cleanly when the blast resolves or the bomb is removed.",
+        "examples/kaboom-crew/src/systems/danger-decal-system.ts: per-cell stable ids + spawn/remove diff against the should-be-on set",
+        "examples/kaboom-crew/schemas/scene-extensions.schema.json: DangerTile component definition (no fields, pure marker)",
+        "Registered in bootstrap.ts under the static profile alongside the blast-propagation pipeline",
+        "+8 unit tests: no bombs / fuse-above-threshold / fuse-below-threshold full-fan / bomb removed / hard-block stops the fan / fuse drops past threshold mid-game / fuse extends above threshold / custom warningFuseSeconds option"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     }
