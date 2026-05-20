@@ -96,6 +96,7 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S088](backlog/sprints/S088.sprint.json)** — Render-pool warmup + unification + Kaboom Crew polish r3 — 9 implemented · archived 2026-05-20
 - **[S089](backlog/sprints/S089.sprint.json)** — Kaboom Crew polish r4 + engine observability tail — 8 implemented · archived 2026-05-20
 - **[S090](backlog/sprints/S090.sprint.json)** — Engine time-scale primitive + Kaboom Crew feel pass — 7 implemented · archived 2026-05-20
+- **[S091](backlog/sprints/S091.sprint.json)** — Tween easings + agent-driven render debug overrides + positional audio — 4 implemented, 1 deferred · archived 2026-05-20
 - **[S092](backlog/sprints/S092.sprint.json)** — QA-workflow design — plan the two-terminal Dev + QA split — 1 implemented · archived 2026-05-20
 - **[S093](backlog/sprints/S093.sprint.json)** — QA workflow engine + docs (S092 follow-up) — 8 implemented · archived 2026-05-20
 - **[S094](backlog/sprints/S094.sprint.json)** — QA flow automation — auto-merge + auto-pickup of merged sprint PRs — 7 implemented, 2 deferred · archived 2026-05-20
