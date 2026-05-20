@@ -1,0 +1,21 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-006",
+  "title": "Missing dev-bridge input injection — visual game features unverifiable via automation",
+  "filedAt": "2026-05-20T11:15:00Z",
+  "foundInPr": 100,
+  "foundInSprint": "S090",
+  "severity": "minor",
+  "type": "ux",
+  "summary": "The player-input-system listens on window keydown events and filters out untrusted (injected) events. Playwright page.keyboard.press dispatches trusted events but only when the page's DOM focus chain is intact; the HUD overlay intercepts pointer events (canvas click fails), and keyboard events sent after the 'Press SPACE to start' modal disappears do not register as bomb placements. Attempted approaches: Playwright keyboard.press, canvas.dispatchEvent, window.dispatchEvent — all fail to trigger in-game actions after initial spawn. As a result, S90 features KABOOM-BOMB-FUSE-WIGGLE, KABOOM-DEATH-FALL, KABOOM-FOOTSTEP-TICK, and KABOOM-MINIMAP-DANGER-OVERLAY (the danger overlay requires a live bomb) could not be verified visually. Unit tests for all four pass (19 tests total). Request: add POST /__agf/input/action { entity, action } or POST /__agf/input/inject-key { code } to the dev bridge so the QA agent can trigger game actions without relying on DOM focus.",
+  "repro": [
+    "Boot http://localhost:5173/?project=kaboom-crew in a Playwright session.",
+    "Press SPACE via page.keyboard.press to spawn the player — succeeds (player appears).",
+    "Press SPACE again to place a bomb — no bomb is created; snapshot shows 0 BombFuse entities.",
+    "Attempt page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', {code:'Space', key:' ', bubbles:true}))) — also ignored by the input system.",
+    "Attempt page.evaluate(() => document.querySelector('canvas').dispatchEvent(...)) — fails because HUD div intercepts pointer events and canvas is never focused."
+  ],
+  "expected": "A POST /__agf/input/action endpoint (or equivalent) lets QA trigger player actions programmatically to verify visual features like bomb-wiggle, death-fall animation, and minimap danger overlay without needing DOM focus.",
+  "actual": "No such endpoint exists. Visual verification of any game feature requiring keyboard interaction is blocked when running from an automated session.",
+  "epicHint": "AGF-ENGINE-OBSERVABILITY"
+}

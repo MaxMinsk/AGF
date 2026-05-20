@@ -1,0 +1,18 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-004",
+  "title": "engine-cli 'prints a stable inspect summary' test flakes at 5000ms timeout",
+  "filedAt": "2026-05-20T10:46:00Z",
+  "foundInPr": 100,
+  "severity": "minor",
+  "type": "bug",
+  "summary": "Regression in old functionality. The engine CLI test 'prints a stable inspect summary' (tests/unit/engine-cli.test.ts) timed out on the first of three observed runs. The test is not in the S90 diff — it predates S90. Failure rate roughly 1-in-3 in local observation. Consistent pass on retry suggests the subprocess spawned by the test occasionally takes >5s to produce output. Companion regression-needed ticket: QA-2026-05-20-005.",
+  "repro": [
+    "Run: npx vitest run tests/unit/engine-cli.test.ts",
+    "Observe on some runs: Error: Test timed out in 5000ms for 'engine CLI > prints a stable inspect summary'.",
+    "Re-run: the test passes. Observed 1 timeout in 3 consecutive runs."
+  ],
+  "expected": "Test completes consistently within 5000ms across repeated runs.",
+  "actual": "Occasionally times out (~33% of observed runs). Vitest default 5000ms deadline hit on the inspect subprocess call.",
+  "logs": "Error: Test timed out in 5000ms. If this is a long-running test, pass a timeout value as the last argument or configure it globally with 'testTimeout'. at tests/unit/engine-cli.test.ts:54:3"
+}
