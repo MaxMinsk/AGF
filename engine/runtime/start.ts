@@ -137,11 +137,48 @@ export type FrameTiming = {
 };
 
 export type RuntimeHandle = {
+  /**
+   * Live ECS World. Project code reads/writes components directly via
+   * `world.getComponent` / `world.setComponent`, but the recommended
+   * mutation path for cross-system effects is `applyCommands` —
+   * commands are recorded for replay + validated, direct world writes
+   * are not.
+   */
   readonly world: World;
+  /**
+   * Three.js renderer wrapper. Exposes `renderer.info()`,
+   * `renderer.pools()` (S88), `renderer.inspect()` (S83), and the
+   * underlying `adapter` for low-level renderer operations. Use
+   * `renderer.adapter` only inside engine code; project code stays on
+   * the high-level surface.
+   */
   readonly renderer: ThreeRenderer;
+  /**
+   * Read-only TimeContext snapshot. Updated each frame by the loop;
+   * captures `dt`, `fixedDt`, `frameCount`, `fixedStepCount`,
+   * `physicsAlpha`, and `elapsed` (simulated seconds, scaled by
+   * `setTimeScale`).
+   */
   readonly time: Readonly<TimeContext>;
+  /**
+   * Runtime diagnostics bus. Systems can `emit(event)` warnings/info
+   * traces; consumers can `snapshot()` the ring buffer or subscribe to
+   * a live stream. Surfaces over the dev bridge at /__agf/diagnostics.
+   */
   readonly diagnostics: DiagnosticsBus;
+  /**
+   * Apply a batch of EngineCommands (scene.load, entity.create,
+   * component.set, …) atomically. Each command is recorded so a
+   * `RecorderHandle` can rebuild the session and applied in order.
+   * Prefer this over direct world.* mutations for any change that
+   * other systems / replay should see.
+   */
   applyCommands(commands: ReadonlyArray<EngineCommand>): void;
+  /**
+   * Materialise the live world into a JSON-serialisable WorldSnapshot.
+   * Cheap enough for per-frame diagnostics use; preferred over walking
+   * the World manually.
+   */
   snapshot(): WorldSnapshot;
   /**
    * Resolves after the first frame that actually rendered (active
@@ -202,6 +239,11 @@ export type RuntimeHandle = {
   setTimeScale(scale: number): number;
   /** S90 AGF-RUNTIME-TIME-SCALE. Current time-scale value. */
   getTimeScale(): number;
+  /**
+   * Tear down the loop, dispose the renderer + asset bindings, and
+   * stop accepting commands. Safe to call multiple times. After
+   * `stop()` the handle is inert; create a new runtime to resume.
+   */
   stop(): void;
 };
 

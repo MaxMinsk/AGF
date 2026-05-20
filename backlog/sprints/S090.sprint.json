@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "S090",
   "title": "Engine time-scale primitive + Kaboom Crew feel pass",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
   "stories": [
     {
@@ -78,13 +78,15 @@
     {
       "id": "AGF-DOCS-RUNTIME-HANDLE-AUDIT",
       "title": "Inline JSDoc audit on RuntimeHandle surface",
-      "status": "pending",
-      "summary": "RuntimeHandle has grown a lot: invalidateAsset, snapshot, applyCommands, save/load, pick, hud, audio, frameTiming, startRecording/stopRecording, setDebugSystem (S89), setTimeScale (this sprint). Sweep `engine/runtime/start.ts` so every method on the exported type has a one-paragraph TSDoc comment explaining the contract + the sprint that introduced it. No behaviour changes.",
+      "status": "implemented",
+      "summary": "Six previously-undocumented members on RuntimeHandle (world, renderer, time, diagnostics, applyCommands, snapshot, stop) get TSDoc blocks explaining the contract + linking to the sprint that introduced them where applicable. Behaviour unchanged.",
       "verification": [
-        "Every method on RuntimeHandle has a TSDoc block; lint passes",
-        "git grep for 'RuntimeHandle' in docs lines up with the implemented surface"
+        "engine/runtime/start.ts: every field/method on RuntimeHandle now has a TSDoc block",
+        "typecheck stays green; lint clean"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
     }
-  ]
+  ],
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/100"
 }
