@@ -1,0 +1,88 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S094",
+  "title": "QA flow automation — auto-merge + auto-pickup of merged sprint PRs",
+  "status": "active",
+  "startedAt": "2026-05-20",
+  "stories": [
+    {
+      "id": "QA-AUTO-MERGE-ACTION",
+      "title": ".github/workflows/qa-intake-auto-merge.yml — auto-merge qa-intake PRs",
+      "status": "pending",
+      "summary": "GitHub Action that auto-merges PRs labelled `qa-intake` once safety checks pass. Triggered on pull_request_target with the label event. Pipeline: (1) verify every changed file path matches one of `backlog/qa-tickets/**`, `examples/**/playtests/qa-proposed/**`, `notes/qa/**` — fail otherwise (`qa-intake PR must touch only QA-writable paths`); (2) wait for CI checks to finish via `gh pr checks --watch`; (3) on green, `gh pr merge --squash --auto`. Action runs on the repo's `GITHUB_TOKEN` (write-perm on contents/pulls). Eliminates the dev-terminal relay so QA tickets flow into main without human prompting.",
+      "verification": [
+        "acceptance: QA opens a PR with the `qa-intake` label that only touches `backlog/qa-tickets/`. CI runs (smoke + unit + check). Within 1 minute of green CI, the PR is squash-merged automatically; main picks up the tickets.",
+        "Path-guard step rejects any PR touching engine/, examples/**/src/, tests/, etc. — even if labelled qa-intake — with a clear failure message",
+        "If CI fails the action exits non-zero and leaves the PR open for QA to fix"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "QA-INTAKE-LABEL-CONVENTION",
+      "title": "QA scaffold helper prints the `gh pr create --label qa-intake` recipe",
+      "status": "pending",
+      "summary": "The auto-merge action keys on the `qa-intake` label. Today the QA agent has to remember to add it. Update `scripts/backlog/qa-ticket.mjs` to print, after a successful scaffold, the exact `gh pr create --base main --label qa-intake --title \"qa-intake: ...\"` invocation the agent should run when ready to push the batch. Also document the convention in `docs/qa/agent.md` so a fresh agent finds it without needing the print-out.",
+      "verification": [
+        "acceptance: Running `npm run qa:ticket -- new \"<title>\"` ends with a stderr `[qa-ticket] when ready to push, open the PR with: gh pr create ... --label qa-intake`. The QA agent can copy that line verbatim.",
+        "docs/qa/agent.md notes the `qa-intake` label is required for auto-merge"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "QA-SPRINT-PR-LABEL",
+      "title": "Sprint PRs auto-label with `sprint` for QA discoverability",
+      "status": "pending",
+      "summary": "Companion to the next story (QA-NEXT-PR). For QA's `gh pr list --label sprint --state merged` to actually return merged dev sprints, every sprint PR must carry the `sprint` label. Extend `scripts/backlog/pr-body.mjs` (or wherever the sprint PR open path lives) to default to `--label sprint`. Existing PRs are not retroactively labelled — convention applies to S094+ sprint PRs.",
+      "verification": [
+        "acceptance: After this lands, the next sprint PR I open via the standard workflow carries the `sprint` label by default. `gh pr list --label sprint --state merged` returns it after merge.",
+        "Existing/closed PRs not retroactively touched"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "QA-NEXT-PR",
+      "title": "scripts/backlog/qa-next-pr.mjs — find the most recently merged sprint PR",
+      "status": "pending",
+      "summary": "Helper command for the QA terminal: `npm run qa:next-pr` returns the most-recently-merged PR labelled `sprint` (or matching `^S\\d+:` in the title as a fallback for un-labelled legacy PRs) that QA hasn't reviewed yet. \"Reviewed\" = a marker file `notes/qa/reviewed/PR-<N>.txt` exists OR a qa-ticket in `backlog/qa-tickets/` (including archive/) references the PR via `foundInPr`. Prints PR number, title, merged-at timestamp, and the `acceptance:` lines from the sprint's stories so the QA agent immediately sees what to verify. Wrap as `npm run qa:next-pr`.",
+      "verification": [
+        "acceptance: `npm run qa:next-pr` on a fresh state shows the most recent merged sprint PR + its acceptance lines. After QA files a ticket with foundInPr=<N>, re-running it shows the next-older PR.",
+        "Returns 'no unreviewed PR' (exit 0) when caught up",
+        "+ unit test against a stub gh response"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "QA-AGENT-AUTOLOAD",
+      "title": "QA agent runs qa:next-pr automatically when invoked",
+      "status": "pending",
+      "summary": "Update `.claude/agents/qa-reviewer.md` system prompt + `docs/qa/agent.md` 'How to launch' section so the very first thing a QA session does is `npm run qa:next-pr`. If it returns a PR, the agent starts verifying it; if not, the agent reports 'caught up — exiting'. Eliminates the user-prompt 'go check the new sprint' step.",
+      "verification": [
+        "acceptance: A fresh QA session invocation lands on the latest unreviewed sprint PR's acceptance criteria without user prompting beyond the kickoff prompt.",
+        ".claude/agents/qa-reviewer.md and docs/qa/agent.md updated; kickoff prompt template includes the qa:next-pr step"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "QA-FIX-NOTES-GITIGNORE",
+      "title": "Unblock notes/qa/** for artefact capture (close QA-2026-05-20-001)",
+      "status": "pending",
+      "summary": "QA filed QA-2026-05-20-001 (now BUG-NOTES-QA-IS-GITIGNORED-001 in this sprint after promote): `Notes/` in .gitignore matches `notes/` on macOS's case-insensitive filesystem, so QA can't commit screenshots/repros under notes/qa/. Two options: (a) carve out a `!notes/qa/` exception in .gitignore; (b) move QA artifacts to a different tracked dir (e.g. `docs/qa/artifacts/`). Decision in this story; pick (a) because docs/qa/agent.md + the schema already reference notes/qa/ paths — the exception keeps backward-compat for any existing screenshots an agent might author.",
+      "verification": [
+        "acceptance: After the fix, `git check-ignore -v notes/qa/test.png` returns 'not ignored', and `git add notes/qa/test.png` stages the file. Empty notes/ directories remain ignored to avoid clutter.",
+        ".gitignore changes documented in the diff; QA-2026-05-20-001 / its promoted BUG- story marked implemented with this PR as the fix"
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    },
+    {
+      "id": "QA-PROMOTE-FILED-TICKETS",
+      "title": "Promote QA-2026-05-20-{001,002} from S092 dogfood into this sprint",
+      "status": "pending",
+      "summary": "First dogfood call: QA filed two tickets during S093 review (PR #102, merged). This story closes the loop by running `npm run qa:promote -- --into S094` to fold them into S094 as proper stories. QA-001 (notes/qa gitignored) becomes the work tracked by QA-FIX-NOTES-GITIGNORE above — defer the promoted story with a note pointing at QA-FIX-NOTES-GITIGNORE so we don't double-count. QA-002 (notes/qa-workflow-design.md broken link) was already fixed in S093 commit 0015475 — defer the promoted story with that hash + close.",
+      "verification": [
+        "acceptance: `npm run qa:promote -- --into S094` runs cleanly; both tickets land as stories; both source files archive under backlog/qa-tickets/archive/S094/.",
+        "Promoted stories deferred immediately (with deferredReason linking to the upstream fix) so they don't show as open work."
+      ],
+      "epic": "AGF-BACKLOG-ENGINE"
+    }
+  ]
+}
