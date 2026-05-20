@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S099",
   "title": "Revert S98 danger-decal + tame bomb-fuse wiggle + agent-probe docs + game-design doctor inbox",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-20",
+  "archivedAt": "2026-05-20",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/114",
   "stories": [
     {
       "id": "KABOOM-DANGER-DECAL-REVERT",
