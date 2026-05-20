@@ -33,7 +33,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
 | **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 20 / 0 / 20 | → MVP-0 |
-| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 31 / 0 / 31 |  |
+| **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 31 / 1 / 32 |  |
 | **[M10](backlog/epics/M10.epic.json)** — M10 Security / trust boundary for agent-authored projects | active | engine | 0 / 0 / 0 |  |
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
@@ -44,7 +44,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M9](backlog/epics/M9.epic.json)** — M9 Build / deploy contract for static + connected | active | engine | 0 / 0 / 0 |  |
 | **[REFERENCE-BACKEND-IMPLEMENTATIONS](backlog/epics/REFERENCE-BACKEND-IMPLEMENTATIONS.epic.json)** — Reference backend implementations | active | engine | 0 / 0 / 0 |  |
 | **[TEMPLATE-POLICY](backlog/epics/TEMPLATE-POLICY.epic.json)** — Template policy | active | engine | 0 / 0 / 0 |  |
-| **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 3 / 0 / 3 |  |
+| **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 3 / 1 / 4 |  |
 | **[BENCHMARK-STYLE-REPORTS](backlog/epics/BENCHMARK-STYLE-REPORTS.epic.json)** — Benchmark-style reports | planned | engine | 0 / 0 / 0 |  |
 | **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 0 / 0 / 0 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |

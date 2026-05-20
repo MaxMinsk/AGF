@@ -42,6 +42,32 @@
         "Pill uses the existing HUD primitive (no new layer)"
       ],
       "epic": "AGF-ENGINE-OBSERVABILITY"
+    },
+    {
+      "id": "AGF-AUDIO-POSITIONAL",
+      "title": "Positional / spatial audio via Web Audio PannerNode",
+      "status": "pending",
+      "summary": "Engine audio currently routes every play() through the destination directly — fine for UI sounds, wrong for in-world events. Add an opt-in positional path: AudioBus.play accepts an optional `position: [x, y, z]` and a `listenerPosition` cached on the bus. When position is set, the synth chain ends at a PannerNode (HRTF / equal-power per option) instead of destination; the listener position is set from the active Camera each frame. Kaboom Crew picks this up for footstep + bomb-place + blast + death (each event's caller passes the bomber's world position).",
+      "verification": [
+        "engine/runtime/audio/audio-bus.ts: play() signature gains optional positional payload; bus owns the PannerNode lifecycle",
+        "Per-frame the bus reads the active camera Transform and updates listener position",
+        "Kaboom Crew audio-binding-system forwards bomber world positions for footstep / bomb-place / death; audio-fx routes through the new path",
+        "+ unit tests on the bus with a stub AudioContext that records the pan node graph",
+        "Live probe: footsteps to the left of the camera pan left; far-side bombs are quieter"
+      ],
+      "epic": "AUDIO"
+    },
+    {
+      "id": "KABOOM-AUDIO-POSITIONAL-ADOPT",
+      "title": "Kaboom Crew wires positional audio for in-world events",
+      "status": "pending",
+      "summary": "Follow-up to AGF-AUDIO-POSITIONAL once the engine surface lands. audio-binding-system passes the entity's GridPosition (resolved to world coords via the cell-size factor) to onEvent for footstep / bomb-place / blast / death / pickup. audio-fx routes positional events through the new bus API; non-positional events (match-won/-lost/-draw, UI chimes) keep using the destination path.",
+      "verification": [
+        "AudioEventListener context grows an optional `position?: [x, y, z]` field",
+        "Bomber-driven events include position; UI events don't",
+        "Live probe: footsteps localise; positional bombs near camera louder than far ones"
+      ],
+      "epic": "KABOOM-CREW-MVP-1"
     }
   ]
 }
