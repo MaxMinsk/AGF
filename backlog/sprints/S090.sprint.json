@@ -55,12 +55,11 @@
     {
       "id": "KABOOM-FOOTSTEP-TICK",
       "title": "Tiny click on every grid-cell crossing",
-      "status": "pending",
-      "summary": "Player has no audio feedback for movement — only blast/bomb/pickup/death. Add a `footstep` AudioEventKind that fires when a bomber crosses a grid cell (GridPosition gx/gz changes). audio-binding tracks per-bomber positions across ticks. audio-fx plays a 25 ms muted click — barely audible solo, satisfying when chained. Inherits the mute toggle.",
+      "status": "implemented",
+      "summary": "AudioEventKind grows a `footstep` value. audio-binding-system maintains a per-bomber GridPosition cache (`prevBomberCell`) and fires one 'footstep' event per (gx,gz) change between fixed ticks. Dead bombers (alive===false) skip the check so a corpse mid-DeathAnim stays silent. audio-fx.ts plays a 25 ms low-gain triangle click around 180 Hz — barely audible solo, satisfying when chained.",
       "verification": [
-        "audio-binding-system emits 'footstep' on GridPosition change for every bomber",
-        "audio-fx.ts adds a short low-gain click",
-        "+1 unit test covers the GridPosition-diff detection"
+        "+2 unit tests in audio-binding-system.test.ts: GridPosition change fires footstep; dead bomber doesn't tick",
+        "audio-fx.ts adds playFootstep; play() dispatches via the existing kind switch"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
