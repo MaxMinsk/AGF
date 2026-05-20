@@ -87,12 +87,12 @@
     {
       "id": "KABOOM-CONTROLS-HINT-FADE",
       "title": "Controls-hint banner fades out the same way as the title screen",
-      "status": "pending",
-      "summary": "Mirror the S096 KABOOM-TITLE-SCREEN-FADE pattern on the controls-hint banner (currently snaps off after 4 s). Use the shared `fadeOutOpacityCurve(elapsedMs, durationMs)` helper. Hint fades over 350 ms (slightly longer than the title — it appears later, the player is more focused on gameplay).",
+      "status": "implemented",
+      "summary": "Mirrors S096 KABOOM-TITLE-SCREEN-FADE. controlsHintSpec.render now reads an `opacity` field (default 0.85, the pre-S097 baseline). When the hint-window closes (4 s in OR banner needs the slot), the update loop kicks `controlsHintFadeStartMs`, samples `fadeOutOpacityCurve(elapsed, 350)` scaled by 0.85 each frame, calls `hud.update(CONTROLS_HINT_ID, { opacity })`, and finally `hud.remove`s the widget when opacity reaches 0. Uses the same pure helper from S096 — no new code path.",
       "verification": [
-        "acceptance: After 4 s of round 1, the controls-hint banner fades out smoothly over ~350 ms rather than snapping.",
-        "examples/kaboom-crew/bootstrap.ts: controls-hint removal threads through fadeOutOpacityCurve",
-        "Hint widget render() accepts an opacity field"
+        "acceptance: After ~4 s of round 1, the controls-hint banner fades out smoothly over ~350 ms rather than snapping.",
+        "examples/kaboom-crew/bootstrap.ts: controlsHintSpec.render accepts { opacity }; removal threads through fadeOutOpacityCurve from S096",
+        "controlsHintFadeStartMs is reset to undefined on mount + on unmount so the next round starts from a clean state"
       ],
       "epic": "KABOOM-CREW-MVP-1"
     },
