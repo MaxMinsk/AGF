@@ -41,7 +41,7 @@ S93 onwards: the repo runs **two-terminal Dev + QA** (full design at `docs/qa/de
 | `BACKLOG.md`, `BACKLOG_ARCHIVE.md` (generated) | write (via `backlog:render`) | read |
 | `backlog/qa-tickets/*.qa-ticket.json` | **read + delete-on-promote** | write |
 | `examples/**/playtests/qa-proposed/**` | **read + move-on-promote** | write |
-| `notes/qa/**` | read | write |
+| `qa-artifacts/**` | read | write |
 | `docs/qa/**` | write (during a planning sprint) | read |
 
 **Per-story sequence on this terminal:**
@@ -58,7 +58,13 @@ S93 onwards: the repo runs **two-terminal Dev + QA** (full design at `docs/qa/de
 - Before opening a new sprint, run `npm run qa:promote -- --into S<new>` to pull every QA ticket into the new sprint as proper stories (bug + regression-needed pairs auto-`dependsOn`-link; source files archive under `backlog/qa-tickets/archive/<sprint-id>/`).
 - `engine doctor` prints a `QA inbox: N ticket(s)` line so you see the queue. A `⚠ critical` warning means a critical ticket is > 24h old — promote it now.
 
-**Sprint close (unchanged):** flip `status: "archived"`, fill `archivedAt` + `prUrl`, `backlog:render`, push, open the sprint PR, merge.
+**Sprint close:** flip `status: "archived"`, fill `archivedAt` + `prUrl`, `backlog:render`, push, open the sprint PR (always pass `--label sprint` so the QA terminal's `qa:next-pr` discoverer picks it up), merge. Canonical command:
+
+```bash
+gh pr create --base main --label sprint \
+  --title "S<NN>: <sprint title>" \
+  --body-file <(node scripts/backlog/pr-body.mjs)
+```
 
 ## Current Project Phase
 

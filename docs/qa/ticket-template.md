@@ -49,7 +49,7 @@ That's a valid ticket. `backlog:check` will accept it. Everything below is optio
   "expected": "Bot should treat its own about-to-explode bomb's projected cells as danger and pick a different direction.",
   "actual": "Bot steps into the projected blast and dies. The danger map in KABOOM-BOT-DANGER-AVOID covers only bombs placed by other bombers.",
   "logs": "AGF_KABOOM_BOT_DEATH bot.1 at (7,5) — caused by bot.1's own blast originating at (7,5)",
-  "screenshot": "notes/qa/QA-2026-05-20-001/death-frame.png",
+  "screenshot": "qa-artifacts/QA-2026-05-20-001/death-frame.png",
   "playtest": "examples/kaboom-crew/playtests/qa-proposed/bot-self-blast.playtest.json",
   "epicHint": "KABOOM-CREW-MVP-1"
 }
@@ -74,7 +74,7 @@ That's a valid ticket. `backlog:check` will accept it. Everything below is optio
 | `expected` | no | What should have happened. Strongly recommended. |
 | `actual` | no | What actually happened. Strongly recommended. |
 | `logs` | no | Quote relevant console / diagnostics lines. Short — link a file for long captures. |
-| `screenshot` | no | Repo-relative path under `notes/qa/`. |
+| `screenshot` | no | Repo-relative path under `qa-artifacts/`. |
 | `playtest` | no | Repo-relative path to a draft `.playtest.json` under `examples/<project>/playtests/qa-proposed/`. |
 | `regressionFor` | **yes** when `type='regression-needed'` | Bug ticket id this regression test would cover. |
 | `epicHint` | no | Epic id to nudge promotion into a specific epic. |

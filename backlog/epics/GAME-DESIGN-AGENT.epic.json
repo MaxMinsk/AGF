@@ -1,0 +1,10 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GAME-DESIGN-AGENT",
+  "title": "Game designer / product-owner terminal — third role in the multi-agent loop",
+  "status": "planned",
+  "category": "infra",
+  "summary": "Adds a third Claude terminal alongside dev (S093) and QA (S093–S094): the game-designer / product-owner agent. Owns feature planning, mechanic decisions, and the Game Design Document (GDD). Reads merged sprint PRs to keep the GDD in sync with what shipped; writes design proposals back into the backlog as a new story type (or via a dedicated `backlog/design-proposals/` artefact directory). Stories flowing through this epic include: (1) a planning sprint that produces `docs/design/agent.md` mirroring S092's QA design doc — role split (what designer owns vs writes), file-ownership table, intake convention, decision log; (2) research into modern game-design workflows (Pillar / Vision / Mechanics docs, decision-record patterns, Notion-style GDDs reduced to tracked Markdown); (3) backlog-engine extension — new optional `designRationale` / `gameDesignProposal` fields on story OR a sibling `*.design-proposal.json` schema; (4) GDD storage decision (single docs/design/gdd.md vs per-mechanic files under docs/design/mechanics/); (5) `.claude/agents/game-designer.md` subagent definition; (6) dogfood sprint where all three agents run in parallel. Mirrors the proven S092 → S093 → S094 cadence used to bootstrap the QA role.",
+  "targetMilestone": "S100",
+  "dependsOn": ["AGF-BACKLOG-ENGINE"]
+}

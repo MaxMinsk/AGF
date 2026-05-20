@@ -1,0 +1,80 @@
+name: qa-intake auto-merge
+
+# S94 QA-AUTO-MERGE-ACTION. Auto-merges PRs labelled `qa-intake` once
+# (a) every changed file path is inside a QA-writable directory, and
+# (b) the CI checks on the head commit have all turned green.
+#
+# Designed for the two-terminal Dev + QA workflow (`docs/qa/design.md`):
+# the QA Claude pushes tickets to `qa-intake/YYYY-WW` and opens a PR
+# with the `qa-intake` label. This action handles the merge so the dev
+# terminal doesn't have to relay each PR manually.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Per-PR concurrency so re-pushes during the wait-for-checks step
+# don't pile up parallel merges.
+concurrency:
+  group: qa-intake-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard-and-merge:
+    if: contains(github.event.pull_request.labels.*.name, 'qa-intake')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Reject PR if any file path is outside QA-writable directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fetch base + head so `git diff` resolves the range.
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+          base_sha=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.base.sha')
+          changed=$(git diff --name-only "$base_sha"...HEAD)
+          echo "Changed files:"
+          printf '  %s\n' $changed
+          # Allowed path prefixes (mirrors docs/qa/design.md §7 file-ownership table).
+          allowed_regex='^(backlog/qa-tickets/|examples/.*/playtests/qa-proposed/|qa-artifacts/)'
+          bad=""
+          for f in $changed; do
+            if ! echo "$f" | grep -qE "$allowed_regex"; then
+              bad="$bad $f"
+            fi
+          done
+          if [ -n "$bad" ]; then
+            echo "::error::qa-intake PR must touch only QA-writable paths. Offending files:$bad"
+            exit 1
+          fi
+          echo "All paths are QA-writable. Proceeding to wait for CI."
+
+      - name: Wait for required checks to pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `gh pr checks --watch` blocks until every check on the head
+          # commit has reached a terminal state and exits non-zero if any
+          # required check failed.
+          gh pr checks "$PR_NUMBER" --watch --fail-fast
+
+      - name: Squash-merge the qa-intake PR
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr merge "$PR_NUMBER" --squash --auto --delete-branch || \
+            gh pr merge "$PR_NUMBER" --squash --delete-branch
+          echo "Merged qa-intake PR #$PR_NUMBER."
