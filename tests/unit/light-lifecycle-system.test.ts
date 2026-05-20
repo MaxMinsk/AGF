@@ -126,6 +126,7 @@ function stubDiagnostics(): DiagnosticsBus & { collected: RuntimeDiagnostic[] } 
       return d;
     },
     snapshot: () => collected,
+    snapshotSince: (thresholdSeconds: number) => collected.filter((d) => d.emittedAtSeconds > thresholdSeconds),
     clear: () => collected.splice(0, collected.length),
     subscribe: () => () => {},
     collected
