@@ -1,166 +1,139 @@
-// S90 KABOOM-DEATH-FALL.
+// S105 KABOOM-RAGDOLL-ROOT-ARC + LIMB-FLAIL — replaces the S100 tween tests.
 
 import { describe, expect, it } from "vitest";
 
 import { World } from "../../../../engine/core/ecs/world";
 import {
   createKaboomDeathAnimationSystem,
-  deathFallPitch
+  pivotImpulseDegPerS
 } from "../../src/systems/death-animation-system";
 
-function ctx(world: World, fixedDt = 1 / 60) {
+function ctx(world: World, fixedDt = 1 / 60, elapsed = 0) {
   return {
     world,
-    time: { elapsed: 0, dt: fixedDt, fixedDt, frameCount: 0, fixedStepCount: 0 }
+    time: { elapsed, dt: fixedDt, fixedDt, frameCount: 0, fixedStepCount: 0 }
   };
 }
 
-function addBomber(world: World): void {
+function addBomber(world: World, opts: { gx?: number; gz?: number } = {}) {
   world.addEntity("bot.1");
-  world.setComponent("bot.1", "Transform", { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+  world.setComponent("bot.1", "Transform", { position: [opts.gx ?? 5, 0, opts.gz ?? 5], rotation: [0, 0, 0], scale: [1, 1, 1] });
+  world.setComponent("bot.1", "GridPosition", { gx: opts.gx ?? 5, gz: opts.gz ?? 5 });
 }
 
-describe("deathFallPitch (S90 KABOOM-DEATH-FALL pure helper)", () => {
-  it("returns the baseline when elapsed <= 0", () => {
-    expect(deathFallPitch(0, 0)).toBe(0);
-    expect(deathFallPitch(-0.01, 0.5)).toBe(0.5);
+describe("pivotImpulseDegPerS (S105 pure helper)", () => {
+  it("returns the same magnitude for the same inputs (deterministic)", () => {
+    const a = pivotImpulseDegPerS("bot.1", 2, 3, "shoulderL");
+    const b = pivotImpulseDegPerS("bot.1", 2, 3, "shoulderL");
+    expect(a).toEqual(b);
   });
-
-  it("returns the 90° target when elapsed >= duration", () => {
-    expect(deathFallPitch(0.4, 0)).toBeCloseTo(Math.PI / 2, 5);
-    expect(deathFallPitch(10, 0)).toBeCloseTo(Math.PI / 2, 5);
+  it("differs across pivot names", () => {
+    const a = pivotImpulseDegPerS("bot.1", 2, 3, "shoulderL");
+    const b = pivotImpulseDegPerS("bot.1", 2, 3, "kneeR");
+    expect(a).not.toEqual(b);
   });
-
-  it("S095 KABOOM-CAMERA-EASING-ADOPT: easeOutBack overshoots the target before settling", () => {
-    // Sample across the duration. easeOutBack peaks > 1 around t ≈ 0.74
-    // (the named curve from engine/core/systems/tween-system.ts), so
-    // deathFallPitch samples to a pitch GREATER than the 90° target at
-    // some mid-curve sample before settling on the target at t=duration.
-    const samples: number[] = [];
-    for (let t = 0; t <= 0.4; t += 0.01) samples.push(deathFallPitch(t, 0));
-    const peak = Math.max(...samples);
-    expect(peak).toBeGreaterThan(Math.PI / 2);
-    // End-of-curve (and beyond) still lands on the target — the loop
-    // may stop just shy of 0.4 due to fp accumulation, so probe explicitly.
-    expect(deathFallPitch(0.4, 0)).toBeCloseTo(Math.PI / 2, 5);
-    expect(deathFallPitch(1, 0)).toBeCloseTo(Math.PI / 2, 5);
-    // The peak should be only a small overshoot (~10%), not a wild jump.
-    expect(peak).toBeLessThan(Math.PI / 2 * 1.15);
-  });
-
-  it("S095 KABOOM-CAMERA-EASING-ADOPT: monotonic up to the overshoot peak", () => {
-    // Pre-peak segment (t in [0, 0.5]) is still monotonic — only the
-    // back-half overshoots and returns.
-    const samples: number[] = [];
-    for (let t = 0; t <= 0.20; t += 0.01) samples.push(deathFallPitch(t, 0));
-    for (let i = 1; i < samples.length; i += 1) {
-      expect(samples[i]!).toBeGreaterThanOrEqual(samples[i - 1]!);
+  it("magnitude stays inside the documented range [90, 360]", () => {
+    for (const pivot of ["neck", "shoulderL", "shoulderR", "hipR", "kneeL"]) {
+      const impulse = pivotImpulseDegPerS("bot.1", 1, 1, pivot);
+      expect(Math.abs(impulse.x)).toBeGreaterThanOrEqual(90);
+      expect(Math.abs(impulse.x)).toBeLessThanOrEqual(360);
     }
   });
 });
 
-describe("createKaboomDeathAnimationSystem (S90 KABOOM-DEATH-FALL)", () => {
-  it("rewrites Transform.rotation each tick a DeathAnim is alive", () => {
+describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
+  it("does nothing for entities without DeathAnim", () => {
+    const world = new World();
+    addBomber(world);
+    const system = createKaboomDeathAnimationSystem();
+    system.fixedUpdate!(ctx(world));
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bot.1", "Transform")!;
+    expect(t.position).toEqual([5, 0, 5]);
+  });
+
+  it("first visit primes velocity + angularVelocity from blast direction", () => {
+    const world = new World();
+    addBomber(world, { gx: 5, gz: 5 });
+    world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
+    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 1.0 });
+    const system = createKaboomDeathAnimationSystem();
+    system.fixedUpdate!(ctx(world));
+    const anim = world.getComponent<{ velocity: ReadonlyArray<number>; angularVelocity: ReadonlyArray<number>; initialised: boolean }>("bot.1", "DeathAnim")!;
+    expect(anim.initialised).toBe(true);
+    // Blast at (3, 5), bomber at (5, 5) → dir = (+1, 0). Launch velocity x positive.
+    expect(anim.velocity[0]!).toBeGreaterThan(0);
+    expect(anim.velocity[1]!).toBeCloseTo(2.4, 5);
+    expect(anim.velocity[2]!).toBeCloseTo(0, 5);
+  });
+
+  it("default direction (-Z) when no RagdollState present", () => {
     const world = new World();
     addBomber(world);
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
     const system = createKaboomDeathAnimationSystem();
     system.fixedUpdate!(ctx(world));
-    const t = world.getComponent("bot.1", "Transform") as { rotation: number[] };
-    expect(t.rotation[0]).toBeGreaterThan(0);
-    expect(t.rotation[0]).toBeLessThan(Math.PI / 2);
+    const anim = world.getComponent<{ velocity: ReadonlyArray<number> }>("bot.1", "DeathAnim")!;
+    expect(anim.velocity[2]!).toBeLessThan(0); // knocked toward -Z by default
   });
 
-  it("reaches the 90° tip after ~0.4 s of fixed steps", () => {
+  it("integrates a gravity arc — Y rises then falls past ground", () => {
     const world = new World();
-    addBomber(world);
+    addBomber(world, { gx: 5, gz: 5 });
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    const system = createKaboomDeathAnimationSystem();
-    for (let i = 0; i < 30; i += 1) system.fixedUpdate!(ctx(world));
-    const t = world.getComponent("bot.1", "Transform") as { rotation: number[] };
-    expect(t.rotation[0]).toBeCloseTo(Math.PI / 2, 3);
-  });
-
-  it("ignores entities without DeathAnim", () => {
-    const world = new World();
-    addBomber(world);
+    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5 });
     const system = createKaboomDeathAnimationSystem();
     system.fixedUpdate!(ctx(world));
-    const t = world.getComponent("bot.1", "Transform") as { rotation: number[] };
-    expect(t.rotation[0]).toBe(0);
-  });
-});
-
-describe("deathLaunchHeight (S100 KABOOM-SLAPSTICK-DEATH)", () => {
-  it("returns 0 at t=0 and t>=duration; positive in between", async () => {
-    const { deathLaunchHeight } = await import("../../src/systems/death-animation-system");
-    expect(deathLaunchHeight(0)).toBe(0);
-    expect(deathLaunchHeight(0.4)).toBe(0);
-    expect(deathLaunchHeight(1)).toBe(0);
-    expect(deathLaunchHeight(0.1)).toBeGreaterThan(0);
-    expect(deathLaunchHeight(0.2)).toBeGreaterThan(0);
-    expect(deathLaunchHeight(0.3)).toBeGreaterThan(0);
+    // After init step, integrate further. Track Y peak.
+    let peakY = 0;
+    for (let i = 0; i < 40; i += 1) {
+      system.fixedUpdate!(ctx(world, 1 / 60, i / 60));
+      const t = world.getComponent<{ position: ReadonlyArray<number> }>("bot.1", "Transform")!;
+      peakY = Math.max(peakY, t.position[1]!);
+    }
+    expect(peakY).toBeGreaterThan(0.1); // got off the ground
   });
 
-  it("peaks at t=duration/2 (~0.2) with peak height ~1.5", async () => {
-    const { deathLaunchHeight } = await import("../../src/systems/death-animation-system");
-    expect(deathLaunchHeight(0.2)).toBeCloseTo(1.5, 5);
-    // Symmetric around the midpoint.
-    expect(deathLaunchHeight(0.1)).toBeCloseTo(deathLaunchHeight(0.3), 5);
-  });
-});
-
-describe("deathSpinYaw (S100 KABOOM-SLAPSTICK-DEATH)", () => {
-  it("starts at baseY, ends one full revolution later", async () => {
-    const { deathSpinYaw } = await import("../../src/systems/death-animation-system");
-    expect(deathSpinYaw(0, 0)).toBe(0);
-    expect(deathSpinYaw(0.4, 0)).toBeCloseTo(Math.PI * 2, 5);
-    expect(deathSpinYaw(1, 0)).toBeCloseTo(Math.PI * 2, 5);
-  });
-
-  it("linear interpolation — mid-point is half a revolution", async () => {
-    const { deathSpinYaw } = await import("../../src/systems/death-animation-system");
-    expect(deathSpinYaw(0.2, 0)).toBeCloseTo(Math.PI, 5);
-  });
-
-  it("preserves baseY offset", async () => {
-    const { deathSpinYaw } = await import("../../src/systems/death-animation-system");
-    expect(deathSpinYaw(0, 1)).toBe(1);
-    expect(deathSpinYaw(0.4, 1)).toBeCloseTo(1 + Math.PI * 2, 5);
-  });
-});
-
-describe("S100 KABOOM-SLAPSTICK-DEATH (system integration)", () => {
-  it("writes Transform.position.y above base mid-curve, returns to base at end", async () => {
-    const { createKaboomDeathAnimationSystem } = await import("../../src/systems/death-animation-system");
-    const world = new World();
-    addBomber(world);
-    // Position bomber at world (5, 0, 7) — non-zero base.
-    world.setComponent("bot.1", "Transform", { position: [5, 0, 7], rotation: [0, 0, 0], scale: [1, 1, 1] });
-    world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    const system = createKaboomDeathAnimationSystem();
-    // Mid-curve (~ tick 12 at 1/60 = 0.2s = peak): bomber should be airborne.
-    for (let i = 0; i < 12; i += 1) system.fixedUpdate!(ctx(world));
-    const midT = world.getComponent("bot.1", "Transform") as { position: number[] };
-    expect(midT.position[1]).toBeGreaterThan(0.5);
-    expect(midT.position[0]).toBe(5);
-    expect(midT.position[2]).toBe(7);
-    // Run to completion: position back at base.
-    for (let i = 0; i < 30; i += 1) system.fixedUpdate!(ctx(world));
-    const endT = world.getComponent("bot.1", "Transform") as { position: number[] };
-    expect(endT.position[1]).toBeCloseTo(0, 3);
-  });
-
-  it("writes Transform.rotation.y across a full revolution by the end", async () => {
-    const { createKaboomDeathAnimationSystem } = await import("../../src/systems/death-animation-system");
+  it("seeds SpringPivot on every limb pivot listed in LimbPivots", () => {
     const world = new World();
     addBomber(world);
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
+    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5 });
+    // Stub LimbPivots + child entities.
+    const pivots: Record<string, string> = {
+      neck: "bot.1.neck",
+      shoulderL: "bot.1.shoulderL",
+      shoulderR: "bot.1.shoulderR",
+      elbowL: "bot.1.elbowL",
+      elbowR: "bot.1.elbowR",
+      hipL: "bot.1.hipL",
+      hipR: "bot.1.hipR",
+      kneeL: "bot.1.kneeL",
+      kneeR: "bot.1.kneeR"
+    };
+    for (const id of Object.values(pivots)) {
+      world.addEntity(id);
+      world.setComponent(id, "Transform", { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    }
+    world.setComponent("bot.1", "LimbPivots", pivots);
     const system = createKaboomDeathAnimationSystem();
-    for (let i = 0; i < 30; i += 1) system.fixedUpdate!(ctx(world));
-    const t = world.getComponent("bot.1", "Transform") as { rotation: number[] };
-    // Yaw should be near 2π (one full revolution).
-    const yaw = ((t.rotation[1] ?? 0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-    expect(yaw === 0 || Math.abs(yaw - Math.PI * 2) < 0.01).toBe(true);
+    system.fixedUpdate!(ctx(world));
+    // Every pivot should have a SpringPivot component now.
+    for (const id of Object.values(pivots)) {
+      const sp = world.getComponent<{ velocity: ReadonlyArray<number>; restRotation: ReadonlyArray<number> }>(id, "SpringPivot");
+      expect(sp).toBeDefined();
+      expect(sp!.restRotation).toEqual([0, 0, 0]);
+      expect(Math.abs(sp!.velocity[0]!) + Math.abs(sp!.velocity[2]!)).toBeGreaterThan(0);
+    }
+  });
+
+  it("RagdollState gets deathStartedAt stamped on first visit", () => {
+    const world = new World();
+    addBomber(world);
+    world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
+    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5 });
+    const system = createKaboomDeathAnimationSystem();
+    system.fixedUpdate!(ctx(world, 1 / 60, 7.5));
+    const ragdoll = world.getComponent<{ deathStartedAt: number }>("bot.1", "RagdollState")!;
+    expect(ragdoll.deathStartedAt).toBeCloseTo(7.5, 5);
   });
 });

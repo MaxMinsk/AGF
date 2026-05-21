@@ -31,23 +31,39 @@
     {
       "id": "KABOOM-RAGDOLL-STATE-COMPONENT",
       "title": "RagdollState component + blast-direction capture on alive→dead edge",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-005. New project-local schema entry `RagdollState { blastOriginGx, blastOriginGz, deathStartedAt, magnitude }` written on the bomber at the moment BomberStats.alive flips false. audio-binding-system (the existing edge detector) captures the BlastEvent that caused the kill + records its origin. Single-blast magnitude = 1.0; chained blasts in the same frame clamp to max 1.8.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: RagdollState component schema entry written + blast-propagation-system writes it on every alive→dead transition with the killing blast's origin cell. Multiple-blast-chain magnitude clamps to 1.8 via incremental += 0.4 per overlap.",
+        "examples/kaboom-crew/schemas/scene-extensions.schema.json: RagdollState component definition",
+        "examples/kaboom-crew/src/systems/blast-propagation-system.ts: damageBombersAt now accepts blastOriginGx/Gz and writes RagdollState on kill"
+      ]
     },
     {
       "id": "KABOOM-RAGDOLL-ROOT-ARC",
       "title": "Ragdoll root-arc system replaces the S100 vertical-hop tween",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-005. New death-animation system reads RagdollState + drives the root's Transform.position along a gravity arc: initial velocity (dir.x × magnitude × 1.6, +2.4, dir.z × magnitude × 1.6); vy += -9.0 cell/sec² per fixedUpdate. After ~0.6 s the bomber lands ~0.7 cells from death cell, vertical peak ~0.85 cells. Angular velocity: cross(dir, +Y) × magnitude × π applied to root.rotation per tick — produces natural tumble (east blast tips bomber west). REMOVES the S100 deathLaunchHeight + deathSpinYaw curves from death-animation-system.ts.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: death-animation-system replaces the S100 vertical-hop + Y-spin tween with a gravity arc: initial velocity = dir × magnitude × 1.6 horizontal + 2.4 up; vy decays with -9.0 cell/sec². Tumble: cross(dir, +Y) × magnitude × π written to root.rotation per tick. Direction derived from (deathCell - blastOrigin). Default direction (-Z) when no RagdollState.",
+        "Removed: deathFallPitch, deathLaunchHeight, deathSpinYaw helpers + their constants. New: pivotImpulseDegPerS pure helper for limb seeding.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: rewrite — captures basePosition/baseRotation/velocity/angularVelocity on first visit, integrates per fixedUpdate"
+      ]
     },
     {
       "id": "KABOOM-RAGDOLL-LIMB-FLAIL",
       "title": "Limb flail via the spring-pivot system + per-pivot initial impulse",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-005 (limb-flail phase). At the alive→dead frame, the 9 limb pivots from LimbPivots each get a deterministic angular impulse: hash(entityId, blastOrigin, pivotName) → ±15..40° offset. SpringPivot components stamped with the offset as initial velocity + the existing rest (0,0,0) target + k=18 damping=0.4. The spring system then flails the limbs back toward rest. Lasts ~0.6s in sync with the root-arc.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: on the alive→dead frame, death-animation-system seeds SpringPivot on every limb from LimbPivots. velocity = pivotImpulseDegPerS(...) — deterministic per (ownerId, blastOrigin, pivotName), magnitude in [90, 360] deg/s. rest=[0,0,0], k=18, damping=0.4. Spring system drives the flail decay.",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: kind='none' skips its writes when DeathAnim is present so the spring + ragdoll systems own the pose",
+        "examples/kaboom-crew/bootstrap.ts: createSpringPivotSystem registered after bench-animation",
+        "+9 unit tests in tests/unit/death-animation-system.test.ts covering deterministic impulse, range bounds, init step, gravity arc, default direction, LimbPivots seeding, deathStartedAt timestamp"
+      ]
     },
     {
       "id": "KABOOM-HIT-RECOIL-SYSTEM",

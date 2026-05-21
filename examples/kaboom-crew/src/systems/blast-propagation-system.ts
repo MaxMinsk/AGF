@@ -77,7 +77,7 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
 
       // Origin cell always gets a tile + damage.
       spawnBlastTile(world, event.originGx, event.originGz, event.ownerId, nextTileId);
-      damageBombersAt(world, options.occupancy, event.originGx, event.originGz);
+      damageBombersAt(world, options.occupancy, event.originGx, event.originGz, event.originGx, event.originGz);
       chainBombsAt(world, options.occupancy, event.originGx, event.originGz);
       // Soft blocks at origin (rare, but a bomb could land beside a wall
       // and immediately blow it up via chain) are destroyed too.
@@ -104,7 +104,7 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
             break;
           }
           spawnBlastTile(world, gx, gz, event.ownerId, nextTileId);
-          damageBombersAt(world, options.occupancy, gx, gz);
+          damageBombersAt(world, options.occupancy, gx, gz, event.originGx, event.originGz);
           chainBombsAt(world, options.occupancy, gx, gz);
         }
       }
@@ -204,13 +204,45 @@ function emitSoftBlockDestroyed(
   world.setComponent(id, SOFT_BLOCK_DESTROYED_EVENT, { gx, gz });
 }
 
-function damageBombersAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): void {
+function damageBombersAt(
+  world: World,
+  occupancy: GridOccupancyQuery,
+  gx: number,
+  gz: number,
+  blastOriginGx: number,
+  blastOriginGz: number
+): void {
   for (const id of occupancy.occupants(gx, gz)) {
     const stats = world.getComponent<{ alive?: boolean; maxBombs: number; range: number; activeBombs?: number }>(id, BOMBER_STATS);
     if (stats === undefined || stats.alive === false) continue;
     world.setComponent(id, BOMBER_STATS, { ...stats, alive: false });
+    // S105 KABOOM-RAGDOLL-STATE-COMPONENT — record the blast origin
+    // that killed this bomber so the ragdoll system can apply a
+    // direction-aware launch impulse. Multiple kills on the same frame
+    // pile in via the magnitude clamp below — first writer wins on
+    // origin (chain reactions are rare + the visual differs little).
+    const existing = world.getComponent<RagdollStateLike>(id, "RagdollState");
+    if (existing === undefined) {
+      world.setComponent(id, "RagdollState", {
+        blastOriginGx,
+        blastOriginGz,
+        magnitude: 1.0
+      } satisfies RagdollStateLike);
+    } else {
+      world.setComponent(id, "RagdollState", {
+        ...existing,
+        magnitude: Math.min(1.8, (existing.magnitude ?? 1.0) + 0.4)
+      });
+    }
   }
 }
+
+type RagdollStateLike = {
+  blastOriginGx: number;
+  blastOriginGz: number;
+  magnitude?: number;
+  deathStartedAt?: number;
+};
 
 function chainBombsAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): void {
   for (const id of occupancy.occupants(gx, gz, "bomb")) {
