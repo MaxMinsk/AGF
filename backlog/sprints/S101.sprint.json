@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S101",
   "title": "procbomber-bench — sandbox for the procedural humanoid generator",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-21",
+  "archivedAt": "2026-05-21",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/117",
   "stories": [
     {
       "id": "CHORE-CHARACTERS-EPIC-ACTIVATE",
