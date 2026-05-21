@@ -20,6 +20,7 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 
 const PLAYER_CONTROLLED: ComponentName = "PlayerControlled";
 const GRID_MOVER: ComponentName = "GridMover";
+const BOMBER_STATS: ComponentName = "BomberStats";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 const ROUND_RESTART_REQUEST: ComponentName = "RoundRestartRequest";
 const REMOTE_DETONATE_REQUEST: ComponentName = "RemoteDetonateRequest";
@@ -33,7 +34,10 @@ const MOVE_RIGHT = new Set(["KeyD", "ArrowRight"]);
 const MOVE_UP = new Set(["KeyW", "ArrowUp"]);
 const MOVE_LEFT = new Set(["KeyA", "ArrowLeft"]);
 const MOVE_DOWN = new Set(["KeyS", "ArrowDown"]);
-const PLACE_BOMB = new Set(["Space"]);
+// S108 KABOOM-REMOTE-DETONATE-PRESS-SPLIT. Space is no longer the
+// dedicated PLACE_BOMB key — its branch decides place vs detonate
+// based on the bomber's BomberStats (activeBombs vs maxBombs).
+const SPACE_OR_PLACE_FALLBACK = new Set(["Space"]);
 const ROUND_RESTART = new Set(["KeyR"]);
 // S100 KABOOM-REMOTE-DETONATE-PUP — F triggers all paused bombs.
 // S104 KABOOM-REMOTE-DETONATE-SPACE-BIND. Space also detonates paused
@@ -41,7 +45,10 @@ const ROUND_RESTART = new Set(["KeyR"]);
 // same press places a new paused bomb (if slots remain) AND detonates
 // every paused bomb already in the world. F stays as the explicit
 // single-purpose detonate trigger.
-const REMOTE_DETONATE = new Set(["KeyF", "Space"]);
+// S100 KABOOM-REMOTE-DETONATE-PUP. F key always fires remote-detonate.
+// Space is dual-purpose — see the Space branch below for the
+// place-vs-detonate dispatch.
+const REMOTE_DETONATE_EXPLICIT = new Set(["KeyF"]);
 
 type GridMoverComponent = {
   speed: number;
@@ -165,12 +172,27 @@ export function createKaboomPlayerInputSystem(
       return;
     }
     const direction = resolveDirection();
-    const placeBombEdge = someInSetNew(PLACE_BOMB);
+    const spaceEdge = someInSetNew(SPACE_OR_PLACE_FALLBACK);
     const restartEdge = someInSetNew(ROUND_RESTART);
-    const remoteDetonateEdge = someInSetNew(REMOTE_DETONATE);
+    const fKeyDetonateEdge = someInSetNew(REMOTE_DETONATE_EXPLICIT);
     for (const entityId of query!.run()) {
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       if (mover === undefined) continue;
+      // S108 — dead bombers don't respond to input. Without this guard
+      // the ragdoll arc keeps logging queuedDirection updates and the
+      // corpse "steers" in midair when keys are pressed.
+      const stats = world.getComponent<{ alive?: boolean }>(entityId, BOMBER_STATS);
+      if (stats?.alive === false) {
+        // Drop any stale queued direction + restart-only edges so
+        // R-key restart still works for the dead-player UX.
+        if (mover.queuedDirection !== undefined && (mover.queuedDirection.dx !== 0 || mover.queuedDirection.dz !== 0)) {
+          world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+        }
+        if ((restartEdge || world.hasComponent(entityId, INPUT_ACTION)) && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
+          world.setComponent(entityId, ROUND_RESTART_REQUEST, {});
+        }
+        continue;
+      }
 
       // S098 AGF-PROBE-INPUT-INJECT — read + consume an injected
       // InputAction BEFORE the keyboard path so a probe-driven action
@@ -226,16 +248,34 @@ export function createKaboomPlayerInputSystem(
       }
       // Edge-trigger transients. BombPlacementSystem (and RoundResolveSystem)
       // consume + remove these the same frame they're written.
-      if ((placeBombEdge || injectedPlaceBomb) && !world.hasComponent(entityId, PLACE_BOMB_REQUEST)) {
-        world.setComponent(entityId, PLACE_BOMB_REQUEST, {});
-      }
       if ((restartEdge || injectedRestart) && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
         world.setComponent(entityId, ROUND_RESTART_REQUEST, {});
       }
-      // S100 KABOOM-REMOTE-DETONATE-PUP — F key (or probe-injected
-      // 'remote-detonate' action) writes the request transient.
-      // bomb-fuse-system reads it the same frame.
-      if ((remoteDetonateEdge || injectedRemoteDetonate) && !world.hasComponent(entityId, REMOTE_DETONATE_REQUEST)) {
+      // F key always fires remote-detonate explicitly.
+      // Space (or probe place-bomb action) is dual-purpose: when the
+      // bomber has a free bomb slot it PLACES; otherwise (slots full
+      // with paused bombs) it DETONATES. The two cases are exclusive
+      // so we never trigger place + detonate on the same press.
+      const spaceTriggered = spaceEdge || injectedPlaceBomb;
+      let wantPlace = false;
+      let wantDetonate = fKeyDetonateEdge || injectedRemoteDetonate;
+      if (spaceTriggered) {
+        const stats = world.getComponent<{ activeBombs?: number; maxBombs?: number }>(
+          entityId,
+          BOMBER_STATS
+        );
+        const active = stats?.activeBombs ?? 0;
+        const max = stats?.maxBombs ?? 1;
+        if (active < max) {
+          wantPlace = true;
+        } else {
+          wantDetonate = true;
+        }
+      }
+      if (wantPlace && !world.hasComponent(entityId, PLACE_BOMB_REQUEST)) {
+        world.setComponent(entityId, PLACE_BOMB_REQUEST, {});
+      }
+      if (wantDetonate && !world.hasComponent(entityId, REMOTE_DETONATE_REQUEST)) {
         world.setComponent(entityId, REMOTE_DETONATE_REQUEST, {});
       }
     }

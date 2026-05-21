@@ -33,6 +33,7 @@ import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/benc
 import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-pivot-system";
 import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
+import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-movement-system";
 
 /**
  * S104 KABOOM-MIGRATE-PREFABS — fixed recipe-derivation rule for
@@ -255,6 +256,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // module — registered below alongside the rest of the renderer
     // adapters.
     scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static"] });
+    // S108 KABOOM-BOMBER-FACE-MOVEMENT — root Y rotation tracks GridMover.
+    scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static"] });
 
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
@@ -283,7 +286,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S90 KABOOM-DEATH-FALL — tweens the dying bomber's rotation
     // toward a tipped-over pose. Reads `DeathAnim` written by
     // audio-binding-system on the alive→dead edge.
-    scheduler.register(createKaboomDeathAnimationSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomDeathAnimationSystem({ occupancy }), { profiles: ["static"] });
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
     // BenchAnimationState + LimbPivots (written by the driver above + by

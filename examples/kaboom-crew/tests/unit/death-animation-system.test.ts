@@ -62,7 +62,7 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     expect(anim.initialised).toBe(true);
     // Blast at (3, 5), bomber at (5, 5) → dir = (+1, 0). Launch velocity x positive.
     expect(anim.velocity[0]!).toBeGreaterThan(0);
-    expect(anim.velocity[1]!).toBeCloseTo(2.4, 5);
+    expect(anim.velocity[1]!).toBeCloseTo(2.0, 5);
     expect(anim.velocity[2]!).toBeCloseTo(0, 5);
   });
 
@@ -124,6 +124,24 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
       expect(sp!.restRotation).toEqual([0, 0, 0]);
       expect(Math.abs(sp!.velocity[0]!) + Math.abs(sp!.velocity[2]!)).toBeGreaterThan(0);
     }
+  });
+
+  it("S108 ground clamp: when root lands (Y at base + vy <= 0), angular velocity zeroes + rotation clamps to ±90°", () => {
+    const world = new World();
+    addBomber(world);
+    world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
+    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 1.5 });
+    const system = createKaboomDeathAnimationSystem();
+    // Run for 2 seconds — gravity-arc fully completes + landing.
+    for (let i = 0; i < 120; i += 1) system.fixedUpdate!(ctx(world, 1 / 60, i / 60));
+    const anim = world.getComponent<{ velocity: ReadonlyArray<number>; angularVelocity: ReadonlyArray<number> }>("bot.1", "DeathAnim")!;
+    expect(anim.velocity).toEqual([0, 0, 0]);
+    expect(anim.angularVelocity).toEqual([0, 0, 0]);
+    const t = world.getComponent<{ rotation: ReadonlyArray<number>; position: ReadonlyArray<number> }>("bot.1", "Transform")!;
+    expect(Math.abs(t.rotation[0]!)).toBeLessThanOrEqual(90);
+    expect(Math.abs(t.rotation[2]!)).toBeLessThanOrEqual(90);
+    // Position landed at base Y.
+    expect(t.position[1]!).toBeCloseTo(0, 5);
   });
 
   it("RagdollState gets deathStartedAt stamped on first visit", () => {

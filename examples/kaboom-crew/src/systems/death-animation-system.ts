@@ -21,6 +21,7 @@
 import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 
 const DEATH_ANIM: ComponentName = "DeathAnim";
 const RAGDOLL_STATE: ComponentName = "RagdollState";
@@ -30,10 +31,17 @@ const SPRING_PIVOT: ComponentName = "SpringPivot";
 const GRID_POSITION: ComponentName = "GridPosition";
 
 const DEATH_DURATION_S = 0.6;
-const LAUNCH_VY = 2.4;
-const LAUNCH_HORIZONTAL = 1.6;
+// S108 v3 — halved per user playtest. vy=2.0 + horizontal=2.5 gives
+// ~1.1 cells of knockback travel over a 0.44s arc. Tumble rate stays
+// at PI/2 so spin reads naturally over the shorter airtime.
+const LAUNCH_VY = 2.0;
+const LAUNCH_HORIZONTAL = 2.5;
 const GRAVITY = -9.0;
-const TUMBLE_RATE = Math.PI;
+const TUMBLE_RATE = Math.PI / 2;
+// S108 — 1-second smooth ramp of limb-spring damping after landing.
+const LIMB_SETTLE_DURATION_S = 1.0;
+const LIMB_SETTLE_START_DAMPING = 0.4;
+const LIMB_SETTLE_END_DAMPING = 18.0;
 // S105 KABOOM-RAGDOLL-LIMB-FLAIL — per-pivot impulse range (deg/s).
 const LIMB_IMPULSE_MIN_DEG_PER_S = 90;
 const LIMB_IMPULSE_MAX_DEG_PER_S = 360;
@@ -52,6 +60,8 @@ type DeathAnimComponent = {
   angularVelocity?: ReadonlyArray<number>;
   /** True after the first visit primed velocity + limb impulses. */
   initialised?: boolean;
+  /** S108 — context.time.elapsed when the bomber landed. Drives the 1s damping ramp on the limb springs. */
+  landedAt?: number;
 };
 
 type RagdollStateComponent = {
@@ -72,6 +82,12 @@ type GridPositionLike = { gx: number; gz: number };
 type LimbPivotsLike = Record<string, string>;
 
 /** Deterministic per-pivot impulse magnitude derived from owner/origin/pivot. */
+function clampDeg(value: number, min: number, max: number): number {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
 export function pivotImpulseDegPerS(
   ownerId: string,
   blastOriginGx: number,
@@ -97,8 +113,21 @@ export function pivotImpulseDegPerS(
   return { x: sign * magX, z: -sign * magZ };
 }
 
-export function createKaboomDeathAnimationSystem(options: { name?: string } = {}): System {
+export type KaboomDeathAnimationSystemOptions = {
+  name?: string;
+  /**
+   * S108 KABOOM-RAGDOLL-WALL-COLLISION. Optional occupancy query;
+   * when supplied, the ragdoll arc samples the destination cell each
+   * frame and zeroes the X / Z velocity axis when a hard-block sits
+   * there — so the bomber doesn't visually clip through walls.
+   * Without it, no collision checks happen (legacy behaviour).
+   */
+  occupancy?: GridOccupancyQuery;
+};
+
+export function createKaboomDeathAnimationSystem(options: KaboomDeathAnimationSystemOptions = {}): System {
   const name = options.name ?? "kaboom.death-animation";
+  const occupancy = options.occupancy;
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
 
@@ -127,19 +156,52 @@ export function createKaboomDeathAnimationSystem(options: { name?: string } = {}
           let dirZ = -1; // default: knock forward (-Z) if no blast info
           let magnitude = 1.0;
           if (ragdoll !== undefined) {
-            const grid = world.getComponent<GridPositionLike>(id, GRID_POSITION);
-            const cellX = grid?.gx ?? Math.round(basePosition[0] ?? 0);
-            const cellZ = grid?.gz ?? Math.round(basePosition[2] ?? 0);
-            let rawX = cellX - ragdoll.blastOriginGx;
-            let rawZ = cellZ - ragdoll.blastOriginGz;
+            // S108 v2 — use Transform.position (world coords) rather
+            // than GridPosition (cell coords). Mid-lerp bombers still
+            // have their OLD GridPosition until lerp completes; if the
+            // OLD cell equals the bomb cell, diff=0 → wrong direction.
+            // Transform.position is interpolated by GridMovementSystem
+            // so it reflects the bomber's TRUE current location.
+            const worldX = basePosition[0] ?? 0;
+            const worldZ = basePosition[2] ?? 0;
+            const rawX = worldX - ragdoll.blastOriginGx;
+            const rawZ = worldZ - ragdoll.blastOriginGz;
             const len = Math.hypot(rawX, rawZ);
             if (len > 1e-6) {
               dirX = rawX / len;
               dirZ = rawZ / len;
+            } else {
+              // True direct hit (bomber AT bomb cell exactly). Knock
+              // them BACKWARD from their facing direction so the
+              // launch still has a visible effect.
+              const yawDeg = baseRotation[1] ?? 0;
+              const yawRad = (yawDeg * Math.PI) / 180;
+              const forwardX = Math.sin(yawRad);
+              const forwardZ = -Math.cos(yawRad);
+              dirX = -forwardX;
+              dirZ = -forwardZ;
             }
             magnitude = ragdoll.magnitude ?? 1.0;
           }
-          const velocity = [dirX * magnitude * LAUNCH_HORIZONTAL, LAUNCH_VY, dirZ * magnitude * LAUNCH_HORIZONTAL];
+          // S108 — add the bomber's existing motion velocity to the
+          // launch impulse. If they were running AWAY from the bomb,
+          // that velocity reinforces the knockback; if they were running
+          // TOWARD the bomb, the blast partially cancels their momentum
+          // (still pushes them away, but less). cellSize=1 → grid speed
+          // = world speed in cells/sec.
+          const mover = world.getComponent<{ speed?: number; queuedDirection?: { dx: number; dz: number }; currentLerp?: number }>(id, "GridMover");
+          let existingVx = 0;
+          let existingVz = 0;
+          if (mover !== undefined && (mover.currentLerp ?? 0) > 0) {
+            const speed = mover.speed ?? 0;
+            existingVx = (mover.queuedDirection?.dx ?? 0) * speed;
+            existingVz = (mover.queuedDirection?.dz ?? 0) * speed;
+          }
+          const velocity = [
+            dirX * magnitude * LAUNCH_HORIZONTAL + existingVx,
+            LAUNCH_VY,
+            dirZ * magnitude * LAUNCH_HORIZONTAL + existingVz
+          ];
           // Angular velocity: cross(dir, +Y) × mag × π applied to X and Z rotation rates.
           // dir × Y = (dx, 0, dz) × (0, 1, 0) = (-dz, 0, dx). Reorient as rotation rates around X / Z axes.
           const angularVelocity = [-dirZ * magnitude * TUMBLE_RATE, 0, dirX * magnitude * TUMBLE_RATE];
@@ -170,6 +232,9 @@ export function createKaboomDeathAnimationSystem(options: { name?: string } = {}
           if (ragdoll !== undefined && ragdoll.deathStartedAt === undefined) {
             world.setComponent(id, RAGDOLL_STATE, { ...ragdoll, deathStartedAt: context.time.elapsed });
           }
+          // S108 — opt the bomber out of GridMovementSystem's position
+          // writes so the ragdoll arc isn't fought by grid-snap.
+          world.setComponent(id, "MotionOverride", {});
           world.setComponent(id, DEATH_ANIM, {
             elapsed,
             basePosition,
@@ -186,27 +251,109 @@ export function createKaboomDeathAnimationSystem(options: { name?: string } = {}
         const angularVelocity = anim.angularVelocity ?? [0, 0, 0];
         const basePosition = anim.basePosition ?? [0, 0, 0];
         const baseRotation = anim.baseRotation ?? [0, 0, 0];
+        const baseY = basePosition[1] ?? 0;
+        const currentY = transform.position?.[1] ?? baseY;
         const newVy = (velocity[1] ?? 0) + GRAVITY * dt;
-        const newVelocity = [velocity[0] ?? 0, newVy, velocity[2] ?? 0];
+        const rawNextY = currentY + newVy * dt;
+        // S108 KABOOM-RAGDOLL-WALL-COLLISION. Sample destination cell
+        // per axis; zero the velocity component when a hard-block sits
+        // there so the bomber stops along that axis but keeps falling.
+        let vx = velocity[0] ?? 0;
+        let vz = velocity[2] ?? 0;
+        if (occupancy !== undefined) {
+          const currentX = transform.position?.[0] ?? basePosition[0] ?? 0;
+          const currentZ = transform.position?.[2] ?? basePosition[2] ?? 0;
+          const nextX = currentX + vx * dt;
+          const nextZ = currentZ + vz * dt;
+          // cellSize=1, originX/Z=0 → world coord rounds to cell index.
+          const nextCellGx = Math.round(nextX);
+          const nextCellGz = Math.round(currentZ);
+          const nextCellGzAlt = Math.round(nextZ);
+          if (Math.abs(vx) > 1e-4 && occupancy.blocked(nextCellGx, Math.round(currentZ), "blast")) {
+            vx = 0;
+          }
+          if (Math.abs(vz) > 1e-4 && occupancy.blocked(Math.round(currentX), nextCellGzAlt, "blast")) {
+            vz = 0;
+          }
+          void nextCellGz; // marker for sanity — separate axis lookup
+        }
+        // S108 KABOOM-RAGDOLL-GROUND-CLAMP. Detect "landed": root has
+        // reached baseY AND is still falling (vy <= 0). When landed,
+        // freeze linear AND angular velocity + clamp tumble rotations
+        // to ±90° so the body lies on its back/front/side instead of
+        // continuing to spin through the floor.
+        const landed = rawNextY <= baseY && newVy <= 0;
         const nextPos = [
-          (transform.position?.[0] ?? basePosition[0] ?? 0) + (velocity[0] ?? 0) * dt,
-          Math.max((basePosition[1] ?? 0), (transform.position?.[1] ?? basePosition[1] ?? 0) + newVy * dt),
-          (transform.position?.[2] ?? basePosition[2] ?? 0) + (velocity[2] ?? 0) * dt
+          (transform.position?.[0] ?? basePosition[0] ?? 0) + vx * dt,
+          landed ? baseY : rawNextY,
+          (transform.position?.[2] ?? basePosition[2] ?? 0) + vz * dt
         ];
-        const nextRotDeg = [
-          (transform.rotation?.[0] ?? baseRotation[0] ?? 0) + (angularVelocity[0] ?? 0) * dt * (180 / Math.PI),
-          (transform.rotation?.[1] ?? baseRotation[1] ?? 0) + (angularVelocity[1] ?? 0) * dt * (180 / Math.PI),
-          (transform.rotation?.[2] ?? baseRotation[2] ?? 0) + (angularVelocity[2] ?? 0) * dt * (180 / Math.PI)
-        ];
+        const newVelocity = landed
+          ? [0, 0, 0]
+          : [vx, newVy, vz];
+        const rotIntegrate = (axis: number): number => {
+          const current = transform.rotation?.[axis] ?? baseRotation[axis] ?? 0;
+          if (landed) return clampDeg(current, -90, 90);
+          const next = current + (angularVelocity[axis] ?? 0) * dt * (180 / Math.PI);
+          return next;
+        };
+        const nextRotDeg = [rotIntegrate(0), rotIntegrate(1), rotIntegrate(2)];
         world.setComponent(id, TRANSFORM, {
           ...transform,
           position: nextPos,
           rotation: nextRotDeg
         });
+        const nextAngularVelocity = landed ? [0, 0, 0] : angularVelocity;
+        // S108 — 1-second gradual ramp of limb-spring damping after
+        // landing. On the first landed frame, lock each limb's rest
+        // rotation to its CURRENT pose so the spring decays in place
+        // (not back to T-pose). Each subsequent frame, lerp damping
+        // from 0.4 (lively flail) up to 18 (over-damped) over 1 s.
+        // After the ramp completes, damping stays at 18 — limbs hold
+        // their final pose without further wobble.
+        const nextLandedAt = anim.landedAt ?? (landed ? context.time.elapsed : undefined);
+        const justLanded = landed && anim.landedAt === undefined;
+        if (justLanded) {
+          const limbs = world.getComponent<LimbPivotsLike>(id, LIMB_PIVOTS);
+          if (limbs !== undefined) {
+            for (const pivotName of LIMB_PIVOT_NAMES) {
+              const pivotId = limbs[pivotName];
+              if (pivotId === undefined) continue;
+              const spring = world.getComponent<{ velocity?: ReadonlyArray<number>; restRotation?: ReadonlyArray<number> }>(pivotId, SPRING_PIVOT);
+              if (spring === undefined) continue;
+              const transformNow = world.getComponent<{ rotation?: ReadonlyArray<number> }>(pivotId, TRANSFORM);
+              const restNow = transformNow?.rotation ?? spring.restRotation ?? [0, 0, 0];
+              world.setComponent(pivotId, SPRING_PIVOT, {
+                ...spring,
+                restRotation: [restNow[0] ?? 0, restNow[1] ?? 0, restNow[2] ?? 0],
+                k: 18,
+                damping: LIMB_SETTLE_START_DAMPING
+              });
+            }
+          }
+        } else if (landed && nextLandedAt !== undefined) {
+          const sinceLanded = context.time.elapsed - nextLandedAt;
+          if (sinceLanded < LIMB_SETTLE_DURATION_S) {
+            const t = sinceLanded / LIMB_SETTLE_DURATION_S;
+            const damping = LIMB_SETTLE_START_DAMPING + (LIMB_SETTLE_END_DAMPING - LIMB_SETTLE_START_DAMPING) * t;
+            const limbs = world.getComponent<LimbPivotsLike>(id, LIMB_PIVOTS);
+            if (limbs !== undefined) {
+              for (const pivotName of LIMB_PIVOT_NAMES) {
+                const pivotId = limbs[pivotName];
+                if (pivotId === undefined) continue;
+                const spring = world.getComponent<{ velocity?: ReadonlyArray<number>; restRotation?: ReadonlyArray<number>; k?: number; damping?: number }>(pivotId, SPRING_PIVOT);
+                if (spring === undefined) continue;
+                world.setComponent(pivotId, SPRING_PIVOT, { ...spring, damping });
+              }
+            }
+          }
+        }
         world.setComponent(id, DEATH_ANIM, {
           ...anim,
           elapsed,
-          velocity: newVelocity
+          velocity: newVelocity,
+          angularVelocity: nextAngularVelocity,
+          ...(landed && nextLandedAt !== undefined ? { landedAt: nextLandedAt } : {})
         });
         // After DEATH_DURATION_S we stop integrating further (the
         // bomber is on the ground, ragdoll done); next round-restart

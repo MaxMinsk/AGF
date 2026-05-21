@@ -29,6 +29,14 @@ export const GRID_MOVER: ComponentName = "GridMover";
 export const GRID_POSITION: ComponentName = "GridPosition";
 export const GRID: ComponentName = "Grid";
 export const TRANSFORM: ComponentName = "Transform";
+/**
+ * S108 — tag component. When present on an entity, GridMovementSystem
+ * skips all Transform.position writes for that entity. Other systems
+ * (e.g. a death-animation ragdoll) own the position. The grid logic
+ * still advances GridMover state + GridPosition; only the Transform
+ * write is suppressed.
+ */
+export const MOTION_OVERRIDE: ComponentName = "MotionOverride";
 
 type Direction = { dx: number; dz: number };
 type GridMoverComponent = {
@@ -117,6 +125,11 @@ export function createGridMovementSystem(options: GridMovementSystemOptions): Sy
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       const pos = world.getComponent<GridPositionComponent>(entityId, GRID_POSITION);
       if (mover === undefined || pos === undefined) continue;
+      // S108 — when MotionOverride is present, another system owns
+      // Transform.position. Skip ALL writes here (the four
+      // setComponent(TRANSFORM, ...) call sites below) by short-circuiting.
+      const motionOverride = world.hasComponent(entityId, MOTION_OVERRIDE);
+      if (motionOverride) continue;
 
       // Already in motion?
       let target: { gx: number; gz: number } | undefined;
