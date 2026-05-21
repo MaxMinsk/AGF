@@ -70,16 +70,26 @@
     {
       "id": "KABOOM-ACCESSORY-BENCH-CONTROLS",
       "title": "Bench overlay gains an Accessories section — 3 multi-select dropdowns",
-      "status": "pending",
+      "status": "implemented",
       "summary": "DOM overlay extension. New 'Accessories' section between Shape and Palette. Three independent dropdowns (slot 1 / slot 2 / slot 3); each picks one of {none, antennae, visor, backpack, cap, fins}. State written to bench-state.accessories; rebuild loop re-runs the spawner under a transient 'accessories' branch (delete + recreate accessory entities only — keep the body tree). Pure DOM cosmetics + 1 unit test on the dropdown wiring.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bench panel gains 'Accessories' section with 3 independent dropdowns (slot 1/2/3); each picks one of {none, antennae, visor, backpack, cap, fins}. On change, rebuild loop diffs desired vs spawned accessory kinds + re-spawns the accessory branch only (body tree stays).",
+        "examples/procbomber-bench/src/bench-state.ts: BenchState.accessorySlots + accessoriesOf helper",
+        "examples/procbomber-bench/src/bench-ui.ts: buildAccessorySelect + 'Accessories' section rendered before Palette",
+        "examples/procbomber-bench/bootstrap.ts: rebuild loop step 3d detects accessory kind diff + deletes previous accessory entities + re-spawns. ACCESSORY_KINDS / accessoryKey imports registered with proceduralMeshRegistry alongside body parts"
+      ]
     },
     {
       "id": "KABOOM-ACCESSORY-KABOOM-RECIPE-WIRE",
       "title": "Kaboom Crew's makeKaboomRecipe seeds 0..2 accessories per bomber",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/bootstrap.ts: makeKaboomRecipe(ownerId) currently sets only paletteName. Extend it to call resolveRecipeFromSeed so player.1 and bot.1 each get their seed-derived 0..2 accessories. Visual outcome: in-game bombers have visible variety beyond palette — one carries a backpack, the other wears a cap, etc.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: kaboom-crew bombers get seed-derived accessories without bootstrap changes — makeKaboomRecipe already calls recipeForOwner which calls resolveRecipeFromSeed (now picks 0..2 accessories per S106-3). spawnBomberFor (S106-4) passes recipe.accessories to spawnBomberTree. Net effect: player.1 and bot.1 each get distinct accessory loadouts from their entity ids without further bootstrap-side wiring.",
+        "Verified end-to-end by tests/unit/character-recipe.test.ts > resolveRecipeFromSeed picks 0..2 deterministic accessories"
+      ]
     }
   ],
   "notes": [
