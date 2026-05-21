@@ -2,9 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S105",
   "title": "Spring system + ragdoll death + accessory layer",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-22",
-  "stories": [
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/124",  "stories": [
     {
       "id": "CHORE-GDP-2026-05-22-005-PROMOTION",
       "title": "Promote GDP-2026-05-22-005 (ragdoll death) into the sprint",
@@ -68,16 +69,18 @@
     {
       "id": "KABOOM-HIT-RECOIL-SYSTEM",
       "title": "Hit-recoil — torso punches backward on every blast hit (not only fatal ones)",
-      "status": "pending",
+      "status": "deferred",
       "summary": "Promoted from GDP-2026-05-22-004 (hit-recoil half). Even when the blast doesn't kill (e.g. invuln frames; or non-bomber objects pending), the torso flinches backward briefly. New `HitRecoil { startedAt, blastDirX, blastDirZ }` component; an animation system tweens torso.rotation.X away from the blast for ~0.15s then settles. Decoupled from ragdoll — recoil happens on ANY hit, ragdoll only on the fatal one.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "deferredReason": "Defer to S106. In current Kaboom, every blast hit is instantly lethal — there is no non-death recoil case (no invuln frames, no multi-hp). Hit-recoil as a separate system has no distinct value to add until a survival case lands. Re-promote when multi-hp or i-frames exist."
     },
     {
       "id": "KABOOM-ACCESSORY-LAYER",
       "title": "Accessory layer — 5 starter accessories on named mount sockets",
-      "status": "pending",
+      "status": "deferred",
       "summary": "Promoted from GDP-2026-05-22-003 (re-promote of GDP-2026-05-21-005). Recipe gains an `accessories: BomberAccessory[]` field (0..3 entries from a closed enum: antennae, visor, backpack, cap, fins). Each accessory is a small mesh tree attached to a named mount socket on the bomber. Mount sockets: head.crown, head.eyes, torso.back, torso.sideL, torso.sideR. Accessory entities are tagged 'soft-attached' (a marker) so the spring-pivot system picks them up for secondary sway. Pure recipe extension — palette channels reused (no new colour fields).",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "deferredReason": "Defer to S106. Substantial work (5 starter accessories + 5 mount sockets + recipe extension + soft-attached tagging for spring sway). S105 already shipped the ragdoll trilogy + spring foundation — closing the sprint at 4 implemented is the right cut. Accessories get their own focused sprint where every mount socket gets a unit test + the bench previews each variant."
     }
   ],
   "notes": [
