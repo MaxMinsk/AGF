@@ -12,7 +12,7 @@ Status: **active** (started 2026-05-22). Source: `backlog/sprints/S105.sprint.js
 
 - **CHORE-GDP-2026-05-22-005-PROMOTION** — Promote GDP-2026-05-22-005 (ragdoll death) into the sprint _(implemented)_
   Game-design terminal filed GDP-005 (should priority) mid-S104 in response to the user asking 'could we do ragdoll for the characters'. Archive the proposal + promote as the centerpiece of S105 alongside the deferred -003 + -004 from S104.
-- **KABOOM-SPRING-PIVOT-SYSTEM** — Generic spring-damped angular pivot system (foundation for sway + ragdoll) _(pending)_
+- **KABOOM-SPRING-PIVOT-SYSTEM** — Generic spring-damped angular pivot system (foundation for sway + ragdoll) _(implemented)_
   Promoted from GDP-2026-05-22-004 (spring half). Pure ECS system: reads a `SpringPivot { restX, restY, restZ, velocityX, velocityY, velocityZ, k, damping }` component on any pivot entity. Each fixedUpdate computes Hooke-spring restoring force toward rest + damping, integrates angular velocity into Transform.rotation. Shared by accessories (soft-attached sway) + ragdoll (death flail) + any future secondary motion. Pure helpers + unit tests; no project-side wiring this story.
 - **KABOOM-RAGDOLL-STATE-COMPONENT** — RagdollState component + blast-direction capture on alive→dead edge _(pending)_
   Promoted from GDP-2026-05-22-005. New project-local schema entry `RagdollState { blastOriginGx, blastOriginGz, deathStartedAt, magnitude }` written on the bomber at the moment BomberStats.alive flips false. audio-binding-system (the existing edge detector) captures the BlastEvent that caused the kill + records its origin. Single-blast magnitude = 1.0; chained blasts in the same frame clamp to max 1.8.

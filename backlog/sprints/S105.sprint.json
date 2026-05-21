@@ -18,9 +18,15 @@
     {
       "id": "KABOOM-SPRING-PIVOT-SYSTEM",
       "title": "Generic spring-damped angular pivot system (foundation for sway + ragdoll)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-004 (spring half). Pure ECS system: reads a `SpringPivot { restX, restY, restZ, velocityX, velocityY, velocityZ, k, damping }` component on any pivot entity. Each fixedUpdate computes Hooke-spring restoring force toward rest + damping, integrates angular velocity into Transform.rotation. Shared by accessories (soft-attached sway) + ragdoll (death flail) + any future secondary motion. Pure helpers + unit tests; no project-side wiring this story.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: createSpringPivotSystem fixedUpdate integrates Hooke spring per axis on entities with SpringPivot + Transform components. stepSpring pure helper exposed for tests. Default k=18, damping=0.4 (under-damped for lively flail/sway). All angles in degrees (matches AGF Transform.rotation convention).",
+        "examples/procbomber-bench/src/systems/spring-pivot-system.ts: createSpringPivotSystem + stepSpring + DEFAULT_SPRING_K + DEFAULT_SPRING_DAMPING + SPRING_PIVOT constant",
+        "examples/procbomber-bench/schemas/scene-extensions.schema.json: SpringPivot component with restRotation, velocity, k, damping",
+        "+9 unit tests covering pure step + system loop (rest, displacement pull-back, energy decay over 10s, axis independence, write-back velocity, skip-orphan, zero-dt no-op)"
+      ]
     },
     {
       "id": "KABOOM-RAGDOLL-STATE-COMPONENT",
