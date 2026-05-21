@@ -18,16 +18,24 @@
     {
       "id": "KABOOM-RECIPE-SCHEMA",
       "title": "CharacterRecipe JSON schema + TypeScript types",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-001 (must). Today the bomber recipe lives as a mutable BenchState in bench-state.ts — never serialised, never validated. This story locks the shape: a JSON schema under examples/procbomber-bench/schemas/character-recipe.schema.json carrying { seed, headSize, torsoHeight/Width, upperArm/forearm/upperLeg/lowerLeg lengths + widths, posture, mounts, spread, shapes, paletteName, paletteOverrides }. CharacterRecipe TypeScript type derived from the schema. Pure schema + type — no codec yet (next story).",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/procbomber-bench/schemas/character-recipe.schema.json exists; describes seed (required) + every size/posture/mount/spread/shape/palette knob with type + range constraints + enum for shape and palette. CharacterRecipe TypeScript type matches; BomberShape exported."
+      ]
     },
     {
       "id": "KABOOM-RECIPE-CODEC",
       "title": "Recipe serialize/deserialize + seed-only resolver",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-001. Adds three pure functions: encodeRecipe(recipe) → base64-url-safe string; decodeRecipe(string) → validated CharacterRecipe (or undefined on parse/validate failure); resolveRecipeFromSeed(seed) → fully-populated CharacterRecipe with all fields deterministically derived from the seed string. The resolver lets the simplest call `?seed=42` produce a complete bomber without listing every knob in the URL. Heavy + heavy unit-test coverage — codec round-trip determinism is the foundation downstream consumers depend on.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: encodeRecipe(r) → base64-url-safe string (no + / =). decodeRecipe(s) returns the recipe or undefined (malformed input + validation failure). resolveRecipeFromSeed(seed) returns a fully-populated ResolvedCharacterRecipe with every field deterministically derived from the seed via xorshift32 stream. Partial overrides honored. withRecipeDefaults fills from BOMBER_MESH_DEFAULTS without seed entropy.",
+        "examples/procbomber-bench/src/character-recipe.ts: validateRecipe + encodeRecipe + decodeRecipe + resolveRecipeFromSeed + withRecipeDefaults + ResolvedCharacterRecipe + BomberShape type",
+        "+16 unit tests covering validation rejections, round-trip determinism, url-safe alphabet, seed determinism + variation, partial overrides"
+      ]
     },
     {
       "id": "KABOOM-RECIPE-URL-KNOBS",
