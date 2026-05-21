@@ -61,6 +61,35 @@ test("[procbomber-bench] bench loads with controls + bomber mesh + responds to U
   // but exercising the click path covers the button's listener.
   await page.locator("[data-procbomber-reroll]").click();
 
+  // S102 PROCBOMBER-VERTEX-COLORS-FIX: after a control tick the bench's
+  // rebuild loop should have flipped vertex colours on the bomber's
+  // material. Sample the canvas centre — vertex-coloured palette means
+  // a non-greyscale pixel should appear somewhere in the central
+  // region. (The bomber occupies the middle of the view.)
+  await page.waitForTimeout(250);
+  const hasColouredPixel = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas") as HTMLCanvasElement | null;
+    if (canvas === null) return false;
+    const w = canvas.width;
+    const h = canvas.height;
+    const tmp = document.createElement("canvas");
+    tmp.width = w;
+    tmp.height = h;
+    const ctx = tmp.getContext("2d");
+    if (ctx === null) return false;
+    ctx.drawImage(canvas, 0, 0);
+    const data = ctx.getImageData(Math.floor(w / 3), Math.floor(h / 3), Math.floor(w / 3), Math.floor(h / 3)).data;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i]!;
+      const g = data[i + 1]!;
+      const b = data[i + 2]!;
+      // A non-greyscale pixel: one channel differs from another by ≥ 16.
+      if (Math.abs(r - g) >= 16 || Math.abs(g - b) >= 16 || Math.abs(r - b) >= 16) return true;
+    }
+    return false;
+  });
+  expect(hasColouredPixel).toBe(true);
+
   // Renderer produced at least one draw call.
   const info = await page.evaluate(() => {
     const api = (window as unknown as {

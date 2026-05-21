@@ -223,6 +223,13 @@ The design agent's outputs hand off to dev and QA. Sharp boundaries:
   `KABOOM-CREW-CHARACTERS`) means dev creates the epic file in
   `backlog/epics/` when promoting the first story. The agent does
   NOT create epic files — that's outside its write-ownership.
+- **Design wins over shipped code** (confirmed 2026-05-21). When a
+  proposal specifies a shape that conflicts with what dev already
+  shipped, dev rewrites — the agent does not soften the proposal to
+  fit the current implementation. The agent flags the conflict
+  explicitly (`must` priority + "blocking for SXXX") so dev sees the
+  required rewrite at sprint-plan time. See
+  [memory: feedback-game-design-authority].
 
 **To QA:**
 - A GDD section is the verification surface for "did the shipped

@@ -64,26 +64,61 @@ serialize, easy for an agent to mutate, easy to spawn at runtime.
 
 ### 2.2 Output (per-character)
 
-Generation produces a **node tree**, not a single mesh:
+Generation produces a **node tree** of separate meshes, not a single
+merged geometry. The tree is fixed: 9 actuated pivot Object3Ds + 10
+visible meshes per humanoid. Animation systems rotate pivots; the
+child meshes inherit. No SkinnedMesh, no bones, no weight paint.
 
 ```text
-character.root
-├── torso       (capsule mesh, primary colour)
-├── head        (sphere or rounded-box mesh, primary + secondary stripe)
-├── armL, armR  (two short cylinders + small sphere "fist" each)
-├── legL, legR  (two short cylinders + small sphere "foot" each)
-└── accessories (one mesh node per accessory, parented to torso / head)
+root                      (Object3D — entity Transform anchors here)
+└── torso                 (Mesh: torsoShape, palette.torso + palette.torsoAccent)
+    ├── neck              (Object3D pivot)
+    │   └── head          (Mesh: headShape, palette.head + palette.helmet stripe)
+    │       └── head.crown / head.eyes / head.ear.{l,r}   (accessory mount sockets)
+    ├── shoulder.l        (Object3D pivot)
+    │   └── upperArm.l    (Mesh: limbShape, palette.upperLimb)
+    │       └── elbow.l   (Object3D pivot)
+    │           └── forearm.l   (Mesh: limbShape + hand sphere at end, palette.lowerLimb + palette.handFoot)
+    ├── shoulder.r / upperArm.r / elbow.r / forearm.r   (mirror)
+    ├── hip.l             (Object3D pivot)
+    │   └── upperLeg.l    (Mesh: limbShape, palette.upperLimb)
+    │       └── knee.l    (Object3D pivot)
+    │           └── lowerLeg.l  (Mesh: limbShape + foot at end, palette.lowerLimb + palette.handFoot)
+    ├── hip.r / upperLeg.r / knee.r / lowerLeg.r       (mirror)
+    └── torso.back / torso.side.{l,r}                   (accessory mount sockets)
 ```
 
-Each node is a regular Three.js Mesh under a parent Object3D — i.e. the
-existing `MeshRenderer` / `Transform` ECS surface. The animation system
-mutates each node's local `Transform.position` / `Transform.rotation` —
-no rig, no bones, no `SkinnedMesh`.
+**Joint count (fixed):** 9 actuated pivots = 1 neck + 2 shoulders + 2
+elbows + 2 hips + 2 knees. No wrist, no ankle (deferred — toy-scale
+arcade walk cycle + bomb-place reach doesn't need them). Each pivot
+is a Three.js Object3D with no geometry; rotation is what animation
+systems mutate. Pivot **position** is determined by the parent mesh's
+geometry and never changes after generator output.
 
-This is the key trick: by composing the body out of separate nodes
-instead of one skinned mesh, we get rig-free animation. There's no
-weight-painting step, no bone hierarchy to author, no .anim files. The
-"rig" is the parent-child tree the generator already produces.
+**Visible mesh count:** 10 = torso + head + 2 upperArm + 2 forearm
+(with hand merged into the tip) + 2 upperLeg + 2 lowerLeg (with foot
+merged into the tip). Hand and foot are NOT separate meshes — they're
+appended to the forearm / lowerLeg BufferGeometry to keep draw-call
+count down.
+
+**Mount sockets** (always present, used by accessories):
+- `head.crown` — top of the head, for antennae / cap
+- `head.eyes` — front-centre of the head, for visor
+- `head.ear.{l,r}` — sides of the head, reserved for future ear-fin
+- `torso.back` — back of the torso, for backpack
+- `torso.side.{l,r}` — sides of the torso, for fins
+
+Each socket is a pivot Object3D positioned at the anatomical anchor,
+parented to the relevant body mesh. Empty when no accessory uses
+them; accessory builders attach their meshes underneath at spawn time.
+
+**Status as of 2026-05-21:** S101 ships a v0 generator that produces
+ONE merged BufferGeometry (no node tree, no separate meshes). This
+section describes the **design intent**; the dev rewrite that lands
+this tree shape is GDP-2026-05-21-001 (`must`, blocking for S102
+animation). Until that rewrite lands, limb-pivot animation is not
+possible — the merged v0 was a fine throughput-test for the bench
+plumbing but not the production target.
 
 ### 2.3 Variation budget
 

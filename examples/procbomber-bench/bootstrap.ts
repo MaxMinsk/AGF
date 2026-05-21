@@ -71,6 +71,12 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
       });
     });
 
+    // Track whether we already enabled vertex colours on the bomber's
+    // material. The mesh material is created by adapter.acquireMesh()
+    // with the default flag off; the bench's procedural mesh paints
+    // colour per-vertex, so without vertexColors the bomber renders
+    // flat white regardless of the palette dropdown.
+    let vertexColorsEnabled = false;
     let rebuildScheduled = false;
     const scheduleRebuild = (): void => {
       if (rebuildScheduled) return;
@@ -79,10 +85,28 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
         rebuildScheduled = false;
         const handle = runtime.renderer.meshRegistry().handleFor(BOMBER_ENTITY_ID);
         if (handle === undefined) return; // bomber hasn't acquired yet — try next frame on the next UI change.
+        if (!vertexColorsEnabled) {
+          runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
+          vertexColorsEnabled = true;
+        }
         const geometry = buildBomberGeometry(state);
         runtime.renderer.adapter.setMeshGeometry(handle, geometry);
       });
     };
+
+    // Trigger the first rebuild + vertex-colour enable as soon as the
+    // bomber has its handle. Without this nudge, the palette dropdown
+    // is the only thing that turns vertex colours on — the user
+    // legitimately wondered "why doesn't anything happen".
+    const enableVertexColorsWhenReady = (): void => {
+      const handle = runtime.renderer.meshRegistry().handleFor(BOMBER_ENTITY_ID);
+      if (handle === undefined) {
+        requestAnimationFrame(enableVertexColorsWhenReady);
+        return;
+      }
+      scheduleRebuild();
+    };
+    requestAnimationFrame(enableVertexColorsWhenReady);
 
     const ui = mountBenchControls(shell, state, scheduleRebuild);
 

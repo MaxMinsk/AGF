@@ -327,6 +327,14 @@ export type MaterialPatch = {
   emissiveIntensity?: number;
   opacity?: number;
   transparent?: boolean;
+  /**
+   * S102 PALETTE-FIX. Enable the `color` BufferAttribute on the
+   * geometry. Required for procedural meshes that paint per-part colour
+   * via vertex colours instead of a single solid `color`. The adapter
+   * sets `material.vertexColors` + flips the material's `color` to
+   * white so the per-vertex tint isn't multiplied by a stray base.
+   */
+  vertexColors?: boolean;
   /** MeshPhysicalMaterial fields. */
   clearcoat?: number;
   clearcoatRoughness?: number;
@@ -2259,6 +2267,15 @@ export class ThreeRenderAdapter {
     if (patch.color !== undefined) material.color.set(patch.color);
     if (patch.opacity !== undefined) material.opacity = patch.opacity;
     if (patch.transparent !== undefined) material.transparent = patch.transparent;
+    if (patch.vertexColors !== undefined) {
+      // S102 PALETTE-FIX. Toggle vertex-colour blending. When enabled,
+      // force the base colour to white so per-vertex tints multiply by 1.
+      material.vertexColors = patch.vertexColors;
+      if (patch.vertexColors === true && patch.color === undefined) {
+        material.color.set("#ffffff");
+      }
+      material.needsUpdate = true;
+    }
 
     if (
       material instanceof MeshStandardMaterial ||
