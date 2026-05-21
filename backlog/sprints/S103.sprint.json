@@ -75,16 +75,25 @@
     {
       "id": "PROCBOMBER-IK-REACH-TARGET",
       "title": "Two-bone IK solver for arms + 'reach' animation kind",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Real two-bone IK: given a shoulder anchor + an end-effector world target, solve shoulder + elbow rotations so the hand reaches the target. Implementation: law-of-cosines analytic solver (no iterative CCD needed for two bones). New animation kind 'reach' drives a moving target (circle around the bomber); the IK solver writes shoulderL + elbowL rotations per frame. Pure helpers tested with deterministic targets.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: solveTwoBoneIk(target, L1, L2) returns shoulder pitch + yaw + elbow bend (radians) such that the hand reaches the target. Clamps to (L1+L2 - eps) when out of reach. New 'reach' BenchAnimationKind drives the left arm to track reachDemoTarget(elapsed) — slow circle in XZ + vertical wobble. Right arm holds the arm-rest pose for asymmetry.",
+        "examples/procbomber-bench/src/two-bone-ik.ts: pure IK solver via cosine rule + reach demo target helper",
+        "bench-animation-system extends BenchAnimationKind union with 'reach'; uses ik.shoulderPitchRad on X + shoulderYawRad on Y + elbowBendRad on elbow",
+        "+8 unit tests covering reach-at-full + half-reach + forward + sideways + out-of-reach clamp + degenerate-distance NaN guard + reachDemoTarget finite + envelope"
+      ]
     },
     {
       "id": "PROCBOMBER-BENCH-PANEL-SECTIONS",
       "title": "Group bench overlay controls into labeled sections (size / posture / mounts / shape / anim)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "After S102 the panel is a long flat list of sliders + dropdowns + a button. With S103 adding ~6 more knobs (segment splits + spread + reach target) it becomes hard to scan. Add section headings (Size, Posture, Mounts, Shape, Palette, Animation) with small visual separators inside the existing panel. Pure DOM cosmetics; no new behaviour.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bench panel groups controls into labelled sections (Size, Posture, Spread, Mounts, Shape, Palette, Animation). buildSectionHeading helper adds a small uppercase divider before each group. Pure DOM cosmetics; no behaviour change."
+      ]
     }
   ],
   "notes": [

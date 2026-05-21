@@ -119,12 +119,31 @@ export function mountBenchControls(
   heading.style.marginBottom = "6px";
   panel.appendChild(heading);
 
-  for (const cfg of SLIDERS) {
-    panel.appendChild(buildSlider(cfg, state, scheduleRebuild));
-  }
+  // S103 PROCBOMBER-BENCH-PANEL-SECTIONS: group sliders into labelled
+  // sections so the panel scans as Size / Posture / Spread / Mounts /
+  // Shape / Palette / Animation instead of a single long flat list.
+  const sliderByField = new Map(SLIDERS.map((s) => [s.field, s]));
+  const renderSection = (label: string, fields: ReadonlyArray<string>): void => {
+    panel.appendChild(buildSectionHeading(label));
+    for (const f of fields) {
+      const cfg = sliderByField.get(f as NumberField);
+      if (cfg !== undefined) panel.appendChild(buildSlider(cfg, state, scheduleRebuild));
+    }
+  };
+  renderSection("Size", [
+    "headSize", "torsoHeight", "torsoWidth",
+    "upperArmLength", "forearmLength", "armWidth",
+    "upperLegLength", "lowerLegLength", "legWidth"
+  ]);
+  renderSection("Posture", ["forwardTilt", "armRestAngle"]);
+  renderSection("Spread", ["shoulderSpread", "hipSpread"]);
+  renderSection("Mounts", ["shoulderMountY", "shoulderMountZ", "hipMountY", "hipMountZ"]);
+
+  panel.appendChild(buildSectionHeading("Shape"));
   for (const cfg of SHAPE_DROPDOWNS) {
     panel.appendChild(buildShapeSelect(cfg, state, scheduleRebuild));
   }
+  panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
 
@@ -135,6 +154,21 @@ export function mountBenchControls(
       panel.remove();
     }
   };
+}
+
+function buildSectionHeading(label: string): HTMLElement {
+  const row = document.createElement("div");
+  row.dataset["procbomberSectionHeading"] = label.toLowerCase();
+  row.textContent = label;
+  row.style.marginTop = "10px";
+  row.style.marginBottom = "4px";
+  row.style.paddingBottom = "2px";
+  row.style.borderBottom = "1px solid rgba(255, 255, 255, 0.18)";
+  row.style.fontSize = "11px";
+  row.style.letterSpacing = "0.04em";
+  row.style.textTransform = "uppercase";
+  row.style.opacity = "0.7";
+  return row;
 }
 
 function buildShapeSelect(

@@ -22,9 +22,9 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S103.sprint.js
   S102 added the armRestAngle slider but never connected it to the pose. Fix: when kind=none or idle-bob, the bench-animation-system writes armRestAngle to shoulderL/R Transform.rotation.X (instead of zero). walk-swing + limb-test still take over fully when active. Symmetric on both shoulders.
 - **PROCBOMBER-WALK-CYCLE-PLUS** — Walk cycle drives knees + elbows too (not just shoulders + hips) _(implemented)_
   S102 walk-swing only rotates shoulder + hip pivots. Real walk bends knees + elbows in phase with the leg/arm swing. Add quarter-phase bend on elbowL/R + kneeL/R during walk-swing: front-swinging leg bends knee, rear-swinging arm bends elbow. Plus subtle vertical bob on the root (Y dips on each foot plant). Visually the bomber actually 'walks' instead of sliding limbs.
-- **PROCBOMBER-IK-REACH-TARGET** — Two-bone IK solver for arms + 'reach' animation kind _(pending)_
+- **PROCBOMBER-IK-REACH-TARGET** — Two-bone IK solver for arms + 'reach' animation kind _(implemented)_
   Real two-bone IK: given a shoulder anchor + an end-effector world target, solve shoulder + elbow rotations so the hand reaches the target. Implementation: law-of-cosines analytic solver (no iterative CCD needed for two bones). New animation kind 'reach' drives a moving target (circle around the bomber); the IK solver writes shoulderL + elbowL rotations per frame. Pure helpers tested with deterministic targets.
-- **PROCBOMBER-BENCH-PANEL-SECTIONS** — Group bench overlay controls into labeled sections (size / posture / mounts / shape / anim) _(pending)_
+- **PROCBOMBER-BENCH-PANEL-SECTIONS** — Group bench overlay controls into labeled sections (size / posture / mounts / shape / anim) _(implemented)_
   After S102 the panel is a long flat list of sliders + dropdowns + a button. With S103 adding ~6 more knobs (segment splits + spread + reach target) it becomes hard to scan. Add section headings (Size, Posture, Mounts, Shape, Palette, Animation) with small visual separators inside the existing panel. Pure DOM cosmetics; no new behaviour.
 
 ### Notes

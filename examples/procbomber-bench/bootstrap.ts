@@ -106,7 +106,9 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
       runtime.world.setComponent(BOMBER_ROOT_ID, "BenchAnimationState", {
         kind: (existingAnim?.kind as BenchAnimationKind) ?? "none",
         elapsed: existingAnim?.elapsed ?? 0,
-        armRestAngleRad: posture.armRestAngle
+        armRestAngleRad: posture.armRestAngle,
+        upperArmLength: sizes.upperArmLength,
+        forearmLength: sizes.forearmLength
       } satisfies BenchAnimationStateComponent);
       // S103 PROCBOMBER-ROTATION-DEG-FIX: AGF scenes store rotation in
       // degrees. posture.forwardTilt is stored in radians (Math.sin

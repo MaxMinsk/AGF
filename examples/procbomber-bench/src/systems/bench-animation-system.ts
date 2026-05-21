@@ -25,17 +25,22 @@ import {
   type LimbPivotName,
   type LimbPivots
 } from "../limb-pivots";
+import { reachDemoTarget, solveTwoBoneIk } from "../two-bone-ik";
 
 const BENCH_ANIMATION_STATE = "BenchAnimationState";
 const TRANSFORM = "Transform";
 
-export type BenchAnimationKind = "none" | "idle-bob" | "walk-swing" | "limb-test";
+export type BenchAnimationKind = "none" | "idle-bob" | "walk-swing" | "limb-test" | "reach";
 
 export type BenchAnimationStateComponent = {
   kind: BenchAnimationKind;
   elapsed?: number;
   /** S103 PROCBOMBER-ARM-REST-APPLIES — radians. Driven by the bench's armRestAngle slider; applied to shoulder pivots when kind is none / idle-bob. */
   armRestAngleRad?: number;
+  /** S103 PROCBOMBER-IK-REACH-TARGET — upper-arm length in shoulder-local units (cell scale). The IK solver needs both segment lengths. */
+  upperArmLength?: number;
+  /** S103 PROCBOMBER-IK-REACH-TARGET — forearm length. */
+  forearmLength?: number;
 };
 
 export type TransformLike = {
@@ -240,6 +245,37 @@ export function createBenchAnimationSystem(): System {
               setTransformRotationXFromRad(world, limbPivots.kneeR, walkBendRotation(nextElapsed, "kneeR"));
               // Neck stays neutral during walk.
               setTransformRotationZero(world, limbPivots.neck);
+            }
+            break;
+          }
+          case "reach": {
+            // S103 PROCBOMBER-IK-REACH-TARGET. Compute a moving target
+            // in shoulder-local space; solve two-bone IK for the left
+            // arm; write shoulder pitch (X) + yaw (Y) + elbow bend (X).
+            // Right arm holds the arm-rest pose so the user sees the
+            // asymmetry clearly.
+            setTransformPosition(world, id, base.x, base.y, base.z);
+            if (limbPivots !== undefined) {
+              const L1 = state.upperArmLength ?? 0.2;
+              const L2 = state.forearmLength ?? 0.2;
+              const target = reachDemoTarget(nextElapsed, (L1 + L2) * 0.9);
+              const ik = solveTwoBoneIk(target, L1, L2);
+              setTransformRotationXFromRad(world, limbPivots.shoulderL, ik.shoulderPitchRad);
+              // Also write Y rotation so the arm reaches sideways targets.
+              const sl = world.getComponent<TransformLike>(limbPivots.shoulderL, TRANSFORM);
+              if (sl !== undefined) {
+                const r = sl.rotation ?? [0, 0, 0];
+                world.setComponent(limbPivots.shoulderL, TRANSFORM, {
+                  ...sl,
+                  rotation: [r[0] ?? 0, radToDeg(ik.shoulderYawRad), r[2] ?? 0]
+                });
+              }
+              setTransformRotationXFromRad(world, limbPivots.elbowL, ik.elbowBendRad);
+              // Right shoulder holds arm-rest; everything else zero.
+              setTransformRotationXFromRad(world, limbPivots.shoulderR, armRest);
+              for (const name of ["neck", "elbowR", "hipL", "hipR", "kneeL", "kneeR"] as const) {
+                setTransformRotationZero(world, limbPivots[name]);
+              }
             }
             break;
           }
