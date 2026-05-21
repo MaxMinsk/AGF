@@ -53,9 +53,16 @@
     {
       "id": "KABOOM-MIGRATE-PREFABS",
       "title": "Kaboom Crew player.prefab + bot.prefab use procedural:procbomber tree",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-002 (must — re-promote of S102 deferred -21-007). Replace the static sphere meshes on `player.prefab.json` + `bot.prefab.json` with procedural-tree spawning. Each prefab no longer carries a MeshRenderer at the root — bootstrap calls spawnBomberTree() per player/bot entity on round start. Procbomber generator code is imported from `examples/procbomber-bench/src/generators/` + `bomber-tree-spawner.ts` (cross-example import — narrowest possible surface; the bench stays the iteration sandbox per GDP-002 acceptance). Existing gameplay (BomberStats, GridMover, blast, round resolve) untouched.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: player.prefab + bot.prefab no longer carry MeshRenderer at the root; bootstrap's attachUi registers the six per-part procedural builders on the renderer + spawns the 19-entity tree under player.1 + bot.1. restartScene's scene.load wipes the world so the trees re-spawn after every round-restart via the same helper (fixes the user-reported 'characters don't respawn' bug).",
+        "examples/kaboom-crew/prefabs/player.prefab.json + bot.prefab.json: MeshRenderer removed; root Transform scale bumped to 0.8 (was 0.4 for the sphere — the procedural tree is sized in cell units).",
+        "examples/kaboom-crew/src/procbomber-integration.ts: registerProcbomberBuilders + spawnBomberFor + recipeForOwner + recipeToSizes + recipeToPalette helpers. Cross-example import from procbomber-bench/src — narrowest possible surface (generators + tree spawner + recipe codec only).",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: BomberTreeSpawnOptions gains optional  field; mesh refs append  so per-bomber recipes resolve via the procedural mesh registry's cache key.",
+        "examples/kaboom-crew/bootstrap.ts: makeKaboomRecipe helper assigns sky palette to player.1 + rose palette to bot.1 (matches historical tints); initial spawn in attachUi + re-spawn in restartScene."
+      ]
     },
     {
       "id": "KABOOM-BOMBER-ANIMATION-PROD",

@@ -1,15 +1,11 @@
 {
   "agfFormatVersion": 1,
   "id": "player",
-  "description": "Kaboom Crew player avatar — capsule placeholder for MVP 0. Procedural character generator lands post-MVP-0; until then a primitive sphere is the visual.",
+  "description": "Kaboom Crew player avatar. S104 KABOOM-MIGRATE-PREFABS: the player root no longer carries a MeshRenderer — kaboom-crew bootstrap calls spawnBomberTree(playerId, recipe) which spawns a 19-entity procedural tree (1 root + 9 pivots + 10 mesh parts) parented to this entity. The procbomber generator lives at examples/procbomber-bench/src/ — this project imports it directly.",
   "components": {
     "Transform": {
       "rotation": [0, 0, 0],
-      "scale": [0.4, 0.4, 0.4]
-    },
-    "MeshRenderer": {
-      "mesh": "sphere",
-      "color": "#3ab0ff"
+      "scale": [0.8, 0.8, 0.8]
     },
     "GridOccupant": {
       "layer": "player",
