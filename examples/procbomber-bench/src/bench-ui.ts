@@ -55,10 +55,15 @@ const SLIDERS: ReadonlyArray<SliderConfig> = [
   { label: "Head",      field: "headSize",       min: 0.15, max: 0.6,  step: 0.01 },
   { label: "Torso H",   field: "torsoHeight",    min: 0.25, max: 0.7,  step: 0.01 },
   { label: "Torso W",   field: "torsoWidth",     min: 0.25, max: 0.7,  step: 0.01 },
-  { label: "Arm L",     field: "armLength",      min: 0.2,  max: 0.6,  step: 0.01 },
-  { label: "Arm W",     field: "armWidth",       min: 0.08, max: 0.25, step: 0.01 },
-  { label: "Leg L",     field: "legLength",      min: 0.2,  max: 0.55, step: 0.01 },
-  { label: "Leg W",     field: "legWidth",       min: 0.1,  max: 0.3,  step: 0.01 },
+  // S102 multi-mesh tree: each arm/leg is TWO stacked segments
+  // (upperArm + forearm; upperLeg + lowerLeg). Total visible length =
+  // 2 × the slider value. Slider mins are tightened so stub-short
+  // limbs are reachable; maxes loosened so noodle-long limbs are
+  // reachable too.
+  { label: "Arm L",     field: "armLength",      min: 0.06, max: 0.45, step: 0.01 },
+  { label: "Arm W",     field: "armWidth",       min: 0.06, max: 0.3,  step: 0.01 },
+  { label: "Leg L",     field: "legLength",      min: 0.06, max: 0.45, step: 0.01 },
+  { label: "Leg W",     field: "legWidth",       min: 0.08, max: 0.35, step: 0.01 },
   // S102 PROCBOMBER-RECIPE-PARAMS-16 — posture
   { label: "Fwd tilt",  field: "forwardTilt",    min: -0.4, max: 0.6,  step: 0.02 },
   { label: "Arm rest",  field: "armRestAngle",   min: -0.5, max: 0.5,  step: 0.02 },
