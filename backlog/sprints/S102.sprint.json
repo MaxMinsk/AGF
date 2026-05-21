@@ -72,16 +72,27 @@
     {
       "id": "PROCBOMBER-WALK-SWING-PIVOTS",
       "title": "Bench walk-swing stub rotates shoulder/hip pivots in counter-phase",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Update bench-animation-system: walk-swing in the multi-mesh world rotates shoulder.l/r and hip.l/r in counter-phase (left shoulder + right hip swing forward together, then mirror) at WALK_SWING_FREQ_HZ. Idle-bob keeps driving root.position.y. Old whole-body walk-swing on root.position.x deleted — no longer needed once limbs swing. Pure helpers updated + tested.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: walk-swing now rotates shoulderL/R + hipL/R Transform.rotation.x in cross-body counter-phase. shoulderL + hipR share one phase; shoulderR + hipL share the opposite. Root stays at the base position (no more whole-body sliding). idle-bob still drives root.position.y.",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: walkSwingRotation(elapsed, limb) helper; system reads LimbPivots from the bomber root and writes Transform.rotation per pivot; non-walking kinds zero out pivot rotations so the bomber pose resets.",
+        "+ unit tests in bench-animation-system.test.ts covering walkSwingRotation, walk-swing system loop (positive shoulderL/hipR, negative shoulderR/hipL at quarter period), root-position-unchanged, kind=none zeroes pivots, transition flush"
+      ]
     },
     {
       "id": "PROCBOMBER-LIMB-TEST-DROPDOWN",
       "title": "Bench animation dropdown gains 'limb-test' option cycling each pivot",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Third stub in the dropdown: rotates each LimbPivots field by ±0.3 rad in sequence (one pivot at a time, ~1 s each) so a human can visually confirm every named pivot exists + bends in the expected direction. Useful as a QA stress / debugging tool when later animations land.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: animation dropdown gains 'limb-test' option. Selecting it cycles through all 9 LimbPivots fields (neck, shoulder.L/R, elbow.L/R, hip.L/R, knee.L/R) at LIMB_TEST_DURATION_PER_PIVOT_S = 0.8s each, holding LIMB_TEST_ROTATION_RAD = 0.3 on the active pivot, zero on the rest. After a full cycle (9 × 0.8 = 7.2s) it wraps.",
+        "examples/procbomber-bench/src/bench-ui-anim.ts: KINDS extends to include 'limb-test'",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: limbTestActivePivot(elapsed) returns the active pivot name; system loop rotates only that pivot, zeroes the rest",
+        "+3 unit tests in bench-animation-system.test.ts covering the limb-test cycle: starts at neck, advances every LIMB_TEST_DURATION_PER_PIVOT_S, wraps after the full cycle, exactly one pivot non-zero in any frame"
+      ]
     },
     {
       "id": "PROCBOMBER-PALETTE-8CH",

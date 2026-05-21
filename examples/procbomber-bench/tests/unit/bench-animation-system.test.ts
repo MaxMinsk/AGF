@@ -1,4 +1,5 @@
-// S101 PROCBOMBER-BENCH-ANIM-DROPDOWN — pure helpers + system loop.
+// S101 + S102 PROCBOMBER-BENCH-ANIM-DROPDOWN / WALK-SWING-PIVOTS /
+// LIMB-TEST-DROPDOWN — pure helpers + system loop.
 
 import { describe, expect, it } from "vitest";
 
@@ -7,11 +8,15 @@ import {
   createBenchAnimationSystem,
   IDLE_BOB_AMPLITUDE,
   IDLE_BOB_FREQ_HZ,
-  WALK_SWING_AMPLITUDE_X,
+  LIMB_TEST_DURATION_PER_PIVOT_S,
+  LIMB_TEST_ROTATION_RAD,
+  WALK_SWING_AMPLITUDE_RAD,
   WALK_SWING_FREQ_HZ,
   idleBobY,
-  walkSwingX
+  limbTestActivePivot,
+  walkSwingRotation
 } from "../../src/systems/bench-animation-system";
+import { LIMB_PIVOTS, LIMB_PIVOT_NAMES, buildLimbPivots } from "../../src/limb-pivots";
 
 function ctx(world: World, fixedDt = 1 / 60) {
   return {
@@ -20,14 +25,26 @@ function ctx(world: World, fixedDt = 1 / 60) {
   };
 }
 
-function addBomber(world: World, kind: "none" | "idle-bob" | "walk-swing", basePosition: [number, number, number] = [0, 0, 0]) {
-  world.addEntity("bomber.1");
-  world.setComponent("bomber.1", "Transform", {
+function addBomberRoot(
+  world: World,
+  kind: "none" | "idle-bob" | "walk-swing" | "limb-test",
+  basePosition: [number, number, number] = [0, 0, 0]
+) {
+  world.addEntity("bomber");
+  world.setComponent("bomber", "Transform", {
     position: basePosition,
     rotation: [0, 0, 0],
     scale: [1, 1, 1]
   });
-  world.setComponent("bomber.1", "BenchAnimationState", { kind, elapsed: 0 });
+  world.setComponent("bomber", "BenchAnimationState", { kind, elapsed: 0 });
+  // Add the 9 pivot entities so the system can write rotations.
+  const limbPivots = buildLimbPivots((n) => `bomber.${n}`);
+  for (const name of LIMB_PIVOT_NAMES) {
+    const id = limbPivots[name];
+    world.addEntity(id);
+    world.setComponent(id, "Transform", { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+  }
+  world.setComponent("bomber", LIMB_PIVOTS, limbPivots);
 }
 
 describe("idleBobY (S101 pure helper)", () => {
@@ -45,68 +62,125 @@ describe("idleBobY (S101 pure helper)", () => {
   });
 });
 
-describe("walkSwingX (S101 pure helper)", () => {
-  it("returns the base at elapsed=0", () => {
-    expect(walkSwingX(0, 0)).toBeCloseTo(0, 6);
+describe("walkSwingRotation (S102 pure helper)", () => {
+  it("starts at 0 for every limb at elapsed=0", () => {
+    expect(walkSwingRotation(0, "shoulderL")).toBeCloseTo(0, 6);
+    expect(walkSwingRotation(0, "shoulderR")).toBeCloseTo(0, 6);
+    expect(walkSwingRotation(0, "hipL")).toBeCloseTo(0, 6);
+    expect(walkSwingRotation(0, "hipR")).toBeCloseTo(0, 6);
   });
-  it("peaks at quarter-period on the +X side", () => {
+  it("cross-body counter-phase: shoulderL + hipR are in phase, shoulderR + hipL are in opposite phase", () => {
+    // Quarter period: shoulderL at +amplitude, shoulderR at -amplitude.
     const quarter = 1 / (4 * WALK_SWING_FREQ_HZ);
-    expect(walkSwingX(quarter, 0)).toBeCloseTo(WALK_SWING_AMPLITUDE_X, 6);
+    expect(walkSwingRotation(quarter, "shoulderL")).toBeCloseTo(WALK_SWING_AMPLITUDE_RAD, 4);
+    expect(walkSwingRotation(quarter, "hipR")).toBeCloseTo(WALK_SWING_AMPLITUDE_RAD, 4);
+    expect(walkSwingRotation(quarter, "shoulderR")).toBeCloseTo(-WALK_SWING_AMPLITUDE_RAD, 4);
+    expect(walkSwingRotation(quarter, "hipL")).toBeCloseTo(-WALK_SWING_AMPLITUDE_RAD, 4);
   });
 });
 
-describe("createBenchAnimationSystem (S101)", () => {
-  it("writes Transform.position.y above the base when kind=idle-bob (after a few ticks)", () => {
+describe("limbTestActivePivot (S102 pure helper)", () => {
+  it("starts at 'neck' (first pivot in LIMB_PIVOT_NAMES order)", () => {
+    expect(limbTestActivePivot(0)).toBe(LIMB_PIVOT_NAMES[0]);
+  });
+  it("advances to the next pivot after LIMB_TEST_DURATION_PER_PIVOT_S seconds", () => {
+    expect(limbTestActivePivot(LIMB_TEST_DURATION_PER_PIVOT_S + 0.01)).toBe(LIMB_PIVOT_NAMES[1]);
+    expect(limbTestActivePivot(LIMB_TEST_DURATION_PER_PIVOT_S * 5 + 0.01)).toBe(LIMB_PIVOT_NAMES[5]);
+  });
+  it("wraps after the full cycle", () => {
+    const cycle = LIMB_PIVOT_NAMES.length * LIMB_TEST_DURATION_PER_PIVOT_S;
+    expect(limbTestActivePivot(cycle + 0.01)).toBe(LIMB_PIVOT_NAMES[0]);
+  });
+});
+
+describe("createBenchAnimationSystem (S102)", () => {
+  it("idle-bob raises root.position.y above the base after a few ticks", () => {
     const world = new World();
-    addBomber(world, "idle-bob");
+    addBomberRoot(world, "idle-bob");
     const system = createBenchAnimationSystem();
-    // Step ~quarter-period of idle-bob (≈ 0.156 s) so the sine peaks.
     const ticks = Math.round(1 / (4 * IDLE_BOB_FREQ_HZ) / (1 / 60));
     for (let i = 0; i < ticks; i += 1) system.fixedUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber.1", "Transform")!;
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber", "Transform")!;
     expect(t.position[1]!).toBeGreaterThan(0);
   });
 
-  it("writes Transform.position.x off-center when kind=walk-swing", () => {
+  it("walk-swing rotates shoulderL and hipR positively at quarter-period", () => {
     const world = new World();
-    addBomber(world, "walk-swing");
+    addBomberRoot(world, "walk-swing");
     const system = createBenchAnimationSystem();
     const ticks = Math.round(1 / (4 * WALK_SWING_FREQ_HZ) / (1 / 60));
     for (let i = 0; i < ticks; i += 1) system.fixedUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber.1", "Transform")!;
-    expect(Math.abs(t.position[0]!)).toBeGreaterThan(0);
+    const lShoulder = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.shoulderL", "Transform")!;
+    const rHip = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.hipR", "Transform")!;
+    const rShoulder = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.shoulderR", "Transform")!;
+    const lHip = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.hipL", "Transform")!;
+    expect(lShoulder.rotation[0]!).toBeGreaterThan(0);
+    expect(rHip.rotation[0]!).toBeGreaterThan(0);
+    expect(rShoulder.rotation[0]!).toBeLessThan(0);
+    expect(lHip.rotation[0]!).toBeLessThan(0);
   });
 
-  it("kind=none snaps back to the base position (no drift)", () => {
+  it("walk-swing keeps the root position at its base", () => {
     const world = new World();
-    addBomber(world, "none", [0.1, 0.2, 0.3]);
+    addBomberRoot(world, "walk-swing", [0.5, 1, 2]);
+    const system = createBenchAnimationSystem();
+    for (let i = 0; i < 10; i += 1) system.fixedUpdate!(ctx(world));
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber", "Transform")!;
+    expect(t.position[0]).toBeCloseTo(0.5, 5);
+    expect(t.position[1]).toBeCloseTo(1, 5);
+    expect(t.position[2]).toBeCloseTo(2, 5);
+  });
+
+  it("limb-test rotates exactly one pivot at a time + holds at LIMB_TEST_ROTATION_RAD", () => {
+    const world = new World();
+    addBomberRoot(world, "limb-test");
+    const system = createBenchAnimationSystem();
+    // Advance to the middle of the first pivot's window (elapsed ≈ LIMB_TEST_DURATION_PER_PIVOT_S / 2)
+    const ticks = Math.round((LIMB_TEST_DURATION_PER_PIVOT_S / 2) / (1 / 60));
+    for (let i = 0; i < ticks; i += 1) system.fixedUpdate!(ctx(world));
+    const expectedActive = LIMB_PIVOT_NAMES[0]!;
+    let activeFound = false;
+    let nonZeroCount = 0;
+    for (const name of LIMB_PIVOT_NAMES) {
+      const t = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
+      const rotX = t.rotation[0]!;
+      if (Math.abs(rotX) > 1e-3) {
+        nonZeroCount += 1;
+        if (name === expectedActive) {
+          activeFound = true;
+          expect(rotX).toBeCloseTo(LIMB_TEST_ROTATION_RAD, 4);
+        }
+      }
+    }
+    expect(activeFound).toBe(true);
+    expect(nonZeroCount).toBe(1);
+  });
+
+  it("kind=none snaps the root back to base + zeros all pivot rotations", () => {
+    const world = new World();
+    addBomberRoot(world, "none", [0.1, 0.2, 0.3]);
     const system = createBenchAnimationSystem();
     for (let i = 0; i < 30; i += 1) system.fixedUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber.1", "Transform")!;
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber", "Transform")!;
     expect(t.position[0]).toBeCloseTo(0.1, 5);
     expect(t.position[1]).toBeCloseTo(0.2, 5);
     expect(t.position[2]).toBeCloseTo(0.3, 5);
+    for (const name of LIMB_PIVOT_NAMES) {
+      const p = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
+      expect(p.rotation[0]).toBeCloseTo(0, 5);
+    }
   });
 
-  it("preserves the bomber's z coordinate across all kinds", () => {
+  it("flipping from walk-swing back to none zeroes pivot rotations", () => {
     const world = new World();
-    addBomber(world, "idle-bob", [0, 0, 1.5]);
+    addBomberRoot(world, "walk-swing");
     const system = createBenchAnimationSystem();
-    for (let i = 0; i < 10; i += 1) system.fixedUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber.1", "Transform")!;
-    expect(t.position[2]).toBeCloseTo(1.5, 5);
-  });
-
-  it("flipping the kind back to none after idle-bob returns to base", () => {
-    const world = new World();
-    addBomber(world, "idle-bob");
-    const system = createBenchAnimationSystem();
-    for (let i = 0; i < 10; i += 1) system.fixedUpdate!(ctx(world));
-    // Flip kind = none + reset elapsed.
-    world.setComponent("bomber.1", "BenchAnimationState", { kind: "none", elapsed: 0 });
+    for (let i = 0; i < 20; i += 1) system.fixedUpdate!(ctx(world));
+    world.setComponent("bomber", "BenchAnimationState", { kind: "none", elapsed: 0 });
     system.fixedUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber.1", "Transform")!;
-    expect(t.position[1]).toBeCloseTo(0, 5);
-    expect(t.position[0]).toBeCloseTo(0, 5);
+    for (const name of LIMB_PIVOT_NAMES) {
+      const p = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
+      expect(p.rotation[0]).toBeCloseTo(0, 5);
+    }
   });
 });
