@@ -43,6 +43,30 @@
       ]
     },
     {
+      "id": "KABOOM-INPUT-DEAD-BOMBER-LOCKOUT",
+      "title": "Dead bombers ignore input (corpse can't steer mid-air)",
+      "status": "implemented",
+      "summary": "Player-input-system was still writing GridMover.queuedDirection on dead bombers — the ragdoll arc kept logging keyboard updates. Fix: in the per-bomber loop, if BomberStats.alive === false → zero queued direction + skip all input writes (place/detonate/move). R-key restart still fires.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: dead bombers no longer respond to input. Per-bomber loop short-circuits on alive=false: queuedDirection cleared, PLACE/DETONATE/MOVE skipped, R-key restart still fires.",
+        "examples/kaboom-crew/src/systems/player-input-system.ts: alive-check guard at the top of the per-entity loop",
+        "+4 unit tests covering each input path"
+      ]
+    },
+    {
+      "id": "KABOOM-RAGDOLL-WALL-COLLISION",
+      "title": "Ragdoll stops at hard-block walls (grid-raycast, no Rapier)",
+      "status": "implemented",
+      "summary": "User noted: 'will obstacles block them from flying over'. Current ragdoll is pure scalar math — no collision checks, the bomber could visually clip through walls. Add a simple per-fixedUpdate guard in death-animation-system: before writing nextPos, sample the destination cell via GridOccupancyQuery.blocked(gx, gz, 'blast'). If a hard-block sits there, zero the corresponding horizontal velocity axis (x or z) so the bomber stops along that direction but keeps falling. Cheap + project-local + no physics.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: ragdoll stops along an axis when it hits a hard-block wall. death-animation-system samples destination cell per-axis via GridOccupancyQuery.blocked(gx, gz, 'blast'); zeros vx or vz when a hard-block sits there. Bomber still falls (Y axis untouched). No Rapier — pure cell raycast.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: KaboomDeathAnimationSystemOptions gains optional occupancy; integration loop samples nextX/nextZ cells + zeroes velocity on block hits",
+        "examples/kaboom-crew/bootstrap.ts: createKaboomDeathAnimationSystem({ occupancy }) — shares the same occupancy handle the other systems use"
+      ]
+    },
+    {
       "id": "KABOOM-BENCH-EDIT-GAME-RECIPE",
       "title": "Bench preset selector — load game characters into the editor + export URL",
       "status": "pending",

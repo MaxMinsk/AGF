@@ -286,7 +286,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S90 KABOOM-DEATH-FALL — tweens the dying bomber's rotation
     // toward a tipped-over pose. Reads `DeathAnim` written by
     // audio-binding-system on the alive→dead edge.
-    scheduler.register(createKaboomDeathAnimationSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomDeathAnimationSystem({ occupancy }), { profiles: ["static"] });
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
     // BenchAnimationState + LimbPivots (written by the driver above + by

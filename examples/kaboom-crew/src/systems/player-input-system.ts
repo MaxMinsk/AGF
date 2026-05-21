@@ -178,6 +178,21 @@ export function createKaboomPlayerInputSystem(
     for (const entityId of query!.run()) {
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       if (mover === undefined) continue;
+      // S108 — dead bombers don't respond to input. Without this guard
+      // the ragdoll arc keeps logging queuedDirection updates and the
+      // corpse "steers" in midair when keys are pressed.
+      const stats = world.getComponent<{ alive?: boolean }>(entityId, BOMBER_STATS);
+      if (stats?.alive === false) {
+        // Drop any stale queued direction + restart-only edges so
+        // R-key restart still works for the dead-player UX.
+        if (mover.queuedDirection !== undefined && (mover.queuedDirection.dx !== 0 || mover.queuedDirection.dz !== 0)) {
+          world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: { dx: 0, dz: 0 } });
+        }
+        if ((restartEdge || world.hasComponent(entityId, INPUT_ACTION)) && !world.hasComponent(entityId, ROUND_RESTART_REQUEST)) {
+          world.setComponent(entityId, ROUND_RESTART_REQUEST, {});
+        }
+        continue;
+      }
 
       // S098 AGF-PROBE-INPUT-INJECT — read + consume an injected
       // InputAction BEFORE the keyboard path so a probe-driven action

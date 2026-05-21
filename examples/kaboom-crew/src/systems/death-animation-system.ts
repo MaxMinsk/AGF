@@ -21,6 +21,7 @@
 import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 
 const DEATH_ANIM: ComponentName = "DeathAnim";
 const RAGDOLL_STATE: ComponentName = "RagdollState";
@@ -112,8 +113,21 @@ export function pivotImpulseDegPerS(
   return { x: sign * magX, z: -sign * magZ };
 }
 
-export function createKaboomDeathAnimationSystem(options: { name?: string } = {}): System {
+export type KaboomDeathAnimationSystemOptions = {
+  name?: string;
+  /**
+   * S108 KABOOM-RAGDOLL-WALL-COLLISION. Optional occupancy query;
+   * when supplied, the ragdoll arc samples the destination cell each
+   * frame and zeroes the X / Z velocity axis when a hard-block sits
+   * there — so the bomber doesn't visually clip through walls.
+   * Without it, no collision checks happen (legacy behaviour).
+   */
+  occupancy?: GridOccupancyQuery;
+};
+
+export function createKaboomDeathAnimationSystem(options: KaboomDeathAnimationSystemOptions = {}): System {
   const name = options.name ?? "kaboom.death-animation";
+  const occupancy = options.occupancy;
   let cachedWorld: World | undefined;
   let query: QueryHandle | undefined;
 
@@ -241,6 +255,28 @@ export function createKaboomDeathAnimationSystem(options: { name?: string } = {}
         const currentY = transform.position?.[1] ?? baseY;
         const newVy = (velocity[1] ?? 0) + GRAVITY * dt;
         const rawNextY = currentY + newVy * dt;
+        // S108 KABOOM-RAGDOLL-WALL-COLLISION. Sample destination cell
+        // per axis; zero the velocity component when a hard-block sits
+        // there so the bomber stops along that axis but keeps falling.
+        let vx = velocity[0] ?? 0;
+        let vz = velocity[2] ?? 0;
+        if (occupancy !== undefined) {
+          const currentX = transform.position?.[0] ?? basePosition[0] ?? 0;
+          const currentZ = transform.position?.[2] ?? basePosition[2] ?? 0;
+          const nextX = currentX + vx * dt;
+          const nextZ = currentZ + vz * dt;
+          // cellSize=1, originX/Z=0 → world coord rounds to cell index.
+          const nextCellGx = Math.round(nextX);
+          const nextCellGz = Math.round(currentZ);
+          const nextCellGzAlt = Math.round(nextZ);
+          if (Math.abs(vx) > 1e-4 && occupancy.blocked(nextCellGx, Math.round(currentZ), "blast")) {
+            vx = 0;
+          }
+          if (Math.abs(vz) > 1e-4 && occupancy.blocked(Math.round(currentX), nextCellGzAlt, "blast")) {
+            vz = 0;
+          }
+          void nextCellGz; // marker for sanity — separate axis lookup
+        }
         // S108 KABOOM-RAGDOLL-GROUND-CLAMP. Detect "landed": root has
         // reached baseY AND is still falling (vy <= 0). When landed,
         // freeze linear AND angular velocity + clamp tumble rotations
@@ -248,13 +284,13 @@ export function createKaboomDeathAnimationSystem(options: { name?: string } = {}
         // continuing to spin through the floor.
         const landed = rawNextY <= baseY && newVy <= 0;
         const nextPos = [
-          (transform.position?.[0] ?? basePosition[0] ?? 0) + (velocity[0] ?? 0) * dt,
+          (transform.position?.[0] ?? basePosition[0] ?? 0) + vx * dt,
           landed ? baseY : rawNextY,
-          (transform.position?.[2] ?? basePosition[2] ?? 0) + (velocity[2] ?? 0) * dt
+          (transform.position?.[2] ?? basePosition[2] ?? 0) + vz * dt
         ];
         const newVelocity = landed
           ? [0, 0, 0]
-          : [velocity[0] ?? 0, newVy, velocity[2] ?? 0];
+          : [vx, newVy, vz];
         const rotIntegrate = (axis: number): number => {
           const current = transform.rotation?.[axis] ?? baseRotation[axis] ?? 0;
           if (landed) return clampDeg(current, -90, 90);
