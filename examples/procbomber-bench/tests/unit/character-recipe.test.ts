@@ -141,5 +141,42 @@ describe("withRecipeDefaults (S104)", () => {
     expect(r.headSize).toBe(0.35);
     expect(r.paletteName).toBe("sky");
     expect(r.headShape).toBe("box");
+    expect(r.accessories).toEqual([]);
+  });
+});
+
+describe("accessories field (S106)", () => {
+  it("validateRecipe accepts 0..3 accessories with valid kinds", () => {
+    expect(validateRecipe({ seed: "x", accessories: [] })).toBeDefined();
+    expect(validateRecipe({ seed: "x", accessories: [{ kind: "antennae" }] })).toBeDefined();
+    expect(validateRecipe({
+      seed: "x",
+      accessories: [{ kind: "cap" }, { kind: "backpack", mountSocket: "torso.back" }, { kind: "fins" }]
+    })).toBeDefined();
+  });
+
+  it("validateRecipe rejects > 3 accessories", () => {
+    expect(validateRecipe({
+      seed: "x",
+      accessories: [{ kind: "antennae" }, { kind: "visor" }, { kind: "cap" }, { kind: "fins" }]
+    })).toBeUndefined();
+  });
+
+  it("validateRecipe rejects unknown accessory kind / unknown socket", () => {
+    expect(validateRecipe({ seed: "x", accessories: [{ kind: "monocle" }] })).toBeUndefined();
+    expect(validateRecipe({ seed: "x", accessories: [{ kind: "cap", mountSocket: "knee" }] })).toBeUndefined();
+  });
+
+  it("encodeRecipe / decodeRecipe round-trip preserves accessories", () => {
+    const r = { seed: "demo", accessories: [{ kind: "cap" as const }, { kind: "backpack" as const }] };
+    const decoded = decodeRecipe(encodeRecipe(r));
+    expect(decoded?.accessories).toEqual(r.accessories);
+  });
+
+  it("resolveRecipeFromSeed picks 0..2 deterministic accessories", () => {
+    const a = resolveRecipeFromSeed("seed-a");
+    const b = resolveRecipeFromSeed("seed-a");
+    expect(a.accessories).toEqual(b.accessories);
+    expect(a.accessories.length).toBeLessThanOrEqual(2);
   });
 });

@@ -31,9 +31,14 @@
     {
       "id": "KABOOM-ACCESSORY-RECIPE-FIELD",
       "title": "CharacterRecipe.accessories field + codec round-trip",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Extend CharacterRecipe schema + TypeScript type with `accessories?: BomberAccessory[]` where BomberAccessory = { kind: AccessoryKind, mountSocket?: MountSocket }. AccessoryKind = 'antennae' | 'visor' | 'backpack' | 'cap' | 'fins'. Default mount per kind (cap → head.crown, etc); explicit mount override permitted (visor → torso.back for cosmetic-only debug). Validator accepts 0..3 accessories per recipe. encodeRecipe / decodeRecipe round-trips. resolveRecipeFromSeed picks 0..2 accessories deterministically from the seed.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: CharacterRecipe.accessories?: BomberAccessory[] (0..3) supported through schema + TS + codec. resolveRecipeFromSeed picks 0..2 deterministic accessories. encodeRecipe/decodeRecipe round-trips preserve them. validateRecipe rejects >3 or unknown kind/socket.",
+        "examples/procbomber-bench/schemas/character-recipe.schema.json: accessories field with kind enum + socket enum + maxItems=3",
+        "examples/procbomber-bench/src/character-recipe.ts: BomberAccessory type + ACCESSORY_DEFAULT_SOCKET + resolver/validator/defaults extended; +5 unit tests"
+      ]
     },
     {
       "id": "KABOOM-ACCESSORY-SPAWNER",
