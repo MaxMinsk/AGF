@@ -2,9 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S108",
   "title": "Bomber facing direction + ragdoll ground clamp",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-22",
-  "stories": [
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/127",  "stories": [
     {
       "id": "KABOOM-BOMBER-FACE-MOVEMENT",
       "title": "Bombers rotate to face their movement direction",
