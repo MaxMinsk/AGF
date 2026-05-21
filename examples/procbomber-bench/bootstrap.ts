@@ -1,16 +1,21 @@
 // examples/procbomber-bench — visual sandbox for the procedural
-// humanoid mesh generator. One bomber stands on a turntable in front of
-// the camera; the scene's `Spin` component rotates the parent so the
-// bomber turns automatically.
+// humanoid mesh generator.
 //
-// `attachUi`:
-//   1. Registers the `procbomber` builder with the renderer.
-//   2. Mounts the DOM control overlay (sliders + palette + reroll).
-//   3. Drives a rAF-coalesced rebuild loop that pushes new geometry
-//      onto the bomber's existing handle via `adapter.setMeshGeometry`.
-//      This sidesteps `MeshLifecycleSystem` — which only acquires once
-//      per entity — without needing a "ref-changed" engine path. Engine
-//      generalisation is a follow-up.
+// S102: the bomber now lives as a tree of 19 ECS entities (1 root + 9
+// pivots + 10 mesh parts) so the future animation pack can rotate
+// individual limbs. The renderer's procedural mesh registry holds 6
+// per-part builder closures (procbomber-torso/head/upperArm/forearm/
+// upperLeg/lowerLeg); the spawner creates the tree on `attachUi`.
+//
+// Bench rebuild loop:
+//   1. On any slider/dropdown/reroll tick, push a fresh BufferGeometry
+//      onto every mesh part via adapter.setMeshGeometry.
+//   2. Also push fresh Transform.position commands on every pivot via
+//      buildPivotRepositionCommands so torso/arm size knobs re-anchor
+//      the shoulders / hips correctly.
+//   3. Once per session, enable vertexColors on every mesh part's
+//      material (default is off; without this every bomber renders
+//      flat white regardless of palette).
 
 import type {
   ProjectBootstrap,
@@ -19,8 +24,9 @@ import type {
   ProjectUiHandle
 } from "../../engine/runtime/project-bootstrap";
 
-import { buildBomberGeometry, defaultBenchState, resolvePalette, type BenchState } from "./src/bench-state";
-import { generateBomberMesh } from "./src/generators/bomber-mesh";
+import { buildPivotRepositionCommands, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
+import { defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, type BenchState } from "./src/bench-state";
+import { generatePart } from "./src/generators/bomber-parts";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
 import { mountBenchControls } from "./src/bench-ui";
 import { mountAnimationControl, readBenchAnimationFromUrl } from "./src/bench-ui-anim";
@@ -30,7 +36,7 @@ import {
   type BenchAnimationStateComponent
 } from "./src/systems/bench-animation-system";
 
-const BOMBER_ENTITY_ID = "bomber";
+const BOMBER_ROOT_ID = "bomber";
 
 function paletteFromUrl(): BomberPaletteName | undefined {
   if (typeof window === "undefined") return undefined;
@@ -46,52 +52,106 @@ function paletteFromUrl(): BomberPaletteName | undefined {
 
 export const procbomberBenchBootstrap: ProjectBootstrap = {
   registerSystems(context: ProjectBootstrapContext): void {
-    // S101 PROCBOMBER-BENCH-ANIM-DROPDOWN: stub animation system reads
-    // BenchAnimationState.kind on the bomber and writes Transform.position
-    // to produce idle-bob (sin Y) or walk-swing (sin X). Limb-level
-    // animations land in S102 once the mesh splits into per-part
-    // transforms.
     context.scheduler.register(createBenchAnimationSystem());
   },
   attachUi({ shell, runtime }: ProjectUiContext): ProjectUiHandle {
     const state: BenchState = defaultBenchState(paletteFromUrl());
 
-    // S101 AGF-PROCMESH-REGISTRY: register the builder so the bomber
-    // entity's `MeshRenderer.mesh = "procedural:procbomber"` resolves
-    // on the first frameUpdate after entity creation. We pass the
-    // builder a closure over `state` so the initial mesh uses whatever
-    // ?bomberPalette= URL knob is set. Subsequent updates go through
-    // setMeshGeometry below — the registry's cache is bypassed once
-    // the entity has its handle.
-    runtime.renderer.proceduralMeshRegistry().register("procbomber", (seedHash) => {
-      return generateBomberMesh({
-        palette: state.paletteOverride !== undefined
-          ? resolvePalette({ ...state, paletteOverride: state.paletteOverride })
-          : resolvePalette({ ...state, seed: seedHash })
-      });
-    });
+    // 1. Register the six per-part procedural mesh builders. Each one
+    //    closes over `state` so the bench's slider knobs feed in. The
+    //    initial geometry uses the spawn-time sizes; subsequent
+    //    geometry swaps go via adapter.setMeshGeometry from the
+    //    rebuild loop below (registry cache bypassed once the entity
+    //    has its handle).
+    const procRegistry = runtime.renderer.proceduralMeshRegistry();
+    procRegistry.register("procbomber-torso", () => generatePart("torso", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-head", () => generatePart("head", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-upperArm", () => generatePart("upperArm", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-forearm", () => generatePart("forearm", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-upperLeg", () => generatePart("upperLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-lowerLeg", () => generatePart("lowerLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
 
+    // 2. Spawn the 19-entity tree under the bomber root.
+    const tree: BomberTreeResult = spawnBomberTree(
+      (cmds) => runtime.applyCommands(cmds),
+      { rootId: BOMBER_ROOT_ID, sizes: sizesOf(state) }
+    );
+
+    // 3. Per-entity bookkeeping for the rebuild loop.
+    const vertexColorsEnabled = new Set<string>();
     let rebuildScheduled = false;
+    const rebuildAll = (): void => {
+      const palette = resolvePalette(state);
+      const sizes = sizesOf(state);
+      const shapes = shapesOf(state);
+      const mounts = mountsOf(state);
+      const posture = postureOf(state);
+
+      // 3a. Reposition pivots (size knobs + mount offsets may have moved shoulders/hips).
+      runtime.applyCommands(buildPivotRepositionCommands(BOMBER_ROOT_ID, sizes, mounts));
+
+      // 3b. Apply posture: forwardTilt rotates the torso forward (X axis).
+      //     armRestAngle preserves the rest pose of shoulder pivots when
+      //     no walk-swing is active — the bench-animation-system zeros
+      //     pivot rotations when kind=none/idle-bob, so we apply armRest
+      //     by patching the BenchAnimationState handler instead. For
+      //     now, only forwardTilt is applied at this rebuild layer.
+      runtime.applyCommands([
+        {
+          kind: "component.set",
+          entityId: `${BOMBER_ROOT_ID}.torso`,
+          component: "Transform",
+          data: {
+            parent: BOMBER_ROOT_ID,
+            position: [0, sizes.legLength + sizes.torsoHeight / 2, 0],
+            rotation: [posture.forwardTilt, 0, 0],
+            scale: [1, 1, 1]
+          }
+        }
+      ]);
+
+      // 3c. Push fresh geometry onto every mesh part. Enable vertex
+      //     colours on first touch (default material flag is off).
+      for (const { id, partName } of tree.meshEntities) {
+        const handle = runtime.renderer.meshRegistry().handleFor(id);
+        if (handle === undefined) continue;
+        if (!vertexColorsEnabled.has(id)) {
+          runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
+          vertexColorsEnabled.add(id);
+        }
+        const geometry = generatePart(partName, sizes, palette, shapes);
+        runtime.renderer.adapter.setMeshGeometry(handle, geometry);
+      }
+    };
     const scheduleRebuild = (): void => {
       if (rebuildScheduled) return;
       rebuildScheduled = true;
       requestAnimationFrame(() => {
         rebuildScheduled = false;
-        const handle = runtime.renderer.meshRegistry().handleFor(BOMBER_ENTITY_ID);
-        if (handle === undefined) return; // bomber hasn't acquired yet — try next frame on the next UI change.
-        const geometry = buildBomberGeometry(state);
-        runtime.renderer.adapter.setMeshGeometry(handle, geometry);
+        rebuildAll();
       });
     };
 
+    // Prime the rebuild loop as soon as the bomber's parts acquire
+    // their handles. Without this the first frame renders flat-white
+    // parts until the user touches a control.
+    const primeWhenReady = (): void => {
+      const firstHandle = runtime.renderer.meshRegistry().handleFor(tree.meshEntities[0]!.id);
+      if (firstHandle === undefined) {
+        requestAnimationFrame(primeWhenReady);
+        return;
+      }
+      scheduleRebuild();
+    };
+    requestAnimationFrame(primeWhenReady);
+
     const ui = mountBenchControls(shell, state, scheduleRebuild);
 
-    // S101 PROCBOMBER-BENCH-ANIM-DROPDOWN: mount the animation switcher
-    // inside the same overlay panel so all bench controls live together.
+    // Animation dropdown sits inside the same overlay panel.
     const panel = shell.querySelector<HTMLElement>("[data-procbomber-controls]");
     const initialAnim: BenchAnimationKind = readBenchAnimationFromUrl() ?? "none";
     runtime.world.setComponent(
-      BOMBER_ENTITY_ID,
+      BOMBER_ROOT_ID,
       "BenchAnimationState",
       { kind: initialAnim, elapsed: 0 } satisfies BenchAnimationStateComponent
     );
@@ -99,7 +159,7 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
       ? { dispose(): void { /* no-op */ } }
       : mountAnimationControl(panel, initialAnim, (kind) => {
           runtime.world.setComponent(
-            BOMBER_ENTITY_ID,
+            BOMBER_ROOT_ID,
             "BenchAnimationState",
             { kind, elapsed: 0 } satisfies BenchAnimationStateComponent
           );
@@ -109,11 +169,12 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
       dispose(): void {
         animUi.dispose();
         ui.dispose();
-        runtime.renderer.proceduralMeshRegistry().invalidate("procbomber");
+        for (const key of ["procbomber-torso", "procbomber-head", "procbomber-upperArm", "procbomber-forearm", "procbomber-upperLeg", "procbomber-lowerLeg"]) {
+          procRegistry.invalidate(key);
+        }
       }
     };
   }
 };
 
-// Vite-friendly default export for the project entry contract.
 export default procbomberBenchBootstrap;

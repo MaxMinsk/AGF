@@ -85,6 +85,9 @@ export function generateBomberMesh(spec: BomberMeshSpec): BufferGeometry {
     center: readonly [number, number, number];
     color: string;
   };
+  // S102 PROCBOMBER-PALETTE-8CH: per-part channels (8-channel palette).
+  // Single-mesh path retained; the per-part mesh tree (S102
+  // PROCBOMBER-MESH-TREE-V0) will use the same channel mapping.
   const parts: Part[] = [
     {
       name: "head",
@@ -96,31 +99,31 @@ export function generateBomberMesh(spec: BomberMeshSpec): BufferGeometry {
       name: "torso",
       box: { x: s.torsoWidth, y: s.torsoHeight, z: s.torsoWidth * 0.65 },
       center: [0, torsoY, 0],
-      color: palette.torso
+      color: palette.torsoTop
     },
     {
       name: "armL",
       box: { x: s.armWidth, y: s.armLength, z: s.armWidth },
       center: [-armOffset, armY, 0],
-      color: palette.limbs
+      color: palette.upperArm
     },
     {
       name: "armR",
       box: { x: s.armWidth, y: s.armLength, z: s.armWidth },
       center: [armOffset, armY, 0],
-      color: palette.limbs
+      color: palette.upperArm
     },
     {
       name: "legL",
       box: { x: s.legWidth, y: s.legLength, z: s.legWidth },
       center: [-legOffset, legY, 0],
-      color: palette.limbs
+      color: palette.upperLeg
     },
     {
       name: "legR",
       box: { x: s.legWidth, y: s.legLength, z: s.legWidth },
       center: [legOffset, legY, 0],
-      color: palette.limbs
+      color: palette.upperLeg
     }
   ];
 

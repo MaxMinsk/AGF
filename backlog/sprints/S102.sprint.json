@@ -1,0 +1,137 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S102",
+  "title": "Bomber multi-mesh tree + palette/recipe expansion (GDP-2026-05-21 batch)",
+  "status": "archived",
+  "startedAt": "2026-05-21",
+  "archivedAt": "2026-05-21",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/118",
+  "stories": [
+    {
+      "id": "PROCBOMBER-VERTEX-COLORS-FIX",
+      "title": "Bench palette dropdown actually changes colours (vertexColors flag)",
+      "status": "implemented",
+      "summary": "Hotfix the palette-doesn't-affect-anything bug the user reported the moment S101 merged. The bomber's mesh paints colour per-vertex via the palette (linear-RGB on a BufferAttribute), but the renderer's default material (created in adapter.acquireMesh) sets vertexColors=false. The flat MeshStandardMaterial's solid colour wins, every bomber renders white. Add a `vertexColors` field to MaterialPatch + flip it from the bench's bootstrap rebuild loop.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: palette dropdown in the bench actually changes the bomber colour on screen. Selecting 'ember' / 'mint' / etc shows a visibly different bomber. Pixel check in the e2e smoke samples the central viewport region after a control tick + asserts at least one non-greyscale pixel (channel delta >= 16) — would have failed pre-fix (all-white bomber).",
+        "engine/render/three-render-adapter.ts: MaterialPatch gains vertexColors?: boolean; setMeshMaterialPatch flips material.vertexColors + resets base color to white when enabling so vertex colors aren't multiplied by a stray tint.",
+        "examples/procbomber-bench/bootstrap.ts: rebuild loop calls setMeshMaterialPatch({ vertexColors: true }) once per session; primes the first rebuild via rAF chain so the bomber tints from the very first frame (no need to wiggle a slider).",
+        "tests/e2e/procbomber-bench.spec.ts: pixel-coloured-pixel check appended"
+      ]
+    },
+    {
+      "id": "CHORE-GDP-2026-05-21-PROMOTION",
+      "title": "Move GDP-2026-05-21-001..007 from proposed-stories/ to the archive",
+      "status": "implemented",
+      "summary": "Promote the 7 GDP proposals filed by the game-design terminal during S101 into S102 stories below (or defer). Archive the source files under backlog/proposed-stories/archive/S102/ so the inbox empties.",
+      "epic": "AGF-BACKLOG-ENGINE",
+      "verification": [
+        "acceptance: all 7 GDP-2026-05-21-* proposals archived under backlog/proposed-stories/archive/S102/. Inbox is empty (archive shows only the archive/ directory). engine doctor's Proposed-story inbox section disappears or shows 0.",
+        "Stories 001 + 002 + 003 promoted as S102 stories (PROCBOMBER-MESH-TREE-V0 + PROCBOMBER-RECIPE-PARAMS-16 + PROCBOMBER-PALETTE-8CH). 004 + 005 + 006 + 007 deferred via sprint notes — substantial multi-sprint work that needs the tree + palette + recipe foundation first."
+      ]
+    },
+    {
+      "id": "PROCBOMBER-MESH-TREE-V0",
+      "title": "Decompose procbomber into 9-pivot + 10-mesh ECS tree (GDP-001)",
+      "status": "implemented",
+      "summary": "Replace the single-BufferGeometry generator with a hierarchical spawner that creates one root entity, 9 actuated pivot entities (neck, shoulder.l/r, elbow.l/r, hip.l/r, knee.l/r — Transform only, no MeshRenderer), and ~10 body-part mesh entities (torso, head, upperArm.l/r, forearm.l/r, upperLeg.l/r, lowerLeg.l/r — each MeshRenderer ref points at a part-specific procedural key). The 'tree' lives in ECS Transform parent chain — animation systems mutate pivot rotations, child meshes inherit. Fixed naming convention; per GDP-001 acceptance.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: the bomber renders as a 19-entity tree (1 root + 9 named pivots + 10 mesh parts). Each pivot has only Transform; each mesh has Transform + MeshRenderer pointing at procedural:procbomber-<part>. Transform.parent chain matches the GDP-001 spec: torso→neck→head, torso→shoulder→upperArm→elbow→forearm, torso→hip→upperLeg→knee→lowerLeg. LimbPivots component written on the root carries entity ids for all 9 pivot names.",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: spawnBomberTree() emits entity.create + component.set commands via applyCommands; buildPivotRepositionCommands() re-emits Transform.position only so size sliders re-anchor without re-spawning.",
+        "scenes/start.scene.json: bomber root has no MeshRenderer anymore (root is a Transform-only anchor for the tree)",
+        "bootstrap.ts: registers 6 per-part procedural builders, calls spawnBomberTree, rebuild loop iterates meshEntities + buildPivotRepositionCommands; vertex-colors enabled per-entity on first touch",
+        "e2e smoke updated: assert LimbPivots on root + bomber.torso entity exists with mesh ref procedural:procbomber-torso; pixel check still passes (the multi-mesh tree still paints visible non-greyscale pixels)",
+        "+11 unit tests in tests/unit/bomber-tree-spawner.test.ts covering entity counts, naming, parent chains, mesh refs, keyPrefix, LimbPivots write"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-PART-BUILDERS",
+      "title": "Per-part procedural mesh builders + multi-key registry usage",
+      "status": "implemented",
+      "summary": "Split generateBomberMesh into per-part generators: generateTorso, generateHead, generateUpperArm, generateForearm, generateUpperLeg, generateLowerLeg. Each returns one BufferGeometry sized by its slice of the recipe. Bench bootstrap registers them under separate procedural keys (procbomber-torso, procbomber-head, …). The mesh tree spawner gives each entity its own ref. Keeps the existing single-mesh path (generateBomberMesh) as a deprecated convenience for any callers still using the v0 shape.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/procbomber-bench/src/generators/bomber-parts.ts exports generatePart + per-part generators (generateTorso/Head/UpperArm/Forearm/UpperLeg/LowerLeg) + partKey() + partColor() + BomberPartName + BomberPartSizes. Each builder returns one BufferGeometry centered in its own local space. Limb segments (upperArm/forearm/upperLeg/lowerLeg) hang BELOW the pivot — Y range [-length .. 0] — so positive shoulder X rotation lifts the arm forward.",
+        "Per-part palette channel mapping: torso reads torsoTop (with torsoBottom paint on the bottom 30% band), head reads head, upperArm reads upperArm, forearm reads forearm, upperLeg reads upperLeg, lowerLeg reads lowerLeg. Bottom-shadow band on the torso is a non-shader contact-shadow split.",
+        "Single-mesh path (generateBomberMesh) untouched — still ships the v0 merged-six-box geometry for the existing tests; tree spawner (next story) consumes generatePart instead.",
+        "+9 unit tests in examples/procbomber-bench/tests/unit/bomber-parts.test.ts"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-LIMB-PIVOTS-COMPONENT",
+      "title": "LimbPivots project component carrying named pivot entity refs",
+      "status": "implemented",
+      "summary": "Schema entry under examples/procbomber-bench/schemas/scene-extensions.schema.json: `LimbPivots { neck, shoulderL, shoulderR, elbowL, elbowR, hipL, hipR, kneeL, kneeR }` — nine fields, each a string entity id. The spawner writes one LimbPivots on the bomber root so animation systems can lookup pivots by name without traversing the Transform tree every tick. Migrate to examples/kaboom-crew/ later (GDP-007).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: schemas/scene-extensions.schema.json grows a LimbPivots component with 9 required string-id fields (neck + shoulder.L+R + elbow.L+R + hip.L+R + knee.L+R). engine check passes.",
+        "examples/procbomber-bench/src/limb-pivots.ts: LimbPivots / LimbPivotName / LIMB_PIVOT_NAMES + isLimbPivotName + buildLimbPivots helpers",
+        "+5 unit tests in examples/procbomber-bench/tests/unit/limb-pivots.test.ts"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-WALK-SWING-PIVOTS",
+      "title": "Bench walk-swing stub rotates shoulder/hip pivots in counter-phase",
+      "status": "implemented",
+      "summary": "Update bench-animation-system: walk-swing in the multi-mesh world rotates shoulder.l/r and hip.l/r in counter-phase (left shoulder + right hip swing forward together, then mirror) at WALK_SWING_FREQ_HZ. Idle-bob keeps driving root.position.y. Old whole-body walk-swing on root.position.x deleted — no longer needed once limbs swing. Pure helpers updated + tested.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: walk-swing now rotates shoulderL/R + hipL/R Transform.rotation.x in cross-body counter-phase. shoulderL + hipR share one phase; shoulderR + hipL share the opposite. Root stays at the base position (no more whole-body sliding). idle-bob still drives root.position.y.",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: walkSwingRotation(elapsed, limb) helper; system reads LimbPivots from the bomber root and writes Transform.rotation per pivot; non-walking kinds zero out pivot rotations so the bomber pose resets.",
+        "+ unit tests in bench-animation-system.test.ts covering walkSwingRotation, walk-swing system loop (positive shoulderL/hipR, negative shoulderR/hipL at quarter period), root-position-unchanged, kind=none zeroes pivots, transition flush"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-LIMB-TEST-DROPDOWN",
+      "title": "Bench animation dropdown gains 'limb-test' option cycling each pivot",
+      "status": "implemented",
+      "summary": "Third stub in the dropdown: rotates each LimbPivots field by ±0.3 rad in sequence (one pivot at a time, ~1 s each) so a human can visually confirm every named pivot exists + bends in the expected direction. Useful as a QA stress / debugging tool when later animations land.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: animation dropdown gains 'limb-test' option. Selecting it cycles through all 9 LimbPivots fields (neck, shoulder.L/R, elbow.L/R, hip.L/R, knee.L/R) at LIMB_TEST_DURATION_PER_PIVOT_S = 0.8s each, holding LIMB_TEST_ROTATION_RAD = 0.3 on the active pivot, zero on the rest. After a full cycle (9 × 0.8 = 7.2s) it wraps.",
+        "examples/procbomber-bench/src/bench-ui-anim.ts: KINDS extends to include 'limb-test'",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: limbTestActivePivot(elapsed) returns the active pivot name; system loop rotates only that pivot, zeroes the rest",
+        "+3 unit tests in bench-animation-system.test.ts covering the limb-test cycle: starts at neck, advances every LIMB_TEST_DURATION_PER_PIVOT_S, wraps after the full cycle, exactly one pivot non-zero in any frame"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-PALETTE-8CH",
+      "title": "Palette expansion 4 → 8 channels + derived bottom-shadow tints (GDP-003)",
+      "status": "implemented",
+      "summary": "Expand BomberPalette from { head, torso, limbs, accent } (4) to 8 channels mapped 1:1 onto the post-decomposition mesh tree: head, torsoTop, torsoBottom, upperArm, forearm, upperLeg, lowerLeg, accent. Add `bottomShadow(color)` helper deriving a darker variant per channel for the contact-shadow trick. Existing 8 named palettes get a default mapping (existing torso → torsoTop, derived bottom for torsoBottom, etc). Per-channel overrides land via recipe.paletteOverrides (a per-channel partial). +tests.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: BomberPalette grows from 4 (head/torso/limbs/accent) to 8 channels (head/torsoTop/torsoBottom/upperArm/forearm/upperLeg/lowerLeg/accent). Each shipped palette has all 8 fields as 7-char hex strings. torsoBottom + forearm + lowerLeg are darker than their counterparts. bottomShadow(hex, factor) is a pure sRGB-byte helper. applyPaletteOverrides(base, partial) replaces only specified channels, name is preserved.",
+        "examples/procbomber-bench/src/generators/bomber-palette.ts: 8-channel BomberPalette type, CORES table (5 channels per core), expand() helper, bottomShadow helper (sRGB math), applyPaletteOverrides helper, BomberPaletteOverrides type",
+        "examples/procbomber-bench/src/generators/bomber-mesh.ts: per-part color uses head + torsoTop + upperArm + upperLeg (single-mesh path retained for the bench)",
+        "+13 unit tests (4 file groups): all 4 channels per palette / bottomShadow byte math / torsoBottom darker than torsoTop / applyPaletteOverrides pass-through + partial / existing tests adapted to torsoTop rename"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-RECIPE-PARAMS-16",
+      "title": "Recipe parameter expansion 7 → 16 (proportions + posture + mounts + shape) (GDP-002)",
+      "status": "implemented",
+      "summary": "Expand the bench recipe to 16 deterministic parameters: 7 existing size knobs + forwardTilt + armRestAngle + shoulderMountY + shoulderMountZ + hipMountY + hipMountZ + headShape + torsoShape + limbShape. Each parameter has a clamped range, a default from BOMBER_MESH_DEFAULTS, and a seed-derivation rule so a recipe with only { seed: 42 } produces a fully-specified bomber. Bench panel sliders grow to cover the new knobs; shape knobs are 3-option select inputs (box, capsule, cylinder).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: BenchState ships 16 deterministic recipe parameters: 7 size knobs (existing) + 2 posture (forwardTilt, armRestAngle) + 4 mount offsets (shoulderMountY/Z, hipMountY/Z) + 3 shape knobs (headShape, torsoShape, limbShape ∈ {box, cylinder, capsule}). Each new field has a clamped slider/dropdown in the bench panel; defaults are 0 for posture+mounts and 'box' for shapes.",
+        "sizesOf/postureOf/mountsOf/shapesOf state slicers exposed; defaults consistent with BOMBER_MESH_DEFAULTS.",
+        "examples/procbomber-bench/src/generators/bomber-parts.ts: BomberPartShape + BomberPartShapes + DEFAULT_BOMBER_PART_SHAPES; buildBoxLike() dispatcher branches on shape (BoxGeometry / CylinderGeometry / CapsuleGeometry). generatePart accepts shapes.",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: buildPivotRepositionCommands accepts mount offsets, shifts shoulderL/R + hipL/R Y + Z.",
+        "examples/procbomber-bench/bootstrap.ts: rebuild loop reads sizesOf/postureOf/mountsOf/shapesOf; applies forwardTilt to torso Transform.rotation.X; generatePart consumes shapes.",
+        "examples/procbomber-bench/src/bench-ui.ts: SLIDERS extends to 13 entries; SHAPE_DROPDOWNS array; buildShapeSelect helper writes BomberShape values via isBomberShape guard.",
+        "+ unit tests covering: defaults for 16 params, state slicers, BOMBER_SHAPE_OPTIONS contents, isBomberShape, shape branching in generatePart, mount offsets in buildPivotRepositionCommands. e2e smoke updated to assert 13 sliders + 3 shape selects."
+      ]
+    }
+  ],
+  "notes": [
+    "GDP-2026-05-21-004 (procedural texturing — panel seams + decals + shader noise) deferred. Substantial shader work, no immediate consumer until the gameplay shells (S103+) demand visual variety beyond palette + shape.",
+    "GDP-2026-05-21-005 (accessory layer) deferred. Belongs in its own sprint after the joint hierarchy + palette + recipe stabilise.",
+    "GDP-2026-05-21-006 (body-style enum — box/smooth/chunked) deferred. Could-priority; needs the shape knobs from GDP-2026-05-21-002 to land first.",
+    "GDP-2026-05-21-007 (migrate to Kaboom Crew) deferred. Migration is the LAST step after all generator improvements stabilise — premature now.",
+    "GDP-2026-05-20-009 (six animation systems) still blocked on this sprint's joint hierarchy landing — promote after S102 merges.",
+    "GDP-2026-05-20-010 (procedural vocal synth) still deferred — could-priority."
+  ]
+}

@@ -110,7 +110,7 @@ describe("generateBomberMesh determinism + scale (S101)", () => {
     // Three.js Color stores linear-RGB internally — compute the expected
     // value via Color() rather than raw hex/255.
     const headLinear = new Color(spec.palette.head);
-    const torsoLinear = new Color(spec.palette.torso);
+    const torsoLinear = new Color(spec.palette.torsoTop);
     expect(color.getX(0)).toBeCloseTo(headLinear.r, 4);
     expect(color.getY(0)).toBeCloseTo(headLinear.g, 4);
     expect(color.getZ(0)).toBeCloseTo(headLinear.b, 4);

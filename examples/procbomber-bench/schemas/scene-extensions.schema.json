@@ -4,9 +4,27 @@
   "title": "Procbomber Bench Scene Extensions",
   "description": "Project-local component types for the procbomber bench. BenchAnimationState drives stub limb-free animations during S101 so the bench dropdown wires through the data path; the real S102 animation systems will replace it once limb anchors split into separate transforms.",
   "components": {
-    "BenchAnimationState": { "$ref": "#/definitions/benchAnimationStateComponent" }
+    "BenchAnimationState": { "$ref": "#/definitions/benchAnimationStateComponent" },
+    "LimbPivots": { "$ref": "#/definitions/limbPivotsComponent" }
   },
   "definitions": {
+    "limbPivotsComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S102 PROCBOMBER-LIMB-PIVOTS-COMPONENT. Carries entity ids of the nine actuated pivots created by the bomber-tree spawner. Animation systems look up pivots by name from here rather than walking the Transform tree every fixedUpdate. The spawner writes one LimbPivots on the bomber's root entity; the names are non-negotiable — future animation systems grep for these exact fields.",
+      "required": ["neck", "shoulderL", "shoulderR", "elbowL", "elbowR", "hipL", "hipR", "kneeL", "kneeR"],
+      "properties": {
+        "neck":      { "type": "string", "minLength": 1 },
+        "shoulderL": { "type": "string", "minLength": 1 },
+        "shoulderR": { "type": "string", "minLength": 1 },
+        "elbowL":    { "type": "string", "minLength": 1 },
+        "elbowR":    { "type": "string", "minLength": 1 },
+        "hipL":      { "type": "string", "minLength": 1 },
+        "hipR":      { "type": "string", "minLength": 1 },
+        "kneeL":     { "type": "string", "minLength": 1 },
+        "kneeR":     { "type": "string", "minLength": 1 }
+      }
+    },
     "benchAnimationStateComponent": {
       "type": "object",
       "additionalProperties": false,
