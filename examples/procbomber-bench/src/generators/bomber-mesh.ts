@@ -40,10 +40,20 @@ export const BOMBER_MESH_DEFAULTS = {
   headSize: 0.35,
   torsoHeight: 0.45,
   torsoWidth: 0.45,
-  armLength: 0.4,
+  // S103 PROCBOMBER-LIMB-SEGMENT-SLIDERS: split arm + leg into two
+  // segments with independent length knobs. Defaults sum to roughly
+  // the old single-segment sizes (~0.2 each).
+  upperArmLength: 0.2,
+  forearmLength: 0.2,
   armWidth: 0.15,
-  legLength: 0.35,
-  legWidth: 0.18
+  upperLegLength: 0.18,
+  lowerLegLength: 0.18,
+  legWidth: 0.18,
+  // Kept for back-compat with any caller still reading single-segment
+  // values; treat as the SUM of upper + lower for callers that don't
+  // know about the split. The generator no longer uses these.
+  armLength: 0.4,
+  legLength: 0.36
 } as const;
 
 export type BomberPartName = "head" | "torso" | "armL" | "armR" | "legL" | "legR";

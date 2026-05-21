@@ -22,9 +22,11 @@ const SIZES: BomberPartSizes = {
   headSize: BOMBER_MESH_DEFAULTS.headSize,
   torsoHeight: BOMBER_MESH_DEFAULTS.torsoHeight,
   torsoWidth: BOMBER_MESH_DEFAULTS.torsoWidth,
-  armLength: BOMBER_MESH_DEFAULTS.armLength,
+  upperArmLength: BOMBER_MESH_DEFAULTS.upperArmLength,
+  forearmLength: BOMBER_MESH_DEFAULTS.forearmLength,
   armWidth: BOMBER_MESH_DEFAULTS.armWidth,
-  legLength: BOMBER_MESH_DEFAULTS.legLength,
+  upperLegLength: BOMBER_MESH_DEFAULTS.upperLegLength,
+  lowerLegLength: BOMBER_MESH_DEFAULTS.lowerLegLength,
   legWidth: BOMBER_MESH_DEFAULTS.legWidth
 };
 const SKY = paletteByName("sky");
@@ -114,7 +116,7 @@ describe("head geometry (S102)", () => {
 
 describe("limb-segment geometry — hangs below the pivot (S102)", () => {
   const arm = generateUpperArm(SIZES, SKY);
-  it("upperArm Y range is [-armLength .. 0] (pivot at top)", () => {
+  it("upperArm Y range is [-upperArmLength .. 0] (pivot at top)", () => {
     const pos = arm.getAttribute("position");
     let minY = Infinity;
     let maxY = -Infinity;
@@ -122,7 +124,7 @@ describe("limb-segment geometry — hangs below the pivot (S102)", () => {
       minY = Math.min(minY, pos.getY(i));
       maxY = Math.max(maxY, pos.getY(i));
     }
-    expect(minY).toBeCloseTo(-SIZES.armLength, 5);
+    expect(minY).toBeCloseTo(-SIZES.upperArmLength, 5);
     expect(maxY).toBeCloseTo(0, 5);
   });
 

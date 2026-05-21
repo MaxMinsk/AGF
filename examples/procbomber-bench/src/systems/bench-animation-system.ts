@@ -34,6 +34,8 @@ export type BenchAnimationKind = "none" | "idle-bob" | "walk-swing" | "limb-test
 export type BenchAnimationStateComponent = {
   kind: BenchAnimationKind;
   elapsed?: number;
+  /** S103 PROCBOMBER-ARM-REST-APPLIES — radians. Driven by the bench's armRestAngle slider; applied to shoulder pivots when kind is none / idle-bob. */
+  armRestAngleRad?: number;
 };
 
 export type TransformLike = {
@@ -46,9 +48,19 @@ export type TransformLike = {
 export const IDLE_BOB_FREQ_HZ = 1.6;
 export const IDLE_BOB_AMPLITUDE = 0.05;
 export const WALK_SWING_FREQ_HZ = 1.8;
-export const WALK_SWING_AMPLITUDE_RAD = 0.5;
+// S103 PROCBOMBER-POSTURE-RANGES: widen so the gait reads at a glance.
+// Was 0.5 rad (≈ 28.6°) — barely a step. New value ≈ 50°, visible swing.
+export const WALK_SWING_AMPLITUDE_RAD = 0.9;
+// S103 PROCBOMBER-WALK-CYCLE-PLUS: knees + elbows bend during walk-swing.
+export const WALK_KNEE_BEND_RAD = 0.5;
+export const WALK_ELBOW_BEND_RAD = 0.6;
+// S103 PROCBOMBER-WALK-CYCLE-PLUS: subtle vertical root bob — Y dips on
+// each foot plant (twice per walk cycle).
+export const WALK_ROOT_BOB_AMPLITUDE = 0.04;
 export const LIMB_TEST_DURATION_PER_PIVOT_S = 0.8;
-export const LIMB_TEST_ROTATION_RAD = 0.3;
+// S103 PROCBOMBER-POSTURE-RANGES: was 0.3 rad (≈ 17°) — visible but
+// shy. New value ≈ 45° — unmistakable.
+export const LIMB_TEST_ROTATION_RAD = 0.8;
 
 /** Pure helper — easy to unit-test without an ECS world. */
 export function idleBobY(elapsed: number, basePoseY: number): number {
@@ -68,6 +80,43 @@ export function walkSwingRotation(
   // Cross-body: shoulderL + hipR share one phase; shoulderR + hipL the opposite.
   const sign = limb === "shoulderL" || limb === "hipR" ? 1 : -1;
   return sign * Math.sin(phase) * WALK_SWING_AMPLITUDE_RAD;
+}
+
+/**
+ * S103 PROCBOMBER-WALK-CYCLE-PLUS: knees + elbows bend in phase with
+ * the leg/arm swing. Bend is greatest when the limb is mid-swing and
+ * zero at neutral. Sign convention:
+ *   - elbow bend +ve: forearm curls FORWARD (bicep-curl direction).
+ *   - knee  bend −ve: lower leg curls BACKWARD (heel toward butt, anatomically correct).
+ *
+ * Joints don't hyperextend — the absolute value keeps each bend monodirectional.
+ */
+export function walkBendRotation(
+  elapsed: number,
+  joint: "elbowL" | "elbowR" | "kneeL" | "kneeR"
+): number {
+  const phase = elapsed * WALK_SWING_FREQ_HZ * Math.PI * 2;
+  // Quarter-phase offset so the bend peaks AFTER the shoulder/hip
+  // swings forward — mimics the inertia of a real leg snapping back as
+  // it lifts.
+  const offset = Math.PI / 2;
+  // Knee + elbow bends are tied to the same limb-side cycle as the hip
+  // / shoulder above.
+  const sideMatch =
+    joint === "elbowL" || joint === "kneeR" ? 1 : -1;
+  const isKnee = joint === "kneeL" || joint === "kneeR";
+  const amplitude = isKnee ? WALK_KNEE_BEND_RAD : WALK_ELBOW_BEND_RAD;
+  const magnitude = Math.abs(Math.sin(phase * sideMatch + offset)) * amplitude;
+  // Knees bend backward (negative X rotation around knee — lower leg
+  // swings toward the back of the body). Elbows bend forward.
+  return isKnee ? -magnitude : magnitude;
+}
+
+/** S103 PROCBOMBER-WALK-CYCLE-PLUS: root Y dips on each foot plant (twice per walk cycle). */
+export function walkRootBobY(elapsed: number, baseY: number): number {
+  // Frequency × 2: two dips per cycle (one for each foot plant).
+  const phase = elapsed * WALK_SWING_FREQ_HZ * 2 * Math.PI * 2;
+  return baseY - WALK_ROOT_BOB_AMPLITUDE * (1 - Math.cos(phase)) * 0.5;
 }
 
 /**
@@ -154,23 +203,43 @@ export function createBenchAnimationSystem(): System {
         const nextElapsed = (state.elapsed ?? 0) + dt;
         const limbPivots = world.getComponent<LimbPivots>(id, LIMB_PIVOTS);
 
+        // S103 PROCBOMBER-ARM-REST-APPLIES: when no walk-swing /
+        // limb-test is active, shoulders hold the user's arm-rest pose.
+        const armRest = state.armRestAngleRad ?? 0;
+        const applyRestPose = (): void => {
+          if (limbPivots === undefined) return;
+          for (const name of LIMB_PIVOT_NAMES) {
+            if (name === "shoulderL" || name === "shoulderR") {
+              setTransformRotationXFromRad(world, limbPivots[name], armRest);
+            } else {
+              setTransformRotationZero(world, limbPivots[name]);
+            }
+          }
+        };
+
         switch (state.kind) {
           case "idle-bob": {
             setTransformPosition(world, id, base.x, idleBobY(nextElapsed, base.y), base.z);
-            // Keep limb rotations at rest.
-            if (limbPivots !== undefined) {
-              for (const name of LIMB_PIVOT_NAMES) setTransformRotationZero(world, limbPivots[name]);
-            }
+            applyRestPose();
             break;
           }
           case "walk-swing": {
-            // Root sits at the base pose; limbs swing.
-            setTransformPosition(world, id, base.x, base.y, base.z);
+            // S103 PROCBOMBER-WALK-CYCLE-PLUS: root Y dips on each foot
+            // plant (twice per cycle); shoulders + hips swing; knees +
+            // elbows bend in phase. Reads as an actual walk instead of
+            // just sliding limbs.
+            setTransformPosition(world, id, base.x, walkRootBobY(nextElapsed, base.y), base.z);
             if (limbPivots !== undefined) {
               setTransformRotationXFromRad(world, limbPivots.shoulderL, walkSwingRotation(nextElapsed, "shoulderL"));
               setTransformRotationXFromRad(world, limbPivots.shoulderR, walkSwingRotation(nextElapsed, "shoulderR"));
               setTransformRotationXFromRad(world, limbPivots.hipL, walkSwingRotation(nextElapsed, "hipL"));
               setTransformRotationXFromRad(world, limbPivots.hipR, walkSwingRotation(nextElapsed, "hipR"));
+              setTransformRotationXFromRad(world, limbPivots.elbowL, walkBendRotation(nextElapsed, "elbowL"));
+              setTransformRotationXFromRad(world, limbPivots.elbowR, walkBendRotation(nextElapsed, "elbowR"));
+              setTransformRotationXFromRad(world, limbPivots.kneeL, walkBendRotation(nextElapsed, "kneeL"));
+              setTransformRotationXFromRad(world, limbPivots.kneeR, walkBendRotation(nextElapsed, "kneeR"));
+              // Neck stays neutral during walk.
+              setTransformRotationZero(world, limbPivots.neck);
             }
             break;
           }
@@ -188,9 +257,7 @@ export function createBenchAnimationSystem(): System {
           case "none":
           default: {
             setTransformPosition(world, id, base.x, base.y, base.z);
-            if (limbPivots !== undefined) {
-              for (const name of LIMB_PIVOT_NAMES) setTransformRotationZero(world, limbPivots[name]);
-            }
+            applyRestPose();
             break;
           }
         }

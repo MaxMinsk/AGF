@@ -31,16 +31,18 @@ export function isBomberShape(value: unknown): value is BomberShape {
 }
 
 export type BenchState = {
-  // --- 7 size knobs ---
+  // --- size knobs (S103 expanded to 4 segment lengths) ---
   headSize: number;
   torsoHeight: number;
   torsoWidth: number;
-  armLength: number;
+  upperArmLength: number;
+  forearmLength: number;
   armWidth: number;
-  legLength: number;
+  upperLegLength: number;
+  lowerLegLength: number;
   legWidth: number;
   // --- S102 PROCBOMBER-RECIPE-PARAMS-16 ---
-  // Posture (radians)
+  // Posture (radians; converted to degrees at the Transform write boundary)
   forwardTilt: number;
   armRestAngle: number;
   // Mount offsets (cell units). Y is along torso vertical (negative = toward bottom),
@@ -50,6 +52,11 @@ export type BenchState = {
   shoulderMountZ: number;
   hipMountY: number;
   hipMountZ: number;
+  // --- S103 PROCBOMBER-HIP-SPREAD-SLIDER ---
+  // Multiplier on the default leg + arm X anchor. 1.0 = current default;
+  // <1 narrows the stance; >1 widens it. Useful for stocky vs stick-figure builds.
+  shoulderSpread: number;
+  hipSpread: number;
   // Per-part shape style.
   headShape: BomberShape;
   torsoShape: BomberShape;
@@ -65,9 +72,11 @@ export function defaultBenchState(initialPalette?: BomberPaletteName): BenchStat
     headSize: BOMBER_MESH_DEFAULTS.headSize,
     torsoHeight: BOMBER_MESH_DEFAULTS.torsoHeight,
     torsoWidth: BOMBER_MESH_DEFAULTS.torsoWidth,
-    armLength: BOMBER_MESH_DEFAULTS.armLength,
+    upperArmLength: BOMBER_MESH_DEFAULTS.upperArmLength,
+    forearmLength: BOMBER_MESH_DEFAULTS.forearmLength,
     armWidth: BOMBER_MESH_DEFAULTS.armWidth,
-    legLength: BOMBER_MESH_DEFAULTS.legLength,
+    upperLegLength: BOMBER_MESH_DEFAULTS.upperLegLength,
+    lowerLegLength: BOMBER_MESH_DEFAULTS.lowerLegLength,
     legWidth: BOMBER_MESH_DEFAULTS.legWidth,
     forwardTilt: 0,
     armRestAngle: 0,
@@ -75,6 +84,8 @@ export function defaultBenchState(initialPalette?: BomberPaletteName): BenchStat
     shoulderMountZ: 0,
     hipMountY: 0,
     hipMountZ: 0,
+    shoulderSpread: 1,
+    hipSpread: 1,
     headShape: "box",
     torsoShape: "box",
     limbShape: "box",
@@ -104,6 +115,12 @@ export function mountsOf(state: BenchState): BenchMounts {
   };
 }
 
+export type BenchSpread = { shoulderSpread: number; hipSpread: number };
+
+export function spreadOf(state: BenchState): BenchSpread {
+  return { shoulderSpread: state.shoulderSpread, hipSpread: state.hipSpread };
+}
+
 export function shapesOf(state: BenchState): BomberPartShapes {
   return { head: state.headShape, torso: state.torsoShape, limb: state.limbShape };
 }
@@ -114,9 +131,11 @@ export function sizesOf(state: BenchState): BomberPartSizes {
     headSize: state.headSize,
     torsoHeight: state.torsoHeight,
     torsoWidth: state.torsoWidth,
-    armLength: state.armLength,
+    upperArmLength: state.upperArmLength,
+    forearmLength: state.forearmLength,
     armWidth: state.armWidth,
-    legLength: state.legLength,
+    upperLegLength: state.upperLegLength,
+    lowerLegLength: state.lowerLegLength,
     legWidth: state.legWidth
   };
 }
@@ -128,14 +147,16 @@ export function resolvePalette(state: BenchState): BomberPalette {
 }
 
 export function buildBomberGeometry(state: BenchState): BufferGeometry {
+  // Legacy single-mesh path retained for tests; it sums the segment
+  // lengths so the resulting silhouette matches the multi-mesh tree.
   return generateBomberMesh({
     palette: resolvePalette(state),
     headSize: state.headSize,
     torsoHeight: state.torsoHeight,
     torsoWidth: state.torsoWidth,
-    armLength: state.armLength,
+    armLength: state.upperArmLength + state.forearmLength,
     armWidth: state.armWidth,
-    legLength: state.legLength,
+    legLength: state.upperLegLength + state.lowerLegLength,
     legWidth: state.legWidth
   });
 }

@@ -21,10 +21,12 @@ test("[procbomber-bench] bench loads with controls + bomber mesh + responds to U
   await expect(page.locator("[data-procbomber-controls]")).toBeVisible();
 
   // Every slider + dropdown + button is mounted.
-  // S102 PROCBOMBER-RECIPE-PARAMS-16: 13 sliders (7 size + 2 posture +
-  // 4 mounts) + 3 shape dropdowns + palette + reroll + anim dropdown.
+  // S103: 17 sliders = 9 size (head/torsoH/torsoW/upperArm/forearm/
+  // armWidth/upperLeg/lowerLeg/legWidth) + 2 posture (fwdTilt + armRest)
+  // + 2 spread (shoulder + hip) + 4 mounts (shoulder Y/Z + hip Y/Z).
+  // Plus 3 shape dropdowns + palette + reroll + anim dropdown.
   const sliders = page.locator("[data-procbomber-slider]");
-  await expect(sliders).toHaveCount(13);
+  await expect(sliders).toHaveCount(17);
   await expect(page.locator("[data-procbomber-shape-select]")).toHaveCount(3);
   await expect(page.locator("[data-procbomber-palette-select]")).toBeVisible();
   await expect(page.locator("[data-procbomber-reroll]")).toBeVisible();
