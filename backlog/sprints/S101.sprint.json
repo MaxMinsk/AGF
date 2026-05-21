@@ -69,9 +69,15 @@
     {
       "id": "PROCBOMBER-BENCH-PROJECT",
       "title": "examples/procbomber-bench skeleton (scene, bootstrap, camera orbit)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Vite-compatible AGF project under `examples/procbomber-bench/` with project.json, template.json, performance-budget.json, a `start.scene.json` containing one ground plane + one bomber entity using `mesh: \"procedural:procbomber\"`, bootstrap that registers the generator + drives a slow camera orbit so the bomber rotates in view.",
-      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX"
+      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX",
+      "verification": [
+        "acceptance: examples/procbomber-bench/ is a complete AGF project — project.json, template.json, performance-budget.json, scenes/start.scene.json, bootstrap.ts, README.md, assets/. engine:check passes (asset-sources warning only). engine:doctor shows 'Procedural mesh registry: 1 declared key(s) [procbomber], 1 scene entity reference(s)'. Project loads in dev via ?project=procbomber-bench. Production build succeeds.",
+        "src/main.ts: 'procbomber-bench' added to projectLoaders",
+        "engine/tools/check/project-check.ts: skip asset existence check for procedural:* mesh refs",
+        "bootstrap.ts registers the procbomber builder + supports ?bomberPalette URL override"
+      ]
     },
     {
       "id": "PROCBOMBER-BENCH-UI-CONTROLS",

@@ -428,6 +428,18 @@ const projectLoaders: Record<string, () => Promise<LoadedProject>> = {
       scene: sceneJson.default as unknown as SceneInput,
       bootstrap: bootstrap.kaboomCrewBootstrap
     };
+  },
+  "procbomber-bench": async () => {
+    const [projectJson, sceneJson, bootstrap] = await Promise.all([
+      import("../examples/procbomber-bench/project.json"),
+      import("../examples/procbomber-bench/scenes/start.scene.json"),
+      import("../examples/procbomber-bench/bootstrap")
+    ]);
+    return {
+      project: projectJson.default as ProjectMeta,
+      scene: sceneJson.default as unknown as SceneInput,
+      bootstrap: bootstrap.procbomberBenchBootstrap
+    };
   }
 };
 

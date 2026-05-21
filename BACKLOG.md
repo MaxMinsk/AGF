@@ -20,7 +20,7 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S101.sprint.js
   Pure function `generateBomberMesh(spec) => BufferGeometry`. Six merged box parts (head, torso, left/right arm, left/right leg). Vertex colors from the spec's palette. Deterministic given a seed. Unit-tested for vertex count bounds + head-y > torso-y > leg-y invariant. Lives at `examples/procbomber-bench/src/generators/bomber-mesh.ts`.
 - **PROCBOMBER-PALETTE-TABLE** — Eight named palettes + seeded variant picker _(implemented)_
   Palettes: sky, ember, mint, plum, sand, jade, rose, slate. Each is `{ head, torso, limbs, accent }` hex colors. `pickBomberPalette(seedHash, override?)` returns one. Pure, unit-tested.
-- **PROCBOMBER-BENCH-PROJECT** — examples/procbomber-bench skeleton (scene, bootstrap, camera orbit) _(pending)_
+- **PROCBOMBER-BENCH-PROJECT** — examples/procbomber-bench skeleton (scene, bootstrap, camera orbit) _(implemented)_
   Vite-compatible AGF project under `examples/procbomber-bench/` with project.json, template.json, performance-budget.json, a `start.scene.json` containing one ground plane + one bomber entity using `mesh: "procedural:procbomber"`, bootstrap that registers the generator + drives a slow camera orbit so the bomber rotates in view.
 - **PROCBOMBER-BENCH-UI-CONTROLS** — DOM overlay: sliders + palette dropdown + reroll button _(pending)_
   Plain HTML overlay (no UI framework) injected at bootstrap with: sliders for body-part size knobs (head, torso, arm-length, leg-length), a palette dropdown (8 options), a reroll button. Each control writes to the `ProceduralBomberSeed` ECS component on the bench's single bomber entity; the renderer re-acquires the procedural mesh on seed change.

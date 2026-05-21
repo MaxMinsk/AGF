@@ -1,0 +1,18 @@
+{
+  "templateId": "procbomber-bench",
+  "name": "Procbomber Bench",
+  "summary": "Visual sandbox for the procedural humanoid mesh generator. One bomber spins on a turntable in front of the camera; a DOM overlay exposes sliders for body-part sizes, a palette dropdown, a reroll button, and an animation dropdown (idle bob / walk swing stubs). Iterate the generator visually before the polish bar lands in Kaboom Crew.",
+  "gameplayVocabulary": ["bomber", "humanoid", "procedural", "palette", "animation", "turntable"],
+  "extensionPoints": [
+    {
+      "id": "tweak-mesh-defaults",
+      "summary": "Change the default body proportions in BOMBER_MESH_DEFAULTS.",
+      "files": ["examples/procbomber-bench/src/generators/bomber-mesh.ts"]
+    },
+    {
+      "id": "add-palette",
+      "summary": "Append a new entry to BOMBER_PALETTES with head / torso / limbs / accent hex strings.",
+      "files": ["examples/procbomber-bench/src/generators/bomber-palette.ts"]
+    }
+  ]
+}
