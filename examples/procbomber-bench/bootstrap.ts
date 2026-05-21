@@ -96,6 +96,11 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
       //     pivot rotations when kind=none/idle-bob, so we apply armRest
       //     by patching the BenchAnimationState handler instead. For
       //     now, only forwardTilt is applied at this rebuild layer.
+      // S103 PROCBOMBER-ROTATION-DEG-FIX: AGF scenes store rotation in
+      // degrees. posture.forwardTilt is stored in radians (Math.sin
+      // range from the bench-animation helpers), so convert before
+      // writing to the Transform.
+      const forwardTiltDeg = (posture.forwardTilt * 180) / Math.PI;
       runtime.applyCommands([
         {
           kind: "component.set",
@@ -104,7 +109,7 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
           data: {
             parent: BOMBER_ROOT_ID,
             position: [0, sizes.legLength + sizes.torsoHeight / 2, 0],
-            rotation: [posture.forwardTilt, 0, 0],
+            rotation: [forwardTiltDeg, 0, 0],
             scale: [1, 1, 1]
           }
         }

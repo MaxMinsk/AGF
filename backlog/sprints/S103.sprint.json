@@ -1,0 +1,76 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S103",
+  "title": "Bomber animation polish: rotation-units fix, segment sliders, real IK reach, walk-cycle++",
+  "status": "active",
+  "startedAt": "2026-05-21",
+  "stories": [
+    {
+      "id": "PROCBOMBER-ROTATION-DEG-FIX",
+      "title": "Animation system writes degrees, not radians (matches AGF scene convention)",
+      "status": "implemented",
+      "summary": "Critical bug uncovered after S102 ship. AGF scenes carry Transform.rotation in DEGREES — three-renderer's resolver converts to radians via MathUtils.degToRad before handing the matrix to Three.js. The S102 bench-animation-system writes Math.sin(...) outputs (radian-scale numbers) directly into Transform.rotation; the renderer then treats those 0..0.5 values as 0..0.5 DEGREES — barely visible. Root cause of: walk-swing 'tiny range', arm-rest 'doesn't work', limb-test 'doesn't work', forwardTilt 'small range'. Fix: convert every rotation write in bench-animation-system + bootstrap to degrees. New helper radToDeg + amplitude constants in degrees. All animation-related unit tests adjusted.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bench-animation-system + bootstrap convert every rotation write from radians to degrees. radToDeg helper exported. walk-swing + limb-test + forwardTilt now visible at intended amplitude. Root cause of 'walk-swing tiny range', 'arm-rest doesn't work', 'limb-test doesn't work', 'forwardTilt small' — AGF scenes store rotation in degrees (three-renderer.ts MathUtils.degToRad), but bench code wrote radian-scale Math.sin outputs that were then treated as degrees (0.5 rad → 0.5° visible).",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: radToDeg() helper + setTransformRotationXDeg + setTransformRotationXFromRad; every walk-swing + limb-test write goes through the rad→deg path",
+        "examples/procbomber-bench/bootstrap.ts: torso forwardTilt write converts radians to degrees before component.set",
+        "+1 unit test on radToDeg + existing limb-test/walk-swing tests adapted to expect degree-scale values"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-LIMB-SEGMENT-SLIDERS",
+      "title": "Separate sliders for upperArm / forearm / upperLeg / lowerLeg lengths",
+      "status": "pending",
+      "summary": "S102 left arm + leg as two segments sharing one length knob — total visible length = 2 × the slider value. User wants independent control. Split into upperArmLength, forearmLength, upperLegLength, lowerLegLength; existing armLength/legLength removed. Spawner + reposition + per-part builders consume the segment lengths. Bench panel gains 4 new sliders (replacing 2).",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "PROCBOMBER-HIP-SPREAD-SLIDER",
+      "title": "hipSpread recipe knob — distance between left + right legs",
+      "status": "pending",
+      "summary": "Currently hipX = halfTorsoX × 0.5 (fixed ratio). Add a `hipSpread` recipe parameter (0.2..1.4, default 1.0) multiplying that anchor. Wide stance (1.4) for stocky frog-style bombers; narrow (0.2) for stick-figure shapes. Mirror knob `shoulderSpread` for symmetric control of arm anchor X. Both feed buildPivotRepositionCommands.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "PROCBOMBER-POSTURE-RANGES",
+      "title": "Widen forwardTilt + armRestAngle slider ranges + bump walk-swing amplitude",
+      "status": "pending",
+      "summary": "forwardTilt extended from [-0.4, 0.6] rad-as-degrees to [-60°, 90°] (lean forward dramatically). armRestAngle extended to [-90°, 90°]. walkSwing default amplitude raised from 0.5 (read as 0.5°) to 35° once the rotation-units fix lands so the gait looks like a real walk. limbTest rotation 0.3° → 30°.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "PROCBOMBER-ARM-REST-APPLIES",
+      "title": "armRestAngle actually drives the shoulder pose at rest",
+      "status": "pending",
+      "summary": "S102 added the armRestAngle slider but never connected it to the pose. Fix: when kind=none or idle-bob, the bench-animation-system writes armRestAngle to shoulderL/R Transform.rotation.X (instead of zero). walk-swing + limb-test still take over fully when active. Symmetric on both shoulders.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "PROCBOMBER-WALK-CYCLE-PLUS",
+      "title": "Walk cycle drives knees + elbows too (not just shoulders + hips)",
+      "status": "pending",
+      "summary": "S102 walk-swing only rotates shoulder + hip pivots. Real walk bends knees + elbows in phase with the leg/arm swing. Add quarter-phase bend on elbowL/R + kneeL/R during walk-swing: front-swinging leg bends knee, rear-swinging arm bends elbow. Plus subtle vertical bob on the root (Y dips on each foot plant). Visually the bomber actually 'walks' instead of sliding limbs.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "PROCBOMBER-IK-REACH-TARGET",
+      "title": "Two-bone IK solver for arms + 'reach' animation kind",
+      "status": "pending",
+      "summary": "Real two-bone IK: given a shoulder anchor + an end-effector world target, solve shoulder + elbow rotations so the hand reaches the target. Implementation: law-of-cosines analytic solver (no iterative CCD needed for two bones). New animation kind 'reach' drives a moving target (circle around the bomber); the IK solver writes shoulderL + elbowL rotations per frame. Pure helpers tested with deterministic targets.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "PROCBOMBER-BENCH-PANEL-SECTIONS",
+      "title": "Group bench overlay controls into labeled sections (size / posture / mounts / shape / anim)",
+      "status": "pending",
+      "summary": "After S102 the panel is a long flat list of sliders + dropdowns + a button. With S103 adding ~6 more knobs (segment splits + spread + reach target) it becomes hard to scan. Add section headings (Size, Posture, Mounts, Shape, Palette, Animation) with small visual separators inside the existing panel. Pure DOM cosmetics; no new behaviour.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    }
+  ],
+  "notes": [
+    "S103 is the polish + IK pass on the bench. After this sprint the bench should be USABLE for designing actual character recipes, not just demonstrating wiring.",
+    "GDP-2026-05-20-009 (six animation systems pack) still on the roadmap — this sprint's IK + walk-cycle + arm-rest patterns are the foundation those six will share.",
+    "Foot-plant during walk (feet stay on ground) deferred to S104 — it depends on shoulder/hip-Y compensation tracked via IK solver."
+  ]
+}

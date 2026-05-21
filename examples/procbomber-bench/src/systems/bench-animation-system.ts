@@ -88,14 +88,30 @@ function setTransformPosition(world: World, entityId: string, x: number, y: numb
   world.setComponent(entityId, TRANSFORM, { ...t, position: [x, y, z] });
 }
 
-function setTransformRotationX(world: World, entityId: string, rotX: number): void {
+/**
+ * S103 PROCBOMBER-ROTATION-DEG-FIX: AGF scenes store Transform.rotation
+ * in DEGREES — three-renderer.ts converts via MathUtils.degToRad before
+ * handing the matrix to Three.js. Animation helpers return radians (the
+ * natural output of Math.sin), so every WRITE into Transform.rotation
+ * must convert through this helper. Without it, a 0.5-rad amplitude
+ * reads as 0.5° on screen — barely visible.
+ */
+export function radToDeg(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
+function setTransformRotationXDeg(world: World, entityId: string, rotDeg: number): void {
   const t = world.getComponent<TransformLike>(entityId, TRANSFORM);
   if (t === undefined) return;
   const rot = t.rotation ?? [0, 0, 0];
   world.setComponent(entityId, TRANSFORM, {
     ...t,
-    rotation: [rotX, rot[1] ?? 0, rot[2] ?? 0]
+    rotation: [rotDeg, rot[1] ?? 0, rot[2] ?? 0]
   });
+}
+
+function setTransformRotationXFromRad(world: World, entityId: string, rotRad: number): void {
+  setTransformRotationXDeg(world, entityId, radToDeg(rotRad));
 }
 
 function setTransformRotationZero(world: World, entityId: string): void {
@@ -151,10 +167,10 @@ export function createBenchAnimationSystem(): System {
             // Root sits at the base pose; limbs swing.
             setTransformPosition(world, id, base.x, base.y, base.z);
             if (limbPivots !== undefined) {
-              setTransformRotationX(world, limbPivots.shoulderL, walkSwingRotation(nextElapsed, "shoulderL"));
-              setTransformRotationX(world, limbPivots.shoulderR, walkSwingRotation(nextElapsed, "shoulderR"));
-              setTransformRotationX(world, limbPivots.hipL, walkSwingRotation(nextElapsed, "hipL"));
-              setTransformRotationX(world, limbPivots.hipR, walkSwingRotation(nextElapsed, "hipR"));
+              setTransformRotationXFromRad(world, limbPivots.shoulderL, walkSwingRotation(nextElapsed, "shoulderL"));
+              setTransformRotationXFromRad(world, limbPivots.shoulderR, walkSwingRotation(nextElapsed, "shoulderR"));
+              setTransformRotationXFromRad(world, limbPivots.hipL, walkSwingRotation(nextElapsed, "hipL"));
+              setTransformRotationXFromRad(world, limbPivots.hipR, walkSwingRotation(nextElapsed, "hipR"));
             }
             break;
           }
@@ -164,7 +180,7 @@ export function createBenchAnimationSystem(): System {
               const active = limbTestActivePivot(nextElapsed);
               for (const name of LIMB_PIVOT_NAMES) {
                 const rot = name === active ? LIMB_TEST_ROTATION_RAD : 0;
-                setTransformRotationX(world, limbPivots[name], rot);
+                setTransformRotationXFromRad(world, limbPivots[name], rot);
               }
             }
             break;

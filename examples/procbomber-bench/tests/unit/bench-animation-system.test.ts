@@ -14,6 +14,7 @@ import {
   WALK_SWING_FREQ_HZ,
   idleBobY,
   limbTestActivePivot,
+  radToDeg,
   walkSwingRotation
 } from "../../src/systems/bench-animation-system";
 import { LIMB_PIVOTS, LIMB_PIVOT_NAMES, buildLimbPivots } from "../../src/limb-pivots";
@@ -62,6 +63,15 @@ describe("idleBobY (S101 pure helper)", () => {
   });
 });
 
+describe("radToDeg (S103 pure helper)", () => {
+  it("converts radians to degrees", () => {
+    expect(radToDeg(0)).toBe(0);
+    expect(radToDeg(Math.PI)).toBeCloseTo(180, 6);
+    expect(radToDeg(Math.PI / 2)).toBeCloseTo(90, 6);
+    expect(radToDeg(0.5)).toBeCloseTo(28.6479, 3);
+  });
+});
+
 describe("walkSwingRotation (S102 pure helper)", () => {
   it("starts at 0 for every limb at elapsed=0", () => {
     expect(walkSwingRotation(0, "shoulderL")).toBeCloseTo(0, 6);
@@ -104,7 +114,7 @@ describe("createBenchAnimationSystem (S102)", () => {
     expect(t.position[1]!).toBeGreaterThan(0);
   });
 
-  it("walk-swing rotates shoulderL and hipR positively at quarter-period", () => {
+  it("walk-swing rotates shoulderL and hipR positively at quarter-period (degree-scale)", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing");
     const system = createBenchAnimationSystem();
@@ -131,7 +141,7 @@ describe("createBenchAnimationSystem (S102)", () => {
     expect(t.position[2]).toBeCloseTo(2, 5);
   });
 
-  it("limb-test rotates exactly one pivot at a time + holds at LIMB_TEST_ROTATION_RAD", () => {
+  it("limb-test rotates exactly one pivot at a time at LIMB_TEST_ROTATION_RAD (written as degrees on Transform)", () => {
     const world = new World();
     addBomberRoot(world, "limb-test");
     const system = createBenchAnimationSystem();
@@ -141,14 +151,15 @@ describe("createBenchAnimationSystem (S102)", () => {
     const expectedActive = LIMB_PIVOT_NAMES[0]!;
     let activeFound = false;
     let nonZeroCount = 0;
+    const expectedDeg = (LIMB_TEST_ROTATION_RAD * 180) / Math.PI;
     for (const name of LIMB_PIVOT_NAMES) {
       const t = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
-      const rotX = t.rotation[0]!;
-      if (Math.abs(rotX) > 1e-3) {
+      const rotDeg = t.rotation[0]!;
+      if (Math.abs(rotDeg) > 1e-3) {
         nonZeroCount += 1;
         if (name === expectedActive) {
           activeFound = true;
-          expect(rotX).toBeCloseTo(LIMB_TEST_ROTATION_RAD, 4);
+          expect(rotDeg).toBeCloseTo(expectedDeg, 3);
         }
       }
     }
