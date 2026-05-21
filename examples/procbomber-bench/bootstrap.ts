@@ -25,7 +25,8 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 
 import { buildPivotRepositionCommands, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
-import { defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, spreadOf, type BenchState } from "./src/bench-state";
+import { accessoriesOf, defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, spreadOf, type BenchState } from "./src/bench-state";
+import { ACCESSORY_KINDS, accessoryKey, generateAccessory } from "./src/accessories/catalog";
 import { generatePart } from "./src/generators/bomber-parts";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
 import { mountBenchControls } from "./src/bench-ui";
@@ -78,11 +79,15 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
     procRegistry.register("procbomber-forearm", () => generatePart("forearm", sizesOf(state), resolvePalette(state), shapesOf(state)));
     procRegistry.register("procbomber-upperLeg", () => generatePart("upperLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
     procRegistry.register("procbomber-lowerLeg", () => generatePart("lowerLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    // S106 KABOOM-ACCESSORY-CATALOG — register the 5 accessory builders too.
+    for (const kind of ACCESSORY_KINDS) {
+      procRegistry.register(accessoryKey(kind), () => generateAccessory(kind, resolvePalette(state)));
+    }
 
-    // 2. Spawn the 19-entity tree under the bomber root.
-    const tree: BomberTreeResult = spawnBomberTree(
+    // 2. Spawn the bomber tree under the root, plus any seed-/URL-selected accessories.
+    let tree: BomberTreeResult = spawnBomberTree(
       (cmds) => runtime.applyCommands(cmds),
-      { rootId: BOMBER_ROOT_ID, sizes: sizesOf(state) }
+      { rootId: BOMBER_ROOT_ID, sizes: sizesOf(state), accessories: accessoriesOf(state) }
     );
 
     // 3. Per-entity bookkeeping for the rebuild loop.
@@ -148,6 +153,33 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
         }
         const geometry = generatePart(partName, sizes, palette, shapes);
         runtime.renderer.adapter.setMeshGeometry(handle, geometry);
+      }
+
+      // 3d. S106 KABOOM-ACCESSORY-BENCH-CONTROLS — re-spawn accessory
+      //     entities when the dropdown set changes. Compare current
+      //     state's accessory kinds against the spawned set; rebuild
+      //     when they diverge. Body tree stays.
+      const desiredAccessories = accessoriesOf(state);
+      const desiredKinds = desiredAccessories.map((a) => a.kind).join(",");
+      const currentKinds = tree.accessoryEntities
+        .filter((e, idx) => !(e.kind === "fins" && idx > 0 && tree.accessoryEntities[idx - 1]!.kind === "fins"))
+        .map((e) => e.kind)
+        .join(",");
+      if (desiredKinds !== currentKinds) {
+        // Delete previous accessory entities.
+        const deletes = tree.accessoryEntities.map((e) => ({
+          kind: "entity.delete" as const,
+          entityId: e.id
+        }));
+        if (deletes.length > 0) runtime.applyCommands(deletes);
+        // Re-spawn the tree's accessory branch only by calling
+        // spawnBomberTree again — duplicates of body parts get the
+        // same ids (idempotent component.set + entity.create on
+        // existing ids).
+        tree = spawnBomberTree(
+          (cmds) => runtime.applyCommands(cmds),
+          { rootId: BOMBER_ROOT_ID, sizes, accessories: desiredAccessories }
+        );
       }
     };
     const scheduleRebuild = (): void => {

@@ -13,6 +13,8 @@ import {
   BOMBER_MESH_DEFAULTS,
   generateBomberMesh
 } from "./generators/bomber-mesh";
+import type { AccessoryKind } from "./accessories/catalog";
+import type { BomberAccessory } from "./character-recipe";
 import type { BomberPartShapes, BomberPartSizes } from "./generators/bomber-parts";
 import {
   BOMBER_PALETTES,
@@ -65,6 +67,8 @@ export type BenchState = {
   paletteOverride: BomberPaletteName | undefined;
   /** Seed string. Reroll bumps this so the seed-picker may flip palettes. */
   seed: string;
+  /** S106 KABOOM-ACCESSORY-BENCH-CONTROLS. Up to 3 accessory slots, each independent. */
+  accessorySlots: ReadonlyArray<AccessoryKind | undefined>;
 };
 
 export function defaultBenchState(initialPalette?: BomberPaletteName): BenchState {
@@ -90,8 +94,17 @@ export function defaultBenchState(initialPalette?: BomberPaletteName): BenchStat
     torsoShape: "box",
     limbShape: "box",
     paletteOverride: initialPalette,
-    seed: "default"
+    seed: "default",
+    accessorySlots: [undefined, undefined, undefined]
   };
+}
+
+export function accessoriesOf(state: BenchState): BomberAccessory[] {
+  const out: BomberAccessory[] = [];
+  for (const kind of state.accessorySlots) {
+    if (kind !== undefined) out.push({ kind });
+  }
+  return out;
 }
 
 export type BenchPosture = { forwardTilt: number; armRestAngle: number };

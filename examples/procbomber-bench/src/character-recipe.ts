@@ -17,6 +17,8 @@
 // the bench bootstrap (already using BenchState), the Kaboom Crew
 // migration (S104-5), and the agent probes (deferred) will all consume.
 
+import { ACCESSORY_KINDS, isAccessoryKind, type AccessoryKind } from "./accessories/catalog";
+import { MOUNT_SOCKET_NAMES, isMountSocketName, type MountSocketName } from "./accessories/mount-sockets";
 import { BOMBER_MESH_DEFAULTS } from "./generators/bomber-mesh";
 import {
   BOMBER_PALETTE_NAMES,
@@ -26,6 +28,20 @@ import {
 } from "./generators/bomber-palette";
 
 export type BomberShape = "box" | "cylinder" | "capsule";
+
+/** S106 KABOOM-ACCESSORY-RECIPE-FIELD. One accessory in the recipe. */
+export type BomberAccessory = {
+  kind: AccessoryKind;
+  mountSocket?: MountSocketName;
+};
+
+export const ACCESSORY_DEFAULT_SOCKET: Record<AccessoryKind, MountSocketName> = {
+  antennae: "head.crown",
+  visor: "head.eyes",
+  backpack: "torso.back",
+  cap: "head.crown",
+  fins: "torso.sideL" // fin pair anchored to left side; spawner mirrors for right
+};
 
 export type CharacterRecipe = {
   seed: string;
@@ -51,11 +67,13 @@ export type CharacterRecipe = {
   limbShape?: BomberShape;
   paletteName?: BomberPaletteName;
   paletteOverrides?: BomberPaletteOverrides;
+  accessories?: BomberAccessory[];
 };
 
 /** Every field of CharacterRecipe in its post-resolution form (no optionals). */
-export type ResolvedCharacterRecipe = Required<Omit<CharacterRecipe, "paletteOverrides">> & {
+export type ResolvedCharacterRecipe = Required<Omit<CharacterRecipe, "paletteOverrides" | "accessories">> & {
   paletteOverrides: BomberPaletteOverrides;
+  accessories: BomberAccessory[];
 };
 
 const SHAPE_OPTIONS: ReadonlyArray<BomberShape> = ["box", "cylinder", "capsule"];
@@ -116,8 +134,28 @@ export function resolveRecipeFromSeed(seed: string, partial?: CharacterRecipe): 
     torsoShape:     r.torsoShape     ?? pickEnum(s, SHAPE_OPTIONS),
     limbShape:      r.limbShape      ?? pickEnum(s, SHAPE_OPTIONS),
     paletteName:    r.paletteName    ?? pickEnum(s, BOMBER_PALETTE_NAMES),
-    paletteOverrides: r.paletteOverrides ?? {}
+    paletteOverrides: r.paletteOverrides ?? {},
+    accessories:    r.accessories    ?? pickAccessories(s)
   };
+}
+
+/** Deterministic 0..2 accessories from the seed stream. */
+function pickAccessories(stream: () => number): BomberAccessory[] {
+  const count = Math.floor(stream() * 3); // 0, 1, or 2
+  const out: BomberAccessory[] = [];
+  const used = new Set<AccessoryKind>();
+  for (let i = 0; i < count; i += 1) {
+    let attempt = 0;
+    let kind: AccessoryKind;
+    do {
+      kind = pickEnum(stream, ACCESSORY_KINDS);
+      attempt += 1;
+    } while (used.has(kind) && attempt < 10);
+    if (used.has(kind)) continue;
+    used.add(kind);
+    out.push({ kind });
+  }
+  return out;
 }
 
 /** Fill default values where the partial is missing them (no seed entropy). */
@@ -145,7 +183,8 @@ export function withRecipeDefaults(partial: CharacterRecipe): ResolvedCharacterR
     torsoShape:     partial.torsoShape     ?? "box",
     limbShape:      partial.limbShape      ?? "box",
     paletteName:    partial.paletteName    ?? "sky",
-    paletteOverrides: partial.paletteOverrides ?? {}
+    paletteOverrides: partial.paletteOverrides ?? {},
+    accessories:    partial.accessories    ?? []
   };
 }
 
@@ -182,7 +221,18 @@ export function validateRecipe(value: unknown): CharacterRecipe | undefined {
     if (po === null || typeof po !== "object") return undefined;
     for (const [pk, pv] of Object.entries(po as Record<string, unknown>)) {
       if (typeof pv !== "string" || !/^#[0-9a-fA-F]{6}$/.test(pv)) return undefined;
-      void pk; // channel name not strictly validated here.
+      void pk;
+    }
+  }
+  if ("accessories" in v) {
+    const list = v["accessories"];
+    if (!Array.isArray(list)) return undefined;
+    if (list.length > 3) return undefined;
+    for (const entry of list) {
+      if (entry === null || typeof entry !== "object") return undefined;
+      const e = entry as Record<string, unknown>;
+      if (!isAccessoryKind(e["kind"])) return undefined;
+      if ("mountSocket" in e && !isMountSocketName(e["mountSocket"])) return undefined;
     }
   }
   return v as CharacterRecipe;

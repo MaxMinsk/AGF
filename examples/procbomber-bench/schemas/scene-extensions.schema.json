@@ -6,7 +6,8 @@
   "components": {
     "BenchAnimationState": { "$ref": "#/definitions/benchAnimationStateComponent" },
     "LimbPivots": { "$ref": "#/definitions/limbPivotsComponent" },
-    "SpringPivot": { "$ref": "#/definitions/springPivotComponent" }
+    "SpringPivot": { "$ref": "#/definitions/springPivotComponent" },
+    "SoftAttached": { "$ref": "#/definitions/softAttachedComponent" }
   },
   "definitions": {
     "springPivotComponent": {
@@ -31,6 +32,12 @@
         "k": { "type": "number", "minimum": 0, "description": "Spring stiffness." },
         "damping": { "type": "number", "minimum": 0, "description": "Velocity damping coefficient." }
       }
+    },
+    "softAttachedComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S106 KABOOM-ACCESSORY-SPAWNER. Tag-only component (no data). Marks an entity as 'soft-attached' to its parent so the spring-sway system (S106-5) writes secondary-motion impulses into its SpringPivot.",
+      "properties": {}
     },
     "limbPivotsComponent": {
       "type": "object",

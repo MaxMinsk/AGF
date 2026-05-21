@@ -20,6 +20,12 @@ import type { EngineCommand } from "../../../engine/core/commands/types";
 import type { ThreeRenderer } from "../../../engine/render/three-renderer";
 
 import {
+  ACCESSORY_KINDS,
+  accessoryKey,
+  generateAccessory,
+  type AccessoryKind
+} from "../../procbomber-bench/src/accessories/catalog";
+import {
   spawnBomberTree,
   type BomberTreeResult
 } from "../../procbomber-bench/src/bomber-tree-spawner";
@@ -90,6 +96,13 @@ export function registerProcbomberBuilders(
       });
     });
   }
+  // S106 KABOOM-ACCESSORY-SPAWNER: register the 5 accessory builders too.
+  for (const kind of ACCESSORY_KINDS) {
+    registry.register(accessoryKey(kind), (seedHash) => {
+      const recipe = resolveForOwner(seedHash);
+      return generateAccessory(kind as AccessoryKind, recipeToPalette(recipe));
+    });
+  }
 }
 
 /**
@@ -107,7 +120,8 @@ export function spawnBomberFor(
     rootId,
     sizes: recipeToSizes(recipe),
     keyPrefix: "procbomber",
-    seed: rootId
+    seed: rootId,
+    accessories: recipe.accessories
   });
 }
 

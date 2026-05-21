@@ -27,8 +27,25 @@
 
 import type { EngineCommand } from "../../../engine/core/commands/types";
 
+import type { AccessoryKind } from "./accessories/catalog";
+import {
+  MOUNT_SOCKET_NAMES,
+  computeMountSockets,
+  type MountSocketName
+} from "./accessories/mount-sockets";
+import type { BomberAccessory } from "./character-recipe";
 import type { BomberPartName, BomberPartSizes } from "./generators/bomber-parts";
 import { LIMB_PIVOTS, buildLimbPivots, type LimbPivots } from "./limb-pivots";
+
+export const SOFT_ATTACHED = "SoftAttached";
+
+const DEFAULT_SOCKET_BY_KIND: Record<AccessoryKind, MountSocketName> = {
+  antennae: "head.crown",
+  visor: "head.eyes",
+  backpack: "torso.back",
+  cap: "head.crown",
+  fins: "torso.sideL"
+};
 
 export type BomberTreeSpawnOptions = {
   /** Existing entity id — must already exist with a Transform. Spawner adds children. */
@@ -43,6 +60,14 @@ export type BomberTreeSpawnOptions = {
    * registry's cache. Defaults to omitted (single shared mesh).
    */
   seed?: string;
+  /**
+   * S106 KABOOM-ACCESSORY-SPAWNER. Optional list of accessories to
+   * mount on the bomber's sockets. Each entry spawns a child entity
+   * parented to the socket's owning mesh (head or torso) at the
+   * socket's local position. fins is special — spawns TWO entities
+   * (left + right) mirrored across X.
+   */
+  accessories?: ReadonlyArray<BomberAccessory>;
 };
 
 export type BomberTreeResult = {
@@ -52,6 +77,8 @@ export type BomberTreeResult = {
   meshEntities: ReadonlyArray<{ id: string; partName: BomberPartName }>;
   /** Every pivot entity id created. Useful for tests + dispose. */
   pivotEntities: ReadonlyArray<string>;
+  /** S106 KABOOM-ACCESSORY-SPAWNER. Every accessory entity created. */
+  accessoryEntities: ReadonlyArray<{ id: string; kind: AccessoryKind; socket: MountSocketName }>;
 };
 
 type Vec3 = readonly [number, number, number];
@@ -242,7 +269,94 @@ export function spawnBomberTree(
     data: limbPivots
   });
 
+  // S106 KABOOM-ACCESSORY-SPAWNER. Spawn one entity per recipe accessory,
+  // parented to the named mount socket's owning mesh (head or torso).
+  // SoftAttached tag opts the entity into spring-pivot sway (S106-5).
+  const accessoryEntities: { id: string; kind: AccessoryKind; socket: MountSocketName }[] = [];
+  const sockets = computeMountSockets(sizes);
+  let accessorySlot = 0;
+  for (const accessory of options.accessories ?? []) {
+    const socketName = accessory.mountSocket ?? DEFAULT_SOCKET_BY_KIND[accessory.kind];
+    const socket = sockets[socketName];
+    if (socket === undefined) continue;
+    void MOUNT_SOCKET_NAMES; // marker — keeps the import live for symmetry
+    const parentId = ent(socket.parentSuffix);
+    const accessoryId = ent(`accessory${accessorySlot}.${accessory.kind}`);
+    accessorySlot += 1;
+    accessoryEntities.push({ id: accessoryId, kind: accessory.kind, socket: socketName });
+    commands.push({ kind: "entity.create", entityId: accessoryId });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "Transform",
+      data: {
+        parent: parentId,
+        position: socket.position,
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "MeshRenderer",
+      data: { mesh: `procedural:procbomber-accessory-${accessory.kind}${seedSuffix}` }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: SOFT_ATTACHED,
+      data: {}
+    });
+    // S106 KABOOM-ACCESSORY-SOFT-ATTACH-SWAY: every soft-attached entity
+    // gets a default-rest SpringPivot the sway system can write into.
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "SpringPivot",
+      data: { restRotation: [0, 0, 0], velocity: [0, 0, 0] }
+    });
+    // fins is a pair — also spawn the mirrored right entity.
+    if (accessory.kind === "fins") {
+      const rightSocket = sockets["torso.sideR"];
+      const rightId = ent(`accessory${accessorySlot}.fins-mirror`);
+      accessorySlot += 1;
+      accessoryEntities.push({ id: rightId, kind: "fins", socket: "torso.sideR" });
+      commands.push({ kind: "entity.create", entityId: rightId });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "Transform",
+        data: {
+          parent: ent(rightSocket.parentSuffix),
+          position: rightSocket.position,
+          rotation: [0, 0, 0],
+          // Mirror X by inverting scale.
+          scale: [-1, 1, 1]
+        }
+      });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "MeshRenderer",
+        data: { mesh: `procedural:procbomber-accessory-fins${seedSuffix}` }
+      });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: SOFT_ATTACHED,
+        data: {}
+      });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "SpringPivot",
+        data: { restRotation: [0, 0, 0], velocity: [0, 0, 0] }
+      });
+    }
+  }
+
   applyCommands(commands);
 
-  return { limbPivots, meshEntities, pivotEntities };
+  return { limbPivots, meshEntities, pivotEntities, accessoryEntities };
 }

@@ -147,6 +147,10 @@ export function mountBenchControls(
   for (const cfg of SHAPE_DROPDOWNS) {
     panel.appendChild(buildShapeSelect(cfg, state, scheduleRebuild));
   }
+  panel.appendChild(buildSectionHeading("Accessories"));
+  for (let slot = 0; slot < 3; slot += 1) {
+    panel.appendChild(buildAccessorySelect(slot, state, scheduleRebuild));
+  }
   panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
@@ -174,6 +178,58 @@ function buildSectionHeading(label: string): HTMLElement {
   row.style.opacity = "0.7";
   return row;
 }
+
+function buildAccessorySelect(
+  slot: number,
+  state: BenchState,
+  scheduleRebuild: () => void
+): HTMLElement {
+  const row = document.createElement("div");
+  row.dataset["procbomberAccessoryRow"] = String(slot);
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "6px";
+  row.style.marginBottom = "3px";
+
+  const label = document.createElement("label");
+  label.textContent = `Slot ${slot + 1}`;
+  label.style.width = "78px";
+  label.style.flex = "0 0 auto";
+
+  const select = document.createElement("select");
+  select.dataset["procbomberAccessorySelect"] = String(slot);
+  select.style.flex = "1 1 auto";
+  select.style.background = "rgba(255, 255, 255, 0.08)";
+  select.style.color = "#f0f4ff";
+  select.style.border = "1px solid rgba(255, 255, 255, 0.15)";
+  select.style.padding = "2px 4px";
+  select.style.borderRadius = "3px";
+  const noneOpt = document.createElement("option");
+  noneOpt.value = "__none__";
+  noneOpt.textContent = "(none)";
+  select.appendChild(noneOpt);
+  for (const kind of ["antennae", "visor", "backpack", "cap", "fins"] as const) {
+    const opt = document.createElement("option");
+    opt.value = kind;
+    opt.textContent = kind;
+    select.appendChild(opt);
+  }
+  const current = state.accessorySlots[slot];
+  select.value = current ?? "__none__";
+  select.addEventListener("change", () => {
+    const v = select.value;
+    const next = [...state.accessorySlots];
+    next[slot] = v === "__none__" ? undefined : (v as AccessoryKindString);
+    state.accessorySlots = next;
+    scheduleRebuild();
+  });
+
+  row.appendChild(label);
+  row.appendChild(select);
+  return row;
+}
+
+type AccessoryKindString = "antennae" | "visor" | "backpack" | "cap" | "fins";
 
 function buildShapeSelect(
   cfg: { label: string; field: ShapeField },

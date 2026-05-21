@@ -46,6 +46,26 @@
         "lowerLeg":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
         "accent":      { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
       }
+    },
+    "accessories": {
+      "type": "array",
+      "maxItems": 3,
+      "description": "S106 KABOOM-ACCESSORY-RECIPE-FIELD. 0..3 accessory entries.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["antennae", "visor", "backpack", "cap", "fins"]
+          },
+          "mountSocket": {
+            "type": "string",
+            "enum": ["head.crown", "head.eyes", "torso.back", "torso.sideL", "torso.sideR"]
+          }
+        }
+      }
     }
   }
 }
