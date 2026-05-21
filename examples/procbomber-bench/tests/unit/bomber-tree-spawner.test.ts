@@ -202,6 +202,35 @@ describe("buildPivotRepositionCommands mount offsets (S102 RECIPE-PARAMS-16)", (
   });
 });
 
+describe("ShadowCaster tags (S107)", () => {
+  it("every mesh part entity gets ShadowCaster { dynamic: true }", () => {
+    const { commands } = spawn();
+    const shadowCmds = commands.filter(
+      (c) => c.kind === "component.set" && c.component === "ShadowCaster"
+    );
+    // 10 mesh parts; no accessories → exactly 10 ShadowCaster writes.
+    expect(shadowCmds.length).toBe(10);
+    for (const cmd of shadowCmds) {
+      const data = (cmd as { data: { dynamic?: boolean } }).data;
+      expect(data.dynamic).toBe(true);
+    }
+  });
+
+  it("accessory entities also get ShadowCaster { dynamic: true }", () => {
+    const captured: EngineCommand[] = [];
+    spawnBomberTree((cmds) => captured.push(...cmds), {
+      rootId: "bomber",
+      sizes: SIZES,
+      accessories: [{ kind: "cap" }, { kind: "backpack" }]
+    });
+    const shadowCmds = captured.filter(
+      (c) => c.kind === "component.set" && c.component === "ShadowCaster"
+    );
+    // 10 mesh parts + 2 accessory entities = 12 ShadowCaster writes.
+    expect(shadowCmds.length).toBe(12);
+  });
+});
+
 describe("spawnBomberTree.accessories (S106)", () => {
   it("no accessories option = empty accessoryEntities", () => {
     const { result } = spawn();
