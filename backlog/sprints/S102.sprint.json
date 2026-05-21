@@ -67,9 +67,15 @@
     {
       "id": "PROCBOMBER-PALETTE-8CH",
       "title": "Palette expansion 4 → 8 channels + derived bottom-shadow tints (GDP-003)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Expand BomberPalette from { head, torso, limbs, accent } (4) to 8 channels mapped 1:1 onto the post-decomposition mesh tree: head, torsoTop, torsoBottom, upperArm, forearm, upperLeg, lowerLeg, accent. Add `bottomShadow(color)` helper deriving a darker variant per channel for the contact-shadow trick. Existing 8 named palettes get a default mapping (existing torso → torsoTop, derived bottom for torsoBottom, etc). Per-channel overrides land via recipe.paletteOverrides (a per-channel partial). +tests.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: BomberPalette grows from 4 (head/torso/limbs/accent) to 8 channels (head/torsoTop/torsoBottom/upperArm/forearm/upperLeg/lowerLeg/accent). Each shipped palette has all 8 fields as 7-char hex strings. torsoBottom + forearm + lowerLeg are darker than their counterparts. bottomShadow(hex, factor) is a pure sRGB-byte helper. applyPaletteOverrides(base, partial) replaces only specified channels, name is preserved.",
+        "examples/procbomber-bench/src/generators/bomber-palette.ts: 8-channel BomberPalette type, CORES table (5 channels per core), expand() helper, bottomShadow helper (sRGB math), applyPaletteOverrides helper, BomberPaletteOverrides type",
+        "examples/procbomber-bench/src/generators/bomber-mesh.ts: per-part color uses head + torsoTop + upperArm + upperLeg (single-mesh path retained for the bench)",
+        "+13 unit tests (4 file groups): all 4 channels per palette / bottomShadow byte math / torsoBottom darker than torsoTop / applyPaletteOverrides pass-through + partial / existing tests adapted to torsoTop rename"
+      ]
     },
     {
       "id": "PROCBOMBER-RECIPE-PARAMS-16",
