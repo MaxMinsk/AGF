@@ -107,5 +107,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S099](backlog/sprints/S099.sprint.json)** — Revert S98 danger-decal + tame bomb-fuse wiggle + agent-probe docs + game-design doctor inbox — 5 implemented, 2 deferred · archived 2026-05-20
 - **[S100](backlog/sprints/S100.sprint.json)** — Promote GDP power-ups + bot personality + MVP-2 epic kickoff — 6 implemented, 4 deferred · archived 2026-05-20
 - **[S101](backlog/sprints/S101.sprint.json)** — procbomber-bench — sandbox for the procedural humanoid generator — 9 implemented · archived 2026-05-21
+- **[S102](backlog/sprints/S102.sprint.json)** — Bomber multi-mesh tree + palette/recipe expansion (GDP-2026-05-21 batch) — 9 implemented · archived 2026-05-21
 
 <!-- backlog:render:end -->

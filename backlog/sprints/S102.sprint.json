@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S102",
   "title": "Bomber multi-mesh tree + palette/recipe expansion (GDP-2026-05-21 batch)",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-21",
+  "archivedAt": "2026-05-21",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/118",
   "stories": [
     {
       "id": "PROCBOMBER-VERTEX-COLORS-FIX",
