@@ -48,7 +48,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[TEMPLATE-POLICY](backlog/epics/TEMPLATE-POLICY.epic.json)** — Template policy | active | engine | 0 / 0 / 0 |  |
 | **[AUDIO](backlog/epics/AUDIO.epic.json)** — Audio | planned | engine | 4 / 0 / 5 |  |
 | **[BENCHMARK-STYLE-REPORTS](backlog/epics/BENCHMARK-STYLE-REPORTS.epic.json)** — Benchmark-style reports | planned | engine | 0 / 0 / 0 |  |
-| **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 2 / 1 / 3 |  |
+| **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 3 / 0 / 3 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |
 | **[GAME-DESIGN-AGENT](backlog/epics/GAME-DESIGN-AGENT.epic.json)** — Game designer / product-owner terminal — third role in the multi-agent loop | planned | infra | 7 / 0 / 7 | → S100 |
 | **[KABOOM-CREW-MVP-NETWORK](backlog/epics/KABOOM-CREW-MVP-NETWORK.epic.json)** — Kaboom Crew — networked play (connected profile, two browser tabs share one arena) | planned | sample-game | 0 / 0 / 1 |  |

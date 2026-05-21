@@ -113,9 +113,13 @@
     {
       "id": "PROCBOMBER-BENCH-PLAYTEST-SMOKE",
       "title": "Playwright smoke: bench loads, every UI control responds",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Playtest scenario under `examples/procbomber-bench/playtests/` that opens the page, asserts the bomber mesh is in the scene snapshot, ticks each slider + palette + animation dropdown via DOM events, captures one screenshot per state transition. Adds the bench to the preflight smoke run.",
-      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX"
+      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX",
+      "verification": [
+        "acceptance: tests/e2e/procbomber-bench.spec.ts opens /?project=procbomber-bench, waits for AGF ready, asserts the controls panel + 7 sliders + palette dropdown + reroll button + animation dropdown are all mounted, asserts the bomber entity's MeshRenderer.mesh = 'procedural:procbomber', ticks every UI control (slider fill + selectOption + click), asserts the renderer produced ≥ 1 draw call, captures a screenshot. Passes on chromium + chromium-preview.",
+        "tests/e2e/procbomber-bench.spec.ts: new file"
+      ]
     }
   ],
   "notes": [

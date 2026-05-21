@@ -26,7 +26,7 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S101.sprint.js
   Plain HTML overlay (no UI framework) injected at bootstrap with: sliders for body-part size knobs (head, torso, arm-length, leg-length), a palette dropdown (8 options), a reroll button. Each control writes to the `ProceduralBomberSeed` ECS component on the bench's single bomber entity; the renderer re-acquires the procedural mesh on seed change.
 - **PROCBOMBER-BENCH-ANIM-DROPDOWN** — Animation switcher: idle-bob + walk-swing stub animations _(implemented)_
   DOM dropdown picks between {none, idle-bob, walk-swing}. A bench-local placeholder animation system reads `BenchAnimationState.kind` and drives Transform.position.y (bob) or arm/leg yaw (swing) per fixedUpdate. Idle-bob is sine on Y; walk-swing alternates limb yaw +/- 0.3 rad at 4Hz. These are stubs that prove the dropdown wires through the data path — the full S102 animation systems will replace them with proper limb-anchor animation.
-- **PROCBOMBER-BENCH-PLAYTEST-SMOKE** — Playwright smoke: bench loads, every UI control responds _(pending)_
+- **PROCBOMBER-BENCH-PLAYTEST-SMOKE** — Playwright smoke: bench loads, every UI control responds _(implemented)_
   Playtest scenario under `examples/procbomber-bench/playtests/` that opens the page, asserts the bomber mesh is in the scene snapshot, ticks each slider + palette + animation dropdown via DOM events, captures one screenshot per state transition. Adds the bench to the preflight smoke run.
 
 ### Notes
