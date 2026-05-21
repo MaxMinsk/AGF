@@ -12,7 +12,7 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S102.sprint.js
 
 - **PROCBOMBER-VERTEX-COLORS-FIX** — Bench palette dropdown actually changes colours (vertexColors flag) _(implemented)_
   Hotfix the palette-doesn't-affect-anything bug the user reported the moment S101 merged. The bomber's mesh paints colour per-vertex via the palette (linear-RGB on a BufferAttribute), but the renderer's default material (created in adapter.acquireMesh) sets vertexColors=false. The flat MeshStandardMaterial's solid colour wins, every bomber renders white. Add a `vertexColors` field to MaterialPatch + flip it from the bench's bootstrap rebuild loop.
-- **CHORE-GDP-2026-05-21-PROMOTION** — Move GDP-2026-05-21-001..007 from proposed-stories/ to the archive _(pending)_
+- **CHORE-GDP-2026-05-21-PROMOTION** — Move GDP-2026-05-21-001..007 from proposed-stories/ to the archive _(implemented)_
   Promote the 7 GDP proposals filed by the game-design terminal during S101 into S102 stories below (or defer). Archive the source files under backlog/proposed-stories/archive/S102/ so the inbox empties.
 - **PROCBOMBER-MESH-TREE-V0** — Decompose procbomber into 9-pivot + 10-mesh ECS tree (GDP-001) _(pending)_
   Replace the single-BufferGeometry generator with a hierarchical spawner that creates one root entity, 9 actuated pivot entities (neck, shoulder.l/r, elbow.l/r, hip.l/r, knee.l/r — Transform only, no MeshRenderer), and ~10 body-part mesh entities (torso, head, upperArm.l/r, forearm.l/r, upperLeg.l/r, lowerLeg.l/r — each MeshRenderer ref points at a part-specific procedural key). The 'tree' lives in ECS Transform parent chain — animation systems mutate pivot rotations, child meshes inherit. Fixed naming convention; per GDP-001 acceptance.

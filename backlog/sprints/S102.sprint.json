@@ -21,9 +21,13 @@
     {
       "id": "CHORE-GDP-2026-05-21-PROMOTION",
       "title": "Move GDP-2026-05-21-001..007 from proposed-stories/ to the archive",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promote the 7 GDP proposals filed by the game-design terminal during S101 into S102 stories below (or defer). Archive the source files under backlog/proposed-stories/archive/S102/ so the inbox empties.",
-      "epic": "AGF-BACKLOG-ENGINE"
+      "epic": "AGF-BACKLOG-ENGINE",
+      "verification": [
+        "acceptance: all 7 GDP-2026-05-21-* proposals archived under backlog/proposed-stories/archive/S102/. Inbox is empty (archive shows only the archive/ directory). engine doctor's Proposed-story inbox section disappears or shows 0.",
+        "Stories 001 + 002 + 003 promoted as S102 stories (PROCBOMBER-MESH-TREE-V0 + PROCBOMBER-RECIPE-PARAMS-16 + PROCBOMBER-PALETTE-8CH). 004 + 005 + 006 + 007 deferred via sprint notes — substantial multi-sprint work that needs the tree + palette + recipe foundation first."
+      ]
     },
     {
       "id": "PROCBOMBER-MESH-TREE-V0",
