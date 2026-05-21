@@ -33,6 +33,7 @@ import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/benc
 import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-pivot-system";
 import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
+import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-movement-system";
 
 /**
  * S104 KABOOM-MIGRATE-PREFABS — fixed recipe-derivation rule for
@@ -255,6 +256,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // module — registered below alongside the rest of the renderer
     // adapters.
     scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static"] });
+    // S108 KABOOM-BOMBER-FACE-MOVEMENT — root Y rotation tracks GridMover.
+    scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static"] });
 
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });

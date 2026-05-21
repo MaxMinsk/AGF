@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S108",
+  "title": "Bomber facing direction + ragdoll ground clamp",
+  "status": "active",
+  "startedAt": "2026-05-22",
+  "stories": [
+    {
+      "id": "KABOOM-BOMBER-FACE-MOVEMENT",
+      "title": "Bombers rotate to face their movement direction",
+      "status": "implemented",
+      "summary": "User reported: bombers never turn — when walking right the body still faces forward. New project-local system reads GridMover state per bomber: when mid-lerp (currentLerp > 0), face the (targetGx - gx, targetGz - gz) direction; else when queuedDirection is non-zero, face that; otherwise preserve previous yaw. Writes Transform.rotation.Y on the root entity. yaw = atan2(dx, -dz) so -Z is 0° (default Three.js forward) and +X is +90°. Skips dead bombers so the ragdoll arc isn't fought.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bombers face their movement direction. New project-local system writes Transform.rotation.Y on player.1 + bot.1 based on GridMover state. yaw = atan2(dx, -dz) (degrees) so +X = 90°, -Z = 0°. Mid-lerp priority via targetGx/Gz; queued direction fallback; preserves yaw when stationary. Dead bombers skipped.",
+        "examples/kaboom-crew/src/systems/bomber-face-movement-system.ts: directionToYawDeg pure helper + createKaboomBomberFaceMovementSystem",
+        "examples/kaboom-crew/bootstrap.ts: scheduler registers it after the animation driver",
+        "+9 unit tests covering pure helper + system (queued / mid-lerp / stationary / dead-skip)"
+      ]
+    },
+    {
+      "id": "KABOOM-RAGDOLL-GROUND-CLAMP",
+      "title": "Ragdoll stops rotating when the root lands on the floor",
+      "status": "implemented",
+      "summary": "User reported: 'the ragdoll lacks a floor collider — the bomber rotates around the attachment point on the floor'. Today death-animation-system clamps root Y >= baseY but keeps integrating angular velocity forever — the body parts swing through the ground in arcs. Fix: detect the landed state (root Y at base + vy <= 0) and (a) zero angular velocity, (b) clamp Transform.rotation.X + Z to [-90°, 90°] so the body doesn't continue past 'lying flat'. The bomber settles into a final tumble pose. Pure addition to the existing system — no new component.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: ragdoll stops integrating once the bomber lands. When rawNextY <= baseY AND newVy <= 0 (landed): linear velocity zeroes; angular velocity zeroes; root Y snaps to baseY; rotation X + Z clamped to [-90°, 90°]. Bomber lies in a final tumble pose instead of swinging through the floor.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: clampDeg helper + landed-state branch in the integration loop",
+        "+1 unit test on the landed-state freeze"
+      ]
+    },
+    {
+      "id": "KABOOM-REMOTE-DETONATE-PRESS-SPLIT",
+      "title": "Space press places OR detonates, never both on the same press",
+      "status": "implemented",
+      "summary": "Follow-up to S104 KABOOM-REMOTE-DETONATE-SPACE-BIND. The S104 fix made Space fire BOTH PlaceBombRequest + RemoteDetonateRequest on the same edge — but bomb-fuse-system's trigger pass then detonates the bomb that was JUST placed this frame. User sees the bomb appear-and-instantly-disappear. Fix: in player-input-system, when Space fires, check whether the player has any paused bombs (fuseRemaining=Infinity) already in the world. If YES → emit RemoteDetonateRequest only (the player is detonating their chain); if NO → emit PlaceBombRequest only. F key still always fires detonate explicitly. Result: tap-tap-tap places 3 paused bombs (one per press, charges permitting), the 4th press detonates the chain.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: Space fires PLACE OR DETONATE, never both. player-input-system reads BomberStats.activeBombs vs maxBombs on Space press: slot available → PlaceBombRequest only; slot full → RemoteDetonateRequest only. F key always fires explicit detonate. No more 'place + instantly detonate' single-press bug. Multi-charge chain placement still works (maxBombs=3 places 3 paused, 4th press detonates).",
+        "examples/kaboom-crew/src/systems/player-input-system.ts: SPACE_OR_PLACE_FALLBACK + REMOTE_DETONATE_EXPLICIT keysets, BOMBER_STATS import, conditional wantPlace/wantDetonate decision",
+        "Existing remote-detonate-pup tests still pass — F-only path unchanged"
+      ]
+    },
+    {
+      "id": "KABOOM-BENCH-EDIT-GAME-RECIPE",
+      "title": "Bench preset selector — load game characters into the editor + export URL",
+      "status": "pending",
+      "summary": "User asked: in the character editor be able to pick which bomber is used in-game (player.1, bot.1, eventually any registered character) and edit + save its recipe. MVP this sprint: bench panel gets a 'Preset' dropdown listing { custom, player.1, bot.1 }. Picking a preset writes resolveRecipeFromSeed(name) into the bench state (every slider snaps to the preset's value); picking 'custom' is a no-op. A new 'Copy recipe URL' button below the dropdown serialises the current bench state to a base64 recipe via stateToRecipe → encodeRecipe and copies `?project=kaboom-crew&recipe=<encoded>` to the clipboard. That URL is the canonical export — paste it into Kaboom Crew to USE the edited bomber. Disk-write workflow (a dev-bridge /__agf/recipe/save endpoint that persists into kaboom-crew/recipes/<owner>.recipe.json) deferred to a follow-up sprint — clipboard URL unblocks the immediate iteration loop.",
+      "epic": "KABOOM-CREW-CHARACTERS"
+    }
+  ],
+  "notes": [
+    "Both stories pulled directly from user live-test feedback after S107 merged. Small focused sprint."
+  ]
+}
