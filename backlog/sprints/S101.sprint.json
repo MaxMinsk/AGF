@@ -45,16 +45,26 @@
     {
       "id": "PROCBOMBER-MESH-V0",
       "title": "Pure humanoid mesh generator (head + torso + arms + legs)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Pure function `generateBomberMesh(spec) => BufferGeometry`. Six merged box parts (head, torso, left/right arm, left/right leg). Vertex colors from the spec's palette. Deterministic given a seed. Unit-tested for vertex count bounds + head-y > torso-y > leg-y invariant. Lives at `examples/procbomber-bench/src/generators/bomber-mesh.ts`.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: generateBomberMesh(spec) returns a BufferGeometry of 144 vertices (6 boxes × 24), centered on XZ with min Y = 0 (feet on ground), head/torso/legL/legR Y anchors stacked in expected order, deterministic across calls, vertex colors match the palette in linear-RGB.",
+        "examples/procbomber-bench/src/generators/bomber-mesh.ts: new file (generateBomberMesh + BOMBER_MESH_DEFAULTS + BomberAnchors). 6 box parts merged via three/examples/jsm/utils/BufferGeometryUtils.mergeGeometries. userData carries anchors, totalHeight, palette name.",
+        "+9 unit tests in examples/procbomber-bench/tests/unit/bomber-mesh.test.ts"
+      ]
     },
     {
       "id": "PROCBOMBER-PALETTE-TABLE",
       "title": "Eight named palettes + seeded variant picker",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Palettes: sky, ember, mint, plum, sand, jade, rose, slate. Each is `{ head, torso, limbs, accent }` hex colors. `pickBomberPalette(seedHash, override?)` returns one. Pure, unit-tested.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: BOMBER_PALETTES contains 8 named palettes (sky/ember/mint/plum/sand/jade/rose/slate). pickBomberPalette(seed) is deterministic + covers ≥ 6 palettes across 200 random seeds. pickBomberPalette(seed, override) short-circuits to the override.",
+        "examples/procbomber-bench/src/generators/bomber-palette.ts: new file (palette table + isBomberPaletteName + paletteByName + pickBomberPalette)",
+        "+9 unit tests in examples/procbomber-bench/tests/unit/bomber-palette.test.ts"
+      ]
     },
     {
       "id": "PROCBOMBER-BENCH-PROJECT",

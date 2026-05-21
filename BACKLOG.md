@@ -16,9 +16,9 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S101.sprint.js
   Add a project-agnostic procedural mesh path: any `MeshRenderer.mesh` value starting with `procedural:<key>` resolves through a per-renderer registry of `(seedHash) => BufferGeometry` builders, instead of the hardcoded primitive switch. Builders register at bootstrap. Cache by `<key>:<seedHash>` so repeat acquires reuse the geometry. (Engine work driven by the KABOOM-CREW-CHARACTERS chain — stays project-agnostic.)
 - **AGF-PROCMESH-DOCTOR-LINE** — Doctor: report registered procedural mesh keys + cache size _(implemented)_
   When the renderer exposes its procedural mesh registry, engine doctor prints `Procedural mesh registry: N key(s), M cache entries`. Suppress the line when N=0 (no project registered any).
-- **PROCBOMBER-MESH-V0** — Pure humanoid mesh generator (head + torso + arms + legs) _(pending)_
+- **PROCBOMBER-MESH-V0** — Pure humanoid mesh generator (head + torso + arms + legs) _(implemented)_
   Pure function `generateBomberMesh(spec) => BufferGeometry`. Six merged box parts (head, torso, left/right arm, left/right leg). Vertex colors from the spec's palette. Deterministic given a seed. Unit-tested for vertex count bounds + head-y > torso-y > leg-y invariant. Lives at `examples/procbomber-bench/src/generators/bomber-mesh.ts`.
-- **PROCBOMBER-PALETTE-TABLE** — Eight named palettes + seeded variant picker _(pending)_
+- **PROCBOMBER-PALETTE-TABLE** — Eight named palettes + seeded variant picker _(implemented)_
   Palettes: sky, ember, mint, plum, sand, jade, rose, slate. Each is `{ head, torso, limbs, accent }` hex colors. `pickBomberPalette(seedHash, override?)` returns one. Pure, unit-tested.
 - **PROCBOMBER-BENCH-PROJECT** — examples/procbomber-bench skeleton (scene, bootstrap, camera orbit) _(pending)_
   Vite-compatible AGF project under `examples/procbomber-bench/` with project.json, template.json, performance-budget.json, a `start.scene.json` containing one ground plane + one bomber entity using `mesh: "procedural:procbomber"`, bootstrap that registers the generator + drives a slow camera orbit so the bomber rotates in view.
