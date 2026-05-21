@@ -27,9 +27,10 @@ test("[procbomber-bench] bench loads with controls + bomber mesh + responds to U
   await expect(page.locator("[data-procbomber-reroll]")).toBeVisible();
   await expect(page.locator("[data-procbomber-anim-select]")).toBeVisible();
 
-  // Renderer wired up — the bomber's procedural mesh is a 6-box humanoid
-  // so the entity component snapshot for "bomber" carries a MeshRenderer
-  // with mesh: "procedural:procbomber".
+  // S102 PROCBOMBER-MESH-TREE-V0: bomber root has no MeshRenderer
+  // anymore — its 19-entity tree (1 root + 9 pivots + 10 mesh parts)
+  // is spawned at attachUi. Verify the tree exists by checking the
+  // root's LimbPivots component + at least one part-mesh entity.
   const snap = await page.evaluate(() => {
     const api = (window as unknown as {
       __agf?: { snapshot(): { entities: Array<{ id: string; components: Record<string, unknown> }> } };
@@ -38,8 +39,16 @@ test("[procbomber-bench] bench loads with controls + bomber mesh + responds to U
   });
   const bomber = snap?.entities.find((e) => e.id === "bomber");
   expect(bomber).toBeDefined();
-  const meshRenderer = bomber?.components["MeshRenderer"] as { mesh?: string } | undefined;
-  expect(meshRenderer?.mesh).toBe("procedural:procbomber");
+  const limbPivots = bomber?.components["LimbPivots"] as
+    | { neck?: string; shoulderL?: string; shoulderR?: string; hipL?: string; hipR?: string }
+    | undefined;
+  expect(limbPivots?.neck).toBe("bomber.neck");
+  expect(limbPivots?.shoulderL).toBe("bomber.shoulderL");
+  expect(limbPivots?.hipR).toBe("bomber.hipR");
+  const torsoEntity = snap?.entities.find((e) => e.id === "bomber.torso");
+  expect(torsoEntity).toBeDefined();
+  expect((torsoEntity?.components["MeshRenderer"] as { mesh?: string } | undefined)?.mesh)
+    .toBe("procedural:procbomber-torso");
 
   // Tick the head-size slider — value should change in the displayed label.
   const headSlider = page.locator('[data-procbomber-slider="headSize"]');

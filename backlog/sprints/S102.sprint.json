@@ -32,9 +32,17 @@
     {
       "id": "PROCBOMBER-MESH-TREE-V0",
       "title": "Decompose procbomber into 9-pivot + 10-mesh ECS tree (GDP-001)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Replace the single-BufferGeometry generator with a hierarchical spawner that creates one root entity, 9 actuated pivot entities (neck, shoulder.l/r, elbow.l/r, hip.l/r, knee.l/r — Transform only, no MeshRenderer), and ~10 body-part mesh entities (torso, head, upperArm.l/r, forearm.l/r, upperLeg.l/r, lowerLeg.l/r — each MeshRenderer ref points at a part-specific procedural key). The 'tree' lives in ECS Transform parent chain — animation systems mutate pivot rotations, child meshes inherit. Fixed naming convention; per GDP-001 acceptance.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: the bomber renders as a 19-entity tree (1 root + 9 named pivots + 10 mesh parts). Each pivot has only Transform; each mesh has Transform + MeshRenderer pointing at procedural:procbomber-<part>. Transform.parent chain matches the GDP-001 spec: torso→neck→head, torso→shoulder→upperArm→elbow→forearm, torso→hip→upperLeg→knee→lowerLeg. LimbPivots component written on the root carries entity ids for all 9 pivot names.",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: spawnBomberTree() emits entity.create + component.set commands via applyCommands; buildPivotRepositionCommands() re-emits Transform.position only so size sliders re-anchor without re-spawning.",
+        "scenes/start.scene.json: bomber root has no MeshRenderer anymore (root is a Transform-only anchor for the tree)",
+        "bootstrap.ts: registers 6 per-part procedural builders, calls spawnBomberTree, rebuild loop iterates meshEntities + buildPivotRepositionCommands; vertex-colors enabled per-entity on first touch",
+        "e2e smoke updated: assert LimbPivots on root + bomber.torso entity exists with mesh ref procedural:procbomber-torso; pixel check still passes (the multi-mesh tree still paints visible non-greyscale pixels)",
+        "+11 unit tests in tests/unit/bomber-tree-spawner.test.ts covering entity counts, naming, parent chains, mesh refs, keyPrefix, LimbPivots write"
+      ]
     },
     {
       "id": "PROCBOMBER-PART-BUILDERS",

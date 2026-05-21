@@ -13,6 +13,7 @@ import {
   BOMBER_MESH_DEFAULTS,
   generateBomberMesh
 } from "./generators/bomber-mesh";
+import type { BomberPartSizes } from "./generators/bomber-parts";
 import {
   BOMBER_PALETTES,
   paletteByName,
@@ -46,6 +47,19 @@ export function defaultBenchState(initialPalette?: BomberPaletteName): BenchStat
     legWidth: BOMBER_MESH_DEFAULTS.legWidth,
     paletteOverride: initialPalette,
     seed: "default"
+  };
+}
+
+/** Extract the part-sizes slice from the bench state. */
+export function sizesOf(state: BenchState): BomberPartSizes {
+  return {
+    headSize: state.headSize,
+    torsoHeight: state.torsoHeight,
+    torsoWidth: state.torsoWidth,
+    armLength: state.armLength,
+    armWidth: state.armWidth,
+    legLength: state.legLength,
+    legWidth: state.legWidth
   };
 }
 
