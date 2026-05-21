@@ -99,11 +99,15 @@ export function mountBenchControls(
   const panel = document.createElement("div");
   panel.dataset["procbomberControls"] = "true";
   panel.style.position = "absolute";
-  // Sit well below the dev shell's project-selector + status panel that
-  // occupy the top strip of the page. 220 px clears both the selector
-  // dropdown's expanded list and the status / freecam controls.
-  panel.style.top = "220px";
-  panel.style.left = "12px";
+  // Sit on the right under .engine-dev-overlay (the renderer-info
+  // stats line). Matches the .shadow-tuner precedent in styles.css:
+  // top 76px clears the stats strip. The bench panel got tall after
+  // S103's knob expansion, so right-side placement avoids covering
+  // the project-selector menu on the left.
+  panel.style.top = "76px";
+  panel.style.right = "24px";
+  panel.style.maxHeight = "calc(100vh - 100px)";
+  panel.style.overflowY = "auto";
   panel.style.padding = "10px 12px";
   panel.style.background = "rgba(12, 16, 24, 0.78)";
   panel.style.color = "#f0f4ff";
