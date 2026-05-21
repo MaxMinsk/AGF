@@ -96,9 +96,19 @@
     {
       "id": "PROCBOMBER-BENCH-ANIM-DROPDOWN",
       "title": "Animation switcher: idle-bob + walk-swing stub animations",
-      "status": "pending",
+      "status": "implemented",
       "summary": "DOM dropdown picks between {none, idle-bob, walk-swing}. A bench-local placeholder animation system reads `BenchAnimationState.kind` and drives Transform.position.y (bob) or arm/leg yaw (swing) per fixedUpdate. Idle-bob is sine on Y; walk-swing alternates limb yaw +/- 0.3 rad at 4Hz. These are stubs that prove the dropdown wires through the data path — the full S102 animation systems will replace them with proper limb-anchor animation.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: dropdown with {none, idle-bob, walk-swing} writes BenchAnimationState.kind to the bomber entity; bench-animation-system reads it and drives Transform.position.y (idle-bob sine on Y) or position.x (walk-swing sine on X). Both are visible in-browser as a hopping / swaying bomber. kind=none snaps back to the base position. ?bomberAnim=<kind> URL knob initializes the dropdown.",
+        "examples/procbomber-bench/schemas/scene-extensions.schema.json: BenchAnimationState component schema",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: pure helpers idleBobY + walkSwingX + createBenchAnimationSystem",
+        "examples/procbomber-bench/src/bench-ui-anim.ts: mountAnimationControl + isBenchAnimationKind + readBenchAnimationFromUrl",
+        "scenes/start.scene.json: bomber gains BenchAnimationState component",
+        "bootstrap.ts: registerSystems wires bench-animation-system; attachUi mounts the dropdown inside the existing controls panel",
+        "+10 unit tests in examples/procbomber-bench/tests/unit/bench-animation-system.test.ts",
+        "panel offset to top: 220px so it doesn't cover the dev shell's project-selector + status strip"
+      ]
     },
     {
       "id": "PROCBOMBER-BENCH-PLAYTEST-SMOKE",

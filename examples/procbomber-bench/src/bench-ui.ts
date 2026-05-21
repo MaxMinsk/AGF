@@ -49,7 +49,10 @@ export function mountBenchControls(
   const panel = document.createElement("div");
   panel.dataset["procbomberControls"] = "true";
   panel.style.position = "absolute";
-  panel.style.top = "12px";
+  // Sit well below the dev shell's project-selector + status panel that
+  // occupy the top strip of the page. 220 px clears both the selector
+  // dropdown's expanded list and the status / freecam controls.
+  panel.style.top = "220px";
   panel.style.left = "12px";
   panel.style.padding = "10px 12px";
   panel.style.background = "rgba(12, 16, 24, 0.78)";

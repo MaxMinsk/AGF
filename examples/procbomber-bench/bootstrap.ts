@@ -23,6 +23,12 @@ import { buildBomberGeometry, defaultBenchState, resolvePalette, type BenchState
 import { generateBomberMesh } from "./src/generators/bomber-mesh";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
 import { mountBenchControls } from "./src/bench-ui";
+import { mountAnimationControl, readBenchAnimationFromUrl } from "./src/bench-ui-anim";
+import {
+  createBenchAnimationSystem,
+  type BenchAnimationKind,
+  type BenchAnimationStateComponent
+} from "./src/systems/bench-animation-system";
 
 const BOMBER_ENTITY_ID = "bomber";
 
@@ -39,8 +45,13 @@ function paletteFromUrl(): BomberPaletteName | undefined {
 }
 
 export const procbomberBenchBootstrap: ProjectBootstrap = {
-  registerSystems(_context: ProjectBootstrapContext): void {
-    // Stub animation system lands in S101-8.
+  registerSystems(context: ProjectBootstrapContext): void {
+    // S101 PROCBOMBER-BENCH-ANIM-DROPDOWN: stub animation system reads
+    // BenchAnimationState.kind on the bomber and writes Transform.position
+    // to produce idle-bob (sin Y) or walk-swing (sin X). Limb-level
+    // animations land in S102 once the mesh splits into per-part
+    // transforms.
+    context.scheduler.register(createBenchAnimationSystem());
   },
   attachUi({ shell, runtime }: ProjectUiContext): ProjectUiHandle {
     const state: BenchState = defaultBenchState(paletteFromUrl());
@@ -75,8 +86,28 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
 
     const ui = mountBenchControls(shell, state, scheduleRebuild);
 
+    // S101 PROCBOMBER-BENCH-ANIM-DROPDOWN: mount the animation switcher
+    // inside the same overlay panel so all bench controls live together.
+    const panel = shell.querySelector<HTMLElement>("[data-procbomber-controls]");
+    const initialAnim: BenchAnimationKind = readBenchAnimationFromUrl() ?? "none";
+    runtime.world.setComponent(
+      BOMBER_ENTITY_ID,
+      "BenchAnimationState",
+      { kind: initialAnim, elapsed: 0 } satisfies BenchAnimationStateComponent
+    );
+    const animUi = panel === null
+      ? { dispose(): void { /* no-op */ } }
+      : mountAnimationControl(panel, initialAnim, (kind) => {
+          runtime.world.setComponent(
+            BOMBER_ENTITY_ID,
+            "BenchAnimationState",
+            { kind, elapsed: 0 } satisfies BenchAnimationStateComponent
+          );
+        });
+
     return {
       dispose(): void {
+        animUi.dispose();
         ui.dispose();
         runtime.renderer.proceduralMeshRegistry().invalidate("procbomber");
       }

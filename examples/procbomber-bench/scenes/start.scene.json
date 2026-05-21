@@ -46,7 +46,8 @@
       "components": {
         "Name": { "label": "Procedural Bomber" },
         "Transform": { "parent": "turntable", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
-        "MeshRenderer": { "mesh": "procedural:procbomber" }
+        "MeshRenderer": { "mesh": "procedural:procbomber" },
+        "BenchAnimationState": { "kind": "none", "elapsed": 0 }
       }
     }
   ]
