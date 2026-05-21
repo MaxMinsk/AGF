@@ -2,9 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S106",
   "title": "Accessory layer — 5 starter accessories + mount sockets + recipe field + spring sway",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-22",
-  "stories": [
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/125",  "stories": [
     {
       "id": "KABOOM-ACCESSORY-MOUNT-SOCKETS",
       "title": "5 named mount sockets on the bomber tree (head.crown / head.eyes / torso.back / torso.sideL / torso.sideR)",
