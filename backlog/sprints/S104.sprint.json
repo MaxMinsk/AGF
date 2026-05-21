@@ -79,6 +79,18 @@
       "epic": "KABOOM-CREW-CHARACTERS"
     },
     {
+      "id": "AGF-MESH-LIFECYCLE-RESTORE-HANDLE-COMPONENT",
+      "title": "MeshLifecycleSystem restores RENDER_MESH_HANDLE after scene.load",
+      "status": "implemented",
+      "summary": "Engine bug surfaced during the kaboom-crew migration's round-restart path. scene.load wipes every entity component but the renderer's MeshHandleRegistry (renderer-level cache) keeps its per-entity-id handle table. When the new scene re-creates an entity with the same id, the registry returns the existing handle, so MeshLifecycleSystem's acquire branch was skipped — leaving the new entity without the RENDER_MESH_HANDLE component that MeshTransformSyncSystem + MaterialBindingSystem query for. Result: the mesh's Three.js transform stayed frozen at its pre-scene-load value. Fix: always re-write RENDER_MESH_HANDLE for every renderable that has a handle, whether the handle is fresh or cached.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: after a scene.load that wipes the world + re-spawns entities with the same IDs, the renderer's mesh transforms keep updating. Fixes the user-reported 'после рестарта объекты остаются на прежнем месте' bug.",
+        "engine/render/systems/mesh-lifecycle-system.ts: acquire branch now ALWAYS writes RENDER_MESH_HANDLE component (whether the handle is freshly acquired or returned from the existing cache). Previously the cached-handle path skipped the component write.",
+        "Existing 4 unit tests for the system still pass — they only exercise the acquire-on-new-entity path; the regression here is post-scene-load specifically."
+      ]
+    },
+    {
       "id": "KABOOM-REMOTE-DETONATE-SPACE-BIND",
       "title": "Space also detonates paused bombs (not only the F key)",
       "status": "implemented",
