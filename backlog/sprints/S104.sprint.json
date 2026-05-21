@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S104",
   "title": "CharacterRecipe schema + Kaboom Crew procbomber migration",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-22",
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/123",
   "stories": [
     {
       "id": "CHORE-GDP-2026-05-22-PROMOTION",
