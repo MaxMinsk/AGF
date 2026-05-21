@@ -202,6 +202,77 @@ describe("buildPivotRepositionCommands mount offsets (S102 RECIPE-PARAMS-16)", (
   });
 });
 
+describe("spawnBomberTree.accessories (S106)", () => {
+  it("no accessories option = empty accessoryEntities", () => {
+    const { result } = spawn();
+    expect(result.accessoryEntities).toEqual([]);
+  });
+
+  it("one accessory spawns one entity parented to its socket's owning mesh", () => {
+    const captured: EngineCommand[] = [];
+    const result = spawnBomberTree((cmds) => captured.push(...cmds), {
+      rootId: "bomber",
+      sizes: SIZES,
+      accessories: [{ kind: "cap" }]
+    });
+    expect(result.accessoryEntities.length).toBe(1);
+    expect(result.accessoryEntities[0]!.kind).toBe("cap");
+    expect(result.accessoryEntities[0]!.socket).toBe("head.crown");
+    // Find the Transform of the new entity.
+    const tr = captured.find(
+      (c) => c.kind === "component.set" && c.entityId === result.accessoryEntities[0]!.id && c.component === "Transform"
+    );
+    expect(tr).toBeDefined();
+    expect((tr as { data: { parent: string } }).data.parent).toBe("bomber.head");
+  });
+
+  it("fins kind spawns TWO entities (left + right mirror)", () => {
+    const captured: EngineCommand[] = [];
+    const result = spawnBomberTree((cmds) => captured.push(...cmds), {
+      rootId: "bomber",
+      sizes: SIZES,
+      accessories: [{ kind: "fins" }]
+    });
+    expect(result.accessoryEntities.length).toBe(2);
+    expect(result.accessoryEntities[0]!.socket).toBe("torso.sideL");
+    expect(result.accessoryEntities[1]!.socket).toBe("torso.sideR");
+    // Right side mirrored via negative X scale.
+    const rightTransform = captured.find(
+      (c) => c.kind === "component.set" && c.entityId === result.accessoryEntities[1]!.id && c.component === "Transform"
+    );
+    expect((rightTransform as { data: { scale: number[] } }).data.scale[0]).toBe(-1);
+  });
+
+  it("every accessory entity gets a SoftAttached tag", () => {
+    const captured: EngineCommand[] = [];
+    spawnBomberTree((cmds) => captured.push(...cmds), {
+      rootId: "bomber",
+      sizes: SIZES,
+      accessories: [{ kind: "antennae" }, { kind: "backpack" }]
+    });
+    const softCount = captured.filter(
+      (c) => c.kind === "component.set" && c.component === "SoftAttached"
+    ).length;
+    expect(softCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("mesh ref uses procedural:procbomber-accessory-<kind>[#seed]", () => {
+    const captured: EngineCommand[] = [];
+    spawnBomberTree((cmds) => captured.push(...cmds), {
+      rootId: "bomber",
+      sizes: SIZES,
+      accessories: [{ kind: "visor" }],
+      seed: "demo"
+    });
+    const meshRender = captured.find(
+      (c) => c.kind === "component.set" && c.component === "MeshRenderer" && (c.data as { mesh: string }).mesh.includes("accessory-visor")
+    );
+    expect(meshRender).toBeDefined();
+    const ref = (meshRender as { data: { mesh: string } }).data.mesh;
+    expect(ref).toBe("procedural:procbomber-accessory-visor#demo");
+  });
+});
+
 describe("spawnBomberTree.limbPivots result (S102)", () => {
   it("returns LimbPivots with every name resolved to the matching entity id", () => {
     const { result } = spawn();

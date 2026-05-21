@@ -43,16 +43,29 @@
     {
       "id": "KABOOM-ACCESSORY-SPAWNER",
       "title": "Bomber tree spawner adds accessory entities under their mount sockets",
-      "status": "pending",
+      "status": "implemented",
       "summary": "spawnBomberTree extends to also walk `recipe.accessories` and spawn one entity per accessory: parented to the named mount socket's parent mesh entity (head / torso), with the socket's local position offset, MeshRenderer pointing at `procedural:procbomber-accessory-<kind>` (six new procedural mesh keys registered by bench / kaboom-crew). Each accessory carries a 'SoftAttached' tag component so the spring system can apply secondary sway. Per-recipe accessory list returned from the spawner so the bench rebuild loop can iterate them.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: spawnBomberTree extends with accessories[] option. Each entry spawns one entity (or 2 for fins-pair) parented to its mount socket's owning mesh (head or torso). Mesh ref points at procedural:procbomber-accessory-<kind>[#seed]. SoftAttached tag + default-rest SpringPivot stamped on each accessory.",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: accessories option + accessoryEntities in BomberTreeResult; DEFAULT_SOCKET_BY_KIND map; fins spawns mirrored right entity via scale.x = -1",
+        "examples/procbomber-bench/schemas/scene-extensions.schema.json: SoftAttached tag component",
+        "examples/kaboom-crew/src/procbomber-integration.ts: registerProcbomberBuilders also registers the 5 accessory builders; spawnBomberFor passes recipe.accessories",
+        "+5 unit tests covering no-accessories/one-accessory/fins-pair/SoftAttached tag/mesh ref format"
+      ]
     },
     {
       "id": "KABOOM-ACCESSORY-SOFT-ATTACH-SWAY",
       "title": "Soft-attached entities sway via SpringPivot driven by parent motion",
-      "status": "pending",
+      "status": "implemented",
       "summary": "When a SoftAttached entity's parent moves or rotates between fixedUpdates, infer an angular nudge (velocity delta) and stamp it into the entity's SpringPivot.velocity. The spring-pivot-system (from S105) then decays it back to rest. Net effect: accessories visibly trail behind their parent's motion — cap wobbles when bomber walks, fins flex on direction change. Per-entity tracking of parent's last-frame world transform via a small cache in the system.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: soft-attach-sway-system queries [SoftAttached, Transform, SpringPivot] each fixedUpdate + diffs parent's LocalToWorld.position against the previous tick. Linear delta → angular nudge written into SpringPivot.velocity; spring system decays it. Per-entity tracking caches parent position by parent id.",
+        "examples/procbomber-bench/src/systems/soft-attach-sway-system.ts: linearDisplacementToAngularNudgeDegPerS pure helper + createSoftAttachSwaySystem ECS wrapper",
+        "examples/kaboom-crew/bootstrap.ts: createSoftAttachSwaySystem registered BEFORE createSpringPivotSystem",
+        "+8 unit tests covering helper math + system loop (first-tick no-prev, X motion → Z nudge, stationary parent stays at rest, no-SoftAttached skip)"
+      ]
     },
     {
       "id": "KABOOM-ACCESSORY-BENCH-CONTROLS",

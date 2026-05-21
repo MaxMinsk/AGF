@@ -31,6 +31,7 @@ import {
 import type { ResolvedCharacterRecipe } from "../procbomber-bench/src/character-recipe";
 import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/bench-animation-system";
 import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-pivot-system";
+import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 
 /**
@@ -290,6 +291,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // the procbomber-bench uses; in production the driver decides the
     // kind, the system performs the motion.
     scheduler.register(createBenchAnimationSystem(), { profiles: ["static"] });
+    // S106 KABOOM-ACCESSORY-SOFT-ATTACH-SWAY — runs BEFORE the spring
+    // system so its nudges accumulate into SpringPivot.velocity, which
+    // the spring system then decays back to rest.
+    scheduler.register(createSoftAttachSwaySystem(), { profiles: ["static"] });
     // S105 KABOOM-SPRING-PIVOT-SYSTEM — runs AFTER bench-animation so
     // ragdoll-stamped SpringPivot rotations override the rest pose.
     // (bench-animation skips its own writes for entities with
