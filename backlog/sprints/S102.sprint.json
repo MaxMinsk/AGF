@@ -39,9 +39,15 @@
     {
       "id": "PROCBOMBER-PART-BUILDERS",
       "title": "Per-part procedural mesh builders + multi-key registry usage",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Split generateBomberMesh into per-part generators: generateTorso, generateHead, generateUpperArm, generateForearm, generateUpperLeg, generateLowerLeg. Each returns one BufferGeometry sized by its slice of the recipe. Bench bootstrap registers them under separate procedural keys (procbomber-torso, procbomber-head, …). The mesh tree spawner gives each entity its own ref. Keeps the existing single-mesh path (generateBomberMesh) as a deprecated convenience for any callers still using the v0 shape.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/procbomber-bench/src/generators/bomber-parts.ts exports generatePart + per-part generators (generateTorso/Head/UpperArm/Forearm/UpperLeg/LowerLeg) + partKey() + partColor() + BomberPartName + BomberPartSizes. Each builder returns one BufferGeometry centered in its own local space. Limb segments (upperArm/forearm/upperLeg/lowerLeg) hang BELOW the pivot — Y range [-length .. 0] — so positive shoulder X rotation lifts the arm forward.",
+        "Per-part palette channel mapping: torso reads torsoTop (with torsoBottom paint on the bottom 30% band), head reads head, upperArm reads upperArm, forearm reads forearm, upperLeg reads upperLeg, lowerLeg reads lowerLeg. Bottom-shadow band on the torso is a non-shader contact-shadow split.",
+        "Single-mesh path (generateBomberMesh) untouched — still ships the v0 merged-six-box geometry for the existing tests; tree spawner (next story) consumes generatePart instead.",
+        "+9 unit tests in examples/procbomber-bench/tests/unit/bomber-parts.test.ts"
+      ]
     },
     {
       "id": "PROCBOMBER-LIMB-PIVOTS-COMPONENT",
