@@ -67,16 +67,26 @@
     {
       "id": "KABOOM-BOMBER-ANIMATION-PROD",
       "title": "Drive bomber animation kind from gameplay state (idle / walk / reach / death)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Port the bench-animation-system to Kaboom Crew as a project-local system + add a gameplay-driver system that writes BenchAnimationState.kind based on the bomber's current state: GridMover idle → 'idle-bob'; GridMover moving (currentLerp > 0) → 'walk-swing'; DeathAnim component present → 'none' (death-animation-system already handles the rotation); placing a bomb fires a temporary 'reach' burst. Falls back to 'none' for unrecognised states. Bench-animation-system stays at examples/procbomber-bench/ — production system is a thin wrapper plus the gameplay-driver.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: kaboom-crew bombers' BenchAnimationState.kind is driven from gameplay: alive=false → 'none'; PlaceBombRequest just fired → 'reach' for REACH_BURST_S; GridMover.currentLerp>0 OR queuedDirection!=0 → 'walk-swing'; else 'idle-bob'. bench-animation-system (imported from procbomber-bench) consumes the kind + drives the per-limb rotations.",
+        "examples/kaboom-crew/src/systems/bomber-animation-driver.ts: new project-local system; queries [PlayerControlled, BomberStats] + [BotBrain, BomberStats].",
+        "examples/kaboom-crew/bootstrap.ts: scheduler registers driver right after player-input + bench-animation-system after death-animation-system.",
+        "+5 unit tests covering idle/walk/reach/death paths + reach revert after burst window"
+      ]
     },
     {
       "id": "KABOOM-REACH-IK-PLACE-BOMB",
       "title": "Reach IK animation triggered by PlaceBombRequest",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-004 (partial — only the reach piece this sprint). When a bomber fires PlaceBombRequest, the gameplay-driver from KABOOM-BOMBER-ANIMATION-PROD writes BenchAnimationState.kind = 'reach' for ~0.4 seconds before reverting to walk/idle. The reach target points at the bomb's grid cell. This is the visible 'plant the bomb' gesture — the missing piece between the existing IK math (S103) and gameplay.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: pressing Space (or probe-injected place-bomb) writes BenchAnimationState.kind='reach' for REACH_BURST_S (0.4s) before reverting to walk/idle. The reach burst is gated by reachEndsAt timestamp on the component — handled in the same animation-driver as the gameplay-state dispatcher.",
+        "Test covers PlaceBombRequest → kind=reach → time advance → revert to idle-bob"
+      ]
     },
     {
       "id": "AGF-MESH-LIFECYCLE-RESTORE-HANDLE-COMPONENT",

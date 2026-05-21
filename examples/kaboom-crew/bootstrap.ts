@@ -29,6 +29,8 @@ import {
   spawnBomberFor
 } from "./src/procbomber-integration";
 import type { ResolvedCharacterRecipe } from "../procbomber-bench/src/character-recipe";
+import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/bench-animation-system";
+import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 
 /**
  * S104 KABOOM-MIGRATE-PREFABS — fixed recipe-derivation rule for
@@ -243,6 +245,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     _boundPlayerInput = playerInput;
     scheduler.register(playerInput, { profiles: ["static"] });
 
+    // S104 KABOOM-BOMBER-ANIMATION-PROD + KABOOM-REACH-IK-PLACE-BOMB —
+    // runs RIGHT AFTER player-input so it sees the PlaceBombRequest
+    // transient before bomb-placement-system removes it. Drives
+    // BenchAnimationState.kind from gameplay (idle / walk / reach /
+    // death). The animation system that READS the kind is the bench
+    // module — registered below alongside the rest of the renderer
+    // adapters.
+    scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static"] });
+
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
     // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
@@ -271,6 +282,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // toward a tipped-over pose. Reads `DeathAnim` written by
     // audio-binding-system on the alive→dead edge.
     scheduler.register(createKaboomDeathAnimationSystem(), { profiles: ["static"] });
+
+    // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
+    // BenchAnimationState + LimbPivots (written by the driver above + by
+    // spawnBomberFor) and drives the per-limb rotations. Same module
+    // the procbomber-bench uses; in production the driver decides the
+    // kind, the system performs the motion.
+    scheduler.register(createBenchAnimationSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
