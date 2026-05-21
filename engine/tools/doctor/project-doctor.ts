@@ -162,6 +162,8 @@ export type DoctorReport = {
   textures: TextureDoctorReport;
   /** S54 DOCTOR-prefab-section: declared prefab inventory + instance usage. */
   prefabs: PrefabsReport;
+  /** S101 AGF-PROCMESH-DOCTOR-LINE: declared procedural mesh keys (from project source) + scene usage. */
+  proceduralMeshes: ProceduralMeshesReport;
   /** S57 DOCTOR-reflection-section: declared reflection probes + cadence summary. */
   reflectionProbes: ReflectionProbesReport;
   /** S60 DOCTOR-webgpu-readiness: list of features that don't yet have a WebGPU equivalent. Informational only; doesn't fail the project. */
@@ -326,6 +328,17 @@ export type ReflectionProbesReport = {
   missingProbeBindings: ReadonlyArray<{ bindingEntityId: string; probeId: string; sceneFile: string }>;
   /** Probes with no `excludeEntities` list — almost certainly a self-reflection bug. */
   probesWithoutSelfExclude: ReadonlyArray<string>;
+};
+
+export type ProceduralMeshesReport = {
+  /** Distinct keys the project registers via `proceduralMeshRegistry().register("<key>", ...)`. */
+  declaredKeys: ReadonlyArray<string>;
+  /** Total `MeshRenderer.mesh` instances starting with `procedural:` across every scene. */
+  sceneUsageCount: number;
+  /** Per-key scene usage: how many entity instances reference each `procedural:<key>`. Sorted by key. */
+  perKey: ReadonlyArray<{ key: string; instanceCount: number }>;
+  /** Keys that appear in a scene but aren't registered anywhere in the project source — best-effort static check. */
+  missingRegistrations: ReadonlyArray<string>;
 };
 
 export type PrefabsReport = {
@@ -665,6 +678,13 @@ export function runDoctor(
   // so the agent / user can either revert the mode or wait for the
   // feature port (S62 / S63).
 
+  const proceduralMeshes = summarizeProceduralMeshes(projectDir);
+  if (proceduralMeshes.missingRegistrations.length > 0) {
+    recommendations.push(
+      `Scene entities reference ${proceduralMeshes.missingRegistrations.length} procedural mesh key(s) [${proceduralMeshes.missingRegistrations.slice(0, 5).join(", ")}] not registered in any source file — call \`proceduralMeshRegistry().register("<key>", builder)\` at bootstrap, or fix the MeshRenderer.mesh ref.`
+    );
+  }
+
   const prefabs = summarizePrefabs(projectDir);
   if (prefabs.missingPrefabRefs.length > 0) {
     const refs = prefabs.missingPrefabRefs.slice(0, 5).join(", ");
@@ -718,6 +738,7 @@ export function runDoctor(
     shadows,
     textures,
     prefabs,
+    proceduralMeshes,
     reflectionProbes,
     backlog,
     diagnosticsSummary: ((): import("../../runtime/diagnostics/diagnostics-bus").DiagnosticsSummary | null => {
@@ -930,6 +951,116 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
     missingProbeBindings,
     probesWithoutSelfExclude
   };
+}
+
+export function summarizeProceduralMeshes(projectDir: string): ProceduralMeshesReport {
+  // S101 AGF-PROCMESH-DOCTOR-LINE: best-effort static scan.
+  // - declaredKeys: walk every .ts file under the project for the pattern
+  //   `proceduralMeshRegistry().register("<key>"` (single OR double quotes).
+  // - sceneUsageCount + perKey: walk every scene for MeshRenderer.mesh
+  //   values starting with `procedural:`.
+  // - missingRegistrations: keys referenced by a scene but never registered.
+  const declaredSet = new Set<string>();
+  const registerRegex = /proceduralMeshRegistry\(\)\.register\(\s*["']([^"']+)["']/g;
+  const walkSource = (dir: string): void => {
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) return;
+    for (const name of readdirSync(dir)) {
+      const full = resolve(dir, name);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        // Skip node_modules + dist + .vite if a project ever nests them.
+        if (name === "node_modules" || name === "dist" || name === ".vite") continue;
+        walkSource(full);
+        continue;
+      }
+      if (!name.endsWith(".ts") && !name.endsWith(".mts")) continue;
+      let body: string;
+      try {
+        body = readFileSync(full, "utf8");
+      } catch {
+        continue;
+      }
+      let match: RegExpExecArray | null;
+      registerRegex.lastIndex = 0;
+      while ((match = registerRegex.exec(body)) !== null) {
+        const key = match[1];
+        if (key !== undefined && key.length > 0) declaredSet.add(key);
+      }
+    }
+  };
+  walkSource(resolve(projectDir, "src"));
+  // bootstrap.ts lives at the project root for AGF examples.
+  const bootstrapPath = resolve(projectDir, "bootstrap.ts");
+  if (existsSync(bootstrapPath) && statSync(bootstrapPath).isFile()) {
+    try {
+      const body = readFileSync(bootstrapPath, "utf8");
+      let match: RegExpExecArray | null;
+      registerRegex.lastIndex = 0;
+      while ((match = registerRegex.exec(body)) !== null) {
+        const key = match[1];
+        if (key !== undefined && key.length > 0) declaredSet.add(key);
+      }
+    } catch {
+      /* best effort */
+    }
+  }
+
+  const usageCounts = new Map<string, number>();
+  let sceneUsageCount = 0;
+  const scenesDir = resolve(projectDir, "scenes");
+  const walkScenes = (dir: string): void => {
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) return;
+    for (const name of readdirSync(dir)) {
+      const full = resolve(dir, name);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        walkScenes(full);
+        continue;
+      }
+      if (!name.endsWith(".scene.json")) continue;
+      let scene: { entities?: Array<{ components?: Record<string, unknown> }>; instances?: Array<{ components?: Record<string, unknown> }> };
+      try {
+        scene = JSON.parse(readFileSync(full, "utf8"));
+      } catch {
+        continue;
+      }
+      const collectFrom = (entries: Array<{ components?: Record<string, unknown> }> | undefined): void => {
+        for (const entry of entries ?? []) {
+          const mr = entry.components?.["MeshRenderer"] as { mesh?: unknown } | undefined;
+          const mesh = mr?.mesh;
+          if (typeof mesh !== "string" || !mesh.startsWith("procedural:")) continue;
+          sceneUsageCount += 1;
+          const hashIdx = mesh.indexOf("#");
+          const key = hashIdx === -1 ? mesh.slice("procedural:".length) : mesh.slice("procedural:".length, hashIdx);
+          if (key.length === 0) continue;
+          usageCounts.set(key, (usageCounts.get(key) ?? 0) + 1);
+        }
+      };
+      collectFrom(scene.entities);
+      collectFrom(scene.instances);
+    }
+  };
+  walkScenes(scenesDir);
+
+  const declaredKeys = [...declaredSet].sort();
+  const perKey = [...usageCounts.entries()]
+    .map(([key, instanceCount]) => ({ key, instanceCount }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const missingRegistrations = perKey
+    .filter((entry) => !declaredSet.has(entry.key))
+    .map((entry) => entry.key);
+
+  return { declaredKeys, sceneUsageCount, perKey, missingRegistrations };
 }
 
 function summarizePrefabs(projectDir: string): PrefabsReport {
@@ -1382,6 +1513,12 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push(formatPrefabs(report.prefabs));
   lines.push("");
 
+  const procMeshSection = formatProceduralMeshes(report.proceduralMeshes);
+  if (procMeshSection !== "") {
+    lines.push(procMeshSection);
+    lines.push("");
+  }
+
   lines.push(formatReflectionProbes(report.reflectionProbes));
   lines.push("");
 
@@ -1528,6 +1665,27 @@ export function formatPrefabs(report: PrefabsReport): string {
     lines.push("  override hotspots (instances customising prefab):");
     for (const { prefab, instances, instancesWithOverrides } of report.overrideHotspots) {
       lines.push(`    ${prefab}: ${instancesWithOverrides}/${instances} instance(s) override components`);
+    }
+  }
+  return lines.join("\n");
+}
+
+export function formatProceduralMeshes(report: ProceduralMeshesReport): string {
+  // S101 AGF-PROCMESH-DOCTOR-LINE: suppress the section entirely when
+  // the project neither registers nor references any procedural mesh.
+  if (report.declaredKeys.length === 0 && report.sceneUsageCount === 0) {
+    return "";
+  }
+  const lines: string[] = [];
+  const keysText = report.declaredKeys.length === 0 ? "(none)" : report.declaredKeys.join(", ");
+  lines.push(
+    `Procedural mesh registry: ${report.declaredKeys.length} declared key(s) [${keysText}], ${report.sceneUsageCount} scene entity reference(s)`
+  );
+  if (report.perKey.length > 0) {
+    lines.push("  per-key scene usage:");
+    for (const { key, instanceCount } of report.perKey) {
+      const flag = report.missingRegistrations.includes(key) ? " ⚠ not registered" : "";
+      lines.push(`    ${instanceCount}× procedural:${key}${flag}`);
     }
   }
   return lines.join("\n");

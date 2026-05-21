@@ -33,9 +33,14 @@
     {
       "id": "AGF-PROCMESH-DOCTOR-LINE",
       "title": "Doctor: report registered procedural mesh keys + cache size",
-      "status": "pending",
+      "status": "implemented",
       "summary": "When the renderer exposes its procedural mesh registry, engine doctor prints `Procedural mesh registry: N key(s), M cache entries`. Suppress the line when N=0 (no project registered any).",
-      "epic": "AGF-ENGINE-OBSERVABILITY"
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: engine doctor prints 'Procedural mesh registry: N declared key(s) [...], M scene entity reference(s)' when N>0 or M>0; section is suppressed entirely otherwise; missing registrations are flagged ⚠ per key. Reframed from cache-size to a static scan of project source + scenes so doctor (offline) can see the surface.",
+        "engine/tools/doctor/project-doctor.ts: new ProceduralMeshesReport, summarizeProceduralMeshes walker (src/**/*.ts + bootstrap.ts + scenes/**/*.scene.json), formatProceduralMeshes output, missing-registration recommendation",
+        "+8 unit tests in tests/unit/doctor-procedural-meshes.test.ts"
+      ]
     },
     {
       "id": "PROCBOMBER-MESH-V0",
