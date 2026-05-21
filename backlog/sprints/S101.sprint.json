@@ -82,9 +82,16 @@
     {
       "id": "PROCBOMBER-BENCH-UI-CONTROLS",
       "title": "DOM overlay: sliders + palette dropdown + reroll button",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Plain HTML overlay (no UI framework) injected at bootstrap with: sliders for body-part size knobs (head, torso, arm-length, leg-length), a palette dropdown (8 options), a reroll button. Each control writes to the `ProceduralBomberSeed` ECS component on the bench's single bomber entity; the renderer re-acquires the procedural mesh on seed change.",
-      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX"
+      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX",
+      "verification": [
+        "acceptance: bench mounts a DOM overlay with 7 size sliders (head/torso H+W/arm L+W/leg L+W) + palette dropdown (8 named + seed-driven) + reroll button. Each control writes into a local BenchState; an rAF-coalesced rebuild pushes a fresh BufferGeometry onto the bomber's existing handle via runtime.renderer.adapter.setMeshGeometry, so the visible mesh updates without re-acquiring the handle.",
+        "examples/procbomber-bench/src/bench-state.ts: defaultBenchState + resolvePalette + buildBomberGeometry + PALETTE_OPTIONS",
+        "examples/procbomber-bench/src/bench-ui.ts: mountBenchControls (plain HTML, no UI framework)",
+        "bootstrap.ts: rAF-coalesced rebuild loop wired through adapter.setMeshGeometry",
+        "+7 unit tests in examples/procbomber-bench/tests/unit/bench-state.test.ts"
+      ]
     },
     {
       "id": "PROCBOMBER-BENCH-ANIM-DROPDOWN",
