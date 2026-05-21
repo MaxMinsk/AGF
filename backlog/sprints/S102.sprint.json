@@ -52,9 +52,14 @@
     {
       "id": "PROCBOMBER-LIMB-PIVOTS-COMPONENT",
       "title": "LimbPivots project component carrying named pivot entity refs",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Schema entry under examples/procbomber-bench/schemas/scene-extensions.schema.json: `LimbPivots { neck, shoulderL, shoulderR, elbowL, elbowR, hipL, hipR, kneeL, kneeR }` — nine fields, each a string entity id. The spawner writes one LimbPivots on the bomber root so animation systems can lookup pivots by name without traversing the Transform tree every tick. Migrate to examples/kaboom-crew/ later (GDP-007).",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: schemas/scene-extensions.schema.json grows a LimbPivots component with 9 required string-id fields (neck + shoulder.L+R + elbow.L+R + hip.L+R + knee.L+R). engine check passes.",
+        "examples/procbomber-bench/src/limb-pivots.ts: LimbPivots / LimbPivotName / LIMB_PIVOT_NAMES + isLimbPivotName + buildLimbPivots helpers",
+        "+5 unit tests in examples/procbomber-bench/tests/unit/limb-pivots.test.ts"
+      ]
     },
     {
       "id": "PROCBOMBER-WALK-SWING-PIVOTS",
