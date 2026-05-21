@@ -1,15 +1,11 @@
 {
   "agfFormatVersion": 1,
   "id": "bot",
-  "description": "Kaboom Crew bot opponent — capsule placeholder for MVP 0. Personality / pathfinding state lands in S082 as Kaboom-Crew-local components.",
+  "description": "Kaboom Crew bot opponent. S104 KABOOM-MIGRATE-PREFABS: like the player prefab, the bot root no longer carries a MeshRenderer — kaboom-crew bootstrap spawns the 19-entity procedural tree via spawnBomberTree() after prefab expansion.",
   "components": {
     "Transform": {
       "rotation": [0, 0, 0],
-      "scale": [0.4, 0.4, 0.4]
-    },
-    "MeshRenderer": {
-      "mesh": "sphere",
-      "color": "#ff5a6e"
+      "scale": [0.8, 0.8, 0.8]
     },
     "GridOccupant": {
       "layer": "bot",

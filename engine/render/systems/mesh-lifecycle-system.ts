@@ -78,14 +78,32 @@ export function createMeshLifecycleSystem(
       }
     }
 
-    // Acquire newcomers.
+    // Acquire newcomers + ensure RENDER_MESH_HANDLE is present.
+    //
+    // S104 BUG FIX: a `scene.load` command wipes every component,
+    // including RENDER_MESH_HANDLE. The registry's per-entity handle
+    // table SURVIVES the wipe (it's a renderer-level cache, not a
+    // world component). So if the new scene re-creates an entity with
+    // the same id, `registry.handleFor(id)` returns the existing
+    // handle and the acquire branch was previously skipped — leaving
+    // the entity without RENDER_MESH_HANDLE. Downstream systems
+    // (MeshTransformSyncSystem, MaterialBindingSystem) query for that
+    // component, so the entity's Three.js mesh transform stays frozen
+    // at the pre-scene-load value. Now: ensure RENDER_MESH_HANDLE is
+    // written every frame for every renderable that has a handle in
+    // the registry, whether the handle is fresh or cached.
     for (const id of renderable) {
-      if (registry.handleFor(id) !== undefined) continue;
-      const meshComponent = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
-      if (meshComponent === undefined) continue;
-      const handle = registry.acquireFor(id, meshComponent.mesh, meshComponent.color);
-      if (handle === undefined) continue;
-      world.setComponent(id, RENDER_MESH_HANDLE, { id: handle });
+      let handle = registry.handleFor(id);
+      if (handle === undefined) {
+        const meshComponent = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
+        if (meshComponent === undefined) continue;
+        handle = registry.acquireFor(id, meshComponent.mesh, meshComponent.color);
+        if (handle === undefined) continue;
+      }
+      const existing = world.getComponent<{ id?: number }>(id, RENDER_MESH_HANDLE);
+      if (existing?.id !== handle) {
+        world.setComponent(id, RENDER_MESH_HANDLE, { id: handle });
+      }
     }
   };
 

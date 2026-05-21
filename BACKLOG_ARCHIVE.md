@@ -109,5 +109,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S101](backlog/sprints/S101.sprint.json)** — procbomber-bench — sandbox for the procedural humanoid generator — 9 implemented · archived 2026-05-21
 - **[S102](backlog/sprints/S102.sprint.json)** — Bomber multi-mesh tree + palette/recipe expansion (GDP-2026-05-21 batch) — 9 implemented · archived 2026-05-21
 - **[S103](backlog/sprints/S103.sprint.json)** — Bomber animation polish: rotation-units fix, segment sliders, real IK reach, walk-cycle++ — 8 implemented · archived 2026-05-21
+- **[S104](backlog/sprints/S104.sprint.json)** — CharacterRecipe schema + Kaboom Crew procbomber migration — 9 implemented · archived 2026-05-22
 
 <!-- backlog:render:end -->

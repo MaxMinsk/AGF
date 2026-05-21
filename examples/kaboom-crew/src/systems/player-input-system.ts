@@ -36,7 +36,12 @@ const MOVE_DOWN = new Set(["KeyS", "ArrowDown"]);
 const PLACE_BOMB = new Set(["Space"]);
 const ROUND_RESTART = new Set(["KeyR"]);
 // S100 KABOOM-REMOTE-DETONATE-PUP — F triggers all paused bombs.
-const REMOTE_DETONATE = new Set(["KeyF"]);
+// S104 KABOOM-REMOTE-DETONATE-SPACE-BIND. Space also detonates paused
+// bombs: PLACE_BOMB and REMOTE_DETONATE both fire on Space, so the
+// same press places a new paused bomb (if slots remain) AND detonates
+// every paused bomb already in the world. F stays as the explicit
+// single-purpose detonate trigger.
+const REMOTE_DETONATE = new Set(["KeyF", "Space"]);
 
 type GridMoverComponent = {
   speed: number;

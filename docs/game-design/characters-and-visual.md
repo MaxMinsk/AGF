@@ -38,29 +38,79 @@ schemas + systems in the right MVP.
 
 ### 2.1 Inputs
 
-A character is fully described by a `CharacterRecipe`:
+A character is fully described by a `CharacterRecipe`. The shape below
+reflects what shipped through S103 (separate segment-length knobs +
+8-channel palette + posture + mounts + per-part shape). All fields
+except `seed` are optional — when absent they derive deterministically
+from the seed.
 
 ```text
 CharacterRecipe {
   seed: u32,                  // deterministic — same seed, same character
-  archetype: "humanoid" | "drone" | "puffball",
-  proportions: {              // continuous, generator-clamped
-    torsoHeight: 0.7..1.3,
-    headSize:    0.7..1.3,
-    legLength:   0.7..1.3,
-    armLength:   0.7..1.3
-  },
-  palette: {                  // derived from seed if absent
-    primary:   "#hex",
-    secondary: "#hex",
-    accent:    "#hex"
-  },
-  accessories: ["antennae" | "visor" | "backpack" | "cap" | "fins" | ...]  // 0..3 slots
+  archetype: "humanoid",      // "drone" | "puffball" reserved, not generated yet
+
+  // Proportions — cell units, clamped ranges
+  proportions: {
+    headSize:        0.25..0.45   // default 0.35
+    torsoHeight:     0.35..0.60   // default 0.45
+    torsoWidth:      0.30..0.60   // default 0.45
+    upperArmLength:  0.15..0.30   // default 0.20  (S103 split)
+    forearmLength:   0.15..0.30   // default 0.20  (S103 split)
+    armWidth:        0.10..0.22   // default 0.15
+    upperLegLength:  0.12..0.28   // default 0.17  (S103 split)
+    lowerLegLength:  0.12..0.28   // default 0.17  (S103 split)
+    legWidth:        0.13..0.25   // default 0.18
+  }
+
+  // Posture — degrees at the Transform write boundary (rad in internal math)
+  posture: {
+    forwardTilt:     -15..+15 deg // default 0
+    armRestAngle:     0..30  deg  // default 6
+    legStance:        0..15  deg  // default 3
+  }
+
+  // Mounting — where shoulders + hips + neck attach on the torso
+  mounts: {
+    shoulderHeightFrac: 0..1     // default 0.85
+    hipSpread:          0.4..1.5 // multiplier on default hip X anchor (S103)
+    shoulderSpread:     0.4..1.5 // multiplier on default shoulder X anchor (S103)
+    neckHeight:         0..0.2   // default 0.05
+  }
+
+  // Per-part shape (S102 — already shipped; full body-style preset deferred per GDP-006)
+  shapes: {
+    head:  "box" | "cylinder" | "capsule"   // default "box"
+    torso: "box" | "cylinder" | "capsule"   // default "box"
+    limb:  "box" | "cylinder" | "capsule"   // default "box"
+  }
+
+  // Palette — 8 channels (S102 — already shipped)
+  palette?: {
+    head:        "#hex"
+    helmet:      "#hex"
+    torso:       "#hex"
+    torsoAccent: "#hex"
+    upperLimb:   "#hex"
+    lowerLimb:   "#hex"
+    handFoot:    "#hex"
+    accent:      "#hex"
+  }
+  // OR a family name — "sky" | "ember" | "mint" | "plum" | "sand" | "jade" | "rose" | "slate"
+
+  // Accessories — pending (GDP-005, not shipped yet)
+  accessories: ("antennae" | "visor" | "backpack" | "cap" | "fins")[]  // 0..3
 }
 ```
 
-That's the entire surface. Twelve values + an accessory list. Easy to
-serialize, easy for an agent to mutate, easy to spawn at runtime.
+The full surface is ~25 leaf values + an accessory list. Still small
+enough to URL-encode (base64 JSON), still easy for an agent to mutate
+field-by-field via probe, still serializable for multiplayer sync once
+the network story lands.
+
+**Status as of S103**: the recipe LIVES in `bench-state.ts` as a
+module-scoped mutable object — it has not been formalised as a
+sharable JSON schema yet. That's the next-step gap; see
+`GDP-2026-05-22-001`.
 
 ### 2.2 Output (per-character)
 
@@ -172,7 +222,7 @@ A small set of ECS systems covers every animation Kaboom Crew needs:
 | **Walk cycle** | `WalkAnimationSystem` — when GridMover.speed > 0, drive `legL` / `legR` rotation around X with opposing sine waves; `armL` / `armR` opposite to legs; `torso.rotation.y` sways toward walk direction. Phase advances with movement velocity, not wall clock — slow-walking bot animates slowly. | ~80 LOC |
 | **Bomb-place reach** | `BombPlaceAnimationSystem` — on `PlaceBombRequest`, Tween the chosen arm's rotation toward a "drop" pose over 0.18 s, hold 0.05 s, return to neutral. | ~40 LOC (Tween already exists) |
 | **Hit recoil** | `HitRecoilSystem` — on `BlastEvent` that hits this bomber, Tween `torso.rotation.x` by −0.4 rad over 0.1 s and back. | ~30 LOC |
-| **Slapstick death** | `DeathAnimationSystem` — on `alive` flip, the launch + spin tween from `GDP-2026-05-20-004`. Optionally scatter limb nodes with spring physics for the ragdoll feel. | ~80 LOC (Tween + a tiny spring helper) |
+| **Slapstick death** | `DeathAnimationSystem` — replaced by ragdoll (`GDP-2026-05-22-005`): blast-direction impulse + gravity arc on root + per-pivot spring flail. Supersedes the S100 canned tween. | ~150 LOC (procedural physics + spring extension) |
 | **Backpack / antenna sway** | `SpringSwaySystem` — generic two-tap spring on any node tagged "soft-attached". One system covers every dangly accessory across every character variant. | ~60 LOC |
 
 Total: ~300 lines of code, six small systems. Each is independently

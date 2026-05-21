@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/examples/procbomber-bench/schemas/character-recipe.schema.json",
+  "title": "CharacterRecipe",
+  "description": "S104 KABOOM-RECIPE-SCHEMA. Full bomber recipe in a single JSON object. Drives the procbomber generator + Kaboom Crew migration. Every field is optional except `seed`; resolveRecipeFromSeed(seed) populates the rest deterministically from the seed string. Encoded via encodeRecipe → base64-url-safe string for ?recipe= URL transport.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["seed"],
+  "properties": {
+    "seed": { "type": "string", "minLength": 1, "description": "Deterministic seed string. Drives default-filling for every other field." },
+    "headSize":       { "type": "number", "minimum": 0.05, "maximum": 1.0 },
+    "torsoHeight":    { "type": "number", "minimum": 0.05, "maximum": 1.5 },
+    "torsoWidth":     { "type": "number", "minimum": 0.05, "maximum": 1.5 },
+    "upperArmLength": { "type": "number", "minimum": 0.02, "maximum": 0.8 },
+    "forearmLength":  { "type": "number", "minimum": 0.02, "maximum": 0.8 },
+    "armWidth":       { "type": "number", "minimum": 0.02, "maximum": 0.5 },
+    "upperLegLength": { "type": "number", "minimum": 0.02, "maximum": 0.8 },
+    "lowerLegLength": { "type": "number", "minimum": 0.02, "maximum": 0.8 },
+    "legWidth":       { "type": "number", "minimum": 0.02, "maximum": 0.5 },
+    "forwardTilt":    { "type": "number", "minimum": -3.142, "maximum": 3.142, "description": "Radians. Torso forward tilt." },
+    "armRestAngle":   { "type": "number", "minimum": -3.142, "maximum": 3.142, "description": "Radians. Shoulder rest pose." },
+    "shoulderMountY": { "type": "number", "minimum": -0.5, "maximum": 0.5 },
+    "shoulderMountZ": { "type": "number", "minimum": -0.5, "maximum": 0.5 },
+    "hipMountY":      { "type": "number", "minimum": -0.5, "maximum": 0.5 },
+    "hipMountZ":      { "type": "number", "minimum": -0.5, "maximum": 0.5 },
+    "shoulderSpread": { "type": "number", "minimum": 0.1, "maximum": 2.5 },
+    "hipSpread":      { "type": "number", "minimum": 0.1, "maximum": 2.5 },
+    "headShape":      { "type": "string", "enum": ["box", "cylinder", "capsule"] },
+    "torsoShape":     { "type": "string", "enum": ["box", "cylinder", "capsule"] },
+    "limbShape":      { "type": "string", "enum": ["box", "cylinder", "capsule"] },
+    "paletteName": {
+      "type": "string",
+      "enum": ["sky", "ember", "mint", "plum", "sand", "jade", "rose", "slate"]
+    },
+    "paletteOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-channel overrides applied on top of the palette named by paletteName.",
+      "properties": {
+        "head":        { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "torsoTop":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "torsoBottom": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "upperArm":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "forearm":     { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "upperLeg":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "lowerLeg":    { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "accent":      { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      }
+    }
+  }
+}

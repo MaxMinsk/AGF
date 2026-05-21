@@ -30,6 +30,7 @@ import { generatePart } from "./src/generators/bomber-parts";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
 import { mountBenchControls } from "./src/bench-ui";
 import { mountAnimationControl, readBenchAnimationFromUrl } from "./src/bench-ui-anim";
+import { applyRecipeToState, readRecipeFromUrl } from "./src/recipe-url";
 import {
   createBenchAnimationSystem,
   type BenchAnimationKind,
@@ -56,6 +57,13 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
   },
   attachUi({ shell, runtime }: ProjectUiContext): ProjectUiHandle {
     const state: BenchState = defaultBenchState(paletteFromUrl());
+    // S104 KABOOM-RECIPE-URL-KNOBS: ?recipe=<base64> + ?seed=<string>
+    // override every slider on load. Recipe wins over seed when both
+    // are present.
+    const urlRecipe = readRecipeFromUrl();
+    if (urlRecipe !== undefined) {
+      applyRecipeToState(state, urlRecipe.recipe);
+    }
 
     // 1. Register the six per-part procedural mesh builders. Each one
     //    closes over `state` so the bench's slider knobs feed in. The

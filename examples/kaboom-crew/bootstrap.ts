@@ -20,6 +20,31 @@ import botPrefab from "./prefabs/bot.prefab.json";
 import softBlockPrefab from "./prefabs/soft-block.prefab.json";
 import hardBlockPrefab from "./prefabs/hard-block.prefab.json";
 import bombPrefab from "./prefabs/bomb.prefab.json";
+// S104 KABOOM-MIGRATE-PREFABS — procedural bomber tree replaces the
+// old static sphere meshes. Generator lives in procbomber-bench;
+// integration glue is project-local.
+import {
+  recipeForOwner,
+  registerProcbomberBuilders,
+  spawnBomberFor
+} from "./src/procbomber-integration";
+import type { ResolvedCharacterRecipe } from "../procbomber-bench/src/character-recipe";
+import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/bench-animation-system";
+import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
+
+/**
+ * S104 KABOOM-MIGRATE-PREFABS — fixed recipe-derivation rule for
+ * Kaboom Crew bombers. player.1 keeps the historical sky-blue palette;
+ * bot.1 the rose-red. Every other field comes from the seed-driven
+ * defaults so player + bot bodies look distinct even with the same
+ * recipe template.
+ */
+function makeKaboomRecipe(ownerId: string): ResolvedCharacterRecipe {
+  const base = recipeForOwner(ownerId);
+  if (ownerId === "player.1") return { ...base, paletteName: "sky" };
+  if (ownerId === "bot.1") return { ...base, paletteName: "rose" };
+  return base;
+}
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
@@ -166,11 +191,17 @@ function restartScene(runtime: RuntimeHandle): number {
     // personality flag the bot-ai-system reads.
     { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
     { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
-    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover },
-    // S87 KABOOM-PLAYER-VS-BOT-COLOR — re-apply on every restart.
-    { kind: "component.set", entityId: "player.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#5fa8ff" } },
-    { kind: "component.set", entityId: "bot.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#ff5a6e" } }
+    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
   ]);
+  // S104 KABOOM-MIGRATE-PREFABS — scene.load WIPES the world including
+  // the 19-entity bomber trees from the previous round. Re-spawn here
+  // so the next round renders bombers. The procedural mesh registry
+  // persists across scene.load (renderer-level), so the per-part
+  // builders stay registered.
+  const playerRecipe = makeKaboomRecipe("player.1");
+  const botRecipe = makeKaboomRecipe("bot.1");
+  spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
+  spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
   return 1;
 }
 
@@ -214,6 +245,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     _boundPlayerInput = playerInput;
     scheduler.register(playerInput, { profiles: ["static"] });
 
+    // S104 KABOOM-BOMBER-ANIMATION-PROD + KABOOM-REACH-IK-PLACE-BOMB —
+    // runs RIGHT AFTER player-input so it sees the PlaceBombRequest
+    // transient before bomb-placement-system removes it. Drives
+    // BenchAnimationState.kind from gameplay (idle / walk / reach /
+    // death). The animation system that READS the kind is the bench
+    // module — registered below alongside the rest of the renderer
+    // adapters.
+    scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static"] });
+
     // Bomb pipeline.
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
     // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
@@ -242,6 +282,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // toward a tipped-over pose. Reads `DeathAnim` written by
     // audio-binding-system on the alive→dead edge.
     scheduler.register(createKaboomDeathAnimationSystem(), { profiles: ["static"] });
+
+    // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
+    // BenchAnimationState + LimbPivots (written by the driver above + by
+    // spawnBomberFor) and drives the per-limb rotations. Same module
+    // the procbomber-bench uses; in production the driver decides the
+    // kind, the system performs the motion.
+    scheduler.register(createBenchAnimationSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
@@ -335,12 +382,21 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
       { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
-      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover },
-      // S87 KABOOM-PLAYER-VS-BOT-COLOR. Force tints so the in-world
-      // bombers match the minimap colours from the start.
-      { kind: "component.set", entityId: "player.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#5fa8ff" } },
-      { kind: "component.set", entityId: "bot.1", component: "MeshRenderer", data: { mesh: "sphere", color: "#ff5a6e" } }
+      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
+      // S104 KABOOM-MIGRATE-PREFABS: the static sphere meshes are gone.
+      // procbomber-integration.ts spawns a 19-entity procedural tree
+      // under each bomber root (player.1, bot.1) below.
     ]);
+    // S104 KABOOM-MIGRATE-PREFABS: register the procbomber per-part
+    // builders + spawn one tree per bomber root. Recipe seeded from
+    // the entity id so player.1 + bot.1 look different by default.
+    // restartScene re-spawns the trees because scene.load wipes the
+    // world.
+    const playerRecipe = makeKaboomRecipe("player.1");
+    const botRecipe = makeKaboomRecipe("bot.1");
+    registerProcbomberBuilders(runtime.renderer, (ownerId) => makeKaboomRecipe(ownerId));
+    spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
+    spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round

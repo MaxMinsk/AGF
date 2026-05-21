@@ -36,6 +36,13 @@ export type BomberTreeSpawnOptions = {
   sizes: BomberPartSizes;
   /** Procedural-mesh-registry key prefix. Defaults to "procbomber". */
   keyPrefix?: string;
+  /**
+   * Optional seed string appended to every mesh ref as
+   * `procedural:<keyPrefix>-<part>#<seed>`. Lets one registered key
+   * resolve to per-owner geometries via the procedural mesh
+   * registry's cache. Defaults to omitted (single shared mesh).
+   */
+  seed?: string;
 };
 
 export type BomberTreeResult = {
@@ -124,6 +131,7 @@ export function spawnBomberTree(
 ): BomberTreeResult {
   const { rootId, sizes } = options;
   const keyPrefix = options.keyPrefix ?? "procbomber";
+  const seedSuffix = options.seed !== undefined ? `#${options.seed}` : "";
 
   const commands: EngineCommand[] = [];
   const meshEntities: { id: string; partName: BomberPartName }[] = [];
@@ -159,7 +167,7 @@ export function spawnBomberTree(
       kind: "component.set",
       entityId: id,
       component: "MeshRenderer",
-      data: { mesh: `procedural:${keyPrefix}-${partName}` }
+      data: { mesh: `procedural:${keyPrefix}-${partName}${seedSuffix}` }
     });
   };
 
