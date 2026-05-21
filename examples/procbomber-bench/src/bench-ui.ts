@@ -14,31 +14,66 @@ import {
   BOMBER_MESH_DEFAULTS
 } from "./generators/bomber-mesh";
 import { isBomberPaletteName, type BomberPaletteName } from "./generators/bomber-palette";
-import { PALETTE_OPTIONS, type BenchState } from "./bench-state";
+import {
+  BOMBER_SHAPE_OPTIONS,
+  PALETTE_OPTIONS,
+  isBomberShape,
+  type BenchState,
+  type BomberShape
+} from "./bench-state";
 
 export type BenchUiHandle = {
   dispose(): void;
 };
 
+type NumberField = keyof Pick<
+  BenchState,
+  | "headSize"
+  | "torsoHeight"
+  | "torsoWidth"
+  | "armLength"
+  | "armWidth"
+  | "legLength"
+  | "legWidth"
+  | "forwardTilt"
+  | "armRestAngle"
+  | "shoulderMountY"
+  | "shoulderMountZ"
+  | "hipMountY"
+  | "hipMountZ"
+>;
+
 type SliderConfig = {
   label: string;
-  field: keyof Pick<
-    BenchState,
-    "headSize" | "torsoHeight" | "torsoWidth" | "armLength" | "armWidth" | "legLength" | "legWidth"
-  >;
+  field: NumberField;
   min: number;
   max: number;
   step: number;
 };
 
 const SLIDERS: ReadonlyArray<SliderConfig> = [
-  { label: "Head",      field: "headSize",    min: 0.15, max: 0.6,  step: 0.01 },
-  { label: "Torso H",   field: "torsoHeight", min: 0.25, max: 0.7,  step: 0.01 },
-  { label: "Torso W",   field: "torsoWidth",  min: 0.25, max: 0.7,  step: 0.01 },
-  { label: "Arm L",     field: "armLength",   min: 0.2,  max: 0.6,  step: 0.01 },
-  { label: "Arm W",     field: "armWidth",    min: 0.08, max: 0.25, step: 0.01 },
-  { label: "Leg L",     field: "legLength",   min: 0.2,  max: 0.55, step: 0.01 },
-  { label: "Leg W",     field: "legWidth",    min: 0.1,  max: 0.3,  step: 0.01 }
+  { label: "Head",      field: "headSize",       min: 0.15, max: 0.6,  step: 0.01 },
+  { label: "Torso H",   field: "torsoHeight",    min: 0.25, max: 0.7,  step: 0.01 },
+  { label: "Torso W",   field: "torsoWidth",     min: 0.25, max: 0.7,  step: 0.01 },
+  { label: "Arm L",     field: "armLength",      min: 0.2,  max: 0.6,  step: 0.01 },
+  { label: "Arm W",     field: "armWidth",       min: 0.08, max: 0.25, step: 0.01 },
+  { label: "Leg L",     field: "legLength",      min: 0.2,  max: 0.55, step: 0.01 },
+  { label: "Leg W",     field: "legWidth",       min: 0.1,  max: 0.3,  step: 0.01 },
+  // S102 PROCBOMBER-RECIPE-PARAMS-16 — posture
+  { label: "Fwd tilt",  field: "forwardTilt",    min: -0.4, max: 0.6,  step: 0.02 },
+  { label: "Arm rest",  field: "armRestAngle",   min: -0.5, max: 0.5,  step: 0.02 },
+  // S102 PROCBOMBER-RECIPE-PARAMS-16 — mounts
+  { label: "Shldr Y",   field: "shoulderMountY", min: -0.2, max: 0.2,  step: 0.01 },
+  { label: "Shldr Z",   field: "shoulderMountZ", min: -0.15, max: 0.15, step: 0.01 },
+  { label: "Hip Y",     field: "hipMountY",      min: -0.2, max: 0.2,  step: 0.01 },
+  { label: "Hip Z",     field: "hipMountZ",      min: -0.15, max: 0.15, step: 0.01 }
+];
+
+type ShapeField = "headShape" | "torsoShape" | "limbShape";
+const SHAPE_DROPDOWNS: ReadonlyArray<{ label: string; field: ShapeField }> = [
+  { label: "Head shape",  field: "headShape" },
+  { label: "Torso shape", field: "torsoShape" },
+  { label: "Limb shape",  field: "limbShape" }
 ];
 
 export function mountBenchControls(
@@ -72,6 +107,9 @@ export function mountBenchControls(
   for (const cfg of SLIDERS) {
     panel.appendChild(buildSlider(cfg, state, scheduleRebuild));
   }
+  for (const cfg of SHAPE_DROPDOWNS) {
+    panel.appendChild(buildShapeSelect(cfg, state, scheduleRebuild));
+  }
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
 
@@ -82,6 +120,51 @@ export function mountBenchControls(
       panel.remove();
     }
   };
+}
+
+function buildShapeSelect(
+  cfg: { label: string; field: ShapeField },
+  state: BenchState,
+  scheduleRebuild: () => void
+): HTMLElement {
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "6px";
+  row.style.marginBottom = "3px";
+  row.dataset["procbomberShapeRow"] = cfg.field;
+
+  const label = document.createElement("label");
+  label.textContent = cfg.label;
+  label.style.width = "78px";
+  label.style.flex = "0 0 auto";
+
+  const select = document.createElement("select");
+  select.dataset["procbomberShapeSelect"] = cfg.field;
+  select.style.flex = "1 1 auto";
+  select.style.background = "rgba(255, 255, 255, 0.08)";
+  select.style.color = "#f0f4ff";
+  select.style.border = "1px solid rgba(255, 255, 255, 0.15)";
+  select.style.padding = "2px 4px";
+  select.style.borderRadius = "3px";
+  for (const opt of BOMBER_SHAPE_OPTIONS) {
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    select.appendChild(o);
+  }
+  select.value = state[cfg.field];
+  select.addEventListener("change", () => {
+    const v = select.value;
+    if (isBomberShape(v)) {
+      state[cfg.field] = v as BomberShape;
+      scheduleRebuild();
+    }
+  });
+
+  row.appendChild(label);
+  row.appendChild(select);
+  return row;
 }
 
 function buildSlider(
@@ -119,7 +202,8 @@ function buildSlider(
   input.dataset["procbomberSlider"] = cfg.field;
   input.addEventListener("input", () => {
     const next = Number(input.value);
-    state[cfg.field] = Number.isFinite(next) ? next : BOMBER_MESH_DEFAULTS[cfg.field];
+    const fallback = (BOMBER_MESH_DEFAULTS as Record<string, number>)[cfg.field] ?? 0;
+    state[cfg.field] = Number.isFinite(next) ? next : fallback;
     value.textContent = state[cfg.field].toFixed(2);
     scheduleRebuild();
   });

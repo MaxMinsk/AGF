@@ -143,4 +143,17 @@ describe("generatePart dispatcher (S102)", () => {
     const head = generatePart("head", SIZES, SKY);
     expect(head.getAttribute("position").count).toBe(24);
   });
+
+  it("S102: branches on shape — cylinder uses non-box vertex count, capsule too", () => {
+    const box = generatePart("head", SIZES, SKY, { head: "box", torso: "box", limb: "box" });
+    const cyl = generatePart("head", SIZES, SKY, { head: "cylinder", torso: "box", limb: "box" });
+    const cap = generatePart("head", SIZES, SKY, { head: "capsule", torso: "box", limb: "box" });
+    // BoxGeometry has 24 vertices; CylinderGeometry + CapsuleGeometry
+    // generate many more — just assert they're different from the box
+    // count + each other.
+    expect(box.getAttribute("position").count).toBe(24);
+    expect(cyl.getAttribute("position").count).not.toBe(24);
+    expect(cap.getAttribute("position").count).not.toBe(24);
+    expect(cap.getAttribute("position").count).not.toBe(cyl.getAttribute("position").count);
+  });
 });

@@ -25,7 +25,7 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 
 import { buildPivotRepositionCommands, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
-import { defaultBenchState, resolvePalette, sizesOf, type BenchState } from "./src/bench-state";
+import { defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, type BenchState } from "./src/bench-state";
 import { generatePart } from "./src/generators/bomber-parts";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
 import { mountBenchControls } from "./src/bench-ui";
@@ -64,12 +64,12 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
     //    rebuild loop below (registry cache bypassed once the entity
     //    has its handle).
     const procRegistry = runtime.renderer.proceduralMeshRegistry();
-    procRegistry.register("procbomber-torso", () => generatePart("torso", sizesOf(state), resolvePalette(state)));
-    procRegistry.register("procbomber-head", () => generatePart("head", sizesOf(state), resolvePalette(state)));
-    procRegistry.register("procbomber-upperArm", () => generatePart("upperArm", sizesOf(state), resolvePalette(state)));
-    procRegistry.register("procbomber-forearm", () => generatePart("forearm", sizesOf(state), resolvePalette(state)));
-    procRegistry.register("procbomber-upperLeg", () => generatePart("upperLeg", sizesOf(state), resolvePalette(state)));
-    procRegistry.register("procbomber-lowerLeg", () => generatePart("lowerLeg", sizesOf(state), resolvePalette(state)));
+    procRegistry.register("procbomber-torso", () => generatePart("torso", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-head", () => generatePart("head", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-upperArm", () => generatePart("upperArm", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-forearm", () => generatePart("forearm", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-upperLeg", () => generatePart("upperLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-lowerLeg", () => generatePart("lowerLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
 
     // 2. Spawn the 19-entity tree under the bomber root.
     const tree: BomberTreeResult = spawnBomberTree(
@@ -83,11 +83,34 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
     const rebuildAll = (): void => {
       const palette = resolvePalette(state);
       const sizes = sizesOf(state);
+      const shapes = shapesOf(state);
+      const mounts = mountsOf(state);
+      const posture = postureOf(state);
 
-      // 3a. Reposition pivots (size knobs may have moved shoulders/hips).
-      runtime.applyCommands(buildPivotRepositionCommands(BOMBER_ROOT_ID, sizes));
+      // 3a. Reposition pivots (size knobs + mount offsets may have moved shoulders/hips).
+      runtime.applyCommands(buildPivotRepositionCommands(BOMBER_ROOT_ID, sizes, mounts));
 
-      // 3b. Push fresh geometry onto every mesh part. Enable vertex
+      // 3b. Apply posture: forwardTilt rotates the torso forward (X axis).
+      //     armRestAngle preserves the rest pose of shoulder pivots when
+      //     no walk-swing is active — the bench-animation-system zeros
+      //     pivot rotations when kind=none/idle-bob, so we apply armRest
+      //     by patching the BenchAnimationState handler instead. For
+      //     now, only forwardTilt is applied at this rebuild layer.
+      runtime.applyCommands([
+        {
+          kind: "component.set",
+          entityId: `${BOMBER_ROOT_ID}.torso`,
+          component: "Transform",
+          data: {
+            parent: BOMBER_ROOT_ID,
+            position: [0, sizes.legLength + sizes.torsoHeight / 2, 0],
+            rotation: [posture.forwardTilt, 0, 0],
+            scale: [1, 1, 1]
+          }
+        }
+      ]);
+
+      // 3c. Push fresh geometry onto every mesh part. Enable vertex
       //     colours on first touch (default material flag is off).
       for (const { id, partName } of tree.meshEntities) {
         const handle = runtime.renderer.meshRegistry().handleFor(id);
@@ -96,7 +119,7 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
           runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
           vertexColorsEnabled.add(id);
         }
-        const geometry = generatePart(partName, sizes, palette);
+        const geometry = generatePart(partName, sizes, palette, shapes);
         runtime.renderer.adapter.setMeshGeometry(handle, geometry);
       }
     };

@@ -110,9 +110,18 @@
     {
       "id": "PROCBOMBER-RECIPE-PARAMS-16",
       "title": "Recipe parameter expansion 7 → 16 (proportions + posture + mounts + shape) (GDP-002)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Expand the bench recipe to 16 deterministic parameters: 7 existing size knobs + forwardTilt + armRestAngle + shoulderMountY + shoulderMountZ + hipMountY + hipMountZ + headShape + torsoShape + limbShape. Each parameter has a clamped range, a default from BOMBER_MESH_DEFAULTS, and a seed-derivation rule so a recipe with only { seed: 42 } produces a fully-specified bomber. Bench panel sliders grow to cover the new knobs; shape knobs are 3-option select inputs (box, capsule, cylinder).",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: BenchState ships 16 deterministic recipe parameters: 7 size knobs (existing) + 2 posture (forwardTilt, armRestAngle) + 4 mount offsets (shoulderMountY/Z, hipMountY/Z) + 3 shape knobs (headShape, torsoShape, limbShape ∈ {box, cylinder, capsule}). Each new field has a clamped slider/dropdown in the bench panel; defaults are 0 for posture+mounts and 'box' for shapes.",
+        "sizesOf/postureOf/mountsOf/shapesOf state slicers exposed; defaults consistent with BOMBER_MESH_DEFAULTS.",
+        "examples/procbomber-bench/src/generators/bomber-parts.ts: BomberPartShape + BomberPartShapes + DEFAULT_BOMBER_PART_SHAPES; buildBoxLike() dispatcher branches on shape (BoxGeometry / CylinderGeometry / CapsuleGeometry). generatePart accepts shapes.",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: buildPivotRepositionCommands accepts mount offsets, shifts shoulderL/R + hipL/R Y + Z.",
+        "examples/procbomber-bench/bootstrap.ts: rebuild loop reads sizesOf/postureOf/mountsOf/shapesOf; applies forwardTilt to torso Transform.rotation.X; generatePart consumes shapes.",
+        "examples/procbomber-bench/src/bench-ui.ts: SLIDERS extends to 13 entries; SHAPE_DROPDOWNS array; buildShapeSelect helper writes BomberShape values via isBomberShape guard.",
+        "+ unit tests covering: defaults for 16 params, state slicers, BOMBER_SHAPE_OPTIONS contents, isBomberShape, shape branching in generatePart, mount offsets in buildPivotRepositionCommands. e2e smoke updated to assert 13 sliders + 3 shape selects."
+      ]
     }
   ],
   "notes": [

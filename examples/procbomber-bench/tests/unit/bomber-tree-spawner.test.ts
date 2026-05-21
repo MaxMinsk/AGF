@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineCommand } from "../../../../engine/core/commands/types";
-import { spawnBomberTree } from "../../src/bomber-tree-spawner";
+import { buildPivotRepositionCommands, spawnBomberTree } from "../../src/bomber-tree-spawner";
 import { BOMBER_MESH_DEFAULTS } from "../../src/generators/bomber-mesh";
 import { LIMB_PIVOT_NAMES } from "../../src/limb-pivots";
 
@@ -155,6 +155,48 @@ describe("spawnBomberTree command shape (S102)", () => {
         expect(ref.startsWith("procedural:kaboomBomber-")).toBe(true);
       }
     }
+  });
+});
+
+describe("buildPivotRepositionCommands mount offsets (S102 RECIPE-PARAMS-16)", () => {
+  it("zero offsets reproduce the default pivot positions", () => {
+    const baseline = buildPivotRepositionCommands("bomber", SIZES);
+    const withZero = buildPivotRepositionCommands("bomber", SIZES, {
+      shoulderMountY: 0,
+      shoulderMountZ: 0,
+      hipMountY: 0,
+      hipMountZ: 0
+    });
+    expect(JSON.stringify(withZero)).toEqual(JSON.stringify(baseline));
+  });
+
+  it("positive shoulderMountY shifts shoulderL/R Y upward; positive shoulderMountZ shifts forward", () => {
+    const cmds = buildPivotRepositionCommands("bomber", SIZES, {
+      shoulderMountY: 0.1,
+      shoulderMountZ: 0.05
+    });
+    const shoulderL = cmds.find(
+      (c) => c.kind === "component.set" && c.entityId === "bomber.shoulderL"
+    );
+    const pos = (shoulderL as { data: { position: ReadonlyArray<number> } }).data.position;
+    // Baseline shoulderY = torsoTopY - armWidth/2.
+    const baseY = SIZES.torsoHeight / 2 - SIZES.armWidth / 2;
+    expect(pos[1]).toBeCloseTo(baseY + 0.1, 5);
+    expect(pos[2]).toBeCloseTo(0.05, 5);
+  });
+
+  it("hipMountY + hipMountZ adjust hipL/R analogously", () => {
+    const cmds = buildPivotRepositionCommands("bomber", SIZES, {
+      hipMountY: -0.05,
+      hipMountZ: -0.03
+    });
+    const hipR = cmds.find(
+      (c) => c.kind === "component.set" && c.entityId === "bomber.hipR"
+    );
+    const pos = (hipR as { data: { position: ReadonlyArray<number> } }).data.position;
+    const baseY = -SIZES.torsoHeight / 2 + SIZES.legWidth / 2;
+    expect(pos[1]).toBeCloseTo(baseY - 0.05, 5);
+    expect(pos[2]).toBeCloseTo(-0.03, 5);
   });
 });
 

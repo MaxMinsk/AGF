@@ -23,11 +23,48 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
+  CapsuleGeometry,
   Color,
+  CylinderGeometry,
   Matrix4
 } from "three";
 
 import type { BomberPalette } from "./bomber-palette";
+
+export type BomberPartShape = "box" | "cylinder" | "capsule";
+
+export type BomberPartShapes = {
+  head: BomberPartShape;
+  torso: BomberPartShape;
+  limb: BomberPartShape;
+};
+
+export const DEFAULT_BOMBER_PART_SHAPES: BomberPartShapes = {
+  head: "box",
+  torso: "box",
+  limb: "box"
+};
+
+function buildBoxLike(
+  width: number,
+  height: number,
+  depth: number,
+  shape: BomberPartShape
+): BufferGeometry {
+  switch (shape) {
+    case "box":
+      return new BoxGeometry(width, height, depth);
+    case "cylinder": {
+      const radius = Math.min(width, depth) / 2;
+      return new CylinderGeometry(radius, radius, height, 16);
+    }
+    case "capsule": {
+      const radius = Math.min(width, depth) / 2;
+      const cylLength = Math.max(0.0001, height - 2 * radius);
+      return new CapsuleGeometry(radius, cylLength, 4, 12);
+    }
+  }
+}
 
 export type BomberPartSizes = {
   headSize: number;
@@ -66,60 +103,58 @@ export function partColor(palette: BomberPalette, name: BomberPartName): string 
 
 // ---- part builders ----
 
-export function generateTorso(s: BomberPartSizes, palette: BomberPalette): BufferGeometry {
+export function generateTorso(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
   // Slight Z compression (0.65×) for a flat-chested toy proportion.
-  const g = new BoxGeometry(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65);
+  const g = buildBoxLike(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, shape);
   paintVertexColors(g, palette.torsoTop);
-  // Bottom-row vertices get the torsoBottom shadow tint — gives the
-  // contact-shadow split the design doc calls for, without a shader.
   paintBottomShadow(g, palette.torsoBottom, s.torsoHeight);
   return g;
 }
 
-export function generateHead(s: BomberPartSizes, palette: BomberPalette): BufferGeometry {
-  const g = new BoxGeometry(s.headSize, s.headSize, s.headSize);
+export function generateHead(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
+  const g = buildBoxLike(s.headSize, s.headSize, s.headSize, shape);
   paintVertexColors(g, palette.head);
   return g;
 }
 
-function generateLimbSegment(width: number, length: number, color: string): BufferGeometry {
-  // Hang the segment below the pivot — pivot at the TOP of the segment
-  // (top face at local Y = 0).
-  const g = new BoxGeometry(width, length, width);
+function generateLimbSegment(width: number, length: number, color: string, shape: BomberPartShape): BufferGeometry {
+  const g = buildBoxLike(width, length, width, shape);
+  // Hang the segment below the pivot — pivot at the TOP of the segment.
   g.applyMatrix4(new Matrix4().makeTranslation(0, -length / 2, 0));
   paintVertexColors(g, color);
   return g;
 }
 
-export function generateUpperArm(s: BomberPartSizes, palette: BomberPalette): BufferGeometry {
-  return generateLimbSegment(s.armWidth, s.armLength, palette.upperArm);
+export function generateUpperArm(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
+  return generateLimbSegment(s.armWidth, s.armLength, palette.upperArm, shape);
 }
 
-export function generateForearm(s: BomberPartSizes, palette: BomberPalette): BufferGeometry {
-  return generateLimbSegment(s.armWidth, s.armLength, palette.forearm);
+export function generateForearm(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
+  return generateLimbSegment(s.armWidth, s.armLength, palette.forearm, shape);
 }
 
-export function generateUpperLeg(s: BomberPartSizes, palette: BomberPalette): BufferGeometry {
-  return generateLimbSegment(s.legWidth, s.legLength, palette.upperLeg);
+export function generateUpperLeg(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
+  return generateLimbSegment(s.legWidth, s.legLength, palette.upperLeg, shape);
 }
 
-export function generateLowerLeg(s: BomberPartSizes, palette: BomberPalette): BufferGeometry {
-  return generateLimbSegment(s.legWidth, s.legLength, palette.lowerLeg);
+export function generateLowerLeg(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
+  return generateLimbSegment(s.legWidth, s.legLength, palette.lowerLeg, shape);
 }
 
 /** Dispatcher used by the mesh-tree spawner. */
 export function generatePart(
   name: BomberPartName,
   s: BomberPartSizes,
-  palette: BomberPalette
+  palette: BomberPalette,
+  shapes: BomberPartShapes = DEFAULT_BOMBER_PART_SHAPES
 ): BufferGeometry {
   switch (name) {
-    case "torso":     return generateTorso(s, palette);
-    case "head":      return generateHead(s, palette);
-    case "upperArm":  return generateUpperArm(s, palette);
-    case "forearm":   return generateForearm(s, palette);
-    case "upperLeg":  return generateUpperLeg(s, palette);
-    case "lowerLeg":  return generateLowerLeg(s, palette);
+    case "torso":     return generateTorso(s, palette, shapes.torso);
+    case "head":      return generateHead(s, palette, shapes.head);
+    case "upperArm":  return generateUpperArm(s, palette, shapes.limb);
+    case "forearm":   return generateForearm(s, palette, shapes.limb);
+    case "upperLeg":  return generateUpperLeg(s, palette, shapes.limb);
+    case "lowerLeg":  return generateLowerLeg(s, palette, shapes.limb);
   }
 }
 

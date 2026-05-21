@@ -49,26 +49,40 @@ export type BomberTreeResult = {
 
 type Vec3 = readonly [number, number, number];
 
+export type PivotMountOffsets = {
+  shoulderMountY?: number;
+  shoulderMountZ?: number;
+  hipMountY?: number;
+  hipMountZ?: number;
+};
+
 /**
  * Re-emit Transform.position component.set commands for every pivot in
  * the tree, so a size-slider change re-anchors limbs to the new
  * shoulder/hip mounts without re-spawning the whole tree. Mesh
  * entities sit at their parent pivot's origin (local position [0,0,0])
  * so they don't need updates here.
+ *
+ * S102 PROCBOMBER-RECIPE-PARAMS-16: extra `mounts` argument offsets the
+ * shoulder + hip pivot positions on Y (along the torso) and Z (depth).
+ * Defaults to {0,0,0,0} so existing callers keep the same layout.
  */
 export function buildPivotRepositionCommands(
   rootId: string,
-  sizes: BomberPartSizes
+  sizes: BomberPartSizes,
+  mounts: PivotMountOffsets = {}
 ): EngineCommand[] {
   const ent = (suffix: string): string => `${rootId}.${suffix}`;
   const torsoCenterY = sizes.legLength + sizes.torsoHeight / 2;
   const torsoTopY = sizes.torsoHeight / 2;
   const torsoBottomY = -sizes.torsoHeight / 2;
   const halfTorsoX = sizes.torsoWidth / 2;
-  const shoulderY = torsoTopY - sizes.armWidth / 2;
+  const shoulderY = torsoTopY - sizes.armWidth / 2 + (mounts.shoulderMountY ?? 0);
   const shoulderX = halfTorsoX + sizes.armWidth / 2;
-  const hipY = torsoBottomY + sizes.legWidth / 2;
+  const shoulderZ = mounts.shoulderMountZ ?? 0;
+  const hipY = torsoBottomY + sizes.legWidth / 2 + (mounts.hipMountY ?? 0);
   const hipX = halfTorsoX * 0.5;
+  const hipZ = mounts.hipMountZ ?? 0;
 
   const cmds: EngineCommand[] = [];
   const setPos = (id: string, parent: string, pos: Vec3): void => {
@@ -81,12 +95,12 @@ export function buildPivotRepositionCommands(
   };
   setPos(ent("torso"), rootId, [0, torsoCenterY, 0]);
   setPos(ent("neck"), ent("torso"), [0, torsoTopY, 0]);
-  setPos(ent("shoulderL"), ent("torso"), [-shoulderX, shoulderY, 0]);
-  setPos(ent("shoulderR"), ent("torso"), [shoulderX, shoulderY, 0]);
+  setPos(ent("shoulderL"), ent("torso"), [-shoulderX, shoulderY, shoulderZ]);
+  setPos(ent("shoulderR"), ent("torso"), [shoulderX, shoulderY, shoulderZ]);
   setPos(ent("elbowL"), ent("upperArmL"), [0, -sizes.armLength, 0]);
   setPos(ent("elbowR"), ent("upperArmR"), [0, -sizes.armLength, 0]);
-  setPos(ent("hipL"), ent("torso"), [-hipX, hipY, 0]);
-  setPos(ent("hipR"), ent("torso"), [hipX, hipY, 0]);
+  setPos(ent("hipL"), ent("torso"), [-hipX, hipY, hipZ]);
+  setPos(ent("hipR"), ent("torso"), [hipX, hipY, hipZ]);
   setPos(ent("kneeL"), ent("upperLegL"), [0, -sizes.legLength, 0]);
   setPos(ent("kneeR"), ent("upperLegR"), [0, -sizes.legLength, 0]);
   return cmds;

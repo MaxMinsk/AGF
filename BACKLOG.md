@@ -26,7 +26,7 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S102.sprint.js
   Third stub in the dropdown: rotates each LimbPivots field by ±0.3 rad in sequence (one pivot at a time, ~1 s each) so a human can visually confirm every named pivot exists + bends in the expected direction. Useful as a QA stress / debugging tool when later animations land.
 - **PROCBOMBER-PALETTE-8CH** — Palette expansion 4 → 8 channels + derived bottom-shadow tints (GDP-003) _(implemented)_
   Expand BomberPalette from { head, torso, limbs, accent } (4) to 8 channels mapped 1:1 onto the post-decomposition mesh tree: head, torsoTop, torsoBottom, upperArm, forearm, upperLeg, lowerLeg, accent. Add `bottomShadow(color)` helper deriving a darker variant per channel for the contact-shadow trick. Existing 8 named palettes get a default mapping (existing torso → torsoTop, derived bottom for torsoBottom, etc). Per-channel overrides land via recipe.paletteOverrides (a per-channel partial). +tests.
-- **PROCBOMBER-RECIPE-PARAMS-16** — Recipe parameter expansion 7 → 16 (proportions + posture + mounts + shape) (GDP-002) _(pending)_
+- **PROCBOMBER-RECIPE-PARAMS-16** — Recipe parameter expansion 7 → 16 (proportions + posture + mounts + shape) (GDP-002) _(implemented)_
   Expand the bench recipe to 16 deterministic parameters: 7 existing size knobs + forwardTilt + armRestAngle + shoulderMountY + shoulderMountZ + hipMountY + hipMountZ + headShape + torsoShape + limbShape. Each parameter has a clamped range, a default from BOMBER_MESH_DEFAULTS, and a seed-derivation rule so a recipe with only { seed: 42 } produces a fully-specified bomber. Bench panel sliders grow to cover the new knobs; shape knobs are 3-option select inputs (box, capsule, cylinder).
 
 ### Notes
