@@ -1,0 +1,37 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S107",
+  "title": "Kaboom Crew quality cleanup — perf budget + shadow caster tags",
+  "status": "archived",
+  "startedAt": "2026-05-22",
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/126",  "stories": [
+    {
+      "id": "KABOOM-CREW-PERF-BUDGET",
+      "title": "Add performance-budget.json to examples/kaboom-crew",
+      "status": "implemented",
+      "summary": "engine doctor flagged: kaboom-crew has no performance-budget.json. Other examples (material-bench, procbomber-bench) ship one and gate CI's bundle:check against it. Now that S104 swapped the static sphere bombers for the 19-entity procedural tree + S106 added accessories (~ +3 entities × 4 bombers), the renderer footprint is non-trivial. Add a budget locking the current main + vendor chunk sizes so future bloat surfaces in PRs.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: examples/kaboom-crew/performance-budget.json exists. engine doctor's performance budget section now reports concrete soft/hard ceilings for renderer + bundle. Main chunk (32.4 KB) well under soft 250 KB; vendor rapier + three already gated by repo-level vendor budgets.",
+        "Renderer ceilings sized for 4 bombers × ~22 entities (19 body + 3 accessories) + arena: meshes soft=220 hard=360; geometries soft=200 hard=320; programs soft=24 hard=40 (procedural + accent + material variants); textures hard=8 (kaboom uses vertex colors, not textures)."
+      ]
+    },
+    {
+      "id": "KABOOM-CREW-SHADOW-CASTER-TAGS",
+      "title": "Tag bombers as ShadowCaster { dynamic: true }; static arena blocks stay default",
+      "status": "implemented",
+      "summary": "engine doctor flagged: no ShadowCaster {dynamic:true} entities, so every caster re-bakes its shadow every frame even though arena blocks never move. Tag bombers (player.1 + bot.1 + their procedural tree parts) as `dynamic: true`; soft-blocks + hard-blocks stay default (static) so DynamicShadowSystem skips their per-frame pass. Renderer cost reduction tracked via doctor on the next preflight.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: every mesh entity spawned by spawnBomberTree (10 body parts + N accessories) gets ShadowCaster { dynamic: true }. Soft-block + hard-block prefabs stay untagged (= static). DynamicShadowSystem will now skip the per-frame shadow re-bake when bombers are idle.",
+        "examples/procbomber-bench/src/bomber-tree-spawner.ts: addMesh + accessory branches stamp ShadowCaster",
+        "+2 unit tests on the new tag writes (10 mesh + 2 accessories = 12 ShadowCaster writes)"
+      ]
+    }
+  ],
+  "notes": [
+    "Tiny cleanup sprint. Both stories surfaced from `npm run engine:doctor -- examples/kaboom-crew` recommendations. No GD inbox + no user feedback this cycle — picking up obvious quality work the doctor already flagged.",
+    "Skipped this round: capture a kaboom-crew playtest scenario (needs browser recording), engine fix for 'runtime-spawned prefab false-positive' (the bomb prefab is used at runtime but doctor flags it — separate small engine story for later)."
+  ]
+}

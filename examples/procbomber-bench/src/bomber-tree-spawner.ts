@@ -196,6 +196,15 @@ export function spawnBomberTree(
       component: "MeshRenderer",
       data: { mesh: `procedural:${keyPrefix}-${partName}${seedSuffix}` }
     });
+    // S107 KABOOM-CREW-SHADOW-CASTER-TAGS: bombers animate; tagging
+    // their mesh parts as dynamic lets DynamicShadowSystem invalidate
+    // the shadow map only when motion happens, instead of every frame.
+    commands.push({
+      kind: "component.set",
+      entityId: id,
+      component: "ShadowCaster",
+      data: { dynamic: true }
+    });
   };
 
   // Y coordinate layout — see GDP-2026-05-21-001 acceptance.
@@ -316,6 +325,14 @@ export function spawnBomberTree(
       component: "SpringPivot",
       data: { restRotation: [0, 0, 0], velocity: [0, 0, 0] }
     });
+    // S107 KABOOM-CREW-SHADOW-CASTER-TAGS: accessories move with the
+    // bomber + sway — mark as dynamic shadow casters.
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "ShadowCaster",
+      data: { dynamic: true }
+    });
     // fins is a pair — also spawn the mirrored right entity.
     if (accessory.kind === "fins") {
       const rightSocket = sockets["torso.sideR"];
@@ -352,6 +369,12 @@ export function spawnBomberTree(
         entityId: rightId,
         component: "SpringPivot",
         data: { restRotation: [0, 0, 0], velocity: [0, 0, 0] }
+      });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "ShadowCaster",
+        data: { dynamic: true }
       });
     }
   }
