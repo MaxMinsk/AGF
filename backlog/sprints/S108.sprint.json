@@ -69,9 +69,14 @@
     {
       "id": "KABOOM-BENCH-EDIT-GAME-RECIPE",
       "title": "Bench preset selector — load game characters into the editor + export URL",
-      "status": "pending",
+      "status": "implemented",
       "summary": "User asked: in the character editor be able to pick which bomber is used in-game (player.1, bot.1, eventually any registered character) and edit + save its recipe. MVP this sprint: bench panel gets a 'Preset' dropdown listing { custom, player.1, bot.1 }. Picking a preset writes resolveRecipeFromSeed(name) into the bench state (every slider snaps to the preset's value); picking 'custom' is a no-op. A new 'Copy recipe URL' button below the dropdown serialises the current bench state to a base64 recipe via stateToRecipe → encodeRecipe and copies `?project=kaboom-crew&recipe=<encoded>` to the clipboard. That URL is the canonical export — paste it into Kaboom Crew to USE the edited bomber. Disk-write workflow (a dev-bridge /__agf/recipe/save endpoint that persists into kaboom-crew/recipes/<owner>.recipe.json) deferred to a follow-up sprint — clipboard URL unblocks the immediate iteration loop.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bench panel gains a 'Game recipe' section with a Preset dropdown ({custom, player.1, bot.1}) + a 'Copy recipe URL' button. Picking a preset writes resolveRecipeFromSeed(name) into the bench state and the panel sliders snap to the preset's values. Copy button serialises the current state via stateToRecipe → encodeRecipe to a base64 URL '?project=kaboom-crew&recipe=<encoded>' + writes to the clipboard (falls back to console.log when navigator.clipboard is unavailable).",
+        "examples/procbomber-bench/src/bench-ui.ts: buildPresetSelect + buildCopyRecipeUrlButton + flashLabel feedback helper. GAME_PRESETS table is easy to grow as more bombers register for the game.",
+        "Existing e2e smoke still passes; manual playtest covers the clipboard surface"
+      ]
     }
   ],
   "notes": [

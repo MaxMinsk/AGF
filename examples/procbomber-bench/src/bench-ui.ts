@@ -14,6 +14,8 @@ import {
   BOMBER_MESH_DEFAULTS
 } from "./generators/bomber-mesh";
 import { isBomberPaletteName, type BomberPaletteName } from "./generators/bomber-palette";
+import { encodeRecipe, resolveRecipeFromSeed } from "./character-recipe";
+import { applyRecipeToState, stateToRecipe } from "./recipe-url";
 import {
   BOMBER_SHAPE_OPTIONS,
   PALETTE_OPTIONS,
@@ -154,6 +156,10 @@ export function mountBenchControls(
   panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
+  // S108 KABOOM-BENCH-EDIT-GAME-RECIPE — load game presets + export URL.
+  panel.appendChild(buildSectionHeading("Game recipe"));
+  panel.appendChild(buildPresetSelect(state, scheduleRebuild));
+  panel.appendChild(buildCopyRecipeUrlButton(state));
 
   shell.appendChild(panel);
 
@@ -400,4 +406,102 @@ function buildRerollButton(
 
   row.appendChild(button);
   return row;
+}
+
+// S108 KABOOM-BENCH-EDIT-GAME-RECIPE.
+// Preset list — owners actually used by Kaboom Crew. Easy to grow when
+// more characters get registered for the game (just append).
+const GAME_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "__custom__", label: "(custom — keep sliders)" },
+  { value: "player.1", label: "player.1 (Kaboom Crew)" },
+  { value: "bot.1", label: "bot.1 (Kaboom Crew)" }
+];
+
+function buildPresetSelect(
+  state: BenchState,
+  scheduleRebuild: () => void
+): HTMLElement {
+  const row = document.createElement("div");
+  row.dataset["procbomberPresetRow"] = "true";
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "6px";
+  row.style.marginBottom = "4px";
+
+  const label = document.createElement("label");
+  label.textContent = "Preset";
+  label.style.width = "78px";
+
+  const select = document.createElement("select");
+  select.dataset["procbomberPresetSelect"] = "true";
+  select.style.flex = "1 1 auto";
+  select.style.background = "rgba(255, 255, 255, 0.08)";
+  select.style.color = "#f0f4ff";
+  select.style.border = "1px solid rgba(255, 255, 255, 0.15)";
+  select.style.padding = "2px 4px";
+  select.style.borderRadius = "3px";
+  for (const opt of GAME_PRESETS) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = opt.label;
+    select.appendChild(o);
+  }
+  select.value = "__custom__";
+  select.addEventListener("change", () => {
+    const v = select.value;
+    if (v === "__custom__") return; // user picked the no-op label
+    const recipe = resolveRecipeFromSeed(v);
+    applyRecipeToState(state, recipe);
+    scheduleRebuild();
+    // Reset back to custom so picking the same preset later still
+    // triggers a re-load. Custom = "current sliders own the state."
+    select.value = "__custom__";
+  });
+
+  row.appendChild(label);
+  row.appendChild(select);
+  return row;
+}
+
+function buildCopyRecipeUrlButton(state: BenchState): HTMLElement {
+  const row = document.createElement("div");
+  row.style.marginTop = "4px";
+
+  const button = document.createElement("button");
+  button.textContent = "Copy recipe URL";
+  button.dataset["procbomberCopyRecipeUrl"] = "true";
+  button.style.width = "100%";
+  button.style.padding = "5px 8px";
+  button.style.background = "rgba(255, 255, 255, 0.12)";
+  button.style.color = "#f0f4ff";
+  button.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+  button.style.borderRadius = "3px";
+  button.style.cursor = "pointer";
+  button.style.font = "inherit";
+  button.addEventListener("click", () => {
+    const recipe = stateToRecipe(state);
+    const encoded = encodeRecipe(recipe);
+    const url = `?project=kaboom-crew&recipe=${encoded}`;
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText !== undefined) {
+      navigator.clipboard.writeText(url).then(
+        () => flashLabel(button, "Copied!"),
+        () => flashLabel(button, "Copy failed — open console")
+      );
+    } else {
+      // agf-allow:console clipboard API unavailable; expose the URL via the dev console as a fallback.
+      console.log(`[procbomber-bench] recipe URL: ${url}`);
+      flashLabel(button, "Logged to console");
+    }
+  });
+
+  row.appendChild(button);
+  return row;
+}
+
+function flashLabel(button: HTMLElement, message: string): void {
+  const original = button.textContent;
+  button.textContent = message;
+  setTimeout(() => {
+    button.textContent = original;
+  }, 1500);
 }
