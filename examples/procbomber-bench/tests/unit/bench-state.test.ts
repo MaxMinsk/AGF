@@ -23,8 +23,10 @@ describe("defaultBenchState (S101)", () => {
     const s = defaultBenchState();
     expect(s.headSize).toBe(BOMBER_MESH_DEFAULTS.headSize);
     expect(s.torsoHeight).toBe(BOMBER_MESH_DEFAULTS.torsoHeight);
-    expect(s.legLength).toBe(BOMBER_MESH_DEFAULTS.legLength);
-    expect(s.armLength).toBe(BOMBER_MESH_DEFAULTS.armLength);
+    expect(s.upperLegLength).toBe(BOMBER_MESH_DEFAULTS.upperLegLength);
+    expect(s.lowerLegLength).toBe(BOMBER_MESH_DEFAULTS.lowerLegLength);
+    expect(s.upperArmLength).toBe(BOMBER_MESH_DEFAULTS.upperArmLength);
+    expect(s.forearmLength).toBe(BOMBER_MESH_DEFAULTS.forearmLength);
     expect(s.paletteOverride).toBeUndefined();
     expect(s.seed).toBe("default");
   });

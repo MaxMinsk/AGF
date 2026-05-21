@@ -25,7 +25,7 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 
 import { buildPivotRepositionCommands, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
-import { defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, type BenchState } from "./src/bench-state";
+import { defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, spreadOf, type BenchState } from "./src/bench-state";
 import { generatePart } from "./src/generators/bomber-parts";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
 import { mountBenchControls } from "./src/bench-ui";
@@ -87,15 +87,34 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
       const mounts = mountsOf(state);
       const posture = postureOf(state);
 
-      // 3a. Reposition pivots (size knobs + mount offsets may have moved shoulders/hips).
-      runtime.applyCommands(buildPivotRepositionCommands(BOMBER_ROOT_ID, sizes, mounts));
+      // 3a. Reposition pivots (size knobs + mount offsets + spread may have moved shoulders/hips).
+      const spread = spreadOf(state);
+      runtime.applyCommands(buildPivotRepositionCommands(BOMBER_ROOT_ID, sizes, {
+        ...mounts,
+        shoulderSpread: spread.shoulderSpread,
+        hipSpread: spread.hipSpread
+      }));
 
       // 3b. Apply posture: forwardTilt rotates the torso forward (X axis).
-      //     armRestAngle preserves the rest pose of shoulder pivots when
-      //     no walk-swing is active — the bench-animation-system zeros
-      //     pivot rotations when kind=none/idle-bob, so we apply armRest
-      //     by patching the BenchAnimationState handler instead. For
-      //     now, only forwardTilt is applied at this rebuild layer.
+      //     S103 PROCBOMBER-ARM-REST-APPLIES: also write the current
+      //     armRestAngle into BenchAnimationState so the system can hold
+      //     the shoulders at the rest pose when not walking.
+      const existingAnim = runtime.world.getComponent<{ kind?: string; elapsed?: number }>(
+        BOMBER_ROOT_ID,
+        "BenchAnimationState"
+      );
+      runtime.world.setComponent(BOMBER_ROOT_ID, "BenchAnimationState", {
+        kind: (existingAnim?.kind as BenchAnimationKind) ?? "none",
+        elapsed: existingAnim?.elapsed ?? 0,
+        armRestAngleRad: posture.armRestAngle,
+        upperArmLength: sizes.upperArmLength,
+        forearmLength: sizes.forearmLength
+      } satisfies BenchAnimationStateComponent);
+      // S103 PROCBOMBER-ROTATION-DEG-FIX: AGF scenes store rotation in
+      // degrees. posture.forwardTilt is stored in radians (Math.sin
+      // range from the bench-animation helpers), so convert before
+      // writing to the Transform.
+      const forwardTiltDeg = (posture.forwardTilt * 180) / Math.PI;
       runtime.applyCommands([
         {
           kind: "component.set",
@@ -103,8 +122,8 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
           component: "Transform",
           data: {
             parent: BOMBER_ROOT_ID,
-            position: [0, sizes.legLength + sizes.torsoHeight / 2, 0],
-            rotation: [posture.forwardTilt, 0, 0],
+            position: [0, sizes.upperLegLength + sizes.lowerLegLength + sizes.torsoHeight / 2, 0],
+            rotation: [forwardTiltDeg, 0, 0],
             scale: [1, 1, 1]
           }
         }
@@ -158,10 +177,15 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
     const animUi = panel === null
       ? { dispose(): void { /* no-op */ } }
       : mountAnimationControl(panel, initialAnim, (kind) => {
+          // Preserve the current armRestAngle when flipping animation kinds.
+          const prev = runtime.world.getComponent<BenchAnimationStateComponent>(
+            BOMBER_ROOT_ID,
+            "BenchAnimationState"
+          );
           runtime.world.setComponent(
             BOMBER_ROOT_ID,
             "BenchAnimationState",
-            { kind, elapsed: 0 } satisfies BenchAnimationStateComponent
+            { kind, elapsed: 0, armRestAngleRad: prev?.armRestAngleRad ?? 0 } satisfies BenchAnimationStateComponent
           );
         });
 

@@ -12,9 +12,11 @@ const SIZES = {
   headSize: BOMBER_MESH_DEFAULTS.headSize,
   torsoHeight: BOMBER_MESH_DEFAULTS.torsoHeight,
   torsoWidth: BOMBER_MESH_DEFAULTS.torsoWidth,
-  armLength: BOMBER_MESH_DEFAULTS.armLength,
+  upperArmLength: BOMBER_MESH_DEFAULTS.upperArmLength,
+  forearmLength: BOMBER_MESH_DEFAULTS.forearmLength,
   armWidth: BOMBER_MESH_DEFAULTS.armWidth,
-  legLength: BOMBER_MESH_DEFAULTS.legLength,
+  upperLegLength: BOMBER_MESH_DEFAULTS.upperLegLength,
+  lowerLegLength: BOMBER_MESH_DEFAULTS.lowerLegLength,
   legWidth: BOMBER_MESH_DEFAULTS.legWidth
 };
 

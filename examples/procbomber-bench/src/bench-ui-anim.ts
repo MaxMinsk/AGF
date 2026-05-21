@@ -8,7 +8,7 @@ export type BenchAnimationUiHandle = {
   dispose(): void;
 };
 
-const KINDS: ReadonlyArray<BenchAnimationKind> = ["none", "idle-bob", "walk-swing", "limb-test"];
+const KINDS: ReadonlyArray<BenchAnimationKind> = ["none", "idle-bob", "walk-swing", "limb-test", "reach"];
 
 export function mountAnimationControl(
   panel: HTMLElement,

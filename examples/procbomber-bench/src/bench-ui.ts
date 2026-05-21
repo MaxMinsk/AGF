@@ -31,9 +31,11 @@ type NumberField = keyof Pick<
   | "headSize"
   | "torsoHeight"
   | "torsoWidth"
-  | "armLength"
+  | "upperArmLength"
+  | "forearmLength"
   | "armWidth"
-  | "legLength"
+  | "upperLegLength"
+  | "lowerLegLength"
   | "legWidth"
   | "forwardTilt"
   | "armRestAngle"
@@ -41,6 +43,8 @@ type NumberField = keyof Pick<
   | "shoulderMountZ"
   | "hipMountY"
   | "hipMountZ"
+  | "shoulderSpread"
+  | "hipSpread"
 >;
 
 type SliderConfig = {
@@ -51,27 +55,33 @@ type SliderConfig = {
   step: number;
 };
 
+// Posture sliders store radians; rebuild loop + animation system convert
+// to degrees on write (Transform.rotation is degrees per the AGF convention).
+// Pi/2 ≈ 1.5708; we cap at ~1.5 = 86° for nearly-full-range posture.
+const PI = Math.PI;
 const SLIDERS: ReadonlyArray<SliderConfig> = [
-  { label: "Head",      field: "headSize",       min: 0.15, max: 0.6,  step: 0.01 },
-  { label: "Torso H",   field: "torsoHeight",    min: 0.25, max: 0.7,  step: 0.01 },
-  { label: "Torso W",   field: "torsoWidth",     min: 0.25, max: 0.7,  step: 0.01 },
-  // S102 multi-mesh tree: each arm/leg is TWO stacked segments
-  // (upperArm + forearm; upperLeg + lowerLeg). Total visible length =
-  // 2 × the slider value. Slider mins are tightened so stub-short
-  // limbs are reachable; maxes loosened so noodle-long limbs are
-  // reachable too.
-  { label: "Arm L",     field: "armLength",      min: 0.06, max: 0.45, step: 0.01 },
-  { label: "Arm W",     field: "armWidth",       min: 0.06, max: 0.3,  step: 0.01 },
-  { label: "Leg L",     field: "legLength",      min: 0.06, max: 0.45, step: 0.01 },
-  { label: "Leg W",     field: "legWidth",       min: 0.08, max: 0.35, step: 0.01 },
-  // S102 PROCBOMBER-RECIPE-PARAMS-16 — posture
-  { label: "Fwd tilt",  field: "forwardTilt",    min: -0.4, max: 0.6,  step: 0.02 },
-  { label: "Arm rest",  field: "armRestAngle",   min: -0.5, max: 0.5,  step: 0.02 },
-  // S102 PROCBOMBER-RECIPE-PARAMS-16 — mounts
-  { label: "Shldr Y",   field: "shoulderMountY", min: -0.2, max: 0.2,  step: 0.01 },
-  { label: "Shldr Z",   field: "shoulderMountZ", min: -0.15, max: 0.15, step: 0.01 },
-  { label: "Hip Y",     field: "hipMountY",      min: -0.2, max: 0.2,  step: 0.01 },
-  { label: "Hip Z",     field: "hipMountZ",      min: -0.15, max: 0.15, step: 0.01 }
+  // Size
+  { label: "Head",         field: "headSize",       min: 0.15, max: 0.6,  step: 0.01 },
+  { label: "Torso H",      field: "torsoHeight",    min: 0.25, max: 0.7,  step: 0.01 },
+  { label: "Torso W",      field: "torsoWidth",     min: 0.25, max: 0.7,  step: 0.01 },
+  // S103 PROCBOMBER-LIMB-SEGMENT-SLIDERS: four independent segment lengths.
+  { label: "Upper arm",    field: "upperArmLength", min: 0.04, max: 0.4,  step: 0.01 },
+  { label: "Forearm",      field: "forearmLength",  min: 0.04, max: 0.4,  step: 0.01 },
+  { label: "Arm W",        field: "armWidth",       min: 0.06, max: 0.3,  step: 0.01 },
+  { label: "Upper leg",    field: "upperLegLength", min: 0.04, max: 0.4,  step: 0.01 },
+  { label: "Lower leg",    field: "lowerLegLength", min: 0.04, max: 0.4,  step: 0.01 },
+  { label: "Leg W",        field: "legWidth",       min: 0.08, max: 0.35, step: 0.01 },
+  // Posture — S103 PROCBOMBER-POSTURE-RANGES widens to near-full -90..+90.
+  { label: "Fwd tilt",     field: "forwardTilt",    min: -PI * 0.5, max: PI * 0.5, step: 0.02 },
+  { label: "Arm rest",     field: "armRestAngle",   min: -PI * 0.5, max: PI * 0.5, step: 0.02 },
+  // S103 PROCBOMBER-HIP-SPREAD-SLIDER
+  { label: "Shldr spread", field: "shoulderSpread", min: 0.3, max: 1.6,  step: 0.02 },
+  { label: "Hip spread",   field: "hipSpread",      min: 0.2, max: 1.6,  step: 0.02 },
+  // Mount offsets.
+  { label: "Shldr Y",      field: "shoulderMountY", min: -0.2, max: 0.2,  step: 0.01 },
+  { label: "Shldr Z",      field: "shoulderMountZ", min: -0.15, max: 0.15, step: 0.01 },
+  { label: "Hip Y",        field: "hipMountY",      min: -0.2, max: 0.2,  step: 0.01 },
+  { label: "Hip Z",        field: "hipMountZ",      min: -0.15, max: 0.15, step: 0.01 }
 ];
 
 type ShapeField = "headShape" | "torsoShape" | "limbShape";
@@ -109,12 +119,31 @@ export function mountBenchControls(
   heading.style.marginBottom = "6px";
   panel.appendChild(heading);
 
-  for (const cfg of SLIDERS) {
-    panel.appendChild(buildSlider(cfg, state, scheduleRebuild));
-  }
+  // S103 PROCBOMBER-BENCH-PANEL-SECTIONS: group sliders into labelled
+  // sections so the panel scans as Size / Posture / Spread / Mounts /
+  // Shape / Palette / Animation instead of a single long flat list.
+  const sliderByField = new Map(SLIDERS.map((s) => [s.field, s]));
+  const renderSection = (label: string, fields: ReadonlyArray<string>): void => {
+    panel.appendChild(buildSectionHeading(label));
+    for (const f of fields) {
+      const cfg = sliderByField.get(f as NumberField);
+      if (cfg !== undefined) panel.appendChild(buildSlider(cfg, state, scheduleRebuild));
+    }
+  };
+  renderSection("Size", [
+    "headSize", "torsoHeight", "torsoWidth",
+    "upperArmLength", "forearmLength", "armWidth",
+    "upperLegLength", "lowerLegLength", "legWidth"
+  ]);
+  renderSection("Posture", ["forwardTilt", "armRestAngle"]);
+  renderSection("Spread", ["shoulderSpread", "hipSpread"]);
+  renderSection("Mounts", ["shoulderMountY", "shoulderMountZ", "hipMountY", "hipMountZ"]);
+
+  panel.appendChild(buildSectionHeading("Shape"));
   for (const cfg of SHAPE_DROPDOWNS) {
     panel.appendChild(buildShapeSelect(cfg, state, scheduleRebuild));
   }
+  panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
 
@@ -125,6 +154,21 @@ export function mountBenchControls(
       panel.remove();
     }
   };
+}
+
+function buildSectionHeading(label: string): HTMLElement {
+  const row = document.createElement("div");
+  row.dataset["procbomberSectionHeading"] = label.toLowerCase();
+  row.textContent = label;
+  row.style.marginTop = "10px";
+  row.style.marginBottom = "4px";
+  row.style.paddingBottom = "2px";
+  row.style.borderBottom = "1px solid rgba(255, 255, 255, 0.18)";
+  row.style.fontSize = "11px";
+  row.style.letterSpacing = "0.04em";
+  row.style.textTransform = "uppercase";
+  row.style.opacity = "0.7";
+  return row;
 }
 
 function buildShapeSelect(

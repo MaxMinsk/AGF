@@ -10,10 +10,16 @@ import {
   IDLE_BOB_FREQ_HZ,
   LIMB_TEST_DURATION_PER_PIVOT_S,
   LIMB_TEST_ROTATION_RAD,
+  WALK_ELBOW_BEND_RAD,
+  WALK_KNEE_BEND_RAD,
+  WALK_ROOT_BOB_AMPLITUDE,
   WALK_SWING_AMPLITUDE_RAD,
   WALK_SWING_FREQ_HZ,
   idleBobY,
   limbTestActivePivot,
+  radToDeg,
+  walkBendRotation,
+  walkRootBobY,
   walkSwingRotation
 } from "../../src/systems/bench-animation-system";
 import { LIMB_PIVOTS, LIMB_PIVOT_NAMES, buildLimbPivots } from "../../src/limb-pivots";
@@ -62,6 +68,15 @@ describe("idleBobY (S101 pure helper)", () => {
   });
 });
 
+describe("radToDeg (S103 pure helper)", () => {
+  it("converts radians to degrees", () => {
+    expect(radToDeg(0)).toBe(0);
+    expect(radToDeg(Math.PI)).toBeCloseTo(180, 6);
+    expect(radToDeg(Math.PI / 2)).toBeCloseTo(90, 6);
+    expect(radToDeg(0.5)).toBeCloseTo(28.6479, 3);
+  });
+});
+
 describe("walkSwingRotation (S102 pure helper)", () => {
   it("starts at 0 for every limb at elapsed=0", () => {
     expect(walkSwingRotation(0, "shoulderL")).toBeCloseTo(0, 6);
@@ -76,6 +91,49 @@ describe("walkSwingRotation (S102 pure helper)", () => {
     expect(walkSwingRotation(quarter, "hipR")).toBeCloseTo(WALK_SWING_AMPLITUDE_RAD, 4);
     expect(walkSwingRotation(quarter, "shoulderR")).toBeCloseTo(-WALK_SWING_AMPLITUDE_RAD, 4);
     expect(walkSwingRotation(quarter, "hipL")).toBeCloseTo(-WALK_SWING_AMPLITUDE_RAD, 4);
+  });
+});
+
+describe("walkBendRotation (S103 PROCBOMBER-WALK-CYCLE-PLUS)", () => {
+  it("knees bend BACKWARD (negative)", () => {
+    // Sample several phases — every kneeL output should be <= 0.
+    for (let t = 0; t < 1; t += 0.07) {
+      expect(walkBendRotation(t, "kneeL")).toBeLessThanOrEqual(0);
+      expect(walkBendRotation(t, "kneeR")).toBeLessThanOrEqual(0);
+    }
+  });
+  it("elbows bend FORWARD (non-negative)", () => {
+    for (let t = 0; t < 1; t += 0.07) {
+      expect(walkBendRotation(t, "elbowL")).toBeGreaterThanOrEqual(0);
+      expect(walkBendRotation(t, "elbowR")).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it("knee bend magnitude peaks at WALK_KNEE_BEND_RAD", () => {
+    let maxAbs = 0;
+    for (let t = 0; t < 2; t += 0.005) {
+      maxAbs = Math.max(maxAbs, Math.abs(walkBendRotation(t, "kneeL")));
+    }
+    expect(maxAbs).toBeCloseTo(WALK_KNEE_BEND_RAD, 3);
+  });
+  it("elbow bend magnitude peaks at WALK_ELBOW_BEND_RAD", () => {
+    let maxAbs = 0;
+    for (let t = 0; t < 2; t += 0.005) {
+      maxAbs = Math.max(maxAbs, Math.abs(walkBendRotation(t, "elbowR")));
+    }
+    expect(maxAbs).toBeCloseTo(WALK_ELBOW_BEND_RAD, 3);
+  });
+});
+
+describe("walkRootBobY (S103 PROCBOMBER-WALK-CYCLE-PLUS)", () => {
+  it("returns base at elapsed=0 (cos starts at 1, bob = 0)", () => {
+    expect(walkRootBobY(0, 1.5)).toBeCloseTo(1.5, 6);
+  });
+  it("stays within [base - amplitude, base]", () => {
+    for (let t = 0; t < 2; t += 0.01) {
+      const y = walkRootBobY(t, 1);
+      expect(y).toBeLessThanOrEqual(1);
+      expect(y).toBeGreaterThanOrEqual(1 - WALK_ROOT_BOB_AMPLITUDE - 1e-6);
+    }
   });
 });
 
@@ -104,7 +162,7 @@ describe("createBenchAnimationSystem (S102)", () => {
     expect(t.position[1]!).toBeGreaterThan(0);
   });
 
-  it("walk-swing rotates shoulderL and hipR positively at quarter-period", () => {
+  it("walk-swing rotates shoulderL and hipR positively at quarter-period (degree-scale)", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing");
     const system = createBenchAnimationSystem();
@@ -120,18 +178,21 @@ describe("createBenchAnimationSystem (S102)", () => {
     expect(lHip.rotation[0]!).toBeLessThan(0);
   });
 
-  it("walk-swing keeps the root position at its base", () => {
+  it("walk-swing keeps X and Z at base; Y dips below base (S103 walk-cycle root bob)", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing", [0.5, 1, 2]);
     const system = createBenchAnimationSystem();
     for (let i = 0; i < 10; i += 1) system.fixedUpdate!(ctx(world));
     const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber", "Transform")!;
     expect(t.position[0]).toBeCloseTo(0.5, 5);
-    expect(t.position[1]).toBeCloseTo(1, 5);
     expect(t.position[2]).toBeCloseTo(2, 5);
+    // Y stays within the bob band: never above the base, never more
+    // than amplitude below it.
+    expect(t.position[1]!).toBeLessThanOrEqual(1);
+    expect(t.position[1]!).toBeGreaterThan(0.9);
   });
 
-  it("limb-test rotates exactly one pivot at a time + holds at LIMB_TEST_ROTATION_RAD", () => {
+  it("limb-test rotates exactly one pivot at a time at LIMB_TEST_ROTATION_RAD (written as degrees on Transform)", () => {
     const world = new World();
     addBomberRoot(world, "limb-test");
     const system = createBenchAnimationSystem();
@@ -141,14 +202,15 @@ describe("createBenchAnimationSystem (S102)", () => {
     const expectedActive = LIMB_PIVOT_NAMES[0]!;
     let activeFound = false;
     let nonZeroCount = 0;
+    const expectedDeg = (LIMB_TEST_ROTATION_RAD * 180) / Math.PI;
     for (const name of LIMB_PIVOT_NAMES) {
       const t = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
-      const rotX = t.rotation[0]!;
-      if (Math.abs(rotX) > 1e-3) {
+      const rotDeg = t.rotation[0]!;
+      if (Math.abs(rotDeg) > 1e-3) {
         nonZeroCount += 1;
         if (name === expectedActive) {
           activeFound = true;
-          expect(rotX).toBeCloseTo(LIMB_TEST_ROTATION_RAD, 4);
+          expect(rotDeg).toBeCloseTo(expectedDeg, 3);
         }
       }
     }
@@ -169,6 +231,45 @@ describe("createBenchAnimationSystem (S102)", () => {
       const p = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
       expect(p.rotation[0]).toBeCloseTo(0, 5);
     }
+  });
+
+  it("S103 ARM-REST-APPLIES: kind=none + armRestAngleRad sets shoulderL/R rotations to that angle (in degrees)", () => {
+    const world = new World();
+    world.addEntity("bomber");
+    world.setComponent("bomber", "Transform", { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    world.setComponent("bomber", "BenchAnimationState", {
+      kind: "none",
+      elapsed: 0,
+      armRestAngleRad: 0.5
+    });
+    const limbPivots = {
+      neck: "bomber.neck",
+      shoulderL: "bomber.shoulderL",
+      shoulderR: "bomber.shoulderR",
+      elbowL: "bomber.elbowL",
+      elbowR: "bomber.elbowR",
+      hipL: "bomber.hipL",
+      hipR: "bomber.hipR",
+      kneeL: "bomber.kneeL",
+      kneeR: "bomber.kneeR"
+    };
+    for (const id of Object.values(limbPivots)) {
+      world.addEntity(id);
+      world.setComponent(id, "Transform", { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    }
+    world.setComponent("bomber", "LimbPivots", limbPivots);
+
+    const system = createBenchAnimationSystem();
+    system.fixedUpdate!(ctx(world));
+
+    const expectedDeg = (0.5 * 180) / Math.PI;
+    const shoulderL = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.shoulderL", "Transform")!;
+    const shoulderR = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.shoulderR", "Transform")!;
+    expect(shoulderL.rotation[0]!).toBeCloseTo(expectedDeg, 4);
+    expect(shoulderR.rotation[0]!).toBeCloseTo(expectedDeg, 4);
+    // Non-shoulder pivots stay zeroed.
+    const kneeL = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.kneeL", "Transform")!;
+    expect(kneeL.rotation[0]).toBeCloseTo(0, 4);
   });
 
   it("flipping from walk-swing back to none zeroes pivot rotations", () => {

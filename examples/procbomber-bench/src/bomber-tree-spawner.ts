@@ -54,6 +54,10 @@ export type PivotMountOffsets = {
   shoulderMountZ?: number;
   hipMountY?: number;
   hipMountZ?: number;
+  /** S103 PROCBOMBER-HIP-SPREAD-SLIDER. Multiplier on the default shoulder X anchor (1.0 = current default). */
+  shoulderSpread?: number;
+  /** S103 PROCBOMBER-HIP-SPREAD-SLIDER. Multiplier on the default hip X anchor (1.0 = current default). */
+  hipSpread?: number;
 };
 
 /**
@@ -73,15 +77,20 @@ export function buildPivotRepositionCommands(
   mounts: PivotMountOffsets = {}
 ): EngineCommand[] {
   const ent = (suffix: string): string => `${rootId}.${suffix}`;
-  const torsoCenterY = sizes.legLength + sizes.torsoHeight / 2;
+  // S103: torso center sits ABOVE the legs. Total leg length is now
+  // upperLegLength + lowerLegLength (two segments).
+  const totalLegLength = sizes.upperLegLength + sizes.lowerLegLength;
+  const torsoCenterY = totalLegLength + sizes.torsoHeight / 2;
   const torsoTopY = sizes.torsoHeight / 2;
   const torsoBottomY = -sizes.torsoHeight / 2;
   const halfTorsoX = sizes.torsoWidth / 2;
+  const shoulderSpread = mounts.shoulderSpread ?? 1;
+  const hipSpread = mounts.hipSpread ?? 1;
   const shoulderY = torsoTopY - sizes.armWidth / 2 + (mounts.shoulderMountY ?? 0);
-  const shoulderX = halfTorsoX + sizes.armWidth / 2;
+  const shoulderX = (halfTorsoX + sizes.armWidth / 2) * shoulderSpread;
   const shoulderZ = mounts.shoulderMountZ ?? 0;
   const hipY = torsoBottomY + sizes.legWidth / 2 + (mounts.hipMountY ?? 0);
-  const hipX = halfTorsoX * 0.5;
+  const hipX = halfTorsoX * 0.5 * hipSpread;
   const hipZ = mounts.hipMountZ ?? 0;
 
   const cmds: EngineCommand[] = [];
@@ -97,12 +106,15 @@ export function buildPivotRepositionCommands(
   setPos(ent("neck"), ent("torso"), [0, torsoTopY, 0]);
   setPos(ent("shoulderL"), ent("torso"), [-shoulderX, shoulderY, shoulderZ]);
   setPos(ent("shoulderR"), ent("torso"), [shoulderX, shoulderY, shoulderZ]);
-  setPos(ent("elbowL"), ent("upperArmL"), [0, -sizes.armLength, 0]);
-  setPos(ent("elbowR"), ent("upperArmR"), [0, -sizes.armLength, 0]);
+  // S103: elbow sits at the bottom of the upperArm segment (now an
+  // independent length knob).
+  setPos(ent("elbowL"), ent("upperArmL"), [0, -sizes.upperArmLength, 0]);
+  setPos(ent("elbowR"), ent("upperArmR"), [0, -sizes.upperArmLength, 0]);
   setPos(ent("hipL"), ent("torso"), [-hipX, hipY, hipZ]);
   setPos(ent("hipR"), ent("torso"), [hipX, hipY, hipZ]);
-  setPos(ent("kneeL"), ent("upperLegL"), [0, -sizes.legLength, 0]);
-  setPos(ent("kneeR"), ent("upperLegR"), [0, -sizes.legLength, 0]);
+  // S103: knee sits at the bottom of the upperLeg segment.
+  setPos(ent("kneeL"), ent("upperLegL"), [0, -sizes.upperLegLength, 0]);
+  setPos(ent("kneeR"), ent("upperLegR"), [0, -sizes.upperLegLength, 0]);
   return cmds;
 }
 
@@ -152,8 +164,9 @@ export function spawnBomberTree(
   };
 
   // Y coordinate layout — see GDP-2026-05-21-001 acceptance.
-  // Torso center sits above the legs, head above the torso.
-  const torsoCenterY = sizes.legLength + sizes.torsoHeight / 2;
+  // Torso center sits above the legs (total leg = upper + lower).
+  const totalLegLength = sizes.upperLegLength + sizes.lowerLegLength;
+  const torsoCenterY = totalLegLength + sizes.torsoHeight / 2;
   const torsoTopY = sizes.torsoHeight / 2;     // relative to torso local
   const torsoBottomY = -sizes.torsoHeight / 2; // relative to torso local
   const halfTorsoX = sizes.torsoWidth / 2;
@@ -180,8 +193,8 @@ export function spawnBomberTree(
     const forearmId = ent(`forearm${side}`);
     addPivot(shoulderId, torsoId, [sign * shoulderX, shoulderY, 0]);
     addMesh(upperArmId, shoulderId, [0, 0, 0], "upperArm");
-    // Elbow sits at the bottom of the upperArm (local Y = -armLength).
-    addPivot(elbowId, upperArmId, [0, -sizes.armLength, 0]);
+    // Elbow sits at the bottom of the upperArm segment.
+    addPivot(elbowId, upperArmId, [0, -sizes.upperArmLength, 0]);
     addMesh(forearmId, elbowId, [0, 0, 0], "forearm");
   }
 
@@ -196,7 +209,7 @@ export function spawnBomberTree(
     const lowerLegId = ent(`lowerLeg${side}`);
     addPivot(hipId, torsoId, [sign * hipX, hipY, 0]);
     addMesh(upperLegId, hipId, [0, 0, 0], "upperLeg");
-    addPivot(kneeId, upperLegId, [0, -sizes.legLength, 0]);
+    addPivot(kneeId, upperLegId, [0, -sizes.upperLegLength, 0]);
     addMesh(lowerLegId, kneeId, [0, 0, 0], "lowerLeg");
   }
 

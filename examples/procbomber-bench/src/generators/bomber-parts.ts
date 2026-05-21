@@ -70,9 +70,13 @@ export type BomberPartSizes = {
   headSize: number;
   torsoHeight: number;
   torsoWidth: number;
-  armLength: number;
+  // S103 PROCBOMBER-LIMB-SEGMENT-SLIDERS: each limb is two segments
+  // with independent length knobs.
+  upperArmLength: number;
+  forearmLength: number;
   armWidth: number;
-  legLength: number;
+  upperLegLength: number;
+  lowerLegLength: number;
   legWidth: number;
 };
 
@@ -126,19 +130,19 @@ function generateLimbSegment(width: number, length: number, color: string, shape
 }
 
 export function generateUpperArm(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
-  return generateLimbSegment(s.armWidth, s.armLength, palette.upperArm, shape);
+  return generateLimbSegment(s.armWidth, s.upperArmLength, palette.upperArm, shape);
 }
 
 export function generateForearm(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
-  return generateLimbSegment(s.armWidth, s.armLength, palette.forearm, shape);
+  return generateLimbSegment(s.armWidth, s.forearmLength, palette.forearm, shape);
 }
 
 export function generateUpperLeg(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
-  return generateLimbSegment(s.legWidth, s.legLength, palette.upperLeg, shape);
+  return generateLimbSegment(s.legWidth, s.upperLegLength, palette.upperLeg, shape);
 }
 
 export function generateLowerLeg(s: BomberPartSizes, palette: BomberPalette, shape: BomberPartShape = "box"): BufferGeometry {
-  return generateLimbSegment(s.legWidth, s.legLength, palette.lowerLeg, shape);
+  return generateLimbSegment(s.legWidth, s.lowerLegLength, palette.lowerLeg, shape);
 }
 
 /** Dispatcher used by the mesh-tree spawner. */
