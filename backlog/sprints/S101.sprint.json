@@ -1,0 +1,132 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S101",
+  "title": "procbomber-bench — sandbox for the procedural humanoid generator",
+  "status": "archived",
+  "startedAt": "2026-05-21",
+  "archivedAt": "2026-05-21",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/117",
+  "stories": [
+    {
+      "id": "CHORE-CHARACTERS-EPIC-ACTIVATE",
+      "title": "Flip KABOOM-CREW-CHARACTERS epic status to active",
+      "status": "implemented",
+      "summary": "Epic was created in S100 with status 'planned'. This sprint is the first slice of that chain (mesh layer via the bench), so flip it to 'active'.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: backlog/epics/KABOOM-CREW-CHARACTERS.epic.json status: active.",
+        "backlog:check passes with no S101-touching errors."
+      ]
+    },
+    {
+      "id": "AGF-PROCMESH-REGISTRY",
+      "title": "Engine: procedural mesh dispatcher inside MeshHandleRegistry",
+      "status": "implemented",
+      "summary": "Add a project-agnostic procedural mesh path: any `MeshRenderer.mesh` value starting with `procedural:<key>` resolves through a per-renderer registry of `(seedHash) => BufferGeometry` builders, instead of the hardcoded primitive switch. Builders register at bootstrap. Cache by `<key>:<seedHash>` so repeat acquires reuse the geometry. (Engine work driven by the KABOOM-CREW-CHARACTERS chain — stays project-agnostic.)",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: createProceduralMeshRegistry exposes register/has/keys/cacheSize/resolve/invalidate/clear; isProceduralMeshRef + parseProceduralRef parse procedural:<key>[#<seed>] refs; mesh-handle-registry consults the procedural registry first for procedural: refs and falls through to primitives/external otherwise; ThreeRenderer constructs one + exposes proceduralMeshRegistry().",
+        "engine/render/procedural-mesh-registry.ts: new file",
+        "engine/render/mesh-handle-registry.ts: createMeshHandleRegistry takes optional proceduralRegistry",
+        "engine/render/three-renderer.ts: owns + exposes the registry",
+        "+12 unit tests in tests/unit/procedural-mesh-registry.test.ts; existing mesh-lifecycle-system tests still pass"
+      ]
+    },
+    {
+      "id": "AGF-PROCMESH-DOCTOR-LINE",
+      "title": "Doctor: report registered procedural mesh keys + cache size",
+      "status": "implemented",
+      "summary": "When the renderer exposes its procedural mesh registry, engine doctor prints `Procedural mesh registry: N key(s), M cache entries`. Suppress the line when N=0 (no project registered any).",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: engine doctor prints 'Procedural mesh registry: N declared key(s) [...], M scene entity reference(s)' when N>0 or M>0; section is suppressed entirely otherwise; missing registrations are flagged ⚠ per key. Reframed from cache-size to a static scan of project source + scenes so doctor (offline) can see the surface.",
+        "engine/tools/doctor/project-doctor.ts: new ProceduralMeshesReport, summarizeProceduralMeshes walker (src/**/*.ts + bootstrap.ts + scenes/**/*.scene.json), formatProceduralMeshes output, missing-registration recommendation",
+        "+8 unit tests in tests/unit/doctor-procedural-meshes.test.ts"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-MESH-V0",
+      "title": "Pure humanoid mesh generator (head + torso + arms + legs)",
+      "status": "implemented",
+      "summary": "Pure function `generateBomberMesh(spec) => BufferGeometry`. Six merged box parts (head, torso, left/right arm, left/right leg). Vertex colors from the spec's palette. Deterministic given a seed. Unit-tested for vertex count bounds + head-y > torso-y > leg-y invariant. Lives at `examples/procbomber-bench/src/generators/bomber-mesh.ts`.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: generateBomberMesh(spec) returns a BufferGeometry of 144 vertices (6 boxes × 24), centered on XZ with min Y = 0 (feet on ground), head/torso/legL/legR Y anchors stacked in expected order, deterministic across calls, vertex colors match the palette in linear-RGB.",
+        "examples/procbomber-bench/src/generators/bomber-mesh.ts: new file (generateBomberMesh + BOMBER_MESH_DEFAULTS + BomberAnchors). 6 box parts merged via three/examples/jsm/utils/BufferGeometryUtils.mergeGeometries. userData carries anchors, totalHeight, palette name.",
+        "+9 unit tests in examples/procbomber-bench/tests/unit/bomber-mesh.test.ts"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-PALETTE-TABLE",
+      "title": "Eight named palettes + seeded variant picker",
+      "status": "implemented",
+      "summary": "Palettes: sky, ember, mint, plum, sand, jade, rose, slate. Each is `{ head, torso, limbs, accent }` hex colors. `pickBomberPalette(seedHash, override?)` returns one. Pure, unit-tested.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: BOMBER_PALETTES contains 8 named palettes (sky/ember/mint/plum/sand/jade/rose/slate). pickBomberPalette(seed) is deterministic + covers ≥ 6 palettes across 200 random seeds. pickBomberPalette(seed, override) short-circuits to the override.",
+        "examples/procbomber-bench/src/generators/bomber-palette.ts: new file (palette table + isBomberPaletteName + paletteByName + pickBomberPalette)",
+        "+9 unit tests in examples/procbomber-bench/tests/unit/bomber-palette.test.ts"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-BENCH-PROJECT",
+      "title": "examples/procbomber-bench skeleton (scene, bootstrap, camera orbit)",
+      "status": "implemented",
+      "summary": "Vite-compatible AGF project under `examples/procbomber-bench/` with project.json, template.json, performance-budget.json, a `start.scene.json` containing one ground plane + one bomber entity using `mesh: \"procedural:procbomber\"`, bootstrap that registers the generator + drives a slow camera orbit so the bomber rotates in view.",
+      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX",
+      "verification": [
+        "acceptance: examples/procbomber-bench/ is a complete AGF project — project.json, template.json, performance-budget.json, scenes/start.scene.json, bootstrap.ts, README.md, assets/. engine:check passes (asset-sources warning only). engine:doctor shows 'Procedural mesh registry: 1 declared key(s) [procbomber], 1 scene entity reference(s)'. Project loads in dev via ?project=procbomber-bench. Production build succeeds.",
+        "src/main.ts: 'procbomber-bench' added to projectLoaders",
+        "engine/tools/check/project-check.ts: skip asset existence check for procedural:* mesh refs",
+        "bootstrap.ts registers the procbomber builder + supports ?bomberPalette URL override"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-BENCH-UI-CONTROLS",
+      "title": "DOM overlay: sliders + palette dropdown + reroll button",
+      "status": "implemented",
+      "summary": "Plain HTML overlay (no UI framework) injected at bootstrap with: sliders for body-part size knobs (head, torso, arm-length, leg-length), a palette dropdown (8 options), a reroll button. Each control writes to the `ProceduralBomberSeed` ECS component on the bench's single bomber entity; the renderer re-acquires the procedural mesh on seed change.",
+      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX",
+      "verification": [
+        "acceptance: bench mounts a DOM overlay with 7 size sliders (head/torso H+W/arm L+W/leg L+W) + palette dropdown (8 named + seed-driven) + reroll button. Each control writes into a local BenchState; an rAF-coalesced rebuild pushes a fresh BufferGeometry onto the bomber's existing handle via runtime.renderer.adapter.setMeshGeometry, so the visible mesh updates without re-acquiring the handle.",
+        "examples/procbomber-bench/src/bench-state.ts: defaultBenchState + resolvePalette + buildBomberGeometry + PALETTE_OPTIONS",
+        "examples/procbomber-bench/src/bench-ui.ts: mountBenchControls (plain HTML, no UI framework)",
+        "bootstrap.ts: rAF-coalesced rebuild loop wired through adapter.setMeshGeometry",
+        "+7 unit tests in examples/procbomber-bench/tests/unit/bench-state.test.ts"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-BENCH-ANIM-DROPDOWN",
+      "title": "Animation switcher: idle-bob + walk-swing stub animations",
+      "status": "implemented",
+      "summary": "DOM dropdown picks between {none, idle-bob, walk-swing}. A bench-local placeholder animation system reads `BenchAnimationState.kind` and drives Transform.position.y (bob) or arm/leg yaw (swing) per fixedUpdate. Idle-bob is sine on Y; walk-swing alternates limb yaw +/- 0.3 rad at 4Hz. These are stubs that prove the dropdown wires through the data path — the full S102 animation systems will replace them with proper limb-anchor animation.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: dropdown with {none, idle-bob, walk-swing} writes BenchAnimationState.kind to the bomber entity; bench-animation-system reads it and drives Transform.position.y (idle-bob sine on Y) or position.x (walk-swing sine on X). Both are visible in-browser as a hopping / swaying bomber. kind=none snaps back to the base position. ?bomberAnim=<kind> URL knob initializes the dropdown.",
+        "examples/procbomber-bench/schemas/scene-extensions.schema.json: BenchAnimationState component schema",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: pure helpers idleBobY + walkSwingX + createBenchAnimationSystem",
+        "examples/procbomber-bench/src/bench-ui-anim.ts: mountAnimationControl + isBenchAnimationKind + readBenchAnimationFromUrl",
+        "scenes/start.scene.json: bomber gains BenchAnimationState component",
+        "bootstrap.ts: registerSystems wires bench-animation-system; attachUi mounts the dropdown inside the existing controls panel",
+        "+10 unit tests in examples/procbomber-bench/tests/unit/bench-animation-system.test.ts",
+        "panel offset to top: 220px so it doesn't cover the dev shell's project-selector + status strip"
+      ]
+    },
+    {
+      "id": "PROCBOMBER-BENCH-PLAYTEST-SMOKE",
+      "title": "Playwright smoke: bench loads, every UI control responds",
+      "status": "implemented",
+      "summary": "Playtest scenario under `examples/procbomber-bench/playtests/` that opens the page, asserts the bomber mesh is in the scene snapshot, ticks each slider + palette + animation dropdown via DOM events, captures one screenshot per state transition. Adds the bench to the preflight smoke run.",
+      "epic": "EXAMPLES-FEATURE-LAB-SANDBOX",
+      "verification": [
+        "acceptance: tests/e2e/procbomber-bench.spec.ts opens /?project=procbomber-bench, waits for AGF ready, asserts the controls panel + 7 sliders + palette dropdown + reroll button + animation dropdown are all mounted, asserts the bomber entity's MeshRenderer.mesh = 'procedural:procbomber', ticks every UI control (slider fill + selectOption + click), asserts the renderer produced ≥ 1 draw call, captures a screenshot. Passes on chromium + chromium-preview.",
+        "tests/e2e/procbomber-bench.spec.ts: new file"
+      ]
+    }
+  ],
+  "notes": [
+    "User explicitly asked for a separate bench with sliders + animation toggle. Agent-first stays the default; this is an authorized human-UI exception driven by the need to iterate the generator visually before the polish bar is locked.",
+    "Engine work in AGF-PROCMESH-REGISTRY must stay project-agnostic — no procbomber-specific strings in engine/ paths.",
+    "GDP-009 (the full six animation ECS systems) and GDP-010 (procedural vocal synth) follow in later sprints. This sprint ships only the two stub animations needed to prove the bench dropdown."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/examples/procbomber-bench/schemas/scene-extensions.schema.json",
+  "title": "Procbomber Bench Scene Extensions",
+  "description": "Project-local component types for the procbomber bench. BenchAnimationState drives stub limb-free animations during S101 so the bench dropdown wires through the data path; the real S102 animation systems will replace it once limb anchors split into separate transforms.",
+  "components": {
+    "BenchAnimationState": { "$ref": "#/definitions/benchAnimationStateComponent" }
+  },
+  "definitions": {
+    "benchAnimationStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Drives the bench's stub animation. `kind` selects which animation runs; `elapsed` is the system-internal time accumulator (seconds since the last kind change).",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["none", "idle-bob", "walk-swing"],
+          "default": "none"
+        },
+        "elapsed": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    }
+  }
+}

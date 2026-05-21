@@ -2,7 +2,7 @@
   "agfFormatVersion": 1,
   "id": "KABOOM-CREW-CHARACTERS",
   "title": "Kaboom Crew — procedural characters (mesh + animation + voice)",
-  "status": "planned",
+  "status": "active",
   "category": "sample-game",
   "summary": "Procedural-everything character pipeline for Kaboom Crew avatars: a seeded humanoid mesh generator, six small ECS animation systems (idle bob, walk swing, place-bomb wind-up, hit reaction, victory pose, death rag-doll), and a tiny vocal synth that gives every bomber a unique short voice. Driven by GDP-008/009/010 from S99 game-design output + the saved memory feedback-no-rigged-glb-humanoids. NO Mixamo, NO rigged GLBs — everything generates from code. Multi-sprint track.",
   "doneCriteria": [

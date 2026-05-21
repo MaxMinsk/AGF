@@ -524,7 +524,15 @@ function validateSceneAssetReferences(
     const meshRenderer = components["MeshRenderer"];
     if (isJsonObject(meshRenderer)) {
       const mesh = meshRenderer["mesh"];
-      if (typeof mesh === "string" && !primitiveMeshes.has(mesh)) {
+      // S101 AGF-PROCMESH-REGISTRY: `procedural:<key>[#<seed>]` refs are
+      // resolved through the renderer's procedural mesh registry at
+      // runtime, not loaded from assetRoot. Doctor reports declared
+      // keys + scene usage; engine-check stays out of the way.
+      if (
+        typeof mesh === "string" &&
+        !primitiveMeshes.has(mesh) &&
+        !mesh.startsWith("procedural:")
+      ) {
         diagnostics.push(
           ...validateAssetReference({
             projectDir,

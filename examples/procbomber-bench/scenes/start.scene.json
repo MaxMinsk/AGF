@@ -1,0 +1,54 @@
+{
+  "id": "start",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Name": { "label": "Main Camera" },
+        "Transform": { "position": [0, 1.2, 3.0], "rotation": [-12, 0, 0] },
+        "Camera": { "kind": "perspective", "active": true, "fov": 40, "near": 0.1, "far": 50 }
+      }
+    },
+    {
+      "id": "light.fill",
+      "components": {
+        "Name": { "label": "Ambient Fill" },
+        "Transform": { "position": [0, 0, 0] },
+        "Light": { "kind": "ambient", "color": "#cfe0ff", "intensity": 0.35 }
+      }
+    },
+    {
+      "id": "light.key",
+      "components": {
+        "Name": { "label": "Key" },
+        "Transform": { "position": [3, 5, 3] },
+        "Light": { "kind": "directional", "color": "#fff2d2", "intensity": 0.8 }
+      }
+    },
+    {
+      "id": "ground",
+      "components": {
+        "Name": { "label": "Ground Plane" },
+        "Transform": { "position": [0, 0, 0], "rotation": [-90, 0, 0], "scale": [10, 10, 1] },
+        "MeshRenderer": { "mesh": "plane", "color": "#1d2536" }
+      }
+    },
+    {
+      "id": "turntable",
+      "components": {
+        "Name": { "label": "Bomber Turntable (auto-rotates around Y)" },
+        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0] },
+        "Spin": { "axis": "y", "speed": 18 }
+      }
+    },
+    {
+      "id": "bomber",
+      "components": {
+        "Name": { "label": "Procedural Bomber" },
+        "Transform": { "parent": "turntable", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "MeshRenderer": { "mesh": "procedural:procbomber" },
+        "BenchAnimationState": { "kind": "none", "elapsed": 0 }
+      }
+    }
+  ]
+}

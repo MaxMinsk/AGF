@@ -1,0 +1,12 @@
+{
+  "agfFormatVersion": 1,
+  "id": "procbomber-bench",
+  "bundle": {
+    "softLargestChunkGzipKb": 600,
+    "hardLargestChunkGzipKb": 900
+  },
+  "renderer": {
+    "softDrawCalls": 50,
+    "hardDrawCalls": 100
+  }
+}

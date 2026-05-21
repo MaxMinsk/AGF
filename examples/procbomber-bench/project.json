@@ -1,0 +1,14 @@
+{
+  "agfFormatVersion": 1,
+  "id": "procbomber-bench",
+  "name": "Procbomber Bench",
+  "startScene": "scenes/start.scene.json",
+  "assetRoot": "assets",
+  "render": {
+    "mode": "webgl",
+    "batching": {
+      "auto": false
+    }
+  },
+  "profiles": ["static"]
+}

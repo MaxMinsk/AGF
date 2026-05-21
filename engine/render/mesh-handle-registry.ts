@@ -13,6 +13,10 @@ import {
 } from "three";
 
 import type { EntityId } from "../core/ecs/types";
+import {
+  isProceduralMeshRef,
+  type ProceduralMeshRegistry
+} from "./procedural-mesh-registry";
 import type { MeshHandle, ThreeRenderAdapter } from "./three-render-adapter";
 
 export type MeshHandleRegistry = {
@@ -32,17 +36,30 @@ export type MeshHandleRegistry = {
   clear(): void;
 };
 
-export function createMeshHandleRegistry(adapter: ThreeRenderAdapter): MeshHandleRegistry {
+export function createMeshHandleRegistry(
+  adapter: ThreeRenderAdapter,
+  options?: { proceduralRegistry?: ProceduralMeshRegistry }
+): MeshHandleRegistry {
   const entityToHandle = new Map<EntityId, MeshHandle>();
   const handleToEntity = new Map<MeshHandle, EntityId>();
+  const proceduralRegistry = options?.proceduralRegistry;
 
   return {
     acquireFor(entityId, meshRef, color): MeshHandle | undefined {
       const existing = entityToHandle.get(entityId);
       if (existing !== undefined) return existing;
-      const geometry = isExternalMeshRef(meshRef)
-        ? createPlaceholderGeometry()
-        : createPrimitiveGeometry(meshRef);
+      let geometry: BufferGeometry | undefined;
+      if (isProceduralMeshRef(meshRef)) {
+        // Procedural mesh refs resolve through the project-registered
+        // builder registry. Unknown key returns undefined so the lifecycle
+        // system treats the entity as "not yet acquirable" — the project
+        // should register the builder before any entity uses the ref.
+        geometry = proceduralRegistry?.resolve(meshRef);
+      } else if (isExternalMeshRef(meshRef)) {
+        geometry = createPlaceholderGeometry();
+      } else {
+        geometry = createPrimitiveGeometry(meshRef);
+      }
       if (geometry === undefined) return undefined;
       const acquire: { geometry: BufferGeometry; color?: string } = { geometry };
       if (color !== undefined) acquire.color = color;
