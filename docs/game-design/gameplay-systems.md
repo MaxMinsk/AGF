@@ -368,9 +368,11 @@ should never feel like "the game changed under my feet."
 ### 7.2 Balance philosophy
 
 - **One-hit kill is the design centre.** Every other system bends
-  around this. Slapstick death (GDP-004) makes the kill funny;
-  audio + bomb wiggle makes it readable; auto-restart makes it
-  recoverable.
+  around this. Ragdoll death (GDP-2026-05-22-005, superseding the
+  S100 slapstick tween) makes the kill funny AND
+  direction-readable — the body tumbles AWAY from the blast that
+  killed it; audio + bomb wiggle makes the danger readable; auto-restart
+  makes it recoverable.
 - **Pickups stack but cap.** Speed Up at level 5 is "fast enough to
   outrun blasts"; level 10 would be "uncontrollable." Caps prevent
   the late round from becoming unplayable.

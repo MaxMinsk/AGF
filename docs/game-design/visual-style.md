@@ -251,7 +251,7 @@ just happened" feedback. The vocabulary is small and consistent.
 | **Chain-reaction ping** | Bomb triggered by another bomb | 0.3 s | A short cyan ring at the triggered bomb's cell, before it detonates. Communicates "chain incoming." |
 | **Footstep puff** | Bomber walk-cycle leg-down phase | 0.1 s | Tiny ground puff at the foot's cell. Adds liveliness. Already mentioned in characters-and-visual §4.4. |
 | **Off-screen blast ping (minimap)** | Blast off-camera | 0.5 s | A flash on the minimap at the blast's cell, in the bomber's hue. NOT a world-space effect — minimap only. Pairs with §UX in GDD. |
-| **Death plume** | Bomber killed | 0.6 s | Vertical smoke column in the bomber's hue + cyan accent + a "*" burst. Reads as slapstick, not horror. Pairs with the death tween from GDP-009. |
+| **Death plume** | Bomber killed | 0.6 s | Vertical smoke column in the bomber's hue + cyan accent + a "*" burst. Reads as slapstick, not horror. Pairs with the ragdoll launch from GDP-2026-05-22-005 — the plume emits at the bomber's death cell while the body tumbles away in the blast direction. |
 | **Spawn flash** | Bomber spawn (round start, multiplayer join) | 0.4 s | Bright vertical column of light in the bomber's hue, fades out from above. Telegraphs "new player landed here." |
 
 ### 6.3 Anti-patterns for VFX

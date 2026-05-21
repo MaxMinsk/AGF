@@ -222,7 +222,7 @@ A small set of ECS systems covers every animation Kaboom Crew needs:
 | **Walk cycle** | `WalkAnimationSystem` — when GridMover.speed > 0, drive `legL` / `legR` rotation around X with opposing sine waves; `armL` / `armR` opposite to legs; `torso.rotation.y` sways toward walk direction. Phase advances with movement velocity, not wall clock — slow-walking bot animates slowly. | ~80 LOC |
 | **Bomb-place reach** | `BombPlaceAnimationSystem` — on `PlaceBombRequest`, Tween the chosen arm's rotation toward a "drop" pose over 0.18 s, hold 0.05 s, return to neutral. | ~40 LOC (Tween already exists) |
 | **Hit recoil** | `HitRecoilSystem` — on `BlastEvent` that hits this bomber, Tween `torso.rotation.x` by −0.4 rad over 0.1 s and back. | ~30 LOC |
-| **Slapstick death** | `DeathAnimationSystem` — on `alive` flip, the launch + spin tween from `GDP-2026-05-20-004`. Optionally scatter limb nodes with spring physics for the ragdoll feel. | ~80 LOC (Tween + a tiny spring helper) |
+| **Slapstick death** | `DeathAnimationSystem` — replaced by ragdoll (`GDP-2026-05-22-005`): blast-direction impulse + gravity arc on root + per-pivot spring flail. Supersedes the S100 canned tween. | ~150 LOC (procedural physics + spring extension) |
 | **Backpack / antenna sway** | `SpringSwaySystem` — generic two-tap spring on any node tagged "soft-attached". One system covers every dangly accessory across every character variant. | ~60 LOC |
 
 Total: ~300 lines of code, six small systems. Each is independently

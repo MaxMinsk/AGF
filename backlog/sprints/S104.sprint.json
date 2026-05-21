@@ -40,9 +40,15 @@
     {
       "id": "KABOOM-RECIPE-URL-KNOBS",
       "title": "Bench reads ?recipe= + ?seed= URL params",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Promoted from GDP-2026-05-22-001. Bench bootstrap recognises two new URL params: ?recipe=<base64> overrides every slider on load; ?seed=<string> drives resolveRecipeFromSeed to fully-populate the bench. Existing ?bomberPalette + ?bomberAnim URL knobs continue to work, applied on top. /__agf/<probe> endpoints deferred — the URL surface unblocks deterministic agent screenshot capture today, the probes can land when the kaboom-crew migration creates a concrete consumer.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bench bootstrap reads ?recipe=<base64> + ?seed=<string> on load. ?recipe wins over ?seed when both present. Malformed recipe falls through to seed. Recipe fields overlay every slider via applyRecipeToState.",
+        "examples/procbomber-bench/src/recipe-url.ts: readRecipeFromUrl + applyRecipeToState + stateToRecipe. Returns {recipe, source} so consumers know what put the bomber on screen.",
+        "bootstrap.ts: state := defaultBenchState(palette); if (urlRecipe) applyRecipeToState(state, urlRecipe.recipe)",
+        "+7 unit tests covering SSR/node guard, recipe wins, seed fallback, no-param, malformed-recipe fallback"
+      ]
     },
     {
       "id": "KABOOM-MIGRATE-PREFABS",
