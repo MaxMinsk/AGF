@@ -64,6 +64,17 @@
       "status": "pending",
       "summary": "Promoted from GDP-2026-05-22-004 (partial — only the reach piece this sprint). When a bomber fires PlaceBombRequest, the gameplay-driver from KABOOM-BOMBER-ANIMATION-PROD writes BenchAnimationState.kind = 'reach' for ~0.4 seconds before reverting to walk/idle. The reach target points at the bomb's grid cell. This is the visible 'plant the bomb' gesture — the missing piece between the existing IK math (S103) and gameplay.",
       "epic": "KABOOM-CREW-CHARACTERS"
+    },
+    {
+      "id": "KABOOM-REMOTE-DETONATE-SPACE-BIND",
+      "title": "Space also detonates paused bombs (not only the F key)",
+      "status": "implemented",
+      "summary": "User reported the remote-detonate power-up appears broken: pressing Space after placing a paused bomb doesn't detonate. The actual mapping uses F — never documented. UX fix: extend the REMOTE_DETONATE key set from ['KeyF'] to ['KeyF', 'Space']. Both PlaceBombRequest + RemoteDetonateRequest now fire on Space: if the player has remaining bomb slots, a new paused bomb spawns; if any paused bombs already exist, they detonate. Pressing Space three times places three paused bombs (charges permitting), the fourth press detonates the chain. F stays as the explicit single-purpose detonate trigger.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: Space also detonates paused bombs. examples/kaboom-crew/src/systems/player-input-system.ts: REMOTE_DETONATE = new Set(['KeyF', 'Space']). PLACE_BOMB still maps to Space; both PlaceBombRequest + RemoteDetonateRequest fire on the same key press. The two transients have orthogonal effects — placement fills a free slot, detonation fires existing paused bombs — so they coexist.",
+        "Existing S100 unit tests still pass; the F-only path remains valid for callers that want explicit detonation without placing."
+      ]
     }
   ],
   "notes": [
