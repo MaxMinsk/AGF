@@ -292,6 +292,12 @@ export function createBenchAnimationSystem(): System {
           }
           case "none":
           default: {
+            // S105 ragdoll handover: when DeathAnim is present, the
+            // root-arc + limb spring system own position + per-limb
+            // rotation. Skip BOTH writes here so we don't clobber the
+            // ragdoll pose. Without DeathAnim, snap back to base + rest
+            // shoulders (idle pose).
+            if (world.hasComponent(id, "DeathAnim")) break;
             setTransformPosition(world, id, base.x, base.y, base.z);
             applyRestPose();
             break;

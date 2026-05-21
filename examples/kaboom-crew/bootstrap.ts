@@ -30,6 +30,7 @@ import {
 } from "./src/procbomber-integration";
 import type { ResolvedCharacterRecipe } from "../procbomber-bench/src/character-recipe";
 import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/bench-animation-system";
+import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-pivot-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 
 /**
@@ -289,6 +290,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // the procbomber-bench uses; in production the driver decides the
     // kind, the system performs the motion.
     scheduler.register(createBenchAnimationSystem(), { profiles: ["static"] });
+    // S105 KABOOM-SPRING-PIVOT-SYSTEM — runs AFTER bench-animation so
+    // ragdoll-stamped SpringPivot rotations override the rest pose.
+    // (bench-animation skips its own writes for entities with
+    // DeathAnim, so the spring + death-arc systems own ragdoll-frame
+    // rotations cleanly.)
+    scheduler.register(createSpringPivotSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });

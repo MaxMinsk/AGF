@@ -1,0 +1,91 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S105",
+  "title": "Spring system + ragdoll death + accessory layer",
+  "status": "archived",
+  "startedAt": "2026-05-22",
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/124",  "stories": [
+    {
+      "id": "CHORE-GDP-2026-05-22-005-PROMOTION",
+      "title": "Promote GDP-2026-05-22-005 (ragdoll death) into the sprint",
+      "status": "implemented",
+      "summary": "Game-design terminal filed GDP-005 (should priority) mid-S104 in response to the user asking 'could we do ragdoll for the characters'. Archive the proposal + promote as the centerpiece of S105 alongside the deferred -003 + -004 from S104.",
+      "epic": "AGF-BACKLOG-ENGINE",
+      "verification": [
+        "acceptance: GDP-2026-05-22-005 archived. Inbox empty. The proposal is split into 3 stories below (RAGDOLL-STATE-COMPONENT + RAGDOLL-ROOT-ARC + RAGDOLL-LIMB-FLAIL) so each phase has a focused diff."
+      ]
+    },
+    {
+      "id": "KABOOM-SPRING-PIVOT-SYSTEM",
+      "title": "Generic spring-damped angular pivot system (foundation for sway + ragdoll)",
+      "status": "implemented",
+      "summary": "Promoted from GDP-2026-05-22-004 (spring half). Pure ECS system: reads a `SpringPivot { restX, restY, restZ, velocityX, velocityY, velocityZ, k, damping }` component on any pivot entity. Each fixedUpdate computes Hooke-spring restoring force toward rest + damping, integrates angular velocity into Transform.rotation. Shared by accessories (soft-attached sway) + ragdoll (death flail) + any future secondary motion. Pure helpers + unit tests; no project-side wiring this story.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: createSpringPivotSystem fixedUpdate integrates Hooke spring per axis on entities with SpringPivot + Transform components. stepSpring pure helper exposed for tests. Default k=18, damping=0.4 (under-damped for lively flail/sway). All angles in degrees (matches AGF Transform.rotation convention).",
+        "examples/procbomber-bench/src/systems/spring-pivot-system.ts: createSpringPivotSystem + stepSpring + DEFAULT_SPRING_K + DEFAULT_SPRING_DAMPING + SPRING_PIVOT constant",
+        "examples/procbomber-bench/schemas/scene-extensions.schema.json: SpringPivot component with restRotation, velocity, k, damping",
+        "+9 unit tests covering pure step + system loop (rest, displacement pull-back, energy decay over 10s, axis independence, write-back velocity, skip-orphan, zero-dt no-op)"
+      ]
+    },
+    {
+      "id": "KABOOM-RAGDOLL-STATE-COMPONENT",
+      "title": "RagdollState component + blast-direction capture on alive→dead edge",
+      "status": "implemented",
+      "summary": "Promoted from GDP-2026-05-22-005. New project-local schema entry `RagdollState { blastOriginGx, blastOriginGz, deathStartedAt, magnitude }` written on the bomber at the moment BomberStats.alive flips false. audio-binding-system (the existing edge detector) captures the BlastEvent that caused the kill + records its origin. Single-blast magnitude = 1.0; chained blasts in the same frame clamp to max 1.8.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: RagdollState component schema entry written + blast-propagation-system writes it on every alive→dead transition with the killing blast's origin cell. Multiple-blast-chain magnitude clamps to 1.8 via incremental += 0.4 per overlap.",
+        "examples/kaboom-crew/schemas/scene-extensions.schema.json: RagdollState component definition",
+        "examples/kaboom-crew/src/systems/blast-propagation-system.ts: damageBombersAt now accepts blastOriginGx/Gz and writes RagdollState on kill"
+      ]
+    },
+    {
+      "id": "KABOOM-RAGDOLL-ROOT-ARC",
+      "title": "Ragdoll root-arc system replaces the S100 vertical-hop tween",
+      "status": "implemented",
+      "summary": "Promoted from GDP-2026-05-22-005. New death-animation system reads RagdollState + drives the root's Transform.position along a gravity arc: initial velocity (dir.x × magnitude × 1.6, +2.4, dir.z × magnitude × 1.6); vy += -9.0 cell/sec² per fixedUpdate. After ~0.6 s the bomber lands ~0.7 cells from death cell, vertical peak ~0.85 cells. Angular velocity: cross(dir, +Y) × magnitude × π applied to root.rotation per tick — produces natural tumble (east blast tips bomber west). REMOVES the S100 deathLaunchHeight + deathSpinYaw curves from death-animation-system.ts.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: death-animation-system replaces the S100 vertical-hop + Y-spin tween with a gravity arc: initial velocity = dir × magnitude × 1.6 horizontal + 2.4 up; vy decays with -9.0 cell/sec². Tumble: cross(dir, +Y) × magnitude × π written to root.rotation per tick. Direction derived from (deathCell - blastOrigin). Default direction (-Z) when no RagdollState.",
+        "Removed: deathFallPitch, deathLaunchHeight, deathSpinYaw helpers + their constants. New: pivotImpulseDegPerS pure helper for limb seeding.",
+        "examples/kaboom-crew/src/systems/death-animation-system.ts: rewrite — captures basePosition/baseRotation/velocity/angularVelocity on first visit, integrates per fixedUpdate"
+      ]
+    },
+    {
+      "id": "KABOOM-RAGDOLL-LIMB-FLAIL",
+      "title": "Limb flail via the spring-pivot system + per-pivot initial impulse",
+      "status": "implemented",
+      "summary": "Promoted from GDP-2026-05-22-005 (limb-flail phase). At the alive→dead frame, the 9 limb pivots from LimbPivots each get a deterministic angular impulse: hash(entityId, blastOrigin, pivotName) → ±15..40° offset. SpringPivot components stamped with the offset as initial velocity + the existing rest (0,0,0) target + k=18 damping=0.4. The spring system then flails the limbs back toward rest. Lasts ~0.6s in sync with the root-arc.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: on the alive→dead frame, death-animation-system seeds SpringPivot on every limb from LimbPivots. velocity = pivotImpulseDegPerS(...) — deterministic per (ownerId, blastOrigin, pivotName), magnitude in [90, 360] deg/s. rest=[0,0,0], k=18, damping=0.4. Spring system drives the flail decay.",
+        "examples/procbomber-bench/src/systems/bench-animation-system.ts: kind='none' skips its writes when DeathAnim is present so the spring + ragdoll systems own the pose",
+        "examples/kaboom-crew/bootstrap.ts: createSpringPivotSystem registered after bench-animation",
+        "+9 unit tests in tests/unit/death-animation-system.test.ts covering deterministic impulse, range bounds, init step, gravity arc, default direction, LimbPivots seeding, deathStartedAt timestamp"
+      ]
+    },
+    {
+      "id": "KABOOM-HIT-RECOIL-SYSTEM",
+      "title": "Hit-recoil — torso punches backward on every blast hit (not only fatal ones)",
+      "status": "deferred",
+      "summary": "Promoted from GDP-2026-05-22-004 (hit-recoil half). Even when the blast doesn't kill (e.g. invuln frames; or non-bomber objects pending), the torso flinches backward briefly. New `HitRecoil { startedAt, blastDirX, blastDirZ }` component; an animation system tweens torso.rotation.X away from the blast for ~0.15s then settles. Decoupled from ragdoll — recoil happens on ANY hit, ragdoll only on the fatal one.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "deferredReason": "Defer to S106. In current Kaboom, every blast hit is instantly lethal — there is no non-death recoil case (no invuln frames, no multi-hp). Hit-recoil as a separate system has no distinct value to add until a survival case lands. Re-promote when multi-hp or i-frames exist."
+    },
+    {
+      "id": "KABOOM-ACCESSORY-LAYER",
+      "title": "Accessory layer — 5 starter accessories on named mount sockets",
+      "status": "deferred",
+      "summary": "Promoted from GDP-2026-05-22-003 (re-promote of GDP-2026-05-21-005). Recipe gains an `accessories: BomberAccessory[]` field (0..3 entries from a closed enum: antennae, visor, backpack, cap, fins). Each accessory is a small mesh tree attached to a named mount socket on the bomber. Mount sockets: head.crown, head.eyes, torso.back, torso.sideL, torso.sideR. Accessory entities are tagged 'soft-attached' (a marker) so the spring-pivot system picks them up for secondary sway. Pure recipe extension — palette channels reused (no new colour fields).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "deferredReason": "Defer to S106. Substantial work (5 starter accessories + 5 mount sockets + recipe extension + soft-attached tagging for spring sway). S105 already shipped the ragdoll trilogy + spring foundation — closing the sprint at 4 implemented is the right cut. Accessories get their own focused sprint where every mount socket gets a unit test + the bench previews each variant."
+    }
+  ],
+  "notes": [
+    "GDP-2026-05-22-005 (ragdoll death) is the user-requested centerpiece. Split into RagdollState capture + root-arc + limb-flail stories so each phase has a focused diff.",
+    "Spring-pivot system foundation lands FIRST — both accessory sway + ragdoll flail consume it. Without the foundation, hit-recoil + ragdoll need their own ad-hoc tween systems.",
+    "S100 KABOOM-SLAPSTICK-DEATH (deathLaunchHeight + deathSpinYaw) is REPLACED by the ragdoll root-arc, not layered on top. The cleanup is part of KABOOM-RAGDOLL-ROOT-ARC."
+  ]
+}

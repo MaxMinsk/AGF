@@ -110,5 +110,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S102](backlog/sprints/S102.sprint.json)** — Bomber multi-mesh tree + palette/recipe expansion (GDP-2026-05-21 batch) — 9 implemented · archived 2026-05-21
 - **[S103](backlog/sprints/S103.sprint.json)** — Bomber animation polish: rotation-units fix, segment sliders, real IK reach, walk-cycle++ — 8 implemented · archived 2026-05-21
 - **[S104](backlog/sprints/S104.sprint.json)** — CharacterRecipe schema + Kaboom Crew procbomber migration — 9 implemented · archived 2026-05-22
+- **[S105](backlog/sprints/S105.sprint.json)** — Spring system + ragdoll death + accessory layer — 5 implemented, 2 deferred · archived 2026-05-22
 
 <!-- backlog:render:end -->

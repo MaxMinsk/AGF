@@ -17,9 +17,34 @@
     "SoftBlockDestroyedEvent": { "$ref": "#/definitions/softBlockDestroyedEventComponent" },
     "AgentGoto": { "$ref": "#/definitions/agentGotoComponent" },
     "AgentGotoResult": { "$ref": "#/definitions/agentGotoResultComponent" },
-    "GamePaused": { "$ref": "#/definitions/gamePausedComponent" }
+    "GamePaused": { "$ref": "#/definitions/gamePausedComponent" },
+    "RagdollState": { "$ref": "#/definitions/ragdollStateComponent" },
+    "HitRecoil": { "$ref": "#/definitions/hitRecoilComponent" }
   },
   "definitions": {
+    "ragdollStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S105 KABOOM-RAGDOLL-STATE-COMPONENT. Records the blast that killed this bomber so the ragdoll system can apply a direction-aware launch impulse. Written by blast-propagation-system when it flips BomberStats.alive=false; consumed by death-animation-system. magnitude clamps to 1.8 when chain blasts pile on in the same frame.",
+      "required": ["blastOriginGx", "blastOriginGz"],
+      "properties": {
+        "blastOriginGx": { "type": "number" },
+        "blastOriginGz": { "type": "number" },
+        "magnitude": { "type": "number", "minimum": 0 },
+        "deathStartedAt": { "type": "number", "description": "context.time.elapsed at the alive→dead frame. Filled by death-animation-system on first visit." }
+      }
+    },
+    "hitRecoilComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S105 KABOOM-HIT-RECOIL-SYSTEM. Brief torso flinch on every blast hit (lethal OR survived). Reserved for the recoil system added in S105-6.",
+      "required": ["startedAt", "blastDirX", "blastDirZ"],
+      "properties": {
+        "startedAt": { "type": "number" },
+        "blastDirX": { "type": "number" },
+        "blastDirZ": { "type": "number" }
+      }
+    },
     "bomberStatsComponent": {
       "type": "object",
       "additionalProperties": false,

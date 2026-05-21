@@ -5,9 +5,33 @@
   "description": "Project-local component types for the procbomber bench. BenchAnimationState drives stub limb-free animations during S101 so the bench dropdown wires through the data path; the real S102 animation systems will replace it once limb anchors split into separate transforms.",
   "components": {
     "BenchAnimationState": { "$ref": "#/definitions/benchAnimationStateComponent" },
-    "LimbPivots": { "$ref": "#/definitions/limbPivotsComponent" }
+    "LimbPivots": { "$ref": "#/definitions/limbPivotsComponent" },
+    "SpringPivot": { "$ref": "#/definitions/springPivotComponent" }
   },
   "definitions": {
+    "springPivotComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S105 KABOOM-SPRING-PIVOT-SYSTEM. Generic spring-damped angular driver for any pivot entity. Each fixedUpdate the system integrates Hooke-spring restoring force toward `restRotation` minus `damping × velocity`, writes the new rotation onto the entity's Transform.rotation. All angles in degrees.",
+      "properties": {
+        "restRotation": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Target rotation [x, y, z] in degrees the pivot springs back toward."
+        },
+        "velocity": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Current angular velocity per axis (deg/s)."
+        },
+        "k": { "type": "number", "minimum": 0, "description": "Spring stiffness." },
+        "damping": { "type": "number", "minimum": 0, "description": "Velocity damping coefficient." }
+      }
+    },
     "limbPivotsComponent": {
       "type": "object",
       "additionalProperties": false,
