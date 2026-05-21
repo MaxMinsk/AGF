@@ -2,9 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S107",
   "title": "Kaboom Crew quality cleanup — perf budget + shadow caster tags",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-22",
-  "stories": [
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/126",  "stories": [
     {
       "id": "KABOOM-CREW-PERF-BUDGET",
       "title": "Add performance-budget.json to examples/kaboom-crew",
