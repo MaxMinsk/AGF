@@ -19,9 +19,16 @@
     {
       "id": "AGF-PROCMESH-REGISTRY",
       "title": "Engine: procedural mesh dispatcher inside MeshHandleRegistry",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Add a project-agnostic procedural mesh path: any `MeshRenderer.mesh` value starting with `procedural:<key>` resolves through a per-renderer registry of `(seedHash) => BufferGeometry` builders, instead of the hardcoded primitive switch. Builders register at bootstrap. Cache by `<key>:<seedHash>` so repeat acquires reuse the geometry. (Engine work driven by the KABOOM-CREW-CHARACTERS chain — stays project-agnostic.)",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: createProceduralMeshRegistry exposes register/has/keys/cacheSize/resolve/invalidate/clear; isProceduralMeshRef + parseProceduralRef parse procedural:<key>[#<seed>] refs; mesh-handle-registry consults the procedural registry first for procedural: refs and falls through to primitives/external otherwise; ThreeRenderer constructs one + exposes proceduralMeshRegistry().",
+        "engine/render/procedural-mesh-registry.ts: new file",
+        "engine/render/mesh-handle-registry.ts: createMeshHandleRegistry takes optional proceduralRegistry",
+        "engine/render/three-renderer.ts: owns + exposes the registry",
+        "+12 unit tests in tests/unit/procedural-mesh-registry.test.ts; existing mesh-lifecycle-system tests still pass"
+      ]
     },
     {
       "id": "AGF-PROCMESH-DOCTOR-LINE",

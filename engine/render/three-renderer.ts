@@ -15,6 +15,10 @@ import type { GlbAsset } from "./glb-loader";
 import { createLightHandleRegistry, type LightHandleRegistry } from "./light-handle-registry";
 import { createMeshHandleRegistry, type MeshHandleRegistry } from "./mesh-handle-registry";
 import {
+  createProceduralMeshRegistry,
+  type ProceduralMeshRegistry
+} from "./procedural-mesh-registry";
+import {
   ThreeRenderAdapter,
   type CameraHandle,
   type MeshHandle,
@@ -70,6 +74,7 @@ export class ThreeRenderer {
   private readonly world: World;
   readonly adapter: ThreeRenderAdapter;
   private readonly registry: MeshHandleRegistry;
+  private readonly proceduralRegistry: ProceduralMeshRegistry;
   private readonly lightRegistry: LightHandleRegistry;
   private readonly appliedMaterials = new Map<EntityId, string>();
   private readonly appliedGeometries = new Map<EntityId, string>();
@@ -122,7 +127,10 @@ export class ThreeRenderer {
       options.diagnostics = extraOptions.diagnostics;
     }
     this.adapter = new ThreeRenderAdapter(options);
-    this.registry = createMeshHandleRegistry(this.adapter);
+    this.proceduralRegistry = createProceduralMeshRegistry();
+    this.registry = createMeshHandleRegistry(this.adapter, {
+      proceduralRegistry: this.proceduralRegistry
+    });
     this.lightRegistry = createLightHandleRegistry(this.adapter);
   }
 
@@ -133,6 +141,17 @@ export class ThreeRenderer {
    */
   meshRegistry(): MeshHandleRegistry {
     return this.registry;
+  }
+
+  /**
+   * S101 AGF-PROCMESH-REGISTRY: expose the procedural mesh builder
+   * registry so projects can `register("procbomber", (seed) => ...)` at
+   * bootstrap. Any `MeshRenderer.mesh` ref of the form `procedural:<key>`
+   * resolves through this registry instead of the hardcoded primitive
+   * switch.
+   */
+  proceduralMeshRegistry(): ProceduralMeshRegistry {
+    return this.proceduralRegistry;
   }
 
   /**

@@ -12,7 +12,7 @@ Status: **active** (started 2026-05-21). Source: `backlog/sprints/S101.sprint.js
 
 - **CHORE-CHARACTERS-EPIC-ACTIVATE** — Flip KABOOM-CREW-CHARACTERS epic status to active _(implemented)_
   Epic was created in S100 with status 'planned'. This sprint is the first slice of that chain (mesh layer via the bench), so flip it to 'active'.
-- **AGF-PROCMESH-REGISTRY** — Engine: procedural mesh dispatcher inside MeshHandleRegistry _(pending)_
+- **AGF-PROCMESH-REGISTRY** — Engine: procedural mesh dispatcher inside MeshHandleRegistry _(implemented)_
   Add a project-agnostic procedural mesh path: any `MeshRenderer.mesh` value starting with `procedural:<key>` resolves through a per-renderer registry of `(seedHash) => BufferGeometry` builders, instead of the hardcoded primitive switch. Builders register at bootstrap. Cache by `<key>:<seedHash>` so repeat acquires reuse the geometry. (Engine work driven by the KABOOM-CREW-CHARACTERS chain — stays project-agnostic.)
 - **AGF-PROCMESH-DOCTOR-LINE** — Doctor: report registered procedural mesh keys + cache size _(pending)_
   When the renderer exposes its procedural mesh registry, engine doctor prints `Procedural mesh registry: N key(s), M cache entries`. Suppress the line when N=0 (no project registered any).
