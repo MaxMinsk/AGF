@@ -115,5 +115,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S107](backlog/sprints/S107.sprint.json)** — Kaboom Crew quality cleanup — perf budget + shadow caster tags — 2 implemented · archived 2026-05-22
 - **[S108](backlog/sprints/S108.sprint.json)** — Bomber facing direction + ragdoll ground clamp — 6 implemented · archived 2026-05-22
 - **[S109](backlog/sprints/S109.sprint.json)** — Shield + Hit-recoil + procedural texturing + procedural voice + multiplayer foundation kickoff — 6 implemented · archived 2026-05-22
+- **[S110](backlog/sprints/S110.sprint.json)** — Babble voice override + walk-phase from distance + texturing layers 2-3 + S109 polish — 2 implemented · archived 2026-05-22
 
 <!-- backlog:render:end -->
