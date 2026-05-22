@@ -36,6 +36,21 @@
       "epic": "KABOOM-CREW-CHARACTERS"
     },
     {
+      "id": "RESEARCH-VOCAL-SYNTH-APPROACHES-001",
+      "title": "Research procedural voice synthesis approaches for Kaboom Crew bombers (spike → notes/voice-synth-research.md)",
+      "status": "implemented",
+      "summary": "Pure research / spike — no engine code. Survey the practical options for generating short, per-bomber procedural voice clips in the browser via Web Audio API. Goal is to derisk FEAT-PROCEDURAL-VOCAL-SYNTH-S-001 before any system code lands. The output is a single notes/voice-synth-research.md artifact that covers: (a) the design space (formant synthesis, FM, granular, additive, sample-based stretching, ML-tiny vocoders, neural vocoders); (b) what we actually need for Kaboom Crew — 5 short emotional slots (place-bomb / hit / pickup / death / victory), ~80-300 ms each, seed-derived voice colour, deterministic on the same seed, runs cheaply at the existing audio-fx synth bus — and which approaches FIT vs which are over-engineered; (c) concrete references — papers, libraries, demos, open-source projects, JSFXR-style toys, Bfxr / Chiptune approaches, Klang / Tone.js patches, Roli's Equator-style formant chains; (d) one recommended approach to implement first with a sketch of the parameter set (~3-6 seed-derived knobs: base pitch, formant pair F1/F2, envelope attack/decay, harmonic ratio, vowel-like timbre selector); (e) explicit list of what the recommended approach does NOT cover, so the feature story has a clear scope. Constraint: no external dependencies, no pre-rendered audio files, no voice actors, no large model bundles. Everything must run in the same procedural Web Audio path the existing kaboom audio-fx uses.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: notes/voice-synth-research.md exists and covers all six required sections — (1) Kaboom Crew constraints; (2) 8-family design-space comparison table; (3) why formant synthesis specifically + Web Audio recipe; (4) concrete references (papers, OSS projects, game refs); (5) recommended approach with 7 seed-derived knobs + 5 fixed slot envelopes + parameter ranges; (6) explicit out-of-scope list + risks. Names source-filter formant synthesis as primary + additive partials as fallback. The feature story FEAT-PROCEDURAL-VOCAL-SYNTH-S-001 can now proceed with its design pre-locked.",
+        "notes/voice-synth-research.md: new file (~250 lines)",
+        "Survey covers 8 synthesis families; rejects neural / phoneme-TTS / granular / LPC for explicit reasons",
+        "Names 7 seed-derived voice-colour knobs (basePitchHz, formantF1Hz, formantF2Hz, formantQ, vibratoHz, vibratoDepth, noiseMix) with numeric ranges",
+        "Names 5 fixed emotion slots (place-bomb, hit, pickup, death, victory) with pitch-automation + envelope shape",
+        "Cites Klatt 1980, Peterson & Barney 1952, jsfxr, ZzFX, Bfxr, SAM, Tone.js, Bomberman SNES, Mario 64, Hollow Knight"
+      ]
+    },
+    {
       "id": "FEAT-PROCEDURAL-VOCAL-SYNTH-S-001",
       "title": "Procedural vocal synth — seed-derived per-bomber voice for 5 emotional moments (re-promote of GDP-2026-05-20-010)",
       "status": "pending",
