@@ -51,7 +51,13 @@
           "required": ["playerId"],
           "properties": {
             "playerId": { "$ref": "#/definitions/playerId" },
-            "displayName": { "type": "string", "minLength": 1 }
+            "displayName": { "type": "string", "minLength": 1 },
+            "recipe": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "description": "S112 KABOOM-MP-RECIPE-SYNC — opaque base64-url-safe blob (e.g. encodeRecipe(CharacterRecipe) for Kaboom Crew). Server treats as untrusted and echoes back in every snapshot as a CharacterRecipe component on the player.<id> entity. 4 KB cap is generous (current recipes encode under 200 bytes)."
+            }
           }
         }
       }

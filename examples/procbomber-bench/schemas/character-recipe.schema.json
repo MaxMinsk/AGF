@@ -76,6 +76,16 @@
           "type": "boolean",
           "default": true,
           "description": "Layer 1 — when true, extreme-Y vertices (8 corners on a box, top + bottom rings on a cylinder / capsule) are darkened by a fixed factor, reading as soft panel-edge highlights. Default true."
+        },
+        "decals": {
+          "type": "array",
+          "maxItems": 3,
+          "description": "S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — 0..3 decals from the fixed catalog. Each decal paints a specific anchor face on a specific part-mesh with a palette colour. Pure vertex-colour overrides; no shader change.",
+          "items": {
+            "type": "string",
+            "enum": ["chestEmblem", "helmetStripe", "kneePad"]
+          },
+          "uniqueItems": true
         }
       }
     }

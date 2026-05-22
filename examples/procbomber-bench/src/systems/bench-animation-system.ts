@@ -253,10 +253,20 @@ export function createBenchAnimationSystem(): System {
             : Math.hypot(curXZ[0] - prevXZ[0], curXZ[1] - prevXZ[1]);
         prevPosXZByEntity.set(id, curXZ);
         const prevWalkPhase = state.walkPhaseS ?? 0;
+        // S110 BAL-WALK-ANIMATION-PHASE-MUS — primary path: advance the
+        // walk phase by distance travelled. S112 follow-up: fall back
+        // to wall-clock advance when distance == 0 in walk-swing. This
+        // restores the bench's stationary preview (the slider panel
+        // renders a walk-swing bomber that never moves) without
+        // re-introducing the wall-clock dependency for actually-moving
+        // bombers — gameplay distance is always > 0 between cells, so
+        // the fallback never fires there.
         const walkPhaseS =
-          state.kind === "walk-swing"
-            ? prevWalkPhase + distanceThisFrame / WALK_REFERENCE_SPEED
-            : prevWalkPhase;
+          state.kind !== "walk-swing"
+            ? prevWalkPhase
+            : distanceThisFrame > 1e-6
+              ? prevWalkPhase + distanceThisFrame / WALK_REFERENCE_SPEED
+              : prevWalkPhase + dt;
 
         // S103 PROCBOMBER-ARM-REST-APPLIES: when no walk-swing /
         // limb-test is active, shoulders hold the user's arm-rest pose.

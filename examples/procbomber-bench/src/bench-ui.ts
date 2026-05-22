@@ -155,6 +155,9 @@ export function mountBenchControls(
   }
   panel.appendChild(buildSectionHeading("Texturing"));
   panel.appendChild(buildPanelSeamsToggle(state, scheduleRebuild));
+  for (const decal of ["chestEmblem", "helmetStripe", "kneePad"] as const) {
+    panel.appendChild(buildDecalToggle(decal, state, scheduleRebuild));
+  }
   panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
@@ -238,6 +241,41 @@ function buildAccessorySelect(
 }
 
 type AccessoryKindString = "antennae" | "visor" | "backpack" | "cap" | "fins";
+
+// S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — per-decal toggle. Adds /
+// removes the decal from state.decals[] (deterministic order: the
+// catalog order). Rebuild fires the geometry-paint pass.
+function buildDecalToggle(
+  decal: "chestEmblem" | "helmetStripe" | "kneePad",
+  state: BenchState,
+  scheduleRebuild: () => void
+): HTMLElement {
+  const row = document.createElement("label");
+  row.dataset["procbomberDecalRow"] = decal;
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "8px";
+  row.style.padding = "4px 0";
+  row.style.fontSize = "12px";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = state.decals.includes(decal);
+  input.dataset["procbomberDecal"] = decal;
+  input.addEventListener("change", () => {
+    const set = new Set(state.decals);
+    if (input.checked) set.add(decal);
+    else set.delete(decal);
+    // Preserve catalog order so the recipe encode is stable across UI clicks.
+    const order: ReadonlyArray<"chestEmblem" | "helmetStripe" | "kneePad"> = ["chestEmblem", "helmetStripe", "kneePad"];
+    state.decals = order.filter((d) => set.has(d));
+    scheduleRebuild();
+  });
+  const text = document.createElement("span");
+  text.textContent = `Decal: ${decal}`;
+  row.appendChild(input);
+  row.appendChild(text);
+  return row;
+}
 
 // S109 KABOOM-PROCEDURAL-TEXTURING — Panel-seams toggle. Single boolean
 // in the recipe; the geometry-rebuild pass picks up the new value via

@@ -10,7 +10,7 @@ import type { ValidateFunction } from "ajv";
 import type { ServerWorld, Snapshot } from "./world.js";
 
 type ProtocolMessage =
-  | { kind: "player.join"; sequence?: number; payload: { playerId: string; displayName?: string } }
+  | { kind: "player.join"; sequence?: number; payload: { playerId: string; displayName?: string; recipe?: string } }
   | { kind: "player.leave"; sequence?: number; payload: { playerId: string; reason?: string } }
   | {
       kind: "intent.move";
@@ -83,11 +83,11 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
       const message = parsed as ProtocolMessage;
       switch (message.kind) {
         case "player.join": {
-          const { playerId } = message.payload;
+          const { playerId, recipe } = message.payload;
           clientPlayer.set(socket, playerId);
           playerSocket.set(playerId, socket);
-          world.join(playerId);
-          log(`[node-world-server] join playerId=${playerId} (total=${world.playerCount()})`);
+          world.join(playerId, recipe);
+          log(`[node-world-server] join playerId=${playerId}${recipe !== undefined ? ` (recipe=${recipe.slice(0, 20)}...)` : ""} (total=${world.playerCount()})`);
           break;
         }
         case "player.leave": {

@@ -474,6 +474,14 @@ if (requestedPlayerId !== null && requestedPlayerId.length > 0) {
 if (requestedNetworked === "1" || requestedNetworked === "true") {
   baseAppOptions.networked = true;
 }
+// S112 KABOOM-MP-RECIPE-SYNC — forward `?recipe=<base64>` so the WS
+// adapter sends it in player.join + the server echoes it back in
+// every snapshot as a CharacterRecipe component on the player.<id>
+// entity. Opaque blob — main.ts doesn't validate the recipe content.
+const requestedRecipe = params.get("recipe");
+if (requestedRecipe !== null && requestedRecipe.length > 0) {
+  baseAppOptions.recipe = requestedRecipe;
+}
 if (requestedProfile !== null && requestedProfile.length > 0) {
   baseAppOptions.activeProfile = requestedProfile;
 }

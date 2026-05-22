@@ -15,6 +15,14 @@ type PlayerEntity = {
   lastIntentSequence: number;
   /** Server-elapsed timestamp of the most recent activity (join or intent). */
   lastActivity: number;
+  /**
+   * S112 KABOOM-MP-RECIPE-SYNC — opaque base64-url-safe recipe string
+   * carried in player.join. The server treats it as a string blob and
+   * echoes it back in every snapshot as a `CharacterRecipe` component
+   * on the player.<id> entity. Untrusted client input — server does
+   * NOT validate the content.
+   */
+  recipe?: string;
 };
 
 export type SnapshotEntity = {
@@ -41,8 +49,12 @@ export class ServerWorld {
   private readonly players = new Map<string, PlayerEntity>();
   private elapsed = 0;
 
-  join(playerId: string): void {
+  join(playerId: string, recipe?: string): void {
     if (this.players.has(playerId)) {
+      // S112 — re-join with a different recipe overwrites (reconnect
+      // flow). Position / direction stay.
+      const existing = this.players.get(playerId)!;
+      if (recipe !== undefined) existing.recipe = recipe;
       return;
     }
     this.players.set(playerId, {
@@ -50,7 +62,8 @@ export class ServerWorld {
       position: [...SPAWN_POSITION],
       direction: [0, 0],
       lastIntentSequence: -1,
-      lastActivity: this.elapsed
+      lastActivity: this.elapsed,
+      ...(recipe !== undefined ? { recipe } : {})
     });
   }
 
@@ -115,7 +128,13 @@ export class ServerWorld {
         components: {
           Transform: { position: [...player.position] },
           Presence: { playerId: player.id },
-          Networked: { authority: "server" }
+          Networked: { authority: "server" },
+          // S112 KABOOM-MP-RECIPE-SYNC — opaque recipe blob; clients
+          // decode it to render the remote bomber with the correct
+          // visual identity. Omitted when the player hasn't supplied a
+          // recipe in player.join (typed clients without the kaboom
+          // module work as before).
+          ...(player.recipe !== undefined ? { CharacterRecipe: { recipe: player.recipe } } : {})
         }
       });
       if (player.lastIntentSequence >= 0) {

@@ -58,11 +58,13 @@ describe("partKey / partColor (S102)", () => {
 
 describe("torso geometry (S102)", () => {
   const g = generateTorso(SIZES, SKY);
-  it("is 32 vertices (S109: heightSegments=2 for panel-seam read)", () => {
+  it("is 54 vertices (S112: torso bumped to 2x2x2 BoxGeometry for chestEmblem decal anchor)", () => {
     // S109 KABOOM-PROCEDURAL-TEXTURING bumped buildBoxLike's BoxGeometry
-    // to heightSegments=2 so the top + bottom edge rows can darken
-    // independently from the middle band. Pre-S109 this was 24.
-    expect(g.getAttribute("position").count).toBe(32);
+    // to (1,2,1) segments = 32 verts. S112 KABOOM-PROCEDURAL-TEXTURING-
+    // LAYER-2 bumped the TORSO specifically to (2,2,2) = 54 verts so
+    // the FRONT face has a 3×3 grid of verts and the chestEmblem decal
+    // hits the centre cleanly. Other part-meshes stay at 32.
+    expect(g.getAttribute("position").count).toBe(54);
   });
   it("is centered on Y (range = [-h/2 .. +h/2])", () => {
     let minY = Infinity;
@@ -146,7 +148,8 @@ describe("generatePart dispatcher (S102)", () => {
   it("returns the same geometry as the named builder for every part", () => {
     const torso = generatePart("torso", SIZES, SKY);
     // S109: heightSegments=2 → 32 verts per box (was 24).
-    expect(torso.getAttribute("position").count).toBe(32);
+    // S112: torso bumped to 2x2x2 = 54 verts (chestEmblem decal anchor).
+    expect(torso.getAttribute("position").count).toBe(54);
     const head = generatePart("head", SIZES, SKY);
     expect(head.getAttribute("position").count).toBe(32);
   });

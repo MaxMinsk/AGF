@@ -32,7 +32,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[BEACON-WORLD-SAMPLE](backlog/epics/BEACON-WORLD-SAMPLE.epic.json)** — Beacon World sample | active | engine | 1 / 0 / 1 |  |
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
-| **[KABOOM-CREW-CHARACTERS](backlog/epics/KABOOM-CREW-CHARACTERS.epic.json)** — Kaboom Crew — procedural characters (mesh + animation + voice) | active | sample-game | 48 / 0 / 53 |  |
+| **[KABOOM-CREW-CHARACTERS](backlog/epics/KABOOM-CREW-CHARACTERS.epic.json)** — Kaboom Crew — procedural characters (mesh + animation + voice) | active | sample-game | 49 / 0 / 54 |  |
 | **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 20 / 0 / 20 | → MVP-0 |
 | **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 44 / 0 / 44 |  |
 | **[KABOOM-CREW-MVP-2](backlog/epics/KABOOM-CREW-MVP-2.epic.json)** — Kaboom Crew — MVP 2 (mechanic depth + bot personality + power-up variety) | active | sample-game | 7 / 0 / 7 |  |
@@ -51,7 +51,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[EXAMPLES-FEATURE-LAB-SANDBOX](backlog/epics/EXAMPLES-FEATURE-LAB-SANDBOX.epic.json)** — examples/feature-lab/ sandbox | planned | engine | 3 / 0 / 3 |  |
 | **[EXECUTABLE-AGENT-SKILLS](backlog/epics/EXECUTABLE-AGENT-SKILLS.epic.json)** — Executable agent skills | planned | engine | 0 / 0 / 0 |  |
 | **[GAME-DESIGN-AGENT](backlog/epics/GAME-DESIGN-AGENT.epic.json)** — Game designer / product-owner terminal — third role in the multi-agent loop | planned | infra | 7 / 0 / 7 | → S100 |
-| **[KABOOM-CREW-MVP-NETWORK](backlog/epics/KABOOM-CREW-MVP-NETWORK.epic.json)** — Kaboom Crew — networked play (connected profile, two browser tabs share one arena) | planned | sample-game | 2 / 0 / 3 |  |
+| **[KABOOM-CREW-MVP-NETWORK](backlog/epics/KABOOM-CREW-MVP-NETWORK.epic.json)** — Kaboom Crew — networked play (connected profile, two browser tabs share one arena) | planned | sample-game | 3 / 0 / 4 |  |
 | **[M18](backlog/epics/M18.epic.json)** — M18 Picking / raycast interaction | planned | engine | 0 / 0 / 0 |  |
 | **[M19](backlog/epics/M19.epic.json)** — M19 Game-feel polish (tween + particles) | planned | engine | 5 / 0 / 5 |  |
 | **[M26](backlog/epics/M26.epic.json)** — M26 Visual fidelity polish (probes + post-FX) | planned | engine | 12 / 0 / 12 |  |
