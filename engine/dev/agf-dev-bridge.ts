@@ -291,7 +291,11 @@ export function agfDevBridge(options: DevBridgeOptions = {}): Plugin {
       return {
         error: {
           code: "AGF_BRIDGE_PAGE_NOT_CONNECTED",
-          message: `No active page on ${DEV_BRIDGE_WS_PATH} — open http://localhost:5173 in a tab first.`
+          // S111 QA-2026-05-20-001 — was hardcoded `http://localhost:5173`,
+          // which sent the agent to the wrong port whenever Vite picked a
+          // non-default port (parallel sessions, CI workers, --port flag).
+          // url.origin already reflects the live host:port of the bridge.
+          message: `No active page on ${DEV_BRIDGE_WS_PATH} — open ${url.origin} in a tab first.`
         }
       };
     }

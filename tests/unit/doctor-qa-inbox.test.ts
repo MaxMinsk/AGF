@@ -139,4 +139,43 @@ describe("BacklogReport.qaInbox (S93 QA-DOCTOR-INBOX)", () => {
       fx.cleanup();
     }
   });
+
+  // S111 BUG-ENGINE-DOCTOR-QA-PROPOSE-001 — the no-active-sprint branch
+  // used to early-return, dropping the QA inbox + Proposed-story inbox +
+  // Recent commits + Follow-ups sections. This regression locks them in
+  // place: the QA inbox must render even when no sprint is active.
+  it("S111 regression: formatBacklog renders QA inbox even when no sprint is active", () => {
+    // Stage tickets but DELETE the stub active sprint so report.active === undefined.
+    const fx = stageRepo([
+      ticket("QA-2026-05-20-001", "critical", "Crit bug while no sprint active")
+    ]);
+    try {
+      // Overwrite the stub sprint as archived so summarizeBacklog returns active=undefined.
+      writeFileSync(
+        join(fx.repoRoot, "backlog", "sprints", "S999.sprint.json"),
+        JSON.stringify(
+          {
+            agfFormatVersion: 1,
+            id: "S999",
+            title: "Test stub sprint",
+            status: "archived",
+            archivedAt: "2026-05-22",
+            stories: []
+          },
+          null,
+          2
+        ) + "\n",
+        "utf8"
+      );
+      const r = summarizeBacklog(fx.repoRoot);
+      expect(r.active).toBeUndefined();
+      const out = formatBacklog(r);
+      expect(out).toContain("No sprint is currently active");
+      // The pre-fix regression: these lines disappeared. Lock them in.
+      expect(out).toContain("QA inbox: 1 ticket(s)");
+      expect(out).toContain("QA-2026-05-20-001");
+    } finally {
+      fx.cleanup();
+    }
+  });
 });
