@@ -8,9 +8,9 @@ import {
   PANEL_SEAM_FACTOR,
   generateTorso,
   generateUpperArm,
-  type BomberPalette,
   type BomberPartSizes
 } from "../../src/generators/bomber-parts";
+import type { BomberPalette } from "../../src/generators/bomber-palette";
 
 const SIZES: BomberPartSizes = {
   headSize: 0.4,
@@ -25,6 +25,7 @@ const SIZES: BomberPartSizes = {
 };
 
 const PALETTE: BomberPalette = {
+  name: "sky",
   head: "#ff0000",
   torsoTop: "#00ff00",
   torsoBottom: "#003300",
