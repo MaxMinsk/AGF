@@ -119,5 +119,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S111](backlog/sprints/S111.sprint.json)** — QA cleanup: 3 doctor / dev-bridge tickets + texturing layers 2-3 + MP follow-ups — 3 implemented · archived 2026-05-22
 - **[S112](backlog/sprints/S112.sprint.json)** — Texturing Layer 2 (decals via vertex-color) + multiplayer recipe sync (Option B) — 2 implemented · archived 2026-05-22
 - **[S113](backlog/sprints/S113.sprint.json)** — Texturing Layer 3 — stripes via vertex-color band painting + small follow-ups — 1 implemented · archived 2026-05-22
+- **[S114](backlog/sprints/S114.sprint.json)** — Live two-tab multiplayer Playwright smoke + MP HUD peer count — 2 implemented · archived 2026-05-22
 
 <!-- backlog:render:end -->
