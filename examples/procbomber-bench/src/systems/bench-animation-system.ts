@@ -41,7 +41,27 @@ export type BenchAnimationStateComponent = {
   upperArmLength?: number;
   /** S103 PROCBOMBER-IK-REACH-TARGET — forearm length. */
   forearmLength?: number;
+  /**
+   * S110 BAL-WALK-ANIMATION-PHASE-MUS — separate phase clock for the
+   * walk-swing branch. Advances by (distance travelled this frame) /
+   * WALK_REFERENCE_SPEED so the stride cadence is locked to actual
+   * velocity, not wall-clock. Fed directly into walkSwingRotation /
+   * walkBendRotation / walkRootBobY in place of `elapsed`. Frozen
+   * (held at its last value) when the bomber is NOT in walk-swing —
+   * so the limbs hold mid-stride during pauses.
+   */
+  walkPhaseS?: number;
 };
+
+/**
+ * S110 BAL-WALK-ANIMATION-PHASE-MUS — cells-per-second reference speed.
+ * The walk phase advances by (distance / WALK_REFERENCE_SPEED) per
+ * fixedUpdate. At this speed the per-frame phase advance matches the
+ * old wall-clock behaviour exactly, so a default-speed bomber animates
+ * identically to before. Slower bombers stride visibly slower; faster
+ * bombers hustle. Default GridMover.speed is 4.
+ */
+export const WALK_REFERENCE_SPEED = 4;
 
 export type TransformLike = {
   position?: ReadonlyArray<number>;
@@ -179,6 +199,11 @@ export function createBenchAnimationSystem(): System {
   let cachedWorld: World | undefined;
   let query: ReturnType<World["createQuery"]> | undefined;
   let prevPivotIdxByEntity = new Map<string, number>();
+  // S110 BAL-WALK-ANIMATION-PHASE-MUS — per-entity last-frame XZ
+  // position. Used to derive distance travelled this frame and
+  // advance the walk phase proportionally to velocity instead of
+  // wall-clock.
+  let prevPosXZByEntity = new Map<string, [number, number]>();
 
   return {
     name: "procbomber.bench-animation",
@@ -189,6 +214,7 @@ export function createBenchAnimationSystem(): System {
         cachedWorld = world;
         basePoses.clear();
         prevPivotIdxByEntity = new Map<string, number>();
+        prevPosXZByEntity = new Map<string, [number, number]>();
       }
       const dt = context.time.fixedDt;
       for (const id of query!.run()) {
@@ -207,6 +233,30 @@ export function createBenchAnimationSystem(): System {
         }
         const nextElapsed = (state.elapsed ?? 0) + dt;
         const limbPivots = world.getComponent<LimbPivots>(id, LIMB_PIVOTS);
+
+        // S110 BAL-WALK-ANIMATION-PHASE-MUS — distance-driven walk phase.
+        // Track per-entity XZ position to derive distance travelled this
+        // frame. When the bomber is in walk-swing, advance walkPhaseS by
+        // (distance / WALK_REFERENCE_SPEED) so a default-speed bomber
+        // matches the old wall-clock cadence while slower/faster bombers
+        // stride proportionally slower/faster. The phase is FROZEN (held)
+        // when the bomber is not in walk-swing — so the next walk cycle
+        // continues mid-stride instead of snapping back to phase=0.
+        const curXZ: [number, number] = [
+          transform.position?.[0] ?? 0,
+          transform.position?.[2] ?? 0
+        ];
+        const prevXZ = prevPosXZByEntity.get(id);
+        const distanceThisFrame =
+          prevXZ === undefined
+            ? 0
+            : Math.hypot(curXZ[0] - prevXZ[0], curXZ[1] - prevXZ[1]);
+        prevPosXZByEntity.set(id, curXZ);
+        const prevWalkPhase = state.walkPhaseS ?? 0;
+        const walkPhaseS =
+          state.kind === "walk-swing"
+            ? prevWalkPhase + distanceThisFrame / WALK_REFERENCE_SPEED
+            : prevWalkPhase;
 
         // S103 PROCBOMBER-ARM-REST-APPLIES: when no walk-swing /
         // limb-test is active, shoulders hold the user's arm-rest pose.
@@ -233,16 +283,19 @@ export function createBenchAnimationSystem(): System {
             // plant (twice per cycle); shoulders + hips swing; knees +
             // elbows bend in phase. Reads as an actual walk instead of
             // just sliding limbs.
-            setTransformPosition(world, id, base.x, walkRootBobY(nextElapsed, base.y), base.z);
+            // S110 BAL-WALK-ANIMATION-PHASE-MUS — phase is now driven by
+            // travelled distance via walkPhaseS, not wall-clock. Slow
+            // bombers visibly stride slower; fast bombers hustle.
+            setTransformPosition(world, id, base.x, walkRootBobY(walkPhaseS, base.y), base.z);
             if (limbPivots !== undefined) {
-              setTransformRotationXFromRad(world, limbPivots.shoulderL, walkSwingRotation(nextElapsed, "shoulderL"));
-              setTransformRotationXFromRad(world, limbPivots.shoulderR, walkSwingRotation(nextElapsed, "shoulderR"));
-              setTransformRotationXFromRad(world, limbPivots.hipL, walkSwingRotation(nextElapsed, "hipL"));
-              setTransformRotationXFromRad(world, limbPivots.hipR, walkSwingRotation(nextElapsed, "hipR"));
-              setTransformRotationXFromRad(world, limbPivots.elbowL, walkBendRotation(nextElapsed, "elbowL"));
-              setTransformRotationXFromRad(world, limbPivots.elbowR, walkBendRotation(nextElapsed, "elbowR"));
-              setTransformRotationXFromRad(world, limbPivots.kneeL, walkBendRotation(nextElapsed, "kneeL"));
-              setTransformRotationXFromRad(world, limbPivots.kneeR, walkBendRotation(nextElapsed, "kneeR"));
+              setTransformRotationXFromRad(world, limbPivots.shoulderL, walkSwingRotation(walkPhaseS, "shoulderL"));
+              setTransformRotationXFromRad(world, limbPivots.shoulderR, walkSwingRotation(walkPhaseS, "shoulderR"));
+              setTransformRotationXFromRad(world, limbPivots.hipL, walkSwingRotation(walkPhaseS, "hipL"));
+              setTransformRotationXFromRad(world, limbPivots.hipR, walkSwingRotation(walkPhaseS, "hipR"));
+              setTransformRotationXFromRad(world, limbPivots.elbowL, walkBendRotation(walkPhaseS, "elbowL"));
+              setTransformRotationXFromRad(world, limbPivots.elbowR, walkBendRotation(walkPhaseS, "elbowR"));
+              setTransformRotationXFromRad(world, limbPivots.kneeL, walkBendRotation(walkPhaseS, "kneeL"));
+              setTransformRotationXFromRad(world, limbPivots.kneeR, walkBendRotation(walkPhaseS, "kneeR"));
               // Neck stays neutral during walk.
               setTransformRotationZero(world, limbPivots.neck);
             }
@@ -306,7 +359,8 @@ export function createBenchAnimationSystem(): System {
 
         world.setComponent(id, BENCH_ANIMATION_STATE, {
           ...state,
-          elapsed: nextElapsed
+          elapsed: nextElapsed,
+          walkPhaseS
         });
       }
     }
