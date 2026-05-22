@@ -67,6 +67,26 @@ describe("PlayerInputSystem", () => {
     expect(z).toBeCloseTo(-1, 5);
   });
 
+  it("skips entities tagged with MotionOverride (another system owns the position)", () => {
+    // S108 — death-animation-system stamps MotionOverride on dead
+    // bombers; without this skip the legacy engine input system kept
+    // pushing the corpse around even after grid-movement-system bailed.
+    const world = makeWorld(4);
+    world.setComponent("player", "MotionOverride", {});
+    step(0.5, world, new Set(["KeyD"]));
+    expect(transformPosition(world)).toEqual([0, 0, 0]);
+  });
+
+  it("skips entities that own a GridMover (grid-driven projects manage their own position)", () => {
+    // Kaboom Crew + every other grid-based project writes to GridMover;
+    // the engine fallback must not also drift Transform.position from
+    // raw keyboard input.
+    const world = makeWorld(4);
+    world.setComponent("player", "GridMover", { speed: 4, queuedDirection: { dx: 0, dz: 0 } });
+    step(0.5, world, new Set(["KeyD"]));
+    expect(transformPosition(world)).toEqual([0, 0, 0]);
+  });
+
   it("ignores entities without both PlayerControlled and Transform", () => {
     const world = new World();
     world.addEntity("orphan-controlled");

@@ -99,6 +99,19 @@ export function createPlayerInputSystem(options: PlayerInputSystemOptions = {}):
         if (player === undefined || transform === undefined) {
           continue;
         }
+        // S108 — entities whose position is owned by another system
+        // (GridMover-driven movement, ragdoll arc, network-authoritative
+        // remote presence) opt out by tagging `MotionOverride` or by
+        // owning a `GridMover` component. Without this guard a dead
+        // bomber (MotionOverride set by death-animation-system) still
+        // drifts in response to keyboard input even though the
+        // project-specific input system has locked it out.
+        if (world.hasComponent(entityId, "MotionOverride")) {
+          continue;
+        }
+        if (world.hasComponent(entityId, "GridMover")) {
+          continue;
+        }
         const speed = player.speed;
         const stepX = nx * speed * time.dt;
         const stepZ = nz * speed * time.dt;
