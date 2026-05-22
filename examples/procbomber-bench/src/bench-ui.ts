@@ -158,6 +158,8 @@ export function mountBenchControls(
   for (const decal of ["chestEmblem", "helmetStripe", "kneePad"] as const) {
     panel.appendChild(buildDecalToggle(decal, state, scheduleRebuild));
   }
+  panel.appendChild(buildPatternStyleSelect(state, scheduleRebuild));
+  panel.appendChild(buildPatternScaleSlider(state, scheduleRebuild));
   panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
@@ -274,6 +276,70 @@ function buildDecalToggle(
   text.textContent = `Decal: ${decal}`;
   row.appendChild(input);
   row.appendChild(text);
+  return row;
+}
+
+// S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3 — pattern style dropdown
+// (solid / stripes). Spots are out of scope.
+function buildPatternStyleSelect(state: BenchState, scheduleRebuild: () => void): HTMLElement {
+  const row = document.createElement("div");
+  row.dataset["procbomberPatternStyleRow"] = "pattern-style";
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "8px";
+  row.style.padding = "4px 0";
+  row.style.fontSize = "12px";
+  const label = document.createElement("span");
+  label.textContent = "Pattern";
+  label.style.minWidth = "82px";
+  const select = document.createElement("select");
+  select.dataset["procbomberPatternStyle"] = "select";
+  for (const style of ["solid", "stripes"] as const) {
+    const opt = document.createElement("option");
+    opt.value = style;
+    opt.textContent = style;
+    if (state.patternStyle === style) opt.selected = true;
+    select.appendChild(opt);
+  }
+  select.addEventListener("change", () => {
+    state.patternStyle = select.value as "solid" | "stripes";
+    scheduleRebuild();
+  });
+  row.appendChild(label);
+  row.appendChild(select);
+  return row;
+}
+
+// S113 — stripe scale slider [2..6]. Only meaningful when style === "stripes".
+function buildPatternScaleSlider(state: BenchState, scheduleRebuild: () => void): HTMLElement {
+  const row = document.createElement("div");
+  row.dataset["procbomberPatternScaleRow"] = "pattern-scale";
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "8px";
+  row.style.padding = "4px 0";
+  row.style.fontSize = "12px";
+  const label = document.createElement("span");
+  label.textContent = "Stripe scale";
+  label.style.minWidth = "82px";
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "2";
+  slider.max = "6";
+  slider.step = "1";
+  slider.value = String(state.patternScale);
+  slider.dataset["procbomberPatternScale"] = "slider";
+  const valueLabel = document.createElement("span");
+  valueLabel.textContent = String(state.patternScale);
+  valueLabel.style.minWidth = "20px";
+  slider.addEventListener("input", () => {
+    state.patternScale = Number(slider.value);
+    valueLabel.textContent = String(state.patternScale);
+    scheduleRebuild();
+  });
+  row.appendChild(label);
+  row.appendChild(slider);
+  row.appendChild(valueLabel);
   return row;
 }
 

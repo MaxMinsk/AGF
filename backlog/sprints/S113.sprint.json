@@ -1,0 +1,31 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S113",
+  "title": "Texturing Layer 3 \u2014 stripes via vertex-color band painting + small follow-ups",
+  "status": "archived",
+  "startedAt": "2026-05-22",
+  "notes": [
+    "Layer 3 in the original S109 FEAT-PROCEDURAL-TEXTURING proposal had three sub-styles: solid (default), stripes, spots. Spots need true shader-side procedural noise (high subdivision is impractical), so they stay deferred for a future shader-injection story.",
+    "Stripes are tractable via vertex-color band painting: bump heightSegments and paint alternating Y-bands with the accent colour. Same cheap pattern that the panel-seams + decals layers use."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-TEXTURING-LAYER-3-STRIPES-001",
+      "title": "Procedural texturing Layer 3 (stripes only) \u2014 vertex-color band painting",
+      "status": "implemented",
+      "summary": "Add `texturing.pattern: { style: 'solid' | 'stripes', scale: number }` to CharacterRecipe. When `style === 'stripes'`, the painter bumps the affected box's heightSegments to ~4 (giving 5 vertex rows in Y) and paints alternating rows with palette.accent on top of the base + panelSeams + decal passes. Scale controls how many bands appear (clamped to 2\u20136 inclusive).\n\nSpots are out of scope for this story \u2014 they need either much higher subdivision (impractical) or shader-side noise (separate story). Solid is the default and is a NO-OP (current behaviour).\n\nApproach lives entirely in bomber-parts.ts (applyStripes helper called by applyTexturing). Bench UI gains a 3-state dropdown (solid / stripes) + a scale slider. Recipe codec round-trips the pattern block.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: Procedural texturing Layer 3 \u2014 stripes shipped. CharacterRecipe gains optional texturing.pattern: { style: 'solid'|'stripes', scale: 2..6 } (default solid = no-op). When style==='stripes', the part-builder bumps the box heightSegments to scale \u00d7 2 and applyStripes paints alternating Y-bands with palette.accent. Skips top + bottom rim rows so the panelSeams darken stays; defers to decals (decals override stripes at their anchor verts). Spots are explicitly out of scope \u2014 they need shader-side noise that doesn't fit vertex-color painting. Bench UI gains pattern dropdown + scale slider. Recipe codec round-trips the pattern block.",
+        "examples/procbomber-bench/src/generators/bomber-parts.ts: PATTERN_STYLES, PatternStyle, BomberPattern, STRIPE_SCALE_RANGE, heightSegmentsFor(), applyStripes(), buildBoxLike accepts heightSegments param",
+        "examples/procbomber-bench/schemas/character-recipe.schema.json: texturing.pattern object",
+        "examples/procbomber-bench/src/character-recipe.ts: pattern in BomberTexturing, resolveTexturing default, validator accepts the block",
+        "examples/procbomber-bench/src/bench-state.ts + bench-ui.ts + recipe-url.ts: patternStyle + patternScale state, dropdown + slider UI, recipe sync",
+        "+7 unit tests covering solid (no-op), stripes paint accent, geometry vert count bumps with stripes, scale ratio, scale clamping, deterministic output, rim rows untouched",
+        "Full suite 1307/1307. Spots deferred \u2014 explicit follow-up needed for shader-side procedural noise."
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/133"
+}
