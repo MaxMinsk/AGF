@@ -97,7 +97,8 @@ type StubNode = { name: string; connect: (n: StubNode) => void; connected: StubN
 function makeStubContext() {
   let nodes: StubNode[] = [];
   const make = (name: string): StubNode => {
-    const n = { name, connect(t: StubNode) { this.connected.push(t); }, connected: [] };
+    const connected: StubNode[] = [];
+    const n: StubNode = { name, connect(t: StubNode) { connected.push(t); }, connected };
     nodes.push(n);
     return n;
   };

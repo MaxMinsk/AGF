@@ -10,10 +10,12 @@
 
 ## 1. The brief
 
-User feedback 2026-05-22, verbatim translated:
-> "Я хочу прям чтобы похоже на слова были звуки которые издают
-> персонажи... хочется прям получить что-то типа как в Animal Crossing,
-> там почти похоже что персонажи говорят."
+User feedback 2026-05-22, paraphrased in English (the original quote
+was in Russian; the repo-hygiene check forbids Cyrillic content in
+tracked files, so the verbatim is replaced with this paraphrase):
+> "I want the sounds the characters emit to feel like actual words —
+> something like Animal Crossing, where the characters almost seem to
+> be speaking."
 
 What the user wants: **a "babble" voice that reads as **speech**, not as a
 grunt**. The model is *Animal Crossing's "animalese"* — fast pitched
@@ -284,8 +286,8 @@ Concrete QA scenarios:
    distinguishable by emotion alone (rising vs falling vs sustained).
 3. A non-Russian-speaking listener should describe the bomber as
    "speaking" rather than "beeping" when asked. (Anecdotal test, but
-   it's the only test that catches the user's "почти похоже что
-   персонажи говорят" criterion.)
+   it's the only test that catches the user's "almost-as-if-the-
+   characters-are-speaking" criterion.)
 
 If any of these fail, the synth needs more vowel variation or pace
 differentiation between bombers. Tuning lever: increase
