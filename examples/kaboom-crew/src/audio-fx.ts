@@ -17,6 +17,7 @@ export type AudioEventKind =
   | "blast"
   | "pickup"
   | "death"
+  | "shield-pop"
   | "match-won"
   | "match-lost"
   | "match-draw"
@@ -418,6 +419,25 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     playChord(c, [392.0, 587.33], 0.5, 0.4, position, true);
   }
 
+  // S109 KABOOM-SHIELD-POP. Short crystalline click — sine sweep up
+  // from 900 Hz to 1700 Hz over 80 ms, gain envelope ~0.22 peak. Sits
+  // in a high-but-not-painful slot so it cuts through the simultaneous
+  // 'blast' rumble (which is mostly low end). Positional via
+  // connectOutput.
+  function playShieldPop(c: AudioContextLike, position?: readonly [number, number, number]): void {
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(900, now);
+    osc.frequency.exponentialRampToValueAtTime(1700, now + 0.08);
+    envelope(c, gain, 0.003, masterGain * 0.22, 0.08);
+    osc.connect(gain);
+    connectOutput(c, gain, position);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
   // S90 KABOOM-FOOTSTEP-TICK. ~25 ms low-gain click — barely audible
   // solo, satisfying when chained one per cell crossing. Triangle wave
   // around 180 Hz with a sharp gain envelope; lowpass shaves harshness.
@@ -454,6 +474,7 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         else if (kind === "match-lost") { duckFor(c, 0.6, 0.3); playMatchLost(c); }
         else if (kind === "match-draw") { duckFor(c, 0.6, 0.3); playMatchDraw(c); }
         else if (kind === "footstep") playFootstep(c, pos);
+        else if (kind === "shield-pop") playShieldPop(c, pos);
       } catch {
         // Browser quirks (e.g. context closed) — fail silent so a
         // misbehaving audio path doesn't break gameplay.

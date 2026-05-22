@@ -53,6 +53,7 @@ import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-sy
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
+import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
@@ -306,6 +307,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(createSpringPivotSystem(), { profiles: ["static"] });
 
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
+    // S109 KABOOM-HIT-RECOIL — runs RIGHT AFTER blast propagation so the
+    // HitRecoilRequest transient blast-propagation just wrote is consumed
+    // in the same fixedUpdate (one-shot, no carry-over).
+    scheduler.register(createKaboomHitRecoilSystem(), { profiles: ["static"] });
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
     // S98 KABOOM-BLAST-DANGER-DECAL — reverted in S99 per user
     // feedback (design choice rejected in principle; see
@@ -708,6 +713,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               activeBombs: (c["BomberStats"] as { activeBombs?: number })?.activeBombs,
               maxBombs: (c["BomberStats"] as { maxBombs?: number })?.maxBombs,
               range: (c["BomberStats"] as { range?: number })?.range,
+              canKick: (c["BomberStats"] as { canKick?: boolean })?.canKick,
+              remoteDetonateCharges: (c["BomberStats"] as { remoteDetonateCharges?: number })?.remoteDetonateCharges,
+              shield: (c["BomberStats"] as { shield?: boolean })?.shield,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
               targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
             };
@@ -999,7 +1007,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             matchTarget?: number;
             matchPhase?: "in-progress" | "won" | "lost" | "draw";
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
         };
@@ -1015,8 +1023,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         lines.push(`phase: ${phase}   ${timeStr}`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
+          // S109 — append a compact flag suffix `[KRS]` for any active
+          // power-up. K = canKick, R = remote-detonate charges > 0,
+          // S = shield (one-shot blast protection).
+          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}`;
+          const flagSuffix = flags.length > 0 ? `   [${flags}]` : "";
           lines.push(
-            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
+            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}${flagSuffix}`
           );
         }
         // S89 KABOOM-ROUND-TIMER-BAR — compute fill fraction + urgency

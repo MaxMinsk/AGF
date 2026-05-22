@@ -37,6 +37,7 @@ export type AudioEventKind =
   | "blast"
   | "pickup"
   | "death"
+  | "shield-pop"
   | "match-won"
   | "match-lost"
   | "match-draw"
@@ -71,6 +72,11 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
   let prevBombIds = new Set<EntityId>();
   let prevPickupIds = new Set<EntityId>();
   let prevAlive = new Map<EntityId, boolean>();
+  // S109 KABOOM-SHIELD-POWER-UP — observe BomberStats.shield true → false
+  // edges. The transition fires `shield-pop` exactly once per bomber per
+  // edge; the consuming bus mixes it under the (optional) `death` event
+  // when both fire on the same step.
+  let prevShield = new Map<EntityId, boolean>();
   // S90 KABOOM-FOOTSTEP-TICK. Last observed GridPosition cell per
   // bomber. A cell change between ticks fires one 'footstep' event.
   // Map key = entity id; value = packed `gx,gz` string.
@@ -131,11 +137,26 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     prevPickupIds = currentPickupIds;
 
     // BomberStats.alive true → false → death.
+    // BomberStats.shield true → false → shield-pop (S109).
     const currentAlive = new Map<EntityId, boolean>();
+    const currentShield = new Map<EntityId, boolean>();
     for (const id of bombers!.run()) {
-      const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+      const stats = world.getComponent<{ alive?: boolean; shield?: boolean }>(id, BOMBER_STATS);
       currentAlive.set(id, stats?.alive !== false);
+      currentShield.set(id, stats?.shield === true);
     }
+    for (const [id, wasShield] of prevShield) {
+      const nowShield = currentShield.get(id) ?? false;
+      if (wasShield && !nowShield) {
+        // Shield was just consumed (either by a blast hit OR by the
+        // bomber dying — in the death case the death event also fires
+        // below, so a shielded death emits both 'shield-pop' and
+        // 'death'. The audio bus is free to mix them).
+        const popPos = cellPos(id);
+        onEvent("shield-pop", { entityId: id, ...(popPos !== undefined ? { position: popPos } : {}) });
+      }
+    }
+    prevShield = currentShield;
     for (const [id, wasAlive] of prevAlive) {
       const nowAlive = currentAlive.get(id) ?? false;
       if (wasAlive && !nowAlive) {

@@ -28,6 +28,10 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const SOFT_BLOCK_DESTROYED_EVENT: ComponentName = "SoftBlockDestroyedEvent";
+// S109 KABOOM-HIT-RECOIL — transient written by damageBombersAt when a
+// blast lands on a shielded bomber. The hit-recoil-system consumes +
+// removes it the same fixedUpdate it appears.
+const HIT_RECOIL_REQUEST: ComponentName = "HitRecoilRequest";
 
 type BlastEvent = { originGx: number; originGz: number; range: number; ownerId: EntityId };
 type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId };
@@ -213,8 +217,24 @@ function damageBombersAt(
   blastOriginGz: number
 ): void {
   for (const id of occupancy.occupants(gx, gz)) {
-    const stats = world.getComponent<{ alive?: boolean; maxBombs: number; range: number; activeBombs?: number }>(id, BOMBER_STATS);
+    const stats = world.getComponent<{ alive?: boolean; maxBombs: number; range: number; activeBombs?: number; shield?: boolean }>(id, BOMBER_STATS);
     if (stats === undefined || stats.alive === false) continue;
+    // S109 KABOOM-SHIELD-POWER-UP — consume a shield instead of dying.
+    // The bomber stays alive, the shield flips to false, and we stamp a
+    // HitRecoilRequest so the dedicated system can play the survival
+    // tween (independent of ragdoll). RagdollState is NOT written —
+    // ragdoll is owned by the death path. Multi-blast same fixedUpdate:
+    // the shield absorbs the FIRST iteration (loop order = entity-id
+    // ordered occupants); subsequent iterations see shield=false and
+    // fall through to the kill branch.
+    if (stats.shield === true) {
+      world.setComponent(id, BOMBER_STATS, { ...stats, shield: false });
+      world.setComponent(id, HIT_RECOIL_REQUEST, {
+        blastOriginGx,
+        blastOriginGz
+      } satisfies HitRecoilRequestLike);
+      continue;
+    }
     world.setComponent(id, BOMBER_STATS, { ...stats, alive: false });
     // S105 KABOOM-RAGDOLL-STATE-COMPONENT — record the blast origin
     // that killed this bomber so the ragdoll system can apply a
@@ -236,6 +256,11 @@ function damageBombersAt(
     }
   }
 }
+
+type HitRecoilRequestLike = {
+  blastOriginGx: number;
+  blastOriginGz: number;
+};
 
 type RagdollStateLike = {
   blastOriginGx: number;

@@ -159,6 +159,54 @@ describe("Kaboom bomb pipeline (S82)", () => {
     expect(botStats.alive).toBe(false);
   });
 
+  // S109 KABOOM-SHIELD-POWER-UP.
+  it("shielded bomber absorbs a lethal blast: alive stays true, shield flips false, HitRecoilRequest is stamped", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addBomber(world, "bot.1", 6, 5);
+    // Give bot.1 a shield.
+    const botStatsBefore = world.getComponent("bot.1", "BomberStats") as { maxBombs: number; range: number; activeBombs: number; alive: boolean };
+    world.setComponent("bot.1", "BomberStats", { ...botStatsBefore, shield: true });
+    addBomb(world, "bomb.a", 5, 5, { fuse: 1 / 60, range: 2 });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const fuse = createKaboomBombFuseSystem();
+    fuse.fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    const blast = createKaboomBlastPropagationSystem({ occupancy: occ });
+    blast.fixedUpdate!(ctx(world));
+    const botStats = world.getComponent("bot.1", "BomberStats") as { alive: boolean; shield: boolean };
+    expect(botStats.alive).toBe(true);
+    expect(botStats.shield).toBe(false);
+    expect(world.hasComponent("bot.1", "HitRecoilRequest")).toBe(true);
+    expect(world.hasComponent("bot.1", "RagdollState")).toBe(false);
+  });
+
+  it("unshielded second hit kills a bomber whose shield was just consumed", () => {
+    // Two bombs detonating in the same fixedUpdate at adjacent cells —
+    // bot.1 stands on both blast tiles. Shield absorbs the first iteration
+    // (entity-id ordered: bomb.a first), the second iteration sees
+    // shield=false and the kill path fires.
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addBomber(world, "bot.1", 6, 5);
+    const botStatsBefore = world.getComponent("bot.1", "BomberStats") as { maxBombs: number; range: number; activeBombs: number; alive: boolean };
+    world.setComponent("bot.1", "BomberStats", { ...botStatsBefore, shield: true });
+    addBomb(world, "bomb.a", 5, 5, { fuse: 1 / 60, range: 2 });
+    addBomb(world, "bomb.b", 7, 5, { fuse: 1 / 60, range: 2 });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const fuse = createKaboomBombFuseSystem();
+    fuse.fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    const blast = createKaboomBlastPropagationSystem({ occupancy: occ });
+    blast.fixedUpdate!(ctx(world));
+    const botStats = world.getComponent("bot.1", "BomberStats") as { alive: boolean; shield: boolean };
+    expect(botStats.alive).toBe(false);
+    expect(botStats.shield).toBe(false);
+    expect(world.hasComponent("bot.1", "RagdollState")).toBe(true);
+  });
+
   it("blast tile lifetime ticks down and removes the tile when zero", () => {
     const world = new World();
     addBomber(world, "player.1", 5, 5);

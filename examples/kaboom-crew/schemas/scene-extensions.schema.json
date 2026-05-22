@@ -57,7 +57,8 @@
         "activeBombs": { "type": "integer", "minimum": 0, "default": 0 },
         "alive": { "type": "boolean", "default": true },
         "canKick": { "type": "boolean", "default": false, "description": "S100 KABOOM-KICK-POWER-UP. True after collecting a 'kick' pickup. Enables sliding your own bomb forward when walking into its cell." },
-        "remoteDetonateCharges": { "type": "integer", "minimum": 0, "default": 0, "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Each charge converts the NEXT placed bomb into a paused (fuseRemaining=Infinity) bomb that the player triggers manually via the 'remote-detonate' InputAction (or F key). Capped at 3 per bomber." }
+        "remoteDetonateCharges": { "type": "integer", "minimum": 0, "default": 0, "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Each charge converts the NEXT placed bomb into a paused (fuseRemaining=Infinity) bomb that the player triggers manually via the 'remote-detonate' InputAction (or F key). Capped at 3 per bomber." },
+        "shield": { "type": "boolean", "default": false, "description": "S109 KABOOM-SHIELD-POWER-UP. True after collecting a 'shield' pickup. Absorbs the next lethal blast (alive STAYS true, shield flips to false) and triggers hit-recoil instead of ragdoll. One-shot, binary (no stacking)." }
       }
     },
     "bombComponent": {
@@ -185,12 +186,12 @@
     "pickupComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true), `remote-detonate` (S100 — +1 BomberStats.remoteDetonateCharges, capped at 3).",
+      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true), `remote-detonate` (S100 — +1 BomberStats.remoteDetonateCharges, capped at 3), `shield` (S109 — one-shot blast protection: sets BomberStats.shield=true; consumed by the next lethal blast).",
       "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate"]
+          "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate", "shield"]
         }
       }
     },

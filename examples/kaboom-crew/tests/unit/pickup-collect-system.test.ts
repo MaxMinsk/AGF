@@ -39,7 +39,7 @@ function addBomber(
   });
 }
 
-function addPickup(world: World, id: string, gx: number, gz: number, kind: "bomb-up" | "fire-up" | "speed-up"): void {
+function addPickup(world: World, id: string, gx: number, gz: number, kind: "bomb-up" | "fire-up" | "speed-up" | "shield"): void {
   world.addEntity(id);
   world.setComponent(id, "GridPosition", { gx, gz });
   world.setComponent(id, "Pickup", { kind });
@@ -140,5 +140,31 @@ describe("createKaboomPickupCollectSystem (S82 KABOOM-PICKUPS-AND-STATS)", () =>
     const system = createKaboomPickupCollectSystem({ occupancy });
     system.fixedUpdate!(ctx(world));
     expect(world.hasEntity("pickup.1")).toBe(true);
+  });
+
+  // S109 KABOOM-SHIELD-POWER-UP.
+  it("shield pickup sets BomberStats.shield = true + consumes the pickup", () => {
+    const world = new World();
+    addBomber(world, "player.1", 2, 2);
+    addPickup(world, "pickup.1", 2, 2, "shield");
+    const occupancy = makeOccupancy(new Map([["2,2", ["player.1", "pickup.1"]]]));
+    const system = createKaboomPickupCollectSystem({ occupancy });
+    system.fixedUpdate!(ctx(world));
+    const stats = world.getComponent<{ shield?: boolean }>("player.1", "BomberStats");
+    expect(stats?.shield).toBe(true);
+    expect(world.hasEntity("pickup.1")).toBe(false);
+  });
+
+  it("shield pickup collected while already shielded is a silent NO-OP", () => {
+    const world = new World();
+    addBomber(world, "player.1", 2, 2);
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true, shield: true });
+    addPickup(world, "pickup.1", 2, 2, "shield");
+    const occupancy = makeOccupancy(new Map([["2,2", ["player.1", "pickup.1"]]]));
+    const system = createKaboomPickupCollectSystem({ occupancy });
+    system.fixedUpdate!(ctx(world));
+    const stats = world.getComponent<{ shield?: boolean }>("player.1", "BomberStats");
+    expect(stats?.shield).toBe(true); // unchanged
+    expect(world.hasEntity("pickup.1")).toBe(false); // pickup still consumed
   });
 });
