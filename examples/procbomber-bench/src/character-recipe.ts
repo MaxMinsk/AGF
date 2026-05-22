@@ -26,7 +26,7 @@ import {
   type BomberPaletteName,
   type BomberPaletteOverrides
 } from "./generators/bomber-palette";
-import { DECAL_KINDS, DEFAULT_BOMBER_TEXTURING, type BomberTexturing, type DecalKind } from "./generators/bomber-parts";
+import { DECAL_KINDS, DEFAULT_BOMBER_TEXTURING, PATTERN_STYLES, type BomberTexturing, type DecalKind, type PatternStyle } from "./generators/bomber-parts";
 
 export type BomberShape = "box" | "cylinder" | "capsule";
 
@@ -148,7 +148,8 @@ export function resolveRecipeFromSeed(seed: string, partial?: CharacterRecipe): 
 function resolveTexturing(partial: Partial<BomberTexturing> | undefined): BomberTexturing {
   return {
     panelSeams: partial?.panelSeams ?? DEFAULT_BOMBER_TEXTURING.panelSeams,
-    decals: partial?.decals ?? DEFAULT_BOMBER_TEXTURING.decals
+    decals: partial?.decals ?? DEFAULT_BOMBER_TEXTURING.decals,
+    pattern: partial?.pattern ?? DEFAULT_BOMBER_TEXTURING.pattern
   };
 }
 
@@ -264,6 +265,20 @@ export function validateRecipe(value: unknown): CharacterRecipe | undefined {
         if (typeof d !== "string" || !allowed.has(d)) return undefined;
       }
       if (new Set(decals).size !== decals.length) return undefined; // uniqueItems
+    }
+    // S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3.
+    if ("pattern" in tx) {
+      const pattern = tx["pattern"];
+      if (pattern === null || typeof pattern !== "object") return undefined;
+      const p = pattern as Record<string, unknown>;
+      if ("style" in p) {
+        const style = p["style"];
+        if (typeof style !== "string" || !(PATTERN_STYLES as ReadonlyArray<string>).includes(style)) return undefined;
+      }
+      if ("scale" in p) {
+        const scale = p["scale"];
+        if (typeof scale !== "number" || !Number.isFinite(scale) || scale < 2 || scale > 6) return undefined;
+      }
     }
   }
   return v as CharacterRecipe;

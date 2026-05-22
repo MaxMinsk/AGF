@@ -15,7 +15,7 @@ import {
 } from "./generators/bomber-mesh";
 import type { AccessoryKind } from "./accessories/catalog";
 import type { BomberAccessory } from "./character-recipe";
-import type { BomberPartShapes, BomberPartSizes, BomberTexturing, DecalKind } from "./generators/bomber-parts";
+import type { BomberPartShapes, BomberPartSizes, BomberTexturing, DecalKind, PatternStyle } from "./generators/bomber-parts";
 import {
   BOMBER_PALETTES,
   paletteByName,
@@ -73,6 +73,9 @@ export type BenchState = {
   panelSeams: boolean;
   /** S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — 0..3 decals to paint. */
   decals: ReadonlyArray<DecalKind>;
+  /** S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3 — pattern style for body. */
+  patternStyle: PatternStyle;
+  patternScale: number;
 };
 
 export function defaultBenchState(initialPalette?: BomberPaletteName): BenchState {
@@ -101,7 +104,9 @@ export function defaultBenchState(initialPalette?: BomberPaletteName): BenchStat
     seed: "default",
     accessorySlots: [undefined, undefined, undefined],
     panelSeams: true,
-    decals: []
+    decals: [],
+    patternStyle: "solid",
+    patternScale: 4
   };
 }
 
@@ -145,7 +150,11 @@ export function shapesOf(state: BenchState): BomberPartShapes {
 }
 
 export function texturingOf(state: BenchState): BomberTexturing {
-  return { panelSeams: state.panelSeams, decals: state.decals };
+  return {
+    panelSeams: state.panelSeams,
+    decals: state.decals,
+    pattern: { style: state.patternStyle, scale: state.patternScale }
+  };
 }
 
 /** Extract the part-sizes slice from the bench state. */

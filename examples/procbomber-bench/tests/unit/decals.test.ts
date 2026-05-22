@@ -59,7 +59,7 @@ function countVerticesWithColor(g: ReturnType<typeof generateTorso>, color: [num
 
 describe("S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — decals", () => {
   it("chestEmblem paints torso front-face mid-vertices with palette.accent", () => {
-    const g = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"] });
+    const g = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"], pattern: { style: "solid", scale: 4 } });
     const accent = colorTriple(PALETTE.accent);
     const accentVerts = countVerticesWithColor(g, accent);
     // Torso is now a 2x2x2 BoxGeometry; the front face has 9 verts
@@ -70,14 +70,14 @@ describe("S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — decals", () => {
   });
 
   it("helmetStripe paints upper-half vertices of the head with palette.accent", () => {
-    const g = generateHead(SIZES, PALETTE, "box", { panelSeams: true, decals: ["helmetStripe"] });
+    const g = generateHead(SIZES, PALETTE, "box", { panelSeams: true, decals: ["helmetStripe"], pattern: { style: "solid", scale: 4 } });
     const accent = colorTriple(PALETTE.accent);
     const accentVerts = countVerticesWithColor(g, accent);
     expect(accentVerts).toBeGreaterThan(0);
   });
 
   it("kneePad paints lowerLeg upper-third front-face vertices with the darker lowerLeg colour", () => {
-    const g = generateLowerLeg(SIZES, PALETTE, "box", { panelSeams: true, decals: ["kneePad"] });
+    const g = generateLowerLeg(SIZES, PALETTE, "box", { panelSeams: true, decals: ["kneePad"], pattern: { style: "solid", scale: 4 } });
     // The kneePad shade is the lowerLeg colour × 0.55. Three.js Color
     // converts hex to linear sRGB (so `#999999` → ~0.32, not 0.6), so
     // we compute the expected value through Three.js too.
@@ -93,20 +93,20 @@ describe("S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — decals", () => {
   });
 
   it("decals=[] leaves no accent vertices on the torso", () => {
-    const g = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: [] });
+    const g = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: [], pattern: { style: "solid", scale: 4 } });
     const accent = colorTriple(PALETTE.accent);
     expect(countVerticesWithColor(g, accent)).toBe(0);
   });
 
   it("chestEmblem on lowerLeg has no effect (decal scoped to torso)", () => {
-    const g = generateLowerLeg(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"] });
+    const g = generateLowerLeg(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"], pattern: { style: "solid", scale: 4 } });
     const accent = colorTriple(PALETTE.accent);
     expect(countVerticesWithColor(g, accent)).toBe(0);
   });
 
   it("is deterministic — same inputs → identical vertex-colour buffer", () => {
-    const a = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"] });
-    const b = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"] });
+    const a = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"], pattern: { style: "solid", scale: 4 } });
+    const b = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem"], pattern: { style: "solid", scale: 4 } });
     const ca = a.getAttribute("color");
     const cb = b.getAttribute("color");
     expect(ca.count).toBe(cb.count);
@@ -118,9 +118,9 @@ describe("S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — decals", () => {
   });
 
   it("multiple decals can be applied independently to different parts", () => {
-    const torso = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem", "helmetStripe", "kneePad"] });
-    const head = generateHead(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem", "helmetStripe", "kneePad"] });
-    const lowerLeg = generateLowerLeg(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem", "helmetStripe", "kneePad"] });
+    const torso = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem", "helmetStripe", "kneePad"], pattern: { style: "solid", scale: 4 } });
+    const head = generateHead(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem", "helmetStripe", "kneePad"], pattern: { style: "solid", scale: 4 } });
+    const lowerLeg = generateLowerLeg(SIZES, PALETTE, "box", { panelSeams: true, decals: ["chestEmblem", "helmetStripe", "kneePad"], pattern: { style: "solid", scale: 4 } });
     const accent = colorTriple(PALETTE.accent);
     expect(countVerticesWithColor(torso, accent)).toBeGreaterThan(0); // chestEmblem hit
     expect(countVerticesWithColor(head, accent)).toBeGreaterThan(0); // helmetStripe hit

@@ -58,6 +58,19 @@ export const DEFAULT_BOMBER_PART_SHAPES: BomberPartShapes = {
 export const DECAL_KINDS = ["chestEmblem", "helmetStripe", "kneePad"] as const;
 export type DecalKind = (typeof DECAL_KINDS)[number];
 
+export const PATTERN_STYLES = ["solid", "stripes"] as const;
+export type PatternStyle = (typeof PATTERN_STYLES)[number];
+
+export type BomberPattern = {
+  /** "solid" = no-op (current behaviour). "stripes" = alternating Y-bands painted with palette.accent. */
+  style: PatternStyle;
+  /** Number of stripe bands (clamped to STRIPE_SCALE_RANGE). Only meaningful when style==='stripes'. */
+  scale: number;
+};
+
+/** Stripe count is also the number of vertex rows minus one. Bounded to keep the geometry cost sane. */
+export const STRIPE_SCALE_RANGE = { min: 2, max: 6 } as const;
+
 export type BomberTexturing = {
   /** Default true — corner / top-and-bottom edge vertices darkened by PANEL_SEAM_FACTOR. */
   panelSeams: boolean;
@@ -69,11 +82,19 @@ export type BomberTexturing = {
    * panelSeams pass.
    */
   decals: ReadonlyArray<DecalKind>;
+  /**
+   * S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3 — body patterns via
+   * vertex-color band painting. Only "stripes" is implemented; "spots"
+   * is deferred because it needs shader-side procedural noise that
+   * doesn't fit the vertex-color pipeline. Default "solid" = no-op.
+   */
+  pattern: BomberPattern;
 };
 
 export const DEFAULT_BOMBER_TEXTURING: BomberTexturing = {
   panelSeams: true,
-  decals: []
+  decals: [],
+  pattern: { style: "solid", scale: 4 }
 };
 
 /** Darken factor applied to extreme-Y vertices when panelSeams is on. */
@@ -83,7 +104,8 @@ function buildBoxLike(
   width: number,
   height: number,
   depth: number,
-  shape: BomberPartShape
+  shape: BomberPartShape,
+  heightSegments = 2
 ): BufferGeometry {
   switch (shape) {
     case "box":
@@ -93,12 +115,15 @@ function buildBoxLike(
       // darken pass — without subdivision every vertex of a box sits at
       // the extreme Y and the seam darkening reduces to "darken
       // everything", which is visually indistinguishable from picking a
-      // slightly darker palette channel. ~12 extra verts per box × 10
-      // boxes per bomber × 4 bombers per arena ≈ 480 extra verts — negligible.
-      return new BoxGeometry(width, height, depth, 1, 2, 1);
+      // slightly darker palette channel.
+      // S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3 — stripes need MORE
+      // Y subdivisions so alternating bands can be painted distinctly.
+      // The caller passes a higher value (default 2, stripes bump to
+      // scale × 2) and we wire it through.
+      return new BoxGeometry(width, height, depth, 1, heightSegments, 1);
     case "cylinder": {
       const radius = Math.min(width, depth) / 2;
-      return new CylinderGeometry(radius, radius, height, 16);
+      return new CylinderGeometry(radius, radius, height, 16, heightSegments);
     }
     case "capsule": {
       const radius = Math.min(width, depth) / 2;
@@ -106,6 +131,21 @@ function buildBoxLike(
       return new CapsuleGeometry(radius, cylLength, 4, 12);
     }
   }
+}
+
+/**
+ * S113 — when the texturing pattern is "stripes", a higher Y
+ * subdivision is required so distinct vertex rows can be painted with
+ * alternating colours. heightSegments = stripeScale × 2 gives
+ * `stripeScale` clear bands; cap to a reasonable max so we don't blow
+ * vertex counts on extreme settings.
+ */
+function heightSegmentsFor(texturing: BomberTexturing): number {
+  if (texturing.pattern.style === "stripes") {
+    const scale = Math.max(STRIPE_SCALE_RANGE.min, Math.min(STRIPE_SCALE_RANGE.max, Math.round(texturing.pattern.scale)));
+    return Math.max(2, scale * 2);
+  }
+  return 2;
 }
 
 export type BomberPartSizes = {
@@ -157,9 +197,11 @@ export function generateTorso(
 ): BufferGeometry {
   // S112 — torso bumps depthSegments to 2 so the FRONT face has a mid
   // vertex row + column where the chestEmblem decal can land crisply.
+  // S113 — heightSegments scales with the stripe pattern when active.
+  const heightSegs = heightSegmentsFor(texturing);
   const g = shape === "box"
-    ? new BoxGeometry(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, 2, 2, 2)
-    : buildBoxLike(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, shape);
+    ? new BoxGeometry(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, 2, heightSegs, 2)
+    : buildBoxLike(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, shape, heightSegs);
   paintVertexColors(g, palette.torsoTop);
   paintBottomShadow(g, palette.torsoBottom, s.torsoHeight);
   applyTexturing(g, texturing, "torso", palette);
@@ -172,7 +214,7 @@ export function generateHead(
   shape: BomberPartShape = "box",
   texturing: BomberTexturing = DEFAULT_BOMBER_TEXTURING
 ): BufferGeometry {
-  const g = buildBoxLike(s.headSize, s.headSize, s.headSize, shape);
+  const g = buildBoxLike(s.headSize, s.headSize, s.headSize, shape, heightSegmentsFor(texturing));
   paintVertexColors(g, palette.head);
   applyTexturing(g, texturing, "head", palette);
   return g;
@@ -187,7 +229,7 @@ function generateLimbSegment(
   partName: BomberPartName,
   palette: BomberPalette
 ): BufferGeometry {
-  const g = buildBoxLike(width, length, width, shape);
+  const g = buildBoxLike(width, length, width, shape, heightSegmentsFor(texturing));
   // Hang the segment below the pivot — pivot at the TOP of the segment.
   g.applyMatrix4(new Matrix4().makeTranslation(0, -length / 2, 0));
   paintVertexColors(g, color);
@@ -393,10 +435,90 @@ function applyDecals(
 }
 
 /**
+ * S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3 — stripe band painter.
+ *
+ * Paints alternating Y-row bands with `palette.accent`. The Y range
+ * is split into `2 × scale` bands (every other one painted), giving
+ * `scale` visible stripes. Skips top + bottom rows so the panelSeams
+ * darken at the rim stays intact, and skips already-decal-painted
+ * vertices (the accent-coloured ones from chestEmblem / helmetStripe)
+ * by checking the current vertex colour against the base channel
+ * colour — if the vertex was already decal-painted, leave it alone.
+ *
+ * Idempotent.
+ */
+function applyStripes(
+  geometry: BufferGeometry,
+  texturing: BomberTexturing,
+  palette: BomberPalette,
+  partName: BomberPartName
+): void {
+  if (texturing.pattern.style !== "stripes") return;
+  const position = geometry.getAttribute("position") as BufferAttribute;
+  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
+  if (color === undefined) return;
+  let minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < position.count; i += 1) {
+    const y = position.getY(i);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const span = maxY - minY;
+  if (span <= 0) return;
+  const scale = Math.max(
+    STRIPE_SCALE_RANGE.min,
+    Math.min(STRIPE_SCALE_RANGE.max, Math.round(texturing.pattern.scale))
+  );
+  // 2*scale total bands; we paint the ODD-indexed ones with accent.
+  const bandCount = scale * 2;
+  const bandHeight = span / bandCount;
+  const accent = new Color(palette.accent);
+  const eps = bandHeight * 0.1;
+  // Pre-compute the base/expected vertex colour: a stripe overrides
+  // verts that hold the base channel colour OR the panelSeam-darkened
+  // base. Verts already mutated by decals are LEFT ALONE (they hold
+  // either palette.accent or the kneePad-darker shade — neither of
+  // which matches the base channel comparison).
+  const baseHex =
+    partName === "torso" ? palette.torsoTop
+    : partName === "head" ? palette.head
+    : partName === "upperArm" ? palette.upperArm
+    : partName === "forearm" ? palette.forearm
+    : partName === "upperLeg" ? palette.upperLeg
+    : palette.lowerLeg;
+  const baseColor = new Color(baseHex);
+  const isCloseToBase = (i: number): boolean => {
+    const dr = color.getX(i) - baseColor.r;
+    const dg = color.getY(i) - baseColor.g;
+    const db = color.getZ(i) - baseColor.b;
+    return Math.abs(dr) < 0.05 && Math.abs(dg) < 0.05 && Math.abs(db) < 0.05;
+  };
+  // Also allow the panelSeam-darkened base (× 0.85) to be re-painted.
+  const isCloseToSeam = (i: number): boolean => {
+    const f = PANEL_SEAM_FACTOR;
+    const dr = color.getX(i) - baseColor.r * f;
+    const dg = color.getY(i) - baseColor.g * f;
+    const db = color.getZ(i) - baseColor.b * f;
+    return Math.abs(dr) < 0.05 && Math.abs(dg) < 0.05 && Math.abs(db) < 0.05;
+  };
+  for (let i = 0; i < position.count; i += 1) {
+    const y = position.getY(i);
+    // Skip top + bottom extreme rows so panel seam darken stays.
+    if (y <= minY + eps || y >= maxY - eps) continue;
+    if (!isCloseToBase(i) && !isCloseToSeam(i)) continue;
+    const bandIndex = Math.floor((y - minY) / bandHeight);
+    if (bandIndex % 2 === 1) {
+      color.setXYZ(i, accent.r, accent.g, accent.b);
+    }
+  }
+  color.needsUpdate = true;
+}
+
+/**
  * Apply every enabled procedural-texturing layer in the canonical
- * order: panel seams first, then decals (so decals override the seam
- * darken at affected vertices). Layer 3 (shader-side patterns) will
- * compose in here when it lands.
+ * order: panel seams first, then stripes (paints over base/seam but
+ * not over decals — decals override stripes at their anchor verts),
+ * then decals (so decals always end up on top).
  */
 function applyTexturing(
   geometry: BufferGeometry,
@@ -406,6 +528,9 @@ function applyTexturing(
 ): void {
   if (texturing.panelSeams) {
     applyPanelSeamDarken(geometry);
+  }
+  if (texturing.pattern.style === "stripes") {
+    applyStripes(geometry, texturing, palette, partName);
   }
   if (texturing.decals.length > 0) {
     applyDecals(geometry, partName, palette, texturing.decals);

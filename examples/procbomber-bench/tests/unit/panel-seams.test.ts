@@ -48,7 +48,7 @@ function isNear(a: number, b: number, eps = 1e-4): boolean {
 
 describe("S109 KABOOM-PROCEDURAL-TEXTURING — Layer 1 panel seams", () => {
   it("with panelSeams=false the upperArm box paints every vertex uniformly", () => {
-    const g = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: false, decals: [] });
+    const g = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: false, decals: [], pattern: { style: "solid", scale: 4 } });
     const color = g.getAttribute("color");
     expect(color).toBeDefined();
     const [r0, g0, b0] = colorOf(PALETTE.upperArm);
@@ -60,7 +60,7 @@ describe("S109 KABOOM-PROCEDURAL-TEXTURING — Layer 1 panel seams", () => {
   });
 
   it("with panelSeams=true the upperArm extreme-Y vertices are darkened by PANEL_SEAM_FACTOR", () => {
-    const g = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: true, decals: [] });
+    const g = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: true, decals: [], pattern: { style: "solid", scale: 4 } });
     const position = g.getAttribute("position");
     const color = g.getAttribute("color");
     expect(color).toBeDefined();
@@ -107,7 +107,7 @@ describe("S109 KABOOM-PROCEDURAL-TEXTURING — Layer 1 panel seams", () => {
   });
 
   it("generateTorso composes panelSeams on top of paintBottomShadow", () => {
-    const g = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: [] });
+    const g = generateTorso(SIZES, PALETTE, "box", { panelSeams: true, decals: [], pattern: { style: "solid", scale: 4 } });
     const position = g.getAttribute("position");
     const color = g.getAttribute("color");
     let minY = Infinity;
@@ -134,7 +134,7 @@ describe("S109 KABOOM-PROCEDURAL-TEXTURING — Layer 1 panel seams", () => {
   });
 
   it("cylinder shape darkens top + bottom rings when panelSeams is on", () => {
-    const g = generateUpperArm(SIZES, PALETTE, "cylinder", { panelSeams: true, decals: [] });
+    const g = generateUpperArm(SIZES, PALETTE, "cylinder", { panelSeams: true, decals: [], pattern: { style: "solid", scale: 4 } });
     const position = g.getAttribute("position");
     const color = g.getAttribute("color");
     const [r0, g0, b0] = colorOf(PALETTE.upperArm);
@@ -161,8 +161,8 @@ describe("S109 KABOOM-PROCEDURAL-TEXTURING — Layer 1 panel seams", () => {
   });
 
   it("is deterministic — same inputs → identical vertex-colour buffer", () => {
-    const a = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: true, decals: [] });
-    const b = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: true, decals: [] });
+    const a = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: true, decals: [], pattern: { style: "solid", scale: 4 } });
+    const b = generateUpperArm(SIZES, PALETTE, "box", { panelSeams: true, decals: [], pattern: { style: "solid", scale: 4 } });
     const ca = a.getAttribute("color")!;
     const cb = b.getAttribute("color")!;
     expect(ca.count).toBe(cb.count);

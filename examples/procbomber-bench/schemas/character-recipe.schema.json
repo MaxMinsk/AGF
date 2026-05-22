@@ -86,6 +86,25 @@
             "enum": ["chestEmblem", "helmetStripe", "kneePad"]
           },
           "uniqueItems": true
+        },
+        "pattern": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "S113 KABOOM-PROCEDURAL-TEXTURING-LAYER-3 — body pattern via vertex-color band painting. Only 'stripes' is implemented; 'spots' is deferred (needs shader-side noise).",
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": ["solid", "stripes"],
+              "default": "solid"
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 2,
+              "maximum": 6,
+              "default": 4,
+              "description": "Number of stripe bands. Clamped + rounded inside the painter. Only meaningful when style==='stripes'."
+            }
+          }
         }
       }
     }
