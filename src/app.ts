@@ -120,6 +120,15 @@ export type AppOptions = {
   /** Player id used in the outbound `player.join`. Defaults to a stable random id. */
   playerId?: string;
   /**
+   * S112 KABOOM-MP-RECIPE-SYNC — opaque project-specific recipe blob.
+   * When set, the WS adapter sends it in player.join.payload.recipe;
+   * the server echoes it back in every snapshot as a CharacterRecipe
+   * component on the player.<id> entity. Kaboom Crew sets this to
+   * `encodeRecipe(localRecipe)` so remote tabs render the local
+   * bomber with the right visual identity.
+   */
+  recipe?: string;
+  /**
    * When true AND `serverUrl` is set, the local PlayerControlled drone stops
    * moving locally; PlayerInputSystem forwards normalised directions through
    * `intent.move`. The server's `player.<playerId>` entity appears in the
@@ -617,6 +626,7 @@ export async function createApp(
     network = startWsNetworkAdapter({
       url: options.serverUrl,
       playerId,
+      ...(options.recipe !== undefined ? { recipe: options.recipe } : {}),
       diagnostics,
       applyCommands: (commands) => runtime.applyCommands(commands),
       knownEntityIds: () => runtime.snapshot().entities.map((entity) => entity.id),

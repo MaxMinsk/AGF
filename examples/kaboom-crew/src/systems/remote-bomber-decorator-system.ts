@@ -22,14 +22,17 @@ import { applyCommand } from "../../../../engine/core/commands/command-queue";
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
-import { resolveRecipeFromSeed } from "../../../procbomber-bench/src/character-recipe";
+import { decodeRecipe, resolveRecipeFromSeed } from "../../../procbomber-bench/src/character-recipe";
 import { spawnBomberFor } from "../procbomber-integration";
 
 const PRESENCE: ComponentName = "Presence";
 const TRANSFORM: ComponentName = "Transform";
 const REMOTE_BOMBER_OWNED: ComponentName = "RemoteBomberOwned";
+// S112 KABOOM-MP-RECIPE-SYNC — opaque blob carried in the snapshot.
+const CHARACTER_RECIPE: ComponentName = "CharacterRecipe";
 
 type Presence = { playerId: string };
+type CharacterRecipeComponent = { recipe?: string };
 
 export type KaboomRemoteBomberDecoratorOptions = {
   /** The local player id; used to skip "decorating" the local bomber. */
@@ -88,7 +91,16 @@ export function createKaboomRemoteBomberDecoratorSystem(
         if (spawned.has(rootId)) continue;
 
         // First time we see this remote player — spawn the bomber tree.
-        const recipe = resolveRecipeFromSeed(`remote.${presence.playerId}`);
+        // S112 KABOOM-MP-RECIPE-SYNC — prefer the actual player's
+        // recipe carried in the snapshot. Fall back to the seed-derived
+        // recipe (S109 connect-and-spectate behaviour) when the
+        // server doesn't echo one back (older server, non-Kaboom client).
+        const recipeComponent = world.getComponent<CharacterRecipeComponent>(rootId, CHARACTER_RECIPE);
+        const decoded = recipeComponent?.recipe !== undefined ? decodeRecipe(recipeComponent.recipe) : undefined;
+        const recipe =
+          decoded !== undefined
+            ? resolveRecipeFromSeed(decoded.seed, decoded)
+            : resolveRecipeFromSeed(`remote.${presence.playerId}`);
         const collected: EntityId[] = [];
         spawnBomberFor(
           (cmds) => {

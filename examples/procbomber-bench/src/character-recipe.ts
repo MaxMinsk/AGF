@@ -26,7 +26,7 @@ import {
   type BomberPaletteName,
   type BomberPaletteOverrides
 } from "./generators/bomber-palette";
-import { DEFAULT_BOMBER_TEXTURING, type BomberTexturing } from "./generators/bomber-parts";
+import { DECAL_KINDS, DEFAULT_BOMBER_TEXTURING, type BomberTexturing, type DecalKind } from "./generators/bomber-parts";
 
 export type BomberShape = "box" | "cylinder" | "capsule";
 
@@ -147,7 +147,8 @@ export function resolveRecipeFromSeed(seed: string, partial?: CharacterRecipe): 
 /** Merge a partial texturing block with the engine defaults. */
 function resolveTexturing(partial: Partial<BomberTexturing> | undefined): BomberTexturing {
   return {
-    panelSeams: partial?.panelSeams ?? DEFAULT_BOMBER_TEXTURING.panelSeams
+    panelSeams: partial?.panelSeams ?? DEFAULT_BOMBER_TEXTURING.panelSeams,
+    decals: partial?.decals ?? DEFAULT_BOMBER_TEXTURING.decals
   };
 }
 
@@ -254,6 +255,16 @@ export function validateRecipe(value: unknown): CharacterRecipe | undefined {
     if (t === null || typeof t !== "object") return undefined;
     const tx = t as Record<string, unknown>;
     if ("panelSeams" in tx && typeof tx["panelSeams"] !== "boolean") return undefined;
+    // S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2.
+    if ("decals" in tx) {
+      const decals = tx["decals"];
+      if (!Array.isArray(decals) || decals.length > 3) return undefined;
+      const allowed = new Set<string>(DECAL_KINDS);
+      for (const d of decals) {
+        if (typeof d !== "string" || !allowed.has(d)) return undefined;
+      }
+      if (new Set(decals).size !== decals.length) return undefined; // uniqueItems
+    }
   }
   return v as CharacterRecipe;
 }

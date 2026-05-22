@@ -51,15 +51,29 @@ export const DEFAULT_BOMBER_PART_SHAPES: BomberPartShapes = {
  * Layer 1 is `panelSeams`: extreme-Y vertices (the 8 box corners or
  * the top+bottom rings of a cylinder/capsule) are darkened to a fixed
  * fraction of the base channel colour, reading as soft edge highlights.
- * Layers 2 (decals) and 3 (patterns) ship later.
+ * Layer 2 (S112) adds `decals[]` — vertex-colour overrides at fixed
+ * anchor faces on specific part-meshes.
+ * Layer 3 (patterns) ships later.
  */
+export const DECAL_KINDS = ["chestEmblem", "helmetStripe", "kneePad"] as const;
+export type DecalKind = (typeof DECAL_KINDS)[number];
+
 export type BomberTexturing = {
   /** Default true — corner / top-and-bottom edge vertices darkened by PANEL_SEAM_FACTOR. */
   panelSeams: boolean;
+  /**
+   * S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — 0..3 decals from the
+   * fixed catalog. Each decal paints a specific face on a specific
+   * part-mesh with the palette.accent (or part-specific) colour. NO
+   * shader changes — pure vertex-colour overrides on top of the
+   * panelSeams pass.
+   */
+  decals: ReadonlyArray<DecalKind>;
 };
 
 export const DEFAULT_BOMBER_TEXTURING: BomberTexturing = {
-  panelSeams: true
+  panelSeams: true,
+  decals: []
 };
 
 /** Darken factor applied to extreme-Y vertices when panelSeams is on. */
@@ -141,11 +155,14 @@ export function generateTorso(
   shape: BomberPartShape = "box",
   texturing: BomberTexturing = DEFAULT_BOMBER_TEXTURING
 ): BufferGeometry {
-  // Slight Z compression (0.65×) for a flat-chested toy proportion.
-  const g = buildBoxLike(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, shape);
+  // S112 — torso bumps depthSegments to 2 so the FRONT face has a mid
+  // vertex row + column where the chestEmblem decal can land crisply.
+  const g = shape === "box"
+    ? new BoxGeometry(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, 2, 2, 2)
+    : buildBoxLike(s.torsoWidth, s.torsoHeight, s.torsoWidth * 0.65, shape);
   paintVertexColors(g, palette.torsoTop);
   paintBottomShadow(g, palette.torsoBottom, s.torsoHeight);
-  applyTexturing(g, texturing);
+  applyTexturing(g, texturing, "torso", palette);
   return g;
 }
 
@@ -157,7 +174,7 @@ export function generateHead(
 ): BufferGeometry {
   const g = buildBoxLike(s.headSize, s.headSize, s.headSize, shape);
   paintVertexColors(g, palette.head);
-  applyTexturing(g, texturing);
+  applyTexturing(g, texturing, "head", palette);
   return g;
 }
 
@@ -166,13 +183,15 @@ function generateLimbSegment(
   length: number,
   color: string,
   shape: BomberPartShape,
-  texturing: BomberTexturing
+  texturing: BomberTexturing,
+  partName: BomberPartName,
+  palette: BomberPalette
 ): BufferGeometry {
   const g = buildBoxLike(width, length, width, shape);
   // Hang the segment below the pivot — pivot at the TOP of the segment.
   g.applyMatrix4(new Matrix4().makeTranslation(0, -length / 2, 0));
   paintVertexColors(g, color);
-  applyTexturing(g, texturing);
+  applyTexturing(g, texturing, partName, palette);
   return g;
 }
 
@@ -182,7 +201,7 @@ export function generateUpperArm(
   shape: BomberPartShape = "box",
   texturing: BomberTexturing = DEFAULT_BOMBER_TEXTURING
 ): BufferGeometry {
-  return generateLimbSegment(s.armWidth, s.upperArmLength, palette.upperArm, shape, texturing);
+  return generateLimbSegment(s.armWidth, s.upperArmLength, palette.upperArm, shape, texturing, "upperArm", palette);
 }
 
 export function generateForearm(
@@ -191,7 +210,7 @@ export function generateForearm(
   shape: BomberPartShape = "box",
   texturing: BomberTexturing = DEFAULT_BOMBER_TEXTURING
 ): BufferGeometry {
-  return generateLimbSegment(s.armWidth, s.forearmLength, palette.forearm, shape, texturing);
+  return generateLimbSegment(s.armWidth, s.forearmLength, palette.forearm, shape, texturing, "forearm", palette);
 }
 
 export function generateUpperLeg(
@@ -200,7 +219,7 @@ export function generateUpperLeg(
   shape: BomberPartShape = "box",
   texturing: BomberTexturing = DEFAULT_BOMBER_TEXTURING
 ): BufferGeometry {
-  return generateLimbSegment(s.legWidth, s.upperLegLength, palette.upperLeg, shape, texturing);
+  return generateLimbSegment(s.legWidth, s.upperLegLength, palette.upperLeg, shape, texturing, "upperLeg", palette);
 }
 
 export function generateLowerLeg(
@@ -209,7 +228,7 @@ export function generateLowerLeg(
   shape: BomberPartShape = "box",
   texturing: BomberTexturing = DEFAULT_BOMBER_TEXTURING
 ): BufferGeometry {
-  return generateLimbSegment(s.legWidth, s.lowerLegLength, palette.lowerLeg, shape, texturing);
+  return generateLimbSegment(s.legWidth, s.lowerLegLength, palette.lowerLeg, shape, texturing, "lowerLeg", palette);
 }
 
 /** Dispatcher used by the mesh-tree spawner. */
@@ -286,13 +305,110 @@ function applyPanelSeamDarken(geometry: BufferGeometry): void {
 }
 
 /**
- * Apply every enabled procedural-texturing layer in the canonical
- * order. Today: just Layer 1 (panel seams). Layers 2 (decals) and
- * 3 (patterns) will compose in here when they land.
+ * S112 KABOOM-PROCEDURAL-TEXTURING-LAYER-2 — body decals.
+ *
+ * Maps each decal kind to a per-vertex predicate + colour. The
+ * predicate is geometry-local: we use the geometry's bounding box +
+ * the part's known shape to identify the right faces.
+ *
+ *   chestEmblem  → torso FRONT face (+Z), mid-Y mid-X. Painted with palette.accent.
+ *   helmetStripe → head TOP half (Y > 0). Painted with palette.accent.
+ *   kneePad      → lowerLeg FRONT face (+Z), upper third. Painted darker palette.lowerLeg.
+ *
+ * Each decal is independent — applying multiple decals just stacks
+ * the per-vertex overrides.
+ *
+ * Idempotent in the sense that running the function twice produces
+ * the same buffer.
  */
-function applyTexturing(geometry: BufferGeometry, texturing: BomberTexturing): void {
+function applyDecals(
+  geometry: BufferGeometry,
+  partName: BomberPartName,
+  palette: BomberPalette,
+  decals: ReadonlyArray<DecalKind>
+): void {
+  if (decals.length === 0) return;
+  const position = geometry.getAttribute("position") as BufferAttribute;
+  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
+  if (color === undefined) return;
+  // Bounding box per axis — cheaper than BufferGeometry.computeBoundingBox()
+  // since we already walk every vertex.
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const spanZ = maxZ - minZ;
+  const eps = Math.max(spanX, spanY, spanZ) * 0.005;
+  const accent = new Color(palette.accent);
+  const darkerLeg = new Color(palette.lowerLeg).multiplyScalar(0.55);
+
+  const onFrontFace = (i: number): boolean => position.getZ(i) >= maxZ - eps;
+  const inMidY = (i: number): boolean => {
+    const y = position.getY(i);
+    return y >= minY + spanY * 0.35 && y <= minY + spanY * 0.65;
+  };
+  const inMidX = (i: number): boolean => {
+    const x = position.getX(i);
+    return x >= minX + spanX * 0.25 && x <= minX + spanX * 0.75;
+  };
+  // "Upper third" of a limb that hangs DOWN from the pivot — Y near
+  // the top of the segment (the pivot end, i.e. near maxY).
+  const inUpperThirdY = (i: number): boolean => {
+    const y = position.getY(i);
+    return y >= minY + spanY * 0.66;
+  };
+  const inUpperHalfY = (i: number): boolean => position.getY(i) > minY + spanY * 0.5;
+
+  const paint = (i: number, c: Color): void => {
+    color.setXYZ(i, c.r, c.g, c.b);
+  };
+
+  for (const decal of decals) {
+    if (decal === "chestEmblem" && partName === "torso") {
+      for (let i = 0; i < position.count; i += 1) {
+        if (onFrontFace(i) && inMidY(i) && inMidX(i)) paint(i, accent);
+      }
+    } else if (decal === "helmetStripe" && partName === "head") {
+      for (let i = 0; i < position.count; i += 1) {
+        if (inUpperHalfY(i)) paint(i, accent);
+      }
+    } else if (decal === "kneePad" && partName === "lowerLeg") {
+      // Drop the mid-X constraint — the limb's front face only has
+      // X verts at the extremes (no widthSegments=2 on limbs), so we
+      // paint the full upper-third front strip. Reads as a knee pad
+      // on the narrow lowerLeg geometry.
+      for (let i = 0; i < position.count; i += 1) {
+        if (onFrontFace(i) && inUpperThirdY(i)) paint(i, darkerLeg);
+      }
+    }
+  }
+  color.needsUpdate = true;
+}
+
+/**
+ * Apply every enabled procedural-texturing layer in the canonical
+ * order: panel seams first, then decals (so decals override the seam
+ * darken at affected vertices). Layer 3 (shader-side patterns) will
+ * compose in here when it lands.
+ */
+function applyTexturing(
+  geometry: BufferGeometry,
+  texturing: BomberTexturing,
+  partName: BomberPartName,
+  palette: BomberPalette
+): void {
   if (texturing.panelSeams) {
     applyPanelSeamDarken(geometry);
+  }
+  if (texturing.decals.length > 0) {
+    applyDecals(geometry, partName, palette, texturing.decals);
   }
 }
 

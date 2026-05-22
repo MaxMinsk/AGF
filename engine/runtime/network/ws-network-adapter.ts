@@ -34,7 +34,7 @@ type ProtocolMessage =
         playerSpeed?: number;
       };
     }
-  | { kind: "player.join"; payload: { playerId: string; displayName?: string } }
+  | { kind: "player.join"; payload: { playerId: string; displayName?: string; recipe?: string } }
   | { kind: "player.leave"; payload: { playerId: string; reason?: string } }
   | { kind: "intent.move"; sequence?: number; payload: { playerId: string; direction: [number, number] } };
 
@@ -69,6 +69,15 @@ export type UnackedIntent = {
 export type WsNetworkAdapterOptions = {
   url: string;
   playerId: string;
+  /**
+   * S112 KABOOM-MP-RECIPE-SYNC — opaque project-specific recipe blob
+   * sent in player.join.payload.recipe. The server echoes it back in
+   * every snapshot as a `CharacterRecipe` component on the
+   * `player.<id>` entity, so other clients can decode + render the
+   * remote player with the correct visual identity. Kaboom Crew uses
+   * `encodeRecipe(localRecipe)`; non-Kaboom clients leave undefined.
+   */
+  recipe?: string;
   /** Engine command sink — usually `runtime.applyCommands`. */
   applyCommands: (commands: ReadonlyArray<EngineCommand>) => void;
   /**
@@ -223,7 +232,14 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       reconnectAttempts = 0;
       send(created, {
         kind: "player.join",
-        payload: { playerId: options.playerId }
+        payload: {
+          playerId: options.playerId,
+          // S112 KABOOM-MP-RECIPE-SYNC — opaque blob, server echoes
+          // it back in every snapshot as a CharacterRecipe component
+          // on the player.<id> entity. Other clients decode it to
+          // render the remote bomber with the right recipe.
+          ...(options.recipe !== undefined ? { recipe: options.recipe } : {})
+        }
       });
       log(`[ws-adapter] connected to ${options.url} as ${options.playerId} (attempt ${attempts})`);
     });

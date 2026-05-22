@@ -1,0 +1,48 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S112",
+  "title": "Texturing Layer 2 (decals via vertex-color) + multiplayer recipe sync (Option B)",
+  "status": "archived",
+  "startedAt": "2026-05-22",
+  "notes": [
+    "Both stories were deferred from earlier sprints. Decals come from the S109 FEAT-PROCEDURAL-TEXTURING proposal; recipe sync is the Option B path called out in docs/research/kaboom-multiplayer-plan.md \u00a72.",
+    "Texturing Layer 3 (shader-side stripes/spots) remains deferred \u2014 it needs onBeforeCompile injection on MeshStandardMaterial, more shader-side scope than fits this sprint."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-TEXTURING-LAYER-2-DECALS-001",
+      "title": "Procedural texturing Layer 2 \u2014 body decals (chestEmblem / helmetStripe / kneePad) via vertex-color masks",
+      "status": "implemented",
+      "summary": "Three starter decals applied as vertex-colour overrides at specific anchor faces on specific part-meshes. NO shader changes \u2014 the decal is painted directly onto the vertex colour buffer in the per-part builder, so the existing vertexColors=true MeshStandardMaterial picks it up for free.\n\n- chestEmblem: small square on the FRONT face of the torso (Z extreme, mid-Y, mid-X band). Painted with palette.accent.\n- helmetStripe: horizontal band across the top half of the head. Painted with palette.accent.\n- kneePad: small square on the FRONT face of each lowerLeg's upper third. Painted with palette.handFoot (or palette.upperLeg darker variant for now \u2014 palette doesn't expose handFoot yet).\n\nRecipe field: `texturing.decals: ('chestEmblem'|'helmetStripe'|'kneePad')[]` \u2014 0..3, picked deterministically from seed when unspecified. Each part-builder reads the array + paints the appropriate vertices when the decal applies to that part.\n\nApproach: instead of shader-side emissive masks (proposal's original direction), paint the decal vertices with the decal colour directly. To get crisp edges, bump the relevant face's subdivisions where needed (torso front face widthSegments / depthSegments, head top face).\n\nDeterminism: same seed + same texturing block \u2192 bit-identical vertex-colour buffer. Test with multiple seeds.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: Procedural texturing Layer 2 (body decals) shipped. Recipe gains optional texturing.decals: ('chestEmblem'|'helmetStripe'|'kneePad')[] (0..3, deterministic order, unique items). Pure vertex-colour overrides on top of the S109 panel-seams pass \u2014 no shader change. Torso BoxGeometry bumped to (2,2,2) segments (54 verts) so the FRONT face has a 3x3 grid where chestEmblem lands crisply. Each decal scoped to its anchor part: chestEmblem \u2192 torso FRONT face mid-band, helmetStripe \u2192 head upper-half, kneePad \u2192 lowerLeg upper-third front strip. Bench UI gains 3 decal-toggle checkboxes. Recipe codec round-trips the decals array.",
+        "examples/procbomber-bench/src/generators/bomber-parts.ts: DECAL_KINDS / DecalKind types, applyDecals helper, partName + palette threaded through applyTexturing, torso BoxGeometry 2x2x2",
+        "examples/procbomber-bench/schemas/character-recipe.schema.json: texturing.decals enum array",
+        "examples/procbomber-bench/src/character-recipe.ts: decals in BomberTexturing, resolveTexturing default = [], validator accepts the array + uniqueItems",
+        "examples/procbomber-bench/src/bench-state.ts + bench-ui.ts + recipe-url.ts: state.decals + texturingOf + UI checkboxes + recipe sync",
+        "+7 unit tests covering each decal's predicate, deterministic output, multi-decal independence, decal scoped to right part",
+        "Existing torso vert-count tests updated 32\u219254 for the (2,2,2) segments change. No behavioural regression \u2014 every other part stays at 32."
+      ]
+    },
+    {
+      "id": "FEAT-MP-RECIPE-SYNC-001",
+      "title": "Multiplayer recipe sync \u2014 remote bombers use the actual player's recipe (Option B)",
+      "status": "implemented",
+      "summary": "S109's connect-and-spectate kickoff renders remote bombers from a fallback seed (resolveRecipeFromSeed('remote.' + playerId)). The plan (docs/research/kaboom-multiplayer-plan.md \u00a72 Option B) is to carry the local player's resolved recipe in the snapshot so the OTHER tab renders the bomber that's actually walking around.\n\nApproach: the server is a Transform-only world (`examples/backends/node-world-server`). It doesn't track CharacterRecipe. Two reasonable paths:\n\n  (a) Client-side gossip: each client posts its recipe via a new probe message `player.recipe` that the server echoes verbatim in every player.<id> snapshot entity's `CharacterRecipe` component. Adds one schema entry to protocol.schema.json.\n  (b) URL-driven: each tab passes its recipe as a `?recipe=<base64>` URL param; the player.join message carries it; server stores per-player and includes in snapshots.\n\nRecommend (b) \u2014 simpler, no new message kind, recipe is already URL-encodable via encodeRecipe(). The kaboom-crew bootstrap detects `?recipe=` on the connected path, stamps the recipe on the local bomber AND forwards via player.join.displayName-like channel (extend the player.join payload). Remote-bomber decorator system reads CharacterRecipe from the snapshot entity instead of synthesising from the player id.\n\nOut of scope: server-side validation of the recipe (untrusted clients; treat input as best-effort); recipe edits mid-session.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Multiplayer recipe sync (Option B) shipped. Each tab forwards its ?recipe= URL param to the server via player.join.payload.recipe (opaque base64-url-safe blob, 4 KB cap, server treats as untrusted). ServerWorld stores the recipe per player and emits it as a CharacterRecipe component on the player.<id> snapshot entity. The kaboom-crew remote-bomber decorator decodes the recipe via decodeRecipe + resolveRecipeFromSeed(decoded.seed, decoded) and spawns the bomber tree with the actual visual identity, falling back to the S109 seed-from-id path when the snapshot has no CharacterRecipe OR the blob fails to decode. Re-join with a different recipe overwrites; re-join without a recipe keeps the previous one (idempotent join, reconnect-friendly).",
+        "schemas/protocol.schema.json: player.join.payload gains optional 'recipe' string (4 KB cap)",
+        "examples/backends/node-world-server/src/world.ts: ServerWorld.join(playerId, recipe?) + snapshot() emits CharacterRecipe component",
+        "examples/backends/node-world-server/src/transport-ws.ts: extracts recipe from player.join payload + forwards to world.join",
+        "engine/runtime/network/ws-network-adapter.ts: WsNetworkAdapterOptions.recipe; sends in player.join",
+        "src/app.ts + src/main.ts: AppOptions.recipe forwarded from ?recipe= URL param into the WS adapter",
+        "examples/kaboom-crew/src/systems/remote-bomber-decorator-system.ts: reads CharacterRecipe from snapshot entity, decodes via decodeRecipe, falls back to seed-from-id on missing or malformed recipe",
+        "+5 server-side world tests (recipe carry, multiple players, reconnect overwrite, idempotent re-join) + 3 client-side decorator tests (decode path, S109 fallback, malformed fallback) = +8 unit tests",
+        "Full suite 1300/1300 on a clean run."
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-22"
+}

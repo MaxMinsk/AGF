@@ -315,7 +315,11 @@ describe("createBenchAnimationSystem (S102)", () => {
 
   // S110 BAL-WALK-ANIMATION-PHASE-MUS.
 
-  it("walk-swing: stationary bomber does NOT advance walkPhaseS", () => {
+  it("walk-swing: stationary bomber falls back to wall-clock phase advance (bench preview path)", () => {
+    // S112 follow-up to S110: a stationary bomber in walk-swing (the
+    // procbomber-bench slider panel renders one) advances walkPhaseS
+    // by dt so the limbs keep swinging. Distance-driven advance is
+    // still the primary path for actually-moving bombers.
     const world = new World();
     addBomberRoot(world, "walk-swing");
     const system = createBenchAnimationSystem();
@@ -323,15 +327,19 @@ describe("createBenchAnimationSystem (S102)", () => {
     system.fixedUpdate!(ctx(world));
     system.fixedUpdate!(ctx(world));
     const state = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!;
-    expect(state.walkPhaseS).toBe(0);
+    // Three ticks × 1/60 dt = ~0.05 seconds of wall-clock advance.
+    expect(state.walkPhaseS).toBeGreaterThan(0);
+    expect(state.walkPhaseS).toBeCloseTo(3 / 60, 5);
   });
 
   it("walk-swing: moving bomber advances walkPhaseS by (distance / WALK_REFERENCE_SPEED) per frame", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing", [0, 0, 0]);
     const system = createBenchAnimationSystem();
-    // First tick: distance = 0 (no prev). walkPhaseS stays 0.
+    // First tick: distance = 0 (no prev). The bench-preview fallback
+    // (S112) advances phase by dt = 1/60. Track that bias explicitly.
     system.fixedUpdate!(ctx(world));
+    const phaseAfterTick1 = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!.walkPhaseS!;
     // Move 0.4 cells in X for the next frame → distance = 0.4 → phase += 0.4 / 4 = 0.1.
     world.setComponent("bomber", "Transform", {
       position: [0.4, 0, 0],
@@ -340,7 +348,7 @@ describe("createBenchAnimationSystem (S102)", () => {
     });
     system.fixedUpdate!(ctx(world));
     const state = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!;
-    expect(state.walkPhaseS).toBeCloseTo(0.1, 5);
+    expect(state.walkPhaseS! - phaseAfterTick1).toBeCloseTo(0.1, 5);
   });
 
   it("walk-swing: phase is FROZEN when kind flips away (resumes mid-stride next time)", () => {
