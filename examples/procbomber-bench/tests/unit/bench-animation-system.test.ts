@@ -166,8 +166,23 @@ describe("createBenchAnimationSystem (S102)", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing");
     const system = createBenchAnimationSystem();
+    // S110 BAL-WALK-ANIMATION-PHASE-MUS — walk phase is distance-driven,
+    // so the bomber MUST move for limbs to swing. Prime the system with
+    // one tick (establishes base + prevPosXZ) then move the bomber at
+    // WALK_REFERENCE_SPEED (4 cells/sec) which makes the new phase
+    // advance match the legacy wall-clock cadence exactly. After
+    // quarter-period (1 / (4 × FREQ_HZ)) we expect peak swing.
+    system.fixedUpdate!(ctx(world));
     const ticks = Math.round(1 / (4 * WALK_SWING_FREQ_HZ) / (1 / 60));
-    for (let i = 0; i < ticks; i += 1) system.fixedUpdate!(ctx(world));
+    for (let i = 1; i <= ticks; i += 1) {
+      // 4 cells/sec × dt = 4/60 cells per frame.
+      world.setComponent("bomber", "Transform", {
+        position: [(4 / 60) * i, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+      system.fixedUpdate!(ctx(world));
+    }
     const lShoulder = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.shoulderL", "Transform")!;
     const rHip = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.hipR", "Transform")!;
     const rShoulder = world.getComponent<{ rotation: ReadonlyArray<number> }>("bomber.shoulderR", "Transform")!;
@@ -182,7 +197,20 @@ describe("createBenchAnimationSystem (S102)", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing", [0.5, 1, 2]);
     const system = createBenchAnimationSystem();
-    for (let i = 0; i < 10; i += 1) system.fixedUpdate!(ctx(world));
+    // S110 — base is captured on first visit, then walk phase advances
+    // by per-frame distance. The walk-swing branch snaps X/Z back to
+    // the cached base.x / base.z each frame, so even though we move
+    // the bomber externally between ticks the system holds the X/Z
+    // at the initial cell.
+    system.fixedUpdate!(ctx(world));
+    for (let i = 1; i <= 10; i += 1) {
+      world.setComponent("bomber", "Transform", {
+        position: [0.5 + (4 / 60) * i, 1, 2],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+      system.fixedUpdate!(ctx(world));
+    }
     const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber", "Transform")!;
     expect(t.position[0]).toBeCloseTo(0.5, 5);
     expect(t.position[2]).toBeCloseTo(2, 5);
@@ -283,5 +311,74 @@ describe("createBenchAnimationSystem (S102)", () => {
       const p = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
       expect(p.rotation[0]).toBeCloseTo(0, 5);
     }
+  });
+
+  // S110 BAL-WALK-ANIMATION-PHASE-MUS.
+
+  it("walk-swing: stationary bomber does NOT advance walkPhaseS", () => {
+    const world = new World();
+    addBomberRoot(world, "walk-swing");
+    const system = createBenchAnimationSystem();
+    system.fixedUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
+    system.fixedUpdate!(ctx(world));
+    const state = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!;
+    expect(state.walkPhaseS).toBe(0);
+  });
+
+  it("walk-swing: moving bomber advances walkPhaseS by (distance / WALK_REFERENCE_SPEED) per frame", () => {
+    const world = new World();
+    addBomberRoot(world, "walk-swing", [0, 0, 0]);
+    const system = createBenchAnimationSystem();
+    // First tick: distance = 0 (no prev). walkPhaseS stays 0.
+    system.fixedUpdate!(ctx(world));
+    // Move 0.4 cells in X for the next frame → distance = 0.4 → phase += 0.4 / 4 = 0.1.
+    world.setComponent("bomber", "Transform", {
+      position: [0.4, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+    system.fixedUpdate!(ctx(world));
+    const state = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!;
+    expect(state.walkPhaseS).toBeCloseTo(0.1, 5);
+  });
+
+  it("walk-swing: phase is FROZEN when kind flips away (resumes mid-stride next time)", () => {
+    const world = new World();
+    addBomberRoot(world, "walk-swing", [0, 0, 0]);
+    const system = createBenchAnimationSystem();
+    system.fixedUpdate!(ctx(world));
+    // Advance once with movement.
+    world.setComponent("bomber", "Transform", { position: [0.8, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    system.fixedUpdate!(ctx(world));
+    const phaseAfterWalk = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!.walkPhaseS;
+    // Flip to none — phase should hold.
+    const prev = world.getComponent<{ kind: string }>("bomber", "BenchAnimationState")!;
+    world.setComponent("bomber", "BenchAnimationState", { ...prev, kind: "none" });
+    world.setComponent("bomber", "Transform", { position: [2.0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    system.fixedUpdate!(ctx(world));
+    const phaseAfterIdle = world.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!.walkPhaseS;
+    expect(phaseAfterIdle).toBe(phaseAfterWalk);
+  });
+
+  it("walk-swing: a slow bomber (low velocity) shows a smaller phase delta than a fast bomber over the same duration", () => {
+    const fast = new World();
+    addBomberRoot(fast, "walk-swing", [0, 0, 0]);
+    const slow = new World();
+    addBomberRoot(slow, "walk-swing", [0, 0, 0]);
+    const systemFast = createBenchAnimationSystem();
+    const systemSlow = createBenchAnimationSystem();
+    systemFast.fixedUpdate!(ctx(fast));
+    systemSlow.fixedUpdate!(ctx(slow));
+    // Same number of frames, but the fast bomber moves further per frame.
+    for (let i = 1; i <= 5; i += 1) {
+      fast.setComponent("bomber", "Transform", { position: [0.4 * i, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+      slow.setComponent("bomber", "Transform", { position: [0.1 * i, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+      systemFast.fixedUpdate!(ctx(fast));
+      systemSlow.fixedUpdate!(ctx(slow));
+    }
+    const fastPhase = fast.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!.walkPhaseS!;
+    const slowPhase = slow.getComponent<{ walkPhaseS?: number }>("bomber", "BenchAnimationState")!.walkPhaseS!;
+    expect(fastPhase).toBeGreaterThan(slowPhase * 3);
   });
 });
