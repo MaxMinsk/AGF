@@ -41,7 +41,15 @@ export type AudioEventKind =
   | "match-won"
   | "match-lost"
   | "match-draw"
-  | "footstep";
+  | "footstep"
+  // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — per-bomber voice slots.
+  // entityId in the event context is the bomber id; the audio bus
+  // derives the voice colour from voiceParamsFromSeed(entityId).
+  | "voice-place-bomb"
+  | "voice-hit"
+  | "voice-pickup"
+  | "voice-death"
+  | "voice-victory";
 /**
  * S91 KABOOM-AUDIO-POSITIONAL-ADOPT. `position` is the world-space
  * source of the SFX, [gx, 0, gz] in our grid space. Bomber-driven
@@ -77,6 +85,10 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
   // edge; the consuming bus mixes it under the (optional) `death` event
   // when both fire on the same step.
   let prevShield = new Map<EntityId, boolean>();
+  // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — sum of pickup-affected stats
+  // per bomber. Goes up on the frame pickup-collect-system applies a
+  // bonus; we fire voice-pickup on that edge.
+  let prevStatsTotal = new Map<EntityId, number>();
   // S90 KABOOM-FOOTSTEP-TICK. Last observed GridPosition cell per
   // bomber. A cell change between ticks fires one 'footstep' event.
   // Map key = entity id; value = packed `gx,gz` string.
@@ -106,6 +118,8 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       prevBombIds = new Set();
       prevPickupIds = new Set();
       prevAlive = new Map();
+      prevShield = new Map();
+      prevStatsTotal = new Map();
       prevBomberCell = new Map();
       prevMatchPhase = "in-progress";
     }
@@ -120,10 +134,20 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       return [gp.gx, 0, gp.gz] as const;
     }
 
-    // Bomb births → bomb-place.
+    // Bomb births → bomb-place + voice-place-bomb (per-bomber voice).
     const currentBombIds = new Set<EntityId>(bombs!.run());
     for (const id of currentBombIds) {
-      if (!prevBombIds.has(id)) onEvent("bomb-place", { entityId: id, ...(cellPos(id) !== undefined ? { position: cellPos(id)! } : {}) });
+      if (!prevBombIds.has(id)) {
+        const pos = cellPos(id);
+        onEvent("bomb-place", { entityId: id, ...(pos !== undefined ? { position: pos } : {}) });
+        // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — the bomb carries its
+        // owner. Fire a per-bomber voice event so the SOUND is tagged
+        // with the placer's voice colour.
+        const bomb = world.getComponent<{ ownerId?: string }>(id, BOMB);
+        if (bomb?.ownerId !== undefined) {
+          onEvent("voice-place-bomb", { entityId: bomb.ownerId, ...(pos !== undefined ? { position: pos } : {}) });
+        }
+      }
     }
     prevBombIds = currentBombIds;
 
@@ -138,13 +162,46 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
 
     // BomberStats.alive true → false → death.
     // BomberStats.shield true → false → shield-pop (S109).
+    // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — also track a single
+    // "pickup-affected stats total" per bomber. When the total goes
+    // UP, a pickup was just collected → fire voice-pickup. The
+    // pickup-collect-system is the only writer that increases any of
+    // these fields, so this is a reliable trigger that doesn't need a
+    // new transient component or a hook into collect-system itself.
     const currentAlive = new Map<EntityId, boolean>();
     const currentShield = new Map<EntityId, boolean>();
+    const currentStatsTotal = new Map<EntityId, number>();
     for (const id of bombers!.run()) {
-      const stats = world.getComponent<{ alive?: boolean; shield?: boolean }>(id, BOMBER_STATS);
+      const stats = world.getComponent<{
+        alive?: boolean;
+        shield?: boolean;
+        maxBombs?: number;
+        range?: number;
+        canKick?: boolean;
+        remoteDetonateCharges?: number;
+        speed?: number;
+      }>(id, BOMBER_STATS);
       currentAlive.set(id, stats?.alive !== false);
       currentShield.set(id, stats?.shield === true);
+      const total =
+        (stats?.maxBombs ?? 0) +
+        (stats?.range ?? 0) +
+        (stats?.canKick === true ? 1 : 0) +
+        (stats?.remoteDetonateCharges ?? 0) +
+        (stats?.shield === true ? 1 : 0) +
+        (stats?.speed ?? 0);
+      currentStatsTotal.set(id, total);
     }
+    for (const [id, prevTotal] of prevStatsTotal) {
+      const nowTotal = currentStatsTotal.get(id);
+      if (nowTotal !== undefined && nowTotal > prevTotal) {
+        // Stats only go UP on pickup collection (S82 PickupCollectSystem).
+        // S109 — fire the per-bomber voice. Position from grid pos.
+        const pos = cellPos(id);
+        onEvent("voice-pickup", { entityId: id, ...(pos !== undefined ? { position: pos } : {}) });
+      }
+    }
+    prevStatsTotal = currentStatsTotal;
     for (const [id, wasShield] of prevShield) {
       const nowShield = currentShield.get(id) ?? false;
       if (wasShield && !nowShield) {
@@ -154,6 +211,13 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
         // 'death'. The audio bus is free to mix them).
         const popPos = cellPos(id);
         onEvent("shield-pop", { entityId: id, ...(popPos !== undefined ? { position: popPos } : {}) });
+        // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — survival voice. Only
+        // fires when the bomber is STILL alive after the shield ate
+        // the hit (the death branch below covers the dead case).
+        const nowAlive = currentAlive.get(id) ?? false;
+        if (nowAlive) {
+          onEvent("voice-hit", { entityId: id, ...(popPos !== undefined ? { position: popPos } : {}) });
+        }
       }
     }
     prevShield = currentShield;
@@ -162,6 +226,9 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       if (wasAlive && !nowAlive) {
         const deathPos = cellPos(id);
         onEvent("death", { entityId: id, ...(deathPos !== undefined ? { position: deathPos } : {}) });
+        // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — per-bomber death voice
+        // on the same edge as the generic "death" event.
+        onEvent("voice-death", { entityId: id, ...(deathPos !== undefined ? { position: deathPos } : {}) });
         // S90 KABOOM-DEATH-FALL — tag the bomber with a per-entity
         // animation component the dedicated system will tween + freeze
         // movement so a dying bomber stops mid-stride.
@@ -250,6 +317,17 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       if (currentMatchPhase === "won") onEvent("match-won");
       else if (currentMatchPhase === "lost") onEvent("match-lost");
       else if (currentMatchPhase === "draw") onEvent("match-draw");
+      // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — voice-victory fires for
+      // the winning bomber on match-won / match-lost (the winnerId is
+      // populated by RoundResolveSystem either way — "lost" means a
+      // bot won the match). Draws do not fire a voice (no winner).
+      if ((currentMatchPhase === "won" || currentMatchPhase === "lost") && round?.winnerId !== undefined) {
+        const winnerPos = cellPos(round.winnerId);
+        onEvent("voice-victory", {
+          entityId: round.winnerId,
+          ...(winnerPos !== undefined ? { position: winnerPos } : {})
+        });
+      }
       spawnMatchEndCelebration(world, currentMatchPhase, round?.winnerId);
     }
     prevMatchPhase = currentMatchPhase;
