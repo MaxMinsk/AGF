@@ -70,6 +70,20 @@
       "epic": "KABOOM-CREW-CHARACTERS"
     },
     {
+      "id": "RESEARCH-MULTIPLAYER-CONNECT-SPECTATE-001",
+      "title": "Research multiplayer foundation: existing networking stack inventory + connect-and-spectate plan (spike → docs/research/kaboom-multiplayer-plan.md)",
+      "status": "implemented",
+      "summary": "Pure research / spike — no engine code. GDP-009 (FEAT-MULTIPLAYER-FOUNDATION-T-001) is the only MUST story in S109 and the largest in the sprint. It depends on the existing AGF networking stack — the Node reference world server (`examples/backends/node-world-server`), the protocol-schema contracts, the beacon-world client networking adapter, and the engine's WsNetworkAdapterHandle path in `src/app.ts`. None of that has been used by Kaboom Crew yet. This spike inventories what exists, decides whether to reuse it as-is OR fork a kaboom-specific subset, and writes a concrete connect-and-spectate plan in docs/research/kaboom-multiplayer-plan.md covering: (1) what the Node ref server emits today; (2) which protocol-schema messages Kaboom Crew needs vs which would be over-engineered; (3) where to wire the connection in kaboom-crew bootstrap + the URL surface (`?multiplayer=ws://...` vs auto-discover); (4) the simplest possible spectate slice — two browser tabs see each other's bomber positions in real time, NO shared bomb / blast / pickup state yet; (5) the migration path from spectate to authoritative gameplay (when GDP-009's full scope eventually ships); (6) explicit out-of-scope for THIS spike + for the foundation kickoff. Output: one notes-style .md artifact that lets the feature story open with the design pre-locked, plus a punch-list of follow-up stories (lobby, reconnect, server-authoritative bomb resolution, etc.) that are NOT in S109.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: docs/research/kaboom-multiplayer-plan.md ships and covers all the required sections — (1) inventory of the existing AGF networking stack (Node ref server ~425 LOC, protocol.schema.json discriminated-union, ws-network-adapter ~522 LOC, beacon-world's 3 connected-profile systems as the reference pattern); (2) the minimum shippable slice (connect-and-spectate: two tabs see each other's bombers move, no shared bombs/blasts/pickups); (3) recommendation between recipe-sync options (Option A: seed-from-playerId, no protocol change); (4) concrete 7-item punch-list for FEAT-MULTIPLAYER-FOUNDATION-T-001; (5) sequencing into 3 commit-sized chunks; (6) explicit hard-perimeter out-of-scope list; (7) 5 named risks with mitigation hints. The feature story can now proceed with its design pre-locked.",
+        "docs/research/kaboom-multiplayer-plan.md: new file (~280 lines, 8 sections)",
+        "Recommends Path A (per-tab gameplay + shared positions only, server-authoritative sim deferred to a follow-up sprint)",
+        "Names the engine player-input-system + Kaboom-specific input coexistence as a known risk (already partly mitigated by the dead-bomber hotfix)",
+        "Identifies bot AI as per-tab (each tab spawns its own bot — documented WTF for connect-and-spectate kickoff)"
+      ]
+    },
+    {
       "id": "FEAT-MULTIPLAYER-FOUNDATION-T-001",
       "title": "Multiplayer foundation — two browser tabs share one Kaboom Crew arena via the Node reference server (re-promote of GDP-2026-05-20-007, MUST)",
       "status": "pending",
