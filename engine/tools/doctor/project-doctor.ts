@@ -955,13 +955,40 @@ function summarizeReflectionProbes(projectDir: string): ReflectionProbesReport {
 
 export function summarizeProceduralMeshes(projectDir: string): ProceduralMeshesReport {
   // S101 AGF-PROCMESH-DOCTOR-LINE: best-effort static scan.
-  // - declaredKeys: walk every .ts file under the project for the pattern
-  //   `proceduralMeshRegistry().register("<key>"` (single OR double quotes).
+  // - declaredKeys: walk every .ts file under the project for one of TWO
+  //   patterns:
+  //     (a) the literal call form `proceduralMeshRegistry().register("<key>", ...)`
+  //     (b) S111 BUG-DOCTOR-PROCEDURAL-MESH-R-001: an *aliased* call form
+  //         `<alias>.register("<key>", ...)` — but only in files that
+  //         ALSO mention the `proceduralMeshRegistry` helper. The alias
+  //         scope guard keeps us from matching unrelated `.register(...)`
+  //         calls (e.g. systems registering on schedulers).
   // - sceneUsageCount + perKey: walk every scene for MeshRenderer.mesh
   //   values starting with `procedural:`.
   // - missingRegistrations: keys referenced by a scene but never registered.
   const declaredSet = new Set<string>();
-  const registerRegex = /proceduralMeshRegistry\(\)\.register\(\s*["']([^"']+)["']/g;
+  const literalRegisterRegex = /proceduralMeshRegistry\(\)\.register\(\s*["']([^"']+)["']/g;
+  const aliasedRegisterRegex = /\.register\(\s*["']([^"']+)["']/g;
+  const scanBody = (body: string): void => {
+    // Always scan for the literal call form.
+    let m: RegExpExecArray | null;
+    literalRegisterRegex.lastIndex = 0;
+    while ((m = literalRegisterRegex.exec(body)) !== null) {
+      const key = m[1];
+      if (key !== undefined && key.length > 0) declaredSet.add(key);
+    }
+    // S111 — only scan the aliased pattern in files that reference the
+    // registry helper. Without that guard, every `.register("<key>", ...)`
+    // call site in the project (engine schedulers, event buses, etc.)
+    // would falsely contribute keys.
+    if (body.includes("proceduralMeshRegistry")) {
+      aliasedRegisterRegex.lastIndex = 0;
+      while ((m = aliasedRegisterRegex.exec(body)) !== null) {
+        const key = m[1];
+        if (key !== undefined && key.length > 0) declaredSet.add(key);
+      }
+    }
+  };
   const walkSource = (dir: string): void => {
     if (!existsSync(dir) || !statSync(dir).isDirectory()) return;
     for (const name of readdirSync(dir)) {
@@ -985,12 +1012,7 @@ export function summarizeProceduralMeshes(projectDir: string): ProceduralMeshesR
       } catch {
         continue;
       }
-      let match: RegExpExecArray | null;
-      registerRegex.lastIndex = 0;
-      while ((match = registerRegex.exec(body)) !== null) {
-        const key = match[1];
-        if (key !== undefined && key.length > 0) declaredSet.add(key);
-      }
+      scanBody(body);
     }
   };
   walkSource(resolve(projectDir, "src"));
@@ -999,12 +1021,7 @@ export function summarizeProceduralMeshes(projectDir: string): ProceduralMeshesR
   if (existsSync(bootstrapPath) && statSync(bootstrapPath).isFile()) {
     try {
       const body = readFileSync(bootstrapPath, "utf8");
-      let match: RegExpExecArray | null;
-      registerRegex.lastIndex = 0;
-      while ((match = registerRegex.exec(body)) !== null) {
-        const key = match[1];
-        if (key !== undefined && key.length > 0) declaredSet.add(key);
-      }
+      scanBody(body);
     } catch {
       /* best effort */
     }
@@ -2123,34 +2140,42 @@ export function formatBacklog(report: BacklogReport): string {
     lines.push("Backlog: no `backlog/sprints/*.sprint.json` files found.");
     return lines.join("\n");
   }
+  // S111 BUG-ENGINE-DOCTOR-QA-PROPOSE-001 — was an early-return in the
+  // no-active-sprint branch, which silently dropped the QA inbox,
+  // Proposed-story inbox, Recent commits, and Follow-up sections
+  // below. The no-active-sprint moment is *exactly* when the dev
+  // terminal needs those signals to plan the next sprint, so the
+  // branch now only suppresses the active-sprint-specific lines.
   if (report.active === undefined) {
     lines.push(`Backlog: ${report.sprintFiles} sprint file(s), ${report.archivedCount} archived. No sprint is currently active.`);
     if (report.multipleActive.length > 1) {
       lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
     }
-    return lines.join("\n");
-  }
-  const a = report.active;
-  lines.push(`Backlog: ${a.id} — ${a.title}`);
-  lines.push(
-    `  stories: ${a.pending} pending, ${a.inProgress} in_progress, ${a.implemented} implemented, ${a.deferred} deferred`
-  );
-  if (a.blocked.length > 0) {
-    lines.push(`  AGF_BACKLOG_BLOCKED: ${a.blocked.length} blocked`);
-    for (const b of a.blocked.slice(0, 5)) {
-      lines.push(`    - ${b.storyId} ← needs [${b.missing.join(", ")}]`);
-    }
-    if (a.blocked.length > 5) lines.push(`    - ... and ${a.blocked.length - 5} more`);
+    // Fall through to the inbox / commits / follow-ups / proposed /
+    // epics sections below.
   } else {
-    lines.push(`  AGF_BACKLOG_BLOCKED: 0`);
-  }
-  if (a.implementedWithoutVerification.length > 0) {
+    const a = report.active;
+    lines.push(`Backlog: ${a.id} — ${a.title}`);
     lines.push(
-      `  AGF_BACKLOG_NO_VERIFICATION: ${a.implementedWithoutVerification.join(", ")}`
+      `  stories: ${a.pending} pending, ${a.inProgress} in_progress, ${a.implemented} implemented, ${a.deferred} deferred`
     );
-  }
-  if (report.multipleActive.length > 1) {
-    lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
+    if (a.blocked.length > 0) {
+      lines.push(`  AGF_BACKLOG_BLOCKED: ${a.blocked.length} blocked`);
+      for (const b of a.blocked.slice(0, 5)) {
+        lines.push(`    - ${b.storyId} ← needs [${b.missing.join(", ")}]`);
+      }
+      if (a.blocked.length > 5) lines.push(`    - ... and ${a.blocked.length - 5} more`);
+    } else {
+      lines.push(`  AGF_BACKLOG_BLOCKED: 0`);
+    }
+    if (a.implementedWithoutVerification.length > 0) {
+      lines.push(
+        `  AGF_BACKLOG_NO_VERIFICATION: ${a.implementedWithoutVerification.join(", ")}`
+      );
+    }
+    if (report.multipleActive.length > 1) {
+      lines.push(`  AGF_BACKLOG_MULTIPLE_ACTIVE: ${report.multipleActive.join(", ")}`);
+    }
   }
 
   // S87 AGF-DOCTOR-RECENT-COMMITS.
