@@ -74,7 +74,12 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     system.fixedUpdate!(ctx(world));
     system.fixedUpdate!(ctx(world));
     system.fixedUpdate!(ctx(world));
-    expect(onEvent).toHaveBeenCalledTimes(1); // only the first tick saw the new bomb
+    // First tick fires both 'bomb-place' AND 'voice-place-bomb' (S109).
+    // Subsequent ticks see no new bomb edges → no more events.
+    const bombPlace = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "bomb-place");
+    const voicePlace = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "voice-place-bomb");
+    expect(bombPlace.length).toBe(1);
+    expect(voicePlace.length).toBe(1);
   });
 
   it("resets snapshots on world swap (scene.load)", () => {
@@ -246,5 +251,96 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     world.setComponent("kaboom.round-state", "RoundState", { phase: "draw", matchPhase: "draw" });
     system.fixedUpdate!(ctx(world));
     expect(onEvent).toHaveBeenCalledWith("match-draw");
+  });
+
+  // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — per-bomber voice events fire
+  // alongside the existing audio events on the right gameplay edges.
+
+  it("S109: emits 'voice-place-bomb' tagged with the bomb's ownerId", () => {
+    const world = new World();
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.addEntity("bomb.1");
+    world.setComponent("bomb.1", "Bomb", { fuseRemaining: 2.5, range: 2, ownerId: "player.1" });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("voice-place-bomb", expect.objectContaining({ entityId: "player.1" }));
+  });
+
+  it("S109: emits 'voice-hit' when a shielded bomber survives a blast (shield true→false, alive stays true)", () => {
+    const world = new World();
+    world.addEntity("p");
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true, shield: true });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true, shield: false });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("voice-hit", expect.objectContaining({ entityId: "p" }));
+  });
+
+  it("S109: does NOT emit 'voice-hit' when the shield consumes and the bomber ALSO dies in the same step", () => {
+    const world = new World();
+    world.addEntity("p");
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true, shield: true });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: false, shield: false });
+    system.fixedUpdate!(ctx(world));
+    // voice-death fires; voice-hit does NOT (alive went to false).
+    const voiceHitCalls = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "voice-hit");
+    expect(voiceHitCalls.length).toBe(0);
+    expect(onEvent).toHaveBeenCalledWith("voice-death", expect.objectContaining({ entityId: "p" }));
+  });
+
+  it("S109: emits 'voice-death' on alive true→false", () => {
+    const world = new World();
+    world.addEntity("p");
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: false });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("voice-death", expect.objectContaining({ entityId: "p" }));
+  });
+
+  it("S109: emits 'voice-pickup' when BomberStats stats sum increases (pickup-collect application)", () => {
+    const world = new World();
+    world.addEntity("p");
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    // PickupCollectSystem applies a bomb-up: maxBombs goes from 1 → 2.
+    world.setComponent("p", "BomberStats", { maxBombs: 2, range: 2, alive: true });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("voice-pickup", expect.objectContaining({ entityId: "p" }));
+  });
+
+  it("S109: emits 'voice-victory' for the winner on match-won (winnerId from RoundState)", () => {
+    const world = new World();
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "won", matchPhase: "won", winnerId: "player.1" });
+    system.fixedUpdate!(ctx(world));
+    expect(onEvent).toHaveBeenCalledWith("voice-victory", expect.objectContaining({ entityId: "player.1" }));
+  });
+
+  it("S109: does NOT emit 'voice-victory' on a draw (no winnerId)", () => {
+    const world = new World();
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", matchPhase: "in-progress" });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "draw", matchPhase: "draw" });
+    system.fixedUpdate!(ctx(world));
+    const voiceVictoryCalls = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "voice-victory");
+    expect(voiceVictoryCalls.length).toBe(0);
   });
 });

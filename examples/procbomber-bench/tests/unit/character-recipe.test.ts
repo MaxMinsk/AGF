@@ -180,3 +180,42 @@ describe("accessories field (S106)", () => {
     expect(a.accessories.length).toBeLessThanOrEqual(2);
   });
 });
+
+describe("texturing field (S109)", () => {
+  it("resolveRecipeFromSeed sets texturing.panelSeams = true by default", () => {
+    const r = resolveRecipeFromSeed("any-seed");
+    expect(r.texturing.panelSeams).toBe(true);
+  });
+
+  it("partial texturing in recipe survives resolution", () => {
+    const r = resolveRecipeFromSeed("x", { seed: "x", texturing: { panelSeams: false } });
+    expect(r.texturing.panelSeams).toBe(false);
+  });
+
+  it("withRecipeDefaults populates texturing.panelSeams=true when missing", () => {
+    const r = withRecipeDefaults({ seed: "x" });
+    expect(r.texturing.panelSeams).toBe(true);
+  });
+
+  it("validateRecipe accepts {} texturing (every field optional)", () => {
+    expect(validateRecipe({ seed: "x", texturing: {} })).toBeDefined();
+  });
+
+  it("validateRecipe accepts texturing.panelSeams: false", () => {
+    expect(validateRecipe({ seed: "x", texturing: { panelSeams: false } })).toBeDefined();
+  });
+
+  it("validateRecipe rejects non-boolean panelSeams", () => {
+    expect(validateRecipe({ seed: "x", texturing: { panelSeams: "yes" } })).toBeUndefined();
+  });
+
+  it("validateRecipe rejects null texturing block", () => {
+    expect(validateRecipe({ seed: "x", texturing: null })).toBeUndefined();
+  });
+
+  it("encodeRecipe / decodeRecipe round-trip preserves texturing", () => {
+    const r = { seed: "demo", texturing: { panelSeams: false } };
+    const decoded = decodeRecipe(encodeRecipe(r));
+    expect(decoded?.texturing).toEqual({ panelSeams: false });
+  });
+});

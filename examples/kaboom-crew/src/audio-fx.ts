@@ -12,15 +12,26 @@
 // context; dispose() tears it down so HMR replays don't leak audio
 // graphs.
 
+import { emitVoice, voiceParamsFromSeed, type VoiceColour, type VoiceSlot } from "./voice-synth";
+
 export type AudioEventKind =
   | "bomb-place"
   | "blast"
   | "pickup"
   | "death"
+  | "shield-pop"
   | "match-won"
   | "match-lost"
   | "match-draw"
-  | "footstep";
+  | "footstep"
+  // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — five per-bomber voice slots.
+  // Carry an entityId in the play context; the bus derives the voice
+  // colour from voiceParamsFromSeed(entityId).
+  | "voice-place-bomb"
+  | "voice-hit"
+  | "voice-pickup"
+  | "voice-death"
+  | "voice-victory";
 
 /**
  * S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Optional world-space position
@@ -31,6 +42,8 @@ export type AudioEventKind =
  */
 export type PositionalPlayContext = {
   position?: readonly [number, number, number];
+  /** S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — entity id used to derive the voice colour for voice-* events. Ignored for non-voice kinds. */
+  entityId?: string;
 };
 
 export type KaboomAudioFx = {
@@ -151,7 +164,7 @@ export type AudioContextLike = {
   resume?(): Promise<void>;
   close?(): Promise<void>;
 };
-type AudioNodeLike = { connect(target: AudioNodeLike): void; disconnect?(): void };
+export type AudioNodeLike = { connect(target: AudioNodeLike): void; disconnect?(): void };
 type GainNodeLike = AudioNodeLike & {
   gain: { setValueAtTime(value: number, when: number): void; linearRampToValueAtTime(value: number, when: number): void; exponentialRampToValueAtTime(value: number, when: number): void };
 };
@@ -170,6 +183,8 @@ type AudioBufferLike = { getChannelData(channel: number): Float32Array };
 type BiquadFilterLike = AudioNodeLike & {
   type: string;
   frequency: { setValueAtTime(value: number, when: number): void };
+  /** S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — bandpass resonance used by the formant chain. Optional because the test stub may omit it. */
+  Q?: { setValueAtTime(value: number, when: number): void };
 };
 // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. PannerNode pans the gain chain by
 // world-space position relative to the listener. Two APIs exist in
@@ -418,6 +433,55 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     playChord(c, [392.0, 587.33], 0.5, 0.4, position, true);
   }
 
+  // S109 KABOOM-SHIELD-POP. Short crystalline click — sine sweep up
+  // from 900 Hz to 1700 Hz over 80 ms, gain envelope ~0.22 peak. Sits
+  // in a high-but-not-painful slot so it cuts through the simultaneous
+  // 'blast' rumble (which is mostly low end). Positional via
+  // connectOutput.
+  function playShieldPop(c: AudioContextLike, position?: readonly [number, number, number]): void {
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(900, now);
+    osc.frequency.exponentialRampToValueAtTime(1700, now + 0.08);
+    envelope(c, gain, 0.003, masterGain * 0.22, 0.08);
+    osc.connect(gain);
+    connectOutput(c, gain, position);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
+  // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — voice colour cache + emit
+  // helper. The colour for a given entityId is computed once and
+  // reused across every voice event triggered by that entity. Cache
+  // never shrinks (~30 voice colours per game session is negligible).
+  const voiceCache = new Map<string, VoiceColour>();
+  function lookupVoice(entityId: string): VoiceColour {
+    let colour = voiceCache.get(entityId);
+    if (colour === undefined) {
+      colour = voiceParamsFromSeed(entityId);
+      voiceCache.set(entityId, colour);
+    }
+    return colour;
+  }
+  function playVoice(
+    c: AudioContextLike,
+    entityId: string | undefined,
+    slot: VoiceSlot,
+    position: readonly [number, number, number] | undefined
+  ): void {
+    if (entityId === undefined) return;
+    const colour = lookupVoice(entityId);
+    // Route the voice through the same connectOutput pipe as the
+    // other SFX — a small head gain so the chain has somewhere to
+    // terminate before connectOutput's optional panner.
+    const head = c.createGain();
+    head.gain.setValueAtTime(1.0, c.currentTime);
+    connectOutput(c, head, position);
+    emitVoice(c, colour, slot, { masterGain, terminal: head });
+  }
+
   // S90 KABOOM-FOOTSTEP-TICK. ~25 ms low-gain click — barely audible
   // solo, satisfying when chained one per cell crossing. Triangle wave
   // around 180 Hz with a sharp gain envelope; lowpass shaves harshness.
@@ -454,6 +518,12 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         else if (kind === "match-lost") { duckFor(c, 0.6, 0.3); playMatchLost(c); }
         else if (kind === "match-draw") { duckFor(c, 0.6, 0.3); playMatchDraw(c); }
         else if (kind === "footstep") playFootstep(c, pos);
+        else if (kind === "shield-pop") playShieldPop(c, pos);
+        else if (kind === "voice-place-bomb") playVoice(c, context?.entityId, "place-bomb", pos);
+        else if (kind === "voice-hit") playVoice(c, context?.entityId, "hit", pos);
+        else if (kind === "voice-pickup") playVoice(c, context?.entityId, "pickup", pos);
+        else if (kind === "voice-death") playVoice(c, context?.entityId, "death", pos);
+        else if (kind === "voice-victory") playVoice(c, context?.entityId, "victory", pos);
       } catch {
         // Browser quirks (e.g. context closed) — fail silent so a
         // misbehaving audio path doesn't break gameplay.

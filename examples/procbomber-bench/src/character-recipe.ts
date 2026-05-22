@@ -26,6 +26,7 @@ import {
   type BomberPaletteName,
   type BomberPaletteOverrides
 } from "./generators/bomber-palette";
+import { DEFAULT_BOMBER_TEXTURING, type BomberTexturing } from "./generators/bomber-parts";
 
 export type BomberShape = "box" | "cylinder" | "capsule";
 
@@ -68,12 +69,15 @@ export type CharacterRecipe = {
   paletteName?: BomberPaletteName;
   paletteOverrides?: BomberPaletteOverrides;
   accessories?: BomberAccessory[];
+  /** S109 KABOOM-PROCEDURAL-TEXTURING — partial; missing fields fall back to DEFAULT_BOMBER_TEXTURING. */
+  texturing?: Partial<BomberTexturing>;
 };
 
 /** Every field of CharacterRecipe in its post-resolution form (no optionals). */
-export type ResolvedCharacterRecipe = Required<Omit<CharacterRecipe, "paletteOverrides" | "accessories">> & {
+export type ResolvedCharacterRecipe = Required<Omit<CharacterRecipe, "paletteOverrides" | "accessories" | "texturing">> & {
   paletteOverrides: BomberPaletteOverrides;
   accessories: BomberAccessory[];
+  texturing: BomberTexturing;
 };
 
 const SHAPE_OPTIONS: ReadonlyArray<BomberShape> = ["box", "cylinder", "capsule"];
@@ -135,7 +139,15 @@ export function resolveRecipeFromSeed(seed: string, partial?: CharacterRecipe): 
     limbShape:      r.limbShape      ?? pickEnum(s, SHAPE_OPTIONS),
     paletteName:    r.paletteName    ?? pickEnum(s, BOMBER_PALETTE_NAMES),
     paletteOverrides: r.paletteOverrides ?? {},
-    accessories:    r.accessories    ?? pickAccessories(s)
+    accessories:    r.accessories    ?? pickAccessories(s),
+    texturing:      resolveTexturing(r.texturing)
+  };
+}
+
+/** Merge a partial texturing block with the engine defaults. */
+function resolveTexturing(partial: Partial<BomberTexturing> | undefined): BomberTexturing {
+  return {
+    panelSeams: partial?.panelSeams ?? DEFAULT_BOMBER_TEXTURING.panelSeams
   };
 }
 
@@ -184,7 +196,8 @@ export function withRecipeDefaults(partial: CharacterRecipe): ResolvedCharacterR
     limbShape:      partial.limbShape      ?? "box",
     paletteName:    partial.paletteName    ?? "sky",
     paletteOverrides: partial.paletteOverrides ?? {},
-    accessories:    partial.accessories    ?? []
+    accessories:    partial.accessories    ?? [],
+    texturing:      resolveTexturing(partial.texturing)
   };
 }
 
@@ -234,6 +247,13 @@ export function validateRecipe(value: unknown): CharacterRecipe | undefined {
       if (!isAccessoryKind(e["kind"])) return undefined;
       if ("mountSocket" in e && !isMountSocketName(e["mountSocket"])) return undefined;
     }
+  }
+  // S109 KABOOM-PROCEDURAL-TEXTURING — optional block, every field optional.
+  if ("texturing" in v) {
+    const t = v["texturing"];
+    if (t === null || typeof t !== "object") return undefined;
+    const tx = t as Record<string, unknown>;
+    if ("panelSeams" in tx && typeof tx["panelSeams"] !== "boolean") return undefined;
   }
   return v as CharacterRecipe;
 }

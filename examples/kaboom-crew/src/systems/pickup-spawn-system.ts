@@ -44,7 +44,7 @@ const IDLE_EMITTER_RATE = 8;
 const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
-type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate";
+type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield";
 
 type PickupVisual = {
   mesh: string;
@@ -65,10 +65,22 @@ const PICKUP_VISUAL: Record<PickupKind, PickupVisual> = {
   // S100 KABOOM-KICK-POWER-UP — short wide cylinder (boot-like silhouette) in yellow.
   "kick": { mesh: "cylinder", color: "#ffd54f", scale: [0.45, 0.2, 0.45], yOffset: 0.22 },
   // S100 KABOOM-REMOTE-DETONATE-PUP — narrow tall sphere (trigger-button silhouette) in magenta.
-  "remote-detonate": { mesh: "sphere", color: "#e040fb", scale: [0.25, 0.45, 0.25], yOffset: 0.32 }
+  "remote-detonate": { mesh: "sphere", color: "#e040fb", scale: [0.25, 0.45, 0.25], yOffset: 0.32 },
+  // S109 KABOOM-SHIELD-POWER-UP — flat-bottomed cyan sphere (dome silhouette) for one-shot blast protection.
+  "shield": { mesh: "sphere", color: "#36e0e8", scale: [0.4, 0.3, 0.4], yOffset: 0.26 }
 };
 
-const PICKUP_KINDS: ReadonlyArray<PickupKind> = ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate"];
+// Drop table — entries appear in PICK proportionally to how many times they
+// occur. Shield lists once to land at roughly half the rarity of the
+// stat-bump pickups (which list twice). Re-balance after playtest.
+const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
+  "bomb-up", "bomb-up",
+  "fire-up", "fire-up",
+  "speed-up", "speed-up",
+  "kick",
+  "remote-detonate",
+  "shield"
+];
 
 export type PickupSpawnSystemOptions = {
   name?: string;

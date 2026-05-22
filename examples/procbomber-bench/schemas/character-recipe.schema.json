@@ -66,6 +66,18 @@
           }
         }
       }
+    },
+    "texturing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S109 KABOOM-PROCEDURAL-TEXTURING. Procedural texturing layers applied on top of the 8-channel palette. Today only Layer 1 (panel seams) is implemented; future layers (decals, patterns) compose into this block.",
+      "properties": {
+        "panelSeams": {
+          "type": "boolean",
+          "default": true,
+          "description": "Layer 1 — when true, extreme-Y vertices (8 corners on a box, top + bottom rings on a cylinder / capsule) are darkened by a fixed factor, reading as soft panel-edge highlights. Default true."
+        }
+      }
     }
   }
 }

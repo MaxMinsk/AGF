@@ -58,8 +58,11 @@ describe("partKey / partColor (S102)", () => {
 
 describe("torso geometry (S102)", () => {
   const g = generateTorso(SIZES, SKY);
-  it("is 24 vertices (one box)", () => {
-    expect(g.getAttribute("position").count).toBe(24);
+  it("is 32 vertices (S109: heightSegments=2 for panel-seam read)", () => {
+    // S109 KABOOM-PROCEDURAL-TEXTURING bumped buildBoxLike's BoxGeometry
+    // to heightSegments=2 so the top + bottom edge rows can darken
+    // independently from the middle band. Pre-S109 this was 24.
+    expect(g.getAttribute("position").count).toBe(32);
   });
   it("is centered on Y (range = [-h/2 .. +h/2])", () => {
     let minY = Infinity;
@@ -73,35 +76,36 @@ describe("torso geometry (S102)", () => {
     expect(maxY).toBeCloseTo(SIZES.torsoHeight / 2, 5);
   });
   it("bottom band uses torsoBottom (contact-shadow split)", async () => {
-    const { Color } = await import("three");
+    void (await import("three")); // satisfies the original async signature
     const pos = g.getAttribute("position");
     const color = g.getAttribute("color");
-    // Find a vertex on the bottom face (Y close to -torsoHeight/2)
-    // and one on the top face. Their colors should differ.
+    // S109 KABOOM-PROCEDURAL-TEXTURING — torso is now a 1×2×1 BoxGeometry
+    // so a mid-Y vertex row exists. We use that row (Y ≈ 0) as the
+    // bright reference and the bottom-extreme row as the contact-shadow
+    // reference. The panel-seam pass darkens both top + bottom edges,
+    // so we explicitly pick a mid-Y vertex to read the "bright" colour.
     let bottomColor: [number, number, number] | undefined;
-    let topColor: [number, number, number] | undefined;
+    let midColor: [number, number, number] | undefined;
     for (let i = 0; i < pos.count; i += 1) {
       const y = pos.getY(i);
       if (Math.abs(y - (-SIZES.torsoHeight / 2)) < 1e-4) {
         bottomColor = [color.getX(i), color.getY(i), color.getZ(i)];
-      } else if (Math.abs(y - (SIZES.torsoHeight / 2)) < 1e-4) {
-        topColor = [color.getX(i), color.getY(i), color.getZ(i)];
+      } else if (Math.abs(y) < 1e-4) {
+        midColor = [color.getX(i), color.getY(i), color.getZ(i)];
       }
     }
     expect(bottomColor).toBeDefined();
-    expect(topColor).toBeDefined();
-    const torsoTopLinear = new Color(SKY.torsoTop);
-    expect(topColor![0]).toBeCloseTo(torsoTopLinear.r, 3);
-    // Bottom is darker — at least one channel should be lower than the top.
+    expect(midColor).toBeDefined();
+    // Bottom is darker — at least one channel should be lower than the mid row.
     expect(bottomColor![0] + bottomColor![1] + bottomColor![2])
-      .toBeLessThan(topColor![0] + topColor![1] + topColor![2]);
+      .toBeLessThan(midColor![0] + midColor![1] + midColor![2]);
   });
 });
 
 describe("head geometry (S102)", () => {
-  it("is 24 vertices centered at Y=0 in local space", () => {
+  it("is 32 vertices (S109 heightSegments=2) centered at Y=0 in local space", () => {
     const g = generateHead(SIZES, SKY);
-    expect(g.getAttribute("position").count).toBe(24);
+    expect(g.getAttribute("position").count).toBe(32);
     const pos = g.getAttribute("position");
     let minY = Infinity;
     let maxY = -Infinity;
@@ -141,21 +145,22 @@ describe("limb-segment geometry — hangs below the pivot (S102)", () => {
 describe("generatePart dispatcher (S102)", () => {
   it("returns the same geometry as the named builder for every part", () => {
     const torso = generatePart("torso", SIZES, SKY);
-    expect(torso.getAttribute("position").count).toBe(24);
+    // S109: heightSegments=2 → 32 verts per box (was 24).
+    expect(torso.getAttribute("position").count).toBe(32);
     const head = generatePart("head", SIZES, SKY);
-    expect(head.getAttribute("position").count).toBe(24);
+    expect(head.getAttribute("position").count).toBe(32);
   });
 
   it("S102: branches on shape — cylinder uses non-box vertex count, capsule too", () => {
     const box = generatePart("head", SIZES, SKY, { head: "box", torso: "box", limb: "box" });
     const cyl = generatePart("head", SIZES, SKY, { head: "cylinder", torso: "box", limb: "box" });
     const cap = generatePart("head", SIZES, SKY, { head: "capsule", torso: "box", limb: "box" });
-    // BoxGeometry has 24 vertices; CylinderGeometry + CapsuleGeometry
-    // generate many more — just assert they're different from the box
-    // count + each other.
-    expect(box.getAttribute("position").count).toBe(24);
-    expect(cyl.getAttribute("position").count).not.toBe(24);
-    expect(cap.getAttribute("position").count).not.toBe(24);
+    // S109: BoxGeometry now has 32 vertices (heightSegments=2);
+    // CylinderGeometry + CapsuleGeometry generate many more — assert
+    // each is distinct from the box count + each other.
+    expect(box.getAttribute("position").count).toBe(32);
+    expect(cyl.getAttribute("position").count).not.toBe(32);
+    expect(cap.getAttribute("position").count).not.toBe(32);
     expect(cap.getAttribute("position").count).not.toBe(cyl.getAttribute("position").count);
   });
 });

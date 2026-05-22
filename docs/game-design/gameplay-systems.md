@@ -84,7 +84,48 @@ presentation only.
   the deferred list — adds bot AI complexity without proportional
   gameplay benefit at the arena scale.
 
-### 2.3 Bomb pass-through rules
+### 2.3 Animation conventions (READ BEFORE TOUCHING ANIM CODE)
+
+This section is a permanent design lock on how on-screen motion
+relates to gameplay state. Each rule has been violated at least
+once and resurfaced as a corrective story; future implementers
+must respect them or file a counter-proposal first.
+
+- **Walk-animation phase locks to velocity, NOT wall-clock**
+  (non-negotiable; corrective story `GDP-2026-05-22-010`). The
+  walk-cycle sine phase advances as `phase += velocity_magnitude
+  × strideFrequencyPerCell × dt` — not as `phase = elapsed × FREQ`.
+  A bomber with `GridMover.speed = 2` takes visibly slower strides
+  than a bomber with `speed = 4`; a bomber stopped at a wall freezes
+  its stride mid-step instead of swinging in place. This is the
+  design link between gameplay speed (difficulty preset, Speed-Up
+  pickups, future Slow-Down debuffs) and on-screen motion. Without
+  it, the player can't read "I'm faster than them" from looking.
+- **Idle-bob phase stays wall-clock.** Idle bobble is presentational
+  breathing — it ticks at a constant frequency regardless of any
+  gameplay state. Bombers waiting for the title-screen overlay or
+  for round-resolve continue to bob.
+- **Bomb-place reach is a fixed-duration burst** (~0.4 s), driven by
+  wall-clock from the moment the burst starts. Velocity does not
+  affect reach speed.
+- **Ragdoll is physics-driven**, not animation-driven. See §3 +
+  GDP-2026-05-22-005. Wall-clock does not enter the ragdoll integration;
+  it uses fixedUpdate dt only.
+- **Bomber root faces walk direction** (shipped S108). The root
+  Transform.rotation.y aligns with GridMover's current direction.
+  Standing-still bombers keep their last-walked yaw. Faces NORTH
+  (+Z) on round spawn.
+- **Dead bombers lock input** (shipped S108). After alive=false
+  flips, PlayerInput is dropped on that bomber for the rest of
+  the round. Prevents ghost-key spam from confusing queued
+  direction.
+- **Ragdoll respects arena boundaries** (shipped S108). The ragdoll
+  body stays above the floor (ground-clamp) and stops at hard walls
+  (wall-collision) — it can't fly off the arena. Pure presentation
+  constraint; gameplay invariants (alive-flip frame, GridOccupancy
+  clear) are unaffected.
+
+### 2.4 Bomb pass-through rules
 
 - A bomber may stand on their own freshly-placed bomb for one
   tick (just-placed grace). They must walk OFF the bomb cell;
@@ -94,7 +135,7 @@ presentation only.
 - A `Bomb Pass`-equipped bomber treats bombs as ground. (Not in
   any proposal yet; named here for forward-compatibility.)
 
-### 2.4 Edge cases
+### 2.5 Edge cases
 
 - Bomber pushed off-grid by a kicked bomb → cancelled. Kicks check
   destination cell against grid bounds before resolving.

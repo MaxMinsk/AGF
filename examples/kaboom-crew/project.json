@@ -10,5 +10,5 @@
     "batching": { "auto": true },
     "particlePreWarmPresets": ["spark", "glow", "pulse"]
   },
-  "profiles": ["static"]
+  "profiles": ["static", "connected"]
 }

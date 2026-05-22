@@ -148,10 +148,47 @@ A 30-second deterministic recording fixture lives in
 `recordings/demo-30s.recording.json` (regenerated whenever the
 deterministic surface changes).
 
+## Multiplayer (S109 — connect-and-spectate kickoff)
+
+The Kaboom Crew project profile now supports `connected`. In this mode
+two browser tabs can share an arena — each tab keeps its own gameplay
+(bombs / blasts / pickups / round state are per-tab) but the local
+bomber's position is mirrored over the wire so the OTHER tab sees a
+remote bomber walking around. Foundation only; server-authoritative
+gameplay is GDP-009's stretch goal, owned by a later sprint.
+
+### Launching multiplayer locally
+
+1. Start the Node reference world server:
+
+   ```bash
+   cd examples/backends/node-world-server
+   npm install   # first time only
+   npm run dev
+   # listens on ws://localhost:8787 by default
+   ```
+
+2. Open Kaboom Crew in TWO browser tabs with different player ids:
+
+   ```
+   http://localhost:5173/?project=kaboom-crew&networked=1&server=ws://localhost:8787&playerId=alice
+   http://localhost:5173/?project=kaboom-crew&networked=1&server=ws://localhost:8787&playerId=bob
+   ```
+
+3. Each tab shows its own bomber + bot. WASD in either tab moves the
+   local bomber; the OTHER tab sees a remote bomber walking around
+   (rendered with a `seed=remote.<playerId>` recipe so it's visually
+   distinct).
+
+`docs/research/kaboom-multiplayer-plan.md` documents the design
+tradeoffs + the punch-list of follow-ups (recipe sync over the wire,
+server-side bomb authority, lobby, etc.) deferred out of S109.
+
 ## Roadmap status
 
-| Epic              | Status     |
-|---                |---         |
-| KABOOM-CREW-MVP-0 | done (S82) |
-| KABOOM-CREW-MVP-1 | active (S84 — audio + particles + score + title + difficulty) |
-| KABOOM-CREW-MVP-2 | planned    |
+| Epic                       | Status                                                       |
+|---                         |---                                                           |
+| KABOOM-CREW-MVP-0          | done (S82)                                                   |
+| KABOOM-CREW-MVP-1          | active (S84 — audio + particles + score + title + difficulty) |
+| KABOOM-CREW-MVP-2          | planned                                                      |
+| KABOOM-CREW-MVP-NETWORK    | active (S109 — connect-and-spectate kickoff)                 |

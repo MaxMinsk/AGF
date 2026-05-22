@@ -6,6 +6,7 @@ import type { SceneInput } from "../../engine/core/ecs/types";
 import type {
   ProjectBootstrap,
   ProjectBootstrapContext,
+  ProjectConnectivityHintInput,
   ProjectUiContext,
   ProjectUiHandle
 } from "../../engine/runtime/project-bootstrap";
@@ -53,10 +54,13 @@ import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-sy
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
+import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
+import { createKaboomRemoteBomberDecoratorSystem } from "./src/systems/remote-bomber-decorator-system";
+import { createKaboomRemoteBomberInterpolatorSystem } from "./src/systems/remote-bomber-interpolator-system";
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
@@ -238,15 +242,15 @@ let _boundAudioEvent: ((kind: AudioEventKind, ctx?: { entityId?: string; positio
 let _audioLog: AudioLogEntry[] = [];
 
 export const kaboomCrewBootstrap: ProjectBootstrap = {
-  registerSystems({ scheduler }: ProjectBootstrapContext): void {
+  registerSystems({ scheduler, playerId, networked, getNetwork }: ProjectBootstrapContext): void {
     const occupancy = createGridOccupancySystem();
     _boundOccupancy = occupancy;
-    scheduler.register(occupancy, { profiles: ["static"] });
+    scheduler.register(occupancy, { profiles: ["static", "connected"] });
 
-    scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static"] });
+    scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static", "connected"] });
     const playerInput = createKaboomPlayerInputSystem();
     _boundPlayerInput = playerInput;
-    scheduler.register(playerInput, { profiles: ["static"] });
+    scheduler.register(playerInput, { profiles: ["static", "connected"] });
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD + KABOOM-REACH-IK-PLACE-BOMB —
     // runs RIGHT AFTER player-input so it sees the PlaceBombRequest
@@ -255,16 +259,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // death). The animation system that READS the kind is the bench
     // module — registered below alongside the rest of the renderer
     // adapters.
-    scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static", "connected"] });
     // S108 KABOOM-BOMBER-FACE-MOVEMENT — root Y rotation tracks GridMover.
-    scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static", "connected"] });
 
     // Bomb pipeline.
-    scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
+    scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static", "connected"] });
     // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
     // queuedDirection, before grid-movement commits the step.
-    scheduler.register(createKaboomBombKickSystem({ occupancy }), { profiles: ["static"] });
-    scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomBombKickSystem({ occupancy }), { profiles: ["static", "connected"] });
+    scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static", "connected"] });
     // S84 KABOOM-AUDIO-WIRE — register BEFORE blast-propagation so the
     // binding system sees the BlastEvent transient before propagation
     // consumes it. The late-bound closure indirects to attachUi where
@@ -275,38 +279,42 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           if (_boundAudioEvent !== undefined) _boundAudioEvent(kind, c);
         }
       }),
-      { profiles: ["static"] }
+      { profiles: ["static", "connected"] }
     );
 
     // S87 KABOOM-CAMERA-SHAKE — observe BlastEvent transients BEFORE
     // blast-propagation consumes them. Perturbs the active camera's
     // Transform.position; intensity scales with blast range.
-    scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static", "connected"] });
 
     // S90 KABOOM-DEATH-FALL — tweens the dying bomber's rotation
     // toward a tipped-over pose. Reads `DeathAnim` written by
     // audio-binding-system on the alive→dead edge.
-    scheduler.register(createKaboomDeathAnimationSystem({ occupancy }), { profiles: ["static"] });
+    scheduler.register(createKaboomDeathAnimationSystem({ occupancy }), { profiles: ["static", "connected"] });
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
     // BenchAnimationState + LimbPivots (written by the driver above + by
     // spawnBomberFor) and drives the per-limb rotations. Same module
     // the procbomber-bench uses; in production the driver decides the
     // kind, the system performs the motion.
-    scheduler.register(createBenchAnimationSystem(), { profiles: ["static"] });
+    scheduler.register(createBenchAnimationSystem(), { profiles: ["static", "connected"] });
     // S106 KABOOM-ACCESSORY-SOFT-ATTACH-SWAY — runs BEFORE the spring
     // system so its nudges accumulate into SpringPivot.velocity, which
     // the spring system then decays back to rest.
-    scheduler.register(createSoftAttachSwaySystem(), { profiles: ["static"] });
+    scheduler.register(createSoftAttachSwaySystem(), { profiles: ["static", "connected"] });
     // S105 KABOOM-SPRING-PIVOT-SYSTEM — runs AFTER bench-animation so
     // ragdoll-stamped SpringPivot rotations override the rest pose.
     // (bench-animation skips its own writes for entities with
     // DeathAnim, so the spring + death-arc systems own ragdoll-frame
     // rotations cleanly.)
-    scheduler.register(createSpringPivotSystem(), { profiles: ["static"] });
+    scheduler.register(createSpringPivotSystem(), { profiles: ["static", "connected"] });
 
-    scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
-    scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
+    scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S109 KABOOM-HIT-RECOIL — runs RIGHT AFTER blast propagation so the
+    // HitRecoilRequest transient blast-propagation just wrote is consumed
+    // in the same fixedUpdate (one-shot, no carry-over).
+    scheduler.register(createKaboomHitRecoilSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static", "connected"] });
     // S98 KABOOM-BLAST-DANGER-DECAL — reverted in S99 per user
     // feedback (design choice rejected in principle; see
     // feedback-no-blast-prediction-decal memory).
@@ -315,12 +323,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // blast-propagation so it sees the SoftBlockDestroyedEvent
     // transients from this step. Collect runs alongside in fixedUpdate
     // so a bomber walking onto a pickup is picked up on the same step.
-    scheduler.register(createKaboomPickupSpawnSystem({ seed: 0xc0ffee }), { profiles: ["static"] });
-    scheduler.register(createKaboomPickupCollectSystem({ occupancy }), { profiles: ["static"] });
+    scheduler.register(createKaboomPickupSpawnSystem({ seed: 0xc0ffee }), { profiles: ["static", "connected"] });
+    scheduler.register(createKaboomPickupCollectSystem({ occupancy }), { profiles: ["static", "connected"] });
 
     // Bot AI runs in fixedUpdate so per-frame variance doesn't change
     // decisions; seeded RNG keeps replay recordings reproducible.
-    scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static"] });
+    scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static", "connected"] });
 
     // Round resolve gets a late-bound onRestart closure so it can fire
     // the auto-restart timer (default 3 s after win/loss/draw) without
@@ -334,7 +342,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           if (_boundRestart !== undefined) _boundRestart();
         }
       }),
-      { profiles: ["static"] }
+      { profiles: ["static", "connected"] }
     );
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
@@ -342,7 +350,32 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // in attachUi) and by future bot playtests. Pass `occupancy` so
     // the system fails fast with `unreachable` when the caller targets
     // a blocked cell (hard / soft wall) instead of forever trying.
-    scheduler.register(createKaboomAgentGotoSystem({ occupancy }), { profiles: ["static"] });
+    scheduler.register(createKaboomAgentGotoSystem({ occupancy }), { profiles: ["static", "connected"] });
+
+    // S109 KABOOM-MULTIPLAYER-FOUNDATION — connected-profile-only
+    // systems. The local bomber's gameplay (grid-movement, bomb
+    // placement, blast propagation, etc.) all stay on the static path
+    // above. The network adapter mirrors the local bomber's intent
+    // over the wire + synthesises remote-player entities from inbound
+    // snapshots; the two systems below decorate + interpolate them so
+    // they read as actual bombers walking around the arena instead of
+    // disembodied server-owned dots.
+    if (networked) {
+      scheduler.register(
+        createKaboomRemoteBomberDecoratorSystem({ localPlayerId: playerId }),
+        { profiles: ["connected"] }
+      );
+      const interpolatorClock = (): number =>
+        typeof performance !== "undefined" ? performance.now() / 1000 : Date.now() / 1000;
+      scheduler.register(
+        createKaboomRemoteBomberInterpolatorSystem({
+          localPlayerId: playerId,
+          getSnapshotBuffer: () => getNetwork()?.getSnapshotBuffer() ?? new Map(),
+          nowSeconds: interpolatorClock
+        }),
+        { profiles: ["connected"] }
+      );
+    }
   },
 
   attachUi({ runtime }: ProjectUiContext): ProjectUiHandle {
@@ -708,6 +741,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               activeBombs: (c["BomberStats"] as { activeBombs?: number })?.activeBombs,
               maxBombs: (c["BomberStats"] as { maxBombs?: number })?.maxBombs,
               range: (c["BomberStats"] as { range?: number })?.range,
+              canKick: (c["BomberStats"] as { canKick?: boolean })?.canKick,
+              remoteDetonateCharges: (c["BomberStats"] as { remoteDetonateCharges?: number })?.remoteDetonateCharges,
+              shield: (c["BomberStats"] as { shield?: boolean })?.shield,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
               targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
             };
@@ -999,7 +1035,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             matchTarget?: number;
             matchPhase?: "in-progress" | "won" | "lost" | "draw";
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean }>;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
         };
@@ -1015,8 +1051,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         lines.push(`phase: ${phase}   ${timeStr}`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
+          // S109 — append a compact flag suffix `[KRS]` for any active
+          // power-up. K = canKick, R = remote-detonate charges > 0,
+          // S = shield (one-shot blast protection).
+          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}`;
+          const flagSuffix = flags.length > 0 ? `   [${flags}]` : "";
           lines.push(
-            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
+            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}${flagSuffix}`
           );
         }
         // S89 KABOOM-ROUND-TIMER-BAR — compute fill fraction + urgency
@@ -1174,5 +1215,26 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
 
   resetRound(runtime: RuntimeHandle): number {
     return restartScene(runtime);
+  },
+
+  // S109 KABOOM-MULTIPLAYER-FOUNDATION — small status string in the
+  // dev panel telling the user they're in multiplayer mode + who
+  // they are. Matches beacon-world's pattern. Connect-and-spectate
+  // is the only mode today — each tab plays its own arena, only
+  // bomber positions sync.
+  renderConnectivityHint(input: ProjectConnectivityHintInput): string {
+    if (input.serverUrl === undefined || !input.networked) return "";
+    const safeUrl = escapeText(input.serverUrl);
+    const safePlayer = escapeText(input.playerId ?? "client");
+    return `<p class="status-copy" data-testid="multiplayer-status">Kaboom Crew multiplayer (spectate): connected to <code>${safeUrl}</code> as <code>${safePlayer}</code>. Open this URL in another tab with a different <code>?playerId=</code> to see another bomber join.</p>`;
   }
 };
+
+function escapeText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

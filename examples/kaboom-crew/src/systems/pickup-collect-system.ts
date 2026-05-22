@@ -32,7 +32,7 @@ const COLLECT_FX_LIFETIME_S = 0.35;
 const COLLECT_FX_RATE = 80;
 const COLLECT_FX_MAX_PARTICLES = 30;
 
-type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" };
+type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" };
 type GridPos = { gx: number; gz: number };
 type BomberStats = {
   maxBombs: number;
@@ -42,6 +42,7 @@ type BomberStats = {
   alive?: boolean;
   canKick?: boolean;
   remoteDetonateCharges?: number;
+  shield?: boolean;
 };
 
 const REMOTE_DETONATE_CHARGES_CAP = 3;
@@ -148,6 +149,14 @@ function tryApplyPickup(
       // S100 KABOOM-REMOTE-DETONATE-PUP — increment charges, capped.
       const next = Math.min((stats.remoteDetonateCharges ?? 0) + 1, REMOTE_DETONATE_CHARGES_CAP);
       world.setComponent(id, BOMBER_STATS, { ...stats, remoteDetonateCharges: next });
+    } else if (kind === "shield") {
+      // S109 KABOOM-SHIELD-POWER-UP — set the one-shot blast protection
+      // flag. Collecting a second shield while one is already active is a
+      // silent NO-OP (no double-stack, no audio); the pickup itself still
+      // gets consumed so the visual stays consistent.
+      if (stats.shield !== true) {
+        world.setComponent(id, BOMBER_STATS, { ...stats, shield: true });
+      }
     } else {
       // speed-up bumps GridMover.speed AND mirrors into BomberStats.speed
       // so the HUD has a single read-from. GridMovementSystem reads from
