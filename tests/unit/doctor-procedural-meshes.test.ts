@@ -118,6 +118,48 @@ describe("summarizeProceduralMeshes walker (S101)", () => {
       fx.cleanup();
     }
   });
+
+  // S111 BUG-DOCTOR-PROCEDURAL-MESH-R-001 — the scanner was blind to the
+  // aliased call pattern that S102's PROCBOMBER-MESH-TREE-V0 introduced.
+  // The scanner now also matches `<alias>.register("<key>", ...)` in any
+  // file that mentions `proceduralMeshRegistry`. The alias scope guard
+  // prevents false positives from unrelated `.register(...)` calls.
+  it("S111 regression: picks up keys registered through an aliased `procRegistry.register(...)`", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "proc-mesh-alias-"));
+    try {
+      mkdirSync(join(projectDir, "src"), { recursive: true });
+      mkdirSync(join(projectDir, "scenes"), { recursive: true });
+      // bootstrap stores a reference to the registry helper before
+      // calling .register — exactly the S102 procbomber pattern.
+      writeFileSync(
+        join(projectDir, "bootstrap.ts"),
+        `// fixture\nconst procRegistry = renderer.proceduralMeshRegistry();\nprocRegistry.register("procbomber-torso", () => geometry);\nprocRegistry.register("procbomber-head", () => geometry);\n`,
+        "utf8"
+      );
+      const r = summarizeProceduralMeshes(projectDir);
+      expect([...r.declaredKeys].sort()).toEqual(["procbomber-head", "procbomber-torso"]);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("S111 regression: does NOT pick up .register(...) calls in files that don't reference proceduralMeshRegistry (false-positive guard)", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "proc-mesh-noalias-"));
+    try {
+      mkdirSync(join(projectDir, "src"), { recursive: true });
+      // Unrelated .register call — must NOT be picked up because the
+      // file doesn't mention the procedural-mesh registry.
+      writeFileSync(
+        join(projectDir, "src", "scheduler.ts"),
+        `// fixture\nscheduler.register("some-other-thing", system);\n`,
+        "utf8"
+      );
+      const r = summarizeProceduralMeshes(projectDir);
+      expect(r.declaredKeys).toEqual([]);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("formatProceduralMeshes (S101)", () => {
