@@ -15,7 +15,7 @@ import {
 } from "./generators/bomber-mesh";
 import type { AccessoryKind } from "./accessories/catalog";
 import type { BomberAccessory } from "./character-recipe";
-import type { BomberPartShapes, BomberPartSizes } from "./generators/bomber-parts";
+import type { BomberPartShapes, BomberPartSizes, BomberTexturing } from "./generators/bomber-parts";
 import {
   BOMBER_PALETTES,
   paletteByName,
@@ -69,6 +69,8 @@ export type BenchState = {
   seed: string;
   /** S106 KABOOM-ACCESSORY-BENCH-CONTROLS. Up to 3 accessory slots, each independent. */
   accessorySlots: ReadonlyArray<AccessoryKind | undefined>;
+  /** S109 KABOOM-PROCEDURAL-TEXTURING — Layer 1 (panel seams) toggle. */
+  panelSeams: boolean;
 };
 
 export function defaultBenchState(initialPalette?: BomberPaletteName): BenchState {
@@ -95,7 +97,8 @@ export function defaultBenchState(initialPalette?: BomberPaletteName): BenchStat
     limbShape: "box",
     paletteOverride: initialPalette,
     seed: "default",
-    accessorySlots: [undefined, undefined, undefined]
+    accessorySlots: [undefined, undefined, undefined],
+    panelSeams: true
   };
 }
 
@@ -136,6 +139,10 @@ export function spreadOf(state: BenchState): BenchSpread {
 
 export function shapesOf(state: BenchState): BomberPartShapes {
   return { head: state.headShape, torso: state.torsoShape, limb: state.limbShape };
+}
+
+export function texturingOf(state: BenchState): BomberTexturing {
+  return { panelSeams: state.panelSeams };
 }
 
 /** Extract the part-sizes slice from the bench state. */

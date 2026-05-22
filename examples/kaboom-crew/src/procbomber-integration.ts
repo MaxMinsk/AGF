@@ -93,7 +93,7 @@ export function registerProcbomberBuilders(
         head: recipe.headShape,
         torso: recipe.torsoShape,
         limb: recipe.limbShape
-      });
+      }, recipe.texturing);
     });
   }
   // S106 KABOOM-ACCESSORY-SPAWNER: register the 5 accessory builders too.

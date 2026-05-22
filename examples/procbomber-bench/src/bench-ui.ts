@@ -153,6 +153,8 @@ export function mountBenchControls(
   for (let slot = 0; slot < 3; slot += 1) {
     panel.appendChild(buildAccessorySelect(slot, state, scheduleRebuild));
   }
+  panel.appendChild(buildSectionHeading("Texturing"));
+  panel.appendChild(buildPanelSeamsToggle(state, scheduleRebuild));
   panel.appendChild(buildSectionHeading("Palette"));
   panel.appendChild(buildPaletteSelect(state, scheduleRebuild));
   panel.appendChild(buildRerollButton(state, scheduleRebuild));
@@ -236,6 +238,32 @@ function buildAccessorySelect(
 }
 
 type AccessoryKindString = "antennae" | "visor" | "backpack" | "cap" | "fins";
+
+// S109 KABOOM-PROCEDURAL-TEXTURING — Panel-seams toggle. Single boolean
+// in the recipe; the geometry-rebuild pass picks up the new value via
+// texturingOf(state).
+function buildPanelSeamsToggle(state: BenchState, scheduleRebuild: () => void): HTMLElement {
+  const row = document.createElement("label");
+  row.dataset["procbomberPanelSeamsRow"] = "panel-seams";
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "8px";
+  row.style.padding = "4px 0";
+  row.style.fontSize = "12px";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = state.panelSeams;
+  input.dataset["procbomberPanelSeams"] = "input";
+  input.addEventListener("change", () => {
+    state.panelSeams = input.checked;
+    scheduleRebuild();
+  });
+  const text = document.createElement("span");
+  text.textContent = "Panel seams (corner darken)";
+  row.appendChild(input);
+  row.appendChild(text);
+  return row;
+}
 
 function buildShapeSelect(
   cfg: { label: string; field: ShapeField },

@@ -25,7 +25,7 @@ import type {
 } from "../../engine/runtime/project-bootstrap";
 
 import { buildPivotRepositionCommands, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
-import { accessoriesOf, defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, spreadOf, type BenchState } from "./src/bench-state";
+import { accessoriesOf, defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, spreadOf, texturingOf, type BenchState } from "./src/bench-state";
 import { ACCESSORY_KINDS, accessoryKey, generateAccessory } from "./src/accessories/catalog";
 import { generatePart } from "./src/generators/bomber-parts";
 import { isBomberPaletteName, type BomberPaletteName } from "./src/generators/bomber-palette";
@@ -73,12 +73,12 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
     //    rebuild loop below (registry cache bypassed once the entity
     //    has its handle).
     const procRegistry = runtime.renderer.proceduralMeshRegistry();
-    procRegistry.register("procbomber-torso", () => generatePart("torso", sizesOf(state), resolvePalette(state), shapesOf(state)));
-    procRegistry.register("procbomber-head", () => generatePart("head", sizesOf(state), resolvePalette(state), shapesOf(state)));
-    procRegistry.register("procbomber-upperArm", () => generatePart("upperArm", sizesOf(state), resolvePalette(state), shapesOf(state)));
-    procRegistry.register("procbomber-forearm", () => generatePart("forearm", sizesOf(state), resolvePalette(state), shapesOf(state)));
-    procRegistry.register("procbomber-upperLeg", () => generatePart("upperLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
-    procRegistry.register("procbomber-lowerLeg", () => generatePart("lowerLeg", sizesOf(state), resolvePalette(state), shapesOf(state)));
+    procRegistry.register("procbomber-torso", () => generatePart("torso", sizesOf(state), resolvePalette(state), shapesOf(state), texturingOf(state)));
+    procRegistry.register("procbomber-head", () => generatePart("head", sizesOf(state), resolvePalette(state), shapesOf(state), texturingOf(state)));
+    procRegistry.register("procbomber-upperArm", () => generatePart("upperArm", sizesOf(state), resolvePalette(state), shapesOf(state), texturingOf(state)));
+    procRegistry.register("procbomber-forearm", () => generatePart("forearm", sizesOf(state), resolvePalette(state), shapesOf(state), texturingOf(state)));
+    procRegistry.register("procbomber-upperLeg", () => generatePart("upperLeg", sizesOf(state), resolvePalette(state), shapesOf(state), texturingOf(state)));
+    procRegistry.register("procbomber-lowerLeg", () => generatePart("lowerLeg", sizesOf(state), resolvePalette(state), shapesOf(state), texturingOf(state)));
     // S106 KABOOM-ACCESSORY-CATALOG — register the 5 accessory builders too.
     for (const kind of ACCESSORY_KINDS) {
       procRegistry.register(accessoryKey(kind), () => generateAccessory(kind, resolvePalette(state)));
@@ -151,7 +151,7 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
           runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
           vertexColorsEnabled.add(id);
         }
-        const geometry = generatePart(partName, sizes, palette, shapes);
+        const geometry = generatePart(partName, sizes, palette, shapes, texturingOf(state));
         runtime.renderer.adapter.setMeshGeometry(handle, geometry);
       }
 

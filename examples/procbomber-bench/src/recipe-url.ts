@@ -63,6 +63,8 @@ export function applyRecipeToState(state: BenchState, recipe: ResolvedCharacterR
   state.limbShape = recipe.limbShape;
   state.paletteOverride = recipe.paletteName;
   state.seed = recipe.seed;
+  // S109 KABOOM-PROCEDURAL-TEXTURING
+  state.panelSeams = recipe.texturing.panelSeams;
 }
 
 /** Inverse — build a CharacterRecipe from the live bench state. Useful for `?recipe=` capture buttons later. */
@@ -88,7 +90,8 @@ export function stateToRecipe(state: BenchState): CharacterRecipe {
     hipSpread: state.hipSpread,
     headShape: state.headShape,
     torsoShape: state.torsoShape,
-    limbShape: state.limbShape
+    limbShape: state.limbShape,
+    texturing: { panelSeams: state.panelSeams }
   };
   if (state.paletteOverride !== undefined) out.paletteName = state.paletteOverride;
   return out;
