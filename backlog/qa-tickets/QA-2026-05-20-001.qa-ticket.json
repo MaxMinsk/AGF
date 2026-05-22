@@ -1,0 +1,20 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-05-20-001",
+  "title": "Dev-bridge 'page not connected' error hardcodes localhost:5173 regardless of actual port",
+  "filedAt": "2026-05-20T17:36:37.871Z",
+  "foundInPr": 112,
+  "severity": "polish",
+  "type": "bug",
+  "summary": "engine/dev/agf-dev-bridge.ts:294 has a string-literal `http://localhost:5173` baked into the AGF_BRIDGE_PAGE_NOT_CONNECTED error message. When the Vite dev server runs on any non-default port (e.g. a second project booted via `npm run dev -- --port 5177`, or a CI/playtest worker that auto-picks the next free port), the message points the agent at the wrong URL. The fix is mechanical — `findPage` already receives the incoming request URL, so `url.host` (or `url.origin`) gives the live port. Pre-existing since sprint 32 (commit afafeaf), not a regression — only surfaces when QA runs against a non-default port for parallel debug sessions or when the default port is already taken.",
+  "repro": [
+    "Start the dev server on a non-default port: `npm run dev -- --port 5177` from the repo root.",
+    "Do NOT open the project in a browser tab yet (so no page is connected to the bridge).",
+    "From a shell: `curl -s 'http://localhost:5177/__agf/snapshot'`.",
+    "Observe the response: `{\"ok\":false,\"error\":{\"code\":\"AGF_BRIDGE_PAGE_NOT_CONNECTED\",\"message\":\"No active page on /__agf/ws — open http://localhost:5173 in a tab first.\"}}`.",
+    "Note that the message says `localhost:5173` even though the bridge is bound on port 5177."
+  ],
+  "expected": "The error message points at the same host:port the agent just curled — `open http://localhost:5177 in a tab first.` so the next click is correct.",
+  "actual": "The error message always says `localhost:5173`, sending the agent (or its operator) to the wrong port. On a fresh machine the user opens 5173 expecting Vite, sees nothing (port unbound), gets stuck.",
+  "logs": "engine/dev/agf-dev-bridge.ts:289-296\n  const findPage = (url: URL): { entry: PageEntry } | { error: { code: string; message: string } } => {\n    if (pages.size === 0) {\n      return {\n        error: {\n          code: \"AGF_BRIDGE_PAGE_NOT_CONNECTED\",\n          message: `No active page on ${DEV_BRIDGE_WS_PATH} — open http://localhost:5173 in a tab first.`  // hardcoded\n        }\n      };\n    }\n\nFix outline: replace `http://localhost:5173` with `${url.origin}` (or `${url.protocol}//${url.host}` to be explicit). The `url` parameter is the incoming request URL parsed by Vite — its host already reflects the live port."
+}
