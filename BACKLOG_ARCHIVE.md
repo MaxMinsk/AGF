@@ -121,5 +121,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S113](backlog/sprints/S113.sprint.json)** — Texturing Layer 3 — stripes via vertex-color band painting + small follow-ups — 1 implemented · archived 2026-05-22
 - **[S114](backlog/sprints/S114.sprint.json)** — Live two-tab multiplayer Playwright smoke + MP HUD peer count — 2 implemented · archived 2026-05-22
 - **[S115](backlog/sprints/S115.sprint.json)** — Match structure — best-of-3 + match-resolve banner + tally reset — 1 implemented, 3 deferred · archived 2026-05-23
+- **[S116](backlog/sprints/S116.sprint.json)** — Multiplayer Sprint B foundation — research spike + protocol extensions — 2 implemented · archived 2026-05-23
 
 <!-- backlog:render:end -->
