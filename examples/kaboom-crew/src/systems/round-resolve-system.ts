@@ -16,11 +16,19 @@ import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 
 const ROUND_STATE: ComponentName = "RoundState";
+const MATCH_STATE: ComponentName = "MatchState";
 const ROUND_RESTART_REQUEST: ComponentName = "RoundRestartRequest";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_MOVER: ComponentName = "GridMover";
 
 const SINGLETON_ID: EntityId = "kaboom.round-state";
+// S115 KABOOM-MATCH-STRUCTURE — MatchState singleton id. Per the GDP
+// proposal it should live on `kaboom.game-state` to mirror RoundState's
+// pattern more cleanly + signal it's a session-level singleton.
+const MATCH_STATE_SINGLETON_ID: EntityId = "kaboom.game-state";
+
+/** S115 KABOOM-MATCH-STRUCTURE — match-resolved pause (ms). Longer than the round-resolved pause so the banner has room to land. */
+export const MATCH_RESOLVED_PAUSE_MS_DEFAULT = 7000;
 
 type Tally = { player: number; bot: number; draws: number };
 
@@ -34,8 +42,17 @@ type RoundState = {
   timeLimit?: number;
   /** S87 KABOOM-MATCH-BEST-OF-5. Number of round wins that ends the match. */
   matchTarget?: number;
-  /** S87 KABOOM-MATCH-BEST-OF-5. 'in-progress' until tally hits matchTarget; then 'won'/'lost'/'draw'. */
+  /** S87 KABOOM-MATCH-BEST-OF-5 (legacy mirror). MatchState.phase is the source of truth. */
   matchPhase?: "in-progress" | "won" | "lost" | "draw";
+};
+
+/** S115 KABOOM-MATCH-STRUCTURE — singleton match state. */
+export type MatchState = {
+  phase: "playing" | "resolved";
+  target: number;
+  matchNumber: number;
+  lastMatchWinner?: "player" | "bot" | "draw";
+  resolvedAt?: number;
 };
 
 type BomberStats = { alive?: boolean };
@@ -55,6 +72,8 @@ export type RoundResolveSystemOptions = {
   playerId?: EntityId;
   /** ms to wait after the round ends (won/lost/draw) before firing onRestart automatically. 0 disables. Default 3000. */
   autoRestartAfterMs?: number;
+  /** S115 — ms to wait after a MATCH resolves (longer than round pause so the banner lands). Default 7000. */
+  matchResolvedPauseMs?: number;
   name?: string;
 };
 
@@ -62,6 +81,7 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
   const name = options.name ?? "kaboom.round-resolve";
   const playerId = options.playerId ?? "player.1";
   const autoRestartAfterMs = options.autoRestartAfterMs ?? 3000;
+  const matchResolvedPauseMs = options.matchResolvedPauseMs ?? MATCH_RESOLVED_PAUSE_MS_DEFAULT;
 
   let cachedWorld: World | undefined;
   let bombers: QueryHandle | undefined;
@@ -82,6 +102,25 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
     }
   }
 
+  function ensureMatchState(world: World): void {
+    if (!world.hasEntity(MATCH_STATE_SINGLETON_ID)) {
+      world.addEntity(MATCH_STATE_SINGLETON_ID);
+    }
+    if (!world.hasComponent(MATCH_STATE_SINGLETON_ID, MATCH_STATE)) {
+      // Seed `target` from RoundState.matchTarget when present so
+      // scenes / tests that only set the legacy field keep working
+      // (RoundState.matchTarget = 0 historically disabled match
+      // resolution; the auto-created MatchState must respect that).
+      const rs = world.getComponent<RoundState>(SINGLETON_ID, ROUND_STATE);
+      const seededTarget = rs?.matchTarget ?? 3;
+      world.setComponent(MATCH_STATE_SINGLETON_ID, MATCH_STATE, {
+        phase: "playing",
+        target: seededTarget,
+        matchNumber: 1
+      } satisfies MatchState);
+    }
+  }
+
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
     if (world !== cachedWorld) {
@@ -94,7 +133,9 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
       restartFired = false;
     }
     ensureRoundState(world);
+    ensureMatchState(world);
     const state = world.getComponent<RoundState>(SINGLETON_ID, ROUND_STATE) as RoundState;
+    const matchState = world.getComponent<MatchState>(MATCH_STATE_SINGLETON_ID, MATCH_STATE) as MatchState;
 
     // Handle restart requests first. R while playing is a no-op so the
     // player doesn't accidentally reset mid-round; R after the round
@@ -121,19 +162,29 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
         const stats = world.getComponent<BomberStats>(id, BOMBER_STATS);
         if (stats !== undefined && stats.alive !== false) alive.push(id);
       }
-      const matchTarget = next.matchTarget ?? 3;
-      // S87 KABOOM-MATCH-BEST-OF-5. After every tally bump, check
-      // whether the match itself has resolved. matchPhase flips to
-      // 'won' / 'lost' the moment tally.player or tally.bot reaches
-      // matchTarget; 'draw' is only possible on round draws once one
-      // side has matchTarget-1 wins and the other has matchTarget-1
-      // wins too — rare but possible.
+      // S115 — match target lives in BOTH RoundState (legacy mirror) and
+      // MatchState (source of truth). MatchState wins.
+      const matchTarget = matchState.target ?? next.matchTarget ?? 3;
       function resolveMatchPhase(t: Tally): "in-progress" | "won" | "lost" | "draw" {
         if (matchTarget <= 0) return "in-progress";
         if (t.player >= matchTarget && t.bot >= matchTarget) return "draw";
         if (t.player >= matchTarget) return "won";
         if (t.bot >= matchTarget) return "lost";
         return "in-progress";
+      }
+      // S115 — translate the legacy matchPhase enum into the MatchState
+      // (phase: playing | resolved, lastMatchWinner: player | bot | draw).
+      function writeMatchStateOnResolve(t: Tally): void {
+        const legacy = resolveMatchPhase(t);
+        if (legacy === "in-progress") return;
+        const winner: MatchState["lastMatchWinner"] =
+          legacy === "won" ? "player" : legacy === "lost" ? "bot" : "draw";
+        world.setComponent(MATCH_STATE_SINGLETON_ID, MATCH_STATE, {
+          ...matchState,
+          phase: "resolved",
+          lastMatchWinner: winner,
+          resolvedAt: (next.elapsed ?? 0)
+        } satisfies MatchState);
       }
 
       if (alive.length === 1) {
@@ -150,10 +201,12 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
             ? { ...tally, player: tally.player + 1 }
             : { ...tally, bot: tally.bot + 1 };
         world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase, winnerId: winner, tally: bumped, matchPhase: resolveMatchPhase(bumped) });
+        writeMatchStateOnResolve(bumped);
       } else if (alive.length === 0) {
         const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
         const bumped: Tally = { ...tally, draws: tally.draws + 1 };
         world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped, matchPhase: resolveMatchPhase(bumped) });
+        writeMatchStateOnResolve(bumped);
       } else if (
         // S85 KABOOM-ROUND-TIMER: time-limit reached with both bombers
         // alive → auto-draw. Avoid the loop where both bots play it safe.
@@ -164,6 +217,7 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
         const tally: Tally = next.tally ?? { player: 0, bot: 0, draws: 0 };
         const bumped: Tally = { ...tally, draws: tally.draws + 1 };
         world.setComponent(SINGLETON_ID, ROUND_STATE, { ...next, phase: "draw", tally: bumped, matchPhase: resolveMatchPhase(bumped) });
+        writeMatchStateOnResolve(bumped);
       }
     } else {
       // Round is over: freeze GridMover so motion stops without
@@ -178,12 +232,18 @@ export function createKaboomRoundResolveSystem(options: RoundResolveSystemOption
       // Auto-restart after configured delay so the round loops without
       // the player having to press R. The previous gap (R-only restart)
       // made the game look frozen after win/loss.
-      // S87 KABOOM-MATCH-BEST-OF-5 — skip auto-restart when the match
-      // has resolved; player presses R for a new match.
-      const matchOver = state.matchPhase !== undefined && state.matchPhase !== "in-progress";
-      if (!matchOver && !restartFired && autoRestartAfterMs > 0 && options.onRestart !== undefined) {
+      // S115 KABOOM-MATCH-STRUCTURE — when the match has resolved, the
+      // pause extends from autoRestartAfterMs (3 s default) to
+      // matchResolvedPauseMs (7 s default) so the centre banner has
+      // room to land. Then auto-restart fires AS USUAL — the bootstrap's
+      // restartScene reads MatchState.phase==='resolved' and resets the
+      // tally + bumps matchNumber for the next match. R also still
+      // works during this pause via the restart-request branch above.
+      const matchOver = matchState.phase === "resolved";
+      const pauseMs = matchOver ? matchResolvedPauseMs : autoRestartAfterMs;
+      if (!restartFired && pauseMs > 0 && options.onRestart !== undefined) {
         endedMs += Math.max(0, context.time.dt) * 1000;
-        if (endedMs >= autoRestartAfterMs) {
+        if (endedMs >= pauseMs) {
           restartFired = true;
           options.onRestart();
           return;

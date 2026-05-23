@@ -241,7 +241,12 @@ describe("createKaboomRoundResolveSystem (S82 KABOOM-DAMAGE-AND-DEATH / RESTART)
     expect(state.matchPhase).toBe("lost");
   });
 
-  it("S87 KABOOM-MATCH-BEST-OF-5: auto-restart suppressed when matchPhase resolves", () => {
+  it("S115 KABOOM-MATCH-STRUCTURE: auto-restart fires after matchResolvedPauseMs (longer than per-round pause)", () => {
+    // Pre-S115 this test asserted auto-restart was SUPPRESSED on
+    // match-resolve. S115 changes the contract: auto-restart still
+    // fires, but after a longer pause (7 s default) so the centre
+    // banner has room to land. The next-match bootstrap path resets
+    // tally + bumps matchNumber.
     const world = new World();
     addBomber(world, "player.1");
     addBomber(world, "bot.1", false);
@@ -257,15 +262,83 @@ describe("createKaboomRoundResolveSystem (S82 KABOOM-DAMAGE-AND-DEATH / RESTART)
     const system = createKaboomRoundResolveSystem({
       playerId: "player.1",
       onRestart,
-      autoRestartAfterMs: 100
+      autoRestartAfterMs: 100,
+      matchResolvedPauseMs: 500
     });
     // Tick 1 — round resolves to 'won', match resolves to 'won'.
     system.frameUpdate!(ctx(world, 0.05));
     const state = world.getComponent("kaboom.round-state", "RoundState") as { matchPhase?: string };
     expect(state.matchPhase).toBe("won");
-    // Keep ticking past autoRestartAfterMs — onRestart MUST NOT fire because the match is over.
-    for (let i = 0; i < 10; i += 1) system.frameUpdate!(ctx(world, 0.05));
+    // Ticking past autoRestartAfterMs (100 ms) but BEFORE matchResolvedPauseMs (500 ms) — onRestart must NOT have fired.
+    for (let i = 0; i < 2; i += 1) system.frameUpdate!(ctx(world, 0.05));
     expect(onRestart).not.toHaveBeenCalled();
+    // Tick past matchResolvedPauseMs — onRestart fires.
+    for (let i = 0; i < 12; i += 1) system.frameUpdate!(ctx(world, 0.05));
+    expect(onRestart).toHaveBeenCalledTimes(1);
+  });
+
+  it("S115 KABOOM-MATCH-STRUCTURE: writes MatchState.phase='resolved' + lastMatchWinner when tally reaches target", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false);
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 0,
+      tally: { player: 2, bot: 0, draws: 0 },
+      matchTarget: 3,
+      matchPhase: "in-progress"
+    });
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const matchState = world.getComponent("kaboom.game-state", "MatchState") as {
+      phase?: string;
+      lastMatchWinner?: string;
+      resolvedAt?: number;
+    };
+    expect(matchState.phase).toBe("resolved");
+    expect(matchState.lastMatchWinner).toBe("player");
+    expect(matchState.resolvedAt).toBeGreaterThanOrEqual(0);
+  });
+
+  it("S115 KABOOM-MATCH-STRUCTURE: MatchState.target overrides RoundState.matchTarget for resolution", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1", false);
+    world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", {
+      phase: "playing",
+      elapsed: 0,
+      tally: { player: 0, bot: 0, draws: 0 },
+      matchTarget: 3,
+      matchPhase: "in-progress"
+    });
+    world.addEntity("kaboom.game-state");
+    world.setComponent("kaboom.game-state", "MatchState", {
+      phase: "playing",
+      target: 1, // best-of-1 — single win ends the match
+      matchNumber: 1
+    });
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    const matchState = world.getComponent("kaboom.game-state", "MatchState") as { phase?: string };
+    // First-round win → match resolved (target=1 overrides legacy 3).
+    expect(matchState.phase).toBe("resolved");
+  });
+
+  it("S115 KABOOM-MATCH-STRUCTURE: MatchState component is auto-created when missing", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1");
+    // No kaboom.game-state entity at all.
+    const system = createKaboomRoundResolveSystem({ playerId: "player.1", autoRestartAfterMs: 0 });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasEntity("kaboom.game-state")).toBe(true);
+    expect(world.hasComponent("kaboom.game-state", "MatchState")).toBe(true);
+    const matchState = world.getComponent("kaboom.game-state", "MatchState") as { phase?: string; target?: number; matchNumber?: number };
+    expect(matchState.phase).toBe("playing");
+    expect(matchState.target).toBe(3);
+    expect(matchState.matchNumber).toBe(1);
   });
 
   it("S87 KABOOM-MATCH-BEST-OF-5: matchTarget=0 leaves matchPhase='in-progress' (auto-restart still works)", () => {
