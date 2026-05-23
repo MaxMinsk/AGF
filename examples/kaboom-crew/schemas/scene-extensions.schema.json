@@ -12,6 +12,7 @@
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
     "RoundState": { "$ref": "#/definitions/roundStateComponent" },
+    "MatchState": { "$ref": "#/definitions/matchStateComponent" },
     "RoundRestartRequest": { "$ref": "#/definitions/roundRestartRequestComponent" },
     "Pickup": { "$ref": "#/definitions/pickupComponent" },
     "SoftBlockDestroyedEvent": { "$ref": "#/definitions/softBlockDestroyedEventComponent" },
@@ -143,7 +144,22 @@
             "draws": { "type": "integer", "minimum": 0 }
           }
         },
-        "timeLimit": { "type": "number", "minimum": 0, "default": 90, "description": "S85 KABOOM-ROUND-TIMER. Seconds before the round auto-draws when both bombers are still alive. 0 / omitted disables." }
+        "timeLimit": { "type": "number", "minimum": 0, "default": 90, "description": "S85 KABOOM-ROUND-TIMER. Seconds before the round auto-draws when both bombers are still alive. 0 / omitted disables." },
+        "matchTarget": { "type": "integer", "minimum": 1, "default": 3, "description": "S87 KABOOM-MATCH-BEST-OF-5. Number of decisive round wins that ends the match. Default best-of-3. Mirror of MatchState.target — kept on RoundState for backward compatibility with code that reads it directly." },
+        "matchPhase": { "type": "string", "enum": ["in-progress", "won", "lost", "draw"], "description": "S87 KABOOM-MATCH-BEST-OF-5 (legacy). Use MatchState.phase as the source of truth; this field is kept on RoundState as a derived mirror for backward compatibility with code that reads it directly." }
+      }
+    },
+    "matchStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S115 KABOOM-MATCH-STRUCTURE. Singleton match state, mirrors RoundState's pattern. A 'match' = best-of-`target` decisive rounds (default 3). RoundResolveSystem flips `phase` to 'resolved' when max(tally.player, tally.bot) reaches `target`; after a longer pause the system fires onRestart, the bootstrap resets the tally, bumps matchNumber, and sets phase back to 'playing'.",
+      "required": ["phase"],
+      "properties": {
+        "phase": { "type": "string", "enum": ["playing", "resolved"], "default": "playing" },
+        "target": { "type": "integer", "minimum": 1, "default": 3, "description": "Number of decisive round wins to end the match. URL `?matchTarget=N` overrides. 1 = single round, 3 = best-of-3 (default), 5 = best-of-5." },
+        "matchNumber": { "type": "integer", "minimum": 1, "default": 1, "description": "Increments each match. Survives auto-restart via the bootstrap restartScene re-seed." },
+        "lastMatchWinner": { "type": "string", "enum": ["player", "bot", "draw"], "description": "Set when phase flips to 'resolved'. Drives the centre banner copy." },
+        "resolvedAt": { "type": "number", "minimum": 0, "description": "RoundState.elapsed value at the moment the match resolved. The auto-restart timer reads this to extend the pause from 3s to 7s." }
       }
     },
     "roundRestartRequestComponent": {

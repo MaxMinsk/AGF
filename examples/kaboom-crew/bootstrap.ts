@@ -71,6 +71,26 @@ import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readBotPersonalityFromUrl, readDifficultyFromUrl } from "./src/difficulty";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
+/**
+ * S115 KABOOM-MATCH-STRUCTURE — `?matchTarget=N` overrides the
+ * default best-of-3. 1 = single-round match, 5 = best-of-5, etc.
+ * Returns undefined when the param is absent or unparseable so callers
+ * fall back to the schema default (3).
+ */
+function readMatchTargetFromUrl(): number | undefined {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return undefined;
+  try {
+    const v = new URLSearchParams(search).get("matchTarget");
+    if (v === null) return undefined;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 1 || n > 99) return undefined;
+    return Math.round(n);
+  } catch {
+    return undefined;
+  }
+}
+
 function readRoundTimeLimit(): number {
   const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
   if (search === undefined || search.length === 0) return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
@@ -168,11 +188,19 @@ function restartScene(runtime: RuntimeHandle): number {
   const snap = runtime.snapshot();
   const prevRound = snap.entities.find((e) => e.id === "kaboom.round-state");
   const prev = prevRound?.components["RoundState"] as
-    | { roundNumber?: number; tally?: { player: number; bot: number; draws: number }; matchPhase?: string }
+    | { roundNumber?: number; tally?: { player: number; bot: number; draws: number }; matchPhase?: string; matchTarget?: number }
     | undefined;
-  const matchOver = prev?.matchPhase !== undefined && prev.matchPhase !== "in-progress";
+  // S115 KABOOM-MATCH-STRUCTURE — read the canonical MatchState entity.
+  const prevGameState = snap.entities.find((e) => e.id === "kaboom.game-state");
+  const prevMatch = prevGameState?.components["MatchState"] as
+    | { phase?: string; target?: number; matchNumber?: number; lastMatchWinner?: string }
+    | undefined;
+  const matchOver = prevMatch?.phase === "resolved" || (prev?.matchPhase !== undefined && prev.matchPhase !== "in-progress");
   const nextRoundNumber = matchOver ? 1 : (prev?.roundNumber ?? 1) + 1;
   const tally = matchOver ? { player: 0, bot: 0, draws: 0 } : (prev?.tally ?? { player: 0, bot: 0, draws: 0 });
+  // S115 — bump matchNumber when a match just resolved; persist target.
+  const nextMatchNumber = matchOver ? (prevMatch?.matchNumber ?? 1) + 1 : (prevMatch?.matchNumber ?? 1);
+  const matchTarget = prevMatch?.target ?? prev?.matchTarget ?? readMatchTargetFromUrl() ?? 3;
   // S84 KABOOM-BOT-DIFFICULTY. Re-apply the URL preset on every
   // restart so a difficulty change without reload still kicks in next
   // round. Browser-only — `globalThis.location` is undefined in node.
@@ -189,7 +217,17 @@ function restartScene(runtime: RuntimeHandle): number {
       kind: "entity.create",
       entityId: "kaboom.round-state",
       components: {
-        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit(), matchTarget: 3, matchPhase: "in-progress" }
+        RoundState: { phase: "playing", elapsed: 0, roundNumber: nextRoundNumber, tally, timeLimit: readRoundTimeLimit(), matchTarget, matchPhase: "in-progress" }
+      }
+    },
+    // S115 KABOOM-MATCH-STRUCTURE — separate singleton so the dev
+    // panel + HUD + future server can read match-level state without
+    // walking the round-state entity.
+    {
+      kind: "entity.create",
+      entityId: "kaboom.game-state",
+      components: {
+        MatchState: { phase: "playing", target: matchTarget, matchNumber: nextMatchNumber }
       }
     },
     // S100 KABOOM-BOT-PERSONALITY-VARIANTS — splice the URL-derived
@@ -425,7 +463,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         kind: "entity.create",
         entityId: "kaboom.round-state",
         components: {
-          RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit() }
+          RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit(), matchTarget: readMatchTargetFromUrl() ?? 3 }
+        }
+      },
+      // S115 KABOOM-MATCH-STRUCTURE — initial MatchState singleton.
+      {
+        kind: "entity.create",
+        entityId: "kaboom.game-state",
+        components: {
+          MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 }
         }
       },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
@@ -729,6 +775,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       status(): unknown {
         const snap = runtime.snapshot();
         const round = (snap.entities.find((e) => e.id === "kaboom.round-state")?.components as Record<string, unknown> | undefined)?.["RoundState"];
+        // S115 KABOOM-MATCH-STRUCTURE — surface MatchState alongside RoundState.
+        const match = (snap.entities.find((e) => e.id === "kaboom.game-state")?.components as Record<string, unknown> | undefined)?.["MatchState"];
         const players = snap.entities
           .filter((e) => (e.components as Record<string, unknown> | undefined)?.["BomberStats"] !== undefined)
           .map((e) => {
@@ -780,7 +828,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           const c = e.components as Record<string, unknown> | undefined;
           return c?.["RemoteBomberOwned"] !== undefined;
         }).length;
-        return { round, players, bombs, tiles, pickups, remotePeers };
+        return { round, match, players, bombs, tiles, pickups, remotePeers };
       },
       // S87 KABOOM-HUD-KEY-GLYPHS. Read-only view of the player input
       // system's pressed-key set. Returns a fresh ReadonlyArray<string>
@@ -1041,6 +1089,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             matchTarget?: number;
             matchPhase?: "in-progress" | "won" | "lost" | "draw";
           };
+          match?: {
+            phase?: "playing" | "resolved";
+            target?: number;
+            matchNumber?: number;
+            lastMatchWinner?: "player" | "bot" | "draw";
+            resolvedAt?: number;
+          };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
@@ -1052,7 +1107,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         const elapsed = Math.floor(s.round?.elapsed ?? 0);
         const roundNumber = s.round?.roundNumber ?? 1;
         const tally = s.round?.tally ?? { player: 0, bot: 0, draws: 0 };
-        lines.push(`Round ${roundNumber}   W:${tally.player} L:${tally.bot} D:${tally.draws}`);
+        // S115 KABOOM-MATCH-STRUCTURE — promote the tally line to include
+        // match info. Format: `Match N | Round R/T | W:n L:n D:n`. When
+        // MatchState isn't readable yet (first frame), fall back to the
+        // legacy line so the HUD never goes blank.
+        const matchNumber = s.match?.matchNumber ?? 1;
+        const matchTargetForHud = s.match?.target ?? s.round?.matchTarget ?? 3;
+        lines.push(`Match ${matchNumber} | Round ${roundNumber}/${matchTargetForHud}   W:${tally.player} L:${tally.bot} D:${tally.draws}`);
         const timeLimit = s.round?.timeLimit;
         const timeStr = timeLimit !== undefined && timeLimit > 0 ? `t: ${elapsed}s / ${Math.floor(timeLimit)}s` : `t: ${elapsed}s`;
         lines.push(`phase: ${phase}   ${timeStr}`);
@@ -1137,18 +1198,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
 
         // Banner — empty while playing, mounted otherwise.
-        // S87 KABOOM-MATCH-BEST-OF-5 — once the match resolves
-        // (matchPhase != in-progress) the banner takes over with the
-        // match outcome + a hint that R starts a new match. Auto-
-        // restart is suppressed in this state by RoundResolveSystem.
+        // S87 KABOOM-MATCH-BEST-OF-5 — once the match resolves the
+        // banner takes over with the match outcome.
+        // S115 KABOOM-MATCH-STRUCTURE — read MatchState (canonical);
+        // copy now reads `MATCH N — YOU WIN` (matchNumber + larger
+        // text via the banner CSS), and the auto-restart message
+        // reflects the longer 7 s post-match pause.
         let bannerText = "";
         const matchPhase = s.round?.matchPhase;
-        const matchTarget = s.round?.matchTarget ?? 3;
-        const matchOver = matchPhase !== undefined && matchPhase !== "in-progress";
+        const matchTarget = s.match?.target ?? s.round?.matchTarget ?? 3;
+        const matchOver = s.match?.phase === "resolved" || (matchPhase !== undefined && matchPhase !== "in-progress");
+        const matchWinner = s.match?.lastMatchWinner;
         if (matchOver) {
-          if (matchPhase === "won") bannerText = `MATCH WIN — first to ${matchTarget}\nPress R for a new match`;
-          else if (matchPhase === "lost") bannerText = `MATCH LOST — bot reached ${matchTarget}\nPress R for a new match`;
-          else if (matchPhase === "draw") bannerText = `MATCH DRAW — both reached ${matchTarget}\nPress R for a new match`;
+          const n = s.match?.matchNumber ?? 1;
+          if (matchWinner === "player" || matchPhase === "won") bannerText = `MATCH ${n} — YOU WIN\nFirst to ${matchTarget}. Next match in 7 s (R now)`;
+          else if (matchWinner === "bot" || matchPhase === "lost") bannerText = `MATCH ${n} — YOU LOSE\nBot reached ${matchTarget}. Next match in 7 s (R now)`;
+          else if (matchWinner === "draw" || matchPhase === "draw") bannerText = `MATCH ${n} — DRAW\nBoth reached ${matchTarget}. Next match in 7 s (R now)`;
         } else if (phase === "won") bannerText = "YOU WIN — restart in 3 s (R)";
         else if (phase === "lost") bannerText = "YOU LOST — restart in 3 s (R)";
         else if (phase === "draw") bannerText = "DRAW — restart in 3 s (R)";
