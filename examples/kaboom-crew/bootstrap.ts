@@ -774,7 +774,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               kind: (c["Pickup"] as { kind?: string })?.kind
             };
           });
-        return { round, players, bombs, tiles, pickups };
+        // S114 KABOOM-MP-HUD-PEER-COUNT — count server-owned remote
+        // bombers. Decorator stamps RemoteBomberOwned on those roots.
+        const remotePeers = snap.entities.filter((e) => {
+          const c = e.components as Record<string, unknown> | undefined;
+          return c?.["RemoteBomberOwned"] !== undefined;
+        }).length;
+        return { round, players, bombs, tiles, pickups, remotePeers };
       },
       // S87 KABOOM-HUD-KEY-GLYPHS. Read-only view of the player input
       // system's pressed-key set. Returns a fresh ReadonlyArray<string>
@@ -1036,6 +1042,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             matchPhase?: "in-progress" | "won" | "lost" | "draw";
           };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean }>;
+          remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
         };
@@ -1059,6 +1066,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           lines.push(
             `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}${flagSuffix}`
           );
+        }
+        // S114 KABOOM-MP-HUD-PEER-COUNT — only render when there are
+        // remote bombers in the snapshot. In single-player the line
+        // stays hidden (no clutter).
+        if ((s.remotePeers ?? 0) > 0) {
+          lines.push(`Multiplayer: ${s.remotePeers} peer(s) online`);
         }
         // S89 KABOOM-ROUND-TIMER-BAR — compute fill fraction + urgency
         // color from elapsed / timeLimit. 0 hides the bar (no time

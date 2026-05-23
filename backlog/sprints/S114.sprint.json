@@ -1,0 +1,40 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S114",
+  "title": "Live two-tab multiplayer Playwright smoke + MP HUD peer count",
+  "status": "archived",
+  "startedAt": "2026-05-22",
+  "notes": [
+    "S109 + S112 shipped the multiplayer foundation + recipe sync; the live two-tab verification has been a 'manual smoke' gap since then. S114 closes that gap with a Playwright spec + a small HUD enhancement.",
+    "Out of scope: server-side bots/bombs/blasts/pickups (next major MP chunk, tracked for a later sprint)."
+  ],
+  "stories": [
+    {
+      "id": "VERIFY-MP-TWO-TAB-PLAYWRIGHT-001",
+      "title": "Playwright two-tab smoke verifies remote bombers walk + recipe sync works",
+      "status": "implemented",
+      "summary": "New tests/e2e spec that boots the Node reference world server, opens TWO browser contexts pointing at kaboom-crew with distinct ?playerId= + ?recipe= params, presses movement keys in tab A, then verifies tab B sees the remote bomber's Transform.position update. Skipped on CI without a long-running ws server unless the test starts one (spawn node-world-server in setup hook).\n\nAlso verifies the S112 recipe sync: the local recipe in tab A propagates to a CharacterRecipe component on the player.<A> snapshot entity visible in tab B (queryable via /__agf/snapshot or window.__agf).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Playwright e2e test verifies the full S109+S112 multiplayer pipeline end-to-end on two browser contexts. Spawns node-world-server in a subprocess on a random port, opens 2 tabs pointing at kaboom-crew with distinct ?playerId= + ?recipe= params, waits for both to see each other in the snapshot, presses KeyD in tab A, asserts tab B sees alpha's Transform.position.x advance past 0.1, asserts the bravo snapshot contains a CharacterRecipe component with alpha's encoded recipe blob, asserts alpha's HUD shows 'Multiplayer: 1 peer(s) online'. Passes cleanly on both chromium and chromium-preview profiles.",
+        "tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: NEW (~170 LOC) \u2014 modelled on tests/e2e/multiclient-roundtrip.spec.ts (beacon-world pattern), with kaboom-crew-specific recipe + HUD assertions",
+        "Modelled on beacon-world's multiclient-roundtrip but kaboom-specific",
+        "Both chromium + chromium-preview profiles pass",
+        "preflight exit 0"
+      ]
+    },
+    {
+      "id": "FEAT-MP-HUD-PEER-COUNT-001",
+      "title": "Multiplayer HUD: connected peers indicator under the existing stats panel",
+      "status": "implemented",
+      "summary": "Small UX win on the existing renderConnectivityHint surface. When networked=true, the kaboom-crew HUD adds a single line `Multiplayer: N peer(s) online` derived from the snapshot's `player.*` Presence entities (minus the local player). Hidden in single-player mode. Pure derivative \u2014 no protocol changes, no system changes \u2014 bench-reads the live ECS world.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: HUD stats panel adds 'Multiplayer: N peer(s) online' line when networked and at least one remote bomber is in the snapshot. api.status() exposes remotePeers count derived from entities carrying the RemoteBomberOwned component (stamped by the decorator system). Single-player suppresses the line \u2014 no visual clutter.",
+        "examples/kaboom-crew/bootstrap.ts: api.status() now includes remotePeers count; HUD stats lines conditionally appends 'Multiplayer: N peer(s) online'."
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-22",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/134"
+}
