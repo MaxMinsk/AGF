@@ -52,6 +52,7 @@ function makeKaboomRecipe(ownerId: string): ResolvedCharacterRecipe {
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
 import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bomb-network-relay-system";
+import { createKaboomConnectedBlastDecoderSystem } from "./src/systems/connected-blast-decoder-system";
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
@@ -455,6 +456,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // they read as actual bombers walking around the arena instead of
     // disembodied server-owned dots.
     if (networked) {
+      // S118 KABOOM-MP-SPRINT-B chunk 2 — connected-only decoder that
+      // converts server-side blockDestroyed events into local
+      // entity.delete on the matching soft.* entities.
+      scheduler.register(
+        createKaboomConnectedBlastDecoderSystem({ getNetwork }),
+        { profiles: ["connected"] }
+      );
       scheduler.register(
         createKaboomRemoteBomberDecoratorSystem({ localPlayerId: playerId }),
         { profiles: ["connected"] }

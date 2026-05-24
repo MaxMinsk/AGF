@@ -37,6 +37,32 @@ type ProtocolMessage =
         cells: { gx: number; gz: number }[];
       };
     }
+  // S118 KABOOM-MP-SPRINT-B chunk 2 — server tells every client that
+  // a soft block was destroyed by a blast. Client maps (gx, gz) back
+  // to the local soft.* entity (spawned from the scene) and deletes it.
+  | {
+      kind: "blockDestroyed";
+      sequence?: number;
+      payload: {
+        gx: number;
+        gz: number;
+        droppedPickupKind?: string;
+      };
+    }
+  // S118 KABOOM-MP-SPRINT-B chunk 2 — server tells every client that
+  // a bomber's BomberStats.alive flipped to false. entityId is the
+  // server-owned player.<id>; killerId (when present) is the placer's
+  // player.<id> for scoring/credits in S119.
+  | {
+      kind: "bomberDied";
+      sequence?: number;
+      payload: {
+        entityId: string;
+        blastOriginGx: number;
+        blastOriginGz: number;
+        killerId?: string;
+      };
+    }
   | { kind: "world.snapshot"; sequence?: number; payload: Snapshot };
 
 export type TransportOptions = {
@@ -172,7 +198,8 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
           originGz: blast.originGz,
           range: blast.range,
           ownerId: blast.ownerId,
-          cells: []
+          // S118 — cells now carry the cardinal walk (S117 sent []).
+          cells: blast.cells.map((c) => ({ gx: c.gx, gz: c.gz }))
         }
       };
       outboundSequence += 1;
@@ -180,7 +207,52 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
       for (const client of clients) {
         if (client.readyState === WebSocket.OPEN) client.send(serialized);
       }
-      log(`[node-world-server] blastEvent origin=(${blast.originGx},${blast.originGz}) range=${blast.range} owner=${blast.ownerId} bomb=${blast.bombId}`);
+      log(`[node-world-server] blastEvent origin=(${blast.originGx},${blast.originGz}) range=${blast.range} owner=${blast.ownerId} bomb=${blast.bombId} cells=${blast.cells.length}`);
+    }
+
+    // S118 KABOOM-MP-SPRINT-B chunk 2 — broadcast blockDestroyed for
+    // each soft block the blast walk hit. Sent AFTER the blast frames
+    // so clients receive the visual cue then the cleanup in order.
+    const blocks = world.drainBlockDestroyed();
+    for (const block of blocks) {
+      const frame: ProtocolMessage = {
+        kind: "blockDestroyed",
+        sequence: outboundSequence,
+        payload: {
+          gx: block.gx,
+          gz: block.gz,
+          ...(block.droppedPickupKind !== undefined ? { droppedPickupKind: block.droppedPickupKind } : {})
+        }
+      };
+      outboundSequence += 1;
+      const serialized = JSON.stringify(frame);
+      for (const client of clients) {
+        if (client.readyState === WebSocket.OPEN) client.send(serialized);
+      }
+      log(`[node-world-server] blockDestroyed (${block.gx},${block.gz})`);
+    }
+
+    // S118 KABOOM-MP-SPRINT-B chunk 2 — broadcast bomberDied frames.
+    // Sent AFTER blockDestroyed so clients see the cause (block) then
+    // the consequence (death) in causal order on the wire.
+    const deaths = world.drainBomberDied();
+    for (const death of deaths) {
+      const frame: ProtocolMessage = {
+        kind: "bomberDied",
+        sequence: outboundSequence,
+        payload: {
+          entityId: death.entityId,
+          blastOriginGx: death.blastOriginGx,
+          blastOriginGz: death.blastOriginGz,
+          ...(death.killerId !== undefined ? { killerId: death.killerId } : {})
+        }
+      };
+      outboundSequence += 1;
+      const serialized = JSON.stringify(frame);
+      for (const client of clients) {
+        if (client.readyState === WebSocket.OPEN) client.send(serialized);
+      }
+      log(`[node-world-server] bomberDied entity=${death.entityId} killer=${death.killerId ?? "?"} origin=(${death.blastOriginGx},${death.blastOriginGz})`);
     }
 
     const expired = world.expiredPlayers(playerTimeoutSeconds);

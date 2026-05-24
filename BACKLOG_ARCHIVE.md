@@ -123,5 +123,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S115](backlog/sprints/S115.sprint.json)** — Match structure — best-of-3 + match-resolve banner + tally reset — 1 implemented, 3 deferred · archived 2026-05-23
 - **[S116](backlog/sprints/S116.sprint.json)** — Multiplayer Sprint B foundation — research spike + protocol extensions — 2 implemented · archived 2026-05-23
 - **[S117](backlog/sprints/S117.sprint.json)** — MP Sprint B chunk 1 — server-side bomb-placement + bomb-fuse + BlastEvent emission — 4 implemented · archived 2026-05-24
+- **[S118](backlog/sprints/S118.sprint.json)** — MP Sprint B chunk 2 — server-side blast propagation + block destruction + bomber death — 8 implemented · archived 2026-05-24
 
 <!-- backlog:render:end -->

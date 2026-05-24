@@ -105,6 +105,42 @@ describe("ServerWorld.placeBomb (S117)", () => {
   });
 });
 
+// S118 KABOOM-MP-SPRINT-B chunk 2 — player.<id> GridPosition derived from Transform.
+
+describe("ServerWorld GridPosition (S118)", () => {
+  it("snapshot includes GridPosition on join (derived from spawn position)", () => {
+    const world = new ServerWorld();
+    world.join("alice");
+    const snap = world.snapshot();
+    const entity = snap.entities.find((e) => e.id === "player.alice")!;
+    expect(entity.components["GridPosition"]).toEqual({ gx: 0, gz: 0 });
+  });
+
+  it("tick recomputes GridPosition after intent.move integrates Transform", () => {
+    const world = new ServerWorld();
+    world.join("alice");
+    world.setIntent("alice", [1, 0], 0);
+    // Walk for ~1.5 cells at 3.5 cells/s
+    for (let i = 0; i < 30; i += 1) world.tick(0.016);
+    const snap = world.snapshot();
+    const entity = snap.entities.find((e) => e.id === "player.alice")!;
+    const gp = entity.components["GridPosition"] as { gx: number; gz: number };
+    expect(gp.gz).toBe(0);
+    expect(gp.gx).toBeGreaterThanOrEqual(1);
+    expect(gp.gx).toBeLessThanOrEqual(2);
+  });
+
+  it("GridPosition is stable when the player isn't moving (every tick still writes it)", () => {
+    const world = new ServerWorld();
+    world.join("alice");
+    world.tick(0.016);
+    world.tick(0.016);
+    const snap = world.snapshot();
+    const entity = snap.entities.find((e) => e.id === "player.alice")!;
+    expect(entity.components["GridPosition"]).toEqual({ gx: 0, gz: 0 });
+  });
+});
+
 // S117 KABOOM-MP-SPRINT-B chunk 3 — server-authoritative fuse tick.
 
 describe("ServerWorld.tick — bomb fuse (S117)", () => {
