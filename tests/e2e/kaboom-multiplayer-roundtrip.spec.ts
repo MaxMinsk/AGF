@@ -28,13 +28,13 @@ function pickPort(): number {
   return 28000 + Math.floor(Math.random() * 2000);
 }
 
-async function startBackend(port: number): Promise<ChildProcess> {
+async function startBackend(port: number, env: Record<string, string> = {}): Promise<ChildProcess> {
   const child = spawn(
     "npx",
     ["tsx", "examples/backends/node-world-server/src/index.ts", "--serve"],
     {
       cwd: REPO_ROOT,
-      env: { ...process.env, PORT: String(port) },
+      env: { ...process.env, PORT: String(port), ...env },
       stdio: ["ignore", "pipe", "pipe"]
     }
   );
@@ -374,6 +374,149 @@ test("S117 alpha places a bomb; both tabs see it spawn + detonate via the server
       });
       await testInfo.attach("bravo-snapshot.json", {
         body: JSON.stringify(await bravo.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+      await bravoContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});
+
+// S119 KABOOM-MP-SPRINT-B chunk 8 — server-authoritative pickup spawn +
+// collect + round-resolve. Alpha destroys a soft block at (4,5) with the
+// pickup RNG dialed to 1.0 so every cell drops a pickup. Alpha walks
+// onto the pickup; both tabs observe the pickup leave the snapshot.
+
+test("S119 alpha collects a server-spawned pickup; both tabs see it disappear", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  // KABOOM_PICKUP_DROP_CHANCE=1.0 forces a pickup on every soft-block destroy.
+  const backend = await startBackend(port, { KABOOM_PICKUP_DROP_CHANCE: "1.0" });
+  try {
+    const alphaContext = await browser.newContext();
+    const bravoContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    const bravo = await bravoContext.newPage();
+    try {
+      const url = (playerId: string): string =>
+        `/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=${playerId}`;
+      await alpha.goto(url("alpha"));
+      await bravo.goto(url("bravo"));
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      await bravo.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+
+      const bothPlayersPresent = (target: { selfId: string; peerId: string }): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes(target.selfId) && ids.includes(target.peerId);
+      };
+      await alpha.waitForFunction(bothPlayersPresent, { selfId: "player.alpha", peerId: "player.bravo" }, { timeout: 10000 });
+      await bravo.waitForFunction(bothPlayersPresent, { selfId: "player.bravo", peerId: "player.alpha" }, { timeout: 10000 });
+
+      // Dismiss title-screen.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+      await alpha.waitForTimeout(200);
+
+      // Position LOCAL player.1 to (4, 3) using gotoCell — that's the
+      // cell the bomb relay sends to the server. Server's player.alpha
+      // moves independently via keyboard intent; we don't need it at
+      // (4, 3) for the bomb placement (relay reads LOCAL cell).
+      type GotoResult = { reached: boolean; outcome: string; finalGx: number; finalGz: number };
+      const arrived = await alpha.evaluate(async () => {
+        const k = (window.__agf as { kaboom?: { gotoCell?: (id: string, gx: number, gz: number) => Promise<GotoResult> } }).kaboom;
+        if (k?.gotoCell === undefined) throw new Error("agf.kaboom.gotoCell unavailable");
+        return await k.gotoCell("player.1", 4, 3);
+      });
+      expect(arrived.reached).toBe(true);
+
+      // Place the bomb at LOCAL player.1's cell. Server spawns bomb at
+      // (4, 3); fuse expires; blast destroys soft.1 at (4, 5);
+      // pickup spawns at (4, 5).
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+
+      // Wait for the pickup to appear on both tabs.
+      const findPickup = (): { id: string; gx: number; gz: number } | undefined => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        for (const e of snap.entities) {
+          if (!e.id.startsWith("pickup.")) continue;
+          const gp = (e.components as { GridPosition?: { gx: number; gz: number } }).GridPosition;
+          if (gp !== undefined) return { id: e.id, gx: gp.gx, gz: gp.gz };
+        }
+        return undefined;
+      };
+      await alpha.waitForFunction(findPickup, undefined, { timeout: 10000 });
+      await bravo.waitForFunction(findPickup, undefined, { timeout: 10000 });
+      const pickupInfo = await alpha.evaluate(findPickup);
+      expect(pickupInfo).toBeDefined();
+
+      // Drive the SERVER's player.alpha onto the pickup cell. Use the
+      // ws-network-adapter sendIntent surface directly (exposed at
+      // window.__agf.network) — that bypasses the keyboard + engine-
+      // input-system chain and lets us stop the server's intent
+      // exactly when GridPosition matches the target. Cleaner than
+      // racing waitForFunction polling against snapshot lag.
+      const targetGx = pickupInfo!.gx;
+      const targetGz = pickupInfo!.gz;
+      const driveAlphaTo = async (gx: number, gz: number): Promise<void> => {
+        await alpha.evaluate((target: { gx: number; gz: number }) => {
+          const send = window.__agf!.sendNetworkIntent;
+          return new Promise<void>((resolveDone, rejectDone) => {
+            let lastIntent: [number, number] = [0, 0];
+            let stopOnNextHit = false;
+            const ensureIntent = (dx: number, dz: number): void => {
+              if (lastIntent[0] === dx && lastIntent[1] === dz) return;
+              lastIntent = [dx, dz];
+              const result = send([dx, dz]);
+              if (result.kind !== "ok") rejectDone(new Error("ws-adapter not ready"));
+            };
+            const step = (): void => {
+              const snap = window.__agf!.snapshot() as Snapshot;
+              const ent = snap.entities.find((e) => e.id === "player.alpha");
+              const gp = (ent?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+              if (gp === undefined) {
+                setTimeout(step, 33);
+                return;
+              }
+              if (gp.gx === target.gx && gp.gz === target.gz) {
+                ensureIntent(0, 0);
+                if (!stopOnNextHit) {
+                  stopOnNextHit = true;
+                  setTimeout(resolveDone, 400);
+                }
+                return;
+              }
+              // One-axis at a time, prioritising the closer-to-zero
+              // axis (Z first) so the server's path traverses the
+              // pickup column for at least one tick at gz == target.gz.
+              const dz = gp.gz < target.gz ? 1 : gp.gz > target.gz ? -1 : 0;
+              const dx = gp.gx < target.gx ? 1 : gp.gx > target.gx ? -1 : 0;
+              if (dz !== 0) ensureIntent(0, dz);
+              else if (dx !== 0) ensureIntent(dx, 0);
+              else ensureIntent(0, 0);
+              setTimeout(step, 33);
+            };
+            step();
+          });
+        }, { gx, gz });
+      };
+      await driveAlphaTo(targetGx, targetGz);
+      // Both tabs observe the pickup leave the snapshot (server's
+      // collect scan removes the entity → snapshot diff entity.delete).
+      const pickupGone = (pickupId: string): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return !ids.includes(pickupId);
+      };
+      await alpha.waitForFunction(pickupGone, pickupInfo!.id, { timeout: 8000 });
+      await bravo.waitForFunction(pickupGone, pickupInfo!.id, { timeout: 8000 });
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
         contentType: "application/json"
       });
     } finally {

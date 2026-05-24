@@ -299,6 +299,260 @@ describe("ServerWorld block destruction (S118)", () => {
   });
 });
 
+describe("ServerWorld pickup spawn (S119)", () => {
+  it("blockDestroyed event carries droppedPickupKind when RNG rolls a drop", () => {
+    // dropChance=1 forces every destroyed cell to drop something.
+    const world = new ServerWorld({ pickupDropChance: 1.0 });
+    world.join("alice");
+    // (5,5) is soft.2 → bomb on it destroys both (5,5) and adjacent (4,5)
+    world.placeBomb("alice", 5, 5);
+    world.tick(3.0);
+    const blocks = world.drainBlockDestroyed();
+    expect(blocks.length).toBe(2);
+    for (const b of blocks) {
+      expect(b.droppedPickupKind).toBeDefined();
+    }
+  });
+
+  it("dropChance=0 never spawns a pickup", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.placeBomb("alice", 5, 5);
+    world.tick(3.0);
+    const blocks = world.drainBlockDestroyed();
+    for (const b of blocks) expect(b.droppedPickupKind).toBeUndefined();
+    const snap = world.snapshot();
+    expect(snap.entities.filter((e) => e.id.startsWith("pickup.")).length).toBe(0);
+  });
+
+  it("dropChance=1 spawns Pickup entities visible in the snapshot", () => {
+    const world = new ServerWorld({ pickupDropChance: 1.0 });
+    world.join("alice");
+    world.placeBomb("alice", 5, 5);
+    world.tick(3.0);
+    const snap = world.snapshot();
+    const pickups = snap.entities.filter((e) => e.id.startsWith("pickup."));
+    expect(pickups.length).toBe(2);
+    for (const p of pickups) {
+      expect(p.components["Pickup"]).toMatchObject({ kind: expect.any(String) });
+      expect(p.components["GridPosition"]).toBeDefined();
+      expect(p.components["Transform"]).toBeDefined();
+    }
+  });
+
+  it("deterministic by cell: same worldSeed + same cell → same kind every time", () => {
+    const seed = 12345;
+    const w1 = new ServerWorld({ pickupDropChance: 1.0, worldSeed: seed });
+    const w2 = new ServerWorld({ pickupDropChance: 1.0, worldSeed: seed });
+    w1.join("alice");
+    w2.join("alice");
+    w1.placeBomb("alice", 5, 5);
+    w2.placeBomb("alice", 5, 5);
+    w1.tick(3.0);
+    w2.tick(3.0);
+    const sortByCell = (snap: ReturnType<typeof w1.snapshot>): Array<string> =>
+      snap.entities
+        .filter((e) => e.id.startsWith("pickup."))
+        .map((e) => {
+          const gp = e.components["GridPosition"] as { gx: number; gz: number };
+          const p = e.components["Pickup"] as { kind: string };
+          return `${gp.gx},${gp.gz}:${p.kind}`;
+        })
+        .sort();
+    expect(sortByCell(w1.snapshot())).toEqual(sortByCell(w2.snapshot()));
+  });
+
+  it("different worldSeeds yield potentially-different drops for the same cell", () => {
+    // Stronger test: pick two seeds where the kind selection diverges.
+    const a = new ServerWorld({ pickupDropChance: 1.0, worldSeed: 1 });
+    const b = new ServerWorld({ pickupDropChance: 1.0, worldSeed: 999999 });
+    a.join("alice");
+    b.join("alice");
+    a.placeBomb("alice", 5, 5);
+    b.placeBomb("alice", 5, 5);
+    a.tick(3.0);
+    b.tick(3.0);
+    const aKinds = a.snapshot().entities.filter((e) => e.id.startsWith("pickup.")).map((e) => (e.components["Pickup"] as { kind: string }).kind).sort();
+    const bKinds = b.snapshot().entities.filter((e) => e.id.startsWith("pickup.")).map((e) => (e.components["Pickup"] as { kind: string }).kind).sort();
+    // Not strictly guaranteed (same kind by chance), but with these seeds
+    // the drop tables differ in the 2-cell sample.
+    expect(JSON.stringify(aKinds) === JSON.stringify(bKinds)).toBe(false);
+  });
+});
+
+describe("ServerWorld pickup collect (S119)", () => {
+  it("bomber walking onto a pickup cell collects it, applies stats, emits pickupCollected", () => {
+    const world = new ServerWorld({ pickupDropChance: 1.0, worldSeed: 1 });
+    world.join("alice");
+    // Destroy a soft block to spawn a pickup at (5, 5). Alice spawns
+    // at (0, 0); send her toward (5, 5) until GridPosition matches.
+    world.placeBomb("alice", 5, 5);
+    world.tick(3.0);
+    // After detonation the pickup spawned at (5, 5) (or (4, 5)).
+    const snapPre = world.snapshot();
+    const pickup = snapPre.entities.find((e) => e.id.startsWith("pickup."));
+    expect(pickup).toBeDefined();
+    const pickupCell = pickup!.components["GridPosition"] as { gx: number; gz: number };
+    // Drive alice intent toward the pickup cell (use 60+ small ticks).
+    const dirX = Math.sign(pickupCell.gx);
+    const dirZ = Math.sign(pickupCell.gz);
+    world.setIntent("alice", [dirX, 0], 0);
+    for (let i = 0; i < 200; i += 1) {
+      world.tick(0.016);
+      const gp = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["GridPosition"] as { gx: number };
+      if (gp.gx >= pickupCell.gx) break;
+    }
+    world.setIntent("alice", [0, dirZ], 1);
+    for (let i = 0; i < 200; i += 1) {
+      world.tick(0.016);
+      const gp = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["GridPosition"] as { gz: number };
+      if (gp.gz >= pickupCell.gz) break;
+    }
+    const events = world.drainPickupCollected();
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    const ev = events.find((e) => e.entityId === pickup!.id);
+    expect(ev).toBeDefined();
+    expect(ev!.pickerId).toBe("player.alice");
+    const snapPost = world.snapshot();
+    expect(snapPost.entities.find((e) => e.id === pickup!.id)).toBeUndefined();
+  });
+
+  it("bomb-up pickup increments BomberStats.maxBombs (cap 8)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    // Force a bomb-up pickup on alice's spawn cell.
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "bomb-up");
+    world.tick(0.016);
+    const snap = world.snapshot();
+    const alice = snap.entities.find((e) => e.id === "player.alice")!;
+    expect((alice.components["BomberStats"] as { maxBombs: number }).maxBombs).toBe(2);
+    expect(world.drainPickupCollected().length).toBe(1);
+  });
+
+  it("fire-up pickup increments BomberStats.range", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "fire-up");
+    world.tick(0.016);
+    const stats = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["BomberStats"] as { range: number };
+    expect(stats.range).toBe(3);
+  });
+
+  it("dead bomber doesn't collect pickups", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    // Kill alice by self-blast.
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    world.drainBomberDied();
+    // Now spawn a pickup on alice's cell and tick.
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "bomb-up");
+    world.tick(0.016);
+    expect(world.drainPickupCollected().length).toBe(0);
+    // Pickup still in snapshot.
+    const snap = world.snapshot();
+    expect(snap.entities.some((e) => e.id.startsWith("pickup."))).toBe(true);
+  });
+});
+
+describe("ServerWorld round resolve + tally (S119)", () => {
+  it("snapshot does NOT ship kaboom.round-state (avoids id collision with local client entity)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    const snap = world.snapshot();
+    expect(snap.entities.find((e) => e.id === "kaboom.round-state")).toBeUndefined();
+  });
+
+  it("solo session never auto-resolves (need ≥2 players)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.tick(0.1);
+    expect(world.drainRoundResolved().length).toBe(0);
+  });
+
+  // Helper: walk bravo away from alice so a self-blast only kills alice.
+  const walkBravoAway = (world: ServerWorld): void => {
+    world.setIntent("bravo", [1, 0], 0);
+    for (let i = 0; i < 90; i += 1) world.tick(0.016); // ~5 cells
+    world.setIntent("bravo", [0, 0], 1);
+  };
+
+  it("two-player session resolves when one dies (winner = surviving bomber)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.join("bravo");
+    walkBravoAway(world);
+    world.placeBomb("alice", 0, 0); // self-blast — alice dies
+    world.tick(3.0);
+    const events = world.drainRoundResolved();
+    expect(events.length).toBe(1);
+    // alice is the FIRST joiner ('player' slot). When she dies + bravo
+    // survives, the 'player' slot lost → phase='lost', tally.bot+=1.
+    expect(events[0]!.phase).toBe("lost");
+    expect(events[0]!.winnerId).toBe("player.bravo");
+    expect(events[0]!.tally).toEqual({ player: 0, bot: 1, draws: 0 });
+  });
+
+  it("simultaneous death → phase='draw' + tally.draws+=1", () => {
+    // Both alice + bravo at (0, 0) on join → one self-blast kills both.
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.join("bravo");
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    const events = world.drainRoundResolved();
+    expect(events.length).toBe(1);
+    expect(events[0]!.phase).toBe("draw");
+    expect(events[0]!.tally).toEqual({ player: 0, bot: 0, draws: 1 });
+  });
+
+  it("round resolution is idempotent — single event per round", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.join("bravo");
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    world.drainRoundResolved();
+    // Subsequent ticks shouldn't re-emit.
+    world.tick(0.5);
+    expect(world.drainRoundResolved().length).toBe(0);
+  });
+
+  it("placeBomb refused after round resolves", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.join("bravo");
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    world.drainRoundResolved();
+    // Try to place a bomb post-resolve — server should refuse.
+    expect(world.placeBomb("bravo", 5, 5)).toBeUndefined();
+  });
+
+  it("after resolve, snapshot still hides RoundState — clients read roundResolved events", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.join("bravo");
+    walkBravoAway(world);
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    // Server state is consistent internally (lock blocks new bombs)…
+    expect(world.placeBomb("bravo", 5, 5)).toBeUndefined();
+    // …but the kaboom.round-state singleton stays out of the snapshot
+    // so the local client's identically-named entity isn't shadowed.
+    expect(world.snapshot().entities.find((e) => e.id === "kaboom.round-state")).toBeUndefined();
+  });
+
+  it("dead bomber can't place bombs", () => {
+    const world = new ServerWorld({ pickupDropChance: 0 });
+    world.join("alice");
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0); // alice self-kills
+    world.drainBomberDied();
+    // alice is dead now — placeBomb should refuse even without round-lock.
+    expect(world.placeBomb("alice", 5, 5)).toBeUndefined();
+  });
+});
+
 describe("ServerWorld map seam (S118)", () => {
   it("ServerWorld exposes the default map via cellAt + gridSize + destroySoftBlock", () => {
     const world = new ServerWorld();

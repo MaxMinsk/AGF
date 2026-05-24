@@ -98,7 +98,17 @@ function runSmoke(): void {
 
 async function runServe(): Promise<void> {
   const port = Number.parseInt(process.env["PORT"] ?? "8787", 10);
-  const world = new ServerWorld();
+  // S119 KABOOM-MP-SPRINT-B chunk 3 — pickupDropChance overridable via
+  // env so Playwright e2e tests can bait the RNG to drop a pickup on
+  // every soft-block destruction without rolling for it.
+  const dropChanceEnv = process.env["KABOOM_PICKUP_DROP_CHANCE"];
+  const pickupDropChance = dropChanceEnv !== undefined ? Number.parseFloat(dropChanceEnv) : undefined;
+  const seedEnv = process.env["KABOOM_WORLD_SEED"];
+  const worldSeed = seedEnv !== undefined ? Number.parseInt(seedEnv, 10) : undefined;
+  const world = new ServerWorld({
+    ...(pickupDropChance !== undefined && Number.isFinite(pickupDropChance) ? { pickupDropChance } : {}),
+    ...(worldSeed !== undefined && Number.isFinite(worldSeed) ? { worldSeed } : {})
+  });
   const transport = await startWsTransport({ port, world, validate });
   console.log("[node-world-server] serve mode running. Ctrl-C to stop.");
 

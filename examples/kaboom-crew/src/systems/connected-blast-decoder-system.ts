@@ -1,21 +1,17 @@
 // S118 KABOOM-MP-SPRINT-B chunk 2 — client-side decoder for inbound
 // server events when running on the `connected` profile.
 //
-// Two responsibilities for S118:
+// Responsibilities:
 //   1. blockDestroyed → remove the local soft.* entity whose
 //      GridPosition matches (gx, gz). Soft blocks are CLIENT-only
 //      entities (spawned from the scene JSON), so the snapshot diff
 //      doesn't know to delete them — this decoder closes the loop.
-//   2. bomberDied → leave it for the snapshot-driven BomberStats.alive
-//      flip to drive the local death-animation-system in a later
-//      sprint. For S118 we log the event but don't decode the ragdoll
-//      since the visual ragdoll lives in the local death pipeline that
-//      reads DeathAnim transients (S120 will move that to server).
-//
-// blastEvent visuals (the cells from S118.3) are also out of scope
-// for this minimum decoder; the soft-block deletion is what S118's
-// acceptance test actually verifies. A later story can spawn
-// BlastTile entities from the inbox so the visual flash + audio fire.
+//   2. S119 roundResolved → write phase/tally/winnerId to the local
+//      kaboom.round-state entity so the HUD scoreboard updates from
+//      the authoritative server source.
+//   3. bomberDied + blastEvent + pickupCollected are drained so the
+//      ws-adapter inboxes don't grow unbounded; they'll grow real
+//      consumers in later sprints (ragdoll/audio decoders).
 
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -24,9 +20,17 @@ import type { WsNetworkAdapterHandle } from "../../../../engine/runtime/network/
 
 const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
+const ROUND_STATE: ComponentName = "RoundState";
+const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
 
 type GridPos = { gx: number; gz: number };
 type Occupant = { layer?: string };
+type LocalRoundState = {
+  phase?: string;
+  tally?: { player: number; bot: number; draws: number };
+  roundNumber?: number;
+  winnerId?: string;
+};
 
 export type ConnectedBlastDecoderOptions = {
   /** Late-bound network handle — undefined before the adapter is ready. */
@@ -50,28 +54,39 @@ export function createKaboomConnectedBlastDecoderSystem(
     const network = options.getNetwork();
     if (network === undefined) return;
 
+    // S119 — apply server roundResolved into local kaboom.round-state.
+    const roundEvents = network.drainRoundResolved();
+    for (const ev of roundEvents) {
+      const current = world.getComponent<LocalRoundState>(ROUND_STATE_ENTITY, ROUND_STATE);
+      world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, {
+        ...(current ?? {}),
+        phase: ev.phase,
+        tally: { ...ev.tally },
+        ...(ev.winnerId !== undefined ? { winnerId: ev.winnerId } : {})
+      });
+    }
+
+    // S118 — apply server blockDestroyed to delete local soft.* entities.
     const blockEvents = network.drainBlockDestroyed();
-    if (blockEvents.length === 0) {
-      network.drainBomberDied(); // discard; not consumed today
-      network.drainBlastEvents(); // discard; not consumed today
-      return;
+    if (blockEvents.length > 0) {
+      const targets = new Set<string>();
+      for (const ev of blockEvents) targets.add(`${ev.gx},${ev.gz}`);
+      const toDelete: EntityId[] = [];
+      for (const entityId of blocksQuery!.run()) {
+        const gp = world.getComponent<GridPos>(entityId, GRID_POSITION);
+        const occ = world.getComponent<Occupant>(entityId, GRID_OCCUPANT);
+        if (gp === undefined || occ?.layer !== "block") continue;
+        if (!targets.has(`${gp.gx},${gp.gz}`)) continue;
+        toDelete.push(entityId);
+      }
+      for (const id of toDelete) world.removeEntity(id);
     }
-    // Build a lookup keyed by cell so multi-block detonations are O(N+K).
-    const targets = new Set<string>();
-    for (const ev of blockEvents) targets.add(`${ev.gx},${ev.gz}`);
-    const toDelete: EntityId[] = [];
-    for (const entityId of blocksQuery!.run()) {
-      const gp = world.getComponent<GridPos>(entityId, GRID_POSITION);
-      const occ = world.getComponent<Occupant>(entityId, GRID_OCCUPANT);
-      if (gp === undefined || occ?.layer !== "block") continue;
-      if (!targets.has(`${gp.gx},${gp.gz}`)) continue;
-      toDelete.push(entityId);
-    }
-    for (const id of toDelete) world.removeEntity(id);
-    // Drain the other queues so they don't grow unbounded — S119+ will
-    // hook real decoders here.
+
+    // Drain the remaining queues so they don't grow unbounded —
+    // later sprints add real decoders (ragdoll, audio sting, …).
     network.drainBomberDied();
     network.drainBlastEvents();
+    network.drainPickupCollected();
   };
 
   return { name, frameUpdate };

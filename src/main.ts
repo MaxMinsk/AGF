@@ -61,6 +61,16 @@ declare global {
       injectInput(entityId: string, action: string, value?: unknown):
         | { kind: "ok" }
         | { kind: "entity-not-found" };
+      /**
+       * S119 KABOOM-MP-SPRINT-B chunk 3 — outbound intent.move for the
+       * server-owned local player. Bypasses the keyboard chain so
+       * Playwright tests (and future agent drivers) can steer the
+       * server-authoritative bomber programmatically. Returns
+       * { kind: "no-network" } when the WS adapter isn't connected.
+       */
+      sendNetworkIntent(direction: readonly [number, number]):
+        | { kind: "ok" }
+        | { kind: "no-network" };
       /** S096 AGF-PROBE-SNAPSHOT-DIFF. */
       snapshotDiff(at: number):
         | { kind: "ok"; entries: ReadonlyArray<unknown> }
@@ -539,6 +549,14 @@ void (async (): Promise<void> => {
       // S098 AGF-PROBE-INPUT-INJECT.
       injectInput: (entityId: string, action: string, value?: unknown) =>
         app.injectInput(entityId, action, value),
+      // S119 KABOOM-MP-SPRINT-B chunk 3 — drive server-side player.<id>
+      // movement directly from probes/tests without keyboard simulation.
+      sendNetworkIntent: (direction: readonly [number, number]): { kind: "ok" } | { kind: "no-network" } => {
+        const net = app.network;
+        if (net === undefined) return { kind: "no-network" };
+        net.sendIntent(direction);
+        return { kind: "ok" };
+      },
       // S096 AGF-PROBE-SNAPSHOT-DIFF.
       snapshotDiff: (at: number) => app.snapshotDiff(at),
       applyCommands: (commands) => app.applyCommands(commands),
