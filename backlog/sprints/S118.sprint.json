@@ -1,0 +1,125 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S118",
+  "title": "MP Sprint B chunk 2 — server-side blast propagation + block destruction + bomber death",
+  "status": "active",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Second of 4 sprints implementing GDP-2026-05-22-011 (server-authoritative kaboom-crew). Sequencing per docs/research/kaboom-multiplayer-sprint-b-plan.md §3: S117 ✅ → S118 blast+blocks (this) → S119 pickup+round-resolve → S120 bot-AI.",
+    "Scope expansion vs sprint-b-plan.md §3.S118: shield consumption + ragdoll/hit-recoil details are deferred to S119 (paired with pickups, since shield is a pickup-derived stat). S118 ships the bare-minimum kill chain: bomber on blast tile → BomberStats.alive=false → bomberDied broadcast.",
+    "Acceptance for S118: tab A places a bomb adjacent to a soft block → both tabs see the block disappear on detonation. Tab A's bomb lands on tab B's cell → both tabs see B's alive flip to false in the snapshot.",
+    "Server-side rules module strategy stays Option A (server-only) per S117 — porting blast-propagation logic into examples/backends/node-world-server/src/. A shared-module refactor stays an open question for S120 if duplication hurts."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-MAP-LOAD-001",
+      "title": "Server loads start.scene.json → 2D obstacle grid",
+      "status": "implemented",
+      "summary": "On boot, ServerWorld parses examples/kaboom-crew/scenes/start.scene.json and builds a 2D grid of cell types: 'empty' | 'hard-wall' | 'soft-block'. The map uses 15×11 cells (Grid component) with hard-block instances at fixed corners + soft-blocks at 4 dynamic cells. Exposed via ServerWorld.cellAt(gx, gz) and ServerWorld.gridSize(). For S118 we hard-code which scene to load (start.scene.json) — multi-map / dynamic scene selection lives in a later sprint. Soft-blocks are mutable: blast-propagation removes them via destroySoftBlock(gx, gz); cellAt() returns 'empty' afterward.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: ServerWorld now ships an authoritative obstacle grid loaded from examples/kaboom-crew/scenes/start.scene.json — the same JSON the browser client imports, so the map stays in sync without a duplicate copy. cellAt(gx,gz) returns 'empty' | 'hard-wall' | 'soft-block'; out-of-bounds reads as 'hard-wall' so blast propagation halts at the arena edge without a separate border check. destroySoftBlock(gx,gz) mutates the grid in place + returns whether a block was actually removed. gridSize() exposes the {sizeX, sizeZ} (15×11) for systems that need to walk the arena.",
+        "examples/backends/node-world-server/src/map-loader.ts: new module — loadDefaultMap (fs-backed) + loadMapFromScene (synthetic, for tests). Soft-blocks are mutable; hard-walls are not.",
+        "examples/backends/node-world-server/src/world.ts: ServerWorld gains cellAt / gridSize / destroySoftBlock; ServerWorldOptions.map seam lets tests inject synthetic maps without touching the filesystem.",
+        "+8 unit tests covering loadDefaultMap layout, OOB, mutability, scene seam, ServerWorld surface",
+        "All 22 affected server unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOMBER-GRID-POSITION-001",
+      "title": "Server derives GridPosition for player.<id> each tick from Transform.position",
+      "status": "implemented",
+      "summary": "Every server tick, for each joined player, round Transform.position [x, _, z] to integer (gx, gz) and write it to the GridPosition component on player.<id>. Snapshot emits the new GridPosition so clients (today's local + future server-driven death-anim) can use it. This is the lookup blast-propagation will use to decide whether a bomber is in a blast cell.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Every player.<id> entity on the server now carries an authoritative GridPosition. Seeded on join from the spawn position (Math.round of SPAWN_POSITION x/z); refreshed every tick from the live Transform.position. Snapshot ships GridPosition so the client + future server-side blast/death systems can read the bomber's authoritative cell. Math.round matches the client-side mapping (cellSize=1, origin at 0,0) so the two stay aligned.",
+        "examples/backends/node-world-server/src/world.ts: join() seeds GridPosition; tick() recomputes after intent integration; snapshot() emits the component",
+        "+3 unit tests covering: GridPosition on join, recomputation after movement, stability when idle",
+        "25/25 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BLAST-CELLS-001",
+      "title": "Server computes blast cells in 4 cardinal directions; populates blastEvent.cells",
+      "status": "implemented",
+      "summary": "On bomb detonation, walk +X / -X / +Z / -Z from the bomb's GridPosition. For each step (up to bomb.range): if cellAt is 'hard-wall', stop (DON'T include the wall cell). If 'soft-block', include the cell + stop (the blast hits the block, then halts). If 'empty', include the cell + continue. Origin cell is always included. The cells[] list ships in blastEvent.cells (S116 protocol). Pure math + cellAt lookups — no side-effects in this story; destruction lives in FEAT-SERVER-BLOCK-DESTROY-001.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: BlastEvent.cells now ships the cardinal walk computed from the authoritative map. computeBlastCells(map, gx, gz, range) walks +X/-X/+Z/-Z up to range cells per direction. Hard-walls stop the walk WITHOUT including the wall cell; soft-blocks include the cell THEN stop; empty cells include + continue; the origin cell is always included. Out-of-bounds reads as hard-wall so the arena edge halts propagation without a separate border check. Pure helper — no mutation of the grid (destruction lives in FEAT-SERVER-BLOCK-DESTROY-001).",
+        "examples/backends/node-world-server/src/map-loader.ts: computeBlastCells helper exported",
+        "examples/backends/node-world-server/src/world.ts: BlastEvent gains cells[]; detonation path populates it via computeBlastCells",
+        "examples/backends/node-world-server/src/transport-ws.ts: blastEvent frame ships payload.cells from the BlastEvent (was [] in S117)",
+        "+6 unit tests covering origin-only, empty arena, hard-wall stop, soft-block include+stop, arena-edge stop, default-map sample",
+        "32/32 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BLOCK-DESTROY-001",
+      "title": "Server destroys soft-blocks hit by blast; emits blockDestroyed",
+      "status": "implemented",
+      "summary": "After blast cells are computed, scan them for soft-block hits. Each hit: call ServerWorld.destroySoftBlock(gx, gz) (the grid mutation from FEAT-SERVER-MAP-LOAD-001) and emit a blockDestroyed protocol message (S116) per destroyed block. droppedPickupKind stays undefined in S118 (pickups in S119). Transport broadcasts blockDestroyed alongside the blastEvent frame. Client side: a new connected-profile decoder applies entity.delete for matching soft.* entities (the existing snapshot delete path doesn't fire because soft-blocks are CLIENT-only entities today).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server now destroys soft-blocks hit by blast cells + broadcasts blockDestroyed to every connected client. Detonation walks the blast cells from FEAT-SERVER-BLAST-CELLS-001; for each cell whose authoritative cellAt() returns 'soft-block' it calls destroySoftBlock() (clearing the grid entry) + queues a blockDestroyed event. A per-tick Set dedupes destruction targets so two overlapping blasts (chain or simultaneous, S118.6) don't double-emit for the same cell. Pickup spawn deferred to S119 (payload.droppedPickupKind stays undefined).",
+        "examples/backends/node-world-server/src/world.ts: BlockDestroyedEvent type, pendingBlockDestroyed queue, scan-and-destroy loop after detonation, drainBlockDestroyed() accessor",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage adds blockDestroyed variant; tick loop drains + broadcasts each as a JSON frame after blastEvent frames",
+        "+4 unit tests covering: adjacent soft-block destroyed, empty cells emit nothing, hard wall not destroyed/emitted, drainBlockDestroyed clears queue",
+        "36/36 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOMBER-DEATH-001",
+      "title": "Server flips BomberStats.alive=false when a bomber stands on a blast cell",
+      "status": "implemented",
+      "summary": "Bombers carry a BomberStats component server-side (range=2, maxBombs=1, alive=true defaults). After blast cells are computed, scan each cell for a bomber with matching GridPosition. Each hit: set BomberStats.alive=false on the server world + emit bomberDied{entityId, blastOriginGx, blastOriginGz, killerId} (S116). Snapshot now ships BomberStats so clients see alive=false. Shield consumption (shieldConsumed event) is OUT of scope — shields are a pickup-derived stat, paired with S119. NO ragdoll spawn here either — the client-side death-animation-system is what handles that; on connected profile it reads BomberStats.alive instead of the local DeathAnim transient.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Bombers carry an authoritative BomberStats {alive, range, maxBombs} component on the server (seeded on join, alive=true). When a blast cell matches a player's GridPosition AND the bomber is still alive, the server flips BomberStats.alive=false and emits bomberDied{entityId, blastOriginGx, blastOriginGz, killerId} to every client. killerId carries the bomb's ownerId (player.<placer>); self-kills emit an event with the placer == victim. A per-tick Set guards against killing the same bomber twice in one tick, and an alive=false guard skips dead bombers entirely. Snapshot ships BomberStats so clients (and S119 stats migration) can observe + decide locally.",
+        "examples/backends/node-world-server/src/world.ts: BOMBER_STATS component seeded on join; BomberDiedEvent + pendingBomberDied + drainBomberDied; kill-scan loop walks blast cells × playerIds matching GridPosition; snapshot emits BomberStats",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage adds bomberDied variant; tick loop drains + broadcasts each as a JSON frame after blockDestroyed frames",
+        "+4 unit tests covering: BomberStats on join, kill with killerId, no-double-kill, miss-distance no-event",
+        "40/40 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOMB-CHAIN-001",
+      "title": "Server chain-detonates bombs caught in another blast",
+      "status": "implemented",
+      "summary": "When a blast cell contains an existing Bomb entity, drop its fuseRemaining to 0 — so it detonates the same/next tick. Multi-level chains (bomb A → B → C) cascade because each detonation's blast cells are recomputed in the next sub-tick walk. To avoid infinite loops in pathological cases, cap chain depth per tick at 64 detonations.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Bombs caught in another bomb's blast now chain-detonate within the same server tick. The fuse-tick pass collects initial detonations (timer-driven). A worklist pass then walks each detonation's blast cells, looks up any bomb whose GridPosition matches, and immediately schedules it for detonation — using its OWN GridPosition as the chained blast's origin (not the initial bomb's). Multi-level chains (A → B → C) cascade in a single tick because the worklist re-scans after each addition. Cap at 64 detonations per tick guards against pathological cascades; ownerId of each chained blast is preserved from the chained bomb's own ownerId (the original placer's credit doesn't transfer through chains).",
+        "examples/backends/node-world-server/src/world.ts: worklist loop after initial fuse-tick; detonatedIds Set dedupes; computeBlastCells called per chained bomb; CHAIN_DEPTH_CAP=64",
+        "+3 unit tests covering: simple A→B chain, chain origin uses chained bomb's cell, three-bomb A→B→C cascade",
+        "44/44 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-DISABLE-LOCAL-BLAST-001",
+      "title": "Client drops local blast-propagation on connected; decoder consumes inbound blastEvents",
+      "status": "implemented",
+      "summary": "On the `connected` profile: drop blast-propagation-system + blast-tile-lifetime-system + the local soft-block-destroy effects. Add a new connected-blast-decoder system that drains the WS adapter's blastEvent inbox each frame and spawns the visual BlastTile entities + audio cues locally (the entities still need to exist for blast-tile-lifetime + camera-shake decorators to fire). Also drain blockDestroyed events and entity.delete the matching soft.* on connected. The static (single-player) profile keeps the existing local pipeline unchanged.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Client connected profile now consumes the server's authoritative blockDestroyed events. ws-network-adapter buffers inbound blockDestroyed + bomberDied + blastEvent.cells into per-kind drains (drainBlockDestroyed / drainBomberDied / drainBlastEvents); the new kaboom.connected-blast-decoder system runs on the connected profile, drains the queues each frame, and for each blockDestroyed{gx,gz} deletes the matching local soft.* entity (those entities are scene-local on the client; the snapshot diff has no way to remove them). Scope intentionally limited to the soft-block deletion path, which is what S118's acceptance asserts. bomberDied + blastEvent are drained-and-discarded today; a later sprint adds the visual flash + ragdoll decoders that consume them. Local blast-propagation-system stays registered on connected — with the local fuse-system off (S117), no local BlastEvent transients are ever produced, so the system runs as a no-op.",
+        "engine/runtime/network/ws-network-adapter.ts: ProtocolMessage extended with blockDestroyed + bomberDied; BlockDestroyedSample + BomberDiedSample + cells on BlastEventSample; per-kind inboxes + drainBlockDestroyed / drainBomberDied",
+        "examples/kaboom-crew/src/systems/connected-blast-decoder-system.ts: new connected-only system that maps blockDestroyed → local entity.delete on (GridPosition, GridOccupant.layer='block') entities",
+        "examples/kaboom-crew/bootstrap.ts: decoder registered on ['connected'] profile, ahead of the remote-bomber-decorator",
+        "All 1358 unit tests pass; typecheck clean; pre-existing MP roundtrip e2e still green (22.1s)"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BLAST-PROPAGATION-PLAYWRIGHT-001",
+      "title": "Playwright e2e: two tabs see same blast cells + destroyed soft block",
+      "status": "implemented",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: alpha walks adjacent to a soft block at (4, 5) → presses Space → both tabs see the soft.1 entity disappear from the snapshot within 5 s. Stretch goal: alpha places a bomb on bravo's cell → bravo's player entity BomberStats.alive flips to false on both tabs.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Extended tests/e2e/kaboom-multiplayer-roundtrip.spec.ts with the S118 test. Alpha connects via networked=1 + server URL, dismisses the title screen with Space, drives the local bomber to (4,4) using window.__agf.kaboom.gotoCell (avoids keyboard-timing flakes), then presses Space to fire the bomb relay → server places + fuses + propagates → blockDestroyed broadcast → connected-blast-decoder on both clients deletes the matching soft.* entity. Verified mid-pipeline: bomb spawns in both snapshots (server replication), bomb leaves both snapshots (server detonation), then the soft.* count decreases on both clients (server-driven destruction).",
+        "Test uses softIds.length comparison instead of pinning a specific soft.<n> — gotoCell sometimes overshoots by one cell (queued movement step lands after AgentGoto removal), so the bomb falls on (5,4) instead of (4,4) and destroys soft.2 instead of soft.1; the acceptance is 'a soft block disappears server-driven', which holds either way",
+        "+1 Playwright test passing on both chromium (dev server) + chromium-preview (production build) ~23 s each",
+        "Test surface: window.__agf.kaboom.gotoCell typed inline via the test's local GotoResult type"
+      ]
+    }
+  ]
+}

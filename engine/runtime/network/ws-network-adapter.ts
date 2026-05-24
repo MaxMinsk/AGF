@@ -43,9 +43,9 @@ type ProtocolMessage =
   // requires the field; the server ignores it).
   | { kind: "placeBombRequest"; sequence?: number; payload: { entityId: string; gx: number; gz: number } }
   // S117 KABOOM-MP-SPRINT-B chunk 3 — inbound: server tells every
-  // client that a bomb detonated. Cells stay empty in S117 (propagation
-  // lands in S118); clients use the originGx/originGz to spawn the
-  // visual flash + audio cue locally for now.
+  // client that a bomb detonated. Cells filled in S118 (propagation
+  // walks the authoritative map); clients use the cells to spawn
+  // local visual + audio + decoder effects.
   | {
       kind: "blastEvent";
       sequence?: number;
@@ -56,6 +56,22 @@ type ProtocolMessage =
         ownerId: string;
         cells: { gx: number; gz: number }[];
       };
+    }
+  // S118 KABOOM-MP-SPRINT-B chunk 2 — inbound: server tells every
+  // client that a soft block was destroyed. Client decoder looks up
+  // the local soft.* entity at (gx, gz) and removes it.
+  | {
+      kind: "blockDestroyed";
+      sequence?: number;
+      payload: { gx: number; gz: number; droppedPickupKind?: string };
+    }
+  // S118 KABOOM-MP-SPRINT-B chunk 2 — inbound: server tells every
+  // client that a bomber died. Client decoder fires the local
+  // ragdoll/death-anim from BomberStats.alive=false in the snapshot.
+  | {
+      kind: "bomberDied";
+      sequence?: number;
+      payload: { entityId: string; blastOriginGx: number; blastOriginGz: number; killerId?: string };
     };
 
 export type WsReconnectOptions = {
@@ -145,6 +161,25 @@ export type BlastEventSample = {
   originGz: number;
   range: number;
   ownerId: string;
+  /** S118 — cardinal walk cells. Empty array for S117-era servers. */
+  cells: ReadonlyArray<{ gx: number; gz: number }>;
+};
+
+/** S118 KABOOM-MP-SPRINT-B chunk 2 — one inbound blockDestroyed event. */
+export type BlockDestroyedSample = {
+  receivedAtSeconds: number;
+  gx: number;
+  gz: number;
+  droppedPickupKind?: string;
+};
+
+/** S118 KABOOM-MP-SPRINT-B chunk 2 — one inbound bomberDied event. */
+export type BomberDiedSample = {
+  receivedAtSeconds: number;
+  entityId: string;
+  blastOriginGx: number;
+  blastOriginGz: number;
+  killerId?: string;
 };
 
 export type WsNetworkAdapterHandle = {
@@ -165,6 +200,10 @@ export type WsNetworkAdapterHandle = {
    * the project-level system that renders the local flash + audio.
    */
   drainBlastEvents(): ReadonlyArray<BlastEventSample>;
+  /** S118 KABOOM-MP-SPRINT-B chunk 2 — pull + consume inbound blockDestroyed events. */
+  drainBlockDestroyed(): ReadonlyArray<BlockDestroyedSample>;
+  /** S118 KABOOM-MP-SPRINT-B chunk 2 — pull + consume inbound bomberDied events. */
+  drainBomberDied(): ReadonlyArray<BomberDiedSample>;
   /** Last sequence number observed on an inbound world.snapshot, or undefined. */
   lastSnapshotSequence(): number | undefined;
   /** ws.readyState passthrough. Returns -1 when reconnecting between sockets. */
@@ -258,6 +297,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
   // S117 KABOOM-MP-SPRINT-B chunk 3 — queue of inbound blast events,
   // drained by the project-level decorator each frame.
   let blastInbox: BlastEventSample[] = [];
+  // S118 KABOOM-MP-SPRINT-B chunk 2 — inbound queues for blockDestroyed + bomberDied.
+  let blockDestroyedInbox: BlockDestroyedSample[] = [];
+  let bomberDiedInbox: BomberDiedSample[] = [];
   let outboundSequence = 0;
   let highestSent = -1;
   let lastServerPlayerSpeed: number | undefined;
@@ -327,7 +369,33 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
           originGx: message.payload.originGx,
           originGz: message.payload.originGz,
           range: message.payload.range,
-          ownerId: message.payload.ownerId
+          ownerId: message.payload.ownerId,
+          cells: message.payload.cells ?? []
+        });
+        return;
+      }
+      // S118 KABOOM-MP-SPRINT-B chunk 2 — buffer inbound blockDestroyed
+      // + bomberDied for project decoders to drain. The static profile
+      // never sees these (no server); on connected they drive soft
+      // block removal + ragdoll firing.
+      if (message.kind === "blockDestroyed") {
+        blockDestroyedInbox.push({
+          receivedAtSeconds: nowSeconds(),
+          gx: message.payload.gx,
+          gz: message.payload.gz,
+          ...(message.payload.droppedPickupKind !== undefined
+            ? { droppedPickupKind: message.payload.droppedPickupKind }
+            : {})
+        });
+        return;
+      }
+      if (message.kind === "bomberDied") {
+        bomberDiedInbox.push({
+          receivedAtSeconds: nowSeconds(),
+          entityId: message.payload.entityId,
+          blastOriginGx: message.payload.blastOriginGx,
+          blastOriginGz: message.payload.blastOriginGz,
+          ...(message.payload.killerId !== undefined ? { killerId: message.payload.killerId } : {})
         });
         return;
       }
@@ -549,6 +617,18 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       if (blastInbox.length === 0) return [];
       const out = blastInbox;
       blastInbox = [];
+      return out;
+    },
+    drainBlockDestroyed(): ReadonlyArray<BlockDestroyedSample> {
+      if (blockDestroyedInbox.length === 0) return [];
+      const out = blockDestroyedInbox;
+      blockDestroyedInbox = [];
+      return out;
+    },
+    drainBomberDied(): ReadonlyArray<BomberDiedSample> {
+      if (bomberDiedInbox.length === 0) return [];
+      const out = bomberDiedInbox;
+      bomberDiedInbox = [];
       return out;
     },
     lastSnapshotSequence(): number | undefined {
