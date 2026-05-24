@@ -15,6 +15,7 @@ import { PRIMITIVE_MESHES } from "../../core/primitives";
 import { summarizeDiagnostics } from "../../runtime/diagnostics/diagnostics-bus";
 import { checkProject, type Diagnostic } from "../check/project-check";
 import { summarizeProject, type ProjectSummary } from "../summarize/project-summarize";
+import { listRagdollTemplates } from "../../physics/ragdoll/template-registry";
 import {
   analyzeBatchCandidates,
   formatBatchCandidates,
@@ -270,6 +271,13 @@ export type BacklogReport = {
    * missing or empty.
    */
   rejectedInbox?: { total: number };
+  /**
+   * S126 KABOOM-RAGDOLL-MODULE: snapshot of registered ragdoll
+   * templates (via engine/physics/ragdoll/template-registry). Always
+   * present (even at 0) so the line acts as a 'module loaded' signal
+   * symmetric to the QA inbox / proposed-stories lines.
+   */
+  ragdollTemplates?: { count: number; names: ReadonlyArray<string> };
 };
 
 export type EpicsReport = {
@@ -2027,8 +2035,16 @@ export function summarizeBacklog(repoRoot: string): BacklogReport {
     recentCommits,
     ...(qaInbox !== undefined ? { qaInbox } : {}),
     ...(proposedInbox !== undefined ? { proposedInbox } : {}),
-    ...(rejectedInbox !== undefined ? { rejectedInbox } : {})
+    ...(rejectedInbox !== undefined ? { rejectedInbox } : {}),
+    // S126 — ragdoll template registry snapshot. Module-level state;
+    // populated by listRagdollTemplates() at the time doctor runs.
+    ragdollTemplates: collectRagdollTemplates()
   };
+}
+
+function collectRagdollTemplates(): { count: number; names: ReadonlyArray<string> } {
+  const names = listRagdollTemplates();
+  return { count: names.length, names };
 }
 
 function summarizeEpics(
@@ -2238,6 +2254,16 @@ export function formatBacklog(report: BacklogReport): string {
     if (report.proposedInbox.stalePending.length > 0) {
       lines.push(`    ⚠ ${report.proposedInbox.stalePending.length} proposal(s) older than 7 days — plan a sprint via \`npm run propose:promote\`.`);
     }
+  }
+
+  // S126 KABOOM-RAGDOLL-MODULE foundation — surface registered
+  // ragdoll templates. Always printed even at zero so the line acts
+  // as a "module is loaded" signal. Same flavour as the QA inbox /
+  // proposed-stories lines above.
+  if (report.ragdollTemplates !== undefined) {
+    const names = report.ragdollTemplates.names;
+    const preview = names.length > 0 ? ` (${names.slice(0, 5).join(", ")}${names.length > 5 ? ", ..." : ""})` : "";
+    lines.push(`  Ragdoll templates: ${report.ragdollTemplates.count}${preview}`);
   }
 
   // S80 BACKLOG-EPIC-DOCTOR — Epics section.

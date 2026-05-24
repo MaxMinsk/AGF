@@ -221,6 +221,24 @@
             "CharacterController3D": {
               "$ref": "components/physics-3d.schema.json#/definitions/characterController3DComponent"
             },
+            "RagdollSpawnRequest": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollSpawnRequest"
+            },
+            "RagdollTeardownRequest": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollTeardownRequest"
+            },
+            "RagdollState": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollState"
+            },
+            "RagdollBody": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollBody"
+            },
+            "RagdollJoint": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollJoint"
+            },
+            "RagdollActive": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollActive"
+            },
             "OrbitCamera": {
               "$ref": "components/camera.schema.json#/definitions/orbitCameraComponent"
             },
