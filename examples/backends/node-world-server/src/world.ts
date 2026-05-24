@@ -98,6 +98,14 @@ const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
 // identically-named `kaboom.round-state` entity (HUD scoreboard) isn't
 // shadowed by ws-adapter's id-collision rejection.
 const MP_ROUND_STATE_ENTITY: EntityId = "mp.round-state";
+// S125 — server-side match-state (best-of-N session) + the snapshot
+// surface id. kaboom.match-state singleton mirrors the client's local
+// MatchState; mp.match-state ships verbatim under a server-namespaced
+// id.
+const MATCH_STATE: ComponentName = "MatchState";
+const MATCH_STATE_ENTITY: EntityId = "kaboom.match-state";
+const MP_MATCH_STATE_ENTITY: EntityId = "mp.match-state";
+const DEFAULT_MATCH_TARGET = 3;
 const ROUND_RESOLVE_NEXT_ROUND_DELAY_S = 3.0;
 
 /** Kaboom pickup kinds — matches the protocol's pickupCollected enum. */
@@ -243,6 +251,12 @@ export type ServerWorldOptions = {
    * range. KABOOM_BOT_PERSONALITY env var overrides on production.
    */
   botPersonality?: BotPersonality;
+  /**
+   * S125 — best-of-N match target. The match resolves the first time
+   * either tally slot (player or bot) reaches this many round wins.
+   * Default 3 = best-of-5. KABOOM_MATCH_TARGET env var overrides.
+   */
+  matchTarget?: number;
 };
 
 export class ServerWorld {
@@ -297,6 +311,14 @@ export class ServerWorld {
       phase: "playing",
       tally: { player: 0, bot: 0, draws: 0 },
       roundNumber: 1
+    });
+    // S125 — seed MatchState singleton + record target for resolve.
+    const matchTarget = options.matchTarget ?? DEFAULT_MATCH_TARGET;
+    this.world.addEntity(MATCH_STATE_ENTITY);
+    this.world.setComponent(MATCH_STATE_ENTITY, MATCH_STATE, {
+      phase: "playing",
+      target: matchTarget,
+      matchNumber: 1
     });
     // S120 — spawn bot.1 as a server-owned bomber. Carries the same
     // shape as a player.<id> entity so the kill-scan, pickup-collect,
@@ -409,20 +431,29 @@ export class ServerWorld {
       } else {
         // S123 — find a steering target: hunter chase wins for hunter
         // when a human is in chase range; otherwise pickup magnet.
+        // S125 — pick the FIRST step on the BFS shortest path to the
+        // target instead of myopic manhattan. Falls back to manhattan
+        // when target is unreachable or BFS visit cap is hit.
         const steer = this.botSteeringTarget(gp.gx, gp.gz);
         if (steer !== undefined) {
-          let bestScore = Infinity;
-          let bestPick: Vec2 = choicePool[0]!;
-          for (const cand of choicePool) {
-            const nx = gp.gx + cand[0];
-            const nz = gp.gz + cand[1];
-            const score = Math.abs(nx - steer.gx) + Math.abs(nz - steer.gz);
-            if (score < bestScore) {
-              bestScore = score;
-              bestPick = cand;
+          const bfsDir = this.bfsFirstStepTo(gp.gx, gp.gz, steer.gx, steer.gz, dangerCells, choicePool);
+          if (bfsDir !== undefined) {
+            choice = bfsDir;
+          } else {
+            // Fallback to manhattan steering when no BFS path exists.
+            let bestScore = Infinity;
+            let bestPick: Vec2 = choicePool[0]!;
+            for (const cand of choicePool) {
+              const nx = gp.gx + cand[0];
+              const nz = gp.gz + cand[1];
+              const score = Math.abs(nx - steer.gx) + Math.abs(nz - steer.gz);
+              if (score < bestScore) {
+                bestScore = score;
+                bestPick = cand;
+              }
             }
+            choice = bestPick;
           }
-          choice = bestPick;
         } else {
           choice = choicePool[this.botRng.nextInt(0, choicePool.length)]!;
         }
@@ -532,6 +563,71 @@ export class ServerWorld {
       return true;
     }
     return false;
+  }
+
+  /**
+   * S125 — BFS the shortest path from (sx, sz) to (tx, tz). Returns
+   * the FIRST step (a direction in `choicePool`) on that path, or
+   * undefined when no path exists within the visit cap. Hard walls
+   * are impassable; danger cells stay walkable so a chase can route
+   * through a brief blast (the flee branch wouldn't have called this
+   * — the current cell is already safe by the time BFS runs).
+   *
+   * Visit cap 64 = 8x8 neighbourhood, plenty for the 15x11 arena.
+   */
+  private bfsFirstStepTo(
+    sx: number,
+    sz: number,
+    tx: number,
+    tz: number,
+    dangerCells: Set<string>,
+    choicePool: Vec2[]
+  ): Vec2 | undefined {
+    if (sx === tx && sz === tz) return undefined;
+    // Parent map keyed by cell — stores the direction taken to reach
+    // each cell from its predecessor (the very first step from start).
+    const startKey = `${sx},${sz}`;
+    const firstStep = new Map<string, Vec2>();
+    const visited = new Set<string>([startKey]);
+    type Node = { x: number; z: number; firstStep: Vec2 | undefined };
+    let frontier: Node[] = [{ x: sx, z: sz, firstStep: undefined }];
+    let visitCount = 0;
+    const VISIT_CAP = 64;
+    while (frontier.length > 0 && visitCount < VISIT_CAP) {
+      const next: Node[] = [];
+      for (const node of frontier) {
+        for (const cand of BOT_DIRECTIONS) {
+          const nx = node.x + cand[0];
+          const nz = node.z + cand[1];
+          const key = `${nx},${nz}`;
+          if (visited.has(key)) continue;
+          if (this.map.cellAt(nx, nz) === "hard-wall") continue;
+          // From the START cell, restrict the first step to choicePool
+          // (post-danger-filter). Beyond the first step, we allow any
+          // walkable cell — chase planning otherwise gets too short-
+          // sighted with dangerCells filtering.
+          const stepFromStart: Vec2 = node.firstStep ?? cand;
+          if (node === frontier[0] && frontier.length === 1 && node.x === sx && node.z === sz) {
+            const allowed = choicePool.some((c) => c[0] === cand[0] && c[1] === cand[1]);
+            if (!allowed) continue;
+          }
+          visited.add(key);
+          firstStep.set(key, stepFromStart);
+          if (nx === tx && nz === tz) return stepFromStart;
+          next.push({ x: nx, z: nz, firstStep: stepFromStart });
+          visitCount += 1;
+          if (visitCount >= VISIT_CAP) break;
+        }
+        if (visitCount >= VISIT_CAP) break;
+      }
+      frontier = next;
+    }
+    // Target unreachable within visit cap → return undefined and let
+    // the caller fall back to manhattan steering.
+    // Suppress unused-var on dangerCells (kept in signature for future
+    // BFS weighting; danger-aware planning is a follow-up).
+    void dangerCells;
+    return undefined;
   }
 
   /**
@@ -1112,7 +1208,35 @@ export class ServerWorld {
       tally,
       nextRoundAt: ROUND_RESOLVE_NEXT_ROUND_DELAY_S
     });
-    // S120 — schedule the auto-restart timer (default 3 s).
+    // S125 — match-resolve check. When either tally slot reaches
+    // MatchState.target the match flips to 'resolved' + records the
+    // winning side ('player' / 'bot' / 'draw'). Match-resolve takes
+    // precedence over round auto-restart: when phase === 'resolved'
+    // we skip the round-reset (game stays paused on the final round
+    // state until a fresh restart command — out of scope for S125).
+    const match = this.world.getComponent<{
+      phase?: "playing" | "resolved";
+      target?: number;
+      matchNumber?: number;
+      lastMatchWinner?: "player" | "bot" | "draw";
+    }>(MATCH_STATE_ENTITY, MATCH_STATE);
+    if (match !== undefined && match.phase === "playing") {
+      const target = match.target ?? DEFAULT_MATCH_TARGET;
+      let matchWinner: "player" | "bot" | "draw" | undefined;
+      if (tally.player >= target) matchWinner = "player";
+      else if (tally.bot >= target) matchWinner = "bot";
+      if (matchWinner !== undefined) {
+        this.world.setComponent(MATCH_STATE_ENTITY, MATCH_STATE, {
+          ...match,
+          phase: "resolved",
+          lastMatchWinner: matchWinner
+        });
+        // Match resolved → no auto-restart. Round-state.phase stays
+        // at the resolved value indefinitely; placeBomb stays gated.
+        return;
+      }
+    }
+    // S120 — round-only resolve: schedule auto-restart timer (3 s).
     this.resetCountdown = ROUND_RESOLVE_NEXT_ROUND_DELAY_S;
   }
 
@@ -1313,6 +1437,27 @@ export class ServerWorld {
       entities.push({
         id: MP_ROUND_STATE_ENTITY,
         components: { RoundState: out, Networked: { authority: "server" } }
+      });
+    }
+    // S125 — ship MatchState verbatim under mp.match-state so a new
+    // client picks up the match phase + target + last winner from the
+    // first snapshot.
+    const match = this.world.getComponent<{
+      phase?: string;
+      target?: number;
+      matchNumber?: number;
+      lastMatchWinner?: string;
+    }>(MATCH_STATE_ENTITY, MATCH_STATE);
+    if (match !== undefined) {
+      const out: Record<string, unknown> = {
+        phase: match.phase ?? "playing",
+        target: match.target ?? DEFAULT_MATCH_TARGET,
+        matchNumber: match.matchNumber ?? 1
+      };
+      if (match.lastMatchWinner !== undefined) out["lastMatchWinner"] = match.lastMatchWinner;
+      entities.push({
+        id: MP_MATCH_STATE_ENTITY,
+        components: { MatchState: out, Networked: { authority: "server" } }
       });
     }
     // S119 — pickup entities. Snapshot ships Pickup + GridPosition +

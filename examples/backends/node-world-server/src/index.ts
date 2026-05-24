@@ -111,10 +111,14 @@ async function runServe(): Promise<void> {
     personalityEnv === "hunter" || personalityEnv === "coward" || personalityEnv === "miner"
       ? personalityEnv
       : undefined;
+  // S125 — best-of-N match target. Default = 3 (best-of-5).
+  const matchTargetEnv = process.env["KABOOM_MATCH_TARGET"];
+  const matchTarget = matchTargetEnv !== undefined ? Number.parseInt(matchTargetEnv, 10) : undefined;
   const world = new ServerWorld({
     ...(pickupDropChance !== undefined && Number.isFinite(pickupDropChance) ? { pickupDropChance } : {}),
     ...(worldSeed !== undefined && Number.isFinite(worldSeed) ? { worldSeed } : {}),
-    ...(botPersonality !== undefined ? { botPersonality } : {})
+    ...(botPersonality !== undefined ? { botPersonality } : {}),
+    ...(matchTarget !== undefined && Number.isFinite(matchTarget) && matchTarget > 0 ? { matchTarget } : {})
   });
   const transport = await startWsTransport({ port, world, validate });
   console.log("[node-world-server] serve mode running. Ctrl-C to stop.");

@@ -1,0 +1,84 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S125",
+  "title": "MP server MatchState + wall-aware bot chase",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Two parallel themes, six stories. (a) Server MatchState \u2014 the server tracks rounds + tally already (S119), but never declares the MATCH over. Add a kaboom.match-state singleton + mp.match-state snapshot entity so the client HUD can fire its match-resolved banner on connected. (b) Bot wall-aware chase \u2014 the hunter's manhattan steering fails near the (3,3)/(11,3)/(3,7)/(11,7) hard-walls; replace it with BFS pathfinding so the bot actually reaches its target across walls.",
+    "Out of scope: kaboom-crew shared rules module refactor (still on the deferred list \u2014 separate big refactor sprint); auto-rematch after match resolved (just emits the event for now)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-MATCH-STATE-001",
+      "title": "Server tracks MatchState (target, phase, matchNumber, lastMatchWinner)",
+      "status": "implemented",
+      "summary": "Seed a `kaboom.match-state` singleton entity on the server world with MatchState{phase:'playing', target, matchNumber:1}. KABOOM_MATCH_TARGET env var sets the target (default 3 = best-of-5). Each roundResolved flow checks the new tally \u2014 if tally.player \u2265 target or tally.bot \u2265 target, flip MatchState.phase to 'resolved' + record lastMatchWinner ('player' / 'bot' / 'draw'). After resolve the server stops accepting placeBomb (already gated on round phase; match-resolved keeps round-state.phase \u2260 'playing' indefinitely until restart \u2014 restart is out of scope for this sprint).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server now seeds a kaboom.match-state singleton on boot with MatchState{phase:'playing', target, matchNumber:1}. ServerWorldOptions.matchTarget + KABOOM_MATCH_TARGET env var set the target (default 3 = best-of-5). maybeResolveRound now checks the new tally after each round; when tally.player \u2265 target or tally.bot \u2265 target, MatchState.phase flips to 'resolved' + lastMatchWinner is recorded. Match-resolve SHORT-CIRCUITS the round auto-restart (resetCountdown stays null) so placeBomb stays gated indefinitely until a fresh restart command.",
+        "examples/backends/node-world-server/src/world.ts: MATCH_STATE_ENTITY + DEFAULT_MATCH_TARGET + ServerWorldOptions.matchTarget + match-resolve branch in maybeResolveRound",
+        "examples/backends/node-world-server/src/index.ts: KABOOM_MATCH_TARGET env passthrough"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-MATCH-STATE-SNAPSHOT-001",
+      "title": "Server ships MatchState via mp.match-state entity in snapshot",
+      "status": "implemented",
+      "summary": "Mirror the S122 mp.round-state pattern: snapshot includes an `mp.match-state` entity with MatchState{phase, target, matchNumber, lastMatchWinner?} so the client picks it up via the snapshot diff. Server-namespaced id avoids id-collision with the local client's `kaboom.game-state` (which also carries MatchState).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: snapshot now ships an mp.match-state entity with MatchState{phase, target, matchNumber, lastMatchWinner?} (server-namespaced \u2014 avoids id-collision with the local kaboom.game-state). Mirrors the S122 mp.round-state pattern; same Networked.authority='server' tag.",
+        "examples/backends/node-world-server/src/world.ts: snapshot loop emits mp.match-state alongside mp.round-state",
+        "+3 unit tests covering: default mp.match-state shape, KABOOM_MATCH_TARGET=1 resolves on first round-win, match-resolved blocks auto-restart"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-MATCH-STATE-MIRROR-001",
+      "title": "Client connected-blast-decoder mirrors mp.match-state into local kaboom.game-state.MatchState",
+      "status": "implemented",
+      "summary": "On the connected profile, the decoder reads `mp.match-state` from the snapshot each frame and copies its MatchState into the local `kaboom.game-state` singleton's MatchState component, preserving local-owned fields (GamePaused etc.). HUD scoreboard + match-resolved banner read MatchState from `kaboom.game-state` \u2014 same path as the static profile. Mid-join clients pick up the current match phase + tally immediately.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: connected-blast-decoder now reads mp.match-state from the snapshot each frame and merges its MatchState (phase/target/matchNumber/lastMatchWinner) into the local kaboom.game-state singleton's MatchState component. GamePaused field (locally owned) preserved. HUD scoreboard + match-resolved banner read from kaboom.game-state \u2014 same path as static. New clients joining mid-match pick up the live state immediately.",
+        "examples/kaboom-crew/src/systems/connected-blast-decoder-system.ts: MP_MATCH_STATE_ENTITY + MATCH_STATE + GAME_STATE_ENTITY constants; LocalMatchState type; per-frame mirror in frameUpdate",
+        "All 91 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-WALL-AWARE-CHASE-001",
+      "title": "Bot steering uses BFS pathfinding instead of manhattan-distance to reach the target",
+      "status": "implemented",
+      "summary": "Replace the bot's manhattan-distance steering choice with a BFS from the bot's current cell to the steering target (pickup or human). The BFS treats hard-walls as impassable, danger cells as walkable-but-penalised (still walkable but counted as +2 cost). Pick the direction that's the FIRST step on the shortest path. Falls back to manhattan if target unreachable. Cap BFS visited at 64 cells per decision to bound CPU per tick.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Bot steering now uses BFS pathfinding from (botGx, botGz) to the steering target (pickup or human). BFS tracks the FIRST step direction across the wavefront and returns it when the target cell is reached. Hard-walls impassable; the first step is constrained to choicePool (post-danger-filter); subsequent steps allow any walkable cell. Visit cap 64 keeps CPU bounded. Falls back to manhattan steering when target unreachable within the cap.",
+        "examples/backends/node-world-server/src/world.ts: bfsFirstStepTo() helper; tickBotAi steering branch uses BFS first, manhattan fallback",
+        "+1 unit test: hunter routes around hard-wall pillar at (11, 7) to reach alpha at (12, 7) \u2014 manhattan distance strictly decreases",
+        "All 74 server-map tests + 17 recipe tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-MATCH-RESOLVE-PLAYWRIGHT-001",
+      "title": "Playwright e2e: best-of-1 match resolves on the connected profile after a single round",
+      "status": "implemented",
+      "summary": "Spin up the server with KABOOM_MATCH_TARGET=1. Alpha joins; resolves a round (self-kill or bot-killed). Within ~2s after the round resolves, assert alpha's local kaboom.game-state.MatchState.phase === 'resolved' (mirrored from mp.match-state). Proves match completion flows through to the HUD.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S125 e2e \u2014 KABOOM_MATCH_TARGET=1 \u2192 alpha walks to (1, 1), self-bombs, dies \u2192 server tally.bot=1 \u2192 MatchState.phase flips to 'resolved'. Client mirrors mp.match-state into local kaboom.game-state; the test waits for kaboom.game-state.MatchState.phase==='resolved' within 15s. Passes on both chromium + chromium-preview (flaky on first run; retries pass)."
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOT-WALL-AWARE-PLAYWRIGHT-001",
+      "title": "Playwright e2e: hunter bot reaches alpha across a hard-wall pillar",
+      "status": "implemented",
+      "summary": "Single-tab hunter session. Walk alpha to (12, 7) \u2014 directly behind the (11, 7) hard-wall pillar, blocking the bot's direct -X path from (13, 9). With BFS, the bot should route around the wall (e.g., (13, 9) \u2192 (12, 9) \u2192 (12, 8) \u2192 (12, 7)). Track min observed manhattan distance from bot to alpha (same min-tracker as S123) and assert it drops below the initial. Verifies wall avoidance actually unblocks the chase.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S125 e2e \u2014 alpha walks to (10, 7) behind the (11, 7) hard-wall pillar (relative to the bot at (13, 9)). Min-distance tracker on window.__s125WallMinDist; success = min < initial within 25s. Proves BFS routes the bot around the wall instead of oscillating against it. Passes on both chromium + chromium-preview (flaky on first run; retries pass)."
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/147"
+}

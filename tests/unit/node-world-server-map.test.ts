@@ -675,6 +675,38 @@ describe("ServerWorld bot spawn (S120)", () => {
   });
 });
 
+describe("ServerWorld bot wall-aware chase (S125)", () => {
+  it("S125 — hunter routes around a hard-wall pillar to reach alpha", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 13, botPersonality: "hunter" });
+    world.join("alice");
+    // Move alice to (12, 7) — behind the (11, 7) hard-wall pillar
+    // relative to the bot at (13, 9). Manhattan steering would
+    // oscillate near the wall; BFS routes around it.
+    world.setIntent("alice", [1, 0], 0);
+    for (let i = 0; i < 250; i += 1) world.tick(0.016);
+    world.setIntent("alice", [0, 1], 1);
+    for (let i = 0; i < 250; i += 1) world.tick(0.016);
+    world.setIntent("alice", [-1, 0], 2);
+    for (let i = 0; i < 60; i += 1) world.tick(0.016);
+    world.setIntent("alice", [0, 0], 3);
+    // Capture alice + bot cells.
+    const snapBefore = world.snapshot();
+    const aliceGp = snapBefore.entities.find((e) => e.id === "player.alice")!.components["GridPosition"] as { gx: number; gz: number };
+    const botGpBefore = snapBefore.entities.find((e) => e.id === "bot.1")!.components["GridPosition"] as { gx: number; gz: number };
+    const distBefore = Math.abs(aliceGp.gx - botGpBefore.gx) + Math.abs(aliceGp.gz - botGpBefore.gz);
+    // Let the hunter chase for 3 seconds.
+    let minDist = distBefore;
+    for (let i = 0; i < 60; i += 1) {
+      world.tick(0.05);
+      const bot = world.snapshot().entities.find((e) => e.id === "bot.1")!.components["GridPosition"] as { gx: number; gz: number };
+      const ag = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["GridPosition"] as { gx: number; gz: number };
+      minDist = Math.min(minDist, Math.abs(bot.gx - ag.gx) + Math.abs(bot.gz - ag.gz));
+    }
+    // Bot should have approached alice at some point.
+    expect(minDist).toBeLessThan(distBefore);
+  });
+});
+
 describe("ServerWorld bot steering (S123)", () => {
   it("S123 — bot biases toward the nearest pickup within radius (miner)", () => {
     const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 99 });
@@ -901,6 +933,54 @@ describe("ServerWorld bot AI (S120)", () => {
     // Bot still dead (countdown not elapsed yet) — should not have moved.
     const posPostTick = (world.snapshot().entities.find((e) => e.id === "bot.1")!.components["Transform"] as { position: number[] }).position;
     expect(posPostTick).toEqual(posPreTick);
+  });
+});
+
+describe("ServerWorld match state (S125)", () => {
+  it("snapshot ships mp.match-state with default target 3 on a fresh world", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    const snap = world.snapshot();
+    const mp = snap.entities.find((e) => e.id === "mp.match-state");
+    expect(mp).toBeDefined();
+    const ms = mp!.components["MatchState"] as { phase: string; target: number; matchNumber: number };
+    expect(ms.phase).toBe("playing");
+    expect(ms.target).toBe(3);
+    expect(ms.matchNumber).toBe(1);
+  });
+
+  it("KABOOM_MATCH_TARGET=1 makes a single round-win resolve the match", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false, matchTarget: 1 });
+    world.join("alice");
+    world.join("bravo");
+    // Self-blast at (0, 0) — both die → tally.draws=1 (still 0 player + 0 bot).
+    // For a CLEAN match resolve, set up so only one side wins. Move bravo away.
+    world.setIntent("bravo", [1, 0], 0);
+    for (let i = 0; i < 90; i += 1) world.tick(0.016);
+    world.setIntent("bravo", [0, 0], 1);
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    world.drainRoundResolved();
+    // Bravo (second joiner, 'bot' slot) won the round → tally.bot=1 ≥ target=1 → match resolved.
+    const mp = world.snapshot().entities.find((e) => e.id === "mp.match-state")!;
+    const ms = mp.components["MatchState"] as { phase: string; lastMatchWinner: string };
+    expect(ms.phase).toBe("resolved");
+    expect(ms.lastMatchWinner).toBe("bot");
+  });
+
+  it("match-resolved blocks auto-restart (round-state.phase stays non-playing)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false, matchTarget: 1 });
+    world.join("alice");
+    world.join("bravo");
+    world.setIntent("bravo", [1, 0], 0);
+    for (let i = 0; i < 90; i += 1) world.tick(0.016);
+    world.setIntent("bravo", [0, 0], 1);
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    world.drainRoundResolved();
+    // Tick past the would-be reset countdown. Match resolved → no reset.
+    world.tick(3.5);
+    // alice can't bomb (round-state still non-playing).
+    expect(world.placeBomb("alice", 5, 5)).toBeUndefined();
   });
 });
 
