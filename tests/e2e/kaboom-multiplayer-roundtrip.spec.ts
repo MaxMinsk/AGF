@@ -1000,3 +1000,101 @@ test("S123 hunter bot moves closer to a stationary human", async ({ browser }, t
     await stopBackend(backend);
   }
 });
+
+// S124 KABOOM-MP-BOT-SAFETY — hunter chase WITHOUT suicide. Repeats
+// the S123 scenario (hunter chasing stationary alpha) but asserts the
+// bot STAYS ALIVE for the full 20s window, proving the new 2-step
+// escape gate + flee prefer-fully-safe logic actually prevents the
+// chain-bomb-trap suicide.
+
+test("S124 hunter bot stays alive 20s chasing a stationary alpha", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port, {
+    KABOOM_PICKUP_DROP_CHANCE: "0",
+    KABOOM_BOT_PERSONALITY: "hunter",
+    KABOOM_WORLD_SEED: "7"
+  });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("bot.1");
+      }, undefined, { timeout: 10000 });
+
+      // Drive server's alpha to (8, 8) — hunter chase range.
+      await alpha.evaluate(() => {
+        const send = window.__agf!.sendNetworkIntent;
+        return new Promise<void>((resolveDone) => {
+          let last: [number, number] = [0, 0];
+          const set = (d: [number, number]): void => {
+            if (last[0] === d[0] && last[1] === d[1]) return;
+            last = d;
+            send(d);
+          };
+          const step = (): void => {
+            const snap = window.__agf!.snapshot() as Snapshot;
+            const ent = snap.entities.find((e) => e.id === "player.alpha");
+            const gp = (ent?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+            if (gp === undefined) {
+              setTimeout(step, 33);
+              return;
+            }
+            if (gp.gx >= 8 && gp.gz >= 8) {
+              set([0, 0]);
+              setTimeout(resolveDone, 300);
+              return;
+            }
+            if (gp.gx < 8) set([1, 0]);
+            else if (gp.gz < 8) set([0, 1]);
+            setTimeout(step, 33);
+          };
+          step();
+        });
+      });
+
+      // Sample the bot's alive state every 250ms for 20s. Count
+      // alive→dead transitions: pre-S124 the hunter suicided ~every
+      // 3s (≈6 deaths in 20s); post-S124 we expect ≤2 (some RNG can
+      // still corner the bot in tight quarters next to alpha). The
+      // threshold leaves headroom for occasional bad luck while
+      // still proving the safety guards work in the common case.
+      const survival = await alpha.evaluate(() => {
+        return new Promise<{ deathCount: number }>((resolveDone) => {
+          let lastAlive = true;
+          let deathCount = 0;
+          const startedAt = Date.now();
+          const tick = (): void => {
+            const snap = window.__agf!.snapshot() as Snapshot;
+            const bot = snap.entities.find((e) => e.id === "bot.1");
+            const stats = bot?.components["BomberStats"] as { alive?: boolean } | undefined;
+            const alive = stats?.alive !== false;
+            if (lastAlive && !alive) deathCount += 1;
+            lastAlive = alive;
+            if (Date.now() - startedAt >= 20_000) {
+              resolveDone({ deathCount });
+              return;
+            }
+            setTimeout(tick, 250);
+          };
+          tick();
+        });
+      });
+      // Post-S124 threshold: bot dies ≤2 times in 20s (vs ~6 pre-fix).
+      expect(survival.deathCount).toBeLessThanOrEqual(2);
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});

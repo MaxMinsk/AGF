@@ -380,9 +380,23 @@ export class ServerWorld {
     let choice: Vec2 | undefined;
     if (choicePool.length > 0) {
       if (dangerCells.has(`${gp.gx},${gp.gz}`)) {
-        let bestScore = -Infinity;
-        let bestPick: Vec2 = choicePool[0]!;
+        // S124 — flee logic prefers candidates OUTSIDE every active
+        // blast walk over candidates that merely maximise manhattan
+        // distance to a bomb origin. A bot 1 cell away from a range=2
+        // bomb is still inside the blast — moving to that cell doesn't
+        // save the bot. If at least one candidate exits dangerCells,
+        // restrict the choice pool to those; otherwise fall back to
+        // the old max-manhattan tiebreak.
+        const fullySafe: Vec2[] = [];
         for (const cand of choicePool) {
+          const nx = gp.gx + cand[0];
+          const nz = gp.gz + cand[1];
+          if (!dangerCells.has(`${nx},${nz}`)) fullySafe.push(cand);
+        }
+        const fleePool = fullySafe.length > 0 ? fullySafe : choicePool;
+        let bestScore = -Infinity;
+        let bestPick: Vec2 = fleePool[0]!;
+        for (const cand of fleePool) {
           const nx = gp.gx + cand[0];
           const nz = gp.gz + cand[1];
           const score = this.minManhattanFromActiveBombs(nx, nz);
@@ -421,13 +435,55 @@ export class ServerWorld {
 
     // S120/S121/S122 — bot bomb decision branches on personality. All
     // variants share: never bomb when the current cell is already
-    // inside a bomb's blast (would self-detonate immediately).
+    // inside a bomb's blast (S121 no-compound-bomb guard).
+    // S124 — additionally: don't bomb when the simulated bomb would
+    // leave no ≤2-step escape (multi-step trap prevention).
     if (!dangerCells.has(`${gp.gx},${gp.gz}`)) {
       const chance = this.botBombChance(gp.gx, gp.gz, dangerCells);
       if (chance > 0 && this.botRng.next() < chance) {
-        this.placeBombForEntity(BOT_ENTITY_ID, gp.gx, gp.gz);
+        if (this.botHasTwoStepEscape(gp.gx, gp.gz, dangerCells)) {
+          this.placeBombForEntity(BOT_ENTITY_ID, gp.gx, gp.gz);
+        }
       }
     }
+  }
+
+  /**
+   * S124 — would-placing-this-bomb leave the bot trapped? Simulates a
+   * bomb at (gx, gz) on top of the current dangerCells map, then BFSes
+   * the bot's cardinal neighbourhood up to 2 moves looking for a cell
+   * outside the simulated dangerCells (and not a hard-wall, not OOB).
+   * Returns true when ≥1 such escape cell exists.
+   */
+  private botHasTwoStepEscape(gx: number, gz: number, dangerCells: Set<string>): boolean {
+    const stats = this.world.getComponent<{ range?: number }>(BOT_ENTITY_ID, BOMBER_STATS);
+    const simRange = stats?.range ?? DEFAULT_BOMB_RANGE;
+    const sim = new Set(dangerCells);
+    for (const cell of computeBlastCells(this.map, gx, gz, simRange)) {
+      sim.add(`${cell.gx},${cell.gz}`);
+    }
+    // BFS up to depth 2. Origin is in sim so it never qualifies; we
+    // need ANY reachable cell within 2 steps that is OUT of sim.
+    const visited = new Set<string>([`${gx},${gz}`]);
+    let frontier: Array<{ x: number; z: number; depth: number }> = [{ x: gx, z: gz, depth: 0 }];
+    while (frontier.length > 0) {
+      const next: typeof frontier = [];
+      for (const node of frontier) {
+        if (node.depth >= 2) continue;
+        for (const [dx, dz] of BOT_DIRECTIONS) {
+          const nx = node.x + dx;
+          const nz = node.z + dz;
+          const key = `${nx},${nz}`;
+          if (visited.has(key)) continue;
+          if (this.map.cellAt(nx, nz) === "hard-wall") continue;
+          if (!sim.has(key)) return true;
+          visited.add(key);
+          next.push({ x: nx, z: nz, depth: node.depth + 1 });
+        }
+      }
+      frontier = next;
+    }
+    return false;
   }
 
   /**

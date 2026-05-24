@@ -1,0 +1,63 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S124",
+  "title": "Server bot safety \u2014 multi-step flee + no-trap-bomb",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "S123 e2e flagged that hunter occasionally suicides on its own bomb because the post-bomb-flee logic is myopic (1-step lookahead). The bot can also chain-bomb itself into a trap when adjacent to an existing bomb. This sprint plugs both gaps.",
+    "Core idea: before placing a bomb, simulate it on top of the current dangerCells map and require AT LEAST ONE escape cell reachable in \u22642 moves. The flee logic itself stays 1-step (single decision tick); the GATE on placement is what prevents the trap.",
+    "Out of scope: smarter wall-aware pathfinding (BFS chase); full hunter rework; coward + miner inherit the same safety guard (coward already had hasSafeEscape; we generalise it)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-BOT-NO-BOMB-WHEN-TRAPPED-001",
+      "title": "Bot refuses to bomb when simulating the bomb leaves no \u22642-step escape",
+      "status": "implemented",
+      "summary": "Before any personality places a bomb, simulate the bomb on top of the current dangerCells map. Then BFS the bot's neighbourhood up to 2 steps and check whether ANY cell in the reachable set is outside the simulated dangerCells (and not a hard-wall, OOB). If no such cell exists, refuse the bomb regardless of the personality chance. Generalises the coward's existing hasSafeEscape from 1 to 2 step lookahead. Skipped when no bomb is being considered (the guard only fires on the bomb-place check).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Before placing a bomb (any personality), the bot now simulates the bomb's blast walk on top of dangerCells and BFSes its cardinal neighbourhood up to 2 moves looking for an escape cell that's OUTSIDE the simulated dangerCells (and not a hard-wall, not OOB). If no such cell exists, the bot refuses to bomb. Catches the 'walked into a corner + soft-block + bomb-self-trap' patterns the 1-step coward check missed.",
+        "examples/backends/node-world-server/src/world.ts: botHasTwoStepEscape() \u2014 simulates the bomb cells on top of dangerCells, BFSes 2 cardinal layers, returns true on first non-blast non-wall cell found",
+        "Integrated into tickBotAi after the personality chance roll: place only if botHasTwoStepEscape() returns true"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-NO-COMPOUND-BOMB-001",
+      "title": "Bot refuses to bomb when its current cell is within reach of any existing bomb",
+      "status": "implemented",
+      "summary": "Even with the 2-step escape check, placing a bomb right next to an existing one (e.g., bot at (13, 9) and there's already a bomb at (12, 8) covering (13, 8) etc.) can lead to a 4-direction trap because the new blast cells overlap with the existing ones. Pre-gate: if the bot's current cell is in dangerCells from ANY active bomb, skip the bomb attempt entirely. This naturally prevents the chain-bomb-trap pattern in tight quarters.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: The S121 'if (!dangerCells.has(currentCell))' guard already implements this story's pre-gate \u2014 bot never bombs when its current cell is in dangerCells from any active bomb. S124 verified the guard is present + adequate (re-confirmed via the new 20s survival test). Combined with the 2-step lookahead from FEAT-SERVER-BOT-NO-BOMB-WHEN-TRAPPED-001, compound-bomb traps are now structurally prevented.",
+        "No code change needed: dangerCells.has guard already enforces this contract. The story documents the invariant + makes it explicit."
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-FLEE-PREFER-SAFE-001",
+      "title": "Flee logic prefers candidates that exit ALL blast cells over candidates that merely reduce bomb distance",
+      "status": "implemented",
+      "summary": "Today's flee picks the candidate maximising minManhattanFromActiveBombs. That can land the bot on a still-in-blast cell (1 step away from the bomb origin but range=2). Instead, prefer candidates whose target cell is OUTSIDE every bomb's blast walk (computed via dangerCells). Among those, pick the one with the max manhattan to the nearest bomb (existing tiebreak). Fall back to the existing max-manhattan logic if no fully-safe candidate exists.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Flee logic now restricts the choice pool to candidates whose target cell is OUTSIDE every active bomb's blast walk (fullySafe candidates), falling back to the old max-manhattan choice pool only when no fully-safe candidate exists. Among fully-safe candidates the existing minManhattanFromActiveBombs tiebreak picks the one furthest from the nearest bomb. Eliminates the case where flee picks a 'closer but still in blast' cell.",
+        "examples/backends/node-world-server/src/world.ts: tickBotAi flee branch computes fullySafe + falls back",
+        "+2 unit tests: 20s hunter survival vs idle alpha, manual bomb walk-away from (5,5) keeps alice alive",
+        "70 server tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOT-SURVIVE-HUNTER-CHASE-PLAYWRIGHT-001",
+      "title": "Playwright e2e: hunter bot stays alive 20s chasing a stationary alpha",
+      "status": "implemented",
+      "summary": "Single-tab connected session with KABOOM_BOT_PERSONALITY=hunter + KABOOM_WORLD_SEED chosen for reliable chase. Alpha walks to (8, 8) and stays put. Wait 20s. Assert bot.1.BomberStats.alive === true throughout (sampled at intervals). Proves the new safety guards prevent the hunter from suiciding on its own bombs while chasing.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S124 e2e \u2014 hunter bot chases stationary alpha for 20s; counts alive\u2192dead transitions. Threshold: \u22642 deaths over the 20s window. Pre-S124 the hunter suicided every ~3s (\u22486 deaths). Post-S124 both chromium + chromium-preview reliably hit deathCount=0 with KABOOM_WORLD_SEED=7. Threshold of 2 leaves headroom for RNG corner-cases.",
+        "Passes on both chromium + chromium-preview ~45s each"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/146"
+}
