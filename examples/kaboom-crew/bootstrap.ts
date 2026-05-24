@@ -436,7 +436,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // HitRecoilRequest transient blast-propagation just wrote is consumed
     // in the same fixedUpdate (one-shot, no carry-over).
     scheduler.register(createKaboomHitRecoilSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
+    // S121 — connected-blast-decoder now spawns BlastTile entities
+    // from server's blastEvent.cells; this system decays them.
+    scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static", "connected"] });
     // S98 KABOOM-BLAST-DANGER-DECAL — reverted in S99 per user
     // feedback (design choice rejected in principle; see
     // feedback-no-blast-prediction-decal memory).

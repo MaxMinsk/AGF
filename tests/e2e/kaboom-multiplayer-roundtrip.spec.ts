@@ -598,3 +598,111 @@ test("S120 single-tab connected session sees a moving + bombing server bot", asy
     await stopBackend(backend);
   }
 });
+
+// S121 KABOOM-MP-CONNECTED-POLISH — verify that the connected-blast-
+// decoder spawns local BlastTile entities when the server broadcasts
+// a blastEvent. Asserts both alpha (placer) and bravo (peer) see the
+// tiles.
+
+test("S121 server bomb triggers BlastTile spawn on both connected tabs", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port, { KABOOM_PICKUP_DROP_CHANCE: "0" });
+  try {
+    const alphaContext = await browser.newContext();
+    const bravoContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    const bravo = await bravoContext.newPage();
+    try {
+      const url = (playerId: string): string =>
+        `/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=${playerId}`;
+      await alpha.goto(url("alpha"));
+      await bravo.goto(url("bravo"));
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      await bravo.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      const bothPlayersPresent = (target: { selfId: string; peerId: string }): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes(target.selfId) && ids.includes(target.peerId);
+      };
+      await alpha.waitForFunction(bothPlayersPresent, { selfId: "player.alpha", peerId: "player.bravo" }, { timeout: 10000 });
+      await bravo.waitForFunction(bothPlayersPresent, { selfId: "player.bravo", peerId: "player.alpha" }, { timeout: 10000 });
+
+      // Dismiss title + walk alpha to (4, 3) via gotoCell, then bomb.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+      await alpha.waitForTimeout(200);
+      type GotoResult = { reached: boolean };
+      await alpha.evaluate(async () => {
+        const k = (window.__agf as { kaboom?: { gotoCell?: (id: string, gx: number, gz: number) => Promise<GotoResult> } }).kaboom;
+        if (k?.gotoCell === undefined) throw new Error("agf.kaboom.gotoCell unavailable");
+        await k.gotoCell("player.1", 4, 3);
+      });
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+
+      // Wait until BlastTile entities appear on BOTH tabs after the bomb's
+      // fuse expires + server broadcasts blastEvent.
+      const sawBlastTile = (): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.some((id) => id.includes("blast-tile") || id.startsWith("connected-blast-tile."));
+      };
+      await alpha.waitForFunction(sawBlastTile, undefined, { timeout: 10000 });
+      await bravo.waitForFunction(sawBlastTile, undefined, { timeout: 10000 });
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+      await bravoContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});
+
+// S121 — bot AI survives ≥10 s in a single-tab session without human
+// input. Proves danger-avoid + post-bomb-flee logic actually works.
+
+test("S121 server bot survives 10s round with no human input", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port, { KABOOM_PICKUP_DROP_CHANCE: "0", KABOOM_WORLD_SEED: "7" });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      // Wait for bot.1.
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("bot.1");
+      }, undefined, { timeout: 10000 });
+
+      // Idle wait — alpha does nothing.
+      await alpha.waitForTimeout(10_000);
+
+      // Bot should still be alive.
+      const botAlive = await alpha.evaluate(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const bot = snap.entities.find((e) => e.id === "bot.1");
+        const stats = bot?.components["BomberStats"] as { alive?: boolean } | undefined;
+        return stats?.alive === true;
+      });
+      expect(botAlive).toBe(true);
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});

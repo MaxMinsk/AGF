@@ -1,0 +1,106 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S121",
+  "title": "MP-connected polish \u2014 blast VFX, audio re-wire, bot survival smarts",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Sprint B (S117-S120) shipped server-authoritative kaboom-crew but the connected profile lost visual + audio fidelity that the static profile still has: no on-screen flash when a bomb detonates, no audio sting when a bomber dies (driven by snapshot diff still works), no audio sting when the BLAST itself fires (used to read a local BlastEvent transient that's now gone). Plus the server bot AI is so naive it suicides every few seconds.",
+    "Scope: re-wire the connected-blast-decoder to (1) spawn local BlastTile entities from server's blastEvent.cells, (2) write a transient BlastEvent component for the existing audio-binding + camera-shake systems to observe. Then make the server bot smart enough to NOT walk into its own bombs and TO prefer bombing soft-blocks.",
+    "Out of scope: mid-session RoundState catch-up (newly-joined clients still see tally:{0,0,0}); server-side speed-up authority; full personality variants (hunter/coward/miner) on server."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-CLIENT-CONNECTED-BLAST-VFX-001",
+      "title": "connected-blast-decoder spawns local BlastTile entities from blastEvent.cells",
+      "status": "implemented",
+      "summary": "For each inbound blastEvent the server sends (cells = full cardinal walk, S118), the connected-blast-decoder spawns a BlastTile entity at each cell with the same visual surface the local blast-propagation spawns on the static profile: MeshRenderer (box, #ff9c42) + Transform + GridPosition + GridOccupant{layer:'blast'} + BlastTile{lifetimeRemaining, ownerId} + a co-spawned 'spark' ParticleEmitter. blast-tile-lifetime-system already runs on the static path; we narrow it back to ['static','connected'] so it consumes the entities and removes them after the short lifetime. Camera-shake decorator still needs a BlastEvent transient (next story).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: connected-blast-decoder-system now spawns local BlastTile entities at each cell of every server blastEvent. Shape matches the static blast-propagation spawn: Transform([gx,0.1,gz], scale [0.9,0.05,0.9]) + MeshRenderer(box, #ff9c42) + GridPosition + GridOccupant{layer:'blast'} + BlastTile{lifetimeRemaining: 0.35, ownerId}. Co-spawned 'spark' ParticleEmitter (rate 30, max 12 particles, 0.4s lifetime) gives the visual sizzle. Multiple bombs in the same tick get distinct ids via a per-decoder counter.",
+        "examples/kaboom-crew/src/systems/connected-blast-decoder-system.ts: blastTileCounter + BlastTile spawn loop in the blastEvents drain branch",
+        "Typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-CONNECTED-BLAST-EVENT-TRANSIENT-001",
+      "title": "connected-blast-decoder writes a transient BlastEvent component per inbound event",
+      "status": "implemented",
+      "summary": "Server's blastEvent broadcast lands in the ws-adapter inbox. Connected-blast-decoder drains it AND spawns a one-frame event entity carrying the BlastEvent component (origin, range, ownerId). This is the same shape the local fuse-system used to emit before S117 dropped it on connected. audio-binding-system + camera-shake-system both already query BlastEvent transients and fire their SFX/shake \u2014 they pick up the network-driven events with NO further changes. Event entity is auto-cleaned by the existing transient handling (next frame's audio-binding observes it once; camera-shake reads it; one of them is responsible for removing it OR we add an explicit cleanup pass in the decoder).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: connected-blast-decoder also writes a transient BlastEvent component on a fresh event entity per inbound blastEvent. audio-binding-system + camera-shake-system observe these transients via their existing [BlastEvent] queries \u2014 no further changes needed. Transients are queued for cleanup at the top of the NEXT frameUpdate so observers see them exactly once.",
+        "examples/kaboom-crew/src/systems/connected-blast-decoder-system.ts: BLAST_EVENT component constant + pendingEventCleanup queue + cleanup pass at the top of frameUpdate",
+        "Typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-CONNECTED-BLAST-TILE-LIFETIME-RESTORE-001",
+      "title": "blast-tile-lifetime-system re-enabled on connected; camera-shake stays",
+      "status": "implemented",
+      "summary": "S120 narrowed blast-tile-lifetime-system to ['static']. With the connected-blast-decoder now spawning BlastTile entities (FEAT-CLIENT-CONNECTED-BLAST-VFX-001) the lifetime system needs to run on connected too so the tiles decay + get removed cleanly. Narrow it back to ['static', 'connected']. camera-shake-system stays on both (already does).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: blast-tile-lifetime-system profile widened back to ['static', 'connected']. With the connected-blast-decoder spawning BlastTile entities, the lifetime system runs on connected to decay + remove them cleanly. Without this the tiles would accumulate (never cleaned by snapshot diff since they're client-local).",
+        "examples/kaboom-crew/bootstrap.ts: blast-tile-lifetime-system profiles restored to both"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-AI-DANGER-AVOID-001",
+      "title": "Server bot avoids cells inside any bomb's blast range",
+      "status": "implemented",
+      "summary": "Extend the server bot AI decision tick: when picking a direction, also reject candidates that step into a cell currently within range of an existing bomb (origin OR origin+kdir within the bomb's range, stopping at hard-walls like the blast walk). If every direction is dangerous, fall back to ANY valid direction (bot tries to flee). Computed cheaply each decision (~few bombs at once \u00d7 4 directions \u00d7 range \u2264 2).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Bot AI now filters direction candidates through a per-decision danger map (computeBlastDangerCells walks all active bomb blast cells via computeBlastCells). Safe candidates are preferred; if all neighbours are dangerous the bot falls back to any walkable cell so it doesn't freeze. Bot also REFUSES to place a bomb when its current cell is already inside a bomb's blast.",
+        "examples/backends/node-world-server/src/world.ts: computeBlastDangerCells + danger-filtered candidate split (safeCandidates vs walkableCandidates) in tickBotAi"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-AI-NEAR-SOFT-BIAS-001",
+      "title": "Server bot prefers placing bombs adjacent to a soft-block",
+      "status": "implemented",
+      "summary": "When rolling the bomb-place check, boost the chance from the base 15% to ~50% when at least one adjacent cell (the bot's current cell \u00b11 cardinal) is a soft-block. Same path as the static bot-ai-system's 'miner' personality, just inlined on the server. Plus a side-effect of the danger-avoid story above: bots stop suiciding right after placing the bomb (they'll wander away from the danger cell).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Bot bomb-place chance jumps from BOT_BOMB_CHANCE=0.15 to BOT_BOMB_CHANCE_NEAR_SOFT=0.5 when at least one cardinal neighbour is a soft-block. Same intent as the static bot-ai-system's miner personality, inlined on the server. Concrete effect: the bot ends up clearing soft-blocks while wandering instead of randomly tossing bombs in empty corridors.",
+        "examples/backends/node-world-server/src/world.ts: hasAdjacentSoftBlock helper + chance gating in tickBotAi"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-AI-POST-BOMB-FLEE-001",
+      "title": "Server bot prioritises moving away from its own freshly-placed bomb",
+      "status": "implemented",
+      "summary": "On the decision tick immediately after placing a bomb, force the chosen direction to be the one that maximises distance from the just-placed bomb (filter cells inside the bomb's blast first \u2192 then pick the direction that increases manhattan distance from the bomb origin). Without this, the bot can re-walk into the cell it just bombed. Doesn't override danger-avoid \u2014 flee is filtered through the same danger check.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: When the bot's current cell is inside any bomb's blast (almost always TRUE on the tick right after placing one), direction choice switches from random to 'pick the candidate maximising manhattan distance to the nearest active bomb origin'. minManhattanFromActiveBombs computes that distance. Combined with danger-avoid + bomb-place guard, the bot now reliably places a bomb, flees one cell, waits ~2.5s, and survives.",
+        "examples/backends/node-world-server/src/world.ts: minManhattanFromActiveBombs helper + flee branch in tickBotAi",
+        "+2 unit tests: bot survives 10s no-input round (worldSeed: 7), bot can't bomb when self-inside-blast",
+        "All 76 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-CONNECTED-VFX-PLAYWRIGHT-001",
+      "title": "Playwright e2e: BlastTile entities spawn on the client after a server-broadcast bomb detonation",
+      "status": "implemented",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: alpha (connected) walks to (4, 3) \u2192 presses Space \u2192 wait for a bomb to appear \u2192 wait for a BlastTile.* entity to appear in the snapshot within ~100 ms of the bomb leaving the snapshot (server's blastEvent broadcast \u2192 decoder spawn). Asserts both tabs see the tiles (bravo too).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: kaboom-multiplayer-roundtrip.spec.ts gained an S121 test that places a bomb via alpha (connected) + asserts that BlastTile entities appear in BOTH tabs' snapshots within 10s of detonation. Proves the server's blastEvent.cells broadcast lands \u2192 connected-blast-decoder spawns local BlastTile per cell on both clients. Passes on chromium + chromium-preview."
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOT-SURVIVAL-PLAYWRIGHT-001",
+      "title": "Playwright e2e: server bot stays alive \u226510 s before round resolves",
+      "status": "implemented",
+      "summary": "Extend the S120 single-tab test: after seeing the bot move + place a bomb, wait 10 s with NO human input from alpha. Assert the bot is still alive (BomberStats.alive=true) AND the round hasn't auto-resolved (no roundResolved event observed via the snapshot's bombs-still-place-able state). Proves the bot's new danger-avoid + post-bomb-flee logic actually keeps it alive instead of suiciding within 2-3 s.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S121 single-tab e2e \u2014 alpha connects, idles 10s with NO input, then asserts bot.1's BomberStats.alive === true. Proves the new danger-avoid + post-bomb-flee + bomb-self-blocked logic keeps the bot alive across multiple bomb placements + detonations (vs the pre-S121 behaviour where the bot would suicide within 2-3 seconds). Passes on both chromium projects (33-35s each)."
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "PENDING"
+}

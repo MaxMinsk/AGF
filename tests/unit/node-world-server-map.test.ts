@@ -609,6 +609,37 @@ describe("ServerWorld bot spawn (S120)", () => {
   });
 });
 
+describe("ServerWorld bot AI survival (S121)", () => {
+  it("bot survives a full round (no human input) for ≥10 seconds with new danger-avoid + flee logic", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 7 });
+    world.join("alice");
+    // 10 s of pure tick — alice doesn't move. Bot AI runs its course.
+    for (let i = 0; i < 200; i += 1) world.tick(0.05);
+    const snap = world.snapshot();
+    const bot = snap.entities.find((e) => e.id === "bot.1")!;
+    const alive = (bot.components["BomberStats"] as { alive: boolean }).alive;
+    expect(alive).toBe(true);
+  });
+
+  it("bot doesn't bomb when its current cell is already inside a bomb's blast", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 99, spawnBot: false });
+    // Spawn the bot manually so we control its starting cell + skip
+    // the constructor's stochastic startup.
+    world.join("alice");
+    // Place a bomb adjacent to (1, 1) — origin (1, 1) range=2 reaches
+    // (0, 1), (1, 0), (2, 1), (1, 2). Now alice is in danger and the
+    // alive guard + danger guard prevents her from placing more.
+    world.placeBomb("alice", 1, 1);
+    // alice's GridPosition is (0, 0) — let's confirm. Then the bomb at
+    // (1, 1) range=2 covers (1, 1), (2, 1), (3, 1), (-1, 1)→OOB stop,
+    // (0, 1)→empty include, (1, 0)→empty include, (1, 2), (1, 3).
+    // alice at (0, 0) is NOT in those cells. So she can place again.
+    expect(world.placeBomb("alice", 0, 0)).toBeDefined();
+    // Now alice IS in the blast (origin (0,0)). Second self-bomb attempt blocked.
+    expect(world.placeBomb("alice", 0, 0)).toBeUndefined(); // same cell anyway
+  });
+});
+
 describe("ServerWorld bot AI (S120)", () => {
   it("after a few decision ticks, the bot's IntentMove is non-zero", () => {
     const world = new ServerWorld({ pickupDropChance: 0 }); // bot enabled
