@@ -48,6 +48,11 @@ const BOT_BOMB_CHANCE_HUNTER_TARGETED = 0.6;
 
 export type BotPersonality = "hunter" | "coward" | "miner";
 const DEFAULT_BOT_PERSONALITY: BotPersonality = "miner";
+// S123 — bot steering radii. Pickup magnet has a tight radius (the
+// bot doesn't chase pickups across the whole arena), while hunter
+// chase reaches further so the bot actively closes in on humans.
+const PICKUP_MAGNET_RADIUS = 5;
+const HUNTER_CHASE_RADIUS = 8;
 
 const BOT_DIRECTIONS: ReadonlyArray<Vec2> = [
   [1, 0],
@@ -368,10 +373,10 @@ export class ServerWorld {
     }
     const choicePool = safeCandidates.length > 0 ? safeCandidates : walkableCandidates;
 
-    // S121 — post-bomb flee: if the bot's current cell is dangerous
-    // (it just placed a bomb here, or got caught in another bomb's
-    // range), prefer the candidate that maximises manhattan distance
-    // from the closest danger origin.
+    // S121 — post-bomb flee wins when current cell is dangerous.
+    // S123 — otherwise: hunter chases the nearest human; everyone gets
+    //        a pickup magnet pulling toward the nearest reachable
+    //        pickup; falls back to RNG if neither target is in range.
     let choice: Vec2 | undefined;
     if (choicePool.length > 0) {
       if (dangerCells.has(`${gp.gx},${gp.gz}`)) {
@@ -388,7 +393,25 @@ export class ServerWorld {
         }
         choice = bestPick;
       } else {
-        choice = choicePool[this.botRng.nextInt(0, choicePool.length)]!;
+        // S123 — find a steering target: hunter chase wins for hunter
+        // when a human is in chase range; otherwise pickup magnet.
+        const steer = this.botSteeringTarget(gp.gx, gp.gz);
+        if (steer !== undefined) {
+          let bestScore = Infinity;
+          let bestPick: Vec2 = choicePool[0]!;
+          for (const cand of choicePool) {
+            const nx = gp.gx + cand[0];
+            const nz = gp.gz + cand[1];
+            const score = Math.abs(nx - steer.gx) + Math.abs(nz - steer.gz);
+            if (score < bestScore) {
+              bestScore = score;
+              bestPick = cand;
+            }
+          }
+          choice = bestPick;
+        } else {
+          choice = choicePool[this.botRng.nextInt(0, choicePool.length)]!;
+        }
       }
       this.world.setComponent(BOT_ENTITY_ID, SERVER_INTENT_MOVE, {
         direction: choice,
@@ -453,6 +476,54 @@ export class ServerWorld {
       return true;
     }
     return false;
+  }
+
+  /**
+   * S123 — steering target for the bot's direction-pick when its
+   * current cell is safe. Hunter prefers the nearest alive human if
+   * within HUNTER_CHASE_RADIUS; everyone falls back to the nearest
+   * pickup within PICKUP_MAGNET_RADIUS. Returns undefined when no
+   * target is reachable (caller falls back to pure RNG).
+   */
+  private botSteeringTarget(gx: number, gz: number): { gx: number; gz: number } | undefined {
+    if (this.botPersonality === "hunter") {
+      const human = this.nearestAliveHuman(gx, gz, HUNTER_CHASE_RADIUS);
+      if (human !== undefined) return human;
+    }
+    return this.nearestPickup(gx, gz, PICKUP_MAGNET_RADIUS);
+  }
+
+  private nearestPickup(gx: number, gz: number, maxRadius: number): { gx: number; gz: number } | undefined {
+    let best: { gx: number; gz: number } | undefined;
+    let bestDist = maxRadius + 1;
+    for (const pickupId of this.pickupIds) {
+      const pgp = this.world.getComponent<{ gx?: number; gz?: number }>(pickupId, GRID_POSITION);
+      if (pgp?.gx === undefined || pgp?.gz === undefined) continue;
+      const d = Math.abs(gx - pgp.gx) + Math.abs(gz - pgp.gz);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { gx: pgp.gx, gz: pgp.gz };
+      }
+    }
+    return best;
+  }
+
+  private nearestAliveHuman(gx: number, gz: number, maxRadius: number): { gx: number; gz: number } | undefined {
+    let best: { gx: number; gz: number } | undefined;
+    let bestDist = maxRadius + 1;
+    for (const playerId of this.playerIds) {
+      const entity = playerEntityId(playerId);
+      const stats = this.world.getComponent<{ alive?: boolean }>(entity, BOMBER_STATS);
+      if (stats?.alive === false) continue;
+      const pgp = this.world.getComponent<{ gx?: number; gz?: number }>(entity, GRID_POSITION);
+      if (pgp?.gx === undefined || pgp?.gz === undefined) continue;
+      const d = Math.abs(gx - pgp.gx) + Math.abs(gz - pgp.gz);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { gx: pgp.gx, gz: pgp.gz };
+      }
+    }
+    return best;
   }
 
   /** S122 — hunter target check: any alive human player within manhattan range+1. */

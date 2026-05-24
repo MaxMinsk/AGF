@@ -832,3 +832,171 @@ test("S122 client joining mid-session sees the server's current tally", async ({
     await stopBackend(backend);
   }
 });
+
+// S123 KABOOM-MP-BOT-SMARTS — bot pickup magnet + hunter chase
+
+test("S123 server bot eventually picks up a server-spawned pickup", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  // High drop chance + miner default so the bot bombs soft-blocks +
+  // gets a pickup spawn next to its cell often.
+  const backend = await startBackend(port, {
+    KABOOM_PICKUP_DROP_CHANCE: "1.0",
+    KABOOM_WORLD_SEED: "42"
+  });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      // Wait for bot.1.
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("bot.1");
+      }, undefined, { timeout: 10000 });
+      // Capture bot's baseline stats (maxBombs=1, range=2).
+      const baseStats = await alpha.evaluate(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const bot = snap.entities.find((e) => e.id === "bot.1");
+        return bot?.components["BomberStats"] as { maxBombs: number; range: number; speed?: number; canKick?: boolean };
+      });
+      expect(baseStats).toBeDefined();
+      // Idle the human, give the bot time to bomb a soft-block + collect.
+      // 35 s should be plenty of decision ticks for the bot to find a pickup.
+      await alpha.waitForFunction(
+        (base: { maxBombs: number; range: number; speed?: number; canKick?: boolean }) => {
+          const snap = window.__agf!.snapshot() as Snapshot;
+          const bot = snap.entities.find((e) => e.id === "bot.1");
+          const stats = bot?.components["BomberStats"] as { maxBombs?: number; range?: number; speed?: number; canKick?: boolean };
+          if (stats === undefined) return false;
+          // Any of the following stat shifts proves a pickup was collected.
+          if ((stats.maxBombs ?? base.maxBombs) > base.maxBombs) return true;
+          if ((stats.range ?? base.range) > base.range) return true;
+          if ((stats.speed ?? 3.5) > 3.5) return true;
+          if (stats.canKick === true && base.canKick !== true) return true;
+          return false;
+        },
+        baseStats,
+        { timeout: 35000 }
+      );
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});
+
+test("S123 hunter bot moves closer to a stationary human", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port, {
+    KABOOM_PICKUP_DROP_CHANCE: "0",
+    KABOOM_BOT_PERSONALITY: "hunter",
+    KABOOM_WORLD_SEED: "7"
+  });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      // Wait for bot.1.
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("bot.1");
+      }, undefined, { timeout: 10000 });
+
+      // Drive alpha's SERVER player to (8, 8) — well inside the bot's
+      // 8-cell chase radius from (13, 9), and on a wall-free path so
+      // the bot's myopic manhattan-distance steering can close in
+      // without hitting the (11, 7) hard-wall dead end.
+      await alpha.evaluate(() => {
+        const send = window.__agf!.sendNetworkIntent;
+        return new Promise<void>((resolveDone) => {
+          let last: [number, number] = [0, 0];
+          const set = (d: [number, number]): void => {
+            if (last[0] === d[0] && last[1] === d[1]) return;
+            last = d;
+            send(d);
+          };
+          const step = (): void => {
+            const snap = window.__agf!.snapshot() as Snapshot;
+            const ent = snap.entities.find((e) => e.id === "player.alpha");
+            const gp = (ent?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+            if (gp === undefined) {
+              setTimeout(step, 33);
+              return;
+            }
+            if (gp.gx >= 8 && gp.gz >= 8) {
+              set([0, 0]);
+              setTimeout(resolveDone, 300);
+              return;
+            }
+            if (gp.gx < 8) set([1, 0]);
+            else if (gp.gz < 8) set([0, 1]);
+            setTimeout(step, 33);
+          };
+          step();
+        });
+      });
+
+      // Snapshot initial bot ↔ alpha manhattan distance.
+      const initialDist = await alpha.evaluate(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const a = snap.entities.find((e) => e.id === "player.alpha");
+        const b = snap.entities.find((e) => e.id === "bot.1");
+        const ag = (a?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+        const bg = (b?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+        if (ag === undefined || bg === undefined) return Number.MAX_SAFE_INTEGER;
+        return Math.abs(ag.gx - bg.gx) + Math.abs(ag.gz - bg.gz);
+      });
+
+      // Wait for the bot to CLOSE IN at least once. Track the minimum
+      // observed manhattan distance across the wait window — the hunter
+      // can suicide-bomb + reset rounds (which respawns alpha at (0,0)
+      // far from the bot), so a one-shot dist<initial check is racy.
+      // Stash the min on window.__s123HunterMinDist for the predicate
+      // to read across polls.
+      await alpha.evaluate((start: number) => {
+        (window as unknown as { __s123HunterMinDist?: number }).__s123HunterMinDist = start;
+      }, initialDist);
+      await alpha.waitForFunction(
+        (start: number) => {
+          const snap = window.__agf!.snapshot() as Snapshot;
+          const a = snap.entities.find((e) => e.id === "player.alpha");
+          const b = snap.entities.find((e) => e.id === "bot.1");
+          const ag = (a?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+          const bg = (b?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+          if (ag === undefined || bg === undefined) return false;
+          const d = Math.abs(ag.gx - bg.gx) + Math.abs(ag.gz - bg.gz);
+          const w = window as unknown as { __s123HunterMinDist?: number };
+          if (w.__s123HunterMinDist === undefined || d < w.__s123HunterMinDist) {
+            w.__s123HunterMinDist = d;
+          }
+          // Success: at any point in the window, bot got closer than
+          // its starting distance to alpha. (Subsequent round-reset can
+          // re-separate them; the proof is the closing motion fired.)
+          return w.__s123HunterMinDist < start;
+        },
+        initialDist,
+        { timeout: 25000 }
+      );
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});

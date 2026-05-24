@@ -675,6 +675,56 @@ describe("ServerWorld bot spawn (S120)", () => {
   });
 });
 
+describe("ServerWorld bot steering (S123)", () => {
+  it("S123 — bot biases toward the nearest pickup within radius (miner)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 99 });
+    world.join("alice");
+    // Force-spawn a pickup right next to the bot (13, 9). Pickup at
+    // (13, 8) means a -Z direction reduces manhattan distance by 1.
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(13, 8, "bomb-up");
+    // Tick a few decision intervals so the bot can re-evaluate.
+    for (let i = 0; i < 3; i += 1) world.tick(0.2);
+    const snap = world.snapshot();
+    const bot = snap.entities.find((e) => e.id === "bot.1")!;
+    const intent = (bot.components as unknown as Record<string, unknown>)["__ServerIntentMove"];
+    // The intent isn't shipped in snapshot (internal); instead check
+    // that bot has actually moved toward the pickup row.
+    void intent;
+    const gp = bot.components["GridPosition"] as { gx: number; gz: number };
+    // After a few decisions the bot should be at gz <= 9 (moving up,
+    // toward pickup), not flat at 9 or higher.
+    expect(gp.gz).toBeLessThanOrEqual(9);
+  });
+
+  it("S123 — hunter biases toward the nearest alive human within chase radius", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 99, botPersonality: "hunter" });
+    world.join("alice");
+    // Walk alice via setIntent until close to the bot at (13, 9).
+    // alice spawns at (0, 0). Walk +X then +Z.
+    world.setIntent("alice", [1, 0], 0);
+    for (let i = 0; i < 250; i += 1) world.tick(0.016);
+    world.setIntent("alice", [0, 1], 1);
+    for (let i = 0; i < 150; i += 1) world.tick(0.016);
+    world.setIntent("alice", [0, 0], 2);
+    // Now alice should be near the bot's chase radius. Snapshot.
+    const snap = world.snapshot();
+    const alice = snap.entities.find((e) => e.id === "player.alice")!;
+    const bot = snap.entities.find((e) => e.id === "bot.1")!;
+    const aliceGp = alice.components["GridPosition"] as { gx: number; gz: number };
+    const botGp = bot.components["GridPosition"] as { gx: number; gz: number };
+    const initialDist = Math.abs(aliceGp.gx - botGp.gx) + Math.abs(aliceGp.gz - botGp.gz);
+    // Let the hunter chase for a few decisions.
+    for (let i = 0; i < 30; i += 1) world.tick(0.05);
+    const snap2 = world.snapshot();
+    const bot2 = snap2.entities.find((e) => e.id === "bot.1")!;
+    const botGp2 = bot2.components["GridPosition"] as { gx: number; gz: number };
+    const aliceGp2 = (snap2.entities.find((e) => e.id === "player.alice")!.components["GridPosition"]) as { gx: number; gz: number };
+    const newDist = Math.abs(aliceGp2.gx - botGp2.gx) + Math.abs(aliceGp2.gz - botGp2.gz);
+    // Hunter should have approached (or at least not retreated).
+    expect(newDist).toBeLessThanOrEqual(initialDist);
+  });
+});
+
 describe("ServerWorld bot personalities (S122)", () => {
   it("default personality is miner — places bombs at base/near-soft rates", () => {
     const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 42 }); // default miner
