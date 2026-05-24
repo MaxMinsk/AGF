@@ -1,5 +1,5 @@
-// S118 KABOOM-MP-SPRINT-B chunk 2 — client-side decoder for inbound
-// server events when running on the `connected` profile.
+// S118+ KABOOM-MP-SPRINT-B — client-side decoder for inbound server
+// events when running on the `connected` profile.
 //
 // Responsibilities:
 //   1. blockDestroyed → remove the local soft.* entity whose
@@ -9,9 +9,13 @@
 //   2. S119 roundResolved → write phase/tally/winnerId to the local
 //      kaboom.round-state entity so the HUD scoreboard updates from
 //      the authoritative server source.
-//   3. bomberDied + blastEvent + pickupCollected are drained so the
-//      ws-adapter inboxes don't grow unbounded; they'll grow real
-//      consumers in later sprints (ragdoll/audio decoders).
+//   3. S121 blastEvent → spawn local BlastTile entities at each cell
+//      (visual fire + spark emitter) AND write a transient BlastEvent
+//      component on a fresh event entity so audio-binding-system +
+//      camera-shake-system fire their existing SFX/shake paths.
+//   4. bomberDied + pickupCollected are drained but otherwise pass
+//      through — the snapshot diff drives the existing alive→dead
+//      ragdoll trigger + pickup-removed audio.
 
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -22,6 +26,16 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const ROUND_STATE: ComponentName = "RoundState";
 const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
+const TRANSFORM: ComponentName = "Transform";
+const MESH_RENDERER: ComponentName = "MeshRenderer";
+const BLAST_TILE: ComponentName = "BlastTile";
+const BLAST_EVENT: ComponentName = "BlastEvent";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
+
+/** Matches static blast-propagation-system spawn shape. */
+const BLAST_TILE_LIFETIME_S = 0.35;
+const BLAST_FX_RATE = 30;
+const BLAST_FX_MAX_PARTICLES = 12;
 
 type GridPos = { gx: number; gz: number };
 type Occupant = { layer?: string };
@@ -44,6 +58,13 @@ export function createKaboomConnectedBlastDecoderSystem(
   const name = options.name ?? "kaboom.connected-blast-decoder";
   let cachedWorld: World | undefined;
   let blocksQuery: QueryHandle | undefined;
+  // S121 — monotonic counter so each cell × event gets a fresh
+  // entity id even when multiple bombs land in the same tick.
+  let blastTileCounter = 0;
+  let blastEventCounter = 0;
+  // S121 — transient BlastEvent entities live for exactly one tick.
+  // We delete them at the TOP of the next frameUpdate.
+  const pendingEventCleanup: EntityId[] = [];
 
   const frameUpdate = (context: SystemContext): void => {
     const world = context.world;
@@ -51,6 +72,12 @@ export function createKaboomConnectedBlastDecoderSystem(
       blocksQuery = world.createQuery([GRID_POSITION, GRID_OCCUPANT]);
       cachedWorld = world;
     }
+    // S121 — purge last frame's transient BlastEvent entities so the
+    // audio + camera-shake systems observe each one exactly once.
+    for (const id of pendingEventCleanup) {
+      if (world.hasEntity(id)) world.removeEntity(id);
+    }
+    pendingEventCleanup.length = 0;
     const network = options.getNetwork();
     if (network === undefined) return;
 
@@ -82,10 +109,75 @@ export function createKaboomConnectedBlastDecoderSystem(
       for (const id of toDelete) world.removeEntity(id);
     }
 
+    // S121 — drain inbound blastEvents and spawn local BlastTile
+    // entities + a transient BlastEvent component per event. This is
+    // what re-creates the visual flash + audio sting + camera shake
+    // on the connected profile (the static-only pipeline that used
+    // to do this off a local BlastEvent transient was dropped in
+    // S117 + S120).
+    const blastEvents = network.drainBlastEvents();
+    for (const ev of blastEvents) {
+      // 1. Transient BlastEvent entity — audio-binding-system +
+      //    camera-shake-system query for [BlastEvent].
+      blastEventCounter += 1;
+      const eventEntity: EntityId = `connected-blast-event.${blastEventCounter}`;
+      world.addEntity(eventEntity);
+      world.setComponent(eventEntity, BLAST_EVENT, {
+        originGx: ev.originGx,
+        originGz: ev.originGz,
+        range: ev.range,
+        ownerId: ev.ownerId
+      });
+      // The transient lives one tick. blast-tile-lifetime-system + the
+      // existing static cleanup don't touch it — purge inline next
+      // frame by tracking; simplest: schedule a removal via Transform
+      // expiry. We use a co-spawned ParticleEmitter as the lifetime
+      // tracker, but the cleanest path is to delete the entity at the
+      // top of the NEXT frameUpdate.
+      pendingEventCleanup.push(eventEntity);
+
+      // 2. BlastTile entities for the visual flash + spark emitter.
+      //    Matches static blast-propagation-system spawn shape.
+      for (const cell of ev.cells) {
+        blastTileCounter += 1;
+        const tileId: EntityId = `connected-blast-tile.${blastTileCounter}.${cell.gx}.${cell.gz}`;
+        if (world.hasEntity(tileId)) continue;
+        world.addEntity(tileId);
+        world.setComponent(tileId, TRANSFORM, {
+          position: [cell.gx, 0.1, cell.gz],
+          rotation: [0, 0, 0],
+          scale: [0.9, 0.05, 0.9]
+        });
+        world.setComponent(tileId, MESH_RENDERER, { mesh: "box", color: "#ff9c42" });
+        world.setComponent(tileId, GRID_POSITION, { gx: cell.gx, gz: cell.gz });
+        world.setComponent(tileId, GRID_OCCUPANT, { layer: "blast", blocksMovement: false, blocksBlast: false });
+        world.setComponent(tileId, BLAST_TILE, {
+          lifetimeRemaining: BLAST_TILE_LIFETIME_S,
+          ownerId: ev.ownerId
+        });
+        // Co-spawned spark emitter.
+        const emitterId: EntityId = `${tileId}.spark`;
+        if (!world.hasEntity(emitterId)) {
+          world.addEntity(emitterId);
+          world.setComponent(emitterId, TRANSFORM, {
+            position: [cell.gx, 0.4, cell.gz],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1]
+          });
+          world.setComponent(emitterId, PARTICLE_EMITTER, {
+            preset: "spark",
+            lifetime: 0.4,
+            elapsed: 0,
+            rate: BLAST_FX_RATE,
+            maxParticles: BLAST_FX_MAX_PARTICLES
+          });
+        }
+      }
+    }
+
     // Drain the remaining queues so they don't grow unbounded —
     // later sprints add real decoders (ragdoll, audio sting, …).
     network.drainBomberDied();
-    network.drainBlastEvents();
     network.drainPickupCollected();
   };
 

@@ -39,6 +39,8 @@ const BOT_SPAWN_POSITION: Vec3 = [13, 0.4, 9];
 const BOT_ENTITY_ID = "bot.1";
 const BOT_DECISION_INTERVAL_S = 0.2;
 const BOT_BOMB_CHANCE = 0.15;
+// S121 — bot prefers bombing when a soft-block is adjacent (miner-ish).
+const BOT_BOMB_CHANCE_NEAR_SOFT = 0.5;
 
 const BOT_DIRECTIONS: ReadonlyArray<Vec2> = [
   [1, 0],
@@ -318,30 +320,100 @@ export class ServerWorld {
     if (round?.phase !== "playing") return;
     const gp = this.world.getComponent<{ gx?: number; gz?: number }>(BOT_ENTITY_ID, GRID_POSITION);
     if (gp?.gx === undefined || gp?.gz === undefined) return;
-    // Filter directions that would walk into a hard wall.
-    const candidates: Vec2[] = [];
+
+    // S121 KABOOM-MP-SPRINT-S121 — danger map: cells covered by any
+    // active bomb's blast walk. Bot rejects directions that step into
+    // a dangerous cell. Falls back to ALL valid (wall-only) candidates
+    // when every direction is dangerous (cornered — at least try).
+    const dangerCells = this.computeBlastDangerCells();
+    const safeCandidates: Vec2[] = [];
+    const walkableCandidates: Vec2[] = [];
     for (const [dx, dz] of BOT_DIRECTIONS) {
-      if (this.map.cellAt(gp.gx + dx, gp.gz + dz) === "hard-wall") continue;
-      candidates.push([dx, dz]);
+      const nx = gp.gx + dx;
+      const nz = gp.gz + dz;
+      if (this.map.cellAt(nx, nz) === "hard-wall") continue;
+      walkableCandidates.push([dx, dz]);
+      if (!dangerCells.has(`${nx},${nz}`)) safeCandidates.push([dx, dz]);
     }
-    if (candidates.length > 0) {
-      const choice = candidates[this.botRng.nextInt(0, candidates.length)]!;
+    const choicePool = safeCandidates.length > 0 ? safeCandidates : walkableCandidates;
+
+    // S121 — post-bomb flee: if the bot's current cell is dangerous
+    // (it just placed a bomb here, or got caught in another bomb's
+    // range), prefer the candidate that maximises manhattan distance
+    // from the closest danger origin.
+    let choice: Vec2 | undefined;
+    if (choicePool.length > 0) {
+      if (dangerCells.has(`${gp.gx},${gp.gz}`)) {
+        let bestScore = -Infinity;
+        let bestPick: Vec2 = choicePool[0]!;
+        for (const cand of choicePool) {
+          const nx = gp.gx + cand[0];
+          const nz = gp.gz + cand[1];
+          const score = this.minManhattanFromActiveBombs(nx, nz);
+          if (score > bestScore) {
+            bestScore = score;
+            bestPick = cand;
+          }
+        }
+        choice = bestPick;
+      } else {
+        choice = choicePool[this.botRng.nextInt(0, choicePool.length)]!;
+      }
       this.world.setComponent(BOT_ENTITY_ID, SERVER_INTENT_MOVE, {
         direction: choice,
         lastSequence: -1
       } satisfies IntentLike);
     }
-    // S120 chunk 5 — bot bomb. Server-internal placeBomb call. Bot
-    // playerId mapped via the 'bot.' prefix trick so the spawned
-    // entity id reads 'bomb.bot.1.<n>' and the bomb's ownerId is
-    // 'player.bot.1' — close enough for kill credit; clients display
-    // via the existing remote-bomber pipeline.
-    if (this.botRng.next() < BOT_BOMB_CHANCE) {
-      // Use the bot's GP directly. placeBomb takes a playerId; the
-      // bot's effective playerId is "bot.1" (same as its entity id).
-      // We bypass the normal mapping by inlining the spawn here.
-      this.placeBombForEntity(BOT_ENTITY_ID, gp.gx, gp.gz);
+
+    // S120/S121 — bot bomb. Chance boosted when adjacent to a soft-
+    // block; never bomb when the current cell is already inside a
+    // bomb's blast (would self-detonate immediately).
+    if (!dangerCells.has(`${gp.gx},${gp.gz}`)) {
+      const adjacentSoft = this.hasAdjacentSoftBlock(gp.gx, gp.gz);
+      const chance = adjacentSoft ? BOT_BOMB_CHANCE_NEAR_SOFT : BOT_BOMB_CHANCE;
+      if (this.botRng.next() < chance) {
+        this.placeBombForEntity(BOT_ENTITY_ID, gp.gx, gp.gz);
+      }
     }
+  }
+
+  /**
+   * S121 — compute the set of cells currently within any active bomb's
+   * blast walk. Used by the bot AI to dodge. Same cardinal walk as
+   * computeBlastCells but ad-hoc (we don't want to import an unrelated
+   * helper or allocate per-cell objects).
+   */
+  private computeBlastDangerCells(): Set<string> {
+    const danger = new Set<string>();
+    for (const bombId of this.bombIds) {
+      const gp = this.world.getComponent<{ gx?: number; gz?: number }>(bombId, GRID_POSITION);
+      const bomb = this.world.getComponent<{ range?: number }>(bombId, BOMB);
+      if (gp?.gx === undefined || gp?.gz === undefined) continue;
+      const range = bomb?.range ?? DEFAULT_BOMB_RANGE;
+      const cells = computeBlastCells(this.map, gp.gx, gp.gz, range);
+      for (const cell of cells) danger.add(`${cell.gx},${cell.gz}`);
+    }
+    return danger;
+  }
+
+  /** S121 — minimum manhattan distance from (gx, gz) to any active bomb origin. */
+  private minManhattanFromActiveBombs(gx: number, gz: number): number {
+    let best = Infinity;
+    for (const bombId of this.bombIds) {
+      const gp = this.world.getComponent<{ gx?: number; gz?: number }>(bombId, GRID_POSITION);
+      if (gp?.gx === undefined || gp?.gz === undefined) continue;
+      const d = Math.abs(gx - gp.gx) + Math.abs(gz - gp.gz);
+      if (d < best) best = d;
+    }
+    return Number.isFinite(best) ? best : 0;
+  }
+
+  /** S121 — true when any cardinal neighbour is currently a soft-block. */
+  private hasAdjacentSoftBlock(gx: number, gz: number): boolean {
+    for (const [dx, dz] of BOT_DIRECTIONS) {
+      if (this.map.cellAt(gx + dx, gz + dz) === "soft-block") return true;
+    }
+    return false;
   }
 
   /**
