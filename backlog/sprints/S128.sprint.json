@@ -1,0 +1,90 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S128",
+  "title": "Ragdoll spawn / sync / teardown systems on top of S126 + S127",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "S126 shipped the schemas + template registry, S127 shipped the Rapier joint + impulse adapter surface. This sprint connects them: the three ECS systems (spawn / sync / teardown) that turn a RagdollSpawnRequest into a live Rapier ragdoll and back.",
+    "Out of scope: mesh handover (project-specific re-parenting from animation pivots to body entities); the Kaboom Crew migration (GDP-2026-05-24-002, S129+); damping curves + collision groups; collision events between ragdoll bodies + the rest of the world."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-RAGDOLL-SPAWN-SYSTEM-001",
+      "title": "Spawn system: consumes RagdollSpawnRequest, creates Rapier bodies + joints",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/spawn-system.ts \u2014 fixedUpdate-registered system. For each entity carrying [RagdollSpawnRequest, Transform], look up the template by key; for each bodyDef create a Rapier dynamic body (anchor offset added to root Transform.position); spawn an ECS body entity with Transform + RagdollBody{ownerRoot, bodyName, rapierBodyHandle}; for each jointDef call adapter.acquireJoint with the two body handles. Then write RagdollState on the root, set RagdollActive marker, remove the spawn request, optionally apply the request's impulse to every body. Bodies have a primitive collider (box/capsule/sphere from the bodyDef). Skipped silently when no template registered for the key (warns via diagnostic).",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/spawn-system.ts \u2014 fixedUpdate-registered system. For each entity carrying RagdollSpawnRequest, looks up the template by key, spawns Rapier dynamic bodies (anchor offset added to root Transform.position) with a primitive collider per shape (box/sphere/capsule), wires the joints via adapter.acquireJoint, spawns body + joint ECS entities with the right components, writes RagdollState + RagdollActive on the root, optionally applies the request's impulse to every body, strips the request transient. Unknown template key silently no-ops (still strips the request).",
+        "engine/physics/ragdoll/spawn-system.ts: createRagdollSpawnSystem + spawnRagdoll + colliderSpecFor + acquireJointFromDef helpers"
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-SYNC-SYSTEM-001",
+      "title": "Sync system: copies Rapier body transforms back to ECS Transforms each fixedUpdate",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/sync-system.ts \u2014 for each entity carrying [RagdollBody], read adapter.getBodyTranslation + getBodyRotation by its rapierBodyHandle, write back to Transform.position + rotation. Runs AFTER adapter.step (same ordering as the existing PhysicsSyncSystem). Quaternion \u2192 euler conversion mirrors the helper inside physics-sync-system.ts.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/sync-system.ts \u2014 fixedUpdate-registered. For each entity carrying [RagdollBody, Transform], reads adapter.getBodyTranslation + getBodyRotation by the rapierBodyHandle, writes back to Transform.position + rotation (Euler degrees via the same XYZ-order quat\u2192euler conversion physics-sync-system uses).",
+        "engine/physics/ragdoll/sync-system.ts"
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-TEARDOWN-SYSTEM-001",
+      "title": "Teardown system: disposes Rapier resources on request or root despawn",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/teardown-system.ts \u2014 two triggers: (1) entity has [RagdollState, RagdollTeardownRequest] (explicit despawn); (2) entity has [RagdollBody] but its ownerRoot no longer exists (cascading teardown). Both paths walk the body + joint entity lists, call adapter.releaseJoint then releaseBody (Rapier auto-cleans the colliders attached to a body), then world.removeEntity for the body + joint entities, then clear RagdollState + RagdollActive from the root + remove the request transient.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/teardown-system.ts \u2014 fixedUpdate-registered. Two trigger paths: (1) explicit despawn via RagdollTeardownRequest on a root with RagdollState \u2014 walks bodyEntities + jointEntities, calls adapter.releaseJoint then releaseBody, removes the ECS body + joint entities, clears RagdollState + RagdollActive + the request transient. (2) cascading despawn \u2014 RagdollBody entities whose ownerRoot no longer exists in the world. Each orphaned body gets its Rapier body released + the entity removed.",
+        "engine/physics/ragdoll/teardown-system.ts: disposeRagdoll helper + orphan-detection loop"
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-RUNTIME-WIRING-001",
+      "title": "src/app.ts wires the three ragdoll systems when physics is enabled",
+      "status": "implemented",
+      "summary": "Under the existing `if (project.physics?.enabled === true)` branch, register the spawn / sync / teardown systems behind the adapter the same way the existing physics-sync-system is. The systems sit alongside physics-sync-system in the fixedUpdate order: spawn BEFORE sync (so newly-spawned bodies catch the next sync), teardown AFTER sync (so the last sync pass writes a final transform before disposal).",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: src/app.ts now registers createRagdollSpawnSystem + createRagdollSyncSystem + createRagdollTeardownSystem under the existing physics.enabled branch. Order: spawn BEFORE physics-sync-system (so newly-spawned bodies catch the next sync); teardown AFTER sync so a final transform write lands before disposal.",
+        "src/app.ts: dynamic imports + scheduler.register for the three systems"
+      ]
+    },
+    {
+      "id": "VERIFY-RAGDOLL-FALL-INTEGRATION-001",
+      "title": "Unit test: 1-body template spawns + falls under gravity + reads back through sync",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-spawn-sync.test.ts \u2014 register a 1-body template; spawn an entity with RagdollSpawnRequest; tick the world a few steps; assert the body entity's Transform.position.y dropped (gravity worked). Verifies the full spawn \u2192 tick \u2192 sync loop.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-spawn-sync.test.ts \u2014 register a 1-body sphere template, spawn at y=5, tick 60 frames (1s of gravity), assert the body entity's Transform.position.y dropped by at least 1m. Real Rapier adapter; real ECS world; real systems."
+      ]
+    },
+    {
+      "id": "VERIFY-RAGDOLL-JOINT-INTEGRATION-001",
+      "title": "Unit test: 2-body template with a joint \u2014 bodies move together under an impulse",
+      "status": "implemented",
+      "summary": "Same fixture as VERIFY-RAGDOLL-FALL-INTEGRATION-001 but with a 2-body template + a fixed joint between them. Apply an impulse via the spawn request, tick, assert both body entities translated by approximately the same vector. Smokes the joint creation path through the spawn system end-to-end.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: Same fixture, 2-body template with fixed joint. Apply impulse via spawn request, tick 30 frames, assert both body entities moved +X and the distance between them stays ~1 (joint locked)."
+      ]
+    },
+    {
+      "id": "VERIFY-RAGDOLL-TEARDOWN-INTEGRATION-001",
+      "title": "Unit test: teardown cleans up bodies + joints + entities",
+      "status": "implemented",
+      "summary": "Spawn a 2-body + 1-joint template, then write a RagdollTeardownRequest on the root. Tick once. Assert: the root no longer carries RagdollState or RagdollActive; the body + joint entities are gone from the ECS world; adapter.info().bodies count drops by 2.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: Spawn a 2-body + 1-joint template, then write RagdollTeardownRequest on the root, tick. Verified: root no longer has RagdollState / RagdollActive / RagdollTeardownRequest; body + joint entities removed from the ECS world; adapter.info().bodies count drops by 2. Plus a 4th test: unknown template key silently no-ops (no RagdollState created; request stripped).",
+        "4 tests pass in tests/unit/ragdoll-spawn-sync.test.ts; 1438 total unit tests pass; typecheck clean"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "PENDING"
+}
