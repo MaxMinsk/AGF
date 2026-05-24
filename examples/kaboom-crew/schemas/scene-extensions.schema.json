@@ -19,14 +19,14 @@
     "AgentGoto": { "$ref": "#/definitions/agentGotoComponent" },
     "AgentGotoResult": { "$ref": "#/definitions/agentGotoResultComponent" },
     "GamePaused": { "$ref": "#/definitions/gamePausedComponent" },
-    "RagdollState": { "$ref": "#/definitions/ragdollStateComponent" },
+    "DeathImpulse": { "$ref": "#/definitions/deathImpulseComponent" },
     "HitRecoil": { "$ref": "#/definitions/hitRecoilComponent" }
   },
   "definitions": {
-    "ragdollStateComponent": {
+    "deathImpulseComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "S105 KABOOM-RAGDOLL-STATE-COMPONENT. Records the blast that killed this bomber so the ragdoll system can apply a direction-aware launch impulse. Written by blast-propagation-system when it flips BomberStats.alive=false; consumed by death-animation-system. magnitude clamps to 1.8 when chain blasts pile on in the same frame.",
+      "description": "S105 KABOOM-DEATH-IMPULSE-COMPONENT. Records the blast that killed this bomber so the ragdoll system can apply a direction-aware launch impulse. Written by blast-propagation-system when it flips BomberStats.alive=false; consumed by death-animation-system. magnitude clamps to 1.8 when chain blasts pile on in the same frame.",
       "required": ["blastOriginGx", "blastOriginGz"],
       "properties": {
         "blastOriginGx": { "type": "number" },

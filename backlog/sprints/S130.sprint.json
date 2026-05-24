@@ -1,0 +1,45 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S130",
+  "title": "Kaboom Crew project-local RagdollState rename — DeathImpulse",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "archivedAt": "2026-05-24",
+  "notes": [
+    "Resolves the naming conflict the user flagged: the kaboom-crew project-local component called 'RagdollState' overlaps with the engine ragdoll module's 'RagdollState' (S126). Today there's no actual collision because death-animation never writes RagdollSpawnRequest; rename now makes the death-trigger migration in S131+ collision-free.",
+    "Project-local component carries blast-direction data driving the procedural-spring death animation: { blastOriginGx, blastOriginGz, magnitude, deathStartedAt? }. New name: DeathImpulse — clean, domain-specific, doesn't bleed engine terminology into project namespace.",
+    "Out of scope: replacing the procedural-spring DeathAnim with a RagdollSpawnRequest (that's the death-trigger migration, S131); deleting the S105 spring math; engine ragdoll mesh handover."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-RENAME-RAGDOLLSTATE-001",
+      "title": "Rename project-local RagdollState → DeathImpulse across kaboom-crew source",
+      "status": "implemented",
+      "summary": "Update 4 files: death-animation-system.ts (constant name + comment + reference), blast-propagation-system.ts (the writer), schemas/scene-extensions.schema.json (project-local schema entry), tests/unit/death-animation-system.test.ts (test references). The component data shape stays identical; only the registered name changes.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: Project-local component 'RagdollState' renamed to 'DeathImpulse' across kaboom-crew. Files touched: src/systems/death-animation-system.ts (RAGDOLL_STATE→DEATH_IMPULSE, RagdollStateComponent→DeathImpulseComponent), src/systems/blast-propagation-system.ts (RagdollStateLike→DeathImpulseLike + 4 string-literal swaps), schemas/scene-extensions.schema.json (RagdollState→DeathImpulse + ragdollStateComponent→deathImpulseComponent), tests/unit/death-animation-system.test.ts + tests/unit/bomb-blast-system.test.ts (test refs). Data shape unchanged — only the name changed. Resolves the naming overlap with the engine module's RagdollState (S126)."
+      ]
+    },
+    {
+      "id": "VERIFY-KABOOM-DEATHIMPULSE-RENAME-001",
+      "title": "Existing death-animation tests still pass after the rename",
+      "status": "implemented",
+      "summary": "Run examples/kaboom-crew/tests/unit/death-animation-system.test.ts + the full test suite to confirm no regression. The kaboom-bomber ragdoll template tests (S129) keep referencing the engine module's RagdollState — those are SEPARATE entities, no overlap.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: All 1444 unit tests pass after the rename (the existing death-animation-system + bomb-blast-system tests use the new DeathImpulse name; engine ragdoll module's tests still use 'RagdollState' on separate entities — no collision). Typecheck clean."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-DEATH-MIGRATION-NOTE-001",
+      "title": "Inline note in death-animation-system.ts pointing at the planned S131 migration",
+      "status": "implemented",
+      "summary": "Add a S130 KABOOM-CREW-RAGDOLL-MIGRATION block comment at the top of death-animation-system.ts: 'this system is the S105-shipped procedural-spring path; GDP-2026-05-24-002 is the planned migration to the engine ragdoll module (S126-S128). DeathImpulse + the spring math stay until the engine module ships mesh handover.' Keeps the migration plan discoverable from the file.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: Top-of-file block comment in death-animation-system.ts now flags GDP-2026-05-24-002 + the S131+ migration plan. Explains why the procedural-spring path stays (waiting on engine mesh-handover) + notes the S130 rename."
+      ]
+    }
+  ]
+}
