@@ -177,6 +177,48 @@ function buildFlatStartScene(map: MapName = activeMapName): SceneInput {
   return expansion.scene;
 }
 
+/**
+ * S117 KABOOM-BOMBER-MATERIAL-PATCH — polls every animation frame for
+ * procbomber + accessory mesh entities whose renderer handle exists but
+ * hasn't had `vertexColors: true` applied yet. The engine's default
+ * MeshStandardMaterial has vertexColors=false; without this patch the
+ * per-vertex palette painted in the part-builder doesn't render.
+ *
+ * Idempotent via a per-entity Set. New meshes that appear after a
+ * scene.load restart are picked up automatically — the world reference
+ * doesn't change for the lifetime of the page, so the same handle
+ * registry sees them.
+ *
+ * Cost: O(N) per frame where N = procbomber mesh count (~10/bomber × 4
+ * bombers = ~40). String-prefix check + Set.has each. Negligible.
+ */
+function startVertexColorsPoller(runtime: RuntimeHandle): void {
+  if (typeof requestAnimationFrame === "undefined") return; // SSR / node — no-op
+  const patched = new Set<string>();
+  const tick = (): void => {
+    try {
+      const snap = runtime.snapshot();
+      const registry = runtime.renderer.meshRegistry();
+      for (const entity of snap.entities) {
+        if (patched.has(entity.id)) continue;
+        const mr = (entity.components as Record<string, { mesh?: string } | undefined>)["MeshRenderer"];
+        const key = mr?.mesh;
+        if (typeof key !== "string") continue;
+        if (!key.startsWith("procedural:procbomber") && !key.startsWith("procedural:accessory-")) continue;
+        const handle = registry.handleFor(entity.id);
+        if (handle === undefined) continue;
+        runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
+        patched.add(entity.id);
+      }
+    } catch {
+      // best-effort — first frames before runtime is fully ready may
+      // surface transient errors; skip and try again next frame.
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 function restartScene(runtime: RuntimeHandle): number {
   // S84 KABOOM-SCORING-HUD. Read tally + roundNumber out of the live
   // world before scene.load wipes everything, then re-seed the new
@@ -488,6 +530,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     registerProcbomberBuilders(runtime.renderer, (ownerId) => makeKaboomRecipe(ownerId));
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+    // S117 KABOOM-BOMBER-MATERIAL-PATCH — procbomber meshes paint
+    // per-vertex colour (palette + panel seams + decals + stripes),
+    // but the engine's default MeshStandardMaterial has
+    // vertexColors=false. Without this patch the bombers render with
+    // a washed-out base colour and none of the recipe palette shows.
+    // The bench bootstrap handles this in its rebuild loop; Kaboom
+    // spawns once + needs an explicit poll until every mesh handle
+    // exists (MeshLifecycleSystem creates them on the next tick).
+    startVertexColorsPoller(runtime);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
