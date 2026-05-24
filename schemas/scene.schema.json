@@ -239,6 +239,9 @@
             "RagdollActive": {
               "$ref": "components/ragdoll.schema.json#/definitions/ragdollActive"
             },
+            "RagdollMeshBinding": {
+              "$ref": "components/ragdoll.schema.json#/definitions/ragdollMeshBinding"
+            },
             "OrbitCamera": {
               "$ref": "components/camera.schema.json#/definitions/orbitCameraComponent"
             },

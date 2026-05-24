@@ -122,6 +122,11 @@
           "maxItems": 3,
           "items": { "type": "number" },
           "description": "Optional initial impulse applied to all bodies (or the root body). Useful for blast-driven ragdolls."
+        },
+        "meshMap": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "description": "S131 — optional mapping from body name (matches RagdollBodyDef.name) to an existing mesh entity id. The spawn system writes a RagdollMeshBinding on each mapped mesh; the sync system then mirrors that body's Transform onto the mesh each fixed tick. Partial maps are fine; unmapped bodies + unknown body names are ignored silently."
         }
       }
     },
@@ -132,7 +137,7 @@
       "properties": {}
     },
     "ragdollState": {
-      "description": "S126 — per-instance state spawned by RagdollSpawnSystem on the skeleton root. bodyEntities maps body name to its ECS entity id; jointEntities is the parallel list of joint entity ids.",
+      "description": "S126 — per-instance state spawned by RagdollSpawnSystem on the skeleton root. bodyEntities maps body name to its ECS entity id; jointEntities is the parallel list of joint entity ids; meshEntities (S131) is the parallel list of mesh entity ids that were bound via the request's meshMap, used by teardown to clear bindings.",
       "type": "object",
       "additionalProperties": false,
       "required": ["templateKey", "spawnedAt", "bodyEntities", "jointEntities"],
@@ -146,7 +151,23 @@
         "jointEntities": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "meshEntities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "S131 — mesh entity ids bound by the spawn system. Empty array when no meshMap was provided. Teardown removes RagdollMeshBinding from each."
         }
+      }
+    },
+    "ragdollMeshBinding": {
+      "description": "S131 — runtime-only binding written by RagdollSpawnSystem on a project-owned mesh entity. While present, RagdollSyncSystem copies the named body's Transform onto the mesh each fixed tick. Cleared by RagdollTeardownSystem when the ragdoll despawns.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ragdollRoot", "bodyName", "bodyEntity"],
+      "properties": {
+        "ragdollRoot": { "type": "string", "minLength": 1 },
+        "bodyName": { "type": "string", "minLength": 1 },
+        "bodyEntity": { "type": "string", "minLength": 1 }
       }
     },
     "ragdollBody": {
