@@ -19,6 +19,7 @@ const RAGDOLL_STATE: ComponentName = "RagdollState";
 const RAGDOLL_ACTIVE: ComponentName = "RagdollActive";
 const RAGDOLL_BODY: ComponentName = "RagdollBody";
 const RAGDOLL_JOINT: ComponentName = "RagdollJoint";
+const RAGDOLL_MESH_BINDING: ComponentName = "RagdollMeshBinding";
 const RAGDOLL_TEARDOWN_REQUEST: ComponentName = "RagdollTeardownRequest";
 
 type RagdollStateComponent = {
@@ -26,6 +27,7 @@ type RagdollStateComponent = {
   spawnedAt?: number;
   bodyEntities?: Record<string, EntityId>;
   jointEntities?: EntityId[];
+  meshEntities?: EntityId[];
 };
 
 type RagdollBodyComponent = {
@@ -121,6 +123,14 @@ function disposeRagdoll(
       adapter.releaseBody(body.rapierBodyHandle);
     }
     if (world.hasEntity(bodyEntity)) world.removeEntity(bodyEntity);
+  }
+  // S131 — clear mesh bindings. Projects own the mesh entities so we
+  // strip the binding component but leave the entity + its last
+  // Transform alone.
+  for (const meshEntity of state.meshEntities ?? []) {
+    if (world.hasEntity(meshEntity)) {
+      world.removeComponent(meshEntity, RAGDOLL_MESH_BINDING);
+    }
   }
   if (world.hasEntity(rootId)) {
     world.removeComponent(rootId, RAGDOLL_STATE);

@@ -28,11 +28,13 @@ const RAGDOLL_STATE: ComponentName = "RagdollState";
 const RAGDOLL_ACTIVE: ComponentName = "RagdollActive";
 const RAGDOLL_BODY: ComponentName = "RagdollBody";
 const RAGDOLL_JOINT: ComponentName = "RagdollJoint";
+const RAGDOLL_MESH_BINDING: ComponentName = "RagdollMeshBinding";
 const TRANSFORM: ComponentName = "Transform";
 
 type SpawnRequest = {
   templateKey: string;
   impulse?: readonly [number, number, number];
+  meshMap?: Readonly<Record<string, EntityId>>;
 };
 
 type TransformComponent = {
@@ -87,6 +89,7 @@ export function createRagdollSpawnSystem(options: RagdollSpawnSystemOptions): Sy
         template,
         origin,
         req.impulse,
+        req.meshMap,
         nowSeconds(),
         () => {
           bodyCounter += 1;
@@ -111,6 +114,7 @@ function spawnRagdoll(
   template: RagdollTemplate,
   origin: readonly [number, number, number],
   impulse: readonly [number, number, number] | undefined,
+  meshMap: Readonly<Record<string, EntityId>> | undefined,
   spawnedAt: number,
   nextBodyId: () => number,
   nextJointId: () => number
@@ -172,11 +176,32 @@ function spawnRagdoll(
     jointEntities.push(jointEntityId);
   }
 
+  // S131 mesh handover — for each [bodyName → meshEntityId] in the
+  // optional meshMap, write RagdollMeshBinding on the mesh entity so
+  // RagdollSyncSystem can mirror the body's Transform onto the mesh.
+  // Silently skip entries with unknown bodies or non-existent mesh
+  // entities — a partial map still works.
+  const meshEntities: EntityId[] = [];
+  if (meshMap !== undefined) {
+    for (const [bodyName, meshEntityId] of Object.entries(meshMap)) {
+      const bodyEntity = bodyEntities[bodyName];
+      if (bodyEntity === undefined) continue;
+      if (!world.hasEntity(meshEntityId)) continue;
+      world.setComponent(meshEntityId, RAGDOLL_MESH_BINDING, {
+        ragdollRoot: rootId,
+        bodyName,
+        bodyEntity
+      });
+      meshEntities.push(meshEntityId);
+    }
+  }
+
   world.setComponent(rootId, RAGDOLL_STATE, {
     templateKey,
     spawnedAt,
     bodyEntities,
-    jointEntities
+    jointEntities,
+    meshEntities
   });
   world.setComponent(rootId, RAGDOLL_ACTIVE, {});
 }

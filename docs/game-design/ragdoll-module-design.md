@@ -353,6 +353,55 @@ out:
   clear `RagdollActive`, and let animation resume. Useful for revives
   / pickup-the-corpse mechanics. Out of MVP scope.
 
+### 6.4 Mesh-handover contract (S131)
+
+The "meshes re-parent" line in §6.1 is concrete. The project drives the
+handover by adding a `meshMap` to its `RagdollSpawnRequest`:
+
+```ts
+world.setComponent(bomberId, "RagdollSpawnRequest", {
+  templateKey: "kaboom-bomber",
+  impulse: [...],
+  meshMap: {
+    torso: "bomber.42.torso",
+    head: "bomber.42.head",
+    "upperArm.l": "bomber.42.upperArm.l",
+    // ...one entry per body name the project wants to follow physics
+  }
+});
+```
+
+Lifecycle:
+
+1. **Spawn.** `RagdollSpawnSystem` reads `meshMap`. For each
+   `[bodyName, meshEntityId]` it writes
+   `RagdollMeshBinding { ragdollRoot, bodyName, bodyEntity }` on the
+   mesh entity, and appends the mesh id to `RagdollState.meshEntities`.
+   Unknown body names + missing mesh entities are skipped silently
+   (partial maps are valid).
+2. **Sync.** `RagdollSyncSystem` queries `[RagdollMeshBinding,
+   Transform]` after the body-readback pass and copies each bound
+   body's Transform onto its mesh — position + rotation. No extra
+   Rapier round-trip; it reads the body's just-refreshed Transform
+   from the ECS.
+3. **Teardown.** `RagdollTeardownSystem` iterates
+   `state.meshEntities` and removes the `RagdollMeshBinding`
+   component. **Mesh entities themselves are NOT removed** — the
+   project keeps ownership of them and decides what to do next
+   (hide the corpse, swap to a static "downed" model, re-attach to
+   animation pivots, etc.). The mesh's last Transform is left as-is.
+
+What the contract **doesn't** do:
+
+- It doesn't detach the meshes from their pre-spawn parents (animation
+  pivots, skeleton root). Projects either accept the visual seam at
+  the spawn frame, or detach before writing `RagdollSpawnRequest`.
+- It doesn't restore meshes to their original parent on teardown.
+  Reverse handover (§6.3) would add that flag later.
+- It doesn't scale, parent, or otherwise reshape the meshes — just
+  position + rotation tracking. Mesh scale stays whatever the project
+  set pre-spawn.
+
 ---
 
 ## 7. Determinism + multiplayer behaviour

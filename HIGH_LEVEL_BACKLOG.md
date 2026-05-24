@@ -40,6 +40,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
 | **[M20](backlog/epics/M20.epic.json)** — M20 Netcode rework — pick a proven model & rebuild own-drone authority | active | engine | 1 / 0 / 1 |  |
+| **[M24](backlog/epics/M24.epic.json)** — M24 Rapier physics & colliders | active | engine | 16 / 0 / 16 |  |
 | **[M5](backlog/epics/M5.epic.json)** — M5 Runtime diagnostics + browser-side error channel | active | engine | 0 / 0 / 0 |  |
 | **[M6](backlog/epics/M6.epic.json)** — M6 Deterministic replay / recording | active | engine | 0 / 0 / 0 |  |
 | **[M8](backlog/epics/M8.epic.json)** — M8 Input actions, remapping, touch/gamepad | active | engine | 0 / 0 / 0 |  |
@@ -82,7 +83,6 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M2](backlog/epics/M2.epic.json)** — M2 Project bootstrap / plugin boundary | done | engine | 0 / 0 / 0 |  |
 | **[M21](backlog/epics/M21.epic.json)** — M21 Renderer → ECS systems | done | engine | 66 / 0 / 66 |  |
 | **[M22](backlog/epics/M22.epic.json)** — M22 ECS performance & design discipline | done | engine | 3 / 0 / 3 |  |
-| **[M24](backlog/epics/M24.epic.json)** — M24 Rapier physics & colliders | done | engine | 10 / 0 / 10 |  |
 | **[M25](backlog/epics/M25.epic.json)** — M25 Production asset pipeline | done | engine | 8 / 0 / 8 |  |
 | **[M2B-DETERMINISTIC-RECORD-REPLAY-TOOLING](backlog/epics/M2B-DETERMINISTIC-RECORD-REPLAY-TOOLING.epic.json)** — M2b Deterministic record/replay tooling | done | engine | 0 / 0 / 0 |  |
 | **[M3](backlog/epics/M3.epic.json)** — M3 Prefabs, variants, scene composition | done | engine | 4 / 0 / 4 |  |

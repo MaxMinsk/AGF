@@ -1,0 +1,77 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S131",
+  "title": "Engine ragdoll module — mesh-handover primitive",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/153",
+  "notes": [
+    "Foundation step for GDP-2026-05-24-002 (kaboom-crew death-trigger migration, S132+). The S126-S129 ragdoll module spawns bodies + joints but the spawn-system explicitly says 'mesh handover is OUT of scope — projects decide how to bind their visible meshes to the body entities'. That leaves every consumer to reinvent the same wiring. This sprint adds the minimum primitive: a meshMap on RagdollSpawnRequest, a RagdollMeshBinding component, and sync-system mirroring body Transform → bound mesh Transform.",
+    "Design: project writes RagdollSpawnRequest { templateKey, impulse?, meshMap?: Record<bodyName, meshEntityId> }. Spawn-system, after creating body entities, sets RagdollMeshBinding { ragdollRoot, bodyName, bodyEntity } on each mesh entity in the map. Sync-system queries [RagdollMeshBinding, Transform] and copies the bound body's Transform to the mesh each fixed tick. Teardown removes the binding component from each mesh entity (projects keep ownership of their mesh entities — they decide whether to delete or restore them).",
+    "RagdollState gains an optional meshEntities: string[] list so teardown can find them without scanning. The meshMap field on RagdollSpawnRequest stays optional — existing callers (none yet outside kaboom-bomber template registration) keep working unchanged.",
+    "Out of scope: actual death-trigger swap in kaboom-crew (S132); reverse-handover / revive (§6.3 of design doc — future work); mesh detach from animation pivots (projects handle that pre-spawn or accept the visual seam)."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-RAGDOLL-MESHMAP-001",
+      "title": "Extend ragdoll schemas with meshMap + RagdollMeshBinding",
+      "status": "implemented",
+      "summary": "Add optional meshMap (Record<string,string>) to ragdollSpawnRequest definition in schemas/components/ragdoll.schema.json. Add new ragdollMeshBinding definition { ragdollRoot, bodyName, bodyEntity }. Add optional meshEntities (string[]) to ragdollState. Register RagdollMeshBinding component slot in schemas/scene.schema.json. Project data on disk doesn't need to declare this — it's a runtime-only binding written by the spawn system — but registering the component keeps the schema honest for any project that wants to seed it.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: schemas/components/ragdoll.schema.json gained optional meshMap on ragdollSpawnRequest, optional meshEntities[] on ragdollState, and a new ragdollMeshBinding definition. schemas/scene.schema.json registers RagdollMeshBinding component slot."
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-SPAWN-MESHBIND-001",
+      "title": "spawn-system writes RagdollMeshBinding from meshMap",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/spawn-system.ts reads optional req.meshMap. After body entities are created, for each [bodyName → meshEntityId] pair: if the mesh entity exists and a body with that name was actually created, write RagdollMeshBinding { ragdollRoot: rootId, bodyName, bodyEntity: <id> } on the mesh entity, and append the mesh entity id to a new meshEntities[] list on the root's RagdollState. Skip silently for missing entities + unknown body names so a partial map still works.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: spawn-system reads req.meshMap. Each valid pair gets RagdollMeshBinding on the mesh entity. meshEntities tracked on RagdollState. Unknown body names + missing meshes silently skipped."
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-SYNC-MESHBIND-001",
+      "title": "sync-system mirrors body Transform → bound mesh Transform",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/sync-system.ts gains a second query [RagdollMeshBinding, Transform]. Each fixedUpdate, after bodies are read back from Rapier (so the body Transforms are fresh), copy each bound mesh's Transform from its RagdollBody's Transform (position + rotation). Read body Transform straight from the world so the existing body-readback path is reused — no extra Rapier round-trip.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: sync-system query [RagdollMeshBinding, Transform]. Each fixed tick, after body readback, copies bound body Transform onto each bound mesh. No extra Rapier round-trip."
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-TEARDOWN-MESHBIND-001",
+      "title": "teardown clears RagdollMeshBinding from each bound mesh",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/teardown-system.ts disposeRagdoll iterates state.meshEntities ?? [] and removes the RagdollMeshBinding component from each. The mesh entities themselves are NOT removed — projects own them. After teardown, the mesh's Transform stops being touched by the ragdoll module; the project can re-attach to animation, hide the mesh, etc.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: teardown iterates state.meshEntities and removes RagdollMeshBinding from each. Mesh entities + last Transform preserved."
+      ]
+    },
+    {
+      "id": "TEST-RAGDOLL-MESHBIND-001",
+      "title": "Unit tests for the mesh-handover primitive end-to-end",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-mesh-handover.test.ts: (1) spawn with meshMap writes RagdollMeshBinding on each mapped mesh entity + meshEntities[] on RagdollState; (2) spawn without meshMap leaves no bindings (backward compat); (3) sync copies body Transform → bound mesh Transform after fixedUpdate; (4) sync ignores meshes without bindings; (5) teardown removes RagdollMeshBinding but leaves the mesh entity intact + leaves its last Transform untouched; (6) partial meshMap (e.g. only 'torso') only binds that one mesh, leaves others unbound. Use the existing in-memory FakeRapierAdapter test seam.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-mesh-handover.test.ts adds 7 tests covering binding write, backward-compat, sync mirroring, unbound untouched, teardown lock, partial map, missing mesh. All 7 pass with real Rapier adapter."
+      ]
+    },
+    {
+      "id": "DOC-RAGDOLL-MESHBIND-001",
+      "title": "Document the mesh-handover contract in §6 of ragdoll-module-design.md",
+      "status": "implemented",
+      "summary": "Replace the §6.1 handover-sequence ASCII diagram's vague 'meshes re-parent' line with the concrete API: 'project writes meshMap on RagdollSpawnRequest → spawn-system writes RagdollMeshBinding on each mapped mesh → sync-system mirrors body Transform onto each bound mesh → teardown clears the bindings'. Add a §6.4 paragraph listing the three components added in S131 + how a project wires it on death (sketch — actual code lands in S132 for kaboom-crew).",
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/game-design/ragdoll-module-design.md §6.4 documents the mesh-handover contract — meshMap TS sketch, spawn/sync/teardown lifecycle, explicit non-goals."
+      ]
+    }
+  ]
+}
