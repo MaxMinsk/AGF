@@ -51,6 +51,7 @@ function makeKaboomRecipe(ownerId: string): ResolvedCharacterRecipe {
 }
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
+import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bomb-network-relay-system";
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
@@ -344,11 +345,24 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static", "connected"] });
 
     // Bomb pipeline.
+    // S117 KABOOM-MP-SPRINT-B — on the connected profile the relay runs
+    // BEFORE bomb-placement-system, intercepts the local player's
+    // PlaceBombRequest transients, sends placeBombRequest to the server
+    // and strips the transient so the local placement never spawns a
+    // duplicate. Bots + other entities fall through to local placement.
+    scheduler.register(
+      createKaboomPlaceBombNetworkRelaySystem({ localPlayerId: playerId, getNetwork }),
+      { profiles: ["connected"] }
+    );
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static", "connected"] });
     // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
     // queuedDirection, before grid-movement commits the step.
     scheduler.register(createKaboomBombKickSystem({ occupancy }), { profiles: ["static", "connected"] });
-    scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static", "connected"] });
+    // S117 KABOOM-MP-SPRINT-B — fuse-system stays on the static path
+    // only. On the connected profile the server is authoritative on the
+    // fuse + emits blastEvent when it hits zero; running the local fuse
+    // would double-detonate.
+    scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
     // S84 KABOOM-AUDIO-WIRE — register BEFORE blast-propagation so the
     // binding system sees the BlastEvent transient before propagation
     // consumes it. The late-bound closure indirects to attachUi where

@@ -17,6 +17,26 @@ type ProtocolMessage =
       sequence?: number;
       payload: { playerId: string; direction: [number, number] };
     }
+  // S117 KABOOM-MP-SPRINT-B chunk 2 — client requests a bomb spawn at
+  // its current grid cell. Server validates + spawns; the new Bomb
+  // entity appears in the next snapshot to all clients.
+  | { kind: "placeBombRequest"; sequence?: number; payload: { entityId: string; gx: number; gz: number } }
+  // S117 KABOOM-MP-SPRINT-B chunk 3 — server emits a blastEvent each
+  // time a bomb's fuse hits zero. cells[] stays empty in S117 (no
+  // propagation yet; S118 fills it). Schema requires payload.cells +
+  // payload.ownerId (string); we keep `bombId` separate from `ownerId`
+  // because the schema's `ownerId` already maps onto the bomb entity id.
+  | {
+      kind: "blastEvent";
+      sequence?: number;
+      payload: {
+        originGx: number;
+        originGz: number;
+        range: number;
+        ownerId: string;
+        cells: { gx: number; gz: number }[];
+      };
+    }
   | { kind: "world.snapshot"; sequence?: number; payload: Snapshot };
 
 export type TransportOptions = {
@@ -101,6 +121,18 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
           world.setIntent(message.payload.playerId, message.payload.direction, message.sequence);
           break;
         }
+        case "placeBombRequest": {
+          // S117 KABOOM-MP-SPRINT-B — recover the local-player id from
+          // the socket; ignore the entityId in the payload (clients
+          // can't address other players' bomb placements).
+          const playerId = clientPlayer.get(socket);
+          if (playerId === undefined) break;
+          const bombId = world.placeBomb(playerId, message.payload.gx, message.payload.gz);
+          if (bombId !== undefined) {
+            log(`[node-world-server] placeBomb playerId=${playerId} cell=(${message.payload.gx},${message.payload.gz}) → ${bombId}`);
+          }
+          break;
+        }
         case "world.snapshot":
           break;
       }
@@ -125,6 +157,31 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
 
   const tickId = setInterval(() => {
     world.tick(dt);
+
+    // S117 KABOOM-MP-SPRINT-B chunk 3 — drain blast events from the
+    // tick and broadcast each one to every connected client. Send the
+    // blast frame BEFORE the snapshot so the client can react to the
+    // detonation in the same frame the bomb leaves the snapshot.
+    const blasts = world.drainBlastEvents();
+    for (const blast of blasts) {
+      const frame: ProtocolMessage = {
+        kind: "blastEvent",
+        sequence: outboundSequence,
+        payload: {
+          originGx: blast.originGx,
+          originGz: blast.originGz,
+          range: blast.range,
+          ownerId: blast.ownerId,
+          cells: []
+        }
+      };
+      outboundSequence += 1;
+      const serialized = JSON.stringify(frame);
+      for (const client of clients) {
+        if (client.readyState === WebSocket.OPEN) client.send(serialized);
+      }
+      log(`[node-world-server] blastEvent origin=(${blast.originGx},${blast.originGz}) range=${blast.range} owner=${blast.ownerId} bomb=${blast.bombId}`);
+    }
 
     const expired = world.expiredPlayers(playerTimeoutSeconds);
     for (const playerId of expired) {

@@ -1,0 +1,66 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S117",
+  "title": "MP Sprint B chunk 1 — server-side bomb-placement + bomb-fuse + BlastEvent emission",
+  "status": "active",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "First of 4 sprints implementing GDP-2026-05-22-011 (server-authoritative kaboom-crew). Sequencing per docs/research/kaboom-multiplayer-sprint-b-plan.md §3: S117 protocol+placement+fuse → S118 blast+blocks → S119 pickup+round-resolve → S120 bot-AI.",
+    "Per spike §2 Recommendation: Option B — shared rules module. S117 starts the extraction by moving bomb-placement-system + bomb-fuse-system from examples/kaboom-crew/src/systems/ into a server-importable location.",
+    "Acceptance for S117: server tick spawns Bomb entities from placeBombRequest, ticks Bomb.fuseRemaining each step, emits blastEvent at zero. Two browser tabs see each other's bombs spawn within ~200 ms. NO blast propagation yet (that's S118)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-ECS-BOOTSTRAP-001",
+      "title": "Server-side ECS world + scheduler bootstrap in node-world-server",
+      "status": "implemented",
+      "summary": "Stand up an engine ECS World + SystemScheduler instance inside node-world-server. Spike (sprint-b-plan.md §9 risk 1) already verified engine/core/ecs/World runs cleanly under tsx + node. This story makes the integration permanent: index.ts spins up a World per server world (start with single 'test' world), runs a fixed-step tick at 30 Hz via existing tick loop, exposes the world to transport-ws (currently uses the bespoke ServerWorld map). ServerWorld migration path: keep its surface (join/leave/setIntent/snapshot/tick) but back it with the engine ECS underneath — Transform component on player.<id> entity, server-tick System reads intent.move + integrates Transform.position. No kaboom systems yet; just the foundation.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: node-world-server's ServerWorld is now backed by an engine ECS World instance (engine/core/ecs/world). Public surface (join/leave/setIntent/snapshot/tick/expiredPlayers/elapsedSeconds/playerCount) preserved — transport-ws.ts didn't change. Players are 'player.<id>' entities carrying Transform + Presence + Networked + optional CharacterRecipe + internal __ServerIntentMove + __ServerLastActivity. New ecsWorld() accessor exposed for future Sprint B chunks to register kaboom systems against.",
+        "examples/backends/node-world-server/src/world.ts: ServerWorld refactored to engine ECS backing; internal __ServerIntentMove/__ServerLastActivity components for intent + activity tracking; ecsWorld() seam exposed",
+        "Pre-existing 5 server-recipe unit tests pass unchanged (transport surface preserved)",
+        "Pre-existing kaboom-multiplayer-roundtrip e2e passes (16.2s, chromium): two-tab connect + recipe sync + remote-bomber position update all still work",
+        "Full suite 1320/1320. typecheck clean."
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-PLACE-BOMB-001",
+      "title": "Server reacts to placeBombRequest by spawning Bomb entity on the authoritative world",
+      "status": "implemented",
+      "summary": "Wire the new placeBombRequest protocol message (S116) into the server. Transport receives the message → calls world.placeBomb(playerId, gx, gz). Server-side kaboom-rules module (extracted bomb-placement-system from kaboom-crew) validates the request (BomberStats.maxBombs cap, not stacking on existing bomb) and spawns the Bomb entity on the server's ECS world. The Bomb appears in the next snapshot to all clients (existing snapshot path picks up any entity with components). Client's connected-profile registers bomb-placement-system with profiles:['static'] so it's NOT active on connected — server is authoritative.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server-side bomb placement landed. ServerWorld.placeBomb(playerId, gx, gz) spawns a Bomb entity on the authoritative ECS world with default range=2 + fuseRemaining=2.5s + ownerId=player.<id>. The entity appears in the next snapshot to all clients. No-stack guard refuses a second bomb on the same cell (any player). Returns the spawned bomb id or undefined when refused. transport-ws routes the new placeBombRequest protocol message to world.placeBomb, identifying the player via the socket (clients can't place bombs as other players). Default range/maxBombs caps stay on the trusted-client side until S119 (pickup + stats migration); no anti-cheat in S117.",
+        "examples/backends/node-world-server/src/world.ts: placeBomb(playerId, gx, gz) method, bombIds Set, snapshot() walks bomb entities + emits Transform + GridPosition + Bomb components",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage union extended with placeBombRequest; switch case calls world.placeBomb keyed by socket→playerId",
+        "+4 unit tests covering spawn, unknown-player refuse, no-stack guard, multi-bomb id uniqueness",
+        "Pre-existing 5 recipe tests still pass + MP roundtrip e2e still passes (15.1s)"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-FUSE-TICK-001",
+      "title": "Server ticks Bomb.fuseRemaining + emits blastEvent at zero",
+      "status": "implemented",
+      "summary": "Extracted bomb-fuse-system runs each server tick. Ticks fuseRemaining by fixedDt; at zero deletes the Bomb entity + emits the new blastEvent protocol message (S116) to every connected client. NO propagation yet (S118). Client connected-profile disables local bomb-fuse-system. Client subscribes to blastEvent and renders the blast tiles + audio locally (existing BlastTile entity life-cycle from blast-tile-lifetime-system stays client-side for visuals).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server now authoritatively ticks Bomb.fuseRemaining each fixedDt; at zero the bomb entity is removed from the ECS world and a blastEvent (originGx/originGz/range/ownerId, cells=[] in S117) is broadcast to every connected client via the transport. drainBlastEvents() exposes the per-tick queue to the transport so blastEvents land in the same network frame as the snapshot that drops the bomb. The client's connected-profile drops the local bomb-fuse-system entirely + adds a place-bomb-network-relay system that intercepts the local player's PlaceBombRequest, dispatches the new placeBombRequest protocol frame, and strips the transient so bomb-placement-system can't spawn a duplicate. Bots + other entities still place locally on the connected profile (their server migration lands in S118+).",
+        "examples/backends/node-world-server/src/world.ts: tick() walks bombIds, decrements fuseRemaining by dt, on <=0 removes entity + queues BlastEvent; drainBlastEvents() drains+clears",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage adds blastEvent variant; tick loop drains blasts + broadcasts each as a JSON frame to every OPEN socket",
+        "engine/runtime/network/ws-network-adapter.ts: sendPlaceBomb(gx,gz) outbound + drainBlastEvents() inbound; ProtocolMessage extended with placeBombRequest + blastEvent",
+        "examples/kaboom-crew/src/systems/place-bomb-network-relay-system.ts: new connected-profile system that translates local PlaceBombRequest → server send; runs BEFORE bomb-placement-system",
+        "examples/kaboom-crew/bootstrap.ts: bomb-fuse-system profile narrowed to ['static']; relay registered ahead of placement on ['connected']",
+        "+6 unit tests covering: fuse decrement, detonation at zero, drainBlastEvents clears queue, multi-bomb concurrent detonation, partial-tick survival, post-detonation cell free",
+        "All 42 affected unit tests + MP roundtrip e2e green (23.7s)"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOMB-SPAWN-PLAYWRIGHT-001",
+      "title": "Playwright two-tab smoke: tab A places bomb → tab B sees it spawn",
+      "status": "pending",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts (or add a sibling spec) with the headline acceptance from sprint-b-plan §3 S117: alpha presses Space → bravo's snapshot includes a Bomb entity with Bomb.ownerId='alpha' within 200 ms. Asserts the full c→s→broadcast path. Best-effort SECOND check: after fuse expires (~2.5s default), the Bomb entity disappears from both tabs' snapshots + a blastEvent was delivered.",
+      "epic": "KABOOM-CREW-MVP-NETWORK"
+    }
+  ]
+}

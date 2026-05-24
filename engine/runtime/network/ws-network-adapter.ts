@@ -36,7 +36,27 @@ type ProtocolMessage =
     }
   | { kind: "player.join"; payload: { playerId: string; displayName?: string; recipe?: string } }
   | { kind: "player.leave"; payload: { playerId: string; reason?: string } }
-  | { kind: "intent.move"; sequence?: number; payload: { playerId: string; direction: [number, number] } };
+  | { kind: "intent.move"; sequence?: number; payload: { playerId: string; direction: [number, number] } }
+  // S117 KABOOM-MP-SPRINT-B chunk 2 — outbound: client asks the server
+  // to spawn a bomb at (gx, gz). The server identifies the player from
+  // the socket, so `entityId` here is purely informative (the schema
+  // requires the field; the server ignores it).
+  | { kind: "placeBombRequest"; sequence?: number; payload: { entityId: string; gx: number; gz: number } }
+  // S117 KABOOM-MP-SPRINT-B chunk 3 — inbound: server tells every
+  // client that a bomb detonated. Cells stay empty in S117 (propagation
+  // lands in S118); clients use the originGx/originGz to spawn the
+  // visual flash + audio cue locally for now.
+  | {
+      kind: "blastEvent";
+      sequence?: number;
+      payload: {
+        originGx: number;
+        originGz: number;
+        range: number;
+        ownerId: string;
+        cells: { gx: number; gz: number }[];
+      };
+    };
 
 export type WsReconnectOptions = {
   /** First backoff delay in ms. Doubles on each subsequent failure up to `maxDelayMs`. */
@@ -118,9 +138,33 @@ export type WsNetworkAdapterOptions = {
   diagnostics?: DiagnosticsBus;
 };
 
+/** S117 KABOOM-MP-SPRINT-B — one inbound blast event, exposed verbatim for project-level decorators. */
+export type BlastEventSample = {
+  receivedAtSeconds: number;
+  originGx: number;
+  originGz: number;
+  range: number;
+  ownerId: string;
+};
+
 export type WsNetworkAdapterHandle = {
   readonly url: string;
   sendIntent(direction: readonly [number, number]): void;
+  /**
+   * S117 KABOOM-MP-SPRINT-B chunk 2 — ask the server to spawn a bomb
+   * at the local player's current grid cell. The adapter dispatches a
+   * `placeBombRequest` protocol frame; the spawned bomb shows up in the
+   * next snapshot. The `entityId` field is filled with `player.<id>`
+   * because the schema requires it; the server identifies the player
+   * from the socket so clients can't impersonate other players.
+   */
+  sendPlaceBomb(gx: number, gz: number): void;
+  /**
+   * S117 KABOOM-MP-SPRINT-B chunk 3 — pull (and consume) the queue of
+   * inbound blast events accumulated since the last call. Drained by
+   * the project-level system that renders the local flash + audio.
+   */
+  drainBlastEvents(): ReadonlyArray<BlastEventSample>;
   /** Last sequence number observed on an inbound world.snapshot, or undefined. */
   lastSnapshotSequence(): number | undefined;
   /** ws.readyState passthrough. Returns -1 when reconnecting between sockets. */
@@ -211,6 +255,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
   const snapshotBuffer = new Map<string, SnapshotSample[]>();
   const lastAckedBy = new Map<string, number>();
   const unackedIntents = new Map<number, UnackedIntent>();
+  // S117 KABOOM-MP-SPRINT-B chunk 3 — queue of inbound blast events,
+  // drained by the project-level decorator each frame.
+  let blastInbox: BlastEventSample[] = [];
   let outboundSequence = 0;
   let highestSent = -1;
   let lastServerPlayerSpeed: number | undefined;
@@ -270,6 +317,20 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
         }
       }
       const message = parsed as ProtocolMessage;
+      // S117 KABOOM-MP-SPRINT-B chunk 3 — capture inbound blastEvent
+      // frames into the local inbox for the project decorator to drain.
+      // Stays before the snapshot fast-path so the inbox is observable
+      // independent of snapshot delivery cadence.
+      if (message.kind === "blastEvent") {
+        blastInbox.push({
+          receivedAtSeconds: nowSeconds(),
+          originGx: message.payload.originGx,
+          originGz: message.payload.originGz,
+          range: message.payload.range,
+          ownerId: message.payload.ownerId
+        });
+        return;
+      }
       if (message.kind !== "world.snapshot") {
         return;
       }
@@ -474,6 +535,21 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       });
       highestSent = outboundSequence;
       outboundSequence += 1;
+    },
+    sendPlaceBomb(gx, gz): void {
+      if (disposed) return;
+      send(socket, {
+        kind: "placeBombRequest",
+        sequence: outboundSequence,
+        payload: { entityId: `player.${options.playerId}`, gx, gz }
+      });
+      outboundSequence += 1;
+    },
+    drainBlastEvents(): ReadonlyArray<BlastEventSample> {
+      if (blastInbox.length === 0) return [];
+      const out = blastInbox;
+      blastInbox = [];
+      return out;
     },
     lastSnapshotSequence(): number | undefined {
       return lastSequence;
