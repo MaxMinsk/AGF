@@ -1,12 +1,12 @@
 {
   "agfFormatVersion": 1,
   "id": "S117",
-  "title": "MP Sprint B chunk 1 — server-side bomb-placement + bomb-fuse + BlastEvent emission",
-  "status": "active",
+  "title": "MP Sprint B chunk 1 \u2014 server-side bomb-placement + bomb-fuse + BlastEvent emission",
+  "status": "archived",
   "startedAt": "2026-05-24",
   "notes": [
-    "First of 4 sprints implementing GDP-2026-05-22-011 (server-authoritative kaboom-crew). Sequencing per docs/research/kaboom-multiplayer-sprint-b-plan.md §3: S117 protocol+placement+fuse → S118 blast+blocks → S119 pickup+round-resolve → S120 bot-AI.",
-    "Per spike §2 Recommendation: Option B — shared rules module. S117 starts the extraction by moving bomb-placement-system + bomb-fuse-system from examples/kaboom-crew/src/systems/ into a server-importable location.",
+    "First of 4 sprints implementing GDP-2026-05-22-011 (server-authoritative kaboom-crew). Sequencing per docs/research/kaboom-multiplayer-sprint-b-plan.md \u00a73: S117 protocol+placement+fuse \u2192 S118 blast+blocks \u2192 S119 pickup+round-resolve \u2192 S120 bot-AI.",
+    "Per spike \u00a72 Recommendation: Option B \u2014 shared rules module. S117 starts the extraction by moving bomb-placement-system + bomb-fuse-system from examples/kaboom-crew/src/systems/ into a server-importable location.",
     "Acceptance for S117: server tick spawns Bomb entities from placeBombRequest, ticks Bomb.fuseRemaining each step, emits blastEvent at zero. Two browser tabs see each other's bombs spawn within ~200 ms. NO blast propagation yet (that's S118)."
   ],
   "stories": [
@@ -14,10 +14,10 @@
       "id": "FEAT-SERVER-ECS-BOOTSTRAP-001",
       "title": "Server-side ECS world + scheduler bootstrap in node-world-server",
       "status": "implemented",
-      "summary": "Stand up an engine ECS World + SystemScheduler instance inside node-world-server. Spike (sprint-b-plan.md §9 risk 1) already verified engine/core/ecs/World runs cleanly under tsx + node. This story makes the integration permanent: index.ts spins up a World per server world (start with single 'test' world), runs a fixed-step tick at 30 Hz via existing tick loop, exposes the world to transport-ws (currently uses the bespoke ServerWorld map). ServerWorld migration path: keep its surface (join/leave/setIntent/snapshot/tick) but back it with the engine ECS underneath — Transform component on player.<id> entity, server-tick System reads intent.move + integrates Transform.position. No kaboom systems yet; just the foundation.",
+      "summary": "Stand up an engine ECS World + SystemScheduler instance inside node-world-server. Spike (sprint-b-plan.md \u00a79 risk 1) already verified engine/core/ecs/World runs cleanly under tsx + node. This story makes the integration permanent: index.ts spins up a World per server world (start with single 'test' world), runs a fixed-step tick at 30 Hz via existing tick loop, exposes the world to transport-ws (currently uses the bespoke ServerWorld map). ServerWorld migration path: keep its surface (join/leave/setIntent/snapshot/tick) but back it with the engine ECS underneath \u2014 Transform component on player.<id> entity, server-tick System reads intent.move + integrates Transform.position. No kaboom systems yet; just the foundation.",
       "epic": "KABOOM-CREW-MVP-NETWORK",
       "verification": [
-        "acceptance: node-world-server's ServerWorld is now backed by an engine ECS World instance (engine/core/ecs/world). Public surface (join/leave/setIntent/snapshot/tick/expiredPlayers/elapsedSeconds/playerCount) preserved — transport-ws.ts didn't change. Players are 'player.<id>' entities carrying Transform + Presence + Networked + optional CharacterRecipe + internal __ServerIntentMove + __ServerLastActivity. New ecsWorld() accessor exposed for future Sprint B chunks to register kaboom systems against.",
+        "acceptance: node-world-server's ServerWorld is now backed by an engine ECS World instance (engine/core/ecs/world). Public surface (join/leave/setIntent/snapshot/tick/expiredPlayers/elapsedSeconds/playerCount) preserved \u2014 transport-ws.ts didn't change. Players are 'player.<id>' entities carrying Transform + Presence + Networked + optional CharacterRecipe + internal __ServerIntentMove + __ServerLastActivity. New ecsWorld() accessor exposed for future Sprint B chunks to register kaboom systems against.",
         "examples/backends/node-world-server/src/world.ts: ServerWorld refactored to engine ECS backing; internal __ServerIntentMove/__ServerLastActivity components for intent + activity tracking; ecsWorld() seam exposed",
         "Pre-existing 5 server-recipe unit tests pass unchanged (transport surface preserved)",
         "Pre-existing kaboom-multiplayer-roundtrip e2e passes (16.2s, chromium): two-tab connect + recipe sync + remote-bomber position update all still work",
@@ -28,12 +28,12 @@
       "id": "FEAT-SERVER-PLACE-BOMB-001",
       "title": "Server reacts to placeBombRequest by spawning Bomb entity on the authoritative world",
       "status": "implemented",
-      "summary": "Wire the new placeBombRequest protocol message (S116) into the server. Transport receives the message → calls world.placeBomb(playerId, gx, gz). Server-side kaboom-rules module (extracted bomb-placement-system from kaboom-crew) validates the request (BomberStats.maxBombs cap, not stacking on existing bomb) and spawns the Bomb entity on the server's ECS world. The Bomb appears in the next snapshot to all clients (existing snapshot path picks up any entity with components). Client's connected-profile registers bomb-placement-system with profiles:['static'] so it's NOT active on connected — server is authoritative.",
+      "summary": "Wire the new placeBombRequest protocol message (S116) into the server. Transport receives the message \u2192 calls world.placeBomb(playerId, gx, gz). Server-side kaboom-rules module (extracted bomb-placement-system from kaboom-crew) validates the request (BomberStats.maxBombs cap, not stacking on existing bomb) and spawns the Bomb entity on the server's ECS world. The Bomb appears in the next snapshot to all clients (existing snapshot path picks up any entity with components). Client's connected-profile registers bomb-placement-system with profiles:['static'] so it's NOT active on connected \u2014 server is authoritative.",
       "epic": "KABOOM-CREW-MVP-NETWORK",
       "verification": [
         "acceptance: Server-side bomb placement landed. ServerWorld.placeBomb(playerId, gx, gz) spawns a Bomb entity on the authoritative ECS world with default range=2 + fuseRemaining=2.5s + ownerId=player.<id>. The entity appears in the next snapshot to all clients. No-stack guard refuses a second bomb on the same cell (any player). Returns the spawned bomb id or undefined when refused. transport-ws routes the new placeBombRequest protocol message to world.placeBomb, identifying the player via the socket (clients can't place bombs as other players). Default range/maxBombs caps stay on the trusted-client side until S119 (pickup + stats migration); no anti-cheat in S117.",
         "examples/backends/node-world-server/src/world.ts: placeBomb(playerId, gx, gz) method, bombIds Set, snapshot() walks bomb entities + emits Transform + GridPosition + Bomb components",
-        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage union extended with placeBombRequest; switch case calls world.placeBomb keyed by socket→playerId",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage union extended with placeBombRequest; switch case calls world.placeBomb keyed by socket\u2192playerId",
         "+4 unit tests covering spawn, unknown-player refuse, no-stack guard, multi-bomb id uniqueness",
         "Pre-existing 5 recipe tests still pass + MP roundtrip e2e still passes (15.1s)"
       ]
@@ -49,7 +49,7 @@
         "examples/backends/node-world-server/src/world.ts: tick() walks bombIds, decrements fuseRemaining by dt, on <=0 removes entity + queues BlastEvent; drainBlastEvents() drains+clears",
         "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage adds blastEvent variant; tick loop drains blasts + broadcasts each as a JSON frame to every OPEN socket",
         "engine/runtime/network/ws-network-adapter.ts: sendPlaceBomb(gx,gz) outbound + drainBlastEvents() inbound; ProtocolMessage extended with placeBombRequest + blastEvent",
-        "examples/kaboom-crew/src/systems/place-bomb-network-relay-system.ts: new connected-profile system that translates local PlaceBombRequest → server send; runs BEFORE bomb-placement-system",
+        "examples/kaboom-crew/src/systems/place-bomb-network-relay-system.ts: new connected-profile system that translates local PlaceBombRequest \u2192 server send; runs BEFORE bomb-placement-system",
         "examples/kaboom-crew/bootstrap.ts: bomb-fuse-system profile narrowed to ['static']; relay registered ahead of placement on ['connected']",
         "+6 unit tests covering: fuse decrement, detonation at zero, drainBlastEvents clears queue, multi-bomb concurrent detonation, partial-tick survival, post-detonation cell free",
         "All 42 affected unit tests + MP roundtrip e2e green (23.7s)"
@@ -57,17 +57,19 @@
     },
     {
       "id": "VERIFY-MP-BOMB-SPAWN-PLAYWRIGHT-001",
-      "title": "Playwright two-tab smoke: tab A places bomb → tab B sees it spawn",
+      "title": "Playwright two-tab smoke: tab A places bomb \u2192 tab B sees it spawn",
       "status": "implemented",
-      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts (or add a sibling spec) with the headline acceptance from sprint-b-plan §3 S117: alpha presses Space → bravo's snapshot includes a Bomb entity with Bomb.ownerId='alpha' within 200 ms. Asserts the full c→s→broadcast path. Best-effort SECOND check: after fuse expires (~2.5s default), the Bomb entity disappears from both tabs' snapshots + a blastEvent was delivered.",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts (or add a sibling spec) with the headline acceptance from sprint-b-plan \u00a73 S117: alpha presses Space \u2192 bravo's snapshot includes a Bomb entity with Bomb.ownerId='alpha' within 200 ms. Asserts the full c\u2192s\u2192broadcast path. Best-effort SECOND check: after fuse expires (~2.5s default), the Bomb entity disappears from both tabs' snapshots + a blastEvent was delivered.",
       "epic": "KABOOM-CREW-MVP-NETWORK",
       "verification": [
-        "acceptance: tests/e2e/kaboom-multiplayer-roundtrip.spec.ts gained a second test that verifies the full S117 server-authoritative bomb path end-to-end: alpha presses Space → place-bomb-network-relay-system dispatches placeBombRequest → ServerWorld.placeBomb spawns a Bomb entity → snapshot delivers it to BOTH alpha and bravo (same entity id, prefix 'bomb.alpha.') → after the server-side fuse expires, the bomb is gone from both clients' snapshots. The test stays green on both chromium (dev server) + chromium-preview (production build) — exercising the same code path under both the Vite dev server and the built bundle. Sequence: first Space dismisses the title screen, second Space (after release+re-press, matching the player-input edge semantics) triggers the actual placement.",
+        "acceptance: tests/e2e/kaboom-multiplayer-roundtrip.spec.ts gained a second test that verifies the full S117 server-authoritative bomb path end-to-end: alpha presses Space \u2192 place-bomb-network-relay-system dispatches placeBombRequest \u2192 ServerWorld.placeBomb spawns a Bomb entity \u2192 snapshot delivers it to BOTH alpha and bravo (same entity id, prefix 'bomb.alpha.') \u2192 after the server-side fuse expires, the bomb is gone from both clients' snapshots. The test stays green on both chromium (dev server) + chromium-preview (production build) \u2014 exercising the same code path under both the Vite dev server and the built bundle. Sequence: first Space dismisses the title screen, second Space (after release+re-press, matching the player-input edge semantics) triggers the actual placement.",
         "+1 Playwright test asserting two-tab bomb sync + server-driven detonation (~17 s per project)",
-        "Identified + fixed during verification: the relay must target entities with PlayerControlled instead of player.<connectionId> — Kaboom Crew always spawns the local bomber as player.1 regardless of the WS join id, so addressing by id missed every press",
+        "Identified + fixed during verification: the relay must target entities with PlayerControlled instead of player.<connectionId> \u2014 Kaboom Crew always spawns the local bomber as player.1 regardless of the WS join id, so addressing by id missed every press",
         "Full unit suite: 1330 tests pass, 174 files, 7.7s",
         "Full MP e2e (both chromium + chromium-preview projects, both tests): green when run in isolation"
       ]
     }
-  ]
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/138"
 }
