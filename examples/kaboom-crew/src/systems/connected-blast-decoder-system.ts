@@ -26,6 +26,11 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const ROUND_STATE: ComponentName = "RoundState";
 const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
+// S122 — server-namespaced id the server ships RoundState under. We
+// mirror it into the local kaboom.round-state so the HUD reads from
+// one source, and clients joining mid-session catch up to the live
+// tally instead of starting at {0,0,0}.
+const MP_ROUND_STATE_ENTITY: EntityId = "mp.round-state";
 const TRANSFORM: ComponentName = "Transform";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const BLAST_TILE: ComponentName = "BlastTile";
@@ -91,6 +96,23 @@ export function createKaboomConnectedBlastDecoderSystem(
         tally: { ...ev.tally },
         ...(ev.winnerId !== undefined ? { winnerId: ev.winnerId } : {})
       });
+    }
+
+    // S122 KABOOM-MP-MID-JOIN-CATCHUP — every frame, mirror the
+    // server's mp.round-state snapshot into the local kaboom.round-state
+    // singleton so newly-joined clients catch up to the live tally
+    // instead of waiting for the next roundResolved event. We don't
+    // touch fields the LOCAL HUD owns (timeLimit, matchPhase, etc.) —
+    // only the server-authoritative phase/tally/roundNumber/winnerId.
+    const mpRound = world.getComponent<LocalRoundState>(MP_ROUND_STATE_ENTITY, ROUND_STATE);
+    if (mpRound !== undefined && world.hasEntity(ROUND_STATE_ENTITY)) {
+      const local = world.getComponent<LocalRoundState>(ROUND_STATE_ENTITY, ROUND_STATE);
+      const merged: LocalRoundState = { ...(local ?? {}) };
+      if (mpRound.phase !== undefined) merged.phase = mpRound.phase;
+      if (mpRound.tally !== undefined) merged.tally = { ...mpRound.tally };
+      if (mpRound.roundNumber !== undefined) merged.roundNumber = mpRound.roundNumber;
+      if (mpRound.winnerId !== undefined) merged.winnerId = mpRound.winnerId;
+      world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, merged);
     }
 
     // S118 — apply server blockDestroyed to delete local soft.* entities.

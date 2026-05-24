@@ -127,5 +127,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S119](backlog/sprints/S119.sprint.json)** — MP Sprint B chunk 3 — server-side pickup spawn + pickup collect + round resolve + tally — 8 implemented · archived 2026-05-24
 - **[S120](backlog/sprints/S120.sprint.json)** — MP Sprint B chunk 4 — server bot AI + auto round restart + final client cleanup — 8 implemented · archived 2026-05-24
 - **[S121](backlog/sprints/S121.sprint.json)** — MP-connected polish — blast VFX, audio re-wire, bot survival smarts — 8 implemented · archived 2026-05-24
+- **[S122](backlog/sprints/S122.sprint.json)** — MP mid-join catch-up + server speed-up authority + bot personality variants — 7 implemented · archived 2026-05-24
 
 <!-- backlog:render:end -->

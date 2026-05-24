@@ -429,6 +429,47 @@ describe("ServerWorld pickup collect (S119)", () => {
     expect(world.drainPickupCollected().length).toBe(1);
   });
 
+  it("S122 — speed-up pickup adds 1 to BomberStats.speed (capped at 12)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    // Force a speed-up on alice's spawn cell.
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "speed-up");
+    world.tick(0.016);
+    const stats = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["BomberStats"] as { speed: number };
+    expect(stats.speed).toBe(4.5); // PLAYER_SPEED 3.5 + 1
+  });
+
+  it("S122 — speed-up cap at 12 cells/sec", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    // Stack speed-ups until we hit the cap.
+    const spawnPickup = (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup.bind(world);
+    for (let i = 0; i < 15; i += 1) {
+      spawnPickup(0, 0, "speed-up");
+      world.tick(0.016);
+    }
+    const stats = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["BomberStats"] as { speed: number };
+    expect(stats.speed).toBe(12);
+  });
+
+  it("S122 — alice with speed-up moves faster than baseline", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    world.join("bravo");
+    // Alice gets +1 speed; bravo stays at PLAYER_SPEED.
+    const spawnPickup = (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup.bind(world);
+    spawnPickup(0, 0, "speed-up");
+    world.tick(0.016);
+    // Drive both forward for 1 second.
+    world.setIntent("alice", [1, 0], 0);
+    world.setIntent("bravo", [1, 0], 0);
+    for (let i = 0; i < 63; i += 1) world.tick(0.016);
+    const snap = world.snapshot();
+    const ax = (snap.entities.find((e) => e.id === "player.alice")!.components["Transform"] as { position: number[] }).position[0]!;
+    const bx = (snap.entities.find((e) => e.id === "player.bravo")!.components["Transform"] as { position: number[] }).position[0]!;
+    expect(ax).toBeGreaterThan(bx);
+  });
+
   it("fire-up pickup increments BomberStats.range", () => {
     const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
     world.join("alice");
@@ -460,6 +501,31 @@ describe("ServerWorld round resolve + tally (S119)", () => {
     const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
     const snap = world.snapshot();
     expect(snap.entities.find((e) => e.id === "kaboom.round-state")).toBeUndefined();
+  });
+
+  it("S122 — snapshot ships mp.round-state with RoundState component for mid-join catch-up", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    const snap = world.snapshot();
+    const mpRound = snap.entities.find((e) => e.id === "mp.round-state");
+    expect(mpRound).toBeDefined();
+    const rs = mpRound!.components["RoundState"] as { phase: string; tally: { player: number; bot: number; draws: number }; roundNumber: number };
+    expect(rs.phase).toBe("playing");
+    expect(rs.tally).toEqual({ player: 0, bot: 0, draws: 0 });
+    expect(rs.roundNumber).toBe(1);
+  });
+
+  it("S122 — mp.round-state reflects tally + winnerId after a round resolves", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    world.join("bravo");
+    // Both at (0,0); bomb self-kills both → draw.
+    world.placeBomb("alice", 0, 0);
+    world.tick(3.0);
+    world.drainRoundResolved();
+    const mpRound = world.snapshot().entities.find((e) => e.id === "mp.round-state")!;
+    const rs = mpRound.components["RoundState"] as { phase: string; tally: { draws: number } };
+    expect(rs.phase).toBe("draw");
+    expect(rs.tally.draws).toBe(1);
   });
 
   it("solo session never auto-resolves (need ≥2 players)", () => {
@@ -606,6 +672,58 @@ describe("ServerWorld bot spawn (S120)", () => {
     const bot = snap.entities.find((e) => e.id === "bot.1")!;
     expect((bot.components["BomberStats"] as { alive: boolean }).alive).toBe(true);
     expect(bot.components["GridPosition"]).toEqual({ gx: 13, gz: 9 });
+  });
+});
+
+describe("ServerWorld bot personalities (S122)", () => {
+  it("default personality is miner — places bombs at base/near-soft rates", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 42 }); // default miner
+    world.join("alice");
+    // 6 s of decision ticks. With miner + worldSeed=42 the bot has
+    // placed at least one bomb by then.
+    let sawBomb = false;
+    for (let i = 0; i < 120; i += 1) {
+      world.tick(0.05);
+      if (world.snapshot().entities.some((e) => e.id.startsWith("bomb.bot.1"))) {
+        sawBomb = true;
+        break;
+      }
+    }
+    expect(sawBomb).toBe(true);
+  });
+
+  it("coward personality bombs far less often", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 42, botPersonality: "coward" });
+    world.join("alice");
+    let bombCount = 0;
+    for (let i = 0; i < 60; i += 1) {
+      world.tick(0.05);
+      const bombs = world.snapshot().entities.filter((e) => e.id.startsWith("bomb.bot.1")).length;
+      bombCount = Math.max(bombCount, bombs);
+    }
+    // Coward at 5% over ~15 decisions ≈ 0-2 bombs typical.
+    expect(bombCount).toBeLessThanOrEqual(3);
+  });
+
+  it("hunter personality bombs aggressively when a human is within range+1", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, worldSeed: 9, botPersonality: "hunter" });
+    world.join("alice");
+    // Walk alice next to bot.1 (bot at (13, 9)). Alice spawns at (0,0)
+    // — too far. Move alice via setIntent until close.
+    world.setIntent("alice", [1, 0], 0);
+    for (let i = 0; i < 250; i += 1) world.tick(0.016);
+    world.setIntent("alice", [0, 1], 1);
+    for (let i = 0; i < 200; i += 1) world.tick(0.016);
+    // Alice now near (10-13, 7-9) area — should be within hunter range.
+    // Confirm bot bombed at high frequency by counting bombs over 1s.
+    world.setIntent("alice", [0, 0], 2);
+    let bombsSeen = 0;
+    for (let i = 0; i < 20; i += 1) {
+      world.tick(0.05);
+      bombsSeen += world.snapshot().entities.filter((e) => e.id.startsWith("bomb.bot.1")).length;
+    }
+    // We just check ≥1 bomb was active at some point — hunter triggers high chance.
+    expect(bombsSeen).toBeGreaterThan(0);
   });
 });
 

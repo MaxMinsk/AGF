@@ -706,3 +706,129 @@ test("S121 server bot survives 10s round with no human input", async ({ browser 
     await stopBackend(backend);
   }
 });
+
+// S122 KABOOM-MP-MID-JOIN-CATCHUP — a client joining AFTER a round
+// resolves should see the updated tally on its local scoreboard
+// within ~1 s, instead of starting at {0,0,0} until the next resolve.
+
+test("S122 client joining mid-session sees the server's current tally", async ({ browser }, testInfo) => {
+  test.setTimeout(90_000);
+  const port = pickPort();
+  const backend = await startBackend(port, { KABOOM_PICKUP_DROP_CHANCE: "0", KABOOM_BOT_PERSONALITY: "coward" });
+  try {
+    // 1) Alpha joins + immediately self-kills → bot wins round
+    //    (tally.bot becomes 1).
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      // Wait for player.alpha to land in the snapshot.
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("player.alpha");
+      }, undefined, { timeout: 10000 });
+      // Drive a self-bomb via the network adapter probe so alpha dies
+      // at her spawn cell without needing the title-screen + walk.
+      await alpha.evaluate(() => {
+        const send = window.__agf!.sendNetworkIntent;
+        // No-op intent; we just want to ensure the network handle is live.
+        send([0, 0]);
+      });
+      // Issue a placeBombRequest via the network adapter (skips local
+      // input + title-screen entirely): walk-and-bomb is brittle, but
+      // since the server treats placeBombRequest as "place at the
+      // bomber's cell" we can post it directly via the local relay
+      // method. Use gotoCell to make sure player.1 is on a known cell
+      // for the relay's GP read.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+      await alpha.waitForTimeout(200);
+      // Bomb on alpha's local cell (1,1) — server places bomb there,
+      // 2.5 s later it detonates. Alice at (0,0) on server; not in
+      // blast cells unless she walks closer. Tell server alpha is at
+      // (1, 0)... actually easier: rely on the agent surface to walk
+      // alpha to a cell where she'll self-kill the next bomb.
+      // We just want SOME round to resolve. Walk alpha next to a
+      // soft block + bomb so the bomb also catches her own cell.
+      type GotoResult = { reached: boolean; finalGx: number; finalGz: number };
+      await alpha.evaluate(async () => {
+        const k = (window.__agf as { kaboom?: { gotoCell?: (id: string, gx: number, gz: number) => Promise<GotoResult> } }).kaboom;
+        if (k?.gotoCell === undefined) throw new Error("agf.kaboom.gotoCell unavailable");
+        await k.gotoCell("player.1", 1, 1);
+      });
+      // Wait for server's alpha to converge to (1, 1) via the network
+      // adapter intent loop.
+      await alpha.evaluate(() => {
+        return new Promise<void>((resolveDone) => {
+          const send = window.__agf!.sendNetworkIntent;
+          let last: [number, number] = [0, 0];
+          const set = (d: [number, number]): void => {
+            if (last[0] === d[0] && last[1] === d[1]) return;
+            last = d;
+            send(d);
+          };
+          const step = (): void => {
+            const snap = window.__agf!.snapshot() as Snapshot;
+            const ent = snap.entities.find((e) => e.id === "player.alpha");
+            const gp = (ent?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+            if (gp === undefined) {
+              setTimeout(step, 33);
+              return;
+            }
+            if (gp.gx >= 1 && gp.gz >= 1) {
+              set([0, 0]);
+              setTimeout(resolveDone, 300);
+              return;
+            }
+            if (gp.gx < 1) set([1, 0]);
+            else if (gp.gz < 1) set([0, 1]);
+            setTimeout(step, 33);
+          };
+          step();
+        });
+      });
+      // Place a bomb at alpha's cell → server spawns at (1, 1) →
+      // 2.5 s fuse → blast covers (1, 1) → alpha (server) dies.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+      // Wait for round to resolve (tally on mp.round-state).
+      await alpha.waitForFunction(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const mp = snap.entities.find((e) => e.id === "mp.round-state");
+        const rs = mp?.components["RoundState"] as { tally?: { bot: number; player: number; draws: number } } | undefined;
+        return (rs?.tally?.bot ?? 0) + (rs?.tally?.player ?? 0) + (rs?.tally?.draws ?? 0) >= 1;
+      }, undefined, { timeout: 15000 });
+    } finally {
+      await alphaContext.close();
+    }
+
+    // 2) Now gamma joins — should see the server's current tally on
+    //    its LOCAL kaboom.round-state within ~2 s of the snapshot
+    //    arriving (one decoder frame after the snapshot lands).
+    const gammaContext = await browser.newContext();
+    const gamma = await gammaContext.newPage();
+    try {
+      await gamma.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=gamma`);
+      await gamma.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      // Wait for the catch-up mirror to update the LOCAL kaboom.round-state.
+      await gamma.waitForFunction(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const local = snap.entities.find((e) => e.id === "kaboom.round-state");
+        const rs = local?.components["RoundState"] as { tally?: { bot: number; player: number; draws: number } } | undefined;
+        return (rs?.tally?.bot ?? 0) + (rs?.tally?.player ?? 0) + (rs?.tally?.draws ?? 0) >= 1;
+      }, undefined, { timeout: 10000 });
+
+      await testInfo.attach("gamma-snapshot.json", {
+        body: JSON.stringify(await gamma.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await gammaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});

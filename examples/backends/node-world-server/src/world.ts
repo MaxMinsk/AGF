@@ -41,6 +41,13 @@ const BOT_DECISION_INTERVAL_S = 0.2;
 const BOT_BOMB_CHANCE = 0.15;
 // S121 — bot prefers bombing when a soft-block is adjacent (miner-ish).
 const BOT_BOMB_CHANCE_NEAR_SOFT = 0.5;
+// S122 — personality chances. Coward bombs rarely + only with an
+// escape route. Hunter spikes when a human is within reach.
+const BOT_BOMB_CHANCE_COWARD = 0.05;
+const BOT_BOMB_CHANCE_HUNTER_TARGETED = 0.6;
+
+export type BotPersonality = "hunter" | "coward" | "miner";
+const DEFAULT_BOT_PERSONALITY: BotPersonality = "miner";
 
 const BOT_DIRECTIONS: ReadonlyArray<Vec2> = [
   [1, 0],
@@ -82,6 +89,10 @@ const PICKUP: ComponentName = "Pickup";
 // authoritative phase + tally + roundNumber from one source.
 const ROUND_STATE: ComponentName = "RoundState";
 const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
+// S122 — surfaced under a server-namespaced id so the local client's
+// identically-named `kaboom.round-state` entity (HUD scoreboard) isn't
+// shadowed by ws-adapter's id-collision rejection.
+const MP_ROUND_STATE_ENTITY: EntityId = "mp.round-state";
 const ROUND_RESOLVE_NEXT_ROUND_DELAY_S = 3.0;
 
 /** Kaboom pickup kinds — matches the protocol's pickupCollected enum. */
@@ -110,11 +121,16 @@ type ServerBomberStats = {
   canKick?: boolean;
   remoteDetonateCharges?: number;
   shield?: boolean;
+  /** S122 — additive movement speed in cells/sec; default PLAYER_SPEED when absent. */
+  speed?: number;
 };
 
 const MAX_BOMBS_CAP = 8;
 const MAX_RANGE_CAP = 8;
 const REMOTE_DETONATE_CHARGES_CAP = 3;
+// S122 — speed-up cap matches the client static cap.
+const MAX_SPEED_CAP = 12;
+const SPEED_UP_STEP = 1;
 
 /**
  * S119 — pure helper. Returns the new BomberStats after applying a
@@ -136,10 +152,15 @@ function applyPickupEffect(stats: ServerBomberStats, kind: PickupKind): ServerBo
       };
     case "shield":
       return stats.shield === true ? undefined : { ...stats, shield: true };
-    case "speed-up":
-      // Speed migration deferred — GridMover.speed lives client-side
-      // until the client/server speed model is unified (post-S119).
-      return undefined;
+    case "speed-up": {
+      // S122 — speed-up authoritative on the server. Add SPEED_UP_STEP
+      // to BomberStats.speed, capped at MAX_SPEED_CAP. Default base is
+      // PLAYER_SPEED; first pickup bumps to PLAYER_SPEED + step.
+      const current = stats.speed;
+      const next = Math.min((current ?? PLAYER_SPEED) + SPEED_UP_STEP, MAX_SPEED_CAP);
+      if (next === current) return undefined;
+      return { ...stats, speed: next };
+    }
   }
 }
 
@@ -210,6 +231,13 @@ export type ServerWorldOptions = {
    * `spawnBot: false` to keep the 2-bomber resolve semantics.
    */
   spawnBot?: boolean;
+  /**
+   * S122 — server bot personality. 'miner' (default) keeps the
+   * baseline behaviour (near-soft-block bias). 'coward' is shy +
+   * flees harder; 'hunter' bombs aggressively when a human is in
+   * range. KABOOM_BOT_PERSONALITY env var overrides on production.
+   */
+  botPersonality?: BotPersonality;
 };
 
 export class ServerWorld {
@@ -237,6 +265,8 @@ export class ServerWorld {
   private resetCountdown: number | null = null;
   /** S120 — whether the server bot.1 entity exists. False when {spawnBot:false} was passed. */
   private readonly hasBot: boolean;
+  /** S122 — server bot personality variant. */
+  private readonly botPersonality: BotPersonality;
   /** S120 — countdown to the bot's next AI decision (direction + maybe-bomb). */
   private botDecisionTimer = 0;
   /** S120 — seeded RNG driving bot decisions. */
@@ -268,6 +298,7 @@ export class ServerWorld {
     // and snapshot paths treat it uniformly. remote-bomber-decorator
     // on the client picks it up via Presence.playerId !== localPlayerId.
     this.hasBot = options.spawnBot !== false;
+    this.botPersonality = options.botPersonality ?? DEFAULT_BOT_PERSONALITY;
     if (this.hasBot) this.spawnBot();
   }
 
@@ -365,16 +396,79 @@ export class ServerWorld {
       } satisfies IntentLike);
     }
 
-    // S120/S121 — bot bomb. Chance boosted when adjacent to a soft-
-    // block; never bomb when the current cell is already inside a
-    // bomb's blast (would self-detonate immediately).
+    // S120/S121/S122 — bot bomb decision branches on personality. All
+    // variants share: never bomb when the current cell is already
+    // inside a bomb's blast (would self-detonate immediately).
     if (!dangerCells.has(`${gp.gx},${gp.gz}`)) {
-      const adjacentSoft = this.hasAdjacentSoftBlock(gp.gx, gp.gz);
-      const chance = adjacentSoft ? BOT_BOMB_CHANCE_NEAR_SOFT : BOT_BOMB_CHANCE;
-      if (this.botRng.next() < chance) {
+      const chance = this.botBombChance(gp.gx, gp.gz, dangerCells);
+      if (chance > 0 && this.botRng.next() < chance) {
         this.placeBombForEntity(BOT_ENTITY_ID, gp.gx, gp.gz);
       }
     }
+  }
+
+  /**
+   * S122 — personality-driven bomb-place chance. Returns 0 when the
+   * personality forbids placing here (e.g. coward without an escape
+   * route).
+   */
+  private botBombChance(gx: number, gz: number, dangerCells: Set<string>): number {
+    const adjacentSoft = this.hasAdjacentSoftBlock(gx, gz);
+    switch (this.botPersonality) {
+      case "miner":
+        return adjacentSoft ? BOT_BOMB_CHANCE_NEAR_SOFT : BOT_BOMB_CHANCE;
+      case "coward": {
+        // Need at least one safe escape cell (cardinal neighbour OUT of
+        // every blast cell AND not a hard-wall). Skip bombing without
+        // one — coward dies of caution-fatigue otherwise.
+        if (!this.hasSafeEscape(gx, gz, dangerCells)) return 0;
+        // Coward STILL bombs occasionally — base rate only.
+        return BOT_BOMB_CHANCE_COWARD;
+      }
+      case "hunter": {
+        // Hunter spikes when a human is within reach. Range read from
+        // the bot's own stats so power-ups widen the hunting radius.
+        if (this.isHumanInRange(gx, gz)) return BOT_BOMB_CHANCE_HUNTER_TARGETED;
+        return adjacentSoft ? BOT_BOMB_CHANCE_NEAR_SOFT : BOT_BOMB_CHANCE;
+      }
+    }
+  }
+
+  /** S122 — coward sanity: at least one non-blast, non-wall cardinal neighbour. */
+  private hasSafeEscape(gx: number, gz: number, dangerCells: Set<string>): boolean {
+    // Simulate the bomb the coward is about to place — it would cover
+    // its origin + the cardinal walk. Skip ANY cell within that walk
+    // (using the bot's range) AS DANGER for escape-route purposes.
+    const stats = this.world.getComponent<{ range?: number }>(BOT_ENTITY_ID, BOMBER_STATS);
+    const simRange = stats?.range ?? DEFAULT_BOMB_RANGE;
+    const sim = new Set(dangerCells);
+    for (const cell of computeBlastCells(this.map, gx, gz, simRange)) {
+      sim.add(`${cell.gx},${cell.gz}`);
+    }
+    for (const [dx, dz] of BOT_DIRECTIONS) {
+      const nx = gx + dx;
+      const nz = gz + dz;
+      if (this.map.cellAt(nx, nz) === "hard-wall") continue;
+      if (sim.has(`${nx},${nz}`)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /** S122 — hunter target check: any alive human player within manhattan range+1. */
+  private isHumanInRange(gx: number, gz: number): boolean {
+    const stats = this.world.getComponent<{ range?: number }>(BOT_ENTITY_ID, BOMBER_STATS);
+    const reach = (stats?.range ?? DEFAULT_BOMB_RANGE) + 1;
+    for (const playerId of this.playerIds) {
+      const playerEnt = playerEntityId(playerId);
+      const playerStats = this.world.getComponent<{ alive?: boolean }>(playerEnt, BOMBER_STATS);
+      if (playerStats?.alive === false) continue;
+      const playerGp = this.world.getComponent<{ gx?: number; gz?: number }>(playerEnt, GRID_POSITION);
+      if (playerGp?.gx === undefined || playerGp?.gz === undefined) continue;
+      const d = Math.abs(gx - playerGp.gx) + Math.abs(gz - playerGp.gz);
+      if (d <= reach) return true;
+    }
+    return false;
   }
 
   /**
@@ -664,15 +758,18 @@ export class ServerWorld {
       if (transform === undefined || intent === undefined) continue;
       // S120 — dead bombers don't move; their last intent stays
       // bound but integration is skipped so they don't drift.
-      const stats = this.world.getComponent<{ alive?: boolean }>(entityId, BOMBER_STATS);
+      const stats = this.world.getComponent<ServerBomberStats>(entityId, BOMBER_STATS);
       if (stats?.alive === false) continue;
+      // S122 — per-bomber speed (default PLAYER_SPEED). speed-up
+      // pickups bump this; round-reset clears it.
+      const speed = stats?.speed ?? PLAYER_SPEED;
       const pos = transform.position ?? SPAWN_POSITION;
       const [dx, dz] = intent.direction;
       let nextX = pos[0] ?? 0;
       let nextZ = pos[2] ?? 0;
       if (dx !== 0 || dz !== 0) {
-        nextX = nextX + dx * PLAYER_SPEED * dt;
-        nextZ = nextZ + dz * PLAYER_SPEED * dt;
+        nextX = nextX + dx * speed * dt;
+        nextZ = nextZ + dz * speed * dt;
         this.world.setComponent(entityId, TRANSFORM, {
           position: [nextX, pos[1] ?? 0.4, nextZ]
         });
@@ -1039,6 +1136,10 @@ export class ServerWorld {
           out["remoteDetonateCharges"] = stats.remoteDetonateCharges;
         }
         if (stats.shield === true) out["shield"] = true;
+        // S122 — ship custom speed when it differs from the baseline.
+        if (stats.speed !== undefined && stats.speed !== PLAYER_SPEED) {
+          out["speed"] = stats.speed;
+        }
         components["BomberStats"] = out;
       }
       entities.push({ id: entityId, components });
@@ -1062,12 +1163,31 @@ export class ServerWorld {
       if (bomb !== undefined) components["Bomb"] = { ...bomb };
       entities.push({ id: bombId, components });
     }
-    // S119 KABOOM-MP-SPRINT-B chunk 3 — RoundState is INTENTIONALLY
-    // not shipped in the snapshot. The local kaboom-crew client owns
-    // the kaboom.round-state entity (bootstrap creates it at boot for
-    // the HUD); shipping it would trigger an id-collision rejection
-    // in ws-network-adapter. Clients learn about state changes via
-    // the discrete roundResolved protocol event instead.
+    // S122 KABOOM-MP-MID-JOIN-CATCHUP — ship the server's authoritative
+    // RoundState under the server-namespaced id `mp.round-state` so a
+    // newly-joined client picks up the current phase/tally/roundNumber
+    // immediately from the snapshot diff, instead of waiting for the
+    // next roundResolved event. The local `kaboom.round-state` HUD
+    // entity stays client-owned (no collision); the connected-blast-
+    // decoder mirrors mp.round-state → kaboom.round-state each frame.
+    const round = this.world.getComponent<{
+      phase?: string;
+      tally?: { player: number; bot: number; draws: number };
+      roundNumber?: number;
+      winnerId?: string;
+    }>(ROUND_STATE_ENTITY, ROUND_STATE);
+    if (round !== undefined) {
+      const out: Record<string, unknown> = {
+        phase: round.phase ?? "playing",
+        tally: round.tally ?? { player: 0, bot: 0, draws: 0 },
+        roundNumber: round.roundNumber ?? 1
+      };
+      if (round.winnerId !== undefined) out["winnerId"] = round.winnerId;
+      entities.push({
+        id: MP_ROUND_STATE_ENTITY,
+        components: { RoundState: out, Networked: { authority: "server" } }
+      });
+    }
     // S119 — pickup entities. Snapshot ships Pickup + GridPosition +
     // Transform so clients can render with the existing local pickup
     // visuals (the local pickup-spawn-system is dropped on connected).
