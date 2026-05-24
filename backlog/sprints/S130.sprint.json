@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-24",
   "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/152",
   "notes": [
     "Resolves the naming conflict the user flagged: the kaboom-crew project-local component called 'RagdollState' overlaps with the engine ragdoll module's 'RagdollState' (S126). Today there's no actual collision because death-animation never writes RagdollSpawnRequest; rename now makes the death-trigger migration in S131+ collision-free.",
     "Project-local component carries blast-direction data driving the procedural-spring death animation: { blastOriginGx, blastOriginGz, magnitude, deathStartedAt? }. New name: DeathImpulse — clean, domain-specific, doesn't bleed engine terminology into project namespace.",
