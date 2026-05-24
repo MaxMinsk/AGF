@@ -63,6 +63,19 @@ describe("bomber-animation-driver (S104)", () => {
     expect(state?.kind).toBe("none");
   });
 
+  // S132 + S134 regression: the gate switched from DeathAnim to
+  // RagdollActive. Without this, a freshly-killed bomber would still
+  // get walk-swing animation written over the ragdoll pose.
+  it("S134: writes kind=none when RagdollActive is present (even mid-walk)", () => {
+    const world = new World();
+    addPlayer(world, { lerp: 0.5, queuedDirection: { dx: 1, dz: 0 } });
+    world.setComponent("player.1", "RagdollActive", {});
+    const system = createKaboomBomberAnimationDriverSystem();
+    system.fixedUpdate!(ctx(world));
+    const state = world.getComponent<{ kind: string }>("player.1", "BenchAnimationState");
+    expect(state?.kind).toBe("none");
+  });
+
   it("writes kind=reach for ~REACH_BURST_S seconds when PlaceBombRequest fires", () => {
     const world = new World();
     addPlayer(world);
