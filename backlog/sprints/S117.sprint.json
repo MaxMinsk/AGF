@@ -58,9 +58,16 @@
     {
       "id": "VERIFY-MP-BOMB-SPAWN-PLAYWRIGHT-001",
       "title": "Playwright two-tab smoke: tab A places bomb → tab B sees it spawn",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts (or add a sibling spec) with the headline acceptance from sprint-b-plan §3 S117: alpha presses Space → bravo's snapshot includes a Bomb entity with Bomb.ownerId='alpha' within 200 ms. Asserts the full c→s→broadcast path. Best-effort SECOND check: after fuse expires (~2.5s default), the Bomb entity disappears from both tabs' snapshots + a blastEvent was delivered.",
-      "epic": "KABOOM-CREW-MVP-NETWORK"
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: tests/e2e/kaboom-multiplayer-roundtrip.spec.ts gained a second test that verifies the full S117 server-authoritative bomb path end-to-end: alpha presses Space → place-bomb-network-relay-system dispatches placeBombRequest → ServerWorld.placeBomb spawns a Bomb entity → snapshot delivers it to BOTH alpha and bravo (same entity id, prefix 'bomb.alpha.') → after the server-side fuse expires, the bomb is gone from both clients' snapshots. The test stays green on both chromium (dev server) + chromium-preview (production build) — exercising the same code path under both the Vite dev server and the built bundle. Sequence: first Space dismisses the title screen, second Space (after release+re-press, matching the player-input edge semantics) triggers the actual placement.",
+        "+1 Playwright test asserting two-tab bomb sync + server-driven detonation (~17 s per project)",
+        "Identified + fixed during verification: the relay must target entities with PlayerControlled instead of player.<connectionId> — Kaboom Crew always spawns the local bomber as player.1 regardless of the WS join id, so addressing by id missed every press",
+        "Full unit suite: 1330 tests pass, 174 files, 7.7s",
+        "Full MP e2e (both chromium + chromium-preview projects, both tests): green when run in isolation"
+      ]
     }
   ]
 }

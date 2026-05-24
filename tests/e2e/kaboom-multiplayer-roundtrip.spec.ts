@@ -178,3 +178,89 @@ test("S114 two Kaboom Crew tabs see each other + recipe sync over the wire", asy
     await stopBackend(backend);
   }
 });
+
+// S117 KABOOM-MP-SPRINT-B chunk 4 — server-authoritative bomb spawning
+// over the wire. Alpha presses Space → place-bomb-network-relay-system
+// sends a placeBombRequest → ServerWorld.placeBomb spawns a Bomb entity
+// on the authoritative ECS world → snapshot delivers it to BOTH alpha
+// and bravo. After ~2.5 s the server fuse detonates the bomb; both
+// clients should observe the bomb entity disappear from the snapshot.
+
+test("S117 alpha places a bomb; both tabs see it spawn + detonate via the server", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port);
+  try {
+    const alphaContext = await browser.newContext();
+    const bravoContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    const bravo = await bravoContext.newPage();
+    try {
+      const url = (playerId: string): string =>
+        `/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=${playerId}`;
+      await alpha.goto(url("alpha"));
+      await bravo.goto(url("bravo"));
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      await bravo.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+
+      // Wait until both tabs see both player entities — proves the
+      // snapshot pipeline is live before we try to spawn a bomb.
+      const bothPlayersPresent = (target: { selfId: string; peerId: string }): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes(target.selfId) && ids.includes(target.peerId);
+      };
+      await alpha.waitForFunction(bothPlayersPresent, { selfId: "player.alpha", peerId: "player.bravo" }, { timeout: 10000 });
+      await bravo.waitForFunction(bothPlayersPresent, { selfId: "player.bravo", peerId: "player.alpha" }, { timeout: 10000 });
+
+      // First Space dismisses the title-screen overlay (removes the
+      // GamePaused singleton). The frame that unpauses swallows the
+      // currently-held keys, so we explicitly release + re-press Space
+      // to produce a fresh edge for the bomb-place input.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+      await alpha.waitForTimeout(120);
+      // Second Space: relay dispatches placeBombRequest → server
+      // spawns Bomb entity → both clients see `bomb.alpha.<n>`.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+
+      const findAlphaBomb = (): string | undefined => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.find((id) => id.startsWith("bomb.alpha."));
+      };
+      await alpha.waitForFunction(findAlphaBomb, undefined, { timeout: 10000 });
+      await bravo.waitForFunction(findAlphaBomb, undefined, { timeout: 10000 });
+
+      const alphaBombId = await alpha.evaluate(findAlphaBomb);
+      const bravoBombId = await bravo.evaluate(findAlphaBomb);
+      expect(alphaBombId).toBeDefined();
+      expect(bravoBombId).toBe(alphaBombId);
+
+      // After ~2.5 s server-side fuse, the bomb should be gone from
+      // both snapshots. Give a generous timeout — propagation+blast
+      // landing is S118, but the bomb leaving the world is S117.
+      const bombGone = (bombId: string): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return !ids.includes(bombId);
+      };
+      await alpha.waitForFunction(bombGone, alphaBombId!, { timeout: 8000 });
+      await bravo.waitForFunction(bombGone, alphaBombId!, { timeout: 8000 });
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+      await testInfo.attach("bravo-snapshot.json", {
+        body: JSON.stringify(await bravo.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+      await bravoContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});

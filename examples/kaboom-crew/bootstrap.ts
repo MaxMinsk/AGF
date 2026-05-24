@@ -351,7 +351,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // and strips the transient so the local placement never spawns a
     // duplicate. Bots + other entities fall through to local placement.
     scheduler.register(
-      createKaboomPlaceBombNetworkRelaySystem({ localPlayerId: playerId, getNetwork }),
+      createKaboomPlaceBombNetworkRelaySystem({ getNetwork }),
       { profiles: ["connected"] }
     );
     scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static", "connected"] });
