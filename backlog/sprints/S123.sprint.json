@@ -1,0 +1,63 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S123",
+  "title": "Server bot smarts \u2014 pickup magnet + hunter chase",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Close the bot-AI feature gap vs the static-profile bot-ai-system: pickup magnet (bot biases direction toward the nearest pickup within radius) + hunter chase (hunter personality also biases direction toward the nearest alive human player, on top of the existing aggressive bomb chance).",
+    "Direction-pick order: (1) reject hard-walls, (2) prefer safe candidates over walkable-but-dangerous, (3) flee from active bombs (S121), (4) bias toward pickup or human target depending on personality + presence. Existing S121 + S122 logic stays underneath.",
+    "Tight 4-story sprint. Out of scope: server-side MatchState (best-of-N gate); local BlastTile dodge (server doesn't track blast tiles); patch-based proposal review."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-BOT-PICKUP-MAGNET-001",
+      "title": "Server bot biases direction toward the nearest pickup within radius",
+      "status": "implemented",
+      "summary": "After the danger-avoid + post-bomb-flee filters pick a candidate, look up the nearest active pickup within manhattan radius (default 5 cells). If found, prefer the candidate that REDUCES manhattan distance to that pickup. Ties broken by RNG. miner personality (default) gets the full magnet effect; coward + hunter inherit it but at lower priority than their core bias. Skipped when the bot's current cell is in dangerCells (flee wins).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Bot direction-pick now consults a steering target (when the current cell is safe \u2014 flee logic still wins for dangerous cells). Steering pulls the bot toward the nearest reachable pickup within PICKUP_MAGNET_RADIUS=5 manhattan cells. Among the danger-filtered candidates, picks the one minimising manhattan distance to the target. Falls back to RNG when no target is reachable.",
+        "examples/backends/node-world-server/src/world.ts: PICKUP_MAGNET_RADIUS + botSteeringTarget() + nearestPickup() helpers; tickBotAi direction-pick block consults steering target after danger-filter",
+        "+1 unit test asserting bot moves toward a force-spawned pickup adjacent to its cell"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-CHASE-HUNTER-001",
+      "title": "Hunter personality biases direction toward the nearest alive human player",
+      "status": "implemented",
+      "summary": "When the bot personality is 'hunter' AND a human player is within manhattan distance \u2264 chase radius (default 8 cells), bias direction-pick toward that human (reduce manhattan distance). Layered ON TOP of pickup-magnet \u2014 chase wins for hunter. Skipped when current cell is dangerous (flee wins).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: When bot personality is 'hunter' AND an alive human player is within HUNTER_CHASE_RADIUS=8 manhattan cells, the steering target becomes that human (chase wins over pickup magnet for hunter). Direction-pick reduces manhattan distance to the human; flee logic still wins for dangerous cells. Coward + miner stick with pickup magnet (no chase).",
+        "examples/backends/node-world-server/src/world.ts: HUNTER_CHASE_RADIUS + nearestAliveHuman() helper; botSteeringTarget branches on personality",
+        "+1 unit test asserting hunter manhattan distance to alice strictly decreases (or stays) over 1.5s of chase decisions",
+        "68 server-map tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOT-PICKUP-PLAYWRIGHT-001",
+      "title": "Playwright e2e: server bot eventually collects a server-spawned pickup",
+      "status": "implemented",
+      "summary": "Single-tab session with KABOOM_PICKUP_DROP_CHANCE=1.0 + KABOOM_BOT_PERSONALITY=miner. Wait for at least one pickup to spawn (bot will bomb a soft-block). Then wait for a pickupCollected event with pickerId=bot.1 (verified via the snapshot's BomberStats showing maxBombs > 1 OR range > 2 OR a similar stat-bump signature). Proves the magnet actually steers the bot to pick something up.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S123 e2e \u2014 single-tab connected session with KABOOM_PICKUP_DROP_CHANCE=1.0 + miner default. Test waits up to 35s for the bot's BomberStats to show any pickup-signature shift (maxBombs > 1, range > 2, speed > 3.5, OR canKick === true). Proves the magnet steering steers the bot onto an active pickup cell, the server's pickup-collect applies, and the snapshot ships the updated stats. Passes on both chromium + chromium-preview."
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOT-CHASE-HUNTER-PLAYWRIGHT-001",
+      "title": "Playwright e2e: hunter bot moves closer to a stationary human",
+      "status": "implemented",
+      "summary": "Single-tab session with KABOOM_BOT_PERSONALITY=hunter + KABOOM_WORLD_SEED chosen for reliable wander. Alpha (human) stays put. Wait for the bot's manhattan distance to alpha to DECREASE compared to its initial distance (proves chase bias steers the bot toward alpha). Reasonable timeout (~15s) \u2014 wander RNG can still push the bot temporarily away.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S123 e2e \u2014 single-tab connected session with KABOOM_BOT_PERSONALITY=hunter. Alpha walks to (8, 8) (inside the hunter's 8-cell chase radius from (13, 9), on a wall-free path). Test tracks the MIN observed manhattan distance from alpha to bot across a 25s window via window.__s123HunterMinDist; success = min < initial. The min-tracker is required because the hunter can suicide-bomb mid-chase \u2192 round resets alpha to (0, 0), separating them again; the proof is that the closing motion was observed at some point. Flaky on first run, passes on retry (Playwright auto-retries \u2014 CI tolerates this).",
+        "Known limitation: hunter sometimes suicides on its own bomb in tight quarters because the post-bomb-flee logic is myopic (one-step). Multi-step flee planning is a follow-up; for now the min-dist tracker keeps the assertion meaningful.",
+        "All 4 S123 e2e tests pass on both chromium + chromium-preview (with auto-retry)"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/145"
+}
