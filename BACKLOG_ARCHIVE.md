@@ -132,5 +132,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S124](backlog/sprints/S124.sprint.json)** — Server bot safety — multi-step flee + no-trap-bomb — 4 implemented · archived 2026-05-24
 - **[S125](backlog/sprints/S125.sprint.json)** — MP server MatchState + wall-aware bot chase — 6 implemented · archived 2026-05-24
 - **[S126](backlog/sprints/S126.sprint.json)** — Engine ragdoll module foundation — schemas + template registry — 5 implemented · archived 2026-05-24
+- **[S127](backlog/sprints/S127.sprint.json)** — Rapier adapter — joints + impulse APIs for the ragdoll module — 4 implemented · archived 2026-05-24
 
 <!-- backlog:render:end -->

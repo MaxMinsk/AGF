@@ -1,0 +1,61 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S127",
+  "title": "Rapier adapter \u2014 joints + impulse APIs for the ragdoll module",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "S126 shipped the ragdoll module foundation (schemas + template registry + doctor surface). The spawn / sync / teardown SYSTEMS need a Rapier surface that the existing adapter doesn't expose yet: joints (ball / revolute / fixed) + impulse application (linear + angular). This sprint adds those.",
+    "Out of scope: the spawn / sync / teardown systems themselves (S128); the Kaboom Crew migration (GDP-2026-05-24-002, S129+); generic joint types beyond ball/revolute/fixed."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-RAPIER-ADAPTER-JOINTS-001",
+      "title": "rapier-adapter: acquireJoint / releaseJoint for ball + revolute + fixed",
+      "status": "implemented",
+      "summary": "Extend engine/physics/rapier/rapier-adapter.ts with acquireJoint(bodyA, bodyB, JointSpec): JointHandle + releaseJoint(handle). JointSpec is a discriminated union { type: 'ball', anchorA, anchorB } | { type: 'revolute', anchorA, anchorB, axis } | { type: 'fixed', anchorA, anchorB }. Wraps Rapier's world.createImpulseJoint via JointData.spherical / .revolute / .fixed. Joints are tracked in a registry so release works cleanly + the adapter teardown disposes them all.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: rapier-adapter now exposes acquireJoint(bodyA, bodyB, JointSpec): JointHandle | undefined + releaseJoint(handle). JointSpec is a discriminated union over 'ball' / 'revolute' / 'fixed'. Wraps Rapier's world.createImpulseJoint via JointData.spherical / .revolute / .fixed factory methods. Joints tracked in a registry so release is deterministic; nextJointHandle counter feeds the handle.",
+        "engine/physics/rapier/rapier-adapter.ts: JointHandle type + JointSpec discriminated union + joints Map + acquireJoint/releaseJoint methods",
+        "tests/unit/physics-sync-system.test.ts: mock adapter extended with no-op joint stubs to satisfy the new RapierAdapter interface"
+      ]
+    },
+    {
+      "id": "FEAT-RAPIER-ADAPTER-IMPULSE-001",
+      "title": "rapier-adapter: applyImpulse + applyTorqueImpulse + setLinvel + setAngvel",
+      "status": "implemented",
+      "summary": "Add four runtime methods to the adapter: applyImpulse(body, [x,y,z]) (translation kick), applyTorqueImpulse(body, [x,y,z]) (rotation kick), setLinvel(body, [x,y,z]) (set linear velocity directly), setAngvel(body, [x,y,z]) (set angular velocity directly). Each calls the corresponding Rapier RigidBody method with wakeUp=true. No-op when the body handle is invalid.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: rapier-adapter now exposes applyImpulse(handle, [x,y,z]), applyTorqueImpulse(handle, [x,y,z]), setLinvel(handle, [x,y,z]), setAngvel(handle, [x,y,z]). Each calls the corresponding Rapier RigidBody method with wakeUp=true. No-op silently when the body handle is invalid.",
+        "engine/physics/rapier/rapier-adapter.ts: four new methods after releaseCollider"
+      ]
+    },
+    {
+      "id": "VERIFY-RAPIER-ADAPTER-JOINTS-UNIT-001",
+      "title": "Unit test: two bodies linked by a fixed joint move together",
+      "status": "implemented",
+      "summary": "tests/unit/rapier-adapter-joints.test.ts \u2014 spawns two dynamic bodies, links them via a fixed joint, applies an impulse to body A, steps the world, asserts both bodies translated by approximately the same vector. Smokes the joint API end-to-end. Then releases the joint + asserts the bodies are independent again.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: 3 integration tests against a real Rapier instance: (1) fixed joint locks two dynamic bodies \u2014 kicking A moves B with it; (2) releaseJoint frees the constraint \u2014 kicking A no longer moves B; (3) ball joint allows free rotation but keeps the anchor distance ~constant.",
+        "tests/unit/rapier-adapter-joints.test.ts: 3 tests, all pass"
+      ]
+    },
+    {
+      "id": "VERIFY-RAPIER-ADAPTER-IMPULSE-UNIT-001",
+      "title": "Unit test: applyImpulse + setLinvel change body velocity",
+      "status": "implemented",
+      "summary": "tests/unit/rapier-adapter-impulse.test.ts \u2014 spawns a dynamic body at rest, applies an upward impulse, steps the world a few times, asserts the body's Y position increased. Separate sub-test: spawns body, setLinvel([10, 0, 0]), steps once, asserts X position advanced ~0.16 (10 cells/s * 1/60s fixed dt).",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: 3 integration tests: applyImpulse([0, 10, 0]) makes a body fly upward (Y > 1 after 30 steps); setLinvel([5, 0, 0]) advances ~1 cell over 0.2s; applyTorqueImpulse rotates without translating.",
+        "tests/unit/rapier-adapter-impulse.test.ts: 3 tests, all pass",
+        "All 1434 unit tests pass; typecheck clean"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "PENDING"
+}

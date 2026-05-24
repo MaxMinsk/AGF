@@ -40,6 +40,15 @@ function stubAdapter() {
       return handle;
     },
     releaseCollider(): void {},
+    // S127 — ragdoll joint + impulse stubs (no-op mock).
+    acquireJoint(): number | undefined {
+      return undefined;
+    },
+    releaseJoint(): void {},
+    applyImpulse(): void {},
+    applyTorqueImpulse(): void {},
+    setLinvel(): void {},
+    setAngvel(): void {},
     setBodyTransform(handle, position): void {
       transforms.push({ handle, position });
       positions.set(handle, [position[0], position[1], position[2]]);

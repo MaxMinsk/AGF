@@ -98,12 +98,41 @@ export type CharacterMoveResult = {
   slidingDownSlope: boolean;
 };
 
+export type JointHandle = number;
+
+/** S127 — joint specification for the ragdoll module. */
+export type JointSpec =
+  | {
+      type: "ball";
+      anchorA: readonly [number, number, number];
+      anchorB: readonly [number, number, number];
+    }
+  | {
+      type: "revolute";
+      anchorA: readonly [number, number, number];
+      anchorB: readonly [number, number, number];
+      axis: readonly [number, number, number];
+    }
+  | {
+      type: "fixed";
+      anchorA: readonly [number, number, number];
+      anchorB: readonly [number, number, number];
+    };
+
 export type RapierAdapter = {
   init(): Promise<void>;
   acquireBody(spec: BodyAcquireSpec): BodyHandle;
   releaseBody(handle: BodyHandle): void;
   acquireCollider(body: BodyHandle, spec: ColliderAcquireSpec): ColliderHandle | undefined;
   releaseCollider(handle: ColliderHandle): void;
+  /** S127 — ragdoll joint API. */
+  acquireJoint(bodyA: BodyHandle, bodyB: BodyHandle, spec: JointSpec): JointHandle | undefined;
+  releaseJoint(handle: JointHandle): void;
+  /** S127 — apply an impulse to a dynamic body (wakes it up). No-op for invalid handles. */
+  applyImpulse(handle: BodyHandle, impulse: readonly [number, number, number]): void;
+  applyTorqueImpulse(handle: BodyHandle, torqueImpulse: readonly [number, number, number]): void;
+  setLinvel(handle: BodyHandle, velocity: readonly [number, number, number]): void;
+  setAngvel(handle: BodyHandle, velocity: readonly [number, number, number]): void;
   setBodyTransform(handle: BodyHandle, position: readonly [number, number, number], rotation?: readonly [number, number, number]): void;
   getBodyTranslation(handle: BodyHandle): readonly [number, number, number] | undefined;
   getBodyRotation(handle: BodyHandle): readonly [number, number, number, number] | undefined;
@@ -196,6 +225,10 @@ export function createAdapterFromModule(
   const characterControllers = new Map<CharacterControllerHandle, RAPIER_TYPES.KinematicCharacterController>();
   let nextCharacterHandle = 1;
   let totalSteps = 0;
+  // S127 — ragdoll joint registry. Maps our JointHandle to Rapier's
+  // ImpulseJoint. Used for releaseJoint + adapter teardown.
+  const joints = new Map<JointHandle, RAPIER_TYPES.ImpulseJoint>();
+  let nextJointHandle = 1;
 
   const eulerToQuat = (rotation: readonly [number, number, number]): { x: number; y: number; z: number; w: number } => {
     const c1 = Math.cos(rotation[0] / 2);
@@ -366,6 +399,64 @@ export function createAdapterFromModule(
       const bid = colliderBody.get(handle);
       if (bid !== undefined) bodyColliders.get(bid)?.delete(handle);
       colliderBody.delete(handle);
+    },
+    // S127 — ragdoll joint API. Wraps Rapier's createImpulseJoint with
+    // a JointData factory chosen by `spec.type`. Joints stay alive in
+    // our registry so release can purge them deterministically; the
+    // adapter dispose() purges the registry wholesale.
+    acquireJoint(bodyA, bodyB, spec): JointHandle | undefined {
+      const a = bodies.get(bodyA);
+      const b = bodies.get(bodyB);
+      if (a === undefined || b === undefined) return undefined;
+      let jointData: RAPIER_TYPES.JointData;
+      const vec = (v: readonly [number, number, number]): RAPIER_TYPES.Vector => ({ x: v[0], y: v[1], z: v[2] });
+      switch (spec.type) {
+        case "ball":
+          jointData = RAPIER.JointData.spherical(vec(spec.anchorA), vec(spec.anchorB));
+          break;
+        case "revolute":
+          jointData = RAPIER.JointData.revolute(vec(spec.anchorA), vec(spec.anchorB), vec(spec.axis));
+          break;
+        case "fixed":
+          jointData = RAPIER.JointData.fixed(
+            vec(spec.anchorA),
+            { x: 0, y: 0, z: 0, w: 1 },
+            vec(spec.anchorB),
+            { x: 0, y: 0, z: 0, w: 1 }
+          );
+          break;
+      }
+      const joint = world.createImpulseJoint(jointData, a, b, true);
+      const handle = nextJointHandle++;
+      joints.set(handle, joint);
+      return handle;
+    },
+    releaseJoint(handle): void {
+      const joint = joints.get(handle);
+      if (joint === undefined) return;
+      world.removeImpulseJoint(joint, true);
+      joints.delete(handle);
+    },
+    // S127 — impulse + velocity API for ragdolls.
+    applyImpulse(handle, impulse): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.applyImpulse({ x: impulse[0], y: impulse[1], z: impulse[2] }, true);
+    },
+    applyTorqueImpulse(handle, torqueImpulse): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.applyTorqueImpulse({ x: torqueImpulse[0], y: torqueImpulse[1], z: torqueImpulse[2] }, true);
+    },
+    setLinvel(handle, velocity): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.setLinvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
+    },
+    setAngvel(handle, velocity): void {
+      const body = bodies.get(handle);
+      if (body === undefined) return;
+      body.setAngvel({ x: velocity[0], y: velocity[1], z: velocity[2] }, true);
     },
     setBodyTransform(handle, position, rotation): void {
       const body = bodies.get(handle);
