@@ -449,11 +449,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     );
     const initialTuning = difficultyComponentPatch(initialPreset);
     runtime.applyCommands([
+      // S84 + S115 — single kaboom.game-state singleton carries
+      // GamePaused (title-screen / pause overlay) AND MatchState
+      // (best-of-N session). Two entity.create calls for the same id
+      // throw "already exists", so they share one batch.
       {
         kind: "entity.create",
         entityId: "kaboom.game-state",
         components: {
-          GamePaused: { reason: "title-screen" }
+          GamePaused: { reason: "title-screen" },
+          MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 }
         }
       },
       // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
@@ -464,14 +469,6 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         entityId: "kaboom.round-state",
         components: {
           RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit(), matchTarget: readMatchTargetFromUrl() ?? 3 }
-        }
-      },
-      // S115 KABOOM-MATCH-STRUCTURE — initial MatchState singleton.
-      {
-        kind: "entity.create",
-        entityId: "kaboom.game-state",
-        components: {
-          MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 }
         }
       },
       { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
