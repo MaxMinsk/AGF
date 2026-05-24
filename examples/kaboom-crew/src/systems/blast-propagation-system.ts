@@ -222,7 +222,7 @@ function damageBombersAt(
     // S109 KABOOM-SHIELD-POWER-UP — consume a shield instead of dying.
     // The bomber stays alive, the shield flips to false, and we stamp a
     // HitRecoilRequest so the dedicated system can play the survival
-    // tween (independent of ragdoll). RagdollState is NOT written —
+    // tween (independent of ragdoll). DeathImpulse is NOT written —
     // ragdoll is owned by the death path. Multi-blast same fixedUpdate:
     // the shield absorbs the FIRST iteration (loop order = entity-id
     // ordered occupants); subsequent iterations see shield=false and
@@ -241,15 +241,15 @@ function damageBombersAt(
     // direction-aware launch impulse. Multiple kills on the same frame
     // pile in via the magnitude clamp below — first writer wins on
     // origin (chain reactions are rare + the visual differs little).
-    const existing = world.getComponent<RagdollStateLike>(id, "RagdollState");
+    const existing = world.getComponent<DeathImpulseLike>(id, "DeathImpulse");
     if (existing === undefined) {
-      world.setComponent(id, "RagdollState", {
+      world.setComponent(id, "DeathImpulse", {
         blastOriginGx,
         blastOriginGz,
         magnitude: 1.0
-      } satisfies RagdollStateLike);
+      } satisfies DeathImpulseLike);
     } else {
-      world.setComponent(id, "RagdollState", {
+      world.setComponent(id, "DeathImpulse", {
         ...existing,
         magnitude: Math.min(1.8, (existing.magnitude ?? 1.0) + 0.4)
       });
@@ -262,7 +262,7 @@ type HitRecoilRequestLike = {
   blastOriginGz: number;
 };
 
-type RagdollStateLike = {
+type DeathImpulseLike = {
   blastOriginGx: number;
   blastOriginGz: number;
   magnitude?: number;

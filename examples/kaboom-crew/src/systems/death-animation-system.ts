@@ -1,5 +1,18 @@
 // S90 KABOOM-DEATH-FALL → S105 KABOOM-RAGDOLL-ROOT-ARC + LIMB-FLAIL.
 //
+// S130 KABOOM-CREW-RAGDOLL-MIGRATION note: this system is the S105
+// procedural-spring ragdoll path that lives inside the project. The
+// planned migration (GDP-2026-05-24-002, S131+) replaces this entire
+// system + spring-pivot-system + S108 ground/wall clamps with a single
+// RagdollSpawnRequest written on BomberStats.alive=false. The engine
+// ragdoll module foundation (schemas, registry, spawn/sync/teardown
+// systems, kaboom-bomber template) landed in S126-S129. The migration
+// waits on engine mesh-handover (project meshes re-parent to ragdoll
+// body entities at spawn) — until then, this procedural-spring path
+// stays the only visual ragdoll. The project-local DeathImpulse
+// component (renamed from RagdollState in S130 to avoid clashing with
+// the engine module's RagdollState) carries the launch direction.
+//
 // Death animation v3. Replaces the S100 slapstick tween (vertical hop
 // + Y-spin) with a physics-driven ragdoll: a gravity arc with
 // blast-direction-aware launch + tumble, plus per-limb spring impulses
@@ -7,7 +20,7 @@
 //
 // Trigger: audio-binding-system writes a `DeathAnim { elapsed }`
 // component on the alive→dead edge; blast-propagation-system writes a
-// `RagdollState { blastOriginGx, blastOriginGz, magnitude }`. On the
+// `DeathImpulse { blastOriginGx, blastOriginGz, magnitude }`. On the
 // first visit, this system reads BOTH, computes the launch direction
 // from (deathCell - blastOrigin), seeds the angular impulses on the
 // limb pivots (via SpringPivot.velocity), and stamps the deathStartedAt
@@ -24,7 +37,7 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 
 const DEATH_ANIM: ComponentName = "DeathAnim";
-const RAGDOLL_STATE: ComponentName = "RagdollState";
+const DEATH_IMPULSE: ComponentName = "DeathImpulse";
 const TRANSFORM: ComponentName = "Transform";
 const LIMB_PIVOTS: ComponentName = "LimbPivots";
 const SPRING_PIVOT: ComponentName = "SpringPivot";
@@ -64,7 +77,7 @@ type DeathAnimComponent = {
   landedAt?: number;
 };
 
-type RagdollStateComponent = {
+type DeathImpulseComponent = {
   blastOriginGx: number;
   blastOriginGz: number;
   magnitude?: number;
@@ -151,7 +164,7 @@ export function createKaboomDeathAnimationSystem(options: KaboomDeathAnimationSy
           // First visit — capture baseline + seed velocity + limb impulses.
           const basePosition = transform.position ?? [0, 0, 0];
           const baseRotation = transform.rotation ?? [0, 0, 0];
-          const ragdoll = world.getComponent<RagdollStateComponent>(id, RAGDOLL_STATE);
+          const ragdoll = world.getComponent<DeathImpulseComponent>(id, DEATH_IMPULSE);
           let dirX = 0;
           let dirZ = -1; // default: knock forward (-Z) if no blast info
           let magnitude = 1.0;
@@ -230,7 +243,7 @@ export function createKaboomDeathAnimationSystem(options: KaboomDeathAnimationSy
             }
           }
           if (ragdoll !== undefined && ragdoll.deathStartedAt === undefined) {
-            world.setComponent(id, RAGDOLL_STATE, { ...ragdoll, deathStartedAt: context.time.elapsed });
+            world.setComponent(id, DEATH_IMPULSE, { ...ragdoll, deathStartedAt: context.time.elapsed });
           }
           // S108 — opt the bomber out of GridMovementSystem's position
           // writes so the ragdoll arc isn't fought by grid-snap.

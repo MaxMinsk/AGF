@@ -55,7 +55,7 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     const world = new World();
     addBomber(world, { gx: 5, gz: 5 });
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 1.0 });
+    world.setComponent("bot.1", "DeathImpulse", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 1.0 });
     const system = createKaboomDeathAnimationSystem();
     system.fixedUpdate!(ctx(world));
     const anim = world.getComponent<{ velocity: ReadonlyArray<number>; angularVelocity: ReadonlyArray<number>; initialised: boolean }>("bot.1", "DeathAnim")!;
@@ -66,7 +66,7 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     expect(anim.velocity[2]!).toBeCloseTo(0, 5);
   });
 
-  it("default direction (-Z) when no RagdollState present", () => {
+  it("default direction (-Z) when no DeathImpulse present", () => {
     const world = new World();
     addBomber(world);
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
@@ -80,7 +80,7 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     const world = new World();
     addBomber(world, { gx: 5, gz: 5 });
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5 });
+    world.setComponent("bot.1", "DeathImpulse", { blastOriginGx: 3, blastOriginGz: 5 });
     const system = createKaboomDeathAnimationSystem();
     system.fixedUpdate!(ctx(world));
     // After init step, integrate further. Track Y peak.
@@ -97,7 +97,7 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     const world = new World();
     addBomber(world);
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5 });
+    world.setComponent("bot.1", "DeathImpulse", { blastOriginGx: 3, blastOriginGz: 5 });
     // Stub LimbPivots + child entities.
     const pivots: Record<string, string> = {
       neck: "bot.1.neck",
@@ -130,7 +130,7 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     const world = new World();
     addBomber(world);
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 1.5 });
+    world.setComponent("bot.1", "DeathImpulse", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 1.5 });
     const system = createKaboomDeathAnimationSystem();
     // Run for 2 seconds — gravity-arc fully completes + landing.
     for (let i = 0; i < 120; i += 1) system.fixedUpdate!(ctx(world, 1 / 60, i / 60));
@@ -144,14 +144,14 @@ describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
     expect(t.position[1]!).toBeCloseTo(0, 5);
   });
 
-  it("RagdollState gets deathStartedAt stamped on first visit", () => {
+  it("DeathImpulse gets deathStartedAt stamped on first visit", () => {
     const world = new World();
     addBomber(world);
     world.setComponent("bot.1", "DeathAnim", { elapsed: 0 });
-    world.setComponent("bot.1", "RagdollState", { blastOriginGx: 3, blastOriginGz: 5 });
+    world.setComponent("bot.1", "DeathImpulse", { blastOriginGx: 3, blastOriginGz: 5 });
     const system = createKaboomDeathAnimationSystem();
     system.fixedUpdate!(ctx(world, 1 / 60, 7.5));
-    const ragdoll = world.getComponent<{ deathStartedAt: number }>("bot.1", "RagdollState")!;
+    const ragdoll = world.getComponent<{ deathStartedAt: number }>("bot.1", "DeathImpulse")!;
     expect(ragdoll.deathStartedAt).toBeCloseTo(7.5, 5);
   });
 });

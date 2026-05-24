@@ -179,7 +179,7 @@ describe("Kaboom bomb pipeline (S82)", () => {
     expect(botStats.alive).toBe(true);
     expect(botStats.shield).toBe(false);
     expect(world.hasComponent("bot.1", "HitRecoilRequest")).toBe(true);
-    expect(world.hasComponent("bot.1", "RagdollState")).toBe(false);
+    expect(world.hasComponent("bot.1", "DeathImpulse")).toBe(false);
   });
 
   it("unshielded second hit kills a bomber whose shield was just consumed", () => {
@@ -204,7 +204,7 @@ describe("Kaboom bomb pipeline (S82)", () => {
     const botStats = world.getComponent("bot.1", "BomberStats") as { alive: boolean; shield: boolean };
     expect(botStats.alive).toBe(false);
     expect(botStats.shield).toBe(false);
-    expect(world.hasComponent("bot.1", "RagdollState")).toBe(true);
+    expect(world.hasComponent("bot.1", "DeathImpulse")).toBe(true);
   });
 
   it("blast tile lifetime ticks down and removes the tile when zero", () => {
