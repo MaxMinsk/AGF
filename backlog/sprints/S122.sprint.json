@@ -1,0 +1,103 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S122",
+  "title": "MP mid-join catch-up + server speed-up authority + bot personality variants",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Three deferred MP follow-ups bundled into a single polish sprint. (a) Mid-session RoundState catch-up \u2014 a new client joining mid-match currently sees tally:{0,0,0} until the next round resolves; ship RoundState via the snapshot so clients sync immediately. (b) Server-side speed-up pickup authority \u2014 speed-up currently no-ops on the server (applyPickupEffect returns undefined for it). (c) Bot personality variants \u2014 the existing server bot is roughly miner-ish; expose hunter / coward / miner like the static-profile bot-ai-system.",
+    "Scope: bundle these three small features into one sprint so we close the obvious MP polish gaps before moving on to bigger work. None of them require protocol changes.",
+    "Out of scope: full Beacon-World-style reconciliation, server-side bot pickup magnet, server-side personality selector UI."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-MID-JOIN-CATCHUP-001",
+      "title": "Server ships RoundState in snapshot via mp.round-state entity",
+      "status": "implemented",
+      "summary": "Add an `mp.round-state` server-side entity that mirrors the existing `kaboom.round-state` singleton (phase/tally/roundNumber/winnerId). Snapshot ships it like any other server entity. Using a server-namespaced id sidesteps the ws-adapter id-collision guard (the local client owns `kaboom.round-state`).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server snapshot now ships RoundState verbatim under a server-namespaced 'mp.round-state' entity id every tick \u2014 phase, tally{player,bot,draws}, roundNumber, optional winnerId. Networked.authority='server' so the client knows it's authoritative. Uses a server-namespaced id so the local client's identically-named kaboom.round-state HUD entity isn't shadowed by ws-adapter's id-collision rejection.",
+        "examples/backends/node-world-server/src/world.ts: MP_ROUND_STATE_ENTITY constant + snapshot loop emits mp.round-state with RoundState component",
+        "+2 unit tests: snapshot has mp.round-state at boot, reflects tally + winnerId after resolve",
+        "All 1393 unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-MID-JOIN-MIRROR-001",
+      "title": "Client connected-blast-decoder mirrors mp.round-state into local kaboom.round-state",
+      "status": "implemented",
+      "summary": "On the connected profile, the decoder reads the `mp.round-state` entity from the snapshot each frame and copies its RoundState component onto the local `kaboom.round-state` entity. Roundresolved events still fire for the audio sting + UI banner, but the actual scoreboard state syncs every frame so a newly-joined client immediately sees the correct tally instead of waiting for the next round-resolve.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: connected-blast-decoder reads mp.round-state from the local snapshot each frame and merges its phase/tally/roundNumber/winnerId into the local kaboom.round-state singleton. HUD reads from kaboom.round-state unchanged; the timeLimit + matchPhase + matchTarget fields the local client owns are preserved (merge, not overwrite). A newly-joined client immediately sees the live tally instead of starting at {0,0,0} until the next roundResolved event.",
+        "examples/kaboom-crew/src/systems/connected-blast-decoder-system.ts: MP_ROUND_STATE_ENTITY constant + per-frame mirror loop in the connected-blast-decoder frameUpdate",
+        "Typecheck clean; full unit suite green"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-SPEEDUP-AUTHORITY-001",
+      "title": "Server applies speed-up pickup to BomberStats.speed + integrates it in movement",
+      "status": "implemented",
+      "summary": "Extend ServerBomberStats with a `speed` field (default = PLAYER_SPEED). applyPickupEffect for 'speed-up' bumps speed by +1 cell/s up to a cap (default 12). Movement integration reads the bomber's BomberStats.speed (fallback to PLAYER_SPEED). Snapshot ships speed when it differs from default. Round-reset clears speed back to default.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: ServerBomberStats now carries a speed field. applyPickupEffect for 'speed-up' bumps speed by SPEED_UP_STEP=1 capped at MAX_SPEED_CAP=12; first pickup goes from baseline PLAYER_SPEED=3.5 to 4.5. Movement integration reads stats.speed (fallback PLAYER_SPEED) so picked-up bombers actually move faster. Snapshot ships speed only when it differs from the baseline so the wire payload stays minimal. Round-reset clears speed by setting BomberStats to defaults without the field.",
+        "examples/backends/node-world-server/src/world.ts: speed field on ServerBomberStats + MAX_SPEED_CAP + SPEED_UP_STEP constants; applyPickupEffect speed-up branch wired; integration loop reads per-bomber speed; snapshot loop emits speed when non-baseline",
+        "+3 unit tests: single speed-up bumps to 4.5, stacks cap at 12, alice with speed-up out-walks bravo",
+        "63 server-map tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-PERSONALITY-BASE-001",
+      "title": "Server bot carries a personality (hunter / coward / miner); env-override + default miner",
+      "status": "implemented",
+      "summary": "Add `personality` field to the server-side bot record (default 'miner' \u2014 matches today's behaviour). KABOOM_BOT_PERSONALITY env var sets it on world boot. tickBotAi reads the personality + branches per-variant logic (next two stories). 'miner' stays the existing baseline (near-soft-block bias).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server bot now carries a personality (BotPersonality = 'hunter' | 'coward' | 'miner', default 'miner'). ServerWorldOptions.botPersonality + KABOOM_BOT_PERSONALITY env var on the node-world-server entry. tickBotAi delegates bomb-place chance to a personality-aware botBombChance() helper. 'miner' keeps the S121 baseline behaviour (chance 0.15 / 0.5 near-soft) unchanged.",
+        "examples/backends/node-world-server/src/world.ts: BotPersonality type + personality field on ServerWorld + botBombChance() switch",
+        "examples/backends/node-world-server/src/index.ts: KABOOM_BOT_PERSONALITY env override"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-PERSONALITY-COWARD-001",
+      "title": "Coward personality: lower bomb chance, more aggressive flee",
+      "status": "implemented",
+      "summary": "Coward bot: bomb-place chance drops to 5% (vs miner 15-50%); flee score weighs distance from ALL dangerous cells (not just bomb origins); never bombs without an explicit safe escape route (at least one cardinal neighbour outside ALL active blast cells AND not a hard-wall).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Coward personality: base bomb-place chance drops to BOT_BOMB_CHANCE_COWARD=0.05 (vs miner 0.15-0.5). Plus a hasSafeEscape() guard simulates the bomb the coward is about to place AND checks for at least one cardinal neighbour cell that's NOT a hard-wall AND NOT inside ANY blast cell (existing dangerCells union the simulated bomb's cells). Without an escape, the coward refuses to bomb at all. Net effect: coward bombs rarely + only when geometrically safe.",
+        "examples/backends/node-world-server/src/world.ts: BOT_BOMB_CHANCE_COWARD constant + hasSafeEscape() helper + 'coward' branch in botBombChance",
+        "+1 unit test asserting coward places \u22643 bombs over 3s window"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-PERSONALITY-HUNTER-001",
+      "title": "Hunter personality: bombs aggressively when a human player is within range",
+      "status": "implemented",
+      "summary": "Hunter bot: bomb-place chance jumps to 60% when any alive human player is within manhattan distance \u2264 range+1 from the bot's current cell. Base chance stays at 15% otherwise. Soft-block adjacency still boosts to 50%. Direction-pick stays the same (danger-avoid still wins).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Hunter personality: bomb-place chance jumps to BOT_BOMB_CHANCE_HUNTER_TARGETED=0.6 when any alive human player's GridPosition is within manhattan distance \u2264 (bot.range + 1) from the bot's current cell. Power-ups widen the hunting radius. When no humans in range, hunter falls back to miner-style behaviour (base or near-soft bias). Direction-pick stays the same (danger-avoid still wins so the hunter doesn't suicide chasing).",
+        "examples/backends/node-world-server/src/world.ts: BOT_BOMB_CHANCE_HUNTER_TARGETED + isHumanInRange() helper + 'hunter' branch in botBombChance",
+        "+1 unit test asserting hunter bombs when alice walked within range",
+        "84 server tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-MID-JOIN-PLAYWRIGHT-001",
+      "title": "Playwright e2e: new client joining after a round resolves sees the tally",
+      "status": "implemented",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: alpha joins, self-kills to resolve a round (tally \u2192 {0,1,0}). Then a SECOND tab (gamma) joins. Verify gamma's local kaboom.round-state shows tally.bot=1 within ~1s of join (proves the snapshot mirror works), instead of starting at {0,0,0} until another round resolves.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: New S122 e2e \u2014 alpha joins, walks to (1,1), places a bomb to self-kill, waits for the round to resolve (mp.round-state's tally jumps from {0,0,0} to {0,1,0}). THEN gamma joins as a fresh context. Within 10s of joining, gamma's LOCAL kaboom.round-state shows the same non-zero tally. Proves the snapshot-driven mid-join catch-up actually closes the new-client-sees-stale-tally gap. Passes on both chromium + chromium-preview.",
+        "tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: +1 S122 test (~22s per project)",
+        "Uses KABOOM_BOT_PERSONALITY=coward to suppress bot-side noise during the alpha-self-kill round (otherwise the bot may bomb alpha first + alter the tally direction)"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "PENDING"
+}

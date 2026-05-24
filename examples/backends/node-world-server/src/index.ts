@@ -105,9 +105,16 @@ async function runServe(): Promise<void> {
   const pickupDropChance = dropChanceEnv !== undefined ? Number.parseFloat(dropChanceEnv) : undefined;
   const seedEnv = process.env["KABOOM_WORLD_SEED"];
   const worldSeed = seedEnv !== undefined ? Number.parseInt(seedEnv, 10) : undefined;
+  // S122 — bot personality from env.
+  const personalityEnv = process.env["KABOOM_BOT_PERSONALITY"];
+  const botPersonality =
+    personalityEnv === "hunter" || personalityEnv === "coward" || personalityEnv === "miner"
+      ? personalityEnv
+      : undefined;
   const world = new ServerWorld({
     ...(pickupDropChance !== undefined && Number.isFinite(pickupDropChance) ? { pickupDropChance } : {}),
-    ...(worldSeed !== undefined && Number.isFinite(worldSeed) ? { worldSeed } : {})
+    ...(worldSeed !== undefined && Number.isFinite(worldSeed) ? { worldSeed } : {}),
+    ...(botPersonality !== undefined ? { botPersonality } : {})
   });
   const transport = await startWsTransport({ port, world, validate });
   console.log("[node-world-server] serve mode running. Ctrl-C to stop.");
