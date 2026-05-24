@@ -32,7 +32,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[BEACON-WORLD-SAMPLE](backlog/epics/BEACON-WORLD-SAMPLE.epic.json)** — Beacon World sample | active | engine | 1 / 0 / 1 |  |
 | **[E-55-INSPECTOR-WRITEBACK-CONTRACT](backlog/epics/E-55-INSPECTOR-WRITEBACK-CONTRACT.epic.json)** — E.55 Inspector writeback contract | active | infra | 0 / 0 / 0 |  |
 | **[INSPECTOR-OVERLAY](backlog/epics/INSPECTOR-OVERLAY.epic.json)** — Inspector overlay | active | engine | 0 / 0 / 0 |  |
-| **[KABOOM-CREW-CHARACTERS](backlog/epics/KABOOM-CREW-CHARACTERS.epic.json)** — Kaboom Crew — procedural characters (mesh + animation + voice) | active | sample-game | 65 / 0 / 71 |  |
+| **[KABOOM-CREW-CHARACTERS](backlog/epics/KABOOM-CREW-CHARACTERS.epic.json)** — Kaboom Crew — procedural characters (mesh + animation + voice) | active | sample-game | 67 / 0 / 73 |  |
 | **[KABOOM-CREW-MVP-0](backlog/epics/KABOOM-CREW-MVP-0.epic.json)** — Kaboom Crew — offline solo vertical slice (MVP 0) | active | sample-game | 20 / 0 / 20 | → MVP-0 |
 | **[KABOOM-CREW-MVP-1](backlog/epics/KABOOM-CREW-MVP-1.epic.json)** — Kaboom Crew — MVP 1 polish (audio + particles + score + title screen) | active | sample-game | 44 / 0 / 44 |  |
 | **[KABOOM-CREW-MVP-2](backlog/epics/KABOOM-CREW-MVP-2.epic.json)** — Kaboom Crew — MVP 2 (mechanic depth + bot personality + power-up variety) | active | sample-game | 8 / 0 / 8 |  |
@@ -40,7 +40,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
 | **[M20](backlog/epics/M20.epic.json)** — M20 Netcode rework — pick a proven model & rebuild own-drone authority | active | engine | 1 / 0 / 1 |  |
-| **[M24](backlog/epics/M24.epic.json)** — M24 Rapier physics & colliders | active | engine | 16 / 0 / 16 |  |
+| **[M24](backlog/epics/M24.epic.json)** — M24 Rapier physics & colliders | active | engine | 20 / 0 / 20 |  |
 | **[M5](backlog/epics/M5.epic.json)** — M5 Runtime diagnostics + browser-side error channel | active | engine | 0 / 0 / 0 |  |
 | **[M6](backlog/epics/M6.epic.json)** — M6 Deterministic replay / recording | active | engine | 0 / 0 / 0 |  |
 | **[M8](backlog/epics/M8.epic.json)** — M8 Input actions, remapping, touch/gamepad | active | engine | 0 / 0 / 0 |  |

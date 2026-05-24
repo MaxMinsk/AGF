@@ -343,6 +343,17 @@ over from where animation left off. This is what makes the
 ragdoll read as continuous with the death moment, not as a hard
 cut.
 
+Mechanism (S133): the project writes an optional
+`bodyPoses: Record<bodyName, { position[3], rotation?[3] }>` on
+the `RagdollSpawnRequest`. The spawn-system uses each entry as
+the body's spawn pose; bodies not listed in `bodyPoses` fall back
+to the template's `anchor` offset from the root. Rotations are
+degrees on the wire (mirrors the Transform component convention);
+engine converts to radians for Rapier. Kaboom Crew composes
+`bodyPoses` from each mesh's `LocalToWorld` (the renderer cache)
+before detaching parents — the snapshot matches exactly what
+the renderer was about to draw.
+
 ### 6.3 Reverse handover (Kaboom Crew: never; future games: maybe)
 
 Not in this story's scope. Sketched here so the API doesn't lock it
@@ -390,6 +401,27 @@ Lifecycle:
    project keeps ownership of them and decides what to do next
    (hide the corpse, swap to a static "downed" model, re-attach to
    animation pivots, etc.). The mesh's last Transform is left as-is.
+
+Pose-snapshot (S133): pair `meshMap` with a `bodyPoses` entry to
+land the ragdoll exactly where the meshes were, instead of where
+the template's `anchor` says. Read each mesh's `LocalToWorld`
+before detach:
+
+```ts
+const bodyPoses: Record<string, { position: number[]; rotation?: number[] }> = {};
+for (const [bodyName, meshId] of Object.entries(meshMap)) {
+  const ltw = world.getComponent("LocalToWorld", meshId);
+  if (ltw === undefined) continue; // engine will fall back to anchor
+  bodyPoses[bodyName] = {
+    position: [...ltw.position],
+    // LTW.rotation is radians; bodyPoses is degrees to match Transform.
+    rotation: ltw.rotation.map((r) => r * 180 / Math.PI)
+  };
+}
+world.setComponent(rootId, "RagdollSpawnRequest", {
+  templateKey, impulse, meshMap, bodyPoses
+});
+```
 
 What the contract **doesn't** do:
 

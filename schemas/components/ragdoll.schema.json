@@ -127,6 +127,30 @@
           "type": "object",
           "additionalProperties": { "type": "string", "minLength": 1 },
           "description": "S131 — optional mapping from body name (matches RagdollBodyDef.name) to an existing mesh entity id. The spawn system writes a RagdollMeshBinding on each mapped mesh; the sync system then mirrors that body's Transform onto the mesh each fixed tick. Partial maps are fine; unmapped bodies + unknown body names are ignored silently."
+        },
+        "bodyPoses": {
+          "type": "object",
+          "description": "S133 — optional per-body pose-snapshot. Each entry overrides the body's spawn position (and rotation, if provided) instead of the template's anchor. Useful for continuity at the moment of death — read each mesh's world Transform pre-spawn and pass it here so the ragdoll starts exactly where the animation left off. Unknown body names + entries with malformed shape are silently skipped at spawn time.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["position"],
+            "additionalProperties": false,
+            "properties": {
+              "position": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": { "type": "number" }
+              },
+              "rotation": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": { "type": "number" },
+                "description": "Euler XYZ in degrees (mirrors the Transform component convention). The engine converts to radians internally before passing to Rapier."
+              }
+            }
+          }
         }
       }
     },

@@ -35,7 +35,15 @@ type SpawnRequest = {
   templateKey: string;
   impulse?: readonly [number, number, number];
   meshMap?: Readonly<Record<string, EntityId>>;
+  bodyPoses?: Readonly<Record<string, BodyPose>>;
 };
+
+type BodyPose = {
+  position: readonly [number, number, number];
+  rotation?: readonly [number, number, number];
+};
+
+const DEG2RAD = Math.PI / 180;
 
 type TransformComponent = {
   position?: readonly [number, number, number];
@@ -90,6 +98,7 @@ export function createRagdollSpawnSystem(options: RagdollSpawnSystemOptions): Sy
         origin,
         req.impulse,
         req.meshMap,
+        req.bodyPoses,
         nowSeconds(),
         () => {
           bodyCounter += 1;
@@ -115,6 +124,7 @@ function spawnRagdoll(
   origin: readonly [number, number, number],
   impulse: readonly [number, number, number] | undefined,
   meshMap: Readonly<Record<string, EntityId>> | undefined,
+  bodyPoses: Readonly<Record<string, BodyPose>> | undefined,
   spawnedAt: number,
   nextBodyId: () => number,
   nextJointId: () => number
@@ -122,15 +132,34 @@ function spawnRagdoll(
   const bodyEntities: Record<string, EntityId> = {};
   const bodyHandles: Record<string, BodyHandle> = {};
   for (const def of template.bodies) {
-    const anchor = def.anchor ?? [0, 0, 0];
-    const position: [number, number, number] = [
-      (origin[0] ?? 0) + (anchor[0] ?? 0),
-      (origin[1] ?? 0) + (anchor[1] ?? 0),
-      (origin[2] ?? 0) + (anchor[2] ?? 0)
-    ];
+    // S133 — pose-snapshot: if bodyPoses[def.name] is provided, use it as
+    // the body's spawn pose; otherwise fall back to root.position +
+    // template anchor. Rotation in bodyPoses is degrees (mirrors the
+    // Transform component convention); convert to radians for Rapier.
+    const pose = bodyPoses?.[def.name];
+    let position: [number, number, number];
+    let rotationRad: readonly [number, number, number] | undefined;
+    if (pose !== undefined && Array.isArray(pose.position) && pose.position.length === 3) {
+      position = [pose.position[0] ?? 0, pose.position[1] ?? 0, pose.position[2] ?? 0];
+      if (pose.rotation !== undefined && Array.isArray(pose.rotation) && pose.rotation.length === 3) {
+        rotationRad = [
+          (pose.rotation[0] ?? 0) * DEG2RAD,
+          (pose.rotation[1] ?? 0) * DEG2RAD,
+          (pose.rotation[2] ?? 0) * DEG2RAD
+        ];
+      }
+    } else {
+      const anchor = def.anchor ?? [0, 0, 0];
+      position = [
+        (origin[0] ?? 0) + (anchor[0] ?? 0),
+        (origin[1] ?? 0) + (anchor[1] ?? 0),
+        (origin[2] ?? 0) + (anchor[2] ?? 0)
+      ];
+    }
     const handle = adapter.acquireBody({
       kind: "dynamic",
       position,
+      ...(rotationRad !== undefined ? { rotation: rotationRad } : {}),
       ...(def.mass !== undefined ? { mass: def.mass } : {}),
       ...(def.linearDamping !== undefined
         ? { linearDamping: def.linearDamping }
@@ -149,7 +178,17 @@ function spawnRagdoll(
     }
     const bodyEntityId: EntityId = `${rootId}.body.${def.name}.${nextBodyId()}`;
     world.addEntity(bodyEntityId);
-    world.setComponent(bodyEntityId, TRANSFORM, { position });
+    // Body entity's initial Transform mirrors the spawn pose so the next
+    // sync tick has the right starting reference. Rotation is stored in
+    // degrees on the Transform component, mirroring the rest of the
+    // engine.
+    const initialTransform: { position: [number, number, number]; rotation?: [number, number, number] } = {
+      position
+    };
+    if (pose?.rotation !== undefined && Array.isArray(pose.rotation) && pose.rotation.length === 3) {
+      initialTransform.rotation = [pose.rotation[0] ?? 0, pose.rotation[1] ?? 0, pose.rotation[2] ?? 0];
+    }
+    world.setComponent(bodyEntityId, TRANSFORM, initialTransform);
     world.setComponent(bodyEntityId, RAGDOLL_BODY, {
       ownerRoot: rootId,
       bodyName: def.name,

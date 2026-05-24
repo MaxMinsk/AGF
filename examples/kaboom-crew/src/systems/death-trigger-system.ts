@@ -36,6 +36,8 @@ const BOMBER_STATS: ComponentName = "BomberStats";
 const DEATH_IMPULSE: ComponentName = "DeathImpulse";
 const RAGDOLL_SPAWN_REQUEST: ComponentName = "RagdollSpawnRequest";
 const TRANSFORM: ComponentName = "Transform";
+const LOCAL_TO_WORLD: ComponentName = "LocalToWorld";
+const RAD2DEG = 180 / Math.PI;
 
 const KABOOM_BOMBER_TEMPLATE_KEY = "kaboom-bomber";
 const DEFAULT_IMPULSE_MAGNITUDE = 1.0;
@@ -70,6 +72,17 @@ type TransformComponent = {
   rotation?: readonly [number, number, number];
   scale?: readonly [number, number, number];
   parent?: EntityId;
+};
+
+type LocalToWorldComponent = {
+  position?: readonly [number, number, number];
+  rotation?: readonly [number, number, number];
+  scale?: readonly [number, number, number];
+};
+
+type BodyPoseEntry = {
+  position: [number, number, number];
+  rotation?: [number, number, number];
 };
 
 export type KaboomDeathTriggerSystemOptions = {
@@ -116,12 +129,32 @@ function triggerRagdoll(world: World, rootId: EntityId): void {
   // (defensive — re-entry guard).
   if (world.hasComponent(rootId, RAGDOLL_SPAWN_REQUEST)) return;
 
-  // Build meshMap + detach Transform.parent on each existing mesh.
+  // S133 pose-snapshot: BEFORE detaching parents, read each mesh's
+  // LocalToWorld so the engine ragdoll spawns each body at the mesh's
+  // current world position+rotation. Falls back to the template anchor
+  // for any mesh without LTW (e.g. the renderer hasn't ticked yet).
+  // LTW rotation is in radians; the schema declares degrees, so we
+  // convert here.
   const meshMap: Record<string, EntityId> = {};
+  const bodyPoses: Record<string, BodyPoseEntry> = {};
   for (const { body, suffix } of BODY_TO_MESH_SUFFIX) {
     const meshId: EntityId = `${rootId}.${suffix}`;
     if (!world.hasEntity(meshId)) continue;
     meshMap[body] = meshId;
+    const ltw = world.getComponent<LocalToWorldComponent>(meshId, LOCAL_TO_WORLD);
+    if (ltw?.position !== undefined) {
+      const entry: BodyPoseEntry = {
+        position: [ltw.position[0] ?? 0, ltw.position[1] ?? 0, ltw.position[2] ?? 0]
+      };
+      if (ltw.rotation !== undefined) {
+        entry.rotation = [
+          (ltw.rotation[0] ?? 0) * RAD2DEG,
+          (ltw.rotation[1] ?? 0) * RAD2DEG,
+          (ltw.rotation[2] ?? 0) * RAD2DEG
+        ];
+      }
+      bodyPoses[body] = entry;
+    }
     const t = world.getComponent<TransformComponent>(meshId, TRANSFORM);
     if (t?.parent !== undefined) {
       const next: TransformComponent = { ...t };
@@ -133,11 +166,18 @@ function triggerRagdoll(world: World, rootId: EntityId): void {
   // Compute impulse from DeathImpulse (blast direction) if present.
   const impulse = computeImpulse(world, rootId);
 
-  world.setComponent(rootId, RAGDOLL_SPAWN_REQUEST, {
+  const request: {
+    templateKey: string;
+    impulse: readonly [number, number, number];
+    meshMap: Record<string, EntityId>;
+    bodyPoses?: Record<string, BodyPoseEntry>;
+  } = {
     templateKey: KABOOM_BOMBER_TEMPLATE_KEY,
     impulse,
     meshMap
-  });
+  };
+  if (Object.keys(bodyPoses).length > 0) request.bodyPoses = bodyPoses;
+  world.setComponent(rootId, RAGDOLL_SPAWN_REQUEST, request);
 }
 
 function computeImpulse(world: World, rootId: EntityId): readonly [number, number, number] {
