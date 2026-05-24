@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-24",
   "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/154",
   "notes": [
     "Lands GDP-2026-05-24-002. Replaces the S105 procedural-spring DeathAnim path with the engine ragdoll module (S126-S128 systems + S129 kaboom-bomber template + S131 mesh-handover primitive). Setup is already there: kaboom-crew's project.json sets physics.enabled=true (S129), and src/app.ts auto-registers Rapier adapter + spawn/sync/teardown systems when the flag is on. This sprint adds the project-side trigger, switches the animation gate, and de-registers the old path.",
     "Trigger flow: a new kaboom-death-trigger-system watches BomberStats.alive true→false. On the edge: (1) detach the 10 procedural mesh entities from their parent pivots (set Transform.parent = undefined) so the engine sync can write world-space transforms cleanly; (2) build a meshMap from the 10-body kaboom-bomber template names to the convention-derived mesh entity ids (`<root>.torso`, `<root>.head`, `<root>.upperArmL`, etc.); (3) read DeathImpulse (blast direction) and translate to a Rapier impulse vector; (4) write RagdollSpawnRequest { templateKey: 'kaboom-bomber', impulse, meshMap } on the bomber root. The engine spawn-system consumes it next tick and writes RagdollMeshBinding on each mesh — sync-system mirrors body transforms onto meshes per fixed step.",
