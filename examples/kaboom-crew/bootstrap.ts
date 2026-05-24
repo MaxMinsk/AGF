@@ -4,6 +4,13 @@ import { createGridMovementSystem } from "../../engine/core/systems/grid-movemen
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type { EngineCommand } from "../../engine/core/commands/types";
+import {
+  registerRagdollTemplate
+} from "../../engine/physics/ragdoll/template-registry";
+import {
+  KABOOM_BOMBER_RAGDOLL,
+  KABOOM_BOMBER_RAGDOLL_KEY
+} from "./src/characters/kaboom-bomber-ragdoll-template";
 import type {
   ProjectBootstrap,
   ProjectBootstrapContext,
@@ -316,6 +323,16 @@ let _boundRestart: (() => void) | undefined;
 // local bot.1 spawn so the snapshot's server bot.1 entity isn't
 // rejected by the ws-adapter's id-collision guard.
 let _networkedMode = false;
+
+// S129 KABOOM-CREW ragdoll foundation — register the kaboom-bomber
+// template at module load so the engine ragdoll spawn-system can find
+// it the first time a death triggers a RagdollSpawnRequest. try/catch
+// the duplicate-key error so HMR re-imports don't throw.
+try {
+  registerRagdollTemplate(KABOOM_BOMBER_RAGDOLL_KEY, KABOOM_BOMBER_RAGDOLL);
+} catch (error) {
+  if (!String(error).includes("duplicate key")) throw error;
+}
 
 // S87 KABOOM-HUD-KEY-GLYPHS. PlayerInputSystem already exposes
 // pressedSnapshot(); we hold the instance so attachUi can expose a

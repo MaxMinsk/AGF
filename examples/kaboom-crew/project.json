@@ -10,5 +10,10 @@
     "batching": { "auto": true },
     "particlePreWarmPresets": ["spark", "glow", "pulse"]
   },
+  "physics": {
+    "enabled": true,
+    "gravity": [0, -9.81, 0],
+    "fixedDt": 0.01666666
+  },
   "profiles": ["static", "connected"]
 }
