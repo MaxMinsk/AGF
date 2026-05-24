@@ -76,6 +76,7 @@ import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-sy
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
 import { createKaboomDeathAnimationSystem } from "./src/systems/death-animation-system";
+import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readBotPersonalityFromUrl, readDifficultyFromUrl } from "./src/difficulty";
@@ -421,10 +422,26 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // Transform.position; intensity scales with blast range.
     scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static", "connected"] });
 
-    // S90 KABOOM-DEATH-FALL — tweens the dying bomber's rotation
-    // toward a tipped-over pose. Reads `DeathAnim` written by
-    // audio-binding-system on the alive→dead edge.
-    scheduler.register(createKaboomDeathAnimationSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S132 KABOOM-DEATH-TRIGGER (replaces the S90/S105 procedural-spring
+    // path). Watches BomberStats.alive true→false; detaches the 10
+    // procedural meshes from their pivot parents, builds a meshMap,
+    // reads DeathImpulse for the blast direction, and writes a
+    // RagdollSpawnRequest on the bomber root. The engine ragdoll
+    // module (registered by src/app.ts when physics.enabled=true)
+    // consumes the request next tick and owns the visual ragdoll
+    // from there on. Must run BEFORE audio-binding-system so the
+    // ragdoll spawns on the same frame as the death audio.
+    scheduler.register(createKaboomDeathTriggerSystem(), { profiles: ["static", "connected"] });
+
+    // S132 ORPHANED — createKaboomDeathAnimationSystem (S90/S105) +
+    // createSpringPivotSystem (S105) are intentionally NOT registered.
+    // The engine ragdoll module owns the death visual now; the files
+    // stay in place for one sprint as a soft archive and are scheduled
+    // for deletion in S133 after playtest. (createSpringPivotSystem
+    // also drives the procbomber-bench's slider tweens — only kaboom
+    // de-registers it; the bench still uses it.)
+    void createKaboomDeathAnimationSystem;
+    void createSpringPivotSystem;
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
     // BenchAnimationState + LimbPivots (written by the driver above + by
@@ -436,12 +453,6 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // system so its nudges accumulate into SpringPivot.velocity, which
     // the spring system then decays back to rest.
     scheduler.register(createSoftAttachSwaySystem(), { profiles: ["static", "connected"] });
-    // S105 KABOOM-SPRING-PIVOT-SYSTEM — runs AFTER bench-animation so
-    // ragdoll-stamped SpringPivot rotations override the rest pose.
-    // (bench-animation skips its own writes for entities with
-    // DeathAnim, so the spring + death-arc systems own ragdoll-frame
-    // rotations cleanly.)
-    scheduler.register(createSpringPivotSystem(), { profiles: ["static", "connected"] });
 
     // S120 KABOOM-MP-SPRINT-B chunk 4 — server walks blast cells +
     // emits blastEvent + blockDestroyed (S118). Local blast-propagation

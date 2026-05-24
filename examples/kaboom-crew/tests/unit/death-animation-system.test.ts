@@ -1,4 +1,12 @@
 // S105 KABOOM-RAGDOLL-ROOT-ARC + LIMB-FLAIL — replaces the S100 tween tests.
+//
+// S132 — tests SKIPPED. The system this file covers
+// (createKaboomDeathAnimationSystem) was de-registered when the engine
+// ragdoll module took over the death visual. The implementation file
+// stays as a soft archive until S133 deletes both the source + this
+// test file. Skipping (rather than deleting now) lets us flip the
+// describe back to active for a one-off regression check if S133 has
+// to roll back.
 
 import { describe, expect, it } from "vitest";
 
@@ -21,7 +29,7 @@ function addBomber(world: World, opts: { gx?: number; gz?: number } = {}) {
   world.setComponent("bot.1", "GridPosition", { gx: opts.gx ?? 5, gz: opts.gz ?? 5 });
 }
 
-describe("pivotImpulseDegPerS (S105 pure helper)", () => {
+describe.skip("pivotImpulseDegPerS (S105 pure helper)", () => {
   it("returns the same magnitude for the same inputs (deterministic)", () => {
     const a = pivotImpulseDegPerS("bot.1", 2, 3, "shoulderL");
     const b = pivotImpulseDegPerS("bot.1", 2, 3, "shoulderL");
@@ -41,7 +49,7 @@ describe("pivotImpulseDegPerS (S105 pure helper)", () => {
   });
 });
 
-describe("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
+describe.skip("createKaboomDeathAnimationSystem (S105 ragdoll)", () => {
   it("does nothing for entities without DeathAnim", () => {
     const world = new World();
     addBomber(world);

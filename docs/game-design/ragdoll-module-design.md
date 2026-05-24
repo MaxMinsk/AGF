@@ -463,7 +463,22 @@ window. No long-running ragdoll piles up.
 
 ## 9. First consumer: Kaboom Crew adoption
 
-Sketched here; full story in `GDP-2026-05-24-002`.
+Shipped across S126–S132. Migration plan from `GDP-2026-05-24-002`
+complete:
+
+- S126–S128 — engine ragdoll module (schemas + registry + Rapier
+  adapter joints/impulse + spawn/sync/teardown systems).
+- S129 — kaboom-bomber template registered at bootstrap.
+- S131 — engine mesh-handover primitive (`meshMap` on the spawn
+  request + `RagdollMeshBinding` + sync mirroring).
+- S132 — kaboom-crew death-trigger swap. The project's
+  `createKaboomDeathTriggerSystem` watches BomberStats.alive
+  transitions, detaches the 10 procedural meshes from their pivot
+  parents, builds a `meshMap`, reads `DeathImpulse` (blast direction),
+  and writes the `RagdollSpawnRequest`. The legacy S105 spring path
+  (`createKaboomDeathAnimationSystem` + `createSpringPivotSystem`)
+  is de-registered; source files remain as a one-sprint soft archive
+  before deletion in S133.
 
 The Kaboom Crew `RagdollTemplate` lives at
 `examples/kaboom-crew/src/characters/kaboom-bomber-ragdoll-template.ts`

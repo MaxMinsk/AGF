@@ -1,0 +1,89 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S132",
+  "title": "Kaboom Crew — death-trigger migration to engine ragdoll",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/154",
+  "notes": [
+    "Lands GDP-2026-05-24-002. Replaces the S105 procedural-spring DeathAnim path with the engine ragdoll module (S126-S128 systems + S129 kaboom-bomber template + S131 mesh-handover primitive). Setup is already there: kaboom-crew's project.json sets physics.enabled=true (S129), and src/app.ts auto-registers Rapier adapter + spawn/sync/teardown systems when the flag is on. This sprint adds the project-side trigger, switches the animation gate, and de-registers the old path.",
+    "Trigger flow: a new kaboom-death-trigger-system watches BomberStats.alive true→false. On the edge: (1) detach the 10 procedural mesh entities from their parent pivots (set Transform.parent = undefined) so the engine sync can write world-space transforms cleanly; (2) build a meshMap from the 10-body kaboom-bomber template names to the convention-derived mesh entity ids (`<root>.torso`, `<root>.head`, `<root>.upperArmL`, etc.); (3) read DeathImpulse (blast direction) and translate to a Rapier impulse vector; (4) write RagdollSpawnRequest { templateKey: 'kaboom-bomber', impulse, meshMap } on the bomber root. The engine spawn-system consumes it next tick and writes RagdollMeshBinding on each mesh — sync-system mirrors body transforms onto meshes per fixed step.",
+    "Animation gate: bomber-animation-driver + bench-animation-system currently check `hasComponent(id, 'DeathAnim')` to skip dead bombers. S132 switches both to `hasComponent(id, 'RagdollActive')` — the canonical engine marker. That keeps the gate working whether the ragdoll is from the new path or any future revive scenario.",
+    "Cleanup: audio-binding-system drops its DeathAnim write (keeps the audio event + particle puff + GridMover-stop). createKaboomDeathAnimationSystem + createSpringPivotSystem are de-registered from the scheduler. Source files stay (death-animation-system.ts, spring-pivot-system.ts) for a sprint as a soft-archive; S133+ can delete them after a playtest confirms no regression.",
+    "Visual jump caveat: engine spawn-system positions bodies at root.position + body.anchor (template-defined offsets). The procedural character generator positions meshes via a parent chain, so the ragdoll bodies start at the template's rest-pose anchors — not at each mesh's exact pre-death world position. There's a small one-frame visual jump at the spawn boundary. Acknowledged as acceptable for MVP; pose-snapshot at spawn is a future story.",
+    "Out of scope: deleting the S105 spring files (S133+); reverse-handover (§6.3 of design doc); accessory ragdolls (the 5 accessory entities aren't covered by the 10-body template — they stay parented and freeze at death). The minimap+camera+UI keep their existing reads."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-DEATH-TRIGGER-001",
+      "title": "New kaboom-death-trigger-system: alive-edge → RagdollSpawnRequest with meshMap",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/death-trigger-system.ts. Subscribes to BomberStats.alive transitions via a per-system prevAlive map (same pattern audio-binding-system uses). On true→false: detach Transform.parent from each of the 10 mesh entities (computed by suffix mapping), compute impulse vector from optional DeathImpulse (default toward -Z at magnitude 1.0), build meshMap, write RagdollSpawnRequest { templateKey: 'kaboom-bomber', impulse, meshMap } on the bomber root. Pure ECS — no Rapier import. Engine spawn-system handles the rest.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/systems/death-trigger-system.ts watches BomberStats.alive transitions via a prevAlive map. On true→false edge: detaches Transform.parent from each of the 10 mesh entities, builds a meshMap mapping kaboom-bomber template body names to <root>.<suffix> mesh ids, computes impulse from DeathImpulse (defaults to -Z mag 1), writes RagdollSpawnRequest."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-DEATH-TRIGGER-REGISTER-001",
+      "title": "Register death-trigger system in kaboom-crew bootstrap; de-register spring path",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts. Register createKaboomDeathTriggerSystem ahead of the engine ragdoll spawn-system (which runs via src/app.ts physics.enabled wiring). De-register createKaboomDeathAnimationSystem + createSpringPivotSystem from the scheduler (leave the source files in place for one sprint — soft archive). Update the inline S90 / S105 comment blocks marking those systems orphaned.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: kaboom-crew bootstrap.ts registers createKaboomDeathTriggerSystem on both static + connected profiles. createKaboomDeathAnimationSystem + createSpringPivotSystem are no longer registered (kept as void references + comment soft-archive)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-AUDIO-BINDING-DROP-DEATHANIM-001",
+      "title": "Audio-binding-system stops writing DeathAnim",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/audio-binding-system.ts. Remove the `world.setComponent(id, 'DeathAnim', { elapsed: 0 })` block (~lines 235-237). Keep the death audio event, voice-death event, particle puff, and the GridMover queuedDirection zero-out. The new death-trigger-system runs in the same fixed step and handles the ragdoll spawn.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/systems/audio-binding-system.ts no longer writes DeathAnim on the alive→false edge. Audio event, voice event, particle puff, and GridMover queuedDirection zero-out all still fire."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-ANIMATION-GATE-RAGDOLLACTIVE-001",
+      "title": "Animation systems gate on RagdollActive instead of DeathAnim",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/bomber-animation-driver.ts (line ~53: `hasComponent(entityId, 'DeathAnim')` → `'RagdollActive'`). examples/procbomber-bench/src/systems/bench-animation-system.ts (line ~363: same swap). RagdollActive is the engine module's canonical 'physics owns this skeleton' marker — written by spawn-system, cleared by teardown-system. Broader semantic than DeathAnim.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bomber-animation-driver.ts gates 'none' kind on RagdollActive instead of DeathAnim. bench-animation-system.ts checks RagdollActive first then falls back to DeathAnim for legacy bench scenarios."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-DEATH-TRIGGER-001",
+      "title": "Unit tests for the new death-trigger system",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/death-trigger-system.test.ts. Cover: (1) alive=false-edge fires a single RagdollSpawnRequest with templateKey 'kaboom-bomber' and a 10-entry meshMap; (2) does NOT fire when alive=true (no transition); (3) does NOT fire on subsequent ticks for an already-dead bomber (edge detection); (4) impulse derived from DeathImpulse points away from blast origin; (5) without DeathImpulse, impulse defaults to a -Z vector at magnitude 1; (6) Transform.parent cleared on each mesh entity that exists; mesh entities that don't exist are silently skipped from the meshMap.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/death-trigger-system.test.ts adds 8 tests — alive→false edge fires with 10-entry meshMap, no fire when alive stays true, edge detection prevents re-fire, impulse points away from blast origin, default -Z impulse without DeathImpulse, Transform.parent cleared, missing meshes skipped, defensive re-entry guard. All 8 pass."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-DEATHANIM-TESTS-RETIRE-001",
+      "title": "Retire the death-animation-system tests + bomb-blast DeathImpulse assertions",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/death-animation-system.test.ts and the DeathImpulse-presence assertions in bomb-blast-system.test.ts test the orphaned path. Skip them with describe.skip + a comment pointing at S132 (the file stays so the suite still loads; we delete in S133 alongside the source files). For bomb-blast-system, the DeathImpulse component IS still written by blast-propagation-system (the death-trigger reads it for impulse direction), so those assertions stay — only delete the ones that check DeathAnim or the legacy DeathImpulse.deathStartedAt stamp.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/death-animation-system.test.ts both describe blocks switched to describe.skip with S132 comment block. bomb-blast-system.test.ts DeathImpulse-presence assertions kept (DeathImpulse is still written by blast-propagation-system; the new death-trigger reads it for impulse direction)."
+      ]
+    },
+    {
+      "id": "DOC-S132-MIGRATION-DONE-001",
+      "title": "Update migration notes — design doc §9 + death-animation-system header",
+      "status": "implemented",
+      "summary": "docs/game-design/ragdoll-module-design.md §9 (Kaboom Crew adoption): change the 'planned' tone to 'shipped in S132' + cite the new files. examples/kaboom-crew/src/systems/death-animation-system.ts top-of-file comment: replace the 'planned S131 migration' note with 'ORPHANED in S132 — kept as soft archive for one sprint, scheduled for deletion in S133 after playtest'. Same one-liner header update on spring-pivot-system.ts (the actual file lives in procbomber-bench — note it stays since the bench still uses it for slider tweens; only kaboom-crew de-registers it).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: docs/game-design/ragdoll-module-design.md §9 rewritten — migration plan marked complete with S126-S132 timeline. death-animation-system.ts header replaced with S132 ORPHANED note + soft-archive plan + pointer to death-trigger-system.ts."
+      ]
+    }
+  ]
+}
