@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-24",
   "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/155",
   "notes": [
     "Closes the S132 visual-jump caveat: engine spawn-system currently positions bodies at root.position + template.body.anchor — a rest-pose layout that ignores where the meshes actually are at the moment of death. A bomber killed mid-stride teleports its limbs back to T-pose before the ragdoll starts integrating, producing a visible 1-frame jump.",
     "Fix: project writes optional bodyPoses (Record<bodyName, {position[3], rotation?[3]}>) inside the RagdollSpawnRequest. The engine spawn-system uses each entry as the body's acquireBody position+rotation override; missing entries fall back to root+anchor as today (so existing callers stay backward-compatible).",
