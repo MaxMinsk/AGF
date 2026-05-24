@@ -300,6 +300,37 @@ describe("createBenchAnimationSystem (S102)", () => {
     expect(kneeL.rotation[0]).toBeCloseTo(0, 4);
   });
 
+  // S132 + S134 regression: with RagdollActive present, the system
+  // skips ALL writes — root position + pivot rotations stay untouched
+  // so the engine ragdoll sync owns the visual.
+  it("S134: skips root + pivot writes when RagdollActive is present", () => {
+    const world = new World();
+    addBomberRoot(world, "idle-bob", [1, 2, 3]);
+    world.setComponent("bomber", "RagdollActive", {});
+    // Pre-stamp pivot rotations to a non-zero value so we can verify
+    // the system doesn't clobber them.
+    for (const name of LIMB_PIVOT_NAMES) {
+      world.setComponent(`bomber.${name}`, "Transform", {
+        position: [0, 0, 0],
+        rotation: [42, 0, 0],
+        scale: [1, 1, 1]
+      });
+    }
+    const system = createBenchAnimationSystem();
+    for (let i = 0; i < 30; i += 1) system.fixedUpdate!(ctx(world));
+    // Root position untouched — idle-bob would have raised Y.
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>("bomber", "Transform")!;
+    expect(t.position[0]).toBeCloseTo(1, 5);
+    expect(t.position[1]).toBeCloseTo(2, 5);
+    expect(t.position[2]).toBeCloseTo(3, 5);
+    // Pivots untouched — would have been zeroed by the "none" branch
+    // or animated by the "idle-bob" branch otherwise.
+    for (const name of LIMB_PIVOT_NAMES) {
+      const p = world.getComponent<{ rotation: ReadonlyArray<number> }>(`bomber.${name}`, "Transform")!;
+      expect(p.rotation[0]).toBeCloseTo(42, 5);
+    }
+  });
+
   it("flipping from walk-swing back to none zeroes pivot rotations", () => {
     const world = new World();
     addBomberRoot(world, "walk-swing");

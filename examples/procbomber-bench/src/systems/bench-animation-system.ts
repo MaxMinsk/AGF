@@ -268,6 +268,22 @@ export function createBenchAnimationSystem(): System {
               ? prevWalkPhase + distanceThisFrame / WALK_REFERENCE_SPEED
               : prevWalkPhase + dt;
 
+        // S134 — RagdollActive guard moved out of the "none" branch.
+        // The previous placement only short-circuited the "none" case;
+        // a freshly-killed bomber whose BenchAnimationState was still
+        // "idle-bob"/"walk-swing" would have its root position +
+        // pivot rotations clobbered by this system every fixed tick,
+        // overriding the engine ragdoll sync. Skip the WHOLE switch
+        // when the entity is in ragdoll mode.
+        if (world.hasComponent(id, "RagdollActive")) {
+          world.setComponent(id, BENCH_ANIMATION_STATE, {
+            ...state,
+            elapsed: nextElapsed,
+            walkPhaseS
+          });
+          continue;
+        }
+
         // S103 PROCBOMBER-ARM-REST-APPLIES: when no walk-swing /
         // limb-test is active, shoulders hold the user's arm-rest pose.
         const armRest = state.armRestAngleRad ?? 0;
@@ -355,16 +371,11 @@ export function createBenchAnimationSystem(): System {
           }
           case "none":
           default: {
-            // S132 ragdoll handover: when RagdollActive is present, the
-            // engine ragdoll module owns position + per-limb rotation
-            // (or in the bench's own ragdoll tests, the spring path).
-            // Skip BOTH writes here so we don't clobber the ragdoll
-            // pose. Without RagdollActive, snap back to base + rest
-            // shoulders (idle pose). The bench's legacy DeathAnim path
-            // still works because nothing in the bench writes
-            // RagdollActive yet — but kaboom-crew's death-trigger does
-            // (S132).
-            if (world.hasComponent(id, "RagdollActive")) break;
+            // S105 / S134 — when DeathAnim is present (the bench's
+            // legacy procedural-spring path still uses it), the spring
+            // system owns position + pivot rotations. Skip writes.
+            // The broader RagdollActive guard at the top of the loop
+            // handles the engine ragdoll module's case.
             if (world.hasComponent(id, "DeathAnim")) break;
             setTransformPosition(world, id, base.x, base.y, base.z);
             applyRestPose();

@@ -1,0 +1,55 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S134",
+  "title": "Ragdoll death-flow regression coverage",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "archivedAt": "2026-05-24",
+  "notes": [
+    "Quality-slowdown sprint per user signal: the past three sprints (S131-S133) shipped engine ragdoll mesh-handover + kaboom death-trigger migration + pose-snapshot, all unit-test-covered in isolation but never end-to-end. This sprint adds the missing integration coverage so future ragdoll changes don't silently regress.",
+    "Scope is small + verification-first: one integration test wiring death-trigger + engine spawn + sync + teardown together, two regression unit tests on the animation gate swap (S132 changed bomber-animation-driver + bench-animation-system from DeathAnim → RagdollActive — both deserve a test that proves the gate fires), and a manual playtest checklist for the visual outcome (since no live playwright probe lands here).",
+    "No new features, no schema changes. Mostly tests + a checklist doc."
+  ],
+  "stories": [
+    {
+      "id": "TEST-RAGDOLL-DEATH-INTEGRATION-001",
+      "title": "End-to-end test wiring death-trigger + engine spawn/sync/teardown",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-death-flow.test.ts (engine-level so the Rapier adapter is available). Setup: register kaboom-bomber template, create a bomber root + 10 mesh entities matching the procedural-character naming convention, stamp LocalToWorld on each mesh, write BomberStats.alive=true + DeathImpulse, register death-trigger + engine spawn + sync + teardown systems. Step 1 (alive=true): no RagdollSpawnRequest written. Step 2 (alive→false): trigger writes RagdollSpawnRequest with templateKey 'kaboom-bomber' + 10-entry meshMap + 10-entry bodyPoses. Step 3 (spawn fires): RagdollActive on root, 10 body entities created, 10 RagdollMeshBinding on meshes, each mesh's Transform.parent cleared. Step 4 (gravity ticks): mesh Transforms track their bound bodies (mirroring via sync-system). Step 5 (teardown request): bindings cleared, body entities gone, root keeps Transform.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-death-flow.test.ts wires the kaboom death-trigger + engine spawn + sync + teardown systems with the real Rapier adapter + kaboom-bomber template. Asserts the full chain: alive=true (no spawn) → alive=false (10 bodies, 10 bindings, parents cleared, RagdollActive set) → gravity ticks (meshes track bodies) → teardown (bindings cleared, body entities gone, meshes preserved)."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-ANIMATION-DRIVER-RAGDOLL-GATE-001",
+      "title": "bomber-animation-driver returns 'none' when RagdollActive is present",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/bomber-animation-driver.test.ts — add a test: bomber with PlayerControlled + GridMover (would normally return walk-swing) but ALSO RagdollActive → decideKind returns 'none'. Regression check that the S132 DeathAnim→RagdollActive gate swap is wired correctly.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/bomber-animation-driver.test.ts adds an S134 regression test — bomber with PlayerControlled + GridMover (would normally walk-swing) + RagdollActive returns 'none'. Confirms the S132 gate swap from DeathAnim → RagdollActive is wired correctly. 6/6 tests pass."
+      ]
+    },
+    {
+      "id": "TEST-PROCBOMBER-BENCH-ANIMATION-RAGDOLL-GATE-001",
+      "title": "bench-animation-system skips its writes when RagdollActive is present",
+      "status": "implemented",
+      "summary": "examples/procbomber-bench/tests/unit/bench-animation-system.test.ts (or wherever the bench tests live — add fixture entity + verify). Confirms the parallel S132 gate swap in the bench-side animation system. Without this, kaboom-crew dead bombers would still get their limb pivot rotations driven by the bench animation each frame, overriding the ragdoll pose.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/procbomber-bench/tests/unit/bench-animation-system.test.ts adds an S134 regression test that CAUGHT a real bug — the S132 gate was inside the 'none' case only, so idle-bob and walk-swing branches still clobbered root + pivot transforms on dead bombers. Fix: gate moved to the top of the per-entity loop. 27/27 tests pass."
+      ]
+    },
+    {
+      "id": "DOC-RAGDOLL-PLAYTEST-CHECKLIST-001",
+      "title": "Manual playtest checklist for ragdoll death visual",
+      "status": "implemented",
+      "summary": "docs/qa/ragdoll-playtest.md — short markdown checklist a human QA can run after any S125+ change touching ragdoll/death code. Items: (1) start kaboom-crew, (2) kill a bot, (3) verify the bomber falls naturally toward the blast direction, (4) verify limbs flop independently (separate body parts), (5) verify the bomber stays on the floor after a few seconds (no penetration), (6) verify the accessory hat/visor/etc stays attached to head/torso (current known gap — accessories aren't bound to bodies, so they may freeze in place — flag if so), (7) verify the next round resets cleanly with no leftover body entities. Reference S132+ system list at the bottom.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/qa/ragdoll-playtest.md lists 8 visual checks (no T-pose jump, limbs flop, lands on floor, accessories known gap, etc) + snapshot-capture-on-failure pattern + related systems map. QA can run after any ragdoll change."
+      ]
+    }
+  ]
+}
