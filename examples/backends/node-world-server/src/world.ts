@@ -12,6 +12,7 @@
 
 import { World } from "../../../../engine/core/ecs/world";
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
+import { createSeededRng } from "../../../../engine/core/util/seeded-rng";
 import { computeBlastCells, loadDefaultMap, type CellType, type GridSize, type LoadedMap } from "./map-loader.js";
 
 type Vec3 = [number, number, number];
@@ -54,10 +55,78 @@ const SERVER_LAST_ACTIVITY: ComponentName = "__ServerLastActivity";
 // S117 KABOOM-MP-SPRINT-B — kaboom-specific components on bomb entities.
 const BOMB: ComponentName = "Bomb";
 const GRID_POSITION: ComponentName = "GridPosition";
-// S118 KABOOM-MP-SPRINT-B — minimal server-side bomber stats. Only
-// `alive` is gameplay-load-bearing on the server today (kill detection);
-// `range` + `maxBombs` will migrate to the server in S119 with pickups.
+// S118 KABOOM-MP-SPRINT-B — minimal server-side bomber stats. S119
+// widens this to track maxBombs/range/kick/shield/remoteDetonate
+// counters so pickup-collect can apply effects authoritatively.
 const BOMBER_STATS: ComponentName = "BomberStats";
+// S119 KABOOM-MP-SPRINT-B — server-side pickup entity. Snapshot ships
+// Pickup + GridPosition so clients can render + remove via diff.
+const PICKUP: ComponentName = "Pickup";
+// S119 KABOOM-MP-SPRINT-B chunk 3 — RoundState singleton component on
+// the kaboom.round-state entity. Snapshot ships it so client HUDs read
+// authoritative phase + tally + roundNumber from one source.
+const ROUND_STATE: ComponentName = "RoundState";
+const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
+const ROUND_RESOLVE_NEXT_ROUND_DELAY_S = 3.0;
+
+/** Kaboom pickup kinds — matches the protocol's pickupCollected enum. */
+export type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield";
+
+// Drop table — repeated entries scale relative frequency (S82 client mirror).
+const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
+  "bomb-up", "bomb-up",
+  "fire-up", "fire-up",
+  "speed-up", "speed-up",
+  "kick",
+  "remote-detonate",
+  "shield"
+];
+const DEFAULT_DROP_CHANCE = 0.3;
+const DEFAULT_WORLD_SEED = 0xc0ffee;
+
+function pickupCellHash(gx: number, gz: number): number {
+  return ((gx * 73856093) ^ (gz * 19349663)) >>> 0;
+}
+
+type ServerBomberStats = {
+  alive?: boolean;
+  maxBombs?: number;
+  range?: number;
+  canKick?: boolean;
+  remoteDetonateCharges?: number;
+  shield?: boolean;
+};
+
+const MAX_BOMBS_CAP = 8;
+const MAX_RANGE_CAP = 8;
+const REMOTE_DETONATE_CHARGES_CAP = 3;
+
+/**
+ * S119 — pure helper. Returns the new BomberStats after applying a
+ * pickup effect, or undefined when the pickup has no server-side
+ * effect (e.g. speed-up — speed lives client-side this sprint).
+ */
+function applyPickupEffect(stats: ServerBomberStats, kind: PickupKind): ServerBomberStats | undefined {
+  switch (kind) {
+    case "bomb-up":
+      return { ...stats, maxBombs: Math.min((stats.maxBombs ?? 1) + 1, MAX_BOMBS_CAP) };
+    case "fire-up":
+      return { ...stats, range: Math.min((stats.range ?? 2) + 1, MAX_RANGE_CAP) };
+    case "kick":
+      return stats.canKick === true ? undefined : { ...stats, canKick: true };
+    case "remote-detonate":
+      return {
+        ...stats,
+        remoteDetonateCharges: Math.min((stats.remoteDetonateCharges ?? 0) + 1, REMOTE_DETONATE_CHARGES_CAP)
+      };
+    case "shield":
+      return stats.shield === true ? undefined : { ...stats, shield: true };
+    case "speed-up":
+      // Speed migration deferred — GridMover.speed lives client-side
+      // until the client/server speed model is unified (post-S119).
+      return undefined;
+  }
+}
 
 type TransformLike = { position?: ReadonlyArray<number> };
 type IntentLike = { direction: Vec2; lastSequence: number };
@@ -84,8 +153,8 @@ export type BlastEvent = {
 export type BlockDestroyedEvent = {
   gx: number;
   gz: number;
-  /** Pickup that should spawn in the cell. undefined in S118; S119 wires the pickup-spawn RNG. */
-  droppedPickupKind?: string;
+  /** S119 — pickup that spawned in the cell (if any). Snapshot also ships the Pickup entity. */
+  droppedPickupKind?: PickupKind;
 };
 
 /** S118 KABOOM-MP-SPRINT-B chunk 2 — one bomber death from a blast. */
@@ -96,9 +165,30 @@ export type BomberDiedEvent = {
   killerId?: string;
 };
 
+/** S119 KABOOM-MP-SPRINT-B chunk 3 — one pickup collection. */
+export type PickupCollectedEvent = {
+  entityId: string;
+  kind: PickupKind;
+  gx: number;
+  gz: number;
+  pickerId: string;
+};
+
+/** S119 KABOOM-MP-SPRINT-B chunk 3 — round resolution. */
+export type RoundResolvedEvent = {
+  phase: "won" | "lost" | "draw";
+  winnerId?: string;
+  tally: { player: number; bot: number; draws: number };
+  nextRoundAt?: number;
+};
+
 export type ServerWorldOptions = {
   /** Override the map loader. Tests pass synthetic maps; production uses the bundled start.scene.json. */
   map?: LoadedMap;
+  /** S119 — deterministic seed for pickup spawn RNG. Default 0xc0ffee. */
+  worldSeed?: number;
+  /** S119 — probability (0..1) that a destroyed soft block yields a pickup. Default 0.3. */
+  pickupDropChance?: number;
 };
 
 export class ServerWorld {
@@ -114,11 +204,36 @@ export class ServerWorld {
   private pendingBlockDestroyed: BlockDestroyedEvent[] = [];
   /** S118 KABOOM-MP-SPRINT-B chunk 2 — buffered bomberDied events emitted by the most recent tick(). */
   private pendingBomberDied: BomberDiedEvent[] = [];
+  /** S119 KABOOM-MP-SPRINT-B chunk 3 — buffered pickupCollected events. */
+  private pendingPickupCollected: PickupCollectedEvent[] = [];
+  /** S119 KABOOM-MP-SPRINT-B chunk 3 — buffered roundResolved events. */
+  private pendingRoundResolved: RoundResolvedEvent[] = [];
+  /** S119 — join order index for tally slot mapping (first joiner → 'player' slot). */
+  private readonly playerJoinIndex = new Map<string, number>();
+  /** S119 — incrementing counter feeding playerJoinIndex. */
+  private joinOrderCounter = 0;
   /** S118 KABOOM-MP-SPRINT-B chunk 2 — authoritative obstacle grid (hard walls + soft blocks). */
   private readonly map: LoadedMap;
+  /** S119 — set of currently-alive pickup entity ids on the server. */
+  private readonly pickupIds = new Set<string>();
+  /** S119 — monotonic counter for pickup entity id minting. */
+  private pickupCounter = 0;
+  /** S119 — deterministic pickup spawn seed (worldSeed XOR cell hash). */
+  private readonly worldSeed: number;
+  /** S119 — probability per soft-block-destroy of dropping a pickup. */
+  private readonly pickupDropChance: number;
 
   constructor(options: ServerWorldOptions = {}) {
     this.map = options.map ?? loadDefaultMap();
+    this.worldSeed = options.worldSeed ?? DEFAULT_WORLD_SEED;
+    this.pickupDropChance = options.pickupDropChance ?? DEFAULT_DROP_CHANCE;
+    // S119 — seed the canonical RoundState singleton entity.
+    this.world.addEntity(ROUND_STATE_ENTITY);
+    this.world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, {
+      phase: "playing",
+      tally: { player: 0, bot: 0, draws: 0 },
+      roundNumber: 1
+    });
   }
 
   /** S118 — read the cell type at (gx, gz). Out-of-bounds reads as 'hard-wall'. */
@@ -133,6 +248,93 @@ export class ServerWorld {
   /** S118 — destroy a soft block; returns true if a block was removed. */
   destroySoftBlock(gx: number, gz: number): boolean {
     return this.map.destroySoftBlock(gx, gz);
+  }
+
+  /**
+   * S119 KABOOM-MP-SPRINT-B chunk 3 — deterministic-by-cell pickup roll.
+   * Same (gx, gz, worldSeed) always produces the same kind or undefined,
+   * so the bot-vs-bot regression replay stays stable. Returns undefined
+   * when no pickup should drop.
+   */
+  private rollPickupForCell(gx: number, gz: number): PickupKind | undefined {
+    const rng = createSeededRng((this.worldSeed ^ pickupCellHash(gx, gz)) | 0);
+    if (rng.next() >= this.pickupDropChance) return undefined;
+    return rng.pick(PICKUP_KINDS);
+  }
+
+  /** S119 — spawn a Pickup entity on the server ECS world. */
+  private spawnPickup(gx: number, gz: number, kind: PickupKind): EntityId {
+    this.pickupCounter += 1;
+    const pickupId: EntityId = `pickup.${kind}.${this.pickupCounter}.${gx}.${gz}`;
+    this.world.addEntity(pickupId);
+    this.world.setComponent(pickupId, TRANSFORM, { position: [gx, 0.3, gz] });
+    this.world.setComponent(pickupId, GRID_POSITION, { gx, gz });
+    this.world.setComponent(pickupId, PICKUP, { kind });
+    this.pickupIds.add(pickupId);
+    return pickupId;
+  }
+
+  /**
+   * S119 KABOOM-MP-SPRINT-B chunk 3 — for each pickup whose cell
+   * matches an alive bomber's GridPosition, apply the stat effect on
+   * BomberStats, remove the pickup entity, and queue a
+   * pickupCollected event for transport broadcast.
+   *
+   * Caps mirror the client (S82 KABOOM-PICKUPS-AND-STATS):
+   *   - maxBombs cap 8
+   *   - range cap 8
+   *   - speed not yet authoritative on server (S119 scope)
+   *   - kick: idempotent flag
+   *   - remote-detonate: counter cap 3
+   *   - shield: idempotent flag (no double-stack)
+   */
+  private collectPickupsForAliveBombers(): void {
+    if (this.pickupIds.size === 0) return;
+    const collected: string[] = [];
+    for (const pickupId of this.pickupIds) {
+      const pickupGp = this.world.getComponent<{ gx?: number; gz?: number }>(pickupId, GRID_POSITION);
+      const pickup = this.world.getComponent<{ kind?: PickupKind }>(pickupId, PICKUP);
+      if (pickupGp === undefined || pickup?.kind === undefined) continue;
+      for (const playerId of this.playerIds) {
+        const playerEnt = playerEntityId(playerId);
+        const playerGp = this.world.getComponent<{ gx?: number; gz?: number }>(playerEnt, GRID_POSITION);
+        if (playerGp?.gx !== pickupGp.gx || playerGp?.gz !== pickupGp.gz) continue;
+        const stats = this.world.getComponent<{
+          alive?: boolean;
+          maxBombs?: number;
+          range?: number;
+          canKick?: boolean;
+          remoteDetonateCharges?: number;
+          shield?: boolean;
+        }>(playerEnt, BOMBER_STATS);
+        if (stats?.alive === false) continue;
+        const nextStats = applyPickupEffect(stats ?? {}, pickup.kind);
+        if (nextStats !== undefined) {
+          this.world.setComponent(playerEnt, BOMBER_STATS, nextStats);
+        }
+        this.pendingPickupCollected.push({
+          entityId: pickupId,
+          kind: pickup.kind,
+          gx: pickupGp.gx ?? 0,
+          gz: pickupGp.gz ?? 0,
+          pickerId: playerEnt
+        });
+        collected.push(pickupId);
+        break; // Only one bomber per cell collects this pickup.
+      }
+    }
+    for (const pickupId of collected) {
+      this.world.removeEntity(pickupId);
+      this.pickupIds.delete(pickupId);
+    }
+  }
+
+  /** S119 — drain the per-tick queue of pickupCollected events. */
+  drainPickupCollected(): PickupCollectedEvent[] {
+    if (this.pendingPickupCollected.length === 0) return [];
+    const out = this.pendingPickupCollected;
+    this.pendingPickupCollected = [];
+    return out;
   }
 
   join(playerId: string, recipe?: string): void {
@@ -164,6 +366,12 @@ export class ServerWorld {
       this.world.setComponent(entityId, CHARACTER_RECIPE, { recipe });
     }
     this.playerIds.add(playerId);
+    // S119 — remember join order so tally-slot mapping is stable
+    // across the session (first joiner = 'player' slot, others = 'bot').
+    if (!this.playerJoinIndex.has(playerId)) {
+      this.playerJoinIndex.set(playerId, this.joinOrderCounter);
+      this.joinOrderCounter += 1;
+    }
   }
 
   leave(playerId: string): void {
@@ -186,6 +394,13 @@ export class ServerWorld {
   placeBomb(playerId: string, gx: number, gz: number): string | undefined {
     const playerEntId = playerEntityId(playerId);
     if (!this.world.hasEntity(playerEntId)) return undefined;
+    // S119 KABOOM-MP-SPRINT-B chunk 3 — lock bomb placement after the
+    // round resolves so post-mortem inputs can't spawn ghost bombs.
+    const round = this.world.getComponent<{ phase?: string }>(ROUND_STATE_ENTITY, ROUND_STATE);
+    if (round !== undefined && round.phase !== undefined && round.phase !== "playing") return undefined;
+    // S119 — dead bombers can't place bombs.
+    const placerStats = this.world.getComponent<{ alive?: boolean }>(playerEntId, BOMBER_STATS);
+    if (placerStats?.alive === false) return undefined;
     // No-stack: scan existing bomb entities for the same cell.
     for (const existingBombId of this.bombIds) {
       const gp = this.world.getComponent<{ gx?: number; gz?: number }>(existingBombId, GRID_POSITION);
@@ -250,6 +465,11 @@ export class ServerWorld {
         this.world.setComponent(entityId, GRID_POSITION, { gx, gz });
       }
     }
+    // S119 KABOOM-MP-SPRINT-B chunk 3 — pickup collection. After
+    // movement integration writes new GridPositions, scan pickups for
+    // matching alive bombers; apply the stat effect, emit
+    // pickupCollected, remove the pickup entity.
+    this.collectPickupsForAliveBombers();
     // S117 KABOOM-MP-SPRINT-B chunk 3 — tick bomb fuses; emit blastEvents
     // when a fuse hits zero. Mutating bombIds inside the loop is OK
     // because we collect detonated ids first then delete after.
@@ -332,7 +552,18 @@ export class ServerWorld {
           if (!destroyedThisTick.has(cellKey) && this.map.cellAt(cell.gx, cell.gz) === "soft-block") {
             this.map.destroySoftBlock(cell.gx, cell.gz);
             destroyedThisTick.add(cellKey);
-            this.pendingBlockDestroyed.push({ gx: cell.gx, gz: cell.gz });
+            // S119 — roll deterministic per-cell RNG for pickup drop.
+            // Same cell always yields the same kind on the same world
+            // seed, so the bot-vs-bot regression replay stays stable.
+            const droppedPickupKind = this.rollPickupForCell(cell.gx, cell.gz);
+            if (droppedPickupKind !== undefined) {
+              this.spawnPickup(cell.gx, cell.gz, droppedPickupKind);
+            }
+            this.pendingBlockDestroyed.push({
+              gx: cell.gx,
+              gz: cell.gz,
+              ...(droppedPickupKind !== undefined ? { droppedPickupKind } : {})
+            });
           }
           // S118 KABOOM-MP-SPRINT-B chunk 2 — bomber kill scan. Any
           // ALIVE player.<id> whose GridPosition matches this cell
@@ -359,6 +590,78 @@ export class ServerWorld {
       }
       this.pendingBlastEvents.push(...detonated);
     }
+    // S119 KABOOM-MP-SPRINT-B chunk 3 — evaluate round resolution
+    // after all blast / kill / chain processing finishes. Idempotent —
+    // once phase != 'playing' we skip until the next reset (S120).
+    this.maybeResolveRound();
+  }
+
+  /**
+   * S119 KABOOM-MP-SPRINT-B chunk 3 — examine alive bombers; emit
+   * roundResolved once if the count dropped to ≤1. Picks phase from
+   * the surviving bomber (won when one alive, draw when zero) and
+   * bumps the tally slot for the appropriate player. Locks placeBomb
+   * by leaving phase != 'playing'.
+   */
+  private maybeResolveRound(): void {
+    const round = this.world.getComponent<{
+      phase?: "playing" | "won" | "lost" | "draw";
+      tally?: { player: number; bot: number; draws: number };
+      roundNumber?: number;
+    }>(ROUND_STATE_ENTITY, ROUND_STATE);
+    if (round === undefined) return;
+    if (round.phase !== "playing") return; // already resolved
+    if (this.playerIds.size === 0) return; // empty session — nothing to resolve
+    const alive: string[] = [];
+    for (const playerId of this.playerIds) {
+      const stats = this.world.getComponent<{ alive?: boolean }>(playerEntityId(playerId), BOMBER_STATS);
+      if (stats?.alive !== false) alive.push(playerId);
+    }
+    if (alive.length > 1) return; // round still in progress
+    // We need at least 2 joined players before we resolve — solo sessions
+    // shouldn't auto-resolve just because the lone player walks in.
+    if (this.playerIds.size < 2) return;
+    const winnerPlayerId = alive[0];
+    const winnerEntityId = winnerPlayerId !== undefined ? playerEntityId(winnerPlayerId) : undefined;
+    const tally = { ...(round.tally ?? { player: 0, bot: 0, draws: 0 }) };
+    let phase: "won" | "lost" | "draw";
+    if (alive.length === 0) {
+      phase = "draw";
+      tally.draws += 1;
+    } else {
+      // First-joined player is the 'player' slot; others are 'bot'.
+      const winnerIndex = winnerPlayerId !== undefined ? this.playerJoinIndex.get(winnerPlayerId) ?? 0 : 0;
+      if (winnerIndex === 0) {
+        phase = "won";
+        tally.player += 1;
+      } else {
+        // Slot mapping: "lost" means the 'player' slot lost (a non-first
+        // bomber won). Snapshot still ships winnerId so clients can
+        // attribute correctly.
+        phase = "lost";
+        tally.bot += 1;
+      }
+    }
+    this.world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, {
+      ...round,
+      phase,
+      tally,
+      ...(winnerEntityId !== undefined ? { winnerId: winnerEntityId } : {})
+    });
+    this.pendingRoundResolved.push({
+      phase,
+      ...(winnerEntityId !== undefined ? { winnerId: winnerEntityId } : {}),
+      tally,
+      nextRoundAt: ROUND_RESOLVE_NEXT_ROUND_DELAY_S
+    });
+  }
+
+  /** S119 — drain the per-tick queue of roundResolved events. */
+  drainRoundResolved(): RoundResolvedEvent[] {
+    if (this.pendingRoundResolved.length === 0) return [];
+    const out = this.pendingRoundResolved;
+    this.pendingRoundResolved = [];
+    return out;
   }
 
   /**
@@ -435,16 +738,22 @@ export class ServerWorld {
       if (gp?.gx !== undefined && gp?.gz !== undefined) {
         components["GridPosition"] = { gx: gp.gx, gz: gp.gz };
       }
-      // S118 — ship BomberStats.alive (range/maxBombs are static today
-      // since pickup migration lands in S119, but emitting them keeps
-      // the server snapshot self-contained for the eventual switch).
-      const stats = this.world.getComponent<{ alive?: boolean; range?: number; maxBombs?: number }>(entityId, BOMBER_STATS);
+      // S118/S119 — ship BomberStats.alive + range + maxBombs + kick +
+      // remoteDetonate + shield so clients (HUD + future server-driven
+      // gating) read from one authoritative source.
+      const stats = this.world.getComponent<ServerBomberStats>(entityId, BOMBER_STATS);
       if (stats !== undefined) {
-        components["BomberStats"] = {
+        const out: Record<string, unknown> = {
           alive: stats.alive ?? true,
           range: stats.range ?? DEFAULT_BOMB_RANGE,
           maxBombs: stats.maxBombs ?? 1
         };
+        if (stats.canKick === true) out["canKick"] = true;
+        if ((stats.remoteDetonateCharges ?? 0) > 0) {
+          out["remoteDetonateCharges"] = stats.remoteDetonateCharges;
+        }
+        if (stats.shield === true) out["shield"] = true;
+        components["BomberStats"] = out;
       }
       entities.push({ id: entityId, components });
       if (intent !== undefined && intent.lastSequence >= 0) {
@@ -466,6 +775,25 @@ export class ServerWorld {
       if (gp?.gx !== undefined && gp?.gz !== undefined) components["GridPosition"] = { gx: gp.gx, gz: gp.gz };
       if (bomb !== undefined) components["Bomb"] = { ...bomb };
       entities.push({ id: bombId, components });
+    }
+    // S119 KABOOM-MP-SPRINT-B chunk 3 — RoundState is INTENTIONALLY
+    // not shipped in the snapshot. The local kaboom-crew client owns
+    // the kaboom.round-state entity (bootstrap creates it at boot for
+    // the HUD); shipping it would trigger an id-collision rejection
+    // in ws-network-adapter. Clients learn about state changes via
+    // the discrete roundResolved protocol event instead.
+    // S119 — pickup entities. Snapshot ships Pickup + GridPosition +
+    // Transform so clients can render with the existing local pickup
+    // visuals (the local pickup-spawn-system is dropped on connected).
+    for (const pickupId of this.pickupIds) {
+      const transform = this.world.getComponent<TransformLike>(pickupId, TRANSFORM);
+      const gp = this.world.getComponent<{ gx?: number; gz?: number }>(pickupId, GRID_POSITION);
+      const pickup = this.world.getComponent<{ kind?: PickupKind }>(pickupId, PICKUP);
+      const components: Record<string, unknown> = {};
+      if (transform?.position !== undefined) components["Transform"] = { position: [...transform.position] };
+      if (gp?.gx !== undefined && gp?.gz !== undefined) components["GridPosition"] = { gx: gp.gx, gz: gp.gz };
+      if (pickup?.kind !== undefined) components["Pickup"] = { kind: pickup.kind };
+      entities.push({ id: pickupId, components });
     }
     return { elapsed: this.elapsed, entities, lastAcked, playerSpeed: PLAYER_SPEED };
   }

@@ -72,6 +72,23 @@ type ProtocolMessage =
       kind: "bomberDied";
       sequence?: number;
       payload: { entityId: string; blastOriginGx: number; blastOriginGz: number; killerId?: string };
+    }
+  // S119 KABOOM-MP-SPRINT-B chunk 3 — inbound: pickup collected.
+  | {
+      kind: "pickupCollected";
+      sequence?: number;
+      payload: { entityId: string; kind: string; gx: number; gz: number; pickerId: string };
+    }
+  // S119 KABOOM-MP-SPRINT-B chunk 3 — inbound: round resolved.
+  | {
+      kind: "roundResolved";
+      sequence?: number;
+      payload: {
+        phase: "won" | "lost" | "draw";
+        winnerId?: string;
+        tally: { player: number; bot: number; draws: number };
+        nextRoundAt?: number;
+      };
     };
 
 export type WsReconnectOptions = {
@@ -182,6 +199,25 @@ export type BomberDiedSample = {
   killerId?: string;
 };
 
+/** S119 KABOOM-MP-SPRINT-B chunk 3 — one inbound pickupCollected event. */
+export type PickupCollectedSample = {
+  receivedAtSeconds: number;
+  entityId: string;
+  kind: string;
+  gx: number;
+  gz: number;
+  pickerId: string;
+};
+
+/** S119 KABOOM-MP-SPRINT-B chunk 3 — one inbound roundResolved event. */
+export type RoundResolvedSample = {
+  receivedAtSeconds: number;
+  phase: "won" | "lost" | "draw";
+  winnerId?: string;
+  tally: { player: number; bot: number; draws: number };
+  nextRoundAt?: number;
+};
+
 export type WsNetworkAdapterHandle = {
   readonly url: string;
   sendIntent(direction: readonly [number, number]): void;
@@ -204,6 +240,10 @@ export type WsNetworkAdapterHandle = {
   drainBlockDestroyed(): ReadonlyArray<BlockDestroyedSample>;
   /** S118 KABOOM-MP-SPRINT-B chunk 2 — pull + consume inbound bomberDied events. */
   drainBomberDied(): ReadonlyArray<BomberDiedSample>;
+  /** S119 KABOOM-MP-SPRINT-B chunk 3 — pull + consume inbound pickupCollected events. */
+  drainPickupCollected(): ReadonlyArray<PickupCollectedSample>;
+  /** S119 KABOOM-MP-SPRINT-B chunk 3 — pull + consume inbound roundResolved events. */
+  drainRoundResolved(): ReadonlyArray<RoundResolvedSample>;
   /** Last sequence number observed on an inbound world.snapshot, or undefined. */
   lastSnapshotSequence(): number | undefined;
   /** ws.readyState passthrough. Returns -1 when reconnecting between sockets. */
@@ -300,6 +340,9 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
   // S118 KABOOM-MP-SPRINT-B chunk 2 — inbound queues for blockDestroyed + bomberDied.
   let blockDestroyedInbox: BlockDestroyedSample[] = [];
   let bomberDiedInbox: BomberDiedSample[] = [];
+  // S119 KABOOM-MP-SPRINT-B chunk 3 — inbound queues for pickupCollected + roundResolved.
+  let pickupCollectedInbox: PickupCollectedSample[] = [];
+  let roundResolvedInbox: RoundResolvedSample[] = [];
   let outboundSequence = 0;
   let highestSent = -1;
   let lastServerPlayerSpeed: number | undefined;
@@ -396,6 +439,28 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
           blastOriginGx: message.payload.blastOriginGx,
           blastOriginGz: message.payload.blastOriginGz,
           ...(message.payload.killerId !== undefined ? { killerId: message.payload.killerId } : {})
+        });
+        return;
+      }
+      // S119 KABOOM-MP-SPRINT-B chunk 3 — inbound pickupCollected + roundResolved.
+      if (message.kind === "pickupCollected") {
+        pickupCollectedInbox.push({
+          receivedAtSeconds: nowSeconds(),
+          entityId: message.payload.entityId,
+          kind: message.payload.kind,
+          gx: message.payload.gx,
+          gz: message.payload.gz,
+          pickerId: message.payload.pickerId
+        });
+        return;
+      }
+      if (message.kind === "roundResolved") {
+        roundResolvedInbox.push({
+          receivedAtSeconds: nowSeconds(),
+          phase: message.payload.phase,
+          ...(message.payload.winnerId !== undefined ? { winnerId: message.payload.winnerId } : {}),
+          tally: message.payload.tally,
+          ...(message.payload.nextRoundAt !== undefined ? { nextRoundAt: message.payload.nextRoundAt } : {})
         });
         return;
       }
@@ -629,6 +694,18 @@ export function startWsNetworkAdapter(options: WsNetworkAdapterOptions): WsNetwo
       if (bomberDiedInbox.length === 0) return [];
       const out = bomberDiedInbox;
       bomberDiedInbox = [];
+      return out;
+    },
+    drainPickupCollected(): ReadonlyArray<PickupCollectedSample> {
+      if (pickupCollectedInbox.length === 0) return [];
+      const out = pickupCollectedInbox;
+      pickupCollectedInbox = [];
+      return out;
+    },
+    drainRoundResolved(): ReadonlyArray<RoundResolvedSample> {
+      if (roundResolvedInbox.length === 0) return [];
+      const out = roundResolvedInbox;
+      roundResolvedInbox = [];
       return out;
     },
     lastSnapshotSequence(): number | undefined {

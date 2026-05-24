@@ -63,6 +63,33 @@ type ProtocolMessage =
         killerId?: string;
       };
     }
+  // S119 KABOOM-MP-SPRINT-B chunk 3 — server tells every client that
+  // a bomber collected a pickup. Client decoder consumes for HUD/audio;
+  // the pickup entity itself leaves the snapshot via diff.
+  | {
+      kind: "pickupCollected";
+      sequence?: number;
+      payload: {
+        entityId: string;
+        kind: string;
+        gx: number;
+        gz: number;
+        pickerId: string;
+      };
+    }
+  // S119 KABOOM-MP-SPRINT-B chunk 3 — server emits roundResolved
+  // when the alive bomber count drops to ≤1. Fires once per round;
+  // RoundState in snapshot mirrors the same phase/tally.
+  | {
+      kind: "roundResolved";
+      sequence?: number;
+      payload: {
+        phase: "won" | "lost" | "draw";
+        winnerId?: string;
+        tally: { player: number; bot: number; draws: number };
+        nextRoundAt?: number;
+      };
+    }
   | { kind: "world.snapshot"; sequence?: number; payload: Snapshot };
 
 export type TransportOptions = {
@@ -253,6 +280,49 @@ export async function startWsTransport(options: TransportOptions): Promise<Trans
         if (client.readyState === WebSocket.OPEN) client.send(serialized);
       }
       log(`[node-world-server] bomberDied entity=${death.entityId} killer=${death.killerId ?? "?"} origin=(${death.blastOriginGx},${death.blastOriginGz})`);
+    }
+
+    // S119 KABOOM-MP-SPRINT-B chunk 3 — broadcast pickupCollected.
+    const pickups = world.drainPickupCollected();
+    for (const ev of pickups) {
+      const frame: ProtocolMessage = {
+        kind: "pickupCollected",
+        sequence: outboundSequence,
+        payload: {
+          entityId: ev.entityId,
+          kind: ev.kind,
+          gx: ev.gx,
+          gz: ev.gz,
+          pickerId: ev.pickerId
+        }
+      };
+      outboundSequence += 1;
+      const serialized = JSON.stringify(frame);
+      for (const client of clients) {
+        if (client.readyState === WebSocket.OPEN) client.send(serialized);
+      }
+      log(`[node-world-server] pickupCollected entity=${ev.entityId} picker=${ev.pickerId} kind=${ev.kind}`);
+    }
+
+    // S119 KABOOM-MP-SPRINT-B chunk 3 — broadcast roundResolved.
+    const rounds = world.drainRoundResolved();
+    for (const ev of rounds) {
+      const frame: ProtocolMessage = {
+        kind: "roundResolved",
+        sequence: outboundSequence,
+        payload: {
+          phase: ev.phase,
+          ...(ev.winnerId !== undefined ? { winnerId: ev.winnerId } : {}),
+          tally: ev.tally,
+          ...(ev.nextRoundAt !== undefined ? { nextRoundAt: ev.nextRoundAt } : {})
+        }
+      };
+      outboundSequence += 1;
+      const serialized = JSON.stringify(frame);
+      for (const client of clients) {
+        if (client.readyState === WebSocket.OPEN) client.send(serialized);
+      }
+      log(`[node-world-server] roundResolved phase=${ev.phase} winner=${ev.winnerId ?? "?"} tally=p${ev.tally.player}/b${ev.tally.bot}/d${ev.tally.draws}`);
     }
 
     const expired = world.expiredPlayers(playerTimeoutSeconds);

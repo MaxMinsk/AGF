@@ -1,0 +1,121 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S119",
+  "title": "MP Sprint B chunk 3 \u2014 server-side pickup spawn + pickup collect + round resolve + tally",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Third of 4 sprints implementing GDP-2026-05-22-011 (server-authoritative kaboom-crew). Sequencing per docs/research/kaboom-multiplayer-sprint-b-plan.md \u00a73: S117 \u2705 \u2192 S118 \u2705 \u2192 S119 pickup+round-resolve (this) \u2192 S120 bot-AI + cleanup.",
+    "Scope vs sprint-b-plan.md \u00a73.S119: ship server-side pickup spawn (deterministic per-cell RNG), pickup collect (stat application), round-resolve broadcast, tally tracking. EXPLICITLY OUT of scope for S119: round auto-restart (S120 concerns) + multi-round MatchState lifecycle (the existing client-side MatchState stays single-player-only).",
+    "Acceptance for S119: tab A walks over a server-spawned pickup \u2192 both tabs see the pickup disappear + tab A's BomberStats.maxBombs += 1. Round resolves on both tabs simultaneously with the same tally."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-PICKUP-SPAWN-001",
+      "title": "Server spawns pickups deterministically when soft blocks are destroyed",
+      "status": "implemented",
+      "summary": "On each blockDestroyed event in the server's tick (S118 wired the destroy path), roll a deterministic per-cell RNG seeded by (worldSeed ^ cellHash(gx,gz)). If roll < dropChance (default 0.3), pick a kind from the drop table (bomb-up\u00d72, fire-up\u00d72, speed-up\u00d72, kick, remote-detonate, shield) and spawn a Pickup entity on the server ECS world. Snapshot ships Pickup + GridPosition + Transform so clients can render. blockDestroyed message gains droppedPickupKind so clients can play the spawn anim immediately (before snapshot delivers the entity).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server now spawns pickup entities deterministically when soft blocks are destroyed. Per-cell xorshift32 seeded by (worldSeed XOR cellHash(gx,gz)) \u2014 same cell always produces the same kind on the same world seed, so bot-vs-bot replays stay reproducible. Drop probability default 0.3 (configurable). Drop table mirrors the client (bomb-up x2, fire-up x2, speed-up x2, kick, remote-detonate, shield). On a hit, server adds a 'pickup.<kind>.<n>.<gx>.<gz>' entity with Pickup + GridPosition + Transform components \u2014 these ride the snapshot to all clients. blockDestroyed protocol message gains droppedPickupKind so clients can play the spawn FX immediately before the snapshot diff applies.",
+        "examples/backends/node-world-server/src/world.ts: PickupKind type + PICKUP_KINDS drop table + rollPickupForCell helper + spawnPickup helper; pickupIds Set + pickupCounter; snapshot loop ships pickup entities; ServerWorldOptions adds worldSeed + pickupDropChance",
+        "+4 unit tests covering: dropChance=1 emits droppedPickupKind for every cell, dropChance=0 emits none, snapshot ships Pickup entities, determinism by cell, divergence across worldSeeds",
+        "30/30 server-map tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-PICKUP-COLLECT-001",
+      "title": "Server detects pickup collection + applies stat effects + emits pickupCollected",
+      "status": "implemented",
+      "summary": "Each server tick, walk pickups vs alive bomber GridPositions. On a match: apply the effect to the bomber's BomberStats (bomb-up\u2192maxBombs+1 cap 8, fire-up\u2192range+1 cap 8, etc.), remove the pickup entity, emit pickupCollected{entityId, kind, gx, gz, pickerId}. speed-up bumps a separate playerSpeed component or BomberStats.speed (skipped for S119 since the GridMover/speed model lives client-side). Kick + remote-detonate + shield: server records the flag/counter on BomberStats but client systems still gate the actual gameplay (kick mechanic + shield consumption logic stays client-side this sprint; S120 cleanup).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server now authoritatively detects pickup collection. Each tick after movement integration writes new GridPositions, ServerWorld scans pickups vs alive bombers; matching cells trigger applyPickupEffect on BomberStats + emit pickupCollected{entityId,kind,gx,gz,pickerId}. Stat caps mirror the client (maxBombs cap 8, range cap 8, remote-detonate cap 3, kick + shield idempotent). speed-up has no server-side effect this sprint (speed model still lives client-side; deferred). pickupCollected broadcast via transport-ws to all clients. Snapshot ships extended BomberStats (canKick / remoteDetonateCharges / shield) so client HUD reads from one source.",
+        "examples/backends/node-world-server/src/world.ts: collectPickupsForAliveBombers + applyPickupEffect helper + pendingPickupCollected queue + drainPickupCollected; snapshot ships extended BomberStats fields",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage adds pickupCollected variant; tick loop drains + broadcasts",
+        "+4 unit tests: bomber walking onto pickup collects+emits event, bomb-up increments maxBombs, fire-up increments range, dead bomber doesn't collect",
+        "52/52 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-ROUND-RESOLVE-001",
+      "title": "Server tracks alive bomber count; emits roundResolved at \u22641 alive",
+      "status": "implemented",
+      "summary": "Server maintains an implicit alive count via BomberStats.alive on player.<id> entities. When the playing-phase bomber count drops to \u22641, emit roundResolved{phase, winnerId, tally, nextRoundAt}. Phase: 'won' when there's exactly one survivor, 'draw' when zero (simultaneous death). winnerId: the surviving player's entityId. nextRoundAt: 3.0 s (informational only \u2014 server doesn't auto-reset in S119). After resolve, ServerWorld locks: subsequent placeBombRequest is refused. Idempotent \u2014 once emitted, the event isn't re-broadcast every tick.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server tracks alive bomber count via BomberStats.alive on player.<id> entities. Once the count drops to \u22641 in a 2+ player session, server emits a SINGLE roundResolved{phase, winnerId, tally, nextRoundAt} broadcast. Phase mapping uses first-joined-player slot conventions: alive[0] winning + winnerJoinIndex==0 \u2192 'won' + tally.player+=1; non-first-winner \u2192 'lost' + tally.bot+=1; zero survivors \u2192 'draw' + tally.draws+=1. nextRoundAt=3.0s informational (server doesn't auto-reset in S119 \u2014 that's S120). After resolve, placeBomb() refuses new bombs and dead bombers also can't place \u2014 locks the round end-state until reset. Idempotent: subsequent ticks don't re-emit.",
+        "examples/backends/node-world-server/src/world.ts: RoundResolvedEvent type, kaboom.round-state singleton entity seeded in constructor, maybeResolveRound() helper, drainRoundResolved(), placeBomb gate on phase != playing, placeBomb gate on dead placer, playerJoinIndex Map tracking",
+        "examples/backends/node-world-server/src/transport-ws.ts: ProtocolMessage adds roundResolved variant; tick loop drains + broadcasts",
+        "+6 unit tests covering: ship RoundState in snapshot, solo no-resolve, 2-player one-dies, simultaneous-death draw, idempotent emit, placeBomb refused after resolve, dead bomber refused, snapshot reflects resolved state",
+        "60/60 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-ROUND-TALLY-001",
+      "title": "Server-side RoundState singleton entity carries phase + tally + roundNumber",
+      "status": "implemented",
+      "summary": "Maintain a `kaboom.round-state` entity on the server ECS world with RoundState{phase, tally:{player,bot,draws}, roundNumber}. Snapshot ships RoundState so clients (and the HUD scoreboard) can render the cross-round state from the authoritative source on connected. Tally increments on each roundResolved (server picks the winning slot based on winnerId mapping \u2014 first-joined player counts as 'player' slot, others as 'bot' slot for the canonical 2-player session). Cross-round persistence; restart is S120.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: A canonical kaboom.round-state entity now lives on the server ECS world from boot. RoundState{phase, tally:{player,bot,draws}, roundNumber, winnerId?} ships in the snapshot \u2014 clients (HUD scoreboard + future server-driven banner) read the authoritative state from one source instead of guessing from local RoundState. Tally increments on each roundResolved per the slot mapping (first-joiner = 'player', others = 'bot', draws on simultaneous death). roundNumber stays at 1 in S119 (no auto-reset; S120 will bump it on round restart). Cross-round persistence built into the singleton.",
+        "examples/backends/node-world-server/src/world.ts: ROUND_STATE_ENTITY = 'kaboom.round-state' singleton seeded in constructor; snapshot ships RoundState component including winnerId when present",
+        "Shared verification with FEAT-SERVER-ROUND-RESOLVE-001 (tally + RoundState seam tested in the same suite)",
+        "60/60 unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-DROP-LOCAL-PICKUP-COLLECT-001",
+      "title": "Client connected profile drops local pickup-spawn + pickup-collect",
+      "status": "implemented",
+      "summary": "On the `connected` profile, narrow pickup-spawn-system + pickup-collect-system profiles to ['static']. The server's snapshot delivers Pickup entities directly; the existing client-side render pipeline (MeshRenderer + GridOccupant) picks them up unchanged. Collection visuals: client connected-blast-decoder gains a pickup branch that consumes pickupCollected events for the spark FX + audio cue (the entity itself is removed via snapshot diff). Static profile keeps the local pipeline intact.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: pickup-spawn-system + pickup-collect-system profiles narrowed to ['static']. On connected the server is authoritative on both spawn and collect; the local collect path would otherwise double-apply stat effects to player.1 on top of the server's pickerId=player.<connId>. Snapshot delivers server Pickup entities directly + entity.create lands them in the local world for rendering through the existing MeshRenderer pipeline. Local pickup visuals (PARTICLE_EMITTER, Tween scale-pop) don't fire on connected since the server spawn skips those project-specific decorations \u2014 a cosmetic gap to address in S120.",
+        "examples/kaboom-crew/bootstrap.ts: pickup-spawn + pickup-collect profile narrowed to ['static']",
+        "All 1375 unit tests pass; typecheck clean; MP e2e green (existing two tests both pass)"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-DECODE-PICKUP-ROUND-001",
+      "title": "ws-network-adapter buffers + drains pickupCollected + roundResolved",
+      "status": "implemented",
+      "summary": "Extend the engine ws-network-adapter to handle two more inbound message kinds: pickupCollected, roundResolved. Each goes into its own drain queue (drainPickupCollected, drainRoundResolved) following the S117/S118 pattern. Buffer + sample types exported for project decoders. No-op when undefined \u2014 same shape as drainBlastEvents on static.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: ws-network-adapter now buffers + drains pickupCollected and roundResolved events alongside the S117/S118 queues. PickupCollectedSample + RoundResolvedSample types exported; drainPickupCollected() / drainRoundResolved() return readonly arrays + clear the inbox. Project decoders pull from these queues each frame; the static profile naturally sees no events (no server).",
+        "engine/runtime/network/ws-network-adapter.ts: ProtocolMessage adds pickupCollected + roundResolved variants; per-kind inboxes; drainPickupCollected + drainRoundResolved on the handle",
+        "Typecheck clean; full unit suite green"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-DROP-LOCAL-ROUND-RESOLVE-001",
+      "title": "Client connected profile drops local round-resolve-system",
+      "status": "implemented",
+      "summary": "On the `connected` profile, drop round-resolve-system from the scheduler (profiles narrowed to ['static']). The server snapshot now ships the canonical RoundState entity, so the HUD scoreboard reads from the snapshot's RoundState component directly. roundResolved events flow into the ws-adapter drain queue; the connected-blast-decoder gains a branch that triggers the round-end UI banner + audio sting.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: round-resolve-system profile narrowed to ['static']. On connected, the local kaboom.round-state singleton (created at bootstrap for the HUD scoreboard) is now updated by the connected-blast-decoder system which drains roundResolved events from the ws-adapter and writes phase/tally/winnerId to the same kaboom.round-state entity. HUD scoreboard reads from kaboom.round-state \u2014 unchanged \u2014 so the on-screen UX is consistent across static and connected.",
+        "examples/kaboom-crew/bootstrap.ts: round-resolve-system profile narrowed to ['static']",
+        "examples/kaboom-crew/src/systems/connected-blast-decoder-system.ts: drainRoundResolved loop writes RoundState to kaboom.round-state; drainPickupCollected drained-and-discarded for now (audio/FX decoders are S120 scope)",
+        "Typecheck clean; full unit suite green; MP e2e green"
+      ]
+    },
+    {
+      "id": "VERIFY-MP-PICKUP-ROUND-PLAYWRIGHT-001",
+      "title": "Playwright e2e: alpha collects a pickup; bravo sees it gone + roundResolved on both tabs",
+      "status": "implemented",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: bait the server's deterministic pickup RNG (set worldSeed via URL or default) so a soft-block destruction reliably yields a pickup. Alpha walks over it \u2192 both tabs see the Pickup entity disappear from the snapshot + alpha's BomberStats.maxBombs incremented. Second test: alpha self-kills (places bomb on her cell) \u2192 both tabs see RoundState.phase flip to 'won' (bravo winning) with the right tally.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: kaboom-multiplayer-roundtrip.spec.ts gained a 4th test that exercises the full S119 server-authoritative pickup pipeline end-to-end. Server boots with KABOOM_PICKUP_DROP_CHANCE=1.0 so every soft-block destruction drops a pickup deterministically. Alpha walks (via gotoCell) to (4,3) \u2192 places a bomb \u2192 server destroys soft.1 at (4,5) \u2192 server spawns Pickup entity at (4,5) \u2192 both tabs see the Pickup in their snapshot \u2192 alpha drives the server's player.alpha onto the pickup cell via the new __agf.sendNetworkIntent probe (closed-loop control: poll snapshot + emit intent.move; stop when GridPosition matches target) \u2192 server's pickup-collect scan removes the Pickup entity + emits pickupCollected \u2192 snapshot diff propagates entity.delete to both tabs. Test stays green on both chromium and chromium-preview.",
+        "examples/backends/node-world-server/src/index.ts: env-driven KABOOM_PICKUP_DROP_CHANCE + KABOOM_WORLD_SEED knobs so e2e can bait the RNG without changing source defaults",
+        "src/main.ts: window.__agf.sendNetworkIntent probe \u2014 wraps app.network.sendIntent so tests/agents can steer the server-authoritative bomber without keyboard simulation. Returns {kind:'no-network'} when the WS adapter isn't connected. The keyboard path was unworkably racy due to compounding lag (snapshot delivery + WS RTT + server tick batch); direct intent injection makes the path deterministic.",
+        "tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: startBackend extended with env passthrough; +1 test using gotoCell for local positioning + sendNetworkIntent for closed-loop server-side movement",
+        "All 1375 unit tests pass; typecheck clean; MP e2e green on both chromium projects (24-29s per test)"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/140"
+}

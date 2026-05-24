@@ -418,8 +418,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // blast-propagation so it sees the SoftBlockDestroyedEvent
     // transients from this step. Collect runs alongside in fixedUpdate
     // so a bomber walking onto a pickup is picked up on the same step.
-    scheduler.register(createKaboomPickupSpawnSystem({ seed: 0xc0ffee }), { profiles: ["static", "connected"] });
-    scheduler.register(createKaboomPickupCollectSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S119 KABOOM-MP-SPRINT-B — on the connected profile the server is
+    // authoritative on pickup spawn AND collect (FEAT-SERVER-PICKUP-*).
+    // Local pickup-spawn still wouldn't fire on connected (no local
+    // SoftBlockDestroyedEvent — local blast-propagation is idle), but
+    // narrowing the profile documents the intent. Local pickup-collect
+    // MUST be dropped: it would otherwise double-apply stats to player.1
+    // on top of the server-authoritative path.
+    scheduler.register(createKaboomPickupSpawnSystem({ seed: 0xc0ffee }), { profiles: ["static"] });
+    scheduler.register(createKaboomPickupCollectSystem({ occupancy }), { profiles: ["static"] });
 
     // Bot AI runs in fixedUpdate so per-frame variance doesn't change
     // decisions; seeded RNG keeps replay recordings reproducible.
@@ -429,6 +436,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // the auto-restart timer (default 3 s after win/loss/draw) without
     // requiring the player to press R. The runtime handle becomes
     // available in attachUi, which populates `_boundRestart`.
+    // S119 KABOOM-MP-SPRINT-B chunk 7 — on connected, the server is
+    // authoritative on round-resolve. The connected-blast-decoder
+    // applies roundResolved events into the local kaboom.round-state
+    // singleton so the HUD scoreboard reads the same state as static.
     scheduler.register(
       createKaboomRoundResolveSystem({
         playerId: "player.1",
@@ -437,7 +448,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           if (_boundRestart !== undefined) _boundRestart();
         }
       }),
-      { profiles: ["static", "connected"] }
+      { profiles: ["static"] }
     );
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
