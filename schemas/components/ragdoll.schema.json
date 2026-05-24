@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/components/ragdoll.schema.json",
+  "title": "AGF Ragdoll components",
+  "description": "Component + template definitions for the engine ragdoll module. RagdollTemplate is a data-only description registered at bootstrap; per-instance state lives on RagdollState + RagdollBody + RagdollJoint entity components spawned by RagdollSpawnSystem (S127+). RagdollSpawnRequest is the project-facing trigger; RagdollTeardownRequest is the explicit disposal trigger.",
+  "type": "object",
+  "definitions": {
+    "ragdollBodyDef": {
+      "description": "S126 — one rigid body in a ragdoll template. dimensions[] semantics depend on shape: box -> [w, h, d]; capsule -> [radius, halfHeight, 0]; sphere -> [radius, 0, 0].",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "shape", "dimensions"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Body identifier (matches the project's skeleton naming, e.g. 'torso', 'head', 'upperArm.l')."
+        },
+        "shape": {
+          "type": "string",
+          "enum": ["box", "capsule", "sphere"]
+        },
+        "dimensions": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number", "minimum": 0 }
+        },
+        "anchor": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "Local-space offset from the skeleton root to this body's centre."
+        },
+        "mass": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Optional override; defaults to Rapier's auto-mass from shape."
+        },
+        "linearDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "angularDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "ragdollJointDef": {
+      "description": "S126 — one constraint between two bodies in the template. Joint type drives the Rapier constraint; anchors are in each body's local space.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "bodyA", "bodyB", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bodyA": { "type": "string", "minLength": 1 },
+        "bodyB": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["ball", "revolute", "fixed"]
+        },
+        "anchorA": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "anchorB": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "axis": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "Required for revolute joints. Unit vector in the parent body's local space."
+        },
+        "limitMin": { "type": "number" },
+        "limitMax": { "type": "number" }
+      }
+    },
+    "ragdollTemplate": {
+      "description": "S126 — full template registered at bootstrap. Bodies[] declares each rigid body; joints[] declares the constraint graph. Per-instance state is spawned by RagdollSpawnSystem (S127+).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bodies"],
+      "properties": {
+        "bodies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/ragdollBodyDef" }
+        },
+        "joints": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/definitions/ragdollJointDef" }
+        },
+        "linearDamping": { "type": "number", "minimum": 0, "default": 0 },
+        "angularDamping": { "type": "number", "minimum": 0, "default": 0 }
+      }
+    },
+    "ragdollSpawnRequest": {
+      "description": "S126 — project writes this on a skeleton root entity to ask the engine to spawn a Rapier ragdoll. The spawn system consumes + removes the request, then writes RagdollState + RagdollActive on the root.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateKey"],
+      "properties": {
+        "templateKey": { "type": "string", "minLength": 1 },
+        "impulse": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "Optional initial impulse applied to all bodies (or the root body). Useful for blast-driven ragdolls."
+        }
+      }
+    },
+    "ragdollTeardownRequest": {
+      "description": "S126 — explicit despawn signal. RagdollTeardownSystem (S127+) disposes the Rapier bodies + joints, removes the body + joint entities, clears RagdollState + RagdollActive from the root.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "ragdollState": {
+      "description": "S126 — per-instance state spawned by RagdollSpawnSystem on the skeleton root. bodyEntities maps body name to its ECS entity id; jointEntities is the parallel list of joint entity ids.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateKey", "spawnedAt", "bodyEntities", "jointEntities"],
+      "properties": {
+        "templateKey": { "type": "string", "minLength": 1 },
+        "spawnedAt": { "type": "number" },
+        "bodyEntities": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "jointEntities": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "ragdollBody": {
+      "description": "S126 — component on each rigid body entity spawned by RagdollSpawnSystem. Links back to the skeleton root + holds the Rapier body handle.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerRoot", "bodyName"],
+      "properties": {
+        "ownerRoot": { "type": "string", "minLength": 1 },
+        "bodyName": { "type": "string", "minLength": 1 },
+        "rapierBodyHandle": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ragdollJoint": {
+      "description": "S126 — component on each joint entity spawned by RagdollSpawnSystem.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerRoot", "jointName"],
+      "properties": {
+        "ownerRoot": { "type": "string", "minLength": 1 },
+        "jointName": { "type": "string", "minLength": 1 },
+        "rapierJointHandle": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ragdollActive": {
+      "description": "S126 — marker on the skeleton root telling animation systems to skip this entity while the ragdoll is in flight. Removed by RagdollTeardownSystem.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    }
+  }
+}

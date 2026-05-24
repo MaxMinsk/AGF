@@ -1,0 +1,73 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S126",
+  "title": "Engine ragdoll module foundation \u2014 schemas + template registry",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Starts on GDP-2026-05-24-001 (engine ragdoll module). This sprint lands the FOUNDATION \u2014 schemas + template registry + doctor surface. Spawn / sync / teardown SYSTEMS land in a follow-up sprint (S127+).",
+    "Foundation gives us validated data shapes + a registry surface projects can call at bootstrap. With the registry in place, projects can ship template definitions even before the systems land \u2014 those become no-op stubs until the engine catches up.",
+    "Out of scope: spawn/sync/teardown systems (need real Rapier rigid body + joint integration); mesh handover; the Kaboom Crew migration (GDP-2026-05-24-002)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-RAGDOLL-SCHEMAS-001",
+      "title": "Ship schemas/components/ragdoll.schema.json \u2014 6 definitions",
+      "status": "implemented",
+      "summary": "New schemas/components/ragdoll.schema.json bundle with definitions for: ragdollTemplate (bodies[], joints[]), ragdollSpawnRequest ({templateKey, impulse?}), ragdollState ({templateKey, spawnedAt, bodyEntities map, jointEntities[]}), ragdollBody ({ownerRoot, bodyName, rapierBodyHandle?}), ragdollJoint ({ownerRoot, jointName, rapierJointHandle?}), ragdollTeardownRequest ({}). Pulled into scene.schema.json via $ref + inlined via engine/tools/schemas/load-scene-schema.ts (mirror the physics-3d.schema.json pattern). Strict typing + additionalProperties:false on every definition.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: New schemas/components/ragdoll.schema.json bundle with 9 definitions: ragdollBodyDef + ragdollJointDef (sub-types for templates), ragdollTemplate (the top-level data), ragdollSpawnRequest + ragdollTeardownRequest (project triggers), ragdollState + ragdollBody + ragdollJoint (per-instance components spawned by the future RagdollSpawnSystem), ragdollActive (anim-skip marker on the root). Every definition has additionalProperties:false; dimension arrays constrained to length 3; shape enum {box,capsule,sphere}; joint type enum {ball,revolute,fixed}.",
+        "scene.schema.json: registered RagdollSpawnRequest/RagdollTeardownRequest/RagdollState/RagdollBody/RagdollJoint/RagdollActive component refs via #/definitions/<name>. RagdollTemplate stays OUT of the component list \u2014 templates are registered via the runtime API, not via scene JSON.",
+        "Typecheck clean; all 1407 unit tests still pass"
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-TEMPLATE-REGISTRY-001",
+      "title": "engine/physics/ragdoll/template-registry.ts \u2014 register/get/list API",
+      "status": "implemented",
+      "summary": "New engine/physics/ragdoll/template-registry.ts module with: registerRagdollTemplate(key: string, template: RagdollTemplate): void (throws on duplicate key or AJV validation failure with field path), getRagdollTemplate(key: string): RagdollTemplate | undefined, listRagdollTemplates(): string[] (sorted), clearRagdollTemplates(): void (for tests). Uses the schemas/components/ragdoll.schema.json definitions for validation. Module-level Map<string, template>.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: New engine/physics/ragdoll/template-registry.ts module exports registerRagdollTemplate(key, template), getRagdollTemplate(key), listRagdollTemplates() (sorted), clearRagdollTemplates() (for test isolation). Templates are AJV-validated at registration time against schemas/components/ragdoll.schema.json#/definitions/ragdollTemplate; bad templates throw with the AJV error path stringified. Duplicate key throws with a clear error. Empty key throws fast.",
+        "engine/physics/ragdoll/template-registry.ts \u2014 module-level Map<string, RagdollTemplate>; lazy-compiled AJV validator (loaded on first registration)",
+        "Typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-REGISTRY-DOCTOR-001",
+      "title": "engine doctor surfaces registered ragdoll template count + names",
+      "status": "implemented",
+      "summary": "Extend engine/tools/doctor/project-doctor.ts to call listRagdollTemplates() + emit a 'Ragdoll templates: N (key1, key2, ...)' line in the doctor scorecard. Empty list emits 'Ragdoll templates: 0' so the surface is always present (signals the registry is loaded). Same flavour as the existing 'QA inbox: N tickets' line.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: engine doctor now emits a 'Ragdoll templates: N (key1, key2, \u2026)' line in the scorecard. Always printed even at zero so the line acts as a 'module loaded' signal. Preview caps at 5 names + '\u2026' to avoid runaway output for projects with many templates.",
+        "engine/tools/doctor/project-doctor.ts: ragdollTemplates field on the report type; collectRagdollTemplates() helper; render in the Backlog section block alongside QA inbox + proposed-stories lines"
+      ]
+    },
+    {
+      "id": "VERIFY-RAGDOLL-SCHEMAS-UNIT-001",
+      "title": "Unit tests covering ragdoll.schema.json \u2014 positive + negative shapes",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-schemas.test.ts validating: a minimal RagdollTemplate (1 body, 0 joints) accepts; full humanoid template (10 bodies, 9 joints from docs/game-design/ragdoll-module-design.md \u00a73.4) accepts; missing required field rejects with the right path; unknown property rejects; bad shape ('mesh' instead of 'box') rejects; bad dimensions arity rejects. Smokes each definition.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-schemas.test.ts \u2014 11 schema-validation tests covering minimal template, full humanoid (10 bodies + 9 joints), missing required fields, unknown properties, bad shape, bad dimension arity, negative dimensions, ragdollSpawnRequest validation, ragdollState shape, ragdollJointDef type enum.",
+        "All 11 tests pass"
+      ]
+    },
+    {
+      "id": "VERIFY-RAGDOLL-REGISTRY-UNIT-001",
+      "title": "Unit tests covering template-registry \u2014 register/get/list + edge cases",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-template-registry.test.ts validating: registerRagdollTemplate stores; getRagdollTemplate returns the same template; duplicate-key registration throws with a clear error; AJV validation failure on bad template throws with the schema error path; listRagdollTemplates returns sorted keys; clearRagdollTemplates wipes the registry (test isolation).",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-template-registry.test.ts \u2014 10 tests covering round-trip, unknown-key undefined, sorted list, duplicate throws, empty-key throws, clear wipes, bad shape throws with path, bad dimensions throws, empty bodies array rejected, multi-body+joints accepts, bad joint type rejected.",
+        "All 10 tests pass; total 1428 unit tests pass; typecheck clean"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "PENDING"
+}
