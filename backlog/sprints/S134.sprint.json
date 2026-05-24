@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-24",
   "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/156",
   "notes": [
     "Quality-slowdown sprint per user signal: the past three sprints (S131-S133) shipped engine ragdoll mesh-handover + kaboom death-trigger migration + pose-snapshot, all unit-test-covered in isolation but never end-to-end. This sprint adds the missing integration coverage so future ragdoll changes don't silently regress.",
     "Scope is small + verification-first: one integration test wiring death-trigger + engine spawn + sync + teardown together, two regression unit tests on the animation gate swap (S132 changed bomber-animation-driver + bench-animation-system from DeathAnim → RagdollActive — both deserve a test that proves the gate fires), and a manual playtest checklist for the visual outcome (since no live playwright probe lands here).",
