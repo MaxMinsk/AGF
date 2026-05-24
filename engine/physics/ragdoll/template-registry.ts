@@ -12,9 +12,7 @@
 // dimensions array or unknown shape).
 
 import Ajv, { type ValidateFunction } from "ajv";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import ragdollSchema from "../../../schemas/components/ragdoll.schema.json" with { type: "json" };
 
 /** S126 — body definition; one entry per rigid body in the template. */
 export type RagdollBodyDef = {
@@ -47,26 +45,18 @@ export type RagdollTemplate = {
   angularDamping?: number;
 };
 
-// Compile the ragdollTemplate schema once at module load. Same flavour
-// as engine/runtime/network/protocol-validator.ts.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
+// Compile the ragdollTemplate schema once at module load. The JSON
+// schema is inlined via a Vite/Node JSON import so this module stays
+// browser-safe (no node:fs).
 let cachedValidator: ValidateFunction | undefined;
 
 function getTemplateValidator(): ValidateFunction {
   if (cachedValidator !== undefined) return cachedValidator;
-  const schemaPath = resolve(__dirname, "../../../schemas/components/ragdoll.schema.json");
-  const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
-    definitions: Record<string, object>;
-  };
   const ajv = new Ajv({ allErrors: true, strict: false });
-  // Compile the ragdollTemplate definition directly, embedding the
-  // ragdollBodyDef + ragdollJointDef helpers via a sibling
-  // definitions object so `$ref: "#/definitions/..."` resolves.
+  const definitions = (ragdollSchema as { definitions: Record<string, object> }).definitions;
   const compiled = ajv.compile({
     $ref: "#/definitions/ragdollTemplate",
-    definitions: schema.definitions
+    definitions
   });
   cachedValidator = compiled;
   return compiled;

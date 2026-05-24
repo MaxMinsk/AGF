@@ -553,6 +553,23 @@ export async function createApp(
     );
     const physicsSystem = createPhysicsSyncSystem(physicsRegistry, physicsAdapter);
     scheduler.register(physicsSystem);
+    // S128 KABOOM-RAGDOLL-MODULE — three ragdoll systems run alongside
+    // the existing physics-sync-system. Spawn fires BEFORE sync (so
+    // newly-spawned bodies catch the very next sync pass). Teardown
+    // fires AFTER sync so a final transform write lands before
+    // disposal.
+    const { createRagdollSpawnSystem } = await import(
+      "../engine/physics/ragdoll/spawn-system"
+    );
+    const { createRagdollSyncSystem } = await import(
+      "../engine/physics/ragdoll/sync-system"
+    );
+    const { createRagdollTeardownSystem } = await import(
+      "../engine/physics/ragdoll/teardown-system"
+    );
+    scheduler.register(createRagdollSpawnSystem({ adapter: physicsAdapter }));
+    scheduler.register(createRagdollSyncSystem({ adapter: physicsAdapter }));
+    scheduler.register(createRagdollTeardownSystem({ adapter: physicsAdapter }));
   }
 
   const runtime: RuntimeHandle = await startRuntime(runtimeOptions);
