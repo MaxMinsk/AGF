@@ -108,9 +108,13 @@ must respect them or file a counter-proposal first.
 - **Bomb-place reach is a fixed-duration burst** (~0.4 s), driven by
   wall-clock from the moment the burst starts. Velocity does not
   affect reach speed.
-- **Ragdoll is physics-driven**, not animation-driven. See §3 +
-  GDP-2026-05-22-005. Wall-clock does not enter the ragdoll integration;
-  it uses fixedUpdate dt only.
+- **Ragdoll is physics-driven via the engine module**, not
+  animation-driven. Implementation lives at `engine/physics/ragdoll/`
+  (Rapier rigid bodies + joints, per
+  `docs/game-design/ragdoll-module-design.md` + `GDP-2026-05-24-001`).
+  Wall-clock does not enter the ragdoll integration; it uses fixedUpdate
+  dt only. The S105 procedural-spring path is superseded
+  (`GDP-2026-05-24-002` migration).
 - **Bomber root faces walk direction** (shipped S108). The root
   Transform.rotation.y aligns with GridMover's current direction.
   Standing-still bombers keep their last-walked yaw. Faces NORTH
@@ -119,11 +123,11 @@ must respect them or file a counter-proposal first.
   flips, PlayerInput is dropped on that bomber for the rest of
   the round. Prevents ghost-key spam from confusing queued
   direction.
-- **Ragdoll respects arena boundaries** (shipped S108). The ragdoll
-  body stays above the floor (ground-clamp) and stops at hard walls
-  (wall-collision) — it can't fly off the arena. Pure presentation
-  constraint; gameplay invariants (alive-flip frame, GridOccupancy
-  clear) are unaffected.
+- **Ragdoll respects arena boundaries** — handled natively by Rapier
+  arena-floor + arena-wall colliders in the engine ragdoll module
+  (post `GDP-2026-05-24-002` migration). Pre-migration: bespoke
+  ground-clamp + wall-collision helpers from S108. Either way, the
+  body cannot fly off the arena.
 
 ### 2.4 Bomb pass-through rules
 

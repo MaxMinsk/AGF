@@ -31,6 +31,12 @@ const ROUND_STATE_ENTITY: EntityId = "kaboom.round-state";
 // one source, and clients joining mid-session catch up to the live
 // tally instead of starting at {0,0,0}.
 const MP_ROUND_STATE_ENTITY: EntityId = "mp.round-state";
+// S125 — server-namespaced MatchState id. Mirrors into the local
+// kaboom.game-state singleton's MatchState component so the HUD's
+// existing match-resolved banner fires on connected too.
+const MP_MATCH_STATE_ENTITY: EntityId = "mp.match-state";
+const MATCH_STATE: ComponentName = "MatchState";
+const GAME_STATE_ENTITY: EntityId = "kaboom.game-state";
 const TRANSFORM: ComponentName = "Transform";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const BLAST_TILE: ComponentName = "BlastTile";
@@ -49,6 +55,15 @@ type LocalRoundState = {
   tally?: { player: number; bot: number; draws: number };
   roundNumber?: number;
   winnerId?: string;
+};
+
+/** S125 — local MatchState shape (matches the static-profile schema). */
+type LocalMatchState = {
+  phase?: string;
+  target?: number;
+  matchNumber?: number;
+  lastMatchWinner?: string;
+  resolvedAt?: number;
 };
 
 export type ConnectedBlastDecoderOptions = {
@@ -113,6 +128,20 @@ export function createKaboomConnectedBlastDecoderSystem(
       if (mpRound.roundNumber !== undefined) merged.roundNumber = mpRound.roundNumber;
       if (mpRound.winnerId !== undefined) merged.winnerId = mpRound.winnerId;
       world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, merged);
+    }
+
+    // S125 KABOOM-MP-MATCH-STATE — mirror server-authoritative MatchState
+    // into the local kaboom.game-state singleton. Preserves the local-
+    // owned GamePaused field (title-screen / pause overlay).
+    const mpMatch = world.getComponent<LocalMatchState>(MP_MATCH_STATE_ENTITY, MATCH_STATE);
+    if (mpMatch !== undefined && world.hasEntity(GAME_STATE_ENTITY)) {
+      const local = world.getComponent<LocalMatchState>(GAME_STATE_ENTITY, MATCH_STATE);
+      const merged: LocalMatchState = { ...(local ?? {}) };
+      if (mpMatch.phase !== undefined) merged.phase = mpMatch.phase;
+      if (mpMatch.target !== undefined) merged.target = mpMatch.target;
+      if (mpMatch.matchNumber !== undefined) merged.matchNumber = mpMatch.matchNumber;
+      if (mpMatch.lastMatchWinner !== undefined) merged.lastMatchWinner = mpMatch.lastMatchWinner;
+      world.setComponent(GAME_STATE_ENTITY, MATCH_STATE, merged);
     }
 
     // S118 — apply server blockDestroyed to delete local soft.* entities.

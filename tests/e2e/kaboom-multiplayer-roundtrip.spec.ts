@@ -1098,3 +1098,188 @@ test("S124 hunter bot stays alive 20s chasing a stationary alpha", async ({ brow
     await stopBackend(backend);
   }
 });
+
+// S125 KABOOM-MP-MATCH-STATE — connected match resolution.
+
+test("S125 best-of-1 match resolves on connected after a single round-win", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port, {
+    KABOOM_PICKUP_DROP_CHANCE: "0",
+    KABOOM_BOT_PERSONALITY: "coward", // keep round-state predictable
+    KABOOM_MATCH_TARGET: "1"
+  });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("player.alpha");
+      }, undefined, { timeout: 10000 });
+
+      // Dismiss title.
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+      await alpha.waitForTimeout(200);
+      // Walk alpha to (1, 1) + place a self-bomb (the relay sends the
+      // local player.1's GP to the server).
+      type GotoResult = { reached: boolean };
+      await alpha.evaluate(async () => {
+        const k = (window.__agf as { kaboom?: { gotoCell?: (id: string, gx: number, gz: number) => Promise<GotoResult> } }).kaboom;
+        if (k?.gotoCell === undefined) throw new Error("agf.kaboom.gotoCell unavailable");
+        await k.gotoCell("player.1", 1, 1);
+      });
+      // Drive server's alpha to (1, 1) so the bomb actually hits her.
+      await alpha.evaluate(() => {
+        const send = window.__agf!.sendNetworkIntent;
+        return new Promise<void>((resolveDone) => {
+          let last: [number, number] = [0, 0];
+          const set = (d: [number, number]): void => {
+            if (last[0] === d[0] && last[1] === d[1]) return;
+            last = d;
+            send(d);
+          };
+          const step = (): void => {
+            const snap = window.__agf!.snapshot() as Snapshot;
+            const ent = snap.entities.find((e) => e.id === "player.alpha");
+            const gp = (ent?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+            if (gp === undefined) {
+              setTimeout(step, 33);
+              return;
+            }
+            if (gp.gx >= 1 && gp.gz >= 1) {
+              set([0, 0]);
+              setTimeout(resolveDone, 300);
+              return;
+            }
+            if (gp.gx < 1) set([1, 0]);
+            else if (gp.gz < 1) set([0, 1]);
+            setTimeout(step, 33);
+          };
+          step();
+        });
+      });
+      // Bomb self at (1, 1).
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
+      await alpha.waitForTimeout(80);
+      await alpha.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" })));
+
+      // Wait for the LOCAL kaboom.game-state.MatchState.phase to flip
+      // to 'resolved' (mirrored from server's mp.match-state).
+      await alpha.waitForFunction(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const gs = snap.entities.find((e) => e.id === "kaboom.game-state");
+        const ms = gs?.components["MatchState"] as { phase?: string } | undefined;
+        return ms?.phase === "resolved";
+      }, undefined, { timeout: 15000 });
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});
+
+// S125 — hunter bot routes around a hard-wall pillar to reach alpha.
+
+test("S125 hunter bot routes around a hard-wall to reach alpha", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  const backend = await startBackend(port, {
+    KABOOM_PICKUP_DROP_CHANCE: "0",
+    KABOOM_BOT_PERSONALITY: "hunter",
+    KABOOM_WORLD_SEED: "13"
+  });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+      await alpha.waitForFunction(() => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("bot.1");
+      }, undefined, { timeout: 10000 });
+
+      // Drive server's alpha to (10, 7) — behind the (11, 7) pillar
+      // relative to the bot at (13, 9). Path: +X to 10, +Z to 7.
+      await alpha.evaluate(() => {
+        const send = window.__agf!.sendNetworkIntent;
+        return new Promise<void>((resolveDone) => {
+          let last: [number, number] = [0, 0];
+          const set = (d: [number, number]): void => {
+            if (last[0] === d[0] && last[1] === d[1]) return;
+            last = d;
+            send(d);
+          };
+          const step = (): void => {
+            const snap = window.__agf!.snapshot() as Snapshot;
+            const ent = snap.entities.find((e) => e.id === "player.alpha");
+            const gp = (ent?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+            if (gp === undefined) {
+              setTimeout(step, 33);
+              return;
+            }
+            if (gp.gx >= 10 && gp.gz >= 7) {
+              set([0, 0]);
+              setTimeout(resolveDone, 300);
+              return;
+            }
+            if (gp.gx < 10) set([1, 0]);
+            else if (gp.gz < 7) set([0, 1]);
+            setTimeout(step, 33);
+          };
+          step();
+        });
+      });
+
+      // Snapshot initial distance + track min via window flag.
+      const initialDist = await alpha.evaluate(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const a = snap.entities.find((e) => e.id === "player.alpha");
+        const b = snap.entities.find((e) => e.id === "bot.1");
+        const ag = (a?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+        const bg = (b?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+        if (ag === undefined || bg === undefined) return Number.MAX_SAFE_INTEGER;
+        return Math.abs(ag.gx - bg.gx) + Math.abs(ag.gz - bg.gz);
+      });
+      await alpha.evaluate((start: number) => {
+        (window as unknown as { __s125WallMinDist?: number }).__s125WallMinDist = start;
+      }, initialDist);
+      await alpha.waitForFunction(
+        (start: number) => {
+          const snap = window.__agf!.snapshot() as Snapshot;
+          const a = snap.entities.find((e) => e.id === "player.alpha");
+          const b = snap.entities.find((e) => e.id === "bot.1");
+          const ag = (a?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+          const bg = (b?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+          if (ag === undefined || bg === undefined) return false;
+          const d = Math.abs(ag.gx - bg.gx) + Math.abs(ag.gz - bg.gz);
+          const w = window as unknown as { __s125WallMinDist?: number };
+          if (w.__s125WallMinDist === undefined || d < w.__s125WallMinDist) w.__s125WallMinDist = d;
+          return w.__s125WallMinDist < start;
+        },
+        initialDist,
+        { timeout: 25000 }
+      );
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});
