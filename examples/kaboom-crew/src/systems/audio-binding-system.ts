@@ -229,12 +229,11 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
         // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — per-bomber death voice
         // on the same edge as the generic "death" event.
         onEvent("voice-death", { entityId: id, ...(deathPos !== undefined ? { position: deathPos } : {}) });
-        // S90 KABOOM-DEATH-FALL — tag the bomber with a per-entity
-        // animation component the dedicated system will tween + freeze
-        // movement so a dying bomber stops mid-stride.
-        if (!world.hasComponent(id, "DeathAnim")) {
-          world.setComponent(id, "DeathAnim", { elapsed: 0 });
-        }
+        // S132 — the death visual is now owned by the engine ragdoll
+        // module, triggered by createKaboomDeathTriggerSystem on the
+        // same alive→false edge. This system keeps the audio + voice
+        // + particle puff + GridMover stop; the DeathAnim write that
+        // used to gate the S105 spring path is gone.
         const mover = world.getComponent<{ queuedDirection?: { dx: number; dz: number } }>(id, "GridMover");
         if (mover !== undefined && (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0)) {
           world.setComponent(id, "GridMover", { ...mover, queuedDirection: { dx: 0, dz: 0 } });

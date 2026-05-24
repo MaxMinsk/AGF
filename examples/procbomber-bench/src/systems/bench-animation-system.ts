@@ -355,11 +355,16 @@ export function createBenchAnimationSystem(): System {
           }
           case "none":
           default: {
-            // S105 ragdoll handover: when DeathAnim is present, the
-            // root-arc + limb spring system own position + per-limb
-            // rotation. Skip BOTH writes here so we don't clobber the
-            // ragdoll pose. Without DeathAnim, snap back to base + rest
-            // shoulders (idle pose).
+            // S132 ragdoll handover: when RagdollActive is present, the
+            // engine ragdoll module owns position + per-limb rotation
+            // (or in the bench's own ragdoll tests, the spring path).
+            // Skip BOTH writes here so we don't clobber the ragdoll
+            // pose. Without RagdollActive, snap back to base + rest
+            // shoulders (idle pose). The bench's legacy DeathAnim path
+            // still works because nothing in the bench writes
+            // RagdollActive yet — but kaboom-crew's death-trigger does
+            // (S132).
+            if (world.hasComponent(id, "RagdollActive")) break;
             if (world.hasComponent(id, "DeathAnim")) break;
             setTransformPosition(world, id, base.x, base.y, base.z);
             applyRestPose();

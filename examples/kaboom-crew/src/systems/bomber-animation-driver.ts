@@ -3,7 +3,7 @@
 // Watches each PlayerControlled / BotBrain bomber and writes
 // BenchAnimationState.kind based on its current gameplay state:
 //
-//   - BomberStats.alive === false  → "none"          (DeathAnim owns the pose)
+//   - BomberStats.alive === false  → "none"          (engine ragdoll owns the pose)
 //   - just placed a bomb            → "reach"         (~0.4 s burst)
 //   - GridMover currentLerp > 0     → "walk-swing"
 //   - else                          → "idle-bob"
@@ -31,7 +31,7 @@ const GRID_MOVER = "GridMover";
 const PLACE_BOMB_REQUEST = "PlaceBombRequest";
 const PLAYER_CONTROLLED = "PlayerControlled";
 const BOT_BRAIN = "BotBrain";
-const DEATH_ANIM = "DeathAnim";
+const RAGDOLL_ACTIVE = "RagdollActive";
 
 export const REACH_BURST_S = 0.4;
 
@@ -50,7 +50,7 @@ type GridMoverLike = { currentLerp?: number; queuedDirection?: { dx: number; dz:
 function decideKind(world: World, entityId: string, time: TimeContext, currentState: BomberAnimationStateLike | undefined): BenchAnimationKind {
   const stats = world.getComponent<BomberStatsLike>(entityId, BOMBER_STATS);
   if (stats?.alive === false) return "none";
-  if (world.hasComponent(entityId, DEATH_ANIM)) return "none";
+  if (world.hasComponent(entityId, RAGDOLL_ACTIVE)) return "none";
 
   // S104 KABOOM-REACH-IK-PLACE-BOMB. A burst started when the entity
   // last fired PlaceBombRequest; runs until reachEndsAt.

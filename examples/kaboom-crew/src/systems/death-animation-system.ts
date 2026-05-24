@@ -1,17 +1,15 @@
 // S90 KABOOM-DEATH-FALL → S105 KABOOM-RAGDOLL-ROOT-ARC + LIMB-FLAIL.
 //
-// S130 KABOOM-CREW-RAGDOLL-MIGRATION note: this system is the S105
-// procedural-spring ragdoll path that lives inside the project. The
-// planned migration (GDP-2026-05-24-002, S131+) replaces this entire
-// system + spring-pivot-system + S108 ground/wall clamps with a single
-// RagdollSpawnRequest written on BomberStats.alive=false. The engine
-// ragdoll module foundation (schemas, registry, spawn/sync/teardown
-// systems, kaboom-bomber template) landed in S126-S129. The migration
-// waits on engine mesh-handover (project meshes re-parent to ragdoll
-// body entities at spawn) — until then, this procedural-spring path
-// stays the only visual ragdoll. The project-local DeathImpulse
-// component (renamed from RagdollState in S130 to avoid clashing with
-// the engine module's RagdollState) carries the launch direction.
+// S132 KABOOM-CREW-RAGDOLL-MIGRATION — ORPHANED. The engine ragdoll
+// module (S126-S131) now owns the death visual; this system is no
+// longer registered in kaboom-crew/bootstrap.ts. The file stays as a
+// soft archive for one sprint so a rollback is one register-call away
+// if the engine ragdoll path regresses in playtest. Scheduled for
+// deletion in S133 alongside this test file.
+//
+// Replaced by: examples/kaboom-crew/src/systems/death-trigger-system.ts
+// + the engine spawn/sync/teardown systems (registered via
+// src/app.ts when physics.enabled=true).
 //
 // Death animation v3. Replaces the S100 slapstick tween (vertical hop
 // + Y-spin) with a physics-driven ragdoll: a gravity arc with
