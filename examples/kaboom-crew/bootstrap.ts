@@ -3,6 +3,7 @@ import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupa
 import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
+import type { EngineCommand } from "../../engine/core/commands/types";
 import type {
   ProjectBootstrap,
   ProjectBootstrapContext,
@@ -277,10 +278,16 @@ function restartScene(runtime: RuntimeHandle): number {
     // S100 KABOOM-BOT-PERSONALITY-VARIANTS — splice the URL-derived
     // personality into the difficulty patch so a single component.set
     // both keeps the existing aggression/decision dial AND sets the
-    // personality flag the bot-ai-system reads.
-    { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
-    { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
-    { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
+    // personality flag the bot-ai-system reads. S120 — on connected
+    // mode bot.1 is server-owned so we delete the scene-spawned local
+    // one rather than apply tuning patches.
+    ...(_networkedMode
+      ? [{ kind: "entity.delete", entityId: "bot.1" } as EngineCommand]
+      : [
+          { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } } as EngineCommand,
+          { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats } as EngineCommand,
+          { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover } as EngineCommand
+        ])
   ]);
   // S104 KABOOM-MIGRATE-PREFABS — scene.load WIPES the world including
   // the 19-entity bomber trees from the previous round. Re-spawn here
@@ -288,9 +295,14 @@ function restartScene(runtime: RuntimeHandle): number {
   // persists across scene.load (renderer-level), so the per-part
   // builders stay registered.
   const playerRecipe = makeKaboomRecipe("player.1");
-  const botRecipe = makeKaboomRecipe("bot.1");
   spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
-  spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+  // S120 — on connected, the server owns bot.1; the snapshot delivers
+  // it and remote-bomber-decorator spawns the procbomber tree locally.
+  // Spawning here would collide with the server's claim.
+  if (!_networkedMode) {
+    const botRecipe = makeKaboomRecipe("bot.1");
+    spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+  }
   return 1;
 }
 
@@ -299,6 +311,11 @@ function restartScene(runtime: RuntimeHandle): number {
 // the system holds this closure and attachUi populates `_boundRestart`
 // once the runtime is known. Cleared in dispose to release the handle.
 let _boundRestart: (() => void) | undefined;
+// S120 KABOOM-MP-SPRINT-B chunk 4 — when running on the connected
+// profile, the server owns bot.1 — local bootstrap must skip the
+// local bot.1 spawn so the snapshot's server bot.1 entity isn't
+// rejected by the ws-adapter's id-collision guard.
+let _networkedMode = false;
 
 // S87 KABOOM-HUD-KEY-GLYPHS. PlayerInputSystem already exposes
 // pressedSnapshot(); we hold the instance so attachUi can expose a
@@ -325,6 +342,7 @@ let _audioLog: AudioLogEntry[] = [];
 
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler, playerId, networked, getNetwork }: ProjectBootstrapContext): void {
+    _networkedMode = networked;
     const occupancy = createGridOccupancySystem();
     _boundOccupancy = occupancy;
     scheduler.register(occupancy, { profiles: ["static", "connected"] });
@@ -355,7 +373,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       createKaboomPlaceBombNetworkRelaySystem({ getNetwork }),
       { profiles: ["connected"] }
     );
-    scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S120 KABOOM-MP-SPRINT-B chunk 4 — on connected the server is
+    // authoritative on bomb spawning (the relay above forwards local
+    // human bomb requests + bots are server-side). Local placement
+    // would never get to spawn anything useful.
+    scheduler.register(createKaboomBombPlacementSystem({ occupancy }), { profiles: ["static"] });
     // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
     // queuedDirection, before grid-movement commits the step.
     scheduler.register(createKaboomBombKickSystem({ occupancy }), { profiles: ["static", "connected"] });
@@ -404,12 +426,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // rotations cleanly.)
     scheduler.register(createSpringPivotSystem(), { profiles: ["static", "connected"] });
 
-    scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S120 KABOOM-MP-SPRINT-B chunk 4 — server walks blast cells +
+    // emits blastEvent + blockDestroyed (S118). Local blast-propagation
+    // never sees a BlastEvent transient on connected (local fuse-system
+    // is also off since S117), so this is also a cleanup of an idle
+    // system. Narrow to ['static'] explicitly.
+    scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
     // S109 KABOOM-HIT-RECOIL — runs RIGHT AFTER blast propagation so the
     // HitRecoilRequest transient blast-propagation just wrote is consumed
     // in the same fixedUpdate (one-shot, no carry-over).
     scheduler.register(createKaboomHitRecoilSystem(), { profiles: ["static", "connected"] });
-    scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static", "connected"] });
+    scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static"] });
     // S98 KABOOM-BLAST-DANGER-DECAL — reverted in S99 per user
     // feedback (design choice rejected in principle; see
     // feedback-no-blast-prediction-decal memory).
@@ -430,7 +457,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
 
     // Bot AI runs in fixedUpdate so per-frame variance doesn't change
     // decisions; seeded RNG keeps replay recordings reproducible.
-    scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static", "connected"] });
+    // S120 KABOOM-MP-SPRINT-B chunk 4 — on connected, the server is
+    // authoritative on bot AI. The local bot-AI would otherwise drive
+    // a phantom local bot.1 — but we suppress that spawn entirely
+    // (FEAT-CLIENT-SUPPRESS-LOCAL-BOT-001).
+    scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static"] });
 
     // Round resolve gets a late-bound onRestart closure so it can fire
     // the auto-restart timer (default 3 s after win/loss/draw) without
@@ -523,7 +554,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       (globalThis as unknown as { location?: { search?: string } }).location?.search
     );
     const initialTuning = difficultyComponentPatch(initialPreset);
-    runtime.applyCommands([
+    const initialBatch: EngineCommand[] = [
       // S84 + S115 — single kaboom.game-state singleton carries
       // GamePaused (title-screen / pause overlay) AND MatchState
       // (best-of-N session). Two entity.create calls for the same id
@@ -545,24 +576,36 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         components: {
           RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit(), matchTarget: readMatchTargetFromUrl() ?? 3 }
         }
-      },
-      { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
-      { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
-      { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
-      // S104 KABOOM-MIGRATE-PREFABS: the static sphere meshes are gone.
-      // procbomber-integration.ts spawns a 19-entity procedural tree
-      // under each bomber root (player.1, bot.1) below.
-    ]);
+      }
+    ];
+    if (!_networkedMode) {
+      // Static profile only — bot tuning patches.
+      initialBatch.push(
+        { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
+        { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
+        { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
+      );
+    } else {
+      // S120 KABOOM-MP-SPRINT-B — on connected, delete the scene-
+      // spawned bot.1 entity so the server's snapshot bot.1 can land
+      // without an id-collision rejection from ws-network-adapter.
+      initialBatch.push({ kind: "entity.delete", entityId: "bot.1" });
+    }
+    runtime.applyCommands(initialBatch);
     // S104 KABOOM-MIGRATE-PREFABS: register the procbomber per-part
     // builders + spawn one tree per bomber root. Recipe seeded from
     // the entity id so player.1 + bot.1 look different by default.
     // restartScene re-spawns the trees because scene.load wipes the
     // world.
     const playerRecipe = makeKaboomRecipe("player.1");
-    const botRecipe = makeKaboomRecipe("bot.1");
     registerProcbomberBuilders(runtime.renderer, (ownerId) => makeKaboomRecipe(ownerId));
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
-    spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+    // S120 — on connected, server owns bot.1; snapshot delivers it +
+    // remote-bomber-decorator spawns the procbomber tree locally.
+    if (!_networkedMode) {
+      const botRecipe = makeKaboomRecipe("bot.1");
+      spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+    }
     // S117 KABOOM-BOMBER-MATERIAL-PATCH — procbomber meshes paint
     // per-vertex colour (palette + panel seams + decals + stripes),
     // but the engine's default MeshStandardMaterial has
@@ -645,11 +688,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       const personality = readBotPersonalityFromUrl(
         (globalThis as unknown as { location?: { search?: string } }).location?.search
       );
-      runtime.applyCommands([
-        { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
-        { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
-        { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
-      ]);
+      if (!_networkedMode) {
+        runtime.applyCommands([
+          { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
+          { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
+          { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
+        ]);
+      }
       return next;
     }
 
