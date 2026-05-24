@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-24",
   "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/153",
   "notes": [
     "Foundation step for GDP-2026-05-24-002 (kaboom-crew death-trigger migration, S132+). The S126-S129 ragdoll module spawns bodies + joints but the spawn-system explicitly says 'mesh handover is OUT of scope — projects decide how to bind their visible meshes to the body entities'. That leaves every consumer to reinvent the same wiring. This sprint adds the minimum primitive: a meshMap on RagdollSpawnRequest, a RagdollMeshBinding component, and sync-system mirroring body Transform → bound mesh Transform.",
     "Design: project writes RagdollSpawnRequest { templateKey, impulse?, meshMap?: Record<bodyName, meshEntityId> }. Spawn-system, after creating body entities, sets RagdollMeshBinding { ragdollRoot, bodyName, bodyEntity } on each mesh entity in the map. Sync-system queries [RagdollMeshBinding, Transform] and copies the bound body's Transform to the mesh each fixed tick. Teardown removes the binding component from each mesh entity (projects keep ownership of their mesh entities — they decide whether to delete or restore them).",
