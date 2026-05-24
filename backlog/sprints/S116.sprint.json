@@ -1,0 +1,41 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S116",
+  "title": "Multiplayer Sprint B foundation \u2014 research spike + protocol extensions",
+  "status": "archived",
+  "startedAt": "2026-05-23",
+  "notes": [
+    "GDP-2026-05-22-011 (MUST, deferred S115) is a multi-sprint undertaking \u2014 67 acceptance hints, 7 systems to migrate server-side. Breaking it into a foundation sprint (spike + protocol contract) followed by per-system migration sprints.",
+    "S116 ships: (1) docs/research/kaboom-multiplayer-sprint-b-plan.md with concrete architecture decisions; (2) schemas/protocol.schema.json extensions covering all 9 new message kinds called out in the spike. Implementation across multiple subsequent sprints."
+  ],
+  "stories": [
+    {
+      "id": "RESEARCH-MP-SPRINT-B-MIGRATION-001",
+      "title": "Sprint B migration plan \u2014 server-side ECS architecture + system ordering + protocol shapes",
+      "status": "implemented",
+      "summary": "Decide before code: where does the kaboom-crew rules module LIVE (server-only? shared library? extracted package?), which order to migrate systems (suggested: protocol contract first, then bomb-placement + bomb-fuse, then blast-propagation, then pickup-spawn/collect, then round-resolve, then bot-AI), how the server-side ECS bootstraps (existing engine ECS in node?), how the seeded RNG flows (one seed per world stored server-side), what the client predicts (movement only, not bomb placement), how the existing bot-vs-bot regression test ports to the server. Output: docs/research/kaboom-multiplayer-sprint-b-plan.md (~300 lines, 8-10 sections). Concrete enough to open the next 4-5 sprints with their scope pre-locked.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: docs/research/kaboom-multiplayer-sprint-b-plan.md ships and covers 10 required sections \u2014 current state, architecture options + recommendation (Option B: shared rules module), system migration ordering across 4 sprint chunks (S117/S118/S119/S120), 9 protocol message kind table, client prediction strategy, determinism + bot-vs-bot port, profile/URL wiring, hard-perimeter out-of-scope list, 5 named risks. The next 4 sprints can open with their scope pre-locked.",
+        "docs/research/kaboom-multiplayer-sprint-b-plan.md: new file (~330 lines)",
+        "Locks the per-sprint scope: S117 protocol+placement+fuse, S118 blast+blocks, S119 pickup+round-resolve, S120 bot-AI",
+        "9 protocol message kinds enumerated with exact payload shapes (used as the contract for FEAT-MP-PROTOCOL-EXTENSIONS-001 in S116)"
+      ]
+    },
+    {
+      "id": "FEAT-MP-PROTOCOL-EXTENSIONS-001",
+      "title": "Protocol contract \u2014 9 new message kinds for server-authoritative Kaboom Crew",
+      "status": "implemented",
+      "summary": "Extend schemas/protocol.schema.json with the new message kinds called out in the spike (placeBombRequest, detonateRemoteRequest, inputIntent c\u2192s; blastEvent, pickupCollected, bomberDied, shieldConsumed, roundResolved, blockDestroyed s\u2192c). Schema only \u2014 no system implementation. Adds protocol-validator coverage. Unit tests assert each new message round-trips through validateProtocolMessage. The 4 existing message kinds stay untouched (backcompat).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: 9 new protocol message kinds added to schemas/protocol.schema.json per the \u00a74 contract in docs/research/kaboom-multiplayer-sprint-b-plan.md. Client\u2192server: placeBombRequest, detonateRemoteRequest, inputIntent. Server\u2192client: blastEvent, pickupCollected, bomberDied, shieldConsumed, roundResolved, blockDestroyed. New entityId definition reused across the new variants. Schema only \u2014 no system code yet. Pre-existing 4 message kinds (world.snapshot, player.join, player.leave, intent.move) untouched.",
+        "schemas/protocol.schema.json: 9 new oneOf variants + entityId definition",
+        "+10 unit tests in tests/unit/protocol-schema.test.ts covering each new message kind, valid + invalid payload cases, additionalProperties guard",
+        "Full suite 1320/1320."
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-23",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/136"
+}

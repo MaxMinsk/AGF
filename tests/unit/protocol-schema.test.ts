@@ -95,3 +95,122 @@ describe("protocol schema v0", () => {
     expectInvalid({ kind: "player.join", payload: { playerId: "ALPHA" } });
   });
 });
+
+// S116 KABOOM-MP-PROTOCOL-EXTENSIONS — 9 new message kinds for the
+// upcoming Sprint B (server-authoritative Kaboom Crew).
+describe("protocol schema — Sprint B extensions (S116)", () => {
+  it("accepts placeBombRequest", () => {
+    expectValid({
+      kind: "placeBombRequest",
+      sequence: 1,
+      payload: { entityId: "player.alpha", gx: 4, gz: 7 }
+    });
+  });
+
+  it("accepts detonateRemoteRequest", () => {
+    expectValid({
+      kind: "detonateRemoteRequest",
+      payload: { entityId: "player.alpha" }
+    });
+  });
+
+  it("accepts inputIntent with bounded dx/dz + monotonic tick", () => {
+    expectValid({
+      kind: "inputIntent",
+      sequence: 42,
+      payload: { entityId: "player.alpha", dx: 1, dz: 0, tick: 100 }
+    });
+    expectInvalid({
+      kind: "inputIntent",
+      payload: { entityId: "player.alpha", dx: 2, dz: 0, tick: 100 }
+    });
+  });
+
+  it("accepts blastEvent with cells array", () => {
+    expectValid({
+      kind: "blastEvent",
+      payload: {
+        originGx: 5,
+        originGz: 5,
+        range: 2,
+        ownerId: "bomb.1",
+        cells: [
+          { gx: 5, gz: 5 },
+          { gx: 6, gz: 5 },
+          { gx: 7, gz: 5 },
+          { gx: 4, gz: 5 },
+          { gx: 5, gz: 6 }
+        ]
+      }
+    });
+  });
+
+  it("accepts pickupCollected with all valid kinds", () => {
+    for (const kind of ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate", "shield"] as const) {
+      expectValid({
+        kind: "pickupCollected",
+        payload: { entityId: "pickup.1", kind, gx: 3, gz: 4, pickerId: "player.alpha" }
+      });
+    }
+    expectInvalid({
+      kind: "pickupCollected",
+      payload: { entityId: "pickup.1", kind: "monocle", gx: 3, gz: 4, pickerId: "player.alpha" }
+    });
+  });
+
+  it("accepts bomberDied with optional killerId", () => {
+    expectValid({
+      kind: "bomberDied",
+      payload: { entityId: "bot.1", blastOriginGx: 4, blastOriginGz: 4 }
+    });
+    expectValid({
+      kind: "bomberDied",
+      payload: { entityId: "bot.1", blastOriginGx: 4, blastOriginGz: 4, killerId: "player.alpha" }
+    });
+  });
+
+  it("accepts shieldConsumed", () => {
+    expectValid({
+      kind: "shieldConsumed",
+      payload: { entityId: "player.alpha", blastOriginGx: 4, blastOriginGz: 4 }
+    });
+  });
+
+  it("accepts roundResolved with tally + nextRoundAt", () => {
+    expectValid({
+      kind: "roundResolved",
+      payload: {
+        phase: "won",
+        winnerId: "player.alpha",
+        tally: { player: 2, bot: 1, draws: 0 },
+        nextRoundAt: 3
+      }
+    });
+    expectInvalid({
+      kind: "roundResolved",
+      payload: {
+        phase: "lol",
+        tally: { player: 0, bot: 0, draws: 0 }
+      }
+    });
+  });
+
+  it("accepts blockDestroyed with optional droppedPickupKind", () => {
+    expectValid({
+      kind: "blockDestroyed",
+      payload: { gx: 3, gz: 4 }
+    });
+    expectValid({
+      kind: "blockDestroyed",
+      payload: { gx: 3, gz: 4, droppedPickupKind: "fire-up" }
+    });
+  });
+
+  it("rejects unknown top-level kind on the new shape (additionalProperties:false on each variant)", () => {
+    expectInvalid({
+      kind: "placeBombRequest",
+      payload: { entityId: "player.alpha", gx: 4, gz: 7 },
+      extra: 1
+    });
+  });
+});

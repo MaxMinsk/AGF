@@ -99,6 +99,206 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "description": "S116 KABOOM-MP-PROTOCOL-EXTENSIONS — Sprint B protocol contract per docs/research/kaboom-multiplayer-sprint-b-plan.md §4.",
+      "properties": {
+        "kind": { "const": "placeBombRequest" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entityId", "gx", "gz"],
+          "properties": {
+            "entityId": { "$ref": "#/definitions/entityId" },
+            "gx": { "type": "integer", "minimum": 0 },
+            "gz": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "detonateRemoteRequest" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entityId"],
+          "properties": {
+            "entityId": { "$ref": "#/definitions/entityId" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "inputIntent" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entityId", "dx", "dz", "tick"],
+          "properties": {
+            "entityId": { "$ref": "#/definitions/entityId" },
+            "dx": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "dz": { "type": "integer", "minimum": -1, "maximum": 1 },
+            "tick": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "blastEvent" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["originGx", "originGz", "range", "ownerId", "cells"],
+          "properties": {
+            "originGx": { "type": "integer", "minimum": 0 },
+            "originGz": { "type": "integer", "minimum": 0 },
+            "range": { "type": "integer", "minimum": 1 },
+            "ownerId": { "$ref": "#/definitions/entityId" },
+            "cells": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["gx", "gz"],
+                "properties": {
+                  "gx": { "type": "integer", "minimum": 0 },
+                  "gz": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "pickupCollected" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entityId", "kind", "gx", "gz", "pickerId"],
+          "properties": {
+            "entityId": { "$ref": "#/definitions/entityId" },
+            "kind": { "type": "string", "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate", "shield"] },
+            "gx": { "type": "integer", "minimum": 0 },
+            "gz": { "type": "integer", "minimum": 0 },
+            "pickerId": { "$ref": "#/definitions/entityId" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "bomberDied" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entityId", "blastOriginGx", "blastOriginGz"],
+          "properties": {
+            "entityId": { "$ref": "#/definitions/entityId" },
+            "blastOriginGx": { "type": "integer", "minimum": 0 },
+            "blastOriginGz": { "type": "integer", "minimum": 0 },
+            "killerId": { "$ref": "#/definitions/entityId" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "shieldConsumed" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entityId", "blastOriginGx", "blastOriginGz"],
+          "properties": {
+            "entityId": { "$ref": "#/definitions/entityId" },
+            "blastOriginGx": { "type": "integer", "minimum": 0 },
+            "blastOriginGz": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "roundResolved" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["phase", "tally"],
+          "properties": {
+            "phase": { "type": "string", "enum": ["won", "lost", "draw"] },
+            "winnerId": { "$ref": "#/definitions/entityId" },
+            "tally": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["player", "bot", "draws"],
+              "properties": {
+                "player": { "type": "integer", "minimum": 0 },
+                "bot": { "type": "integer", "minimum": 0 },
+                "draws": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "nextRoundAt": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "payload"],
+      "properties": {
+        "kind": { "const": "blockDestroyed" },
+        "sequence": { "$ref": "#/definitions/sequence" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gx", "gz"],
+          "properties": {
+            "gx": { "type": "integer", "minimum": 0 },
+            "gz": { "type": "integer", "minimum": 0 },
+            "droppedPickupKind": {
+              "type": "string",
+              "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate", "shield"]
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -112,6 +312,13 @@
       "pattern": "^[a-z0-9][a-z0-9._-]*$",
       "minLength": 1,
       "maxLength": 64
+    },
+    "entityId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-._]*$",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "S116 KABOOM-MP-PROTOCOL-EXTENSIONS — ECS entity id format (matches snapshotEntity.id below)."
     },
     "vec2": {
       "type": "array",
