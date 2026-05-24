@@ -138,5 +138,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S130](backlog/sprints/S130.sprint.json)** — Kaboom Crew project-local RagdollState rename — DeathImpulse — 3 implemented · archived 2026-05-24
 - **[S131](backlog/sprints/S131.sprint.json)** — Engine ragdoll module — mesh-handover primitive — 6 implemented · archived 2026-05-24
 - **[S132](backlog/sprints/S132.sprint.json)** — Kaboom Crew — death-trigger migration to engine ragdoll — 7 implemented · archived 2026-05-24
+- **[S133](backlog/sprints/S133.sprint.json)** — Engine ragdoll — pose-snapshot at spawn — 6 implemented · archived 2026-05-24
 
 <!-- backlog:render:end -->

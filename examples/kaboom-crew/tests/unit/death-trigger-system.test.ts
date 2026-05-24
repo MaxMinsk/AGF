@@ -158,4 +158,83 @@ describe("createKaboomDeathTriggerSystem (S132)", () => {
     const after = world.getComponent("bot.8", "RagdollSpawnRequest");
     expect(after).toEqual(before);
   });
+
+  // S133 pose-snapshot tests.
+  it("S133: writes bodyPoses from each mesh's LocalToWorld at death", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.9");
+    // Stamp LocalToWorld on each mesh — these are world-space positions
+    // composed by the render cache. Use distinct values per body so the
+    // test can verify the right LTW entry lands in the right bodyPose.
+    for (let i = 0; i < MESH_SUFFIXES.length; i += 1) {
+      const suffix = MESH_SUFFIXES[i]!;
+      world.setComponent(`bot.9.${suffix}`, "LocalToWorld", {
+        position: [i + 0.1, i * 0.1 + 0.5, i * 0.5 + 1],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+    }
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.9", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{
+      bodyPoses?: Record<string, { position: number[]; rotation?: number[] }>;
+    }>("bot.9", "RagdollSpawnRequest")!;
+    expect(req.bodyPoses).toBeDefined();
+    expect(Object.keys(req.bodyPoses!).length).toBe(10);
+    // torso index 0 → [0.1, 0.5, 1.0]; head index 1 → [1.1, 0.6, 1.5];
+    // lowerLeg.r index 9 → [9.1, 1.4, 5.5].
+    expect(req.bodyPoses!["torso"]?.position).toEqual([0.1, 0.5, 1.0]);
+    expect(req.bodyPoses!["head"]?.position).toEqual([1.1, 0.6, 1.5]);
+    expect(req.bodyPoses!["lowerLeg.r"]?.position).toEqual([9.1, 1.4, 5.5]);
+  });
+
+  it("S133: meshes without LocalToWorld get no bodyPoses entry (engine falls back to anchor)", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.10");
+    // Only stamp LTW on torso + head; the other 8 meshes have no LTW.
+    world.setComponent("bot.10.torso", "LocalToWorld", { position: [1, 1, 1], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    world.setComponent("bot.10.head", "LocalToWorld", { position: [2, 2, 2], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.10", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{
+      meshMap: Record<string, string>;
+      bodyPoses?: Record<string, { position: number[] }>;
+    }>("bot.10", "RagdollSpawnRequest")!;
+    expect(Object.keys(req.meshMap).length).toBe(10);
+    expect(req.bodyPoses).toBeDefined();
+    expect(Object.keys(req.bodyPoses!).sort()).toEqual(["head", "torso"]);
+  });
+
+  it("S133: LTW rotation (radians) converted to deg in bodyPoses", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.11");
+    world.setComponent("bot.11.torso", "LocalToWorld", {
+      position: [0, 0, 0],
+      rotation: [0, Math.PI / 2, 0], // 90deg around Y in radians
+      scale: [1, 1, 1]
+    });
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.11", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{
+      bodyPoses?: Record<string, { rotation?: number[] }>;
+    }>("bot.11", "RagdollSpawnRequest")!;
+    expect(req.bodyPoses!["torso"]?.rotation?.[1]).toBeCloseTo(90, 4);
+  });
+
+  it("S133: bodyPoses omitted entirely when no mesh has LocalToWorld (backward compat)", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.12");
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.12", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{ bodyPoses?: Record<string, unknown> }>("bot.12", "RagdollSpawnRequest")!;
+    expect(req.bodyPoses).toBeUndefined();
+  });
 });

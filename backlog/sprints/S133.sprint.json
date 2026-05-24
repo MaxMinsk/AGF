@@ -1,0 +1,77 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S133",
+  "title": "Engine ragdoll — pose-snapshot at spawn",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/155",
+  "notes": [
+    "Closes the S132 visual-jump caveat: engine spawn-system currently positions bodies at root.position + template.body.anchor — a rest-pose layout that ignores where the meshes actually are at the moment of death. A bomber killed mid-stride teleports its limbs back to T-pose before the ragdoll starts integrating, producing a visible 1-frame jump.",
+    "Fix: project writes optional bodyPoses (Record<bodyName, {position[3], rotation?[3]}>) inside the RagdollSpawnRequest. The engine spawn-system uses each entry as the body's acquireBody position+rotation override; missing entries fall back to root+anchor as today (so existing callers stay backward-compatible).",
+    "Kaboom death-trigger composes bodyPoses from each mesh entity's LocalToWorld component (the render-cache writes world-space position+rotation+scale per Transform-bearing entity each frame). LocalToWorld is the natural source of truth — no parent-chain walk in the project, and the values match exactly what the renderer was about to draw.",
+    "Note: the engine spawn-system uses Rapier's acquireBody({ position, rotation? }) so engine-side support is already there. Rotation is Euler XYZ in radians (Rapier convention via the adapter's eulerToQuat). LocalToWorld stores rotation in degrees, so the kaboom trigger converts before writing bodyPoses."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-RAGDOLL-BODYPOSES-001",
+      "title": "Extend ragdollSpawnRequest schema with optional bodyPoses",
+      "status": "implemented",
+      "summary": "schemas/components/ragdoll.schema.json — ragdollSpawnRequest gains optional bodyPoses: { additionalProperties: { type: object, required: [position], properties: { position, rotation } } }. position is a 3-element number array (world-space, metres); rotation is an optional 3-element Euler-XYZ array (degrees to mirror Transform component convention; engine converts). Unknown body names + entries with malformed shape are silently ignored at the spawn-system level.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: schemas/components/ragdoll.schema.json — ragdollSpawnRequest gains optional bodyPoses (Record<bodyName, {position[3], rotation?[3]}>). position required + 3 numbers; rotation optional + 3 numbers (degrees). additionalProperties:false on each entry; unknown body names ignored at spawn-system level."
+      ]
+    },
+    {
+      "id": "FEAT-RAGDOLL-SPAWN-BODYPOSES-001",
+      "title": "spawn-system honours bodyPoses when present (per-body anchor override)",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/spawn-system.ts — spawnRagdoll reads req.bodyPoses (passed alongside meshMap). For each body in template.bodies: if bodyPoses[body.name] exists, use {position, rotation} as the acquireBody pose; else fall back to the current origin+anchor + no rotation. The body entity's initial Transform component matches the spawn pose. Rotation passed to acquireBody is converted deg→rad here (engine convention is rad inside Rapier).",
+      "epic": "M24",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/spawn-system.ts — spawnRagdoll reads req.bodyPoses. Per-body: if bodyPoses[name] exists with valid position, use as acquireBody pose (rotation converted deg→rad); else fall back to origin+anchor. Body entity's initial Transform mirrors the spawn pose (rotation in degrees on the Transform)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-DEATH-TRIGGER-POSE-001",
+      "title": "Kaboom death-trigger composes bodyPoses from LocalToWorld before detach",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/death-trigger-system.ts — on the alive→false edge, BEFORE detaching Transform.parent on the 10 mesh entities, read each mesh's LocalToWorld { position, rotation, scale }. Build bodyPoses: Record<bodyName, { position, rotation }> from the read values (LTW rotation is already in radians; the schema declares degrees so the trigger writes deg). Skip bodies without an LTW (engine falls back to anchor). Include bodyPoses in the RagdollSpawnRequest alongside the existing meshMap + impulse + templateKey.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/systems/death-trigger-system.ts — death-trigger reads LocalToWorld on each mesh BEFORE detaching parent, builds bodyPoses (radian rotation converted to degrees). bodyPoses omitted from request when no mesh has LTW (clean backward-compat)."
+      ]
+    },
+    {
+      "id": "TEST-RAGDOLL-BODYPOSES-001",
+      "title": "Engine unit tests for bodyPoses override behaviour",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-bodyposes.test.ts — (1) spawn with bodyPoses positions bodies at the provided world coords (override template anchors); (2) partial bodyPoses: only some bodies overridden, the rest fall back to root+anchor; (3) bodyPoses[].rotation is honoured; (4) unknown body names in bodyPoses are silently skipped; (5) backward-compat — spawn without bodyPoses behaves exactly as before. Uses the real Rapier adapter to verify the body's world-space transform after one tick.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-bodyposes.test.ts adds 5 tests — full override, partial override + anchor fallback, rotation honoured (deg→Rapier), unknown body names skipped, backward-compat no bodyPoses. All 5 pass with real Rapier adapter."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-DEATH-TRIGGER-POSE-001",
+      "title": "Kaboom death-trigger writes bodyPoses from LocalToWorld",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/death-trigger-system.test.ts — extend with: (1) mesh entities with LocalToWorld get their world position+rotation written into bodyPoses (10 entries, deg rotation); (2) mesh without LocalToWorld → no bodyPoses entry for that body (engine falls back to anchor); (3) bodyPoses passes through alongside meshMap when both are populated.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 4 new S133 tests in death-trigger-system.test.ts cover: 10 LTW entries → 10 bodyPoses, partial LTW only writes matching entries, radian→deg rotation conversion, empty LTW → no bodyPoses (omitted). All 12 trigger tests pass."
+      ]
+    },
+    {
+      "id": "DOC-RAGDOLL-BODYPOSES-001",
+      "title": "Update §6.2 + §6.4 of ragdoll-module-design.md — pose-snapshot is contract",
+      "status": "implemented",
+      "summary": "docs/game-design/ragdoll-module-design.md — §6.2 rewritten: pose-snapshot at spawn IS preserved (was 'spawns at template anchor — small visual jump'). §6.4 mesh-handover contract gains a bodyPoses paragraph + TS example for projects that want continuity. Remove the visual-jump caveat from §9 Kaboom Crew adoption.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/game-design/ragdoll-module-design.md §6.2 documents the bodyPoses mechanism. §6.4 mesh-handover contract gains a pose-snapshot TS sketch showing LTW → bodyPoses composition."
+      ]
+    }
+  ]
+}
