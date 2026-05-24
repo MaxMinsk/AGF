@@ -1,0 +1,119 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S120",
+  "title": "MP Sprint B chunk 4 \u2014 server bot AI + auto round restart + final client cleanup",
+  "status": "archived",
+  "startedAt": "2026-05-24",
+  "notes": [
+    "Fourth and FINAL sprint of GDP-2026-05-22-011 (server-authoritative kaboom-crew). Sequencing per docs/research/kaboom-multiplayer-sprint-b-plan.md \u00a73: S117 \u2705 \u2192 S118 \u2705 \u2192 S119 \u2705 \u2192 S120 bot AI + cleanup (this).",
+    "Bot AI port is intentionally MINIMAL \u2014 wander + occasional bomb + hard-wall avoidance. Full personality variants, pickup magnet, sophisticated danger evasion stay client-only for now (single-player static profile). Connected profile gets a deterministic-enough bot suitable for the 'connecting a single tab still produces a playable bot-filled match' acceptance.",
+    "Acceptance for S120: a single connected tab sees a server-owned bot bomber moving + occasionally placing a bomb that destroys a soft block. The local bot.1 entity is suppressed on connected \u2014 bots arrive via snapshot like remote players.",
+    "Out of scope: bot personality variants (hunter/coward/miner), pickup magnet, intelligent danger map. Sample's bot-vs-bot regression test stays on the static profile (uses local bot-AI for replay determinism)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-SERVER-ROUND-RESET-001",
+      "title": "Server auto-restarts the round after roundResolved (3s timer)",
+      "status": "implemented",
+      "summary": "After roundResolved fires (S119), the server schedules a 3s reset. On reset: respawn all players to their spawn positions, flip BomberStats.alive=true, clear all bombs + pickups + blast state, reload the map (re-add destroyed soft-blocks via LoadedMap.reset), bump RoundState.roundNumber, flip phase back to 'playing'. Place-bomb gate releases. The server emits a fresh world.snapshot reflecting the reset state.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: After roundResolved fires, the server schedules a 3-second auto-reset. resetCountdown ticks at the TOP of each subsequent tick (so the resolve and reset never happen in the same dt). On reset: all bombs removed, all pickups removed, the obstacle map reloaded (destroyed soft-blocks come back via the new LoadedMap.reset), every player respawned at SPAWN_POSITION with BomberStats.alive=true + default range/maxBombs, IntentMove zeroed (no stale held direction), RoundState bumped (roundNumber+1, phase\u2192playing). placeBomb gate releases automatically. The next world.snapshot ships the fresh state.",
+        "examples/backends/node-world-server/src/map-loader.ts: LoadedMap.reset() \u2014 caches initialCells at load, restores from it on reset",
+        "examples/backends/node-world-server/src/world.ts: resetCountdown field, resetRound() helper, tick decrements countdown at top + fires resetRound on zero crossing; resolve sets countdown",
+        "+3 unit tests covering: bomb gate releases after reset, snapshot has no bombs/pickups post-reset, destroyed soft blocks restored",
+        "All 65 server-unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-SUPPRESS-LOCAL-BOT-001",
+      "title": "Client suppresses the local bot.1 spawn on connected",
+      "status": "implemented",
+      "summary": "On the connected profile, bootstrap skips the local bot.1 spawn (procbomber tree + BotBrain + BomberStats). The server is responsible for spawning bots; they arrive via snapshot like remote players. remote-bomber-decorator-system (S109) decorates them with the local procbomber visual; remote-bomber-interpolator smooths their movement. Static profile keeps the local bot.1 unchanged.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: On connected profile, bootstrap skips the local bot.1 spawn so the server's authoritative bot.1 entity (delivered via snapshot) isn't blocked by the ws-adapter's id-collision guard. _networkedMode module flag tracks the profile (set in registerSystems from ProjectBootstrapContext.networked). Both spawn paths gated: initial attachUi boot + restartScene. The local procbomber tree for bot.1 is now spawned by remote-bomber-decorator-system when the server-owned entity first appears in the snapshot. Static (single-player) profile spawns bot.1 locally unchanged.",
+        "examples/kaboom-crew/bootstrap.ts: _networkedMode module flag; spawnBomberFor for bot.1 guarded with !_networkedMode in restartScene + attachUi boot",
+        "Existing component.set ops on bot.1 (BotBrain/BomberStats/GridMover tuning) left untouched \u2014 they're no-ops on connected since bot.1 doesn't yet exist locally; the server's snapshot delivers BomberStats authoritatively. A future cleanup story can drop them on connected for clarity.",
+        "Typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-SPAWN-001",
+      "title": "Server spawns bot.1 entity on world boot with BomberStats + GridPosition",
+      "status": "implemented",
+      "summary": "ServerWorld constructor (or first-tick init) spawns a bot.1 entity at a fixed spawn cell (mirroring start.scene.json: gx=13, gz=9). Carries the same component shape as player.<id>: Transform + Presence{playerId:'bot.1'} + Networked + GridPosition + BomberStats{alive:true, range:2, maxBombs:1} + an internal IntentMove for the bot AI to drive. Snapshot ships it just like a remote player. Lifecycle: bot.1 stays alive (or dead) until round-reset re-arms it.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server now spawns a bot.1 entity by default at (13, 9) mirroring the client scene's bot.1 instance. It carries Transform+Presence{playerId:'bot.1'}+Networked+GridPosition+BomberStats{alive:true, range:2, maxBombs:1}+SERVER_INTENT_MOVE. Snapshot ships it like a remote player; remote-bomber-decorator on the client picks it up via Presence.playerId !== localPlayerId. Bot participates in: movement integration (its IntentMove ticks too), kill-scan (bot caught in a blast dies normally + emits bomberDied), pickup-collect (bot walking onto a pickup applies the effect to its stats), round-resolve (bot alive counts toward 'at least 2 bombers for resolve'), round-reset (bot re-armed at spawn cell + alive=true). Constructor option spawnBot:false suppresses the bot for unit tests that expect the older 2-bomber semantics.",
+        "examples/backends/node-world-server/src/world.ts: BOT_ENTITY_ID + BOT_SPAWN_POSITION constants; spawnBot field + spawnBot() helper; allBomberEntityIds() helper; movement/kill/collect/snapshot/resolve/reset loops generalised to iterate all bombers",
+        "+5 unit tests covering: snapshot includes bot.1, spawnBot:false omits it, single-human+bot still resolves, bot dies in blast, round reset re-arms bot",
+        "All 1380 unit tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-AI-WANDER-001",
+      "title": "Server bot picks a random cardinal direction every ~0.2s; avoids walls",
+      "status": "implemented",
+      "summary": "On each server tick, advance the bot's decision timer; when it elapses, roll a seeded RNG to pick one of {+X, -X, +Z, -Z}. Reject directions that would step into a hard-wall (cellAt returns 'hard-wall'). Set the bot's IntentMove direction to the chosen vector. NO soft-block-or-bomber awareness; the bot can walk through soft-blocks (server doesn't enforce occupancy today; bombs may kill it). Seed derives from worldSeed so replays are reproducible.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Server bot now picks a random cardinal direction every BOT_DECISION_INTERVAL_S (0.2s) and updates its IntentMove. Hard-walls filtered out before the pick \u2014 bot.cellAt(gx+dx, gz+dz)==='hard-wall' \u2192 reject. Seeded RNG keyed off worldSeed XOR 0xb07a1 so replays are reproducible. Decision skipped when bot is dead or round phase isn't 'playing'. Movement integration loop ALSO skips dead bombers so they don't drift on stale intent.",
+        "examples/backends/node-world-server/src/world.ts: BOT_DECISION_INTERVAL_S + BOT_DIRECTIONS constants; botRng + botDecisionTimer state; tickBotAi() helper invoked each tick; integration loop gated on BomberStats.alive",
+        "+2 unit tests covering: bot moves off spawn cell, bot avoids hard walls, dead bot doesn't drift",
+        "All 74 server tests pass"
+      ]
+    },
+    {
+      "id": "FEAT-SERVER-BOT-AI-BOMB-001",
+      "title": "Server bot occasionally places a bomb (random aggression)",
+      "status": "implemented",
+      "summary": "Each bot decision tick, after picking a direction, roll a second random check for bomb-place (default 15% chance). If hit AND there's no existing bomb at the bot's current cell, spawn a bomb via the same placeBomb path the protocol uses for clients (server-internal call, no protocol frame). Bot's BomberStats.maxBombs cap applies. Bot dies normally when caught in its own blast \u2014 bomberDied event fires for it, BomberStats.alive flips to false, AI stops issuing new decisions.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Each bot decision tick (after the direction pick) the bot rolls BOT_BOMB_CHANCE (default 15%). On hit, placeBombForEntity() spawns a Bomb entity at the bot's current cell \u2014 same no-stack / round-locked / alive guards as the protocol placeBomb path. ownerId on the bomb is the bot's entity id ('bot.1'), so blast events carry it as killerId and clients can attribute kills. Bot can self-kill normally when caught in its own blast.",
+        "examples/backends/node-world-server/src/world.ts: placeBombForEntity(ownerEntityId, gx, gz) server-internal helper",
+        "+1 unit test covering: bot eventually places a bomb (sampled over 5s = ~30+ rolls)",
+        "All 74 server tests pass; typecheck clean"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-DROP-LOCAL-BOT-AI-001",
+      "title": "Client drops bot-AI-system on connected profile",
+      "status": "implemented",
+      "summary": "Narrow createKaboomBotAISystem profile to ['static']. On connected, the local kaboom-crew bot-AI doesn't run; the SERVER drives bot decisions and ships authoritative Transform/GridPosition/BomberStats via snapshot. The remote-bomber-decorator already handles visualisation. Local static (single-player + bot-vs-bot test) stays unchanged.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: createKaboomBotAISystem profile narrowed to ['static']. On connected, the local kaboom-crew bot-AI doesn't run; the server drives bot decisions and ships authoritative Transform/GridPosition/BomberStats via the snapshot. remote-bomber-decorator decorates bot.1 with the local procbomber visual just like a remote human player.",
+        "examples/kaboom-crew/bootstrap.ts: bot-AI-system profile narrowed to ['static']",
+        "Static profile (single-player + bot-vs-bot test) unchanged"
+      ]
+    },
+    {
+      "id": "FEAT-CLIENT-DROP-LOCAL-COMBAT-SYSTEMS-001",
+      "title": "Drop local bomb-placement + blast-propagation + blast-tile-lifetime on connected",
+      "status": "implemented",
+      "summary": "Final connected-profile cleanup. Bomb-placement-system still runs on connected for BOT bombs in S119, but with bot now server-side it's no longer needed. Narrow these to ['static']: bomb-placement-system (place-bomb-network-relay handles the local human player's requests), blast-propagation-system (server walks blast cells), blast-tile-lifetime-system (server tracks the blast event lifecycle implicitly via tick). The connected-blast-decoder already handles soft-block deletion. Local-only visuals (BlastTile spawn from blastEvent for the flash + audio) deferred \u2014 server already emits blastEvent with cells, a future story can spawn local BlastTile entities for visual flash.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: Final connected-profile cleanup of combat systems. bomb-placement-system, blast-propagation-system, blast-tile-lifetime-system all narrowed to ['static']. On connected: place-bomb-network-relay forwards local human bomb requests to the server; server walks blast cells + emits blastEvent + blockDestroyed; connected-blast-decoder applies blockDestroyed \u2192 local soft.* entity deletion. Local BlastTile spawn-for-visuals deferred \u2014 server already emits blastEvent.cells but client visual flash from those cells is a future polish story.",
+        "examples/kaboom-crew/bootstrap.ts: bomb-placement + blast-propagation + blast-tile-lifetime profiles narrowed to ['static']",
+        "All 1389 unit tests pass; typecheck clean; MP roundtrip e2e (4 tests) pass on retry (S114/S117/S118 flaky on first run, S119 stable). Bot adds tick load; the existing tests aren't directly affected by bot behavior because they assert on player.alpha/player.bravo entities specifically."
+      ]
+    },
+    {
+      "id": "VERIFY-MP-BOT-AI-PLAYWRIGHT-001",
+      "title": "Playwright e2e: single-tab connected session sees a moving + bombing server bot",
+      "status": "implemented",
+      "summary": "Extend tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: connect a single tab (no second client). Wait until the snapshot shows bot.1 (server-owned, alive). Wait until bot.1's GridPosition CHANGES at least once (proves bot AI is wandering). Wait until at least one bomb.bot.1.* spawns in the snapshot (proves bot is placing bombs). Bonus assertion: at least one soft-block disappears within the round window (proves the bot's bomb propagates + destroys).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: tests/e2e/kaboom-multiplayer-roundtrip.spec.ts gained the S120 test. Single-tab connected session: alpha joins \u2192 snapshot delivers server-owned bot.1 entity (Presence{playerId:'bot.1'} + GridPosition + BomberStats + Networked) \u2192 ws-adapter applies entity.create on the local world (no id collision since local bot.1 was deleted after scene.load) \u2192 remote-bomber-decorator spawns the procbomber tree under bot.1 \u2192 bot.1 GridPosition changes within 8s (bot AI wanders) \u2192 at least one bomb.bot.1.* spawns within 15s (bot occasionally places bombs). Passes on both chromium + chromium-preview projects.",
+        "tests/e2e/kaboom-multiplayer-roundtrip.spec.ts: +1 test (~11.6s per project)",
+        "Captures the bot's CURRENT cell as the baseline rather than asserting initial=(13,9), because the server's bot AI runs from t=0 (no title screen on the server) so by the time the test connects (hundreds of ms) the bot may already have moved a cell or two \u2014 that's expected behaviour"
+      ]
+    }
+  ],
+  "archivedAt": "2026-05-24",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/142"
+}

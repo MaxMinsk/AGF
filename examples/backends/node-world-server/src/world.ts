@@ -33,6 +33,19 @@ export type Snapshot = {
 /** Must match `PlayerControlled.speed` in the canonical Beacon scene. */
 const PLAYER_SPEED = 3.5;
 const SPAWN_POSITION: Vec3 = [0, 0.4, 0];
+// S120 KABOOM-MP-SPRINT-B chunk 4 — bot.1 spawn cell mirrors the
+// client's start.scene.json bot.1 instance.
+const BOT_SPAWN_POSITION: Vec3 = [13, 0.4, 9];
+const BOT_ENTITY_ID = "bot.1";
+const BOT_DECISION_INTERVAL_S = 0.2;
+const BOT_BOMB_CHANCE = 0.15;
+
+const BOT_DIRECTIONS: ReadonlyArray<Vec2> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1]
+];
 
 // S117 KABOOM-MP-SPRINT-B — server-side bomb spawn defaults. Range +
 // maxBombs ENFORCEMENT lives client-side today (S119 will move pickup +
@@ -189,6 +202,12 @@ export type ServerWorldOptions = {
   worldSeed?: number;
   /** S119 — probability (0..1) that a destroyed soft block yields a pickup. Default 0.3. */
   pickupDropChance?: number;
+  /**
+   * S120 — when false, the server doesn't auto-spawn the bot.1 entity.
+   * Defaults to true. Existing unit tests that pre-date the bot pass
+   * `spawnBot: false` to keep the 2-bomber resolve semantics.
+   */
+  spawnBot?: boolean;
 };
 
 export class ServerWorld {
@@ -212,6 +231,14 @@ export class ServerWorld {
   private readonly playerJoinIndex = new Map<string, number>();
   /** S119 — incrementing counter feeding playerJoinIndex. */
   private joinOrderCounter = 0;
+  /** S120 — countdown to round restart after roundResolved, or null when no reset is pending. */
+  private resetCountdown: number | null = null;
+  /** S120 — whether the server bot.1 entity exists. False when {spawnBot:false} was passed. */
+  private readonly hasBot: boolean;
+  /** S120 — countdown to the bot's next AI decision (direction + maybe-bomb). */
+  private botDecisionTimer = 0;
+  /** S120 — seeded RNG driving bot decisions. */
+  private readonly botRng = createSeededRng((DEFAULT_WORLD_SEED ^ 0xb07a1) | 0);
   /** S118 KABOOM-MP-SPRINT-B chunk 2 — authoritative obstacle grid (hard walls + soft blocks). */
   private readonly map: LoadedMap;
   /** S119 — set of currently-alive pickup entity ids on the server. */
@@ -234,6 +261,117 @@ export class ServerWorld {
       tally: { player: 0, bot: 0, draws: 0 },
       roundNumber: 1
     });
+    // S120 — spawn bot.1 as a server-owned bomber. Carries the same
+    // shape as a player.<id> entity so the kill-scan, pickup-collect,
+    // and snapshot paths treat it uniformly. remote-bomber-decorator
+    // on the client picks it up via Presence.playerId !== localPlayerId.
+    this.hasBot = options.spawnBot !== false;
+    if (this.hasBot) this.spawnBot();
+  }
+
+  private spawnBot(): void {
+    this.world.addEntity(BOT_ENTITY_ID);
+    this.world.setComponent(BOT_ENTITY_ID, TRANSFORM, { position: [...BOT_SPAWN_POSITION] });
+    this.world.setComponent(BOT_ENTITY_ID, PRESENCE, { playerId: BOT_ENTITY_ID });
+    this.world.setComponent(BOT_ENTITY_ID, NETWORKED, { authority: "server" });
+    this.world.setComponent(BOT_ENTITY_ID, GRID_POSITION, {
+      gx: Math.round(BOT_SPAWN_POSITION[0]),
+      gz: Math.round(BOT_SPAWN_POSITION[2])
+    });
+    this.world.setComponent(BOT_ENTITY_ID, BOMBER_STATS, { alive: true, range: DEFAULT_BOMB_RANGE, maxBombs: 1 });
+    this.world.setComponent(BOT_ENTITY_ID, SERVER_INTENT_MOVE, { direction: [0, 0], lastSequence: -1 });
+    this.world.setComponent(BOT_ENTITY_ID, SERVER_LAST_ACTIVITY, { lastActivity: 0 });
+  }
+
+  /** S120 — iterate all bomber entity ids (human players + bots). */
+  private allBomberEntityIds(): string[] {
+    const out: string[] = [];
+    for (const playerId of this.playerIds) out.push(playerEntityId(playerId));
+    if (this.hasBot) out.push(BOT_ENTITY_ID);
+    return out;
+  }
+
+  /**
+   * S120 KABOOM-MP-SPRINT-B chunk 4 — minimal server-side bot AI.
+   *
+   * Decision loop runs every BOT_DECISION_INTERVAL_S:
+   *   1. If the bot is dead or the round isn't 'playing', skip.
+   *   2. Pick a random cardinal direction; reject the ones that step
+   *      into a hard-wall. Update the bot's IntentMove. If every
+   *      direction is blocked (shouldn't happen on the canonical map)
+   *      keep the previous intent.
+   *   3. Roll BOT_BOMB_CHANCE; on hit, place a bomb at the bot's
+   *      current cell (server-internal call into placeBomb).
+   *
+   * The bot's id maps to a 'player.<id>' shape for placeBomb (which
+   * expects a player-id, not entity-id) — we synthesise the suffix
+   * by stripping the 'bot.' prefix. placeBomb's existing alive +
+   * round-phase gates apply automatically.
+   */
+  private tickBotAi(dt: number): void {
+    this.botDecisionTimer -= dt;
+    if (this.botDecisionTimer > 0) return;
+    this.botDecisionTimer = BOT_DECISION_INTERVAL_S;
+    const stats = this.world.getComponent<{ alive?: boolean }>(BOT_ENTITY_ID, BOMBER_STATS);
+    if (stats?.alive === false) return;
+    const round = this.world.getComponent<{ phase?: string }>(ROUND_STATE_ENTITY, ROUND_STATE);
+    if (round?.phase !== "playing") return;
+    const gp = this.world.getComponent<{ gx?: number; gz?: number }>(BOT_ENTITY_ID, GRID_POSITION);
+    if (gp?.gx === undefined || gp?.gz === undefined) return;
+    // Filter directions that would walk into a hard wall.
+    const candidates: Vec2[] = [];
+    for (const [dx, dz] of BOT_DIRECTIONS) {
+      if (this.map.cellAt(gp.gx + dx, gp.gz + dz) === "hard-wall") continue;
+      candidates.push([dx, dz]);
+    }
+    if (candidates.length > 0) {
+      const choice = candidates[this.botRng.nextInt(0, candidates.length)]!;
+      this.world.setComponent(BOT_ENTITY_ID, SERVER_INTENT_MOVE, {
+        direction: choice,
+        lastSequence: -1
+      } satisfies IntentLike);
+    }
+    // S120 chunk 5 — bot bomb. Server-internal placeBomb call. Bot
+    // playerId mapped via the 'bot.' prefix trick so the spawned
+    // entity id reads 'bomb.bot.1.<n>' and the bomb's ownerId is
+    // 'player.bot.1' — close enough for kill credit; clients display
+    // via the existing remote-bomber pipeline.
+    if (this.botRng.next() < BOT_BOMB_CHANCE) {
+      // Use the bot's GP directly. placeBomb takes a playerId; the
+      // bot's effective playerId is "bot.1" (same as its entity id).
+      // We bypass the normal mapping by inlining the spawn here.
+      this.placeBombForEntity(BOT_ENTITY_ID, gp.gx, gp.gz);
+    }
+  }
+
+  /**
+   * S120 KABOOM-MP-SPRINT-B chunk 5 — server-internal placeBomb that
+   * routes through the same no-stack / round-locked / alive guards
+   * as the protocol-driven path, but takes an entity id directly
+   * instead of a player-namespaced id. Used by the bot AI.
+   */
+  private placeBombForEntity(ownerEntityId: string, gx: number, gz: number): string | undefined {
+    if (!this.world.hasEntity(ownerEntityId)) return undefined;
+    const round = this.world.getComponent<{ phase?: string }>(ROUND_STATE_ENTITY, ROUND_STATE);
+    if (round !== undefined && round.phase !== undefined && round.phase !== "playing") return undefined;
+    const stats = this.world.getComponent<{ alive?: boolean; maxBombs?: number }>(ownerEntityId, BOMBER_STATS);
+    if (stats?.alive === false) return undefined;
+    for (const existingBombId of this.bombIds) {
+      const existingGp = this.world.getComponent<{ gx?: number; gz?: number }>(existingBombId, GRID_POSITION);
+      if (existingGp?.gx === gx && existingGp?.gz === gz) return undefined;
+    }
+    this.bombCounter += 1;
+    const bombId: EntityId = `bomb.${ownerEntityId}.${this.bombCounter}`;
+    this.world.addEntity(bombId);
+    this.world.setComponent(bombId, TRANSFORM, { position: [gx, 0.35, gz] });
+    this.world.setComponent(bombId, GRID_POSITION, { gx, gz });
+    this.world.setComponent(bombId, BOMB, {
+      fuseRemaining: DEFAULT_BOMB_FUSE_SECONDS,
+      range: stats?.maxBombs !== undefined ? DEFAULT_BOMB_RANGE : DEFAULT_BOMB_RANGE,
+      ownerId: ownerEntityId
+    });
+    this.bombIds.add(bombId);
+    return bombId;
   }
 
   /** S118 — read the cell type at (gx, gz). Out-of-bounds reads as 'hard-wall'. */
@@ -295,10 +433,9 @@ export class ServerWorld {
       const pickupGp = this.world.getComponent<{ gx?: number; gz?: number }>(pickupId, GRID_POSITION);
       const pickup = this.world.getComponent<{ kind?: PickupKind }>(pickupId, PICKUP);
       if (pickupGp === undefined || pickup?.kind === undefined) continue;
-      for (const playerId of this.playerIds) {
-        const playerEnt = playerEntityId(playerId);
-        const playerGp = this.world.getComponent<{ gx?: number; gz?: number }>(playerEnt, GRID_POSITION);
-        if (playerGp?.gx !== pickupGp.gx || playerGp?.gz !== pickupGp.gz) continue;
+      for (const bomberEnt of this.allBomberEntityIds()) {
+        const bomberGp = this.world.getComponent<{ gx?: number; gz?: number }>(bomberEnt, GRID_POSITION);
+        if (bomberGp?.gx !== pickupGp.gx || bomberGp?.gz !== pickupGp.gz) continue;
         const stats = this.world.getComponent<{
           alive?: boolean;
           maxBombs?: number;
@@ -306,18 +443,18 @@ export class ServerWorld {
           canKick?: boolean;
           remoteDetonateCharges?: number;
           shield?: boolean;
-        }>(playerEnt, BOMBER_STATS);
+        }>(bomberEnt, BOMBER_STATS);
         if (stats?.alive === false) continue;
         const nextStats = applyPickupEffect(stats ?? {}, pickup.kind);
         if (nextStats !== undefined) {
-          this.world.setComponent(playerEnt, BOMBER_STATS, nextStats);
+          this.world.setComponent(bomberEnt, BOMBER_STATS, nextStats);
         }
         this.pendingPickupCollected.push({
           entityId: pickupId,
           kind: pickup.kind,
           gx: pickupGp.gx ?? 0,
           gz: pickupGp.gz ?? 0,
-          pickerId: playerEnt
+          pickerId: bomberEnt
         });
         collected.push(pickupId);
         break; // Only one bomber per cell collects this pickup.
@@ -433,15 +570,30 @@ export class ServerWorld {
 
   tick(dt: number): void {
     this.elapsed += dt;
-    // Integrate intent.move into Transform.position for every player
-    // entity. A future Sprint B chunk can replace this inline loop
-    // with a proper scheduler-registered system; today the surface is
-    // small enough that a direct walk is cheaper.
-    for (const playerId of this.playerIds) {
-      const entityId = playerEntityId(playerId);
+    // S120 KABOOM-MP-SPRINT-B chunk 4 — tick the reset countdown FIRST.
+    // Decrementing before resolution avoids decrementing the same dt
+    // we just used to set the countdown (otherwise a single big-dt
+    // tick would resolve + reset in one call, masking the 3 s pause).
+    if (this.resetCountdown !== null) {
+      this.resetCountdown -= dt;
+      if (this.resetCountdown <= 0) {
+        this.resetCountdown = null;
+        this.resetRound();
+      }
+    }
+    // Integrate intent.move into Transform.position for every bomber
+    // entity (human players + bots). A future Sprint B chunk can
+    // replace this inline loop with a proper scheduler-registered
+    // system; today the surface is small enough that a direct walk
+    // is cheaper.
+    for (const entityId of this.allBomberEntityIds()) {
       const transform = this.world.getComponent<TransformLike>(entityId, TRANSFORM);
       const intent = this.world.getComponent<IntentLike>(entityId, SERVER_INTENT_MOVE);
       if (transform === undefined || intent === undefined) continue;
+      // S120 — dead bombers don't move; their last intent stays
+      // bound but integration is skipped so they don't drift.
+      const stats = this.world.getComponent<{ alive?: boolean }>(entityId, BOMBER_STATS);
+      if (stats?.alive === false) continue;
       const pos = transform.position ?? SPAWN_POSITION;
       const [dx, dz] = intent.direction;
       let nextX = pos[0] ?? 0;
@@ -465,6 +617,10 @@ export class ServerWorld {
         this.world.setComponent(entityId, GRID_POSITION, { gx, gz });
       }
     }
+    // S120 KABOOM-MP-SPRINT-B chunk 4 — bot AI decision tick. Runs
+    // every BOT_DECISION_INTERVAL_S; the inline integration loop
+    // above does the actual movement based on the latest intent.
+    if (this.hasBot) this.tickBotAi(dt);
     // S119 KABOOM-MP-SPRINT-B chunk 3 — pickup collection. After
     // movement integration writes new GridPositions, scan pickups for
     // matching alive bombers; apply the stat effect, emit
@@ -565,22 +721,21 @@ export class ServerWorld {
               ...(droppedPickupKind !== undefined ? { droppedPickupKind } : {})
             });
           }
-          // S118 KABOOM-MP-SPRINT-B chunk 2 — bomber kill scan. Any
-          // ALIVE player.<id> whose GridPosition matches this cell
+          // S118/S120 KABOOM-MP-SPRINT-B — bomber kill scan. Any ALIVE
+          // bomber (human or bot) whose GridPosition matches this cell
           // gets BomberStats.alive flipped to false + a bomberDied
           // event with killerId = blast.ownerId.
-          for (const pid of this.playerIds) {
-            if (killedThisTick.has(pid)) continue;
-            const playerEnt = playerEntityId(pid);
-            const gp = this.world.getComponent<{ gx?: number; gz?: number }>(playerEnt, GRID_POSITION);
+          for (const bomberEnt of this.allBomberEntityIds()) {
+            if (killedThisTick.has(bomberEnt)) continue;
+            const gp = this.world.getComponent<{ gx?: number; gz?: number }>(bomberEnt, GRID_POSITION);
             if (gp?.gx !== cell.gx || gp?.gz !== cell.gz) continue;
-            const stats = this.world.getComponent<{ alive?: boolean; range?: number; maxBombs?: number }>(playerEnt, BOMBER_STATS);
+            const stats = this.world.getComponent<{ alive?: boolean; range?: number; maxBombs?: number }>(bomberEnt, BOMBER_STATS);
             if (stats?.alive === false) continue;
-            this.world.setComponent(playerEnt, BOMBER_STATS, { ...stats, alive: false });
-            killedThisTick.add(pid);
+            this.world.setComponent(bomberEnt, BOMBER_STATS, { ...stats, alive: false });
+            killedThisTick.add(bomberEnt);
             const killerId = event.ownerId !== "" ? event.ownerId : undefined;
             this.pendingBomberDied.push({
-              entityId: playerEnt,
+              entityId: bomberEnt,
               blastOriginGx: event.originGx,
               blastOriginGz: event.originGz,
               ...(killerId !== undefined ? { killerId } : {})
@@ -612,34 +767,41 @@ export class ServerWorld {
     if (round === undefined) return;
     if (round.phase !== "playing") return; // already resolved
     if (this.playerIds.size === 0) return; // empty session — nothing to resolve
-    const alive: string[] = [];
-    for (const playerId of this.playerIds) {
-      const stats = this.world.getComponent<{ alive?: boolean }>(playerEntityId(playerId), BOMBER_STATS);
-      if (stats?.alive !== false) alive.push(playerId);
+    const allBomberIds = this.allBomberEntityIds();
+    // Need at least 2 bombers for a meaningful resolve (solo human
+    // without the bot is treated as "still playing").
+    if (allBomberIds.length < 2) return;
+    const aliveBomberIds: string[] = [];
+    for (const entityId of allBomberIds) {
+      const stats = this.world.getComponent<{ alive?: boolean }>(entityId, BOMBER_STATS);
+      if (stats?.alive !== false) aliveBomberIds.push(entityId);
     }
-    if (alive.length > 1) return; // round still in progress
-    // We need at least 2 joined players before we resolve — solo sessions
-    // shouldn't auto-resolve just because the lone player walks in.
-    if (this.playerIds.size < 2) return;
-    const winnerPlayerId = alive[0];
-    const winnerEntityId = winnerPlayerId !== undefined ? playerEntityId(winnerPlayerId) : undefined;
+    if (aliveBomberIds.length > 1) return; // round still in progress
+    const winnerEntityId = aliveBomberIds[0];
     const tally = { ...(round.tally ?? { player: 0, bot: 0, draws: 0 }) };
     let phase: "won" | "lost" | "draw";
-    if (alive.length === 0) {
+    if (aliveBomberIds.length === 0) {
       phase = "draw";
       tally.draws += 1;
     } else {
-      // First-joined player is the 'player' slot; others are 'bot'.
-      const winnerIndex = winnerPlayerId !== undefined ? this.playerJoinIndex.get(winnerPlayerId) ?? 0 : 0;
-      if (winnerIndex === 0) {
-        phase = "won";
-        tally.player += 1;
-      } else {
-        // Slot mapping: "lost" means the 'player' slot lost (a non-first
-        // bomber won). Snapshot still ships winnerId so clients can
-        // attribute correctly.
+      // Winner mapping: if a human player (entity id "player.<x>") won
+      // → 'won' (first-joined human) or 'lost' (later joiner). If the
+      // bot won, also 'lost' from the first-human's POV.
+      if (winnerEntityId === BOT_ENTITY_ID) {
         phase = "lost";
         tally.bot += 1;
+      } else {
+        const winnerPlayerId = winnerEntityId!.startsWith("player.")
+          ? winnerEntityId!.slice("player.".length)
+          : undefined;
+        const winnerIndex = winnerPlayerId !== undefined ? this.playerJoinIndex.get(winnerPlayerId) ?? 0 : 0;
+        if (winnerIndex === 0) {
+          phase = "won";
+          tally.player += 1;
+        } else {
+          phase = "lost";
+          tally.bot += 1;
+        }
       }
     }
     this.world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, {
@@ -653,6 +815,62 @@ export class ServerWorld {
       ...(winnerEntityId !== undefined ? { winnerId: winnerEntityId } : {}),
       tally,
       nextRoundAt: ROUND_RESOLVE_NEXT_ROUND_DELAY_S
+    });
+    // S120 — schedule the auto-restart timer (default 3 s).
+    this.resetCountdown = ROUND_RESOLVE_NEXT_ROUND_DELAY_S;
+  }
+
+  /**
+   * S120 KABOOM-MP-SPRINT-B chunk 4 — round reset.
+   * Clears bombs + pickups, reloads the map (soft-blocks back), respawns
+   * every player at SPAWN_POSITION, flips BomberStats.alive=true, clears
+   * stat bumps, bumps RoundState.roundNumber, flips phase back to
+   * 'playing'. The next placeBomb is accepted again.
+   */
+  private resetRound(): void {
+    // Remove all bombs.
+    for (const bombId of this.bombIds) {
+      this.world.removeEntity(bombId);
+    }
+    this.bombIds.clear();
+    // Remove all pickups.
+    for (const pickupId of this.pickupIds) {
+      this.world.removeEntity(pickupId);
+    }
+    this.pickupIds.clear();
+    // Reload the obstacle map (re-add destroyed soft blocks).
+    this.map.reset();
+    // Respawn each bomber at its spawn cell + flip alive=true; clear
+    // accumulated stat bumps so the next round starts from defaults.
+    for (const playerId of this.playerIds) {
+      const entityId = playerEntityId(playerId);
+      this.world.setComponent(entityId, TRANSFORM, { position: [...SPAWN_POSITION] });
+      this.world.setComponent(entityId, GRID_POSITION, {
+        gx: Math.round(SPAWN_POSITION[0]),
+        gz: Math.round(SPAWN_POSITION[2])
+      });
+      this.world.setComponent(entityId, BOMBER_STATS, { alive: true, range: DEFAULT_BOMB_RANGE, maxBombs: 1 });
+      this.world.setComponent(entityId, SERVER_INTENT_MOVE, { direction: [0, 0], lastSequence: -1 });
+    }
+    // S120 — re-arm the server bot at its own spawn cell.
+    if (this.hasBot) {
+      this.world.setComponent(BOT_ENTITY_ID, TRANSFORM, { position: [...BOT_SPAWN_POSITION] });
+      this.world.setComponent(BOT_ENTITY_ID, GRID_POSITION, {
+        gx: Math.round(BOT_SPAWN_POSITION[0]),
+        gz: Math.round(BOT_SPAWN_POSITION[2])
+      });
+      this.world.setComponent(BOT_ENTITY_ID, BOMBER_STATS, { alive: true, range: DEFAULT_BOMB_RANGE, maxBombs: 1 });
+      this.world.setComponent(BOT_ENTITY_ID, SERVER_INTENT_MOVE, { direction: [0, 0], lastSequence: -1 });
+    }
+    // Bump RoundState.roundNumber + flip phase back to playing.
+    const round = this.world.getComponent<{
+      tally?: { player: number; bot: number; draws: number };
+      roundNumber?: number;
+    }>(ROUND_STATE_ENTITY, ROUND_STATE);
+    this.world.setComponent(ROUND_STATE_ENTITY, ROUND_STATE, {
+      phase: "playing",
+      tally: round?.tally ?? { player: 0, bot: 0, draws: 0 },
+      roundNumber: (round?.roundNumber ?? 1) + 1
     });
   }
 
@@ -719,28 +937,24 @@ export class ServerWorld {
   snapshot(): Snapshot {
     const entities: SnapshotEntity[] = [];
     const lastAcked: Record<string, number> = {};
-    for (const playerId of this.playerIds) {
-      const entityId = playerEntityId(playerId);
+    for (const entityId of this.allBomberEntityIds()) {
+      const presence = this.world.getComponent<PresenceLike>(entityId, PRESENCE);
+      const presencePlayerId = presence?.playerId ?? entityId;
       const transform = this.world.getComponent<TransformLike>(entityId, TRANSFORM);
       const recipe = this.world.getComponent<RecipeLike>(entityId, CHARACTER_RECIPE);
       const intent = this.world.getComponent<IntentLike>(entityId, SERVER_INTENT_MOVE);
       const gp = this.world.getComponent<{ gx?: number; gz?: number }>(entityId, GRID_POSITION);
       const components: Record<string, unknown> = {
         Transform: { position: [...(transform?.position ?? SPAWN_POSITION)] },
-        Presence: { playerId },
+        Presence: { playerId: presencePlayerId },
         Networked: { authority: "server" }
       };
       if (recipe?.recipe !== undefined) {
         components["CharacterRecipe"] = { recipe: recipe.recipe };
       }
-      // S118 — ship GridPosition so clients (and future server-side
-      // death/blast decoders) can read the bomber's authoritative cell.
       if (gp?.gx !== undefined && gp?.gz !== undefined) {
         components["GridPosition"] = { gx: gp.gx, gz: gp.gz };
       }
-      // S118/S119 — ship BomberStats.alive + range + maxBombs + kick +
-      // remoteDetonate + shield so clients (HUD + future server-driven
-      // gating) read from one authoritative source.
       const stats = this.world.getComponent<ServerBomberStats>(entityId, BOMBER_STATS);
       if (stats !== undefined) {
         const out: Record<string, unknown> = {
@@ -756,8 +970,8 @@ export class ServerWorld {
         components["BomberStats"] = out;
       }
       entities.push({ id: entityId, components });
-      if (intent !== undefined && intent.lastSequence >= 0) {
-        lastAcked[playerId] = intent.lastSequence;
+      if (intent !== undefined && intent.lastSequence >= 0 && presencePlayerId !== BOT_ENTITY_ID) {
+        lastAcked[presencePlayerId] = intent.lastSequence;
       }
     }
     // S117 — bomb entities. Snapshot carries Transform + GridPosition +

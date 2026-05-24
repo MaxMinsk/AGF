@@ -61,6 +61,8 @@ export type LoadedMap = {
   destroySoftBlock(gx: number, gz: number): boolean;
   /** Snapshot of all currently-occupied cells. Useful for tests + debugging. */
   cells(): ReadonlyMap<string, "hard-wall" | "soft-block">;
+  /** S120 — re-add all soft blocks that were destroyed since load/reset. Hard walls are immutable. */
+  reset(): void;
 };
 
 /**
@@ -73,14 +75,16 @@ export function loadMapFromScene(scene: Scene): LoadedMap {
   const sizeX = grid?.sizeX ?? DEFAULT_GRID.sizeX;
   const sizeZ = grid?.sizeZ ?? DEFAULT_GRID.sizeZ;
 
-  const cells = new Map<string, "hard-wall" | "soft-block">();
+  const initialCells = new Map<string, "hard-wall" | "soft-block">();
   for (const inst of scene.instances ?? []) {
     const prefab = inst.prefab;
     if (prefab !== "hard-block" && prefab !== "soft-block") continue;
     const gp = inst.overrides?.GridPosition;
     if (gp?.gx === undefined || gp?.gz === undefined) continue;
-    cells.set(cellKey(gp.gx, gp.gz), prefab === "hard-block" ? "hard-wall" : "soft-block");
+    initialCells.set(cellKey(gp.gx, gp.gz), prefab === "hard-block" ? "hard-wall" : "soft-block");
   }
+  // Working copy that mutates with destroySoftBlock + reset.
+  const cells = new Map(initialCells);
 
   return {
     gridSize(): GridSize {
@@ -100,6 +104,14 @@ export function loadMapFromScene(scene: Scene): LoadedMap {
     },
     cells(): ReadonlyMap<string, "hard-wall" | "soft-block"> {
       return cells;
+    },
+    reset(): void {
+      // S120 — restore the original obstacle map. Hard walls are
+      // immutable so they were never lost; soft blocks come back from
+      // initialCells. Future re-randomised maps (procedural restart)
+      // can swap loaders entirely.
+      cells.clear();
+      for (const [k, v] of initialCells) cells.set(k, v);
     }
   };
 }

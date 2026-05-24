@@ -527,3 +527,74 @@ test("S119 alpha collects a server-spawned pickup; both tabs see it disappear", 
     await stopBackend(backend);
   }
 });
+
+// S120 KABOOM-MP-SPRINT-B chunk 4 — single-tab connected session sees
+// a server-owned bot bomber moving + occasionally placing a bomb.
+
+test("S120 single-tab connected session sees a moving + bombing server bot", async ({ browser }, testInfo) => {
+  test.setTimeout(60_000);
+  const port = pickPort();
+  // KABOOM_PICKUP_DROP_CHANCE=0 keeps the snapshot clean for the assertions.
+  const backend = await startBackend(port, { KABOOM_PICKUP_DROP_CHANCE: "0" });
+  try {
+    const alphaContext = await browser.newContext();
+    const alpha = await alphaContext.newPage();
+    try {
+      await alpha.goto(`/?project=kaboom-crew&server=ws://127.0.0.1:${port}&networked=1&playerId=alpha`);
+      await alpha.waitForFunction(() => Boolean(window.__agf), undefined, { timeout: 15000 });
+
+      // Wait for bot.1 to appear in the snapshot (server-owned).
+      const seesBot = (): boolean => {
+        const ids = (window.__agf!.snapshot() as Snapshot).entities.map((e) => e.id);
+        return ids.includes("bot.1");
+      };
+      await alpha.waitForFunction(seesBot, undefined, { timeout: 10000 });
+
+      // Capture the bot's current cell as the baseline for the
+      // movement check. The server bot starts wandering from t=0
+      // (no title screen on the server) so by the time the test
+      // connects it may already be off (13, 9) — that's fine, the
+      // assertion is "the cell CHANGES from here within the window".
+      const initial = await alpha.evaluate(() => {
+        const snap = window.__agf!.snapshot() as Snapshot;
+        const bot = snap.entities.find((e) => e.id === "bot.1");
+        return (bot?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+      });
+      expect(initial).toBeDefined();
+
+      // Wait until the bot's GridPosition CHANGES — proves the bot AI
+      // is wandering server-side.
+      await alpha.waitForFunction(
+        (start: { gx: number; gz: number }) => {
+          const snap = window.__agf!.snapshot() as Snapshot;
+          const bot = snap.entities.find((e) => e.id === "bot.1");
+          const gp = (bot?.components as { GridPosition?: { gx: number; gz: number } } | undefined)?.GridPosition;
+          return gp !== undefined && (gp.gx !== start.gx || gp.gz !== start.gz);
+        },
+        initial!,
+        { timeout: 8000 }
+      );
+
+      // Wait until at least one bomb owned by bot.1 spawns in the
+      // snapshot. Bot places at 15% chance per 0.2 s decision, so we
+      // give a generous 15 s window.
+      await alpha.waitForFunction(
+        () => {
+          const snap = window.__agf!.snapshot() as Snapshot;
+          return snap.entities.some((e) => e.id.startsWith("bomb.bot.1"));
+        },
+        undefined,
+        { timeout: 15000 }
+      );
+
+      await testInfo.attach("alpha-snapshot.json", {
+        body: JSON.stringify(await alpha.evaluate(() => window.__agf!.snapshot()), null, 2),
+        contentType: "application/json"
+      });
+    } finally {
+      await alphaContext.close();
+    }
+  } finally {
+    await stopBackend(backend);
+  }
+});

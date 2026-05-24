@@ -11,7 +11,7 @@ import { ServerWorld } from "../../examples/backends/node-world-server/src/world
 
 describe("ServerWorld (S112 KABOOM-MP-RECIPE-SYNC)", () => {
   it("snapshot omits CharacterRecipe when the player joined without a recipe", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const snap = world.snapshot();
     const entity = snap.entities.find((e) => e.id === "player.alice")!;
@@ -21,7 +21,7 @@ describe("ServerWorld (S112 KABOOM-MP-RECIPE-SYNC)", () => {
   });
 
   it("snapshot echoes the opaque recipe blob in CharacterRecipe when supplied", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice", "base64-recipe-blob-here");
     const snap = world.snapshot();
     const entity = snap.entities.find((e) => e.id === "player.alice")!;
@@ -29,7 +29,7 @@ describe("ServerWorld (S112 KABOOM-MP-RECIPE-SYNC)", () => {
   });
 
   it("multiple players carry distinct recipes simultaneously", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice", "alice-recipe");
     world.join("bob", "bob-recipe");
     world.join("carol"); // no recipe
@@ -43,7 +43,7 @@ describe("ServerWorld (S112 KABOOM-MP-RECIPE-SYNC)", () => {
   });
 
   it("re-join with a different recipe overwrites the stored one (reconnect flow)", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice", "v1-recipe");
     world.join("alice", "v2-recipe");
     const snap = world.snapshot();
@@ -52,7 +52,7 @@ describe("ServerWorld (S112 KABOOM-MP-RECIPE-SYNC)", () => {
   });
 
   it("re-join WITHOUT a recipe keeps the previously stored one (idempotent join)", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice", "v1-recipe");
     world.join("alice"); // no recipe — should not blow away v1
     const snap = world.snapshot();
@@ -65,7 +65,7 @@ describe("ServerWorld (S112 KABOOM-MP-RECIPE-SYNC)", () => {
 
 describe("ServerWorld.placeBomb (S117)", () => {
   it("spawns a Bomb entity that appears in the next snapshot", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const bombId = world.placeBomb("alice", 3, 4);
     expect(bombId).toBeDefined();
@@ -77,12 +77,12 @@ describe("ServerWorld.placeBomb (S117)", () => {
   });
 
   it("returns undefined for an unknown player", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     expect(world.placeBomb("alice", 3, 4)).toBeUndefined();
   });
 
   it("refuses to stack a second bomb on the same cell (any player)", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     world.join("bob");
     expect(world.placeBomb("alice", 3, 4)).toBeDefined();
@@ -92,7 +92,7 @@ describe("ServerWorld.placeBomb (S117)", () => {
   });
 
   it("multiple bombs from the same player get distinct ids", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const a = world.placeBomb("alice", 1, 1);
     const b = world.placeBomb("alice", 2, 2);
@@ -109,7 +109,7 @@ describe("ServerWorld.placeBomb (S117)", () => {
 
 describe("ServerWorld GridPosition (S118)", () => {
   it("snapshot includes GridPosition on join (derived from spawn position)", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const snap = world.snapshot();
     const entity = snap.entities.find((e) => e.id === "player.alice")!;
@@ -117,7 +117,7 @@ describe("ServerWorld GridPosition (S118)", () => {
   });
 
   it("tick recomputes GridPosition after intent.move integrates Transform", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     world.setIntent("alice", [1, 0], 0);
     // Walk for ~1.5 cells at 3.5 cells/s
@@ -131,7 +131,7 @@ describe("ServerWorld GridPosition (S118)", () => {
   });
 
   it("GridPosition is stable when the player isn't moving (every tick still writes it)", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     world.tick(0.016);
     world.tick(0.016);
@@ -145,7 +145,7 @@ describe("ServerWorld GridPosition (S118)", () => {
 
 describe("ServerWorld.tick — bomb fuse (S117)", () => {
   it("decrements Bomb.fuseRemaining each tick", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const bombId = world.placeBomb("alice", 3, 4)!;
     world.tick(1.0);
@@ -155,7 +155,7 @@ describe("ServerWorld.tick — bomb fuse (S117)", () => {
   });
 
   it("detonates when fuse hits zero — removes bomb + emits blastEvent", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const bombId = world.placeBomb("alice", 3, 4)!;
     // 3 s > 2.5 s default fuse → detonate this tick.
@@ -174,7 +174,7 @@ describe("ServerWorld.tick — bomb fuse (S117)", () => {
   });
 
   it("drainBlastEvents clears the queue", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     world.placeBomb("alice", 1, 1);
     world.tick(3.0);
@@ -183,7 +183,7 @@ describe("ServerWorld.tick — bomb fuse (S117)", () => {
   });
 
   it("multiple bombs detonate together in the same tick", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     world.placeBomb("alice", 1, 1);
     world.placeBomb("alice", 2, 2);
@@ -197,7 +197,7 @@ describe("ServerWorld.tick — bomb fuse (S117)", () => {
   });
 
   it("bomb survives a partial tick (dt < fuseRemaining)", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     const bombId = world.placeBomb("alice", 3, 4)!;
     world.tick(0.1);
@@ -209,7 +209,7 @@ describe("ServerWorld.tick — bomb fuse (S117)", () => {
   });
 
   it("after detonation, the cell is free to receive a new bomb", () => {
-    const world = new ServerWorld();
+    const world = new ServerWorld({ spawnBot: false });
     world.join("alice");
     world.placeBomb("alice", 3, 4);
     world.tick(3.0);
