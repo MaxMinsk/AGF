@@ -53,9 +53,12 @@
     {
       "id": "DOC-KABOOM-PHYSICS-OBJECTS-001",
       "title": "Update ragdoll-playtest.md with the bomb + pickup collider contract",
-      "status": "pending",
+      "status": "implemented",
       "summary": "docs/qa/ragdoll-playtest.md — extend the 'Stays inside the arena' bullet with 'and bounces off live bombs + pickups too'. Mention that the bomb's collider is a sphere matching its rendered radius, and pickups use a box matching their visual scale. Update 'Related systems' with the bomb.prefab.json + pickup-spawn-system entries.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/qa/ragdoll-playtest.md gains 'Bounces off bombs and pickups in the arena' playtest bullet (references S138 bomb sphere collider r=0.175 + pickup box collider sized to visual scale). 'Related systems' updated with bomb.prefab.json + bomb-placement-system + pickup-spawn-system as collider sources."
+      ]
     }
   ]
 }

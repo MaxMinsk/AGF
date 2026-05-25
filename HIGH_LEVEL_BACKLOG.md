@@ -40,7 +40,7 @@ The list below is **generated** from `backlog/epics/*.epic.json`. Add or edit an
 | **[M11](backlog/epics/M11.epic.json)** — M11 Resource lifecycle + leak tests | active | engine | 3 / 0 / 3 |  |
 | **[M12](backlog/epics/M12.epic.json)** — M12 Template / project creation CLI | active | engine | 0 / 0 / 0 |  |
 | **[M20](backlog/epics/M20.epic.json)** — M20 Netcode rework — pick a proven model & rebuild own-drone authority | active | engine | 1 / 0 / 1 |  |
-| **[M24](backlog/epics/M24.epic.json)** — M24 Rapier physics & colliders | active | engine | 37 / 1 / 39 |  |
+| **[M24](backlog/epics/M24.epic.json)** — M24 Rapier physics & colliders | active | engine | 38 / 0 / 39 |  |
 | **[M5](backlog/epics/M5.epic.json)** — M5 Runtime diagnostics + browser-side error channel | active | engine | 0 / 0 / 0 |  |
 | **[M6](backlog/epics/M6.epic.json)** — M6 Deterministic replay / recording | active | engine | 0 / 0 / 0 |  |
 | **[M8](backlog/epics/M8.epic.json)** — M8 Input actions, remapping, touch/gamepad | active | engine | 0 / 0 / 0 |  |
