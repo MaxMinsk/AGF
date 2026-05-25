@@ -43,9 +43,12 @@
     {
       "id": "FEAT-RAGDOLL-LIFETIME-SYSTEM-001",
       "title": "Engine ragdoll lifetime-system: auto-teardown after N seconds",
-      "status": "pending",
+      "status": "implemented",
       "summary": "engine/physics/ragdoll/lifetime-system.ts (new) — fixedUpdate query on [RagdollActive, RagdollLifetime]; decrement secondsRemaining by dt; on ≤0 write RagdollTeardownRequest on the same root. Register from src/app.ts alongside the spawn/sync/teardown systems. Kaboom-bomber template gains lifetimeSeconds: 4 (one round = 90s, so a 4-second corpse is generous but cleans up before round end). Without lifetime, mid-round multi-kills accumulate bodies until the round timer's bulk teardown.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/lifetime-system.ts (new) decrements RagdollLifetime.secondsRemaining by fixedDt each fixedUpdate; at ≤0 writes RagdollTeardownRequest on the root (only when not already present). Spawn-system stamps RagdollLifetime when the template declares lifetimeSeconds > 0. Teardown-system strips RagdollLifetime alongside RagdollState + RagdollActive. src/app.ts registers the lifetime system BEFORE teardown so zero-countdowns are disposed in the same tick. examples/kaboom-crew/src/characters/kaboom-bomber-ragdoll-template.ts gains lifetimeSeconds: 4. Typecheck passes; 25 ragdoll-related tests green."
+      ]
     },
     {
       "id": "TEST-RAGDOLL-LIFETIME-001",
