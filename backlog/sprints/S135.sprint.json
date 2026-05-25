@@ -23,9 +23,12 @@
     {
       "id": "CLEANUP-KABOOM-SPRING-PIVOT-IMPORT-001",
       "title": "Remove the dead `void createSpringPivotSystem` line from kaboom-crew bootstrap",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/bootstrap.ts has a `void createSpringPivotSystem;` line from S132 (the import is still pulled in only to satisfy the void). The next story re-registers spring-pivot for real; this cleanup story drops the dead reference + the placeholder block comment so the file is clean before the re-registration commit lands. The spring-pivot-system source file stays — procbomber-bench still uses it.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: dropped the 'S132 ORPHANED' block + 'void createSpringPivotSystem;' line from examples/kaboom-crew/bootstrap.ts. The createSpringPivotSystem import stays (FIX-ACCESSORY-SWAY-IN-KABOOM-001 wires it back for real). Typecheck passes."
+      ]
     },
     {
       "id": "FIX-ACCESSORY-SWAY-IN-KABOOM-001",

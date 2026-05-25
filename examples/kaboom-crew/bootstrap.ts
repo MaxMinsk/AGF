@@ -432,12 +432,6 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // ragdoll spawns on the same frame as the death audio.
     scheduler.register(createKaboomDeathTriggerSystem(), { profiles: ["static", "connected"] });
 
-    // S132 ORPHANED — createSpringPivotSystem (S105) is intentionally
-    // NOT registered. The engine ragdoll module owns the death visual
-    // now; spring-pivot still drives the procbomber-bench's slider
-    // tweens so the source file stays — only kaboom de-registers it.
-    void createSpringPivotSystem;
-
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
     // BenchAnimationState + LimbPivots (written by the driver above + by
     // spawnBomberFor) and drives the per-limb rotations. Same module
