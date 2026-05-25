@@ -95,12 +95,14 @@ describe("createKaboomDeathTriggerSystem (S132)", () => {
     world.setComponent("bot.4", "BomberStats", { alive: false });
     sys.fixedUpdate!(ctx(world));
     const req = world.getComponent<{ impulse: number[] }>("bot.4", "RagdollSpawnRequest")!;
-    expect(req.impulse[0]).toBeCloseTo(2, 5); // +X, magnitude 2
+    // S135-hotfix: trigger now applies a 0.5× scale so the ragdoll
+    // doesn't launch off the arena. magnitude 2 → effective 1 on X.
+    expect(req.impulse[0]).toBeCloseTo(1, 5);
     expect(req.impulse[1]).toBeGreaterThan(0); // upward lift
     expect(req.impulse[2]).toBeCloseTo(0, 5);
   });
 
-  it("without DeathImpulse, default impulse is downfield (-Z) at magnitude 1", () => {
+  it("without DeathImpulse, default impulse is downfield (-Z) at scaled magnitude 0.5", () => {
     const world = new World();
     addBomberWithMeshes(world, "bot.5");
     const sys = createKaboomDeathTriggerSystem();
@@ -110,7 +112,8 @@ describe("createKaboomDeathTriggerSystem (S132)", () => {
     const req = world.getComponent<{ impulse: number[] }>("bot.5", "RagdollSpawnRequest")!;
     expect(req.impulse[0]).toBe(0);
     expect(req.impulse[1]).toBeGreaterThan(0);
-    expect(req.impulse[2]).toBeCloseTo(-1, 5);
+    // S135-hotfix: default magnitude 1 × 0.5 scale = 0.5.
+    expect(req.impulse[2]).toBeCloseTo(-0.5, 5);
   });
 
   it("Transform.parent cleared on each mesh entity that exists", () => {

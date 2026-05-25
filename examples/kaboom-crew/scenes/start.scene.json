@@ -76,7 +76,9 @@
         "MeshRenderer": {
           "mesh": "box",
           "color": "#1d2536"
-        }
+        },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [15, 0.1, 11] }
       }
     }
   ],

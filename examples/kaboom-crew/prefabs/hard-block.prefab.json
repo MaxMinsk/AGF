@@ -1,7 +1,7 @@
 {
   "agfFormatVersion": 1,
   "id": "hard-block",
-  "description": "Indestructible wall. Blocks both movement and blast propagation.",
+  "description": "Indestructible wall. Blocks both movement and blast propagation. S135-hotfix: also a static physics body so ragdolls don't fly through the arena perimeter.",
   "components": {
     "Transform": {
       "rotation": [0, 0, 0],
@@ -15,6 +15,8 @@
       "layer": "wall",
       "blocksMovement": true,
       "blocksBlast": true
-    }
+    },
+    "RigidBody3D": { "type": "fixed" },
+    "Collider3D": { "kind": "box", "size": [1, 1, 1] }
   }
 }
