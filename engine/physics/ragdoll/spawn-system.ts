@@ -46,6 +46,16 @@ type BodyPose = {
 
 const DEG2RAD = Math.PI / 180;
 
+// S136-hotfix — Rapier InteractionGroups packed value:
+//   high 16 bits = membership mask  → bit 1 ("ragdoll")
+//   low  16 bits = filter mask      → bit 0 only ("default" only)
+// Net effect: ragdoll bodies collide with default-group bodies (floor,
+// walls, blocks) but NOT with other ragdoll bodies. Eliminates the
+// adjacent-body jitter caused by overlapping template anchors
+// (torso+upperArm capsules overlap by ~0.075 m and the solver was
+// trying to push them apart against the shoulder joint every step).
+const RAGDOLL_COLLISION_GROUPS = (0x0002 << 16) | 0x0001;
+
 type TransformComponent = {
   position?: readonly [number, number, number];
 };
@@ -182,7 +192,10 @@ function spawnRagdoll(
           ? { angularDamping: template.angularDamping }
           : {})
     });
-    adapter.acquireCollider(handle, colliderSpecFor(def));
+    adapter.acquireCollider(handle, {
+      ...colliderSpecFor(def),
+      collisionGroups: RAGDOLL_COLLISION_GROUPS
+    });
     if (impulse !== undefined && !impulseApplied) {
       adapter.applyImpulse(handle, impulse);
       impulseApplied = true;
