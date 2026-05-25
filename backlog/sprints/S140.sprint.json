@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-25",
   "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/166",
   "notes": [
     "S139 made bot personality random-per-page-load by default; this sprint applies the same pattern to map selection so a fresh tab feels different every time. Two existing maps (`start`, `wide`) ship today; this sprint adds a third (`corridor`) and switches the URL-less default from constant `start` to a uniform random pick over all three.",
     "Corridor map: 17×7 long-narrow arena with vertical hard-block columns + scattered soft blocks. Plays differently from start (15×11 square) and wide (17×13 wider square) — corridor's narrow shape rewards bombing patience and the personality variants behave more distinctly (hunter has fewer chase lines, miner has more soft-block access).",
