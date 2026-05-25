@@ -128,6 +128,13 @@
           "items": { "type": "number" },
           "description": "Optional initial impulse applied to all bodies (or the root body). Useful for blast-driven ragdolls."
         },
+        "initialBodyVelocity": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "S139 — uniform linear velocity (m/s) seeded into every body at spawn. Lets the ragdoll inherit pre-death motion — e.g. a walking bomber's grid-mover velocity — so it doesn't appear to freeze before the blast impulse fires. Applied via Rapier setLinvel on each body before the per-body impulse. Optional; omit for stationary spawn."
+        },
         "meshMap": {
           "type": "object",
           "additionalProperties": { "type": "string", "minLength": 1 },

@@ -37,6 +37,7 @@ const DEATH_IMPULSE: ComponentName = "DeathImpulse";
 const RAGDOLL_SPAWN_REQUEST: ComponentName = "RagdollSpawnRequest";
 const TRANSFORM: ComponentName = "Transform";
 const LOCAL_TO_WORLD: ComponentName = "LocalToWorld";
+const GRID_MOVER: ComponentName = "GridMover";
 const RAD2DEG = 180 / Math.PI;
 
 const KABOOM_BOMBER_TEMPLATE_KEY = "kaboom-bomber";
@@ -171,17 +172,26 @@ function triggerRagdoll(world: World, rootId: EntityId): void {
   // Compute impulse from DeathImpulse (blast direction) if present.
   const impulse = computeImpulse(world, rootId);
 
+  // S139 — inherit the bomber's pre-death walking velocity so the
+  // ragdoll doesn't appear to freeze for a frame before the blast
+  // takes over. Read GridMover.queuedDirection × .speed; result is
+  // (vx, 0, vz). Skip when the bomber wasn't walking (no direction or
+  // zero speed) so a standing-still kill spawns at rest.
+  const initialBodyVelocity = computeInitialVelocity(world, rootId);
+
   const request: {
     templateKey: string;
     impulse: readonly [number, number, number];
     meshMap: Record<string, EntityId>;
     bodyPoses?: Record<string, BodyPoseEntry>;
+    initialBodyVelocity?: readonly [number, number, number];
   } = {
     templateKey: KABOOM_BOMBER_TEMPLATE_KEY,
     impulse,
     meshMap
   };
   if (Object.keys(bodyPoses).length > 0) request.bodyPoses = bodyPoses;
+  if (initialBodyVelocity !== undefined) request.initialBodyVelocity = initialBodyVelocity;
   world.setComponent(rootId, RAGDOLL_SPAWN_REQUEST, request);
 }
 
@@ -205,4 +215,25 @@ function computeImpulse(world: World, rootId: EntityId): readonly [number, numbe
   const nx = dx / len;
   const nz = dz / len;
   return [nx * magnitude, liftY, nz * magnitude];
+}
+
+type GridMoverComponent = {
+  speed?: number;
+  queuedDirection?: { dx?: number; dz?: number };
+};
+
+// S139 — convert the bomber's grid-mover state to a [vx, 0, vz]
+// velocity that the engine spawn-system seeds into every ragdoll body.
+// Returns undefined when the bomber wasn't walking — a standing-kill
+// ragdoll should spawn at rest.
+function computeInitialVelocity(world: World, rootId: EntityId): readonly [number, number, number] | undefined {
+  const mover = world.getComponent<GridMoverComponent>(rootId, GRID_MOVER);
+  if (mover === undefined) return undefined;
+  const speed = mover.speed ?? 0;
+  const dx = mover.queuedDirection?.dx ?? 0;
+  const dz = mover.queuedDirection?.dz ?? 0;
+  if (speed <= 0 || (dx === 0 && dz === 0)) return undefined;
+  // GridMover speed is cells/sec; each cell is 1 m in the Kaboom Crew
+  // arena, so cells/sec = m/sec. dx/dz are unit-direction integers.
+  return [dx * speed, 0, dz * speed];
 }

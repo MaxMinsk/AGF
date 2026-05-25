@@ -37,6 +37,8 @@ type SpawnRequest = {
   impulse?: readonly [number, number, number];
   meshMap?: Readonly<Record<string, EntityId>>;
   bodyPoses?: Readonly<Record<string, BodyPose>>;
+  /** S139 — uniform pre-death velocity (m/s) seeded into every body at spawn. */
+  initialBodyVelocity?: readonly [number, number, number];
 };
 
 type BodyPose = {
@@ -110,6 +112,7 @@ export function createRagdollSpawnSystem(options: RagdollSpawnSystemOptions): Sy
         req.impulse,
         req.meshMap,
         req.bodyPoses,
+        req.initialBodyVelocity,
         nowSeconds(),
         () => {
           bodyCounter += 1;
@@ -136,6 +139,7 @@ function spawnRagdoll(
   impulse: readonly [number, number, number] | undefined,
   meshMap: Readonly<Record<string, EntityId>> | undefined,
   bodyPoses: Readonly<Record<string, BodyPose>> | undefined,
+  initialBodyVelocity: readonly [number, number, number] | undefined,
   spawnedAt: number,
   nextBodyId: () => number,
   nextJointId: () => number
@@ -200,6 +204,15 @@ function spawnRagdoll(
       ...colliderSpecFor(def),
       collisionGroups: RAGDOLL_COLLISION_GROUPS
     });
+    // S139 — seed inherited pre-death velocity (e.g. the bomber's
+    // grid-mover linear velocity at the death frame). Applied to every
+    // body so the ragdoll moves as one rigid mass before the joints
+    // start solving; without this the ragdoll appeared to freeze for
+    // a frame before the blast impulse took over, breaking momentum
+    // continuity for dying walkers.
+    if (initialBodyVelocity !== undefined) {
+      adapter.setLinvel(handle, initialBodyVelocity);
+    }
     if (impulse !== undefined && !impulseApplied) {
       adapter.applyImpulse(handle, impulse);
       impulseApplied = true;

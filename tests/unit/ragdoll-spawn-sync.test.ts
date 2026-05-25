@@ -205,6 +205,58 @@ describe("ragdoll spawn → sync → teardown (S128)", () => {
     localAdapter.dispose();
   });
 
+  it("S139-velocity-inherit — initialBodyVelocity seeds linvel on every body before impulse fires", async () => {
+    // 3-body chain with NO joints so we can read each body's velocity
+    // independently. Pre-fix the ragdoll bodies started at rest and
+    // then got the blast impulse — for a walking bomber that meant a
+    // 1-frame freeze. Post-fix initialBodyVelocity hits every body at
+    // spawn so the chain inherits the walker's momentum.
+    registerRagdollTemplate("vel", {
+      linearDamping: 0,
+      angularDamping: 0,
+      bodies: [
+        { name: "a", shape: "sphere", dimensions: [0.05, 0, 0], anchor: [0, 0, 0] },
+        { name: "b", shape: "sphere", dimensions: [0.05, 0, 0], anchor: [0.5, 0, 0] },
+        { name: "c", shape: "sphere", dimensions: [0.05, 0, 0], anchor: [1, 0, 0] }
+      ]
+    });
+    // Custom setup with zero gravity so the only motion comes from the
+    // injected velocity.
+    const localAdapter = await createRapierAdapter({ gravity: [0, 0, 0], fixedDt: FIXED_DT });
+    const world = new World();
+    const spawn = createRagdollSpawnSystem({ adapter: localAdapter });
+    const sync = createRagdollSyncSystem({ adapter: localAdapter });
+    const tick = (steps = 1): void => {
+      for (let i = 0; i < steps; i += 1) {
+        const ctx: SystemContext = {
+          world,
+          time: { elapsed: i * FIXED_DT, dt: FIXED_DT, fixedDt: FIXED_DT, frameCount: i, fixedStepCount: i }
+        } as SystemContext;
+        spawn.fixedUpdate?.(ctx);
+        localAdapter.step(FIXED_DT);
+        sync.fixedUpdate?.(ctx);
+      }
+    };
+    world.addEntity("root.vel");
+    world.setComponent("root.vel", "Transform", { position: [0, 0, 0] });
+    world.setComponent("root.vel", "RagdollSpawnRequest", {
+      templateKey: "vel",
+      initialBodyVelocity: [3, 0, 0]
+    });
+    // Spawn + 1 physics step at dt=1/60 → each body should have moved
+    // ~3/60 = 0.05 m on +X (their spawn anchor offset preserved).
+    tick();
+    const state = world.getComponent<{ bodyEntities: Record<string, string> }>("root.vel", "RagdollState")!;
+    for (const name of ["a", "b", "c"]) {
+      const pos = world.getComponent<{ position: number[] }>(state.bodyEntities[name]!, "Transform")!.position;
+      // Each body started at its template anchor (0, 0.5, 1) and gained
+      // 3 m/s × dt on +X.
+      const expectedX = (name === "a" ? 0 : name === "b" ? 0.5 : 1) + 3 / 60;
+      expect(Math.abs(pos[0]! - expectedX)).toBeLessThan(0.01);
+    }
+    localAdapter.dispose();
+  });
+
   it("RagdollTeardownRequest cleans up bodies, joints, RagdollState", async () => {
     registerRagdollTemplate("pair2", {
       bodies: [
