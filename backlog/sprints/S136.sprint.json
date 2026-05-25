@@ -2,8 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S136",
   "title": "Ragdoll arena physics — soft-block colliders, lifetime + visual playtest",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-25",
+  "archivedAt": "2026-05-25",
   "notes": [
     "Hot on the heels of PR #158 (impulse-to-root + 0.5× scale + floor/hard-block colliders). This sprint closes the arena-physics story: soft-blocks join the static colliders, ragdolls fade out after a few seconds so corpses don't pile up across a round, and a playwright spec captures the visual contract so future ragdoll changes can't silently break it.",
     "Soft-block destruction already calls world.removeEntity(id), and physics-sync-system phase-1 releases the Rapier body when the entity disappears, so adding RigidBody3D+Collider3D to the soft-block prefab is a single-file change with no extra teardown code.",
