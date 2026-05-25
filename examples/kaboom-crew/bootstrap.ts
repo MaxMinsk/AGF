@@ -22,6 +22,7 @@ import type { RuntimeHandle } from "../../engine/runtime/start";
 import { createMinimapWidget } from "../../engine/runtime/ui/minimap";
 import startSceneJson from "./scenes/start.scene.json";
 import wideSceneJson from "./scenes/wide.scene.json";
+import corridorSceneJson from "./scenes/corridor.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -69,6 +70,7 @@ import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
+import { resolveSessionMap } from "./src/map-pick";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
 /**
@@ -143,9 +145,10 @@ const PROJECT_PREFABS: ReadonlyMap<string, PrefabDefinition> = new Map<string, P
 // (`runtime.kaboom.maps()` + `loadMap()`).
 const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["start", startSceneJson],
-  ["wide", wideSceneJson]
+  ["wide", wideSceneJson],
+  ["corridor", corridorSceneJson]
 ]);
-type MapName = "start" | "wide";
+type MapName = "start" | "wide" | "corridor";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
@@ -154,15 +157,10 @@ function seedActiveMapFromUrl(): void {
 }
 
 function readMapName(): MapName {
-  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
-  if (search === undefined || search.length === 0) return "start";
-  try {
-    const value = new URLSearchParams(search).get("map");
-    if (value !== null && MAP_REGISTRY.has(value)) return value as MapName;
-    return "start";
-  } catch {
-    return "start";
-  }
+  return resolveSessionMap(
+    (globalThis as unknown as { location?: { search?: string } }).location?.search,
+    MAP_REGISTRY
+  ) as MapName;
 }
 
 function buildFlatStartScene(map: MapName = activeMapName): SceneInput {
