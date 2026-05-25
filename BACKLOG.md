@@ -18,7 +18,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S137.sprint.js
   examples/kaboom-crew/src/systems/audio-binding-system.ts — on the same alive→false edge that already spawns the 'glow' puff, also spawn a 'spark' emitter at the same cell with lifetime 0.35s, rate 80, maxParticles 24. The visual reads as glow + debris simultaneously, matching the ragdoll launch frame. Existing glow stays as the lingering aura.
 - **TEST-KABOOM-DEATH-DUST-PUFF-001** — Unit test: alive→false edge spawns both the glow + spark emitters _(implemented)_
   examples/kaboom-crew/tests/unit/audio-binding-system.test.ts — extend an existing death-flow test (or add a new one) that flips BomberStats.alive=false on a bomber with GridPosition, ticks the system, and asserts both `<id>.death-puff` (glow) AND the new `<id>.death-dust` (spark) entities exist with the expected ParticleEmitter preset + lifetime + position.
-- **DOC-RAGDOLL-PLAYTEST-S137** — Refresh ragdoll-playtest.md with the spawn-pose smoothness guarantee + dust puff _(pending)_
+- **DOC-RAGDOLL-PLAYTEST-S137** — Refresh ragdoll-playtest.md with the spawn-pose smoothness guarantee + dust puff _(implemented)_
   docs/qa/ragdoll-playtest.md — note that the S137 joint spawn correction means the bodies stay put on frame 1 even when bodyPoses is non-rest (no visible 'jolt' when a bomber dies mid-walk). Replace the 'death feels punchy' check's reference to dust with the new glow+spark pair. Update the related-systems list with the corrected joint-spawn behaviour.
 
 ### Notes

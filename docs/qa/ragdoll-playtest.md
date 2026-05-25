@@ -26,6 +26,17 @@ can't see.
       pose on the death frame before the physics integrator starts
       (the S133 pose-snapshot fix targets this — if you see a single-
       frame T-pose, that's a regression).
+- [ ] **No 'spring jolt' on the first frame post-death.** The S137
+      joint-anchor correction re-computes each joint's body-B anchor
+      at spawn so the constraint solver doesn't fire a corrective
+      impulse on frame 1. If the ragdoll visibly snaps inward / outward
+      on the very first frame even when the bomber dies mid-walk,
+      check `correctJointAnchors` in `engine/physics/ragdoll/
+      spawn-system.ts` — that's where the math runs.
+- [ ] **Death frame has a punchy dust burst.** S137 layers a 24-particle
+      `spark` emitter (0.35 s lifetime) on top of the existing 10-particle
+      `glow` puff (0.5 s) so the death visual reads as "BOOM" instead of
+      "fizz". You should see both a brief burst AND a lingering aura.
 - [ ] **Lands on the floor.** Body rests on the ground after a few
       seconds — no penetration through the floor, no bouncing
       forever. (S135 hotfix #158 added `RigidBody3D{type:fixed}` +
@@ -95,7 +106,12 @@ sway restoration), the death visual is driven by:
   writes `RagdollSpawnRequest` on the alive→false edge with a
   `meshMap` + `bodyPoses` snapshot of the 10 procedural meshes.
 - `engine/physics/ragdoll/spawn-system.ts` — consumes the request,
-  creates Rapier bodies, writes `RagdollMeshBinding` per mesh.
+  creates Rapier bodies, writes `RagdollMeshBinding` per mesh. The
+  S137 `correctJointAnchors` helper recomputes each joint's body-B
+  anchor so the constraint is satisfied at frame 0 (no spring jolt
+  when `bodyPoses` snapshots a non-rest pose). Self-collision is
+  disabled via `collisionGroups = 0x00020001` (S136 hotfix #160) so
+  adjacent ragdoll bodies don't bash against each other.
 - `engine/physics/ragdoll/sync-system.ts` — mirrors body world
   transforms onto each bound mesh per fixed tick.
 - `engine/physics/ragdoll/teardown-system.ts` — disposes bodies +

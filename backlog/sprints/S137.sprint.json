@@ -53,9 +53,12 @@
     {
       "id": "DOC-RAGDOLL-PLAYTEST-S137",
       "title": "Refresh ragdoll-playtest.md with the spawn-pose smoothness guarantee + dust puff",
-      "status": "pending",
+      "status": "implemented",
       "summary": "docs/qa/ragdoll-playtest.md — note that the S137 joint spawn correction means the bodies stay put on frame 1 even when bodyPoses is non-rest (no visible 'jolt' when a bomber dies mid-walk). Replace the 'death feels punchy' check's reference to dust with the new glow+spark pair. Update the related-systems list with the corrected joint-spawn behaviour.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/qa/ragdoll-playtest.md adds two new playtest bullets — 'No spring jolt on the first frame post-death' (references S137 correctJointAnchors) and 'Death frame has a punchy dust burst' (references the new glow+spark pair). The 'Related systems' section mentions the joint-anchor correction + the S136 collision-groups self-collision disable in the spawn-system entry."
+      ]
     }
   ]
 }
