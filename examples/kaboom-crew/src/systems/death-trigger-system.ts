@@ -42,6 +42,11 @@ const RAD2DEG = 180 / Math.PI;
 const KABOOM_BOMBER_TEMPLATE_KEY = "kaboom-bomber";
 const DEFAULT_IMPULSE_MAGNITUDE = 1.0;
 const DEFAULT_IMPULSE_Y = 0.5; // a little lift so the ragdoll doesn't slide flat along the floor
+// S135-hotfix — live playtest showed the post-fix impulse still felt
+// too aggressive (ragdolls cleared the arena). Scale to 0.5× so the
+// blast feels punchy without launching bombers off the map. Pair with
+// the spawn-system fix (impulse → first body only, joints transmit).
+const IMPULSE_SCALE = 0.5;
 
 // Engine ragdoll body name → mesh entity suffix mapping. The 10
 // entries match the kaboom-bomber template (engine body names use
@@ -182,9 +187,11 @@ function triggerRagdoll(world: World, rootId: EntityId): void {
 
 function computeImpulse(world: World, rootId: EntityId): readonly [number, number, number] {
   const di = world.getComponent<DeathImpulseComponent>(rootId, DEATH_IMPULSE);
-  const magnitude = di?.magnitude ?? DEFAULT_IMPULSE_MAGNITUDE;
+  const baseMagnitude = di?.magnitude ?? DEFAULT_IMPULSE_MAGNITUDE;
+  const magnitude = baseMagnitude * IMPULSE_SCALE;
+  const liftY = DEFAULT_IMPULSE_Y * IMPULSE_SCALE;
   if (di === undefined || di.blastOriginGx === undefined || di.blastOriginGz === undefined) {
-    return [0, DEFAULT_IMPULSE_Y, -1 * magnitude];
+    return [0, liftY, -1 * magnitude];
   }
   const t = world.getComponent<TransformComponent>(rootId, TRANSFORM);
   const px = t?.position?.[0] ?? 0;
@@ -193,9 +200,9 @@ function computeImpulse(world: World, rootId: EntityId): readonly [number, numbe
   const dz = pz - di.blastOriginGz;
   const len = Math.hypot(dx, dz);
   if (len < 1e-6) {
-    return [0, DEFAULT_IMPULSE_Y, -1 * magnitude];
+    return [0, liftY, -1 * magnitude];
   }
   const nx = dx / len;
   const nz = dz / len;
-  return [nx * magnitude, DEFAULT_IMPULSE_Y, nz * magnitude];
+  return [nx * magnitude, liftY, nz * magnitude];
 }
