@@ -26,8 +26,12 @@
 import type { RagdollTemplate } from "../../../../engine/physics/ragdoll/template-registry";
 
 export const KABOOM_BOMBER_RAGDOLL: RagdollTemplate = {
-  linearDamping: 0.4,
-  angularDamping: 0.6,
+  // S136-hotfix — boosted from 0.4/0.6 → 1.2/2.0 to damp out the
+  // residual oscillation from joint constraint corrections. Combined
+  // with the self-collision groups in spawn-system.ts this turns a
+  // jittering ragdoll into a smooth fall.
+  linearDamping: 1.2,
+  angularDamping: 2.0,
   // S136 — auto-cleanup so mid-round multi-kills don't pile up bodies.
   // 4 s is long enough for the death animation to feel impactful but
   // short enough to clean up before the round timer (90 s) resets.

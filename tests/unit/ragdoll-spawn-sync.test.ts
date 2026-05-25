@@ -155,6 +155,56 @@ describe("ragdoll spawn → sync → teardown (S128)", () => {
     adapter.dispose();
   });
 
+  it("S136-hotfix — overlapping bodies in one ragdoll don't bash against each other (no self-collision)", async () => {
+    // Two spheres at the same world position would, without collision
+    // groups, repel violently — Rapier's contact solver pushes the
+    // colliders apart by their full radius every step. With the
+    // RAGDOLL_COLLISION_GROUPS filter the bodies share a group that
+    // doesn't collide with itself, so they stay put under no gravity.
+    // Pre-hotfix this test would see both bodies fly hundreds of
+    // metres apart after a few ticks.
+    registerRagdollTemplate("overlap", {
+      linearDamping: 0,
+      angularDamping: 0,
+      bodies: [
+        { name: "a", shape: "sphere", dimensions: [0.5, 0, 0], anchor: [0, 0, 0] },
+        { name: "b", shape: "sphere", dimensions: [0.5, 0, 0], anchor: [0, 0, 0] }
+      ]
+    });
+    // Custom setup so we can zero out gravity for this test — gravity
+    // would mask the contact-repulsion signal.
+    const localAdapter = await createRapierAdapter({ gravity: [0, 0, 0], fixedDt: FIXED_DT });
+    const world = new World();
+    const spawn = createRagdollSpawnSystem({ adapter: localAdapter });
+    const sync = createRagdollSyncSystem({ adapter: localAdapter });
+    const tick = (steps = 1): void => {
+      for (let i = 0; i < steps; i += 1) {
+        const ctx: SystemContext = {
+          world,
+          time: { elapsed: i * FIXED_DT, dt: FIXED_DT, fixedDt: FIXED_DT, frameCount: i, fixedStepCount: i }
+        } as SystemContext;
+        spawn.fixedUpdate?.(ctx);
+        localAdapter.step(FIXED_DT);
+        sync.fixedUpdate?.(ctx);
+      }
+    };
+    world.addEntity("root.overlap");
+    world.setComponent("root.overlap", "Transform", { position: [10, 5, 10] });
+    world.setComponent("root.overlap", "RagdollSpawnRequest", { templateKey: "overlap" });
+    tick(30); // half a second
+    const state = world.getComponent<{ bodyEntities: Record<string, string> }>("root.overlap", "RagdollState")!;
+    const aPos = world.getComponent<{ position: number[] }>(state.bodyEntities["a"]!, "Transform")!.position;
+    const bPos = world.getComponent<{ position: number[] }>(state.bodyEntities["b"]!, "Transform")!.position;
+    // Both bodies should still be essentially at the spawn anchor.
+    // Pre-hotfix the contact solver would have flung them metres apart
+    // (each sphere repels by its full radius every step).
+    for (const [axis, expectedAt] of [[0, 10], [1, 5], [2, 10]] as Array<[number, number]>) {
+      expect(Math.abs(aPos[axis]! - expectedAt)).toBeLessThan(0.01);
+      expect(Math.abs(bPos[axis]! - expectedAt)).toBeLessThan(0.01);
+    }
+    localAdapter.dispose();
+  });
+
   it("RagdollTeardownRequest cleans up bodies, joints, RagdollState", async () => {
     registerRagdollTemplate("pair2", {
       bodies: [

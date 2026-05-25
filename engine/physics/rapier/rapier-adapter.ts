@@ -59,6 +59,15 @@ export type ColliderAcquireSpec = {
   sensor?: boolean;
   friction?: number;
   restitution?: number;
+  /**
+   * Rapier InteractionGroups packed uint32: high 16 bits = membership mask,
+   * low 16 bits = filter mask. Default (undefined) keeps Rapier's all-vs-all
+   * behaviour (0xFFFFFFFF). Used by the ragdoll module to disable
+   * self-collision between bodies in the same skeleton — adjacent bodies
+   * like torso+upperArm overlap by their template anchors and would
+   * otherwise bash against each other on every solver pass.
+   */
+  collisionGroups?: number;
 };
 
 export type RapierAdapterInfo = {
@@ -377,6 +386,9 @@ export function createAdapterFromModule(
       if (spec.sensor === true) desc.setSensor(true);
       if (spec.friction !== undefined) desc.setFriction(spec.friction);
       if (spec.restitution !== undefined) desc.setRestitution(spec.restitution);
+      if (spec.collisionGroups !== undefined) {
+        desc.setCollisionGroups(spec.collisionGroups);
+      }
 
       // M24-sensors: enable active events so EventQueue collects
       // collision + intersection starts/stops.
