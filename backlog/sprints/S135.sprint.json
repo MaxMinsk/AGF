@@ -63,9 +63,12 @@
     {
       "id": "DOC-RAGDOLL-PLAYTEST-001",
       "title": "Update ragdoll-playtest.md: accessory gap closed + system list refreshed",
-      "status": "pending",
+      "status": "implemented",
       "summary": "docs/qa/ragdoll-playtest.md — replace the 'Accessories stay attached (known gap)' bullet with a positive 'Accessories follow head/torso bodies and sway with the ragdoll motion' check (referencing the new integration test as the regression guarantee). Update the 'Related systems' section: remove the soft-archive note pointing at death-animation-system.ts (now deleted) + spring-pivot-system 'only used by bench' caveat (now re-registered in kaboom too). Add a one-line pointer to accessory-sway.test.ts.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/qa/ragdoll-playtest.md — replaced the 'Accessories stay attached (known gap)' bullet with a positive check that points at the new tests (accessory-sway.test.ts + ragdoll-death-flow.test.ts hierarchy assertion) as the regression guard. 'Related systems' refreshed: drops the death-animation-system soft-archive note (file deleted in S135), drops the 'spring-pivot only used by bench' caveat (re-registered in kaboom by S135), adds the soft-attach-sway + spring-pivot bullet for the accessory chain."
+      ]
     },
     {
       "id": "HOUSEKEEPING-REJECT-QA-2026-05-24-001",
