@@ -116,6 +116,46 @@ describe("createKaboomDeathTriggerSystem (S132)", () => {
     expect(req.impulse[2]).toBeCloseTo(-0.5, 5);
   });
 
+  it("S139: bomber walking at death writes initialBodyVelocity from GridMover", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.walk", { gx: 4, gz: 7 });
+    // Bomber is mid-walk going +X at speed 4 (cells/sec → m/sec).
+    world.setComponent("bot.walk", "GridMover", { speed: 4, queuedDirection: { dx: 1, dz: 0 } });
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.walk", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{ initialBodyVelocity?: number[] }>("bot.walk", "RagdollSpawnRequest")!;
+    expect(req.initialBodyVelocity).toBeDefined();
+    expect(req.initialBodyVelocity![0]).toBeCloseTo(4, 5);
+    expect(req.initialBodyVelocity![1]).toBeCloseTo(0, 5);
+    expect(req.initialBodyVelocity![2]).toBeCloseTo(0, 5);
+  });
+
+  it("S139: stationary bomber (no GridMover direction) omits initialBodyVelocity", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.stand");
+    world.setComponent("bot.stand", "GridMover", { speed: 4, queuedDirection: { dx: 0, dz: 0 } });
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.stand", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{ initialBodyVelocity?: number[] }>("bot.stand", "RagdollSpawnRequest")!;
+    expect(req.initialBodyVelocity).toBeUndefined();
+  });
+
+  it("S139: bomber with no GridMover at all omits initialBodyVelocity", () => {
+    const world = new World();
+    addBomberWithMeshes(world, "bot.no-mover");
+    // No GridMover component on this bomber at all.
+    const sys = createKaboomDeathTriggerSystem();
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("bot.no-mover", "BomberStats", { alive: false });
+    sys.fixedUpdate!(ctx(world));
+    const req = world.getComponent<{ initialBodyVelocity?: number[] }>("bot.no-mover", "RagdollSpawnRequest")!;
+    expect(req.initialBodyVelocity).toBeUndefined();
+  });
+
   it("Transform.parent cleared on each mesh entity that exists", () => {
     const world = new World();
     addBomberWithMeshes(world, "bot.6");
