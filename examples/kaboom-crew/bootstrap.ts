@@ -442,6 +442,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // system so its nudges accumulate into SpringPivot.velocity, which
     // the spring system then decays back to rest.
     scheduler.register(createSoftAttachSwaySystem(), { profiles: ["static", "connected"] });
+    // S135 FIX-ACCESSORY-SWAY-IN-KABOOM — read SpringPivot.velocity
+    // and decay it into accessory Transform.rotation. Was de-registered
+    // in S132 alongside the orphaned death-animation-system; result:
+    // accessories silently froze (soft-attach-sway kept writing nudges
+    // but nothing consumed them). Re-registered for accessory sway on
+    // alive bombers AND, as a side effect, during ragdoll motion the
+    // soft-attach nudges from head/torso mesh motion produce visible
+    // sway on the 5 procedural accessories — the visually-correct
+    // outcome rather than the prior 'freeze in mid-air' fear.
+    scheduler.register(createSpringPivotSystem(), { profiles: ["static", "connected"] });
 
     // S120 KABOOM-MP-SPRINT-B chunk 4 — server walks blast cells +
     // emits blastEvent + blockDestroyed (S118). Local blast-propagation

@@ -33,9 +33,12 @@
     {
       "id": "FIX-ACCESSORY-SWAY-IN-KABOOM-001",
       "title": "Re-register spring-pivot-system in kaboom-crew to restore S106 accessory sway",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/bootstrap.ts — register createSpringPivotSystem() AFTER createSoftAttachSwaySystem() so the soft-attach sway nudges (SpringPivot.velocity writes from parent motion deltas) actually decay back into Transform.rotation on accessory entities. S132 deregistered it because the system was originally part of the procedural-spring death cascade — but in kaboom-crew the system also (legitimately) drives accessory sway against the soft-attach nudges. Without it, the 5 procedural accessories (antenna / visor / backpack / cap / fins) have been silently frozen since S132 even on live alive bombers. Side effect during ragdoll: the ragdoll-driven head/torso mesh motion produces sway nudges → accessories swing as they're whipped around with the body, which is the visually-correct outcome (not the prior 'freeze in mid-air' fear).",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/bootstrap.ts now registers createSpringPivotSystem() AFTER createSoftAttachSwaySystem() on both static + connected profiles, restoring the S106 sway chain (sway writes SpringPivot.velocity → spring decays into Transform.rotation on accessory entities). Side effect: ragdoll-driven head/torso mesh motion will produce visible accessory sway via the same chain. Typecheck passes; 460/460 kaboom + procbomber-bench unit tests green."
+      ]
     },
     {
       "id": "TEST-ACCESSORY-SWAY-IN-KABOOM-001",
