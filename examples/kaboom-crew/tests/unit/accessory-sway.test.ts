@@ -57,7 +57,7 @@ function moveParent(world: World, dx: number, dz: number): void {
   const ltw = world.getComponent<{ position: number[] }>("bomber.head", "LocalToWorld")!;
   world.setComponent("bomber.head", "LocalToWorld", {
     ...ltw,
-    position: [ltw.position[0] + dx, ltw.position[1], ltw.position[2] + dz]
+    position: [ltw.position[0]! + dx, ltw.position[1]!, ltw.position[2]! + dz]
   });
 }
 
@@ -72,8 +72,8 @@ describe("accessory sway chain (S106 + S135 FIX)", () => {
     sway.fixedUpdate!(makeContext(world, FIXED_DT, 1));
     const spring = world.getComponent<{ velocity: number[] }>("bomber.accessory0.antenna", "SpringPivot")!;
     // Positive X displacement produces a negative Z nudge per the helper.
-    expect(spring.velocity[2]).toBeLessThan(0);
-    expect(Math.abs(spring.velocity[2])).toBeGreaterThan(1);
+    expect(spring.velocity[2]!).toBeLessThan(0);
+    expect(Math.abs(spring.velocity[2]!)).toBeGreaterThan(1);
   });
 
   it("spring-pivot decays SpringPivot.velocity into accessory Transform.rotation", () => {
@@ -88,7 +88,7 @@ describe("accessory sway chain (S106 + S135 FIX)", () => {
     // A non-zero spring velocity for exactly one tick must move the
     // rotation off zero. Direction matches velocity sign — Z velocity
     // was negative, so Z rotation should also be negative after one tick.
-    expect(t.rotation[2]).toBeLessThan(0);
+    expect(t.rotation[2]!).toBeLessThan(0);
   });
 
   it("at parent rest, accessory rotation envelope decays over time", () => {
@@ -107,18 +107,18 @@ describe("accessory sway chain (S106 + S135 FIX)", () => {
     // velocity, the system would diverge — so the assertion is: max
     // amplitude is bounded AND the final value is below max.
     let peak = Math.abs(
-      world.getComponent<{ rotation: number[] }>("bomber.accessory0.antenna", "Transform")!.rotation[2]
+      world.getComponent<{ rotation: number[] }>("bomber.accessory0.antenna", "Transform")!.rotation[2]!
     );
     for (let i = 2; i < 600; i += 1) {
       sway.fixedUpdate!(makeContext(world, i * FIXED_DT, i));
       spring.fixedUpdate!(makeContext(world, i * FIXED_DT, i));
       const z = Math.abs(
-        world.getComponent<{ rotation: number[] }>("bomber.accessory0.antenna", "Transform")!.rotation[2]
+        world.getComponent<{ rotation: number[] }>("bomber.accessory0.antenna", "Transform")!.rotation[2]!
       );
       if (z > peak) peak = z;
     }
     const finalAbs = Math.abs(
-      world.getComponent<{ rotation: number[] }>("bomber.accessory0.antenna", "Transform")!.rotation[2]
+      world.getComponent<{ rotation: number[] }>("bomber.accessory0.antenna", "Transform")!.rotation[2]!
     );
     // Underdamped spring with damping=0.4 dissipates ~exp(-0.2*t).
     // 10s ≈ exp(-2) ≈ 14% of initial amplitude → final must be well
