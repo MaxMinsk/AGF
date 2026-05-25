@@ -79,6 +79,7 @@ import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-syst
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { difficultyComponentPatch, readBotPersonalityFromUrl, readDifficultyFromUrl } from "./src/difficulty";
+import { upsertEntityCommands } from "./src/bootstrap-helpers";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
 /**
@@ -583,29 +584,31 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       (globalThis as unknown as { location?: { search?: string } }).location?.search
     );
     const initialTuning = difficultyComponentPatch(initialPreset);
+    // S139 — HMR replay re-runs attachUi against a live runtime where
+    // these singletons already exist. Use the idempotent upsert helper
+    // so the second pass updates the existing entities via
+    // component.set instead of throwing on duplicate entity.create.
     const initialBatch: EngineCommand[] = [
       // S84 + S115 — single kaboom.game-state singleton carries
       // GamePaused (title-screen / pause overlay) AND MatchState
-      // (best-of-N session). Two entity.create calls for the same id
-      // throw "already exists", so they share one batch.
-      {
-        kind: "entity.create",
-        entityId: "kaboom.game-state",
-        components: {
-          GamePaused: { reason: "title-screen" },
-          MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 }
-        }
-      },
+      // (best-of-N session).
+      ...upsertEntityCommands(runtime.world, "kaboom.game-state", {
+        GamePaused: { reason: "title-screen" },
+        MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 }
+      }),
       // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
       // present from frame 0 — RoundResolveSystem's ensureRoundState would
       // otherwise create a singleton without it.
-      {
-        kind: "entity.create",
-        entityId: "kaboom.round-state",
-        components: {
-          RoundState: { phase: "playing", elapsed: 0, roundNumber: 1, tally: { player: 0, bot: 0, draws: 0 }, timeLimit: readRoundTimeLimit(), matchTarget: readMatchTargetFromUrl() ?? 3 }
+      ...upsertEntityCommands(runtime.world, "kaboom.round-state", {
+        RoundState: {
+          phase: "playing",
+          elapsed: 0,
+          roundNumber: 1,
+          tally: { player: 0, bot: 0, draws: 0 },
+          timeLimit: readRoundTimeLimit(),
+          matchTarget: readMatchTargetFromUrl() ?? 3
         }
-      }
+      })
     ];
     if (!_networkedMode) {
       // Static profile only — bot tuning patches.
