@@ -10,7 +10,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S136.sprint.js
 
 ### Stories
 
-- **PHYS-SOFT-BLOCK-COLLIDERS-001** — Add RigidBody3D + Collider3D to the soft-block prefab _(pending)_
+- **PHYS-SOFT-BLOCK-COLLIDERS-001** — Add RigidBody3D + Collider3D to the soft-block prefab _(implemented)_
   examples/kaboom-crew/prefabs/soft-block.prefab.json — add RigidBody3D{type:fixed} + Collider3D{kind:box,size:[1,1,1]}. Soft blocks are spawned at scene-build + destroyed mid-round via world.removeEntity in blast-propagation; physics-sync-system's phase-1 release loop already drops the Rapier body when the entity disappears, so no extra teardown wiring needed. Ragdolls now collide with intact soft blocks instead of clipping through them.
 - **TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001** — Unit test: soft-block removeEntity releases its Rapier body _(pending)_
   tests/unit/soft-block-physics-cleanup.test.ts (or extend an existing physics test) — spawn a fixed body via RigidBody3D+Collider3D on an entity, tick physics-sync, observe registry has 1 body. Call world.removeEntity, tick again, assert registry.size() === 0 and adapter.bodyCount() === 0. Catches a regression in the entity-removal release loop in physics-sync-system.

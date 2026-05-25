@@ -13,9 +13,12 @@
     {
       "id": "PHYS-SOFT-BLOCK-COLLIDERS-001",
       "title": "Add RigidBody3D + Collider3D to the soft-block prefab",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/prefabs/soft-block.prefab.json — add RigidBody3D{type:fixed} + Collider3D{kind:box,size:[1,1,1]}. Soft blocks are spawned at scene-build + destroyed mid-round via world.removeEntity in blast-propagation; physics-sync-system's phase-1 release loop already drops the Rapier body when the entity disappears, so no extra teardown wiring needed. Ragdolls now collide with intact soft blocks instead of clipping through them.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: examples/kaboom-crew/prefabs/soft-block.prefab.json gains RigidBody3D{type:fixed} + Collider3D{kind:box,size:[0.9,0.9,0.9]} (matching the Transform.scale). engine:check passes; 267/267 kaboom unit tests green. Soft blocks are now physical from spawn; physics-sync-system phase-1 release handles teardown when blast-propagation removes the entity, so no extra wiring."
+      ]
     },
     {
       "id": "TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001",
