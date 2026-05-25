@@ -28,7 +28,27 @@ can't see.
       frame T-pose, that's a regression).
 - [ ] **Lands on the floor.** Body rests on the ground after a few
       seconds — no penetration through the floor, no bouncing
-      forever.
+      forever. (S135 hotfix #158 added `RigidBody3D{type:fixed}` +
+      `Collider3D` to the floor entity in start.scene + wide.scene.
+      If a body sinks below y = 0, that's a regression — check the
+      floor entity still has both components.)
+- [ ] **Stays inside the arena.** Body does NOT fly across the
+      perimeter wall and disappear off-screen. (S135 hotfix #158 made
+      hard-blocks physical. S136 also made soft-blocks physical so
+      ragdolls bounce off intact blocks; destroyed soft-blocks
+      release their Rapier body automatically via the entity-removal
+      path in `physics-sync-system`.)
+- [ ] **Blast feels punchy but not nuclear.** Bomber travels 1-2
+      grid cells before coming to rest, not 10. (S135 hotfix #158
+      applies the impulse only to the first body in the template +
+      scales by 0.5× in `death-trigger-system`. If bodies launch out
+      of the arena even with the colliders, the impulse scale or the
+      first-body-only logic has regressed.)
+- [ ] **Body fades out after a few seconds.** The corpse should
+      disappear ~4 s after death (per `kaboom-bomber` template
+      `lifetimeSeconds: 4`). If a corpse persists across the entire
+      round, S136's `RagdollLifetime` countdown was lost or the
+      lifetime-system wasn't registered.
 - [ ] **No body part shoots off.** No limb flies away from the
       torso. Joint disconnections suggest the joint anchors don't
       match the body anchors.
@@ -80,6 +100,17 @@ sway restoration), the death visual is driven by:
   transforms onto each bound mesh per fixed tick.
 - `engine/physics/ragdoll/teardown-system.ts` — disposes bodies +
   clears bindings on round reset.
+- `engine/physics/ragdoll/lifetime-system.ts` (S136) — decrements
+  `RagdollLifetime.secondsRemaining` per fixed tick; when it hits
+  zero, issues `RagdollTeardownRequest` on the root so the same
+  teardown path runs mid-round. Activated by
+  `RagdollTemplate.lifetimeSeconds` (4 s for kaboom-bomber).
+- `examples/kaboom-crew/scenes/start.scene.json` + `wide.scene.json`
+  `floor` entity (S135 #158) + `examples/kaboom-crew/prefabs/
+  hard-block.prefab.json` (S135 #158) + `soft-block.prefab.json`
+  (S136) carry `RigidBody3D{type:fixed}` + `Collider3D{box}` so
+  the Rapier world has the arena static geometry the ragdoll
+  bodies bounce off of.
 - `examples/procbomber-bench/src/systems/soft-attach-sway-system.ts`
   + `spring-pivot-system.ts` — accessory sway during walk AND while
   the ragdoll whips the head/torso around. Both registered in

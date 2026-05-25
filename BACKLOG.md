@@ -20,9 +20,9 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S136.sprint.js
   engine/physics/ragdoll/lifetime-system.ts (new) — fixedUpdate query on [RagdollActive, RagdollLifetime]; decrement secondsRemaining by dt; on ≤0 write RagdollTeardownRequest on the same root. Register from src/app.ts alongside the spawn/sync/teardown systems. Kaboom-bomber template gains lifetimeSeconds: 4 (one round = 90s, so a 4-second corpse is generous but cleans up before round end). Without lifetime, mid-round multi-kills accumulate bodies until the round timer's bulk teardown.
 - **TEST-RAGDOLL-LIFETIME-001** — Unit test for the lifetime-system _(implemented)_
   tests/unit/ragdoll-lifetime.test.ts — set up a ragdoll root with RagdollActive + RagdollLifetime{secondsRemaining: 1.0}; tick lifetime-system at dt=1/60; after 60 ticks (1.0s) assert RagdollTeardownRequest is on the root and secondsRemaining ≤ 0. Also: bodies query empty after teardown-system runs.
-- **PLAYTEST-RAGDOLL-ARENA-001** — Playwright spec: ragdoll stays in arena after blast death _(pending)_
+- **PLAYTEST-RAGDOLL-ARENA-001** — Playwright spec: ragdoll stays in arena after blast death _(deferred)_
   tests/e2e/kaboom-ragdoll-arena.spec.ts — load /?project=kaboom-crew, wait for the round to spawn + bots to start moving, place a bomb (via the kbd-press or commands probe) next to a bot, wait ~2s for the blast + ragdoll, snapshot the world. Assert: at least one RagdollBody-bearing entity exists, every body's world position.y is between -0.2 and 4.0, and X/Z are inside the floor extents (15×11 around (7, _, 5) for start.scene). Regression guard for the PR #158 impulse + floor/wall fixes.
-- **DOC-RAGDOLL-ARENA-001** — Update ragdoll-playtest.md with arena + lifetime contract _(pending)_
+- **DOC-RAGDOLL-ARENA-001** — Update ragdoll-playtest.md with arena + lifetime contract _(implemented)_
   docs/qa/ragdoll-playtest.md — add bullets covering: (a) ragdoll bodies collide with floor + hard-block walls + intact soft-blocks (no more clipping through); (b) corpses fade out after ~4s (RagdollLifetime); (c) reference the new playwright spec as the regression guarantee. Move the 'related systems' list to mention engine/physics/ragdoll/lifetime-system.ts.
 
 ### Notes
