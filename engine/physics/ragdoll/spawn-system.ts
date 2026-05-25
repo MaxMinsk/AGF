@@ -142,6 +142,10 @@ function spawnRagdoll(
 ): void {
   const bodyEntities: Record<string, EntityId> = {};
   const bodyHandles: Record<string, BodyHandle> = {};
+  // S137 — record each body's spawn pose so the joint loop below can
+  // re-compute anchorB at non-rest poses; keeps joint constraints
+  // satisfied on frame 1 instead of firing a corrective impulse.
+  const bodySpawnPoses = new Map<string, { position: readonly [number, number, number]; rotationRad: readonly [number, number, number] }>();
   // S135-hotfix — impulse used to be applied verbatim to every body, so a
   // 10-body bomber template multiplied the requested momentum 10× and the
   // ragdoll launched like an atomic bomb (user playtest, 2026-05-25).
@@ -220,6 +224,10 @@ function spawnRagdoll(
     });
     bodyEntities[def.name] = bodyEntityId;
     bodyHandles[def.name] = handle;
+    bodySpawnPoses.set(def.name, {
+      position,
+      rotationRad: rotationRad ?? [0, 0, 0]
+    });
   }
 
   const jointEntities: EntityId[] = [];
@@ -227,7 +235,18 @@ function spawnRagdoll(
     const a = bodyHandles[jointDef.bodyA];
     const b = bodyHandles[jointDef.bodyB];
     if (a === undefined || b === undefined) continue;
-    const jointHandle = acquireJointFromDef(adapter, a, b, jointDef);
+    // S137 — pose-aware joint anchors. Compute corrected anchorB so the
+    // joint world position derived from bodyA's pose equals the one
+    // derived from bodyB's pose at frame 0. Without this the constraint
+    // solver fires a corrective impulse whenever bodyPoses places the
+    // bodies in a non-rest configuration (e.g. dead-mid-walk bomber),
+    // producing a visible spring on frame 1.
+    const correctedJoint = correctJointAnchors(
+      jointDef,
+      bodySpawnPoses.get(jointDef.bodyA),
+      bodySpawnPoses.get(jointDef.bodyB)
+    );
+    const jointHandle = acquireJointFromDef(adapter, a, b, correctedJoint);
     if (jointHandle === undefined) continue;
     const jointEntityId: EntityId = `${rootId}.joint.${jointDef.name}.${nextJointId()}`;
     world.addEntity(jointEntityId);
@@ -275,6 +294,104 @@ function spawnRagdoll(
       secondsRemaining: template.lifetimeSeconds
     });
   }
+}
+
+// --- S137 joint-anchor correction ----------------------------------
+//
+// At spawn time the joint anchor on body A (in A's local frame) maps
+// to a world position via bodyA.pose. The joint anchor on body B must
+// map to the SAME world position via bodyB.pose, otherwise Rapier's
+// constraint solver fires a corrective impulse on frame 1.
+//
+// For the rest-pose case (no bodyPoses, no body rotation) the math is
+// a no-op — the template anchorB already satisfies the constraint and
+// the corrected anchor equals the template anchor. The correction only
+// matters when bodyPoses places bodies in non-rest configurations
+// (e.g. mid-walk pose snapshotted at the death frame).
+
+type SpawnPose = {
+  position: readonly [number, number, number];
+  rotationRad: readonly [number, number, number];
+};
+
+type Quat = { x: number; y: number; z: number; w: number };
+
+function eulerXYZRadToQuat(rotation: readonly [number, number, number]): Quat {
+  const c1 = Math.cos(rotation[0] / 2);
+  const c2 = Math.cos(rotation[1] / 2);
+  const c3 = Math.cos(rotation[2] / 2);
+  const s1 = Math.sin(rotation[0] / 2);
+  const s2 = Math.sin(rotation[1] / 2);
+  const s3 = Math.sin(rotation[2] / 2);
+  return {
+    x: s1 * c2 * c3 + c1 * s2 * s3,
+    y: c1 * s2 * c3 - s1 * c2 * s3,
+    z: c1 * c2 * s3 + s1 * s2 * c3,
+    w: c1 * c2 * c3 - s1 * s2 * s3
+  };
+}
+
+function rotateVec3ByQuat(v: readonly [number, number, number], q: Quat): [number, number, number] {
+  // Standard formula: v' = q * v * q^-1, expanded for performance.
+  const ix = q.w * v[0] + q.y * v[2] - q.z * v[1];
+  const iy = q.w * v[1] + q.z * v[0] - q.x * v[2];
+  const iz = q.w * v[2] + q.x * v[1] - q.y * v[0];
+  const iw = -q.x * v[0] - q.y * v[1] - q.z * v[2];
+  return [
+    ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y,
+    iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z,
+    iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x
+  ];
+}
+
+function correctJointAnchors(
+  def: RagdollJointDef,
+  poseA: SpawnPose | undefined,
+  poseB: SpawnPose | undefined
+): RagdollJointDef {
+  if (poseA === undefined || poseB === undefined) return def;
+  const templateAnchorA = def.anchorA ?? [0, 0, 0];
+  const templateAnchorB = def.anchorB ?? [0, 0, 0];
+  const qA = eulerXYZRadToQuat(poseA.rotationRad);
+  const qB = eulerXYZRadToQuat(poseB.rotationRad);
+  // World position of anchor A: bodyA.position + qA * anchorA.
+  const aWorldOffset = rotateVec3ByQuat(templateAnchorA, qA);
+  const jointWorld: [number, number, number] = [
+    poseA.position[0]! + aWorldOffset[0]!,
+    poseA.position[1]! + aWorldOffset[1]!,
+    poseA.position[2]! + aWorldOffset[2]!
+  ];
+  // Inverse-rotate the offset from B to that world position into B's
+  // local space. Inverse of a unit quaternion is the conjugate.
+  const qBInv: Quat = { x: -qB.x, y: -qB.y, z: -qB.z, w: qB.w };
+  const offset: [number, number, number] = [
+    jointWorld[0] - poseB.position[0]!,
+    jointWorld[1] - poseB.position[1]!,
+    jointWorld[2] - poseB.position[2]!
+  ];
+  const correctedAnchorB = rotateVec3ByQuat(offset, qBInv);
+  // Sanity check: rest pose without rotation must be a no-op. Tolerate
+  // 1e-6 numerical drift; otherwise fall back to the template anchor to
+  // avoid surprising callers when the math degenerates.
+  const drift = Math.max(
+    Math.abs(correctedAnchorB[0] - templateAnchorB[0]!),
+    Math.abs(correctedAnchorB[1] - templateAnchorB[1]!),
+    Math.abs(correctedAnchorB[2] - templateAnchorB[2]!)
+  );
+  if (
+    poseA.rotationRad[0] === 0 &&
+    poseA.rotationRad[1] === 0 &&
+    poseA.rotationRad[2] === 0 &&
+    poseB.rotationRad[0] === 0 &&
+    poseB.rotationRad[1] === 0 &&
+    poseB.rotationRad[2] === 0 &&
+    drift < 1e-6
+  ) {
+    // Rest-pose path. Keep the template anchor verbatim so existing
+    // tests + downstream consumers see no change.
+    return def;
+  }
+  return { ...def, anchorB: correctedAnchorB };
 }
 
 function colliderSpecFor(def: RagdollBodyDef): {

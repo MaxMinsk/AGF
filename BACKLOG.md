@@ -10,7 +10,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S137.sprint.js
 
 ### Stories
 
-- **FEAT-RAGDOLL-JOINT-SPAWN-CORRECTION-001** — Compute joint anchorB at spawn time to satisfy constraints from frame 0 _(pending)_
+- **FEAT-RAGDOLL-JOINT-SPAWN-CORRECTION-001** — Compute joint anchorB at spawn time to satisfy constraints from frame 0 _(implemented)_
   engine/physics/ragdoll/spawn-system.ts — after the per-body loop and before the per-joint loop, for each joint def: (a) read bodyA's spawn pose (from bodyPoses, falling back to root+anchor); (b) compute jointWorld = bodyA.position + quat(bodyA.rotation) * template.anchorA; (c) read bodyB's spawn pose; (d) compute corrected anchorB = quat(bodyB.rotation)^-1 * (jointWorld - bodyB.position). Pass the corrected anchorB to adapter.acquireJoint instead of the template's. When bodyPoses isn't provided (rest-pose spawn), the corrected anchorB equals the template anchorB — backward-compatible.
 - **TEST-RAGDOLL-JOINT-SPAWN-CORRECTION-001** — Engine test: joint world anchors match at spawn under arbitrary bodyPoses _(pending)_
   tests/unit/ragdoll-joint-spawn-correction.test.ts — register a 3-body chain template (torso → head → hat, two joints), give bodyPoses with non-rest positions + rotations. After spawn (single tick, no gravity, no impulse, no damping), assert each body's Transform.position has moved by less than 0.005 m. Pre-fix the bodies would have shifted under the joint correction impulse; post-fix the constraint is satisfied at frame 0 so no impulse fires.
@@ -18,7 +18,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S137.sprint.js
   examples/kaboom-crew/src/systems/audio-binding-system.ts — on the same alive→false edge that already spawns the 'glow' puff, also spawn a 'spark' emitter at the same cell with lifetime 0.35s, rate 80, maxParticles 24. The visual reads as glow + debris simultaneously, matching the ragdoll launch frame. Existing glow stays as the lingering aura.
 - **TEST-KABOOM-DEATH-DUST-PUFF-001** — Unit test: alive→false edge spawns both the glow + spark emitters _(pending)_
   examples/kaboom-crew/tests/unit/audio-binding-system.test.ts — extend an existing death-flow test (or add a new one) that flips BomberStats.alive=false on a bomber with GridPosition, ticks the system, and asserts both `<id>.death-puff` (glow) AND the new `<id>.death-dust` (spark) entities exist with the expected ParticleEmitter preset + lifetime + position.
-- **DOC-RAGDOLL-PLAYTEST-001** — Refresh ragdoll-playtest.md with the spawn-pose smoothness guarantee + dust puff _(pending)_
+- **DOC-RAGDOLL-PLAYTEST-S137** — Refresh ragdoll-playtest.md with the spawn-pose smoothness guarantee + dust puff _(pending)_
   docs/qa/ragdoll-playtest.md — note that the S137 joint spawn correction means the bodies stay put on frame 1 even when bodyPoses is non-rest (no visible 'jolt' when a bomber dies mid-walk). Replace the 'death feels punchy' check's reference to dust with the new glow+spark pair. Update the related-systems list with the corrected joint-spawn behaviour.
 
 ### Notes

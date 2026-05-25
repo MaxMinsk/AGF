@@ -13,9 +13,12 @@
     {
       "id": "FEAT-RAGDOLL-JOINT-SPAWN-CORRECTION-001",
       "title": "Compute joint anchorB at spawn time to satisfy constraints from frame 0",
-      "status": "pending",
+      "status": "implemented",
       "summary": "engine/physics/ragdoll/spawn-system.ts — after the per-body loop and before the per-joint loop, for each joint def: (a) read bodyA's spawn pose (from bodyPoses, falling back to root+anchor); (b) compute jointWorld = bodyA.position + quat(bodyA.rotation) * template.anchorA; (c) read bodyB's spawn pose; (d) compute corrected anchorB = quat(bodyB.rotation)^-1 * (jointWorld - bodyB.position). Pass the corrected anchorB to adapter.acquireJoint instead of the template's. When bodyPoses isn't provided (rest-pose spawn), the corrected anchorB equals the template anchorB — backward-compatible.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/spawn-system.ts records each body's spawn pose (position + rotation in radians) in a Map keyed by body name. In the joint loop, correctJointAnchors(def, poseA, poseB) computes the joint world position from A's pose + template anchorA, then inverse-rotates the (jointWorld - bodyB.position) offset into B's local frame to produce the corrected anchorB. Rest-pose path (no rotation, no bodyPoses) is preserved via the drift check — returns the original def, so existing tests + downstream stay unchanged. Tests: 20/20 existing ragdoll tests green; typecheck passes."
+      ]
     },
     {
       "id": "TEST-RAGDOLL-JOINT-SPAWN-CORRECTION-001",
