@@ -22,6 +22,17 @@ http://localhost:5173/?project=kaboom-crew
 Optional query params:
 - `?difficulty=easy` (default `normal`; also `hard`) — picks the bot
   preset applied to `bot.1` on first boot + every round restart.
+- `?botPersonality=hunter|coward|miner` — locks the bot to a specific
+  AI behaviour + visual variant. **Omit the param to get a RANDOM
+  personality per page load**, stable across round restarts in the
+  same match (S139). Each personality has a distinct palette +
+  accessory so you can read which one you're facing at a glance:
+
+  | Personality | Palette  | Accessory  | AI behaviour                        |
+  |---          |---       |---         |---                                  |
+  | hunter      | `ember`  | `antennae` | Aggressive — chases the player.     |
+  | coward      | `slate`  | `visor`    | Defensive — bias toward flee.       |
+  | miner       | `sand`   | `cap`      | Works the soft-blocks for power-ups.|
 
 ## Controls
 

@@ -22,7 +22,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S139.sprint.js
   Apply per-personality accessory override on the bot recipe: hunter → 'antennae' (head.top socket), coward → 'visor' (head.front), miner → 'cap' (head.top). Replaces whatever the seed-derived recipe picked for bot.1 so the marker is reliable regardless of seed. makeKaboomRecipe builds a single-accessory list when personality is set.
 - **TEST-PERSONALITY-ACCESSORY-MARKER-001** — Recipe builder writes the personality-mapped accessory _(implemented)_
   examples/kaboom-crew/tests/unit/recipe-personality.test.ts — assert makeKaboomRecipe('bot.1', personality).accessories[0].kind matches 'antennae' / 'visor' / 'cap' for the three personalities. Single-element list — no other accessories on the bot when personality drives the marker.
-- **DOC-PERSONALITY-VISUALS-001** — README + URL-params doc updated with the visual contract _(pending)_
+- **DOC-PERSONALITY-VISUALS-001** — README + URL-params doc updated with the visual contract _(implemented)_
   examples/kaboom-crew/README.md — table mapping personality → palette + accessory. Note that solo defaults to random per page load (set `?botPersonality=hunter|coward|miner` to lock).
 
 ### Notes

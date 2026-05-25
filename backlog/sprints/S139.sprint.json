@@ -73,9 +73,12 @@
     {
       "id": "DOC-PERSONALITY-VISUALS-001",
       "title": "README + URL-params doc updated with the visual contract",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/README.md — table mapping personality → palette + accessory. Note that solo defaults to random per page load (set `?botPersonality=hunter|coward|miner` to lock).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/README.md gains a table mapping each personality to palette + accessory + AI behaviour, plus the 'omit param for random per page load' note. Reads at a glance for the player + future contributors."
+      ]
     }
   ]
 }
