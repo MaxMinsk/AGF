@@ -65,6 +65,34 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     expect(onEvent).toHaveBeenCalledWith("death", expect.objectContaining({ entityId: "p" }));
   });
 
+  it("S137 KABOOM-DEATH-DUST-PUFF: death edge spawns both a glow puff + spark dust burst", () => {
+    const world = new World();
+    world.addEntity("p");
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+    world.setComponent("p", "GridPosition", { gx: 4, gz: 7 });
+    const onEvent = vi.fn();
+    const system = createKaboomAudioBindingSystem({ onEvent });
+    system.fixedUpdate!(ctx(world));
+    world.setComponent("p", "BomberStats", { maxBombs: 1, range: 2, alive: false });
+    system.fixedUpdate!(ctx(world));
+    // Glow puff — the lingering aura from S86.
+    expect(world.hasEntity("p.death-puff")).toBe(true);
+    const puffEmitter = world.getComponent<{ preset?: string; lifetime?: number }>("p.death-puff", "ParticleEmitter");
+    expect(puffEmitter?.preset).toBe("glow");
+    expect(puffEmitter?.lifetime).toBeCloseTo(0.5, 5);
+    // Dust spark — the new S137 burst.
+    expect(world.hasEntity("p.death-dust")).toBe(true);
+    const dustEmitter = world.getComponent<{ preset?: string; lifetime?: number; maxParticles?: number }>("p.death-dust", "ParticleEmitter");
+    expect(dustEmitter?.preset).toBe("spark");
+    expect(dustEmitter?.lifetime).toBeCloseTo(0.35, 5);
+    expect(dustEmitter?.maxParticles).toBe(24);
+    // Both emitters live at the dead bomber's cell.
+    const puffT = world.getComponent<{ position?: number[] }>("p.death-puff", "Transform");
+    const dustT = world.getComponent<{ position?: number[] }>("p.death-dust", "Transform");
+    expect(puffT?.position).toEqual([4, 0.5, 7]);
+    expect(dustT?.position).toEqual([4, 0.5, 7]);
+  });
+
   it("doesn't re-emit on subsequent frames with the same world state", () => {
     const world = new World();
     world.addEntity("bomb.1");

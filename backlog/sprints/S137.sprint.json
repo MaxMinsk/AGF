@@ -1,0 +1,66 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S137",
+  "title": "Ragdoll polish v3 — joint spawn correction + death dust puff",
+  "status": "archived",
+  "startedAt": "2026-05-25",
+  "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/161",
+  "notes": [
+    "Continuation of the ragdoll arc (S125-S136 + hotfixes #158 / #160). Two distinct themes share this sprint because both are tightly scoped and ride the same playtest feedback loop:",
+    "(1) Engine-side fundamental jitter fix. The damping bump in #160 (linearDamping 0.4→1.2, angularDamping 0.6→2.0) covered the symptom but the root cause is joint anchorB mismatch at spawn — the S133 bodyPoses path positions bodies at the snapshotted mesh LTW (so the visible pose continues), but the joint anchors are still calibrated for the REST pose. When the bomber dies mid-stride the joint world positions on each side don't match → the constraint solver fires a corrective impulse on the first tick → visible spring. The fix is to compute anchorB at spawn time so jointWorld_A == jointWorld_B at the death frame, then the constraint is satisfied at frame 0 and damping handles any subsequent motion.",
+    "(2) Visible polish — the existing S86 'glow' death puff is one subtle emitter (10 particles over 0.5s). Add a paired 'spark' burst for a more impactful debris cue so the death frame reads as 'BOOM' instead of 'fizz'."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-RAGDOLL-JOINT-SPAWN-CORRECTION-001",
+      "title": "Compute joint anchorB at spawn time to satisfy constraints from frame 0",
+      "status": "implemented",
+      "summary": "engine/physics/ragdoll/spawn-system.ts — after the per-body loop and before the per-joint loop, for each joint def: (a) read bodyA's spawn pose (from bodyPoses, falling back to root+anchor); (b) compute jointWorld = bodyA.position + quat(bodyA.rotation) * template.anchorA; (c) read bodyB's spawn pose; (d) compute corrected anchorB = quat(bodyB.rotation)^-1 * (jointWorld - bodyB.position). Pass the corrected anchorB to adapter.acquireJoint instead of the template's. When bodyPoses isn't provided (rest-pose spawn), the corrected anchorB equals the template anchorB — backward-compatible.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: engine/physics/ragdoll/spawn-system.ts records each body's spawn pose (position + rotation in radians) in a Map keyed by body name. In the joint loop, correctJointAnchors(def, poseA, poseB) computes the joint world position from A's pose + template anchorA, then inverse-rotates the (jointWorld - bodyB.position) offset into B's local frame to produce the corrected anchorB. Rest-pose path (no rotation, no bodyPoses) is preserved via the drift check — returns the original def, so existing tests + downstream stay unchanged. Tests: 20/20 existing ragdoll tests green; typecheck passes."
+      ]
+    },
+    {
+      "id": "TEST-RAGDOLL-JOINT-SPAWN-CORRECTION-001",
+      "title": "Engine test: joint world anchors match at spawn under arbitrary bodyPoses",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-joint-spawn-correction.test.ts — register a 3-body chain template (torso → head → hat, two joints), give bodyPoses with non-rest positions + rotations. After spawn (single tick, no gravity, no impulse, no damping), assert each body's Transform.position has moved by less than 0.005 m. Pre-fix the bodies would have shifted under the joint correction impulse; post-fix the constraint is satisfied at frame 0 so no impulse fires.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-joint-spawn-correction.test.ts adds 3 tests covering (1) rest-pose no-op backward-compat (no bodyPoses → bodies stay at template anchor positions); (2) non-rest bodyPoses with rotation — joint anchor B is corrected at spawn, both bodies stay within 0.01m of their spawn pose after 1 tick; (3) multi-step (10 ticks, zero gravity, zero damping) — anchor correction holds, bodies stay within 0.02m of spawn. All 3 pass."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-DEATH-DUST-PUFF-001",
+      "title": "Add a spark burst alongside the S86 glow puff for a punchier death cue",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/audio-binding-system.ts — on the same alive→false edge that already spawns the 'glow' puff, also spawn a 'spark' emitter at the same cell with lifetime 0.35s, rate 80, maxParticles 24. The visual reads as glow + debris simultaneously, matching the ragdoll launch frame. Existing glow stays as the lingering aura.",
+      "epic": "KABOOM-CREW-MVP-1",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/systems/audio-binding-system.ts now spawns BOTH a glow puff (existing S86, preset:glow, lifetime 0.5s, rate 30, maxParticles 10) AND a spark dust burst (new, preset:spark, lifetime 0.35s, rate 80, maxParticles 24) on the alive→false edge. Two entities — <id>.death-puff and <id>.death-dust — at the same cell so the visual layers. The particle-emitter-system auto-cleans both when their lifetime elapses. Typecheck passes; 267/267 kaboom tests green."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-DEATH-DUST-PUFF-001",
+      "title": "Unit test: alive→false edge spawns both the glow + spark emitters",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/audio-binding-system.test.ts — extend an existing death-flow test (or add a new one) that flips BomberStats.alive=false on a bomber with GridPosition, ticks the system, and asserts both `<id>.death-puff` (glow) AND the new `<id>.death-dust` (spark) entities exist with the expected ParticleEmitter preset + lifetime + position.",
+      "epic": "KABOOM-CREW-MVP-1",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/audio-binding-system.test.ts adds 'S137 KABOOM-DEATH-DUST-PUFF' regression test. The alive→false edge spawns BOTH <id>.death-puff (preset:glow, lifetime 0.5) AND <id>.death-dust (preset:spark, lifetime 0.35, maxParticles 24). Both emitters at the dead bomber's grid cell. 25/25 audio-binding tests pass."
+      ]
+    },
+    {
+      "id": "DOC-RAGDOLL-PLAYTEST-S137",
+      "title": "Refresh ragdoll-playtest.md with the spawn-pose smoothness guarantee + dust puff",
+      "status": "implemented",
+      "summary": "docs/qa/ragdoll-playtest.md — note that the S137 joint spawn correction means the bodies stay put on frame 1 even when bodyPoses is non-rest (no visible 'jolt' when a bomber dies mid-walk). Replace the 'death feels punchy' check's reference to dust with the new glow+spark pair. Update the related-systems list with the corrected joint-spawn behaviour.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/qa/ragdoll-playtest.md adds two new playtest bullets — 'No spring jolt on the first frame post-death' (references S137 correctJointAnchors) and 'Death frame has a punchy dust burst' (references the new glow+spark pair). The 'Related systems' section mentions the joint-anchor correction + the S136 collision-groups self-collision disable in the spawn-system entry."
+      ]
+    }
+  ]
+}
