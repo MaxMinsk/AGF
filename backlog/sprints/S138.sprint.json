@@ -2,8 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S138",
   "title": "Kaboom bomb + pickup colliders — ragdoll interacts with placed objects",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-25",
+  "archivedAt": "2026-05-25",
   "notes": [
     "Continuation of the S136 arena-physics arc: floor + hard-blocks + soft-blocks now have static Rapier colliders so ragdoll bodies bounce off them. Bombs + pickups are still visual-only entities, so dead bombers' bodies clip straight through any bomb or powerup sitting on the floor. This sprint closes that gap.",
     "Both bomb and pickup follow the soft-block pattern: write RigidBody3D{type:fixed} + Collider3D on spawn; entity removal at fuse-expiry / collect lets physics-sync-system's phase-1 release the Rapier body automatically (no extra teardown wiring needed — see TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001 from S136).",
