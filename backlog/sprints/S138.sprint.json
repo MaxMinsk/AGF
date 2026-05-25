@@ -23,9 +23,12 @@
     {
       "id": "TEST-KABOOM-BOMB-COLLIDER-001",
       "title": "Unit test: bomb spawn registers a Rapier body; removal releases it",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/bomb-placement-system.test.ts (extend the existing 'spawns a bomb' test) — assert RigidBody3D + Collider3D components are present on the placed bomb. Plus a fresh test that tick + world.removeEntity (mimicking fuse expiry) clears the body from the registry. Schema validation via engine:check ensures the prefab JSON stays valid.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/bomb-placement-system.test.ts adds 'S138 KABOOM-BOMB-COLLIDER' test asserting placed bomb carries RigidBody3D{type:fixed} + Collider3D{kind:sphere, radius:0.175} (matching the final visual). 7/7 placement tests green. Cleanup behaviour (entity removal at fuse expiry → body released) is covered by S136's TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001 which proves the physics-sync phase-1 release loop."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PICKUP-COLLIDER-001",

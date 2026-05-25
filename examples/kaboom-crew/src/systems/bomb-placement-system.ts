@@ -18,6 +18,8 @@ const TRANSFORM: ComponentName = "Transform";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const TWEENS: ComponentName = "Tweens";
+const RIGID_BODY_3D: ComponentName = "RigidBody3D";
+const COLLIDER_3D: ComponentName = "Collider3D";
 
 // S095 KABOOM-SPAWN-POP-TWEEN — bombs grow from a single point to full
 // size with a small overshoot on spawn. Drives the engine Tween system
@@ -124,6 +126,14 @@ export function createKaboomBombPlacementSystem(
       world.setComponent(bombId, MESH_RENDERER, { mesh: "sphere", color: "#1a1a1a" });
       world.setComponent(bombId, GRID_POSITION, { gx: pos.gx, gz: pos.gz });
       world.setComponent(bombId, GRID_OCCUPANT, { layer: "bomb", blocksMovement: false, blocksBlast: false });
+      // S138 KABOOM-BOMB-COLLIDER — static Rapier body so ragdoll
+      // limbs bounce off live bombs instead of clipping through. The
+      // 0.175 radius matches the bomb's final visual (sphere geometry
+      // r=0.5 × BOMB_FINAL_SCALE 0.35). The radius stays at 0.175 even
+      // during the spawn-pop tween — nothing collides with a bomb in
+      // its first 0.2 s on the floor so the size mismatch is invisible.
+      world.setComponent(bombId, RIGID_BODY_3D, { type: "fixed" });
+      world.setComponent(bombId, COLLIDER_3D, { kind: "sphere", radius: 0.175 });
       // S100 KABOOM-REMOTE-DETONATE-PUP — if the bomber has charges,
       // consume one + spawn the bomb paused (fuseRemaining=Infinity).
       // Player triggers all paused bombs via RemoteDetonateRequest;
