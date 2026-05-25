@@ -78,7 +78,7 @@ import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
-import { difficultyComponentPatch, readBotPersonalityFromUrl, readDifficultyFromUrl } from "./src/difficulty";
+import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
@@ -260,7 +260,7 @@ function restartScene(runtime: RuntimeHandle): number {
   const preset = readDifficultyFromUrl(
     (globalThis as unknown as { location?: { search?: string } }).location?.search
   );
-  const personality = readBotPersonalityFromUrl(
+  const personality = resolveSessionBotPersonality(
     (globalThis as unknown as { location?: { search?: string } }).location?.search
   );
   const tuning = difficultyComponentPatch(preset);
@@ -580,7 +580,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     const initialPreset = readDifficultyFromUrl(
       (globalThis as unknown as { location?: { search?: string } }).location?.search
     );
-    const initialPersonality = readBotPersonalityFromUrl(
+    const initialPersonality = resolveSessionBotPersonality(
       (globalThis as unknown as { location?: { search?: string } }).location?.search
     );
     const initialTuning = difficultyComponentPatch(initialPreset);
@@ -717,7 +717,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       // S100 KABOOM-BOT-PERSONALITY-VARIANTS — re-read personality on
       // each difficulty cycle so URL changes between cycles are picked
       // up; cycling difficulty doesn't otherwise touch personality.
-      const personality = readBotPersonalityFromUrl(
+      const personality = resolveSessionBotPersonality(
         (globalThis as unknown as { location?: { search?: string } }).location?.search
       );
       if (!_networkedMode) {

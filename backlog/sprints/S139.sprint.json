@@ -13,16 +13,22 @@
     {
       "id": "FEAT-PERSONALITY-RANDOM-IN-SOLO-001",
       "title": "Solo default: pick a random bot personality per page load",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/difficulty.ts — extend readBotPersonalityFromUrl with a `pickRandomBotPersonality(rng?: () => number)` helper that returns one of hunter/coward/miner with equal probability. Read flow: if the URL carries `?botPersonality=hunter|coward|miner` use that (explicit override); otherwise pick random once. The bootstrap caches the choice in a module-level singleton so all the reads (initial spawn + round restart) get the SAME personality across a single page load — the player isn't surprised by a mid-match swap.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/difficulty.ts gains pickRandomBotPersonality(rng) helper + resolveSessionBotPersonality(search, rng) which honours URL override OR returns a random pick memoised once per page load. _resetSessionBotPersonality() test escape hatch added. bootstrap.ts uses resolveSessionBotPersonality at all three call sites (initial spawn, round restart, difficulty change) so solo defaults to random per page load with stable choice across rounds."
+      ]
     },
     {
       "id": "TEST-PERSONALITY-RANDOM-IN-SOLO-001",
       "title": "Unit test the random personality picker + URL override precedence",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/difficulty.test.ts — add tests covering: (1) pickRandomBotPersonality with a deterministic stub rng returns each kind for the expected mod-3 input; (2) URL override beats the random default (any of hunter/coward/miner takes precedence); (3) absent URL param triggers the random path; (4) the bootstrap-facing 'session personality' helper memoises one pick per page load.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/difficulty.test.ts adds 5 tests — BOT_PERSONALITIES canonical list, pickRandomBotPersonality maps mod-3 rng deterministically (hunter/coward/miner), URL override beats random, empty/unknown URL triggers random path, memoisation across calls (rng invoked exactly once even with 3 calls). 10/10 difficulty tests pass."
+      ]
     },
     {
       "id": "FEAT-PERSONALITY-PALETTE-OVERRIDE-001",
