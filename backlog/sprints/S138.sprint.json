@@ -13,9 +13,12 @@
     {
       "id": "FEAT-KABOOM-BOMB-COLLIDER-001",
       "title": "Bomb prefab gains a static Rapier collider so ragdolls bounce off",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/prefabs/bomb.prefab.json — add RigidBody3D{type:fixed} + Collider3D{kind:sphere,radius:0.175} (matches the 0.35-scale sphere visual). Bomb spawn tweens scale 0 → final but the collider stays at 0.175 from creation — the few-frame size mismatch is irrelevant because nothing collides with a bomb in its spawn-pop window. Cleanup: bomb-fuse-system's world.removeEntity at fuse=0 releases the body via physics-sync phase-1.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: examples/kaboom-crew/prefabs/bomb.prefab.json gains RigidBody3D{type:fixed} + Collider3D{kind:sphere,radius:0.175}. The 0.175 radius matches the bomb's final visual (sphere geometry radius 0.5 × Transform.scale 0.35). engine:check passes; 268/268 kaboom unit tests green. Ragdoll bodies bounce off placed bombs; entity removal at fuse expiry releases the body via the existing physics-sync phase-1 path."
+      ]
     },
     {
       "id": "TEST-KABOOM-BOMB-COLLIDER-001",
