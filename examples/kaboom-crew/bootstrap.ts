@@ -33,30 +33,19 @@ import bombPrefab from "./prefabs/bomb.prefab.json";
 // old static sphere meshes. Generator lives in procbomber-bench;
 // integration glue is project-local.
 import {
-  recipeForOwner,
   registerProcbomberBuilders,
   spawnBomberFor
 } from "./src/procbomber-integration";
-import type { ResolvedCharacterRecipe } from "../procbomber-bench/src/character-recipe";
 import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/bench-animation-system";
 import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-pivot-system";
 import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-movement-system";
 
-/**
- * S104 KABOOM-MIGRATE-PREFABS — fixed recipe-derivation rule for
- * Kaboom Crew bombers. player.1 keeps the historical sky-blue palette;
- * bot.1 the rose-red. Every other field comes from the seed-driven
- * defaults so player + bot bodies look distinct even with the same
- * recipe template.
- */
-function makeKaboomRecipe(ownerId: string): ResolvedCharacterRecipe {
-  const base = recipeForOwner(ownerId);
-  if (ownerId === "player.1") return { ...base, paletteName: "sky" };
-  if (ownerId === "bot.1") return { ...base, paletteName: "rose" };
-  return base;
-}
+// S104 KABOOM-MIGRATE-PREFABS + S139 KABOOM-BOT-PERSONALITY-VISUALS.
+// The pure recipe derivation lives in ./src/kaboom-recipe so it can
+// be unit-tested without bootstrapping a runtime.
+import { makeKaboomRecipe } from "./src/kaboom-recipe";
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
 import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bomb-network-relay-system";
@@ -308,7 +297,10 @@ function restartScene(runtime: RuntimeHandle): number {
   // it and remote-bomber-decorator spawns the procbomber tree locally.
   // Spawning here would collide with the server's claim.
   if (!_networkedMode) {
-    const botRecipe = makeKaboomRecipe("bot.1");
+    // S139 — bot recipe uses the session-stable personality so the
+    // visual marker (palette + accessory) stays consistent across
+    // round restarts in the same match.
+    const botRecipe = makeKaboomRecipe("bot.1", personality);
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
   }
   return 1;
@@ -630,12 +622,20 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // restartScene re-spawns the trees because scene.load wipes the
     // world.
     const playerRecipe = makeKaboomRecipe("player.1");
-    registerProcbomberBuilders(runtime.renderer, (ownerId) => makeKaboomRecipe(ownerId));
+    // S139 — the renderer's per-part builder callback also resolves
+    // recipes; capture the session personality in the closure so
+    // future renderer rebuilds (e.g. ProceduralMeshRegistry refresh)
+    // produce the same palette + accessory mix.
+    const recipePersonality = _networkedMode ? undefined : initialPersonality;
+    registerProcbomberBuilders(
+      runtime.renderer,
+      (ownerId) => makeKaboomRecipe(ownerId, ownerId === "bot.1" ? recipePersonality : undefined)
+    );
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     // S120 — on connected, server owns bot.1; snapshot delivers it +
     // remote-bomber-decorator spawns the procbomber tree locally.
     if (!_networkedMode) {
-      const botRecipe = makeKaboomRecipe("bot.1");
+      const botRecipe = makeKaboomRecipe("bot.1", initialPersonality);
       spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
     }
     // S117 KABOOM-BOMBER-MATERIAL-PATCH — procbomber meshes paint
