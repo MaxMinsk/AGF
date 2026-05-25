@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-25",
   "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/161",
   "notes": [
     "Continuation of the ragdoll arc (S125-S136 + hotfixes #158 / #160). Two distinct themes share this sprint because both are tightly scoped and ride the same playtest feedback loop:",
     "(1) Engine-side fundamental jitter fix. The damping bump in #160 (linearDamping 0.4→1.2, angularDamping 0.6→2.0) covered the symptom but the root cause is joint anchorB mismatch at spawn — the S133 bodyPoses path positions bodies at the snapshotted mesh LTW (so the visible pose continues), but the joint anchors are still calibrated for the REST pose. When the bomber dies mid-stride the joint world positions on each side don't match → the constraint solver fires a corrective impulse on the first tick → visible spring. The fix is to compute anchorB at spawn time so jointWorld_A == jointWorld_B at the death frame, then the constraint is satisfied at frame 0 and damping handles any subsequent motion.",
