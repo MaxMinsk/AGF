@@ -20,6 +20,16 @@ http://localhost:5173/?project=kaboom-crew
 ```
 
 Optional query params:
+- `?map=start|wide|corridor` — locks the arena layout. **Omit the
+  param to get a RANDOM map per page load** (S140), stable across
+  round restarts in the same match. Available arenas:
+
+  | Map      | Grid  | Shape                                       |
+  |---       |---    |---                                          |
+  | start    | 15×11 | Default square arena with 4 corner pillars. |
+  | wide     | 17×13 | Wider square — more room to manoeuvre.      |
+  | corridor | 17×7  | Long narrow corridor with maze pillars.     |
+
 - `?difficulty=easy` (default `normal`; also `hard`) — picks the bot
   preset applied to `bot.1` on first boot + every round restart.
 - `?botPersonality=hunter|coward|miner` — locks the bot to a specific

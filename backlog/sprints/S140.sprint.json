@@ -1,0 +1,76 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S140",
+  "title": "Arena variety — corridor map + random pick per page load",
+  "status": "archived",
+  "startedAt": "2026-05-25",
+  "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/166",
+  "notes": [
+    "S139 made bot personality random-per-page-load by default; this sprint applies the same pattern to map selection so a fresh tab feels different every time. Two existing maps (`start`, `wide`) ship today; this sprint adds a third (`corridor`) and switches the URL-less default from constant `start` to a uniform random pick over all three.",
+    "Corridor map: 17×7 long-narrow arena with vertical hard-block columns + scattered soft blocks. Plays differently from start (15×11 square) and wide (17×13 wider square) — corridor's narrow shape rewards bombing patience and the personality variants behave more distinctly (hunter has fewer chase lines, miner has more soft-block access).",
+    "URL override `?map=start|wide|corridor` still locks the choice. Solo mode randomises by default; `runtime.kaboom.maps()` + `loadMap()` accessors keep working for agent playtests."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-CORRIDOR-SCENE-001",
+      "title": "New corridor arena scene (long-narrow, 17×7) with full physics",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/scenes/corridor.scene.json — 17×7 grid, ortho camera framing the wider aspect, sun + ambient lights re-used, physical floor (RigidBody3D{fixed}+Collider3D matching S136 pattern), 8-10 hard-block columns in a maze-like vertical pattern, 8-12 soft blocks scattered, player.1 spawn at (1,1), bot.1 spawn at (15,5).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/scenes/corridor.scene.json (new) — 17×7 grid arena. Ortho camera at (8, 11, 7) framing wider aspect; sun+ambient lights mirror start; physical floor (RigidBody3D{fixed}+Collider3D[17,0.1,7]); player.1 spawns at (1,1), bot.1 at (15,5). 6 hard-block columns (4,1)(4,5)(7,3)(9,3)(12,1)(12,5) form maze pillars; 10 soft blocks scatter the middle for bomb/destroy gameplay. engine:check passes."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-MAP-REGISTRY-001",
+      "title": "Register corridor in MAP_REGISTRY",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — import the new corridor scene JSON, extend MAP_REGISTRY + MapName union with 'corridor'. readMapName already honours any entry via MAP_REGISTRY.has(value); no extra wiring needed for URL override.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/bootstrap.ts imports corridor.scene.json + extends MAP_REGISTRY map with the 'corridor' key + MapName union. URL override path readMapName('?map=corridor') now resolves to the new scene."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-RANDOM-MAP-DEFAULT-001",
+      "title": "Solo default: random map per page load, stable across rounds",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — extend readMapName so the no-URL-param path returns a RANDOM map (uniform over all entries) instead of the constant 'start'. Use the same session-memoisation pattern as S139 personality: pick once at module load, cache in a module-level singleton, all subsequent calls (initial spawn + round restart + scene rebuild) hit the cache so the choice is stable across rounds in a single match. URL override beats random. Test escape hatch _resetSessionMap() resets the cache.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/map-pick.ts (new) exposes resolveSessionMap(search, registry, rng) + _resetSessionMap() test escape hatch. Bootstrap.ts's readMapName now delegates to resolveSessionMap, so URL-less path picks one of the registry keys uniformly at random AND memoises the choice once per page load. URL override still beats the random pick when the value is registered."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-RANDOM-MAP-001",
+      "title": "Unit test the random-map picker + URL precedence",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/map-pick.test.ts — extract the picker logic into a pure helper resolveSessionMap(search, registry, rng) and test: (1) URL override beats random; (2) empty/unknown URL triggers random over MAP_REGISTRY keys; (3) memoisation across calls (rng invoked once per session); (4) random uses uniform distribution (a stub rng covers every bucket).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/map-pick.test.ts adds 7 tests — URL override beats random for each of the 3 known maps, empty/undefined/unknown URL hits random path, uniform distribution across 3 keys (boundary checks at 0.0, 0.34, 0.67, 0.9999), memoisation across calls (rng called once), URL pick doesn't pollute the random cache, defensive empty-registry handling."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-CORRIDOR-SCENE-001",
+      "title": "engine:check passes + scene-extensions schema accepts corridor.scene.json",
+      "status": "implemented",
+      "summary": "Add corridor to the engine:check kaboom-crew run (already covers all *.scene.json under scenes/). Plus an explicit smoke test in tests/unit (or examples/kaboom-crew/tests/unit) that loads the JSON, expects entities + instances of the expected shape (player.1, bot.1, floor with RigidBody3D, hard-block count ≥ 4, soft-block count ≥ 6).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/corridor-scene.test.ts asserts: scene.id='corridor', grid 17×7, floor RigidBody3D+Collider3D[17,0.1,7], player.1 spawn left of x=5 + bot.1 right of x=12, ≥4 hard-blocks + ≥6 soft-blocks, ortho camera active. engine:check passes on the kaboom-crew project."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-MAP-VARIETY-001",
+      "title": "README: corridor map + random-per-page-load default",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — table of available maps with the URL slug, dimensions, and one-line gameplay description. Note that solo defaults to RANDOM-per-page-load; `?map=` locks. Aligns with the S139 personality random-default story.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/README.md gains a Maps table (start 15×11, wide 17×13, corridor 17×7) + note that no ?map= param triggers a random pick per page load. Aligns with the S139 personality random-default story."
+      ]
+    }
+  ]
+}

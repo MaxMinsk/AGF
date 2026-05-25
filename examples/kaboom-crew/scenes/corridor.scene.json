@@ -1,0 +1,231 @@
+{
+  "id": "corridor",
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Camera": {
+          "kind": "orthographic",
+          "active": true,
+          "orthographicSize": 9,
+          "near": 0.1,
+          "far": 100
+        },
+        "Transform": {
+          "position": [8, 11, 7],
+          "rotation": [-58, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Light": {
+          "kind": "directional",
+          "color": "#ffffff",
+          "intensity": 1.5
+        },
+        "Transform": {
+          "position": [0, 8, 4],
+          "rotation": [-45, 30, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Light": {
+          "kind": "ambient",
+          "color": "#ffffff",
+          "intensity": 0.3
+        },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "grid.config",
+      "components": {
+        "Grid": {
+          "cellSize": 1,
+          "sizeX": 17,
+          "sizeZ": 7,
+          "originX": 0,
+          "originZ": 0
+        },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "position": [8, -0.05, 3],
+          "rotation": [0, 0, 0],
+          "scale": [17, 0.1, 7]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#1d2536"
+        },
+        "RigidBody3D": { "type": "fixed" },
+        "Collider3D": { "kind": "box", "size": [17, 0.1, 7] }
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "player.1",
+      "prefab": "player",
+      "overrides": {
+        "Transform": { "position": [1, 0.4, 1] },
+        "GridPosition": { "gx": 1, "gz": 1 }
+      }
+    },
+    {
+      "id": "bot.1",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": { "position": [15, 0.4, 5] },
+        "GridPosition": { "gx": 15, "gz": 5 }
+      }
+    },
+    {
+      "id": "wall.top",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": { "position": [4, 0.5, 1] },
+        "GridPosition": { "gx": 4, "gz": 1 }
+      }
+    },
+    {
+      "id": "wall.bot",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": { "position": [4, 0.5, 5] },
+        "GridPosition": { "gx": 4, "gz": 5 }
+      }
+    },
+    {
+      "id": "wall.mid1",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": { "position": [7, 0.5, 3] },
+        "GridPosition": { "gx": 7, "gz": 3 }
+      }
+    },
+    {
+      "id": "wall.mid2",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": { "position": [9, 0.5, 3] },
+        "GridPosition": { "gx": 9, "gz": 3 }
+      }
+    },
+    {
+      "id": "wall.top.r",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": { "position": [12, 0.5, 1] },
+        "GridPosition": { "gx": 12, "gz": 1 }
+      }
+    },
+    {
+      "id": "wall.bot.r",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": { "position": [12, 0.5, 5] },
+        "GridPosition": { "gx": 12, "gz": 5 }
+      }
+    },
+    {
+      "id": "soft.1",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [3, 0.45, 3] },
+        "GridPosition": { "gx": 3, "gz": 3 }
+      }
+    },
+    {
+      "id": "soft.2",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [5, 0.45, 3] },
+        "GridPosition": { "gx": 5, "gz": 3 }
+      }
+    },
+    {
+      "id": "soft.3",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [6, 0.45, 2] },
+        "GridPosition": { "gx": 6, "gz": 2 }
+      }
+    },
+    {
+      "id": "soft.4",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [6, 0.45, 4] },
+        "GridPosition": { "gx": 6, "gz": 4 }
+      }
+    },
+    {
+      "id": "soft.5",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [8, 0.45, 1] },
+        "GridPosition": { "gx": 8, "gz": 1 }
+      }
+    },
+    {
+      "id": "soft.6",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [8, 0.45, 5] },
+        "GridPosition": { "gx": 8, "gz": 5 }
+      }
+    },
+    {
+      "id": "soft.7",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [10, 0.45, 2] },
+        "GridPosition": { "gx": 10, "gz": 2 }
+      }
+    },
+    {
+      "id": "soft.8",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [10, 0.45, 4] },
+        "GridPosition": { "gx": 10, "gz": 4 }
+      }
+    },
+    {
+      "id": "soft.9",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [11, 0.45, 3] },
+        "GridPosition": { "gx": 11, "gz": 3 }
+      }
+    },
+    {
+      "id": "soft.10",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": { "position": [13, 0.45, 3] },
+        "GridPosition": { "gx": 13, "gz": 3 }
+      }
+    }
+  ]
+}
