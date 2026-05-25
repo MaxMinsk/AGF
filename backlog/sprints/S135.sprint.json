@@ -55,9 +55,12 @@
     {
       "id": "HOUSEKEEPING-REJECT-QA-2026-05-24-001",
       "title": "Archive QA-2026-05-24-001 as rejected (already fixed in main)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Move backlog/qa-tickets/QA-2026-05-24-001.qa-ticket.json into backlog/qa-tickets/archive/rejected/ + update backlog/qa-tickets/archive/rejected/README.md with the explanation (both flagged unit tests on post-S119 HEAD 8cc8a0e are green on current main — the fix landed via test updates that added `{ spawnBot: false }` defaults in S120-S125, before the ticket was filed on 2026-05-24).",
-      "epic": "AGF-BACKLOG-ENGINE"
+      "epic": "AGF-BACKLOG-ENGINE",
+      "verification": [
+        "acceptance: QA-2026-05-24-001 moved into backlog/qa-tickets/archive/rejected/ + README updated with the explanation (both flagged tests are green on main; the fix shipped via {spawnBot:false} test-default updates in S120-S125 before the ticket was filed). The QA inbox is empty."
+      ]
     }
   ]
 }
