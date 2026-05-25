@@ -53,9 +53,12 @@
     {
       "id": "TEST-RAGDOLL-ACCESSORY-HIERARCHY-001",
       "title": "Integration test: accessory parented to head mesh follows the ragdoll body",
-      "status": "pending",
+      "status": "implemented",
       "summary": "tests/unit/ragdoll-death-flow.test.ts — extend the existing S134 integration test with one accessory entity (antenna). Spawn the antenna with Transform{parent: head mesh, position: [0, 0.4, 0]}. Run the death-trigger + spawn + sync chain. Insert a transform-resolve-system tick at the end of each loop iteration so accessory LocalToWorld is recomputed. Assert: after 30 ticks under gravity, accessory.LocalToWorld.position ≈ head body world position + [0, 0.4, 0] composed by head's body rotation. Confirms accessories follow via the renderer's hierarchy alone — no new ragdoll binding mode needed. Resolves the S134 'known gap' from docs/qa/ragdoll-playtest.md by proof.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-death-flow.test.ts extended with a second test that adds one antenna accessory parented to bot.2.head with offset [0, 0.4, 0]. After the full death + spawn + 30 ticks of physics + transform-resolve, the assertion chain proves: (1) head mesh tracks head body 1:1, (2) head mesh is detached (parent undefined), (3) accessory keeps its head-mesh parent, (4) accessory LocalToWorld stays at distance 0.4 from the head body world position regardless of head's body rotation. Closes the 'known gap' line in docs/qa/ragdoll-playtest.md by proof."
+      ]
     },
     {
       "id": "DOC-RAGDOLL-PLAYTEST-001",
