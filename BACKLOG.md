@@ -10,7 +10,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S135.sprint.js
 
 ### Stories
 
-- **CLEANUP-KABOOM-DEATH-ANIMATION-001** — Delete kaboom-crew death-animation-system + its test (S132 soft archive) _(pending)_
+- **CLEANUP-KABOOM-DEATH-ANIMATION-001** — Delete kaboom-crew death-animation-system + its test (S132 soft archive) _(implemented)_
   examples/kaboom-crew/src/systems/death-animation-system.ts (387 lines) and examples/kaboom-crew/tests/unit/death-animation-system.test.ts (165 lines, already `describe.skip`-style) are S132-orphaned: the engine ragdoll module owns the death visual since S132. Drop both files. Remove the `void createKaboomDeathAnimationSystem` line + its import from examples/kaboom-crew/bootstrap.ts. Drop the orphan DeathAnim component schema entry from examples/kaboom-crew/schemas/scene-extensions.schema.json (if present). Sweep stale comments referencing death-animation-system in hit-recoil-system.ts, audio-binding-system.ts, remote-bomber-interpolator-system.ts, tests/unit/player-input-system.test.ts to point at death-trigger-system.ts instead.
 - **CLEANUP-KABOOM-SPRING-PIVOT-IMPORT-001** — Remove the dead `void createSpringPivotSystem` line from kaboom-crew bootstrap _(pending)_
   examples/kaboom-crew/bootstrap.ts has a `void createSpringPivotSystem;` line from S132 (the import is still pulled in only to satisfy the void). The next story re-registers spring-pivot for real; this cleanup story drops the dead reference + the placeholder block comment so the file is clean before the re-registration commit lands. The spring-pivot-system source file stays — procbomber-bench still uses it.

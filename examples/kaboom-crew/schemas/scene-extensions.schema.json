@@ -26,13 +26,12 @@
     "deathImpulseComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "S105 KABOOM-DEATH-IMPULSE-COMPONENT. Records the blast that killed this bomber so the ragdoll system can apply a direction-aware launch impulse. Written by blast-propagation-system when it flips BomberStats.alive=false; consumed by death-animation-system. magnitude clamps to 1.8 when chain blasts pile on in the same frame.",
+      "description": "S105 KABOOM-DEATH-IMPULSE-COMPONENT. Records the blast that killed this bomber so the engine ragdoll module can apply a direction-aware launch impulse. Written by blast-propagation-system when it flips BomberStats.alive=false; consumed by death-trigger-system (S132) which composes it into the RagdollSpawnRequest. magnitude clamps to 1.8 when chain blasts pile on in the same frame.",
       "required": ["blastOriginGx", "blastOriginGz"],
       "properties": {
         "blastOriginGx": { "type": "number" },
         "blastOriginGz": { "type": "number" },
-        "magnitude": { "type": "number", "minimum": 0 },
-        "deathStartedAt": { "type": "number", "description": "context.time.elapsed at the alive→dead frame. Filled by death-animation-system on first visit." }
+        "magnitude": { "type": "number", "minimum": 0 }
       }
     },
     "hitRecoilComponent": {

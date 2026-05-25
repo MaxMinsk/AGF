@@ -75,7 +75,6 @@ import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
-import { createKaboomDeathAnimationSystem } from "./src/systems/death-animation-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
@@ -433,14 +432,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // ragdoll spawns on the same frame as the death audio.
     scheduler.register(createKaboomDeathTriggerSystem(), { profiles: ["static", "connected"] });
 
-    // S132 ORPHANED — createKaboomDeathAnimationSystem (S90/S105) +
-    // createSpringPivotSystem (S105) are intentionally NOT registered.
-    // The engine ragdoll module owns the death visual now; the files
-    // stay in place for one sprint as a soft archive and are scheduled
-    // for deletion in S133 after playtest. (createSpringPivotSystem
-    // also drives the procbomber-bench's slider tweens — only kaboom
-    // de-registers it; the bench still uses it.)
-    void createKaboomDeathAnimationSystem;
+    // S132 ORPHANED — createSpringPivotSystem (S105) is intentionally
+    // NOT registered. The engine ragdoll module owns the death visual
+    // now; spring-pivot still drives the procbomber-bench's slider
+    // tweens so the source file stays — only kaboom de-registers it.
     void createSpringPivotSystem;
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads

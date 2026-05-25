@@ -12,7 +12,8 @@
 // touch entities the decorator system has already spawned a bomber
 // tree under. Local-player entities (Presence.playerId === local) are
 // skipped because the local bomber's Transform is owned by
-// grid-movement-system + death-animation-system. Eventually the
+// grid-movement-system + (on death) the engine ragdoll module.
+// Eventually the
 // interpolator logic should move to engine/core/systems/ so beacon +
 // kaboom share one file — out of scope for this story.
 

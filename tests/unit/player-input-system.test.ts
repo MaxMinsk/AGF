@@ -68,9 +68,11 @@ describe("PlayerInputSystem", () => {
   });
 
   it("skips entities tagged with MotionOverride (another system owns the position)", () => {
-    // S108 — death-animation-system stamps MotionOverride on dead
-    // bombers; without this skip the legacy engine input system kept
-    // pushing the corpse around even after grid-movement-system bailed.
+    // S108 — MotionOverride is stamped on dead bombers (originally by
+    // death-animation-system; since S132 the engine ragdoll module owns
+    // the dead bomber's Transform). Without this skip the legacy engine
+    // input system kept pushing the corpse around even after
+    // grid-movement-system bailed.
     const world = makeWorld(4);
     world.setComponent("player", "MotionOverride", {});
     step(0.5, world, new Set(["KeyD"]));

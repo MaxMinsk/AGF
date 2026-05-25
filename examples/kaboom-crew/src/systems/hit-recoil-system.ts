@@ -11,10 +11,10 @@
 //   Phase 2 (return, 0.18 s): peak → 0.
 //
 // The system targets the TORSO, never the ROOT. The ragdoll
-// (death-animation-system) targets the ROOT. They never fight because
-// they touch different entities — and they're mutually exclusive
-// triggers anyway: hit-recoil fires when alive STAYS true; ragdoll
-// fires when alive flips false.
+// (death-trigger-system → engine ragdoll module) targets the ROOT.
+// They never fight because they touch different entities — and
+// they're mutually exclusive triggers anyway: hit-recoil fires when
+// alive STAYS true; ragdoll fires when alive flips false.
 
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";

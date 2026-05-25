@@ -232,8 +232,7 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
         // S132 — the death visual is now owned by the engine ragdoll
         // module, triggered by createKaboomDeathTriggerSystem on the
         // same alive→false edge. This system keeps the audio + voice
-        // + particle puff + GridMover stop; the DeathAnim write that
-        // used to gate the S105 spring path is gone.
+        // + particle puff + GridMover stop.
         const mover = world.getComponent<{ queuedDirection?: { dx: number; dz: number } }>(id, "GridMover");
         if (mover !== undefined && (mover.queuedDirection?.dx !== 0 || mover.queuedDirection?.dz !== 0)) {
           world.setComponent(id, "GridMover", { ...mover, queuedDirection: { dx: 0, dz: 0 } });
