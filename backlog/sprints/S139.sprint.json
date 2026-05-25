@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-25",
   "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/165",
   "notes": [
     "S100 introduced three bot personalities (hunter / coward / miner) but visually every bot still uses the same 'rose' palette + no accessory marker — the player can't tell them apart at a glance. This sprint wires personality to the procedural recipe so each variant has its own look.",
     "User request also asks: when running solo with no ?botPersonality= URL param, pick a RANDOM personality per page load (stable across round restarts of the same match). Pre-fix the default was always 'hunter', so every solo session played the same.",
