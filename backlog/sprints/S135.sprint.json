@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-25",
   "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/157",
   "notes": [
     "Polish sprint that closes loose ends around the S125-S134 engine-ragdoll migration. Three concrete things landed broken or left undone: (1) examples/kaboom-crew/src/systems/death-animation-system.ts is dead code, kept as a soft archive in S132 with a 'delete in S133' note that S133 + S134 skipped; (2) bootstrap.ts still imports + voids createSpringPivotSystem alongside it; (3) re-registering spring-pivot in kaboom-crew also restores S106 accessory sway, which has been silently broken since spring-pivot was deregistered in S132 (soft-attach-sway-system still writes SpringPivot.velocity each frame in kaboom-crew, but no system reads + decays it to Transform.rotation).",
     "S134 playtest doc (docs/qa/ragdoll-playtest.md) flagged 'accessories may freeze in mid-air' as a known gap because they are NOT in the 10-body ragdoll template. Investigation: accessory.Transform.parent points at the head/torso MESH entity; after the ragdoll spawns, the engine sync writes world-space Transform on the head/torso mesh (parent cleared), so the renderer's transform-resolve-system naturally composes accessory LocalToWorld = mesh.LTW * accessory.local. Accessories should follow via the hierarchy alone — no new binding needed. This sprint adds an integration test to lock that behavior in.",
