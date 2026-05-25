@@ -1,0 +1,49 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S138",
+  "title": "Kaboom bomb + pickup colliders — ragdoll interacts with placed objects",
+  "status": "active",
+  "startedAt": "2026-05-25",
+  "notes": [
+    "Continuation of the S136 arena-physics arc: floor + hard-blocks + soft-blocks now have static Rapier colliders so ragdoll bodies bounce off them. Bombs + pickups are still visual-only entities, so dead bombers' bodies clip straight through any bomb or powerup sitting on the floor. This sprint closes that gap.",
+    "Both bomb and pickup follow the soft-block pattern: write RigidBody3D{type:fixed} + Collider3D on spawn; entity removal at fuse-expiry / collect lets physics-sync-system's phase-1 release the Rapier body automatically (no extra teardown wiring needed — see TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001 from S136).",
+    "Safety: alive bombers use grid-mover-system (no Rapier body) so the new static colliders don't break the existing kick/bump gameplay. The only thing that touches them is the dead bomber's ragdoll bodies."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-BOMB-COLLIDER-001",
+      "title": "Bomb prefab gains a static Rapier collider so ragdolls bounce off",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/prefabs/bomb.prefab.json — add RigidBody3D{type:fixed} + Collider3D{kind:sphere,radius:0.175} (matches the 0.35-scale sphere visual). Bomb spawn tweens scale 0 → final but the collider stays at 0.175 from creation — the few-frame size mismatch is irrelevant because nothing collides with a bomb in its spawn-pop window. Cleanup: bomb-fuse-system's world.removeEntity at fuse=0 releases the body via physics-sync phase-1.",
+      "epic": "M24"
+    },
+    {
+      "id": "TEST-KABOOM-BOMB-COLLIDER-001",
+      "title": "Unit test: bomb spawn registers a Rapier body; removal releases it",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/tests/unit/bomb-placement-system.test.ts (extend the existing 'spawns a bomb' test) — assert RigidBody3D + Collider3D components are present on the placed bomb. Plus a fresh test that tick + world.removeEntity (mimicking fuse expiry) clears the body from the registry. Schema validation via engine:check ensures the prefab JSON stays valid.",
+      "epic": "M24"
+    },
+    {
+      "id": "FEAT-KABOOM-PICKUP-COLLIDER-001",
+      "title": "pickup-spawn-system writes static colliders on every spawned pickup",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/systems/pickup-spawn-system.ts — alongside the existing Transform / MeshRenderer / GridPosition / GridOccupant / Pickup / ParticleEmitter writes, also setComponent RigidBody3D{type:fixed} + Collider3D{kind:box,size:[visual.scale[0], visual.scale[1], visual.scale[2]]}. Box covers all pickup mesh kinds (sphere/box/cylinder) with a slight rounding error that's invisible at this scale. removeEntity in pickup-collect-system releases the body via physics-sync phase-1.",
+      "epic": "M24"
+    },
+    {
+      "id": "TEST-KABOOM-PICKUP-COLLIDER-001",
+      "title": "Unit test: spawned pickups carry RigidBody3D + Collider3D; collect releases",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/tests/unit/pickup-spawn-system.test.ts (or extend the existing 'spawns a pickup' test) — assert the new RigidBody3D + Collider3D components land on the pickup entity with size matching the visual. examples/kaboom-crew/tests/unit/pickup-collect-system.test.ts — assert the collected pickup's entity removal would release a body (component-level check; the actual Rapier release is covered by S136's physics-sync test).",
+      "epic": "M24"
+    },
+    {
+      "id": "DOC-KABOOM-PHYSICS-OBJECTS-001",
+      "title": "Update ragdoll-playtest.md with the bomb + pickup collider contract",
+      "status": "pending",
+      "summary": "docs/qa/ragdoll-playtest.md — extend the 'Stays inside the arena' bullet with 'and bounces off live bombs + pickups too'. Mention that the bomb's collider is a sphere matching its rendered radius, and pickups use a box matching their visual scale. Update 'Related systems' with the bomb.prefab.json + pickup-spawn-system entries.",
+      "epic": "M24"
+    }
+  ]
+}
