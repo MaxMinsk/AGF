@@ -140,5 +140,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S132](backlog/sprints/S132.sprint.json)** — Kaboom Crew — death-trigger migration to engine ragdoll — 7 implemented · archived 2026-05-24
 - **[S133](backlog/sprints/S133.sprint.json)** — Engine ragdoll — pose-snapshot at spawn — 6 implemented · archived 2026-05-24
 - **[S134](backlog/sprints/S134.sprint.json)** — Ragdoll death-flow regression coverage — 4 implemented · archived 2026-05-24
+- **[S135](backlog/sprints/S135.sprint.json)** — Ragdoll cleanup + accessory sway restoration — 7 implemented · archived 2026-05-25
 
 <!-- backlog:render:end -->

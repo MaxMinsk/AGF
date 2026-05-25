@@ -22,6 +22,7 @@ import {
   clearRagdollTemplates,
   registerRagdollTemplate
 } from "../../engine/physics/ragdoll/template-registry";
+import { createTransformResolveSystem } from "../../engine/render/systems/transform-resolve-system";
 
 const FIXED_DT = 1 / 60;
 
@@ -64,6 +65,11 @@ async function setup(): Promise<{
   const spawn = createRagdollSpawnSystem({ adapter });
   const sync = createRagdollSyncSystem({ adapter });
   const teardown = createRagdollTeardownSystem({ adapter });
+  // S135 — also tick the renderer's transform-resolve so accessory
+  // LocalToWorld is recomputed from the hierarchy each step. Real
+  // app runs this in frameUpdate but we run it inside the same tick
+  // for simplicity (no consumer reads partial state mid-tick here).
+  const transformResolve = createTransformResolveSystem();
   let stepCount = 0;
   const tick = (steps = 1): void => {
     for (let i = 0; i < steps; i += 1) {
@@ -84,6 +90,7 @@ async function setup(): Promise<{
       adapter.step(FIXED_DT);
       sync.fixedUpdate?.(ctx);
       teardown.fixedUpdate?.(ctx);
+      transformResolve.frameUpdate?.(ctx);
       stepCount += 1;
     }
   };
@@ -193,6 +200,75 @@ describe("ragdoll death-flow end-to-end (S134)", () => {
       }
       void bodyName;
     }
+
+    adapter.dispose();
+  });
+
+  it("accessory parented to head mesh follows the ragdoll body via hierarchy (S135)", async () => {
+    registerRagdollTemplate(KABOOM_BOMBER_RAGDOLL_KEY, KABOOM_BOMBER_RAGDOLL);
+    const { world, adapter, tick } = await setup();
+    addBomberWithProceduralTree(world, "bot.2");
+    // Antenna accessory: parented to the head mesh entity, offset
+    // +0.4 m along Y. After death the head mesh is detached from
+    // its pivot and its Transform is driven by ragdoll sync; the
+    // renderer's hierarchy resolve should keep the antenna's
+    // LocalToWorld at head_world + [0, 0.4, 0] (composed by head's
+    // body rotation).
+    const ACCESSORY_OFFSET: [number, number, number] = [0, 0.4, 0];
+    world.addEntity("bot.2.accessory0.antenna");
+    world.setComponent("bot.2.accessory0.antenna", "Transform", {
+      parent: "bot.2.head",
+      position: ACCESSORY_OFFSET,
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+    world.setComponent("bot.2", "DeathImpulse", { blastOriginGx: 3, blastOriginGz: 5, magnitude: 2 });
+
+    // Two ticks to seed prevAlive and write the spawn request.
+    tick();
+    world.setComponent("bot.2", "BomberStats", { alive: false });
+    tick();
+    expect(world.hasComponent("bot.2", "RagdollActive")).toBe(true);
+    const state = world.getComponent<{ bodyEntities: Record<string, string> }>("bot.2", "RagdollState")!;
+    const headBodyId = state.bodyEntities["head"]!;
+    expect(headBodyId).toBeDefined();
+
+    // Let the ragdoll integrate so the head body moves off its spawn
+    // pose under gravity + impulse.
+    tick(30);
+
+    const headBodyT = world.getComponent<{ position: number[] }>(headBodyId, "Transform")!;
+    const headMeshT = world.getComponent<{ position: number[]; parent?: string }>("bot.2.head", "Transform")!;
+    const accessoryLtw = world.getComponent<{ position: number[] }>(
+      "bot.2.accessory0.antenna",
+      "LocalToWorld"
+    );
+    // Head mesh tracks the head body 1:1 (sync writes its position
+    // directly).
+    expect(headMeshT.position[0]!).toBeCloseTo(headBodyT.position[0]!, 4);
+    expect(headMeshT.position[1]!).toBeCloseTo(headBodyT.position[1]!, 4);
+    expect(headMeshT.position[2]!).toBeCloseTo(headBodyT.position[2]!, 4);
+    expect(headMeshT.parent).toBeUndefined(); // detached by death-trigger
+    // Accessory still parented to the head mesh — the death-trigger
+    // only detaches the 10 body meshes, not the accessory.
+    const accessoryT = world.getComponent<{ parent?: string }>(
+      "bot.2.accessory0.antenna",
+      "Transform"
+    )!;
+    expect(accessoryT.parent).toBe("bot.2.head");
+    // The hierarchy resolve composes accessory.LTW = head.LTW *
+    // accessory.local. Head.LTW position equals headMeshT.position
+    // since head has no parent now (detached). The accessory's local
+    // position is [0, 0.4, 0] with identity rotation; head's body
+    // rotation is whatever Rapier integrated. To avoid pinning down
+    // the exact rotation we assert the L2 distance from the head's
+    // world position is ~0.4 (rotation preserves the offset length).
+    expect(accessoryLtw).not.toBeUndefined();
+    const dx = accessoryLtw!.position[0]! - headBodyT.position[0]!;
+    const dy = accessoryLtw!.position[1]! - headBodyT.position[1]!;
+    const dz = accessoryLtw!.position[2]! - headBodyT.position[2]!;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    expect(dist).toBeCloseTo(0.4, 3);
 
     adapter.dispose();
   });

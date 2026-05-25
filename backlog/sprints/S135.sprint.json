@@ -1,0 +1,86 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S135",
+  "title": "Ragdoll cleanup + accessory sway restoration",
+  "status": "archived",
+  "startedAt": "2026-05-25",
+  "archivedAt": "2026-05-25",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/157",
+  "notes": [
+    "Polish sprint that closes loose ends around the S125-S134 engine-ragdoll migration. Three concrete things landed broken or left undone: (1) examples/kaboom-crew/src/systems/death-animation-system.ts is dead code, kept as a soft archive in S132 with a 'delete in S133' note that S133 + S134 skipped; (2) bootstrap.ts still imports + voids createSpringPivotSystem alongside it; (3) re-registering spring-pivot in kaboom-crew also restores S106 accessory sway, which has been silently broken since spring-pivot was deregistered in S132 (soft-attach-sway-system still writes SpringPivot.velocity each frame in kaboom-crew, but no system reads + decays it to Transform.rotation).",
+    "S134 playtest doc (docs/qa/ragdoll-playtest.md) flagged 'accessories may freeze in mid-air' as a known gap because they are NOT in the 10-body ragdoll template. Investigation: accessory.Transform.parent points at the head/torso MESH entity; after the ragdoll spawns, the engine sync writes world-space Transform on the head/torso mesh (parent cleared), so the renderer's transform-resolve-system naturally composes accessory LocalToWorld = mesh.LTW * accessory.local. Accessories should follow via the hierarchy alone — no new binding needed. This sprint adds an integration test to lock that behavior in.",
+    "Also archives the open QA ticket QA-2026-05-24-001 (filed 2026-05-24 against post-S119 HEAD 8cc8a0e) as `rejected` — both flagged unit tests are green on current main; the fix landed via test updates (spawnBot: false defaults) in S120-S125, before the ticket was filed."
+  ],
+  "stories": [
+    {
+      "id": "CLEANUP-KABOOM-DEATH-ANIMATION-001",
+      "title": "Delete kaboom-crew death-animation-system + its test (S132 soft archive)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/death-animation-system.ts (387 lines) and examples/kaboom-crew/tests/unit/death-animation-system.test.ts (165 lines, already `describe.skip`-style) are S132-orphaned: the engine ragdoll module owns the death visual since S132. Drop both files. Remove the `void createKaboomDeathAnimationSystem` line + its import from examples/kaboom-crew/bootstrap.ts. Drop the orphan DeathAnim component schema entry from examples/kaboom-crew/schemas/scene-extensions.schema.json (if present). Sweep stale comments referencing death-animation-system in hit-recoil-system.ts, audio-binding-system.ts, remote-bomber-interpolator-system.ts, tests/unit/player-input-system.test.ts to point at death-trigger-system.ts instead.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: deleted examples/kaboom-crew/src/systems/death-animation-system.ts (387 lines) + examples/kaboom-crew/tests/unit/death-animation-system.test.ts (165 lines). Dropped the createKaboomDeathAnimationSystem import + void from examples/kaboom-crew/bootstrap.ts. Removed the orphan deathStartedAt field from examples/kaboom-crew/schemas/scene-extensions.schema.json + examples/kaboom-crew/src/systems/blast-propagation-system.ts type alias (no remaining writers/readers). Swept stale 'death-animation-system' / 'DeathAnim' comments in hit-recoil-system.ts, audio-binding-system.ts, remote-bomber-interpolator-system.ts, tests/unit/player-input-system.test.ts. Typecheck passes; 264/264 kaboom unit tests green."
+      ]
+    },
+    {
+      "id": "CLEANUP-KABOOM-SPRING-PIVOT-IMPORT-001",
+      "title": "Remove the dead `void createSpringPivotSystem` line from kaboom-crew bootstrap",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts has a `void createSpringPivotSystem;` line from S132 (the import is still pulled in only to satisfy the void). The next story re-registers spring-pivot for real; this cleanup story drops the dead reference + the placeholder block comment so the file is clean before the re-registration commit lands. The spring-pivot-system source file stays — procbomber-bench still uses it.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: dropped the 'S132 ORPHANED' block + 'void createSpringPivotSystem;' line from examples/kaboom-crew/bootstrap.ts. The createSpringPivotSystem import stays (FIX-ACCESSORY-SWAY-IN-KABOOM-001 wires it back for real). Typecheck passes."
+      ]
+    },
+    {
+      "id": "FIX-ACCESSORY-SWAY-IN-KABOOM-001",
+      "title": "Re-register spring-pivot-system in kaboom-crew to restore S106 accessory sway",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — register createSpringPivotSystem() AFTER createSoftAttachSwaySystem() so the soft-attach sway nudges (SpringPivot.velocity writes from parent motion deltas) actually decay back into Transform.rotation on accessory entities. S132 deregistered it because the system was originally part of the procedural-spring death cascade — but in kaboom-crew the system also (legitimately) drives accessory sway against the soft-attach nudges. Without it, the 5 procedural accessories (antenna / visor / backpack / cap / fins) have been silently frozen since S132 even on live alive bombers. Side effect during ragdoll: the ragdoll-driven head/torso mesh motion produces sway nudges → accessories swing as they're whipped around with the body, which is the visually-correct outcome (not the prior 'freeze in mid-air' fear).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/bootstrap.ts now registers createSpringPivotSystem() AFTER createSoftAttachSwaySystem() on both static + connected profiles, restoring the S106 sway chain (sway writes SpringPivot.velocity → spring decays into Transform.rotation on accessory entities). Side effect: ragdoll-driven head/torso mesh motion will produce visible accessory sway via the same chain. Typecheck passes; 460/460 kaboom + procbomber-bench unit tests green."
+      ]
+    },
+    {
+      "id": "TEST-ACCESSORY-SWAY-IN-KABOOM-001",
+      "title": "Unit test: soft-attach-sway → spring-pivot chain rotates accessory on parent motion",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/accessory-sway.test.ts — set up a parent entity with LocalToWorld at p0 + a SoftAttached child with SpringPivot{velocity:[0,0,0], restRotation:[0,0,0]} + Transform.parent = parent. Tick soft-attach-sway with the parent moved by Δx; assert the child's SpringPivot.velocity gained a non-zero Z component (per the linear→angular formula). Then tick spring-pivot; assert the child's Transform.rotation moved off zero and decays toward rest with subsequent ticks at parent rest. Catches re-regression of the S132 deregistration.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/accessory-sway.test.ts adds 3 tests covering the full S106 sway chain end-to-end. (1) parent motion → soft-attach-sway writes a non-zero SpringPivot.velocity Z component. (2) spring-pivot consumes the velocity and writes accessory Transform.rotation off zero on the next tick. (3) over a 10-second simulation with the parent at rest, the underdamped spring oscillation envelope decays to <50% of peak amplitude — proves spring-pivot is consuming + decaying velocity. Catches a re-regression of the S132 deregistration."
+      ]
+    },
+    {
+      "id": "TEST-RAGDOLL-ACCESSORY-HIERARCHY-001",
+      "title": "Integration test: accessory parented to head mesh follows the ragdoll body",
+      "status": "implemented",
+      "summary": "tests/unit/ragdoll-death-flow.test.ts — extend the existing S134 integration test with one accessory entity (antenna). Spawn the antenna with Transform{parent: head mesh, position: [0, 0.4, 0]}. Run the death-trigger + spawn + sync chain. Insert a transform-resolve-system tick at the end of each loop iteration so accessory LocalToWorld is recomputed. Assert: after 30 ticks under gravity, accessory.LocalToWorld.position ≈ head body world position + [0, 0.4, 0] composed by head's body rotation. Confirms accessories follow via the renderer's hierarchy alone — no new ragdoll binding mode needed. Resolves the S134 'known gap' from docs/qa/ragdoll-playtest.md by proof.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-death-flow.test.ts extended with a second test that adds one antenna accessory parented to bot.2.head with offset [0, 0.4, 0]. After the full death + spawn + 30 ticks of physics + transform-resolve, the assertion chain proves: (1) head mesh tracks head body 1:1, (2) head mesh is detached (parent undefined), (3) accessory keeps its head-mesh parent, (4) accessory LocalToWorld stays at distance 0.4 from the head body world position regardless of head's body rotation. Closes the 'known gap' line in docs/qa/ragdoll-playtest.md by proof."
+      ]
+    },
+    {
+      "id": "DOC-RAGDOLL-PLAYTEST-001",
+      "title": "Update ragdoll-playtest.md: accessory gap closed + system list refreshed",
+      "status": "implemented",
+      "summary": "docs/qa/ragdoll-playtest.md — replace the 'Accessories stay attached (known gap)' bullet with a positive 'Accessories follow head/torso bodies and sway with the ragdoll motion' check (referencing the new integration test as the regression guarantee). Update the 'Related systems' section: remove the soft-archive note pointing at death-animation-system.ts (now deleted) + spring-pivot-system 'only used by bench' caveat (now re-registered in kaboom too). Add a one-line pointer to accessory-sway.test.ts.",
+      "epic": "M24",
+      "verification": [
+        "acceptance: docs/qa/ragdoll-playtest.md — replaced the 'Accessories stay attached (known gap)' bullet with a positive check that points at the new tests (accessory-sway.test.ts + ragdoll-death-flow.test.ts hierarchy assertion) as the regression guard. 'Related systems' refreshed: drops the death-animation-system soft-archive note (file deleted in S135), drops the 'spring-pivot only used by bench' caveat (re-registered in kaboom by S135), adds the soft-attach-sway + spring-pivot bullet for the accessory chain."
+      ]
+    },
+    {
+      "id": "HOUSEKEEPING-REJECT-QA-2026-05-24-001",
+      "title": "Archive QA-2026-05-24-001 as rejected (already fixed in main)",
+      "status": "implemented",
+      "summary": "Move backlog/qa-tickets/QA-2026-05-24-001.qa-ticket.json into backlog/qa-tickets/archive/rejected/ + update backlog/qa-tickets/archive/rejected/README.md with the explanation (both flagged unit tests on post-S119 HEAD 8cc8a0e are green on current main — the fix landed via test updates that added `{ spawnBot: false }` defaults in S120-S125, before the ticket was filed on 2026-05-24).",
+      "epic": "AGF-BACKLOG-ENGINE",
+      "verification": [
+        "acceptance: QA-2026-05-24-001 moved into backlog/qa-tickets/archive/rejected/ + README updated with the explanation (both flagged tests are green on main; the fix shipped via {spawnBot:false} test-default updates in S120-S125 before the ticket was filed). The QA inbox is empty."
+      ]
+    }
+  ]
+}

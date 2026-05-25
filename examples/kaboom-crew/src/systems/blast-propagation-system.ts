@@ -266,7 +266,6 @@ type DeathImpulseLike = {
   blastOriginGx: number;
   blastOriginGz: number;
   magnitude?: number;
-  deathStartedAt?: number;
 };
 
 function chainBombsAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): void {

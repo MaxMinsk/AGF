@@ -32,14 +32,22 @@ can't see.
 - [ ] **No body part shoots off.** No limb flies away from the
       torso. Joint disconnections suggest the joint anchors don't
       match the body anchors.
-- [ ] **Accessories stay attached** (known gap: the 5 procedural
-      accessories — antennae / visor / backpack / cap / fins — are
-      NOT covered by the 10-body ragdoll template. They currently
-      stay parented to head/torso mesh entities. After detach, head
-      and torso are positioned by the engine sync, and accessories
-      compose against the now-detached parent's local transform.
-      If accessories freeze in mid-air at the death frame, that's
-      the gap — file a ticket for an accessory-ragdoll sprint).
+- [ ] **Accessories follow head/torso and sway with the ragdoll
+      motion.** The 5 procedural accessories (antennae / visor /
+      backpack / cap / fins) are NOT in the ragdoll template — they
+      stay parented to the head/torso mesh entities. The renderer's
+      hierarchy resolve composes `accessory.LTW = parentMesh.LTW *
+      accessory.local`; the parent mesh is driven by the ragdoll
+      sync, so the accessory follows for free. S135 added
+      `tests/unit/ragdoll-death-flow.test.ts` 'accessory parented to
+      head mesh follows the ragdoll body via hierarchy' as the
+      regression guard. The accessory ALSO sways via the S106
+      soft-attach chain (`soft-attach-sway-system` →
+      `spring-pivot-system`) as the ragdoll whips the parent around.
+      If accessories freeze in mid-air, check that
+      `createSpringPivotSystem` is still registered in
+      `examples/kaboom-crew/bootstrap.ts` — S135 restored it after
+      S132 dropped it.
 - [ ] **Next round resets cleanly.** Start a new round (let the
       current one timeout or place enough kills to finish). No
       leftover body entities should remain from the prior round.
@@ -60,7 +68,8 @@ If any check fails:
 
 ## Related systems
 
-After S132+, the death visual is driven by:
+After S132+ (death visual handover) and S135 (cleanup + accessory
+sway restoration), the death visual is driven by:
 
 - `examples/kaboom-crew/src/systems/death-trigger-system.ts` —
   writes `RagdollSpawnRequest` on the alive→false edge with a
@@ -71,11 +80,11 @@ After S132+, the death visual is driven by:
   transforms onto each bound mesh per fixed tick.
 - `engine/physics/ragdoll/teardown-system.ts` — disposes bodies +
   clears bindings on round reset.
+- `examples/procbomber-bench/src/systems/soft-attach-sway-system.ts`
+  + `spring-pivot-system.ts` — accessory sway during walk AND while
+  the ragdoll whips the head/torso around. Both registered in
+  `examples/kaboom-crew/bootstrap.ts`. Regression-tested by
+  `examples/kaboom-crew/tests/unit/accessory-sway.test.ts` (chain)
+  + `tests/unit/ragdoll-death-flow.test.ts` (accessory-hierarchy).
 
-Orphaned but kept as soft archives (deleted in a future sprint
-once playtest confirms no regression):
-
-- `examples/kaboom-crew/src/systems/death-animation-system.ts`
-- `examples/procbomber-bench/src/systems/spring-pivot-system.ts`
-  (still used by the procbomber-bench's standalone slider tweens
-  — only de-registered from kaboom-crew).
+The S132-era `death-animation-system.ts` was deleted in S135.
