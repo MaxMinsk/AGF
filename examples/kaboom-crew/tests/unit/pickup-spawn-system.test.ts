@@ -102,6 +102,26 @@ describe("createKaboomPickupSpawnSystem (S82 KABOOM-PICKUPS-AND-STATS)", () => {
     expect(emitter!.lifetime).toBeGreaterThan(1);
   });
 
+  it("S138 KABOOM-PICKUP-COLLIDER: spawned pickup carries RigidBody3D + Collider3D matching its visual scale", () => {
+    const world = new World();
+    emitSoftBlockDestroyed(world, "evt.1", 6, 6);
+    const system = createKaboomPickupSpawnSystem({ dropChance: 1, seed: 3 });
+    system.fixedUpdate!(ctx(world));
+    const pickup = [...world.createQuery(["Pickup"]).run()][0]!;
+    const body = world.getComponent(pickup, "RigidBody3D") as { type?: string } | undefined;
+    expect(body?.type).toBe("fixed");
+    const collider = world.getComponent(pickup, "Collider3D") as { kind?: string; size?: ReadonlyArray<number> } | undefined;
+    expect(collider?.kind).toBe("box");
+    expect(collider?.size).toHaveLength(3);
+    // Collider size matches the pickup's Transform.scale tween target
+    // (the per-kind visual.scale). Visual.scale[] components are in
+    // (0.2, 0.5] for every kind, so the assertion is range-bounded.
+    for (const dim of collider!.size!) {
+      expect(dim).toBeGreaterThan(0.1);
+      expect(dim).toBeLessThan(0.6);
+    }
+  });
+
   it("different seeds at the same cell may produce different kinds", () => {
     // Smoke-test that the seed actually mixes in. We don't assert
     // *which* kinds — just that the seeded surface isn't constant.

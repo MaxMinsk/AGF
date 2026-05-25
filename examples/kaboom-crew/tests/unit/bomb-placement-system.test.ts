@@ -42,6 +42,21 @@ describe("createKaboomBombPlacementSystem (S82 KABOOM-BOMB-PLACE)", () => {
     expect(world.hasComponent("player.1", "PlaceBombRequest")).toBe(false);
   });
 
+  it("S138 KABOOM-BOMB-COLLIDER: placed bomb carries RigidBody3D + Collider3D so ragdoll bodies bounce off", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4);
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.test" });
+    system.frameUpdate!(ctx(world));
+    const body = world.getComponent("bomb.test", "RigidBody3D") as { type?: string };
+    expect(body?.type).toBe("fixed");
+    const collider = world.getComponent("bomb.test", "Collider3D") as { kind?: string; radius?: number };
+    expect(collider?.kind).toBe("sphere");
+    // Radius matches the bomb's final visual size (sphere r=0.5 × scale 0.35 = 0.175).
+    expect(collider?.radius).toBeCloseTo(0.175, 6);
+  });
+
   it("S095 KABOOM-SPAWN-POP-TWEEN: bomb spawns at scale 0 with an easeOutBack Tween to its final size", () => {
     const world = new World();
     makePlayer(world, "player.1", 3, 4);

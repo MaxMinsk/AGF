@@ -49,6 +49,12 @@ can't see.
       ragdolls bounce off intact blocks; destroyed soft-blocks
       release their Rapier body automatically via the entity-removal
       path in `physics-sync-system`.)
+- [ ] **Bounces off bombs and pickups in the arena.** S138 added
+      static Rapier colliders to placed bombs (sphere collider
+      r=0.175, matching the visual) and to every dropped pickup (box
+      collider sized to the per-kind visual scale). A ragdoll falling
+      onto a live bomb should rest on top of it instead of clipping
+      through; same for pickups still on the floor.
 - [ ] **Blast feels punchy but not nuclear.** Bomber travels 1-2
       grid cells before coming to rest, not 10. (S135 hotfix #158
       applies the impulse only to the first body in the template +
@@ -124,9 +130,14 @@ sway restoration), the death visual is driven by:
 - `examples/kaboom-crew/scenes/start.scene.json` + `wide.scene.json`
   `floor` entity (S135 #158) + `examples/kaboom-crew/prefabs/
   hard-block.prefab.json` (S135 #158) + `soft-block.prefab.json`
-  (S136) carry `RigidBody3D{type:fixed}` + `Collider3D{box}` so
-  the Rapier world has the arena static geometry the ragdoll
-  bodies bounce off of.
+  (S136) + `bomb.prefab.json` (S138) carry `RigidBody3D{type:fixed}`
+  + `Collider3D` so the Rapier world has the arena static geometry
+  the ragdoll bodies bounce off of.
+- `examples/kaboom-crew/src/systems/bomb-placement-system.ts` (S138)
+  + `pickup-spawn-system.ts` (S138) write static `RigidBody3D` +
+  `Collider3D` at runtime so placed bombs and dropped pickups are
+  physical from frame 0. Cleanup is automatic via physics-sync
+  phase-1 on `world.removeEntity` (fuse expiry, pickup collect).
 - `examples/procbomber-bench/src/systems/soft-attach-sway-system.ts`
   + `spring-pivot-system.ts` — accessory sway during walk AND while
   the ragdoll whips the head/torso around. Both registered in

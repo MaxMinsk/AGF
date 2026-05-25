@@ -20,6 +20,8 @@
       "fuseRemaining": 2.5,
       "range": 2,
       "ownerId": "player.1"
-    }
+    },
+    "RigidBody3D": { "type": "fixed" },
+    "Collider3D": { "kind": "sphere", "radius": 0.175 }
   }
 }
