@@ -26,6 +26,7 @@ import {
 const RAGDOLL_SPAWN_REQUEST: ComponentName = "RagdollSpawnRequest";
 const RAGDOLL_STATE: ComponentName = "RagdollState";
 const RAGDOLL_ACTIVE: ComponentName = "RagdollActive";
+const RAGDOLL_LIFETIME: ComponentName = "RagdollLifetime";
 const RAGDOLL_BODY: ComponentName = "RagdollBody";
 const RAGDOLL_JOINT: ComponentName = "RagdollJoint";
 const RAGDOLL_MESH_BINDING: ComponentName = "RagdollMeshBinding";
@@ -253,6 +254,14 @@ function spawnRagdoll(
     meshEntities
   });
   world.setComponent(rootId, RAGDOLL_ACTIVE, {});
+  // S136 — auto-teardown countdown. Only stamped when the template
+  // declares lifetimeSeconds; otherwise the project handles teardown
+  // explicitly via RagdollTeardownRequest.
+  if (template.lifetimeSeconds !== undefined && template.lifetimeSeconds > 0) {
+    world.setComponent(rootId, RAGDOLL_LIFETIME, {
+      secondsRemaining: template.lifetimeSeconds
+    });
+  }
 }
 
 function colliderSpecFor(def: RagdollBodyDef): {

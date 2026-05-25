@@ -141,5 +141,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S133](backlog/sprints/S133.sprint.json)** — Engine ragdoll — pose-snapshot at spawn — 6 implemented · archived 2026-05-24
 - **[S134](backlog/sprints/S134.sprint.json)** — Ragdoll death-flow regression coverage — 4 implemented · archived 2026-05-24
 - **[S135](backlog/sprints/S135.sprint.json)** — Ragdoll cleanup + accessory sway restoration — 7 implemented · archived 2026-05-25
+- **[S136](backlog/sprints/S136.sprint.json)** — Ragdoll arena physics — soft-block colliders, lifetime + visual playtest — 6 implemented, 1 deferred · archived 2026-05-25
 
 <!-- backlog:render:end -->

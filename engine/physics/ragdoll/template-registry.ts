@@ -43,6 +43,8 @@ export type RagdollTemplate = {
   joints?: RagdollJointDef[];
   linearDamping?: number;
   angularDamping?: number;
+  /** S136 — auto-teardown after this many seconds. Omit to disable. */
+  lifetimeSeconds?: number;
 };
 
 // Compile the ragdollTemplate schema once at module load. The JSON

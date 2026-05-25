@@ -17,6 +17,7 @@ import type { RapierAdapter } from "../rapier/rapier-adapter";
 
 const RAGDOLL_STATE: ComponentName = "RagdollState";
 const RAGDOLL_ACTIVE: ComponentName = "RagdollActive";
+const RAGDOLL_LIFETIME: ComponentName = "RagdollLifetime";
 const RAGDOLL_BODY: ComponentName = "RagdollBody";
 const RAGDOLL_JOINT: ComponentName = "RagdollJoint";
 const RAGDOLL_MESH_BINDING: ComponentName = "RagdollMeshBinding";
@@ -135,5 +136,10 @@ function disposeRagdoll(
   if (world.hasEntity(rootId)) {
     world.removeComponent(rootId, RAGDOLL_STATE);
     world.removeComponent(rootId, RAGDOLL_ACTIVE);
+    // S136 — strip the auto-teardown countdown when teardown actually
+    // happens (whether the lifetime-system or the project triggered it).
+    if (world.hasComponent(rootId, RAGDOLL_LIFETIME)) {
+      world.removeComponent(rootId, RAGDOLL_LIFETIME);
+    }
   }
 }

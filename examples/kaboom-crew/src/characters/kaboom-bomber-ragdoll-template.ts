@@ -28,6 +28,10 @@ import type { RagdollTemplate } from "../../../../engine/physics/ragdoll/templat
 export const KABOOM_BOMBER_RAGDOLL: RagdollTemplate = {
   linearDamping: 0.4,
   angularDamping: 0.6,
+  // S136 — auto-cleanup so mid-round multi-kills don't pile up bodies.
+  // 4 s is long enough for the death animation to feel impactful but
+  // short enough to clean up before the round timer (90 s) resets.
+  lifetimeSeconds: 4,
   bodies: [
     { name: "torso", shape: "box", dimensions: [0.45, 0.45, 0.29], anchor: [0, 0.0, 0], mass: 0.4 },
     { name: "head", shape: "sphere", dimensions: [0.18, 0, 0], anchor: [0, 0.4, 0], mass: 0.1 },

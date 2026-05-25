@@ -567,8 +567,15 @@ export async function createApp(
     const { createRagdollTeardownSystem } = await import(
       "../engine/physics/ragdoll/teardown-system"
     );
+    const { createRagdollLifetimeSystem } = await import(
+      "../engine/physics/ragdoll/lifetime-system"
+    );
     scheduler.register(createRagdollSpawnSystem({ adapter: physicsAdapter }));
     scheduler.register(createRagdollSyncSystem({ adapter: physicsAdapter }));
+    // S136 — lifetime runs BEFORE teardown so a hitting-zero countdown
+    // gets disposed in the same tick (sets the request, teardown
+    // consumes it).
+    scheduler.register(createRagdollLifetimeSystem());
     scheduler.register(createRagdollTeardownSystem({ adapter: physicsAdapter }));
   }
 

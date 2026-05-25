@@ -1,7 +1,7 @@
 {
   "agfFormatVersion": 1,
   "id": "soft-block",
-  "description": "Destructible block. Blasts destroy it; project-local logic (S082) handles pickup spawn on destruction.",
+  "description": "Destructible block. Blasts destroy it; project-local logic (S082) handles pickup spawn on destruction. S136: static physics body so ragdolls collide with intact blocks; physics-sync-system releases the Rapier body when blast-propagation removes the entity.",
   "components": {
     "Transform": {
       "rotation": [0, 0, 0],
@@ -15,6 +15,8 @@
       "layer": "block",
       "blocksMovement": true,
       "blocksBlast": false
-    }
+    },
+    "RigidBody3D": { "type": "fixed" },
+    "Collider3D": { "kind": "box", "size": [0.9, 0.9, 0.9] }
   }
 }
