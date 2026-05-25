@@ -53,9 +53,12 @@
     {
       "id": "TEST-RAGDOLL-LIFETIME-001",
       "title": "Unit test for the lifetime-system",
-      "status": "pending",
+      "status": "implemented",
       "summary": "tests/unit/ragdoll-lifetime.test.ts — set up a ragdoll root with RagdollActive + RagdollLifetime{secondsRemaining: 1.0}; tick lifetime-system at dt=1/60; after 60 ticks (1.0s) assert RagdollTeardownRequest is on the root and secondsRemaining ≤ 0. Also: bodies query empty after teardown-system runs.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-lifetime.test.ts adds 5 tests — (1) per-tick dt decrement; (2) RagdollTeardownRequest fires when secondsRemaining hits zero (60th tick at dt=1/60 from 1.0s); (3) idempotent — doesn't clobber an existing teardown request (sentinel preserved); (4) ignores entities without RagdollLifetime (RagdollActive alone does not trigger); (5) multiple roots tick independently. All 5 pass."
+      ]
     },
     {
       "id": "PLAYTEST-RAGDOLL-ARENA-001",
