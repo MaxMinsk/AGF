@@ -23,9 +23,12 @@
     {
       "id": "TEST-RAGDOLL-JOINT-SPAWN-CORRECTION-001",
       "title": "Engine test: joint world anchors match at spawn under arbitrary bodyPoses",
-      "status": "pending",
+      "status": "implemented",
       "summary": "tests/unit/ragdoll-joint-spawn-correction.test.ts — register a 3-body chain template (torso → head → hat, two joints), give bodyPoses with non-rest positions + rotations. After spawn (single tick, no gravity, no impulse, no damping), assert each body's Transform.position has moved by less than 0.005 m. Pre-fix the bodies would have shifted under the joint correction impulse; post-fix the constraint is satisfied at frame 0 so no impulse fires.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/ragdoll-joint-spawn-correction.test.ts adds 3 tests covering (1) rest-pose no-op backward-compat (no bodyPoses → bodies stay at template anchor positions); (2) non-rest bodyPoses with rotation — joint anchor B is corrected at spawn, both bodies stay within 0.01m of their spawn pose after 1 tick; (3) multi-step (10 ticks, zero gravity, zero damping) — anchor correction holds, bodies stay within 0.02m of spawn. All 3 pass."
+      ]
     },
     {
       "id": "FEAT-KABOOM-DEATH-DUST-PUFF-001",
