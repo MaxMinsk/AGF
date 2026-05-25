@@ -43,9 +43,12 @@
     {
       "id": "TEST-KABOOM-DEATH-DUST-PUFF-001",
       "title": "Unit test: alive→false edge spawns both the glow + spark emitters",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/audio-binding-system.test.ts — extend an existing death-flow test (or add a new one) that flips BomberStats.alive=false on a bomber with GridPosition, ticks the system, and asserts both `<id>.death-puff` (glow) AND the new `<id>.death-dust` (spark) entities exist with the expected ParticleEmitter preset + lifetime + position.",
-      "epic": "KABOOM-CREW-MVP-1"
+      "epic": "KABOOM-CREW-MVP-1",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/audio-binding-system.test.ts adds 'S137 KABOOM-DEATH-DUST-PUFF' regression test. The alive→false edge spawns BOTH <id>.death-puff (preset:glow, lifetime 0.5) AND <id>.death-dust (preset:spark, lifetime 0.35, maxParticles 24). Both emitters at the dead bomber's grid cell. 25/25 audio-binding tests pass."
+      ]
     },
     {
       "id": "DOC-RAGDOLL-PLAYTEST-S137",
