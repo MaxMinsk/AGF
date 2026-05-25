@@ -23,9 +23,12 @@
     {
       "id": "TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001",
       "title": "Unit test: soft-block removeEntity releases its Rapier body",
-      "status": "pending",
+      "status": "implemented",
       "summary": "tests/unit/soft-block-physics-cleanup.test.ts (or extend an existing physics test) — spawn a fixed body via RigidBody3D+Collider3D on an entity, tick physics-sync, observe registry has 1 body. Call world.removeEntity, tick again, assert registry.size() === 0 and adapter.bodyCount() === 0. Catches a regression in the entity-removal release loop in physics-sync-system.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: tests/unit/physics-sync-system.test.ts adds 'S136 — releases the body when the entity itself is removed (soft-block destruction path)'. Mirrors the kaboom flow: setComponent RigidBody3D+Collider3D on a soft-block-shaped entity, fixedUpdate (registry.size() === 1, spy.released === []), removeEntity, fixedUpdate (registry.size() === 0, spy.released has 1 entry). 8/8 tests pass."
+      ]
     },
     {
       "id": "SCHEMA-RAGDOLL-LIFETIME-001",

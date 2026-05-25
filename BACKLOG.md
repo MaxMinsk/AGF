@@ -12,7 +12,7 @@ Status: **active** (started 2026-05-25). Source: `backlog/sprints/S136.sprint.js
 
 - **PHYS-SOFT-BLOCK-COLLIDERS-001** — Add RigidBody3D + Collider3D to the soft-block prefab _(implemented)_
   examples/kaboom-crew/prefabs/soft-block.prefab.json — add RigidBody3D{type:fixed} + Collider3D{kind:box,size:[1,1,1]}. Soft blocks are spawned at scene-build + destroyed mid-round via world.removeEntity in blast-propagation; physics-sync-system's phase-1 release loop already drops the Rapier body when the entity disappears, so no extra teardown wiring needed. Ragdolls now collide with intact soft blocks instead of clipping through them.
-- **TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001** — Unit test: soft-block removeEntity releases its Rapier body _(pending)_
+- **TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001** — Unit test: soft-block removeEntity releases its Rapier body _(implemented)_
   tests/unit/soft-block-physics-cleanup.test.ts (or extend an existing physics test) — spawn a fixed body via RigidBody3D+Collider3D on an entity, tick physics-sync, observe registry has 1 body. Call world.removeEntity, tick again, assert registry.size() === 0 and adapter.bodyCount() === 0. Catches a regression in the entity-removal release loop in physics-sync-system.
 - **SCHEMA-RAGDOLL-LIFETIME-001** — RagdollLifetime component schema _(pending)_
   schemas/components/ragdoll.schema.json — add RagdollLifetime { secondsRemaining: number } component. The ragdoll spawn-system writes it onto the root next to RagdollActive when a (new) RagdollTemplate.lifetimeSeconds is configured (defaults to undefined = no auto-cleanup). The lifetime-system (next story) decrements per fixedUpdate and issues RagdollTeardownRequest when it hits zero.

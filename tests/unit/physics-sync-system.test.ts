@@ -179,6 +179,32 @@ describe("PhysicsSyncSystem (M24-sync)", () => {
     expect(spy.released).toHaveLength(1);
   });
 
+  it("S136 — releases the body when the entity itself is removed (soft-block destruction path)", () => {
+    // Mirrors the kaboom-crew soft-block flow: blast-propagation calls
+    // world.removeEntity(id) on a destroyed block. The block's
+    // RigidBody3D + Collider3D components vanish with the entity;
+    // physics-sync-system phase-1 release loop must pick that up and
+    // hand the Rapier body back to the adapter.
+    const { adapter, spy } = stubAdapter();
+    const registry = createPhysicsBodyRegistry(adapter);
+    const world = new World();
+    world.addEntity("soft.1");
+    world.setComponent("soft.1", "Transform", { position: [4, 0.45, 5] });
+    world.setComponent("soft.1", "RigidBody3D", { type: "fixed" });
+    world.setComponent("soft.1", "Collider3D", { kind: "box", size: [0.9, 0.9, 0.9] });
+
+    const system = createPhysicsSyncSystem(registry, adapter);
+    system.fixedUpdate?.(ctx(world));
+    expect(registry.size()).toBe(1);
+    expect(spy.released).toHaveLength(0);
+
+    // Destroy the block — same call blast-propagation-system uses.
+    world.removeEntity("soft.1");
+    system.fixedUpdate?.(ctx(world));
+    expect(registry.size()).toBe(0);
+    expect(spy.released).toHaveLength(1);
+  });
+
   it("re-acquires the body when its kind changes", () => {
     const { adapter, spy } = stubAdapter();
     const registry = createPhysicsBodyRegistry(adapter);
