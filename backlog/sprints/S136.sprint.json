@@ -33,9 +33,12 @@
     {
       "id": "SCHEMA-RAGDOLL-LIFETIME-001",
       "title": "RagdollLifetime component schema",
-      "status": "pending",
+      "status": "implemented",
       "summary": "schemas/components/ragdoll.schema.json — add RagdollLifetime { secondsRemaining: number } component. The ragdoll spawn-system writes it onto the root next to RagdollActive when a (new) RagdollTemplate.lifetimeSeconds is configured (defaults to undefined = no auto-cleanup). The lifetime-system (next story) decrements per fixedUpdate and issues RagdollTeardownRequest when it hits zero.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: schemas/components/ragdoll.schema.json gains (1) ragdollLifetime component def { secondsRemaining: number, required } and (2) ragdollTemplate.lifetimeSeconds optional field (exclusiveMinimum 0). engine/physics/ragdoll/template-registry.ts RagdollTemplate TS contract mirrors the field. Existing 21 schema + template-registry tests still green; typecheck passes."
+      ]
     },
     {
       "id": "FEAT-RAGDOLL-LIFETIME-SYSTEM-001",

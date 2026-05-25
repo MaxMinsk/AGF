@@ -106,7 +106,12 @@
           "items": { "$ref": "#/definitions/ragdollJointDef" }
         },
         "linearDamping": { "type": "number", "minimum": 0, "default": 0 },
-        "angularDamping": { "type": "number", "minimum": 0, "default": 0 }
+        "angularDamping": { "type": "number", "minimum": 0, "default": 0 },
+        "lifetimeSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "S136 — auto-teardown after this many seconds. When set, RagdollSpawnSystem writes RagdollLifetime{secondsRemaining} on the root; RagdollLifetimeSystem decrements per fixedUpdate and writes RagdollTeardownRequest on the same root at zero. Omit to disable auto-cleanup (project handles teardown manually)."
+        }
       }
     },
     "ragdollSpawnRequest": {
@@ -221,6 +226,18 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {}
+    },
+    "ragdollLifetime": {
+      "description": "S136 — per-instance countdown that auto-issues a RagdollTeardownRequest when secondsRemaining hits zero. Written by RagdollSpawnSystem when the template declares lifetimeSeconds; decremented every fixedUpdate by RagdollLifetimeSystem. Removed alongside RagdollState by RagdollTeardownSystem.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secondsRemaining"],
+      "properties": {
+        "secondsRemaining": {
+          "type": "number",
+          "description": "Seconds until auto-teardown fires. Counts down monotonically; a negative value is allowed but treated identically to zero (teardown next tick)."
+        }
+      }
     }
   }
 }
