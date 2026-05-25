@@ -43,9 +43,12 @@
     {
       "id": "TEST-ACCESSORY-SWAY-IN-KABOOM-001",
       "title": "Unit test: soft-attach-sway → spring-pivot chain rotates accessory on parent motion",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/accessory-sway.test.ts — set up a parent entity with LocalToWorld at p0 + a SoftAttached child with SpringPivot{velocity:[0,0,0], restRotation:[0,0,0]} + Transform.parent = parent. Tick soft-attach-sway with the parent moved by Δx; assert the child's SpringPivot.velocity gained a non-zero Z component (per the linear→angular formula). Then tick spring-pivot; assert the child's Transform.rotation moved off zero and decays toward rest with subsequent ticks at parent rest. Catches re-regression of the S132 deregistration.",
-      "epic": "KABOOM-CREW-CHARACTERS"
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/accessory-sway.test.ts adds 3 tests covering the full S106 sway chain end-to-end. (1) parent motion → soft-attach-sway writes a non-zero SpringPivot.velocity Z component. (2) spring-pivot consumes the velocity and writes accessory Transform.rotation off zero on the next tick. (3) over a 10-second simulation with the parent at rest, the underdamped spring oscillation envelope decays to <50% of peak amplitude — proves spring-pivot is consuming + decaying velocity. Catches a re-regression of the S132 deregistration."
+      ]
     },
     {
       "id": "TEST-RAGDOLL-ACCESSORY-HIERARCHY-001",
