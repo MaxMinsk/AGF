@@ -144,5 +144,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S136](backlog/sprints/S136.sprint.json)** — Ragdoll arena physics — soft-block colliders, lifetime + visual playtest — 6 implemented, 1 deferred · archived 2026-05-25
 - **[S137](backlog/sprints/S137.sprint.json)** — Ragdoll polish v3 — joint spawn correction + death dust puff — 5 implemented · archived 2026-05-25
 - **[S138](backlog/sprints/S138.sprint.json)** — Kaboom bomb + pickup colliders — ragdoll interacts with placed objects — 5 implemented · archived 2026-05-25
+- **[S139](backlog/sprints/S139.sprint.json)** — Bot personality variants — visual differentiation + random in solo — 7 implemented · archived 2026-05-25
 
 <!-- backlog:render:end -->

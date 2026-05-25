@@ -74,6 +74,50 @@ export function readBotPersonalityFromUrl(search: string | undefined): BotPerson
   return "hunter";
 }
 
+/**
+ * S139 — pure random picker over the three personalities. Optional
+ * rng arg makes the function testable; defaults to Math.random.
+ */
+export const BOT_PERSONALITIES: ReadonlyArray<BotPersonality> = ["hunter", "coward", "miner"];
+
+export function pickRandomBotPersonality(rng: () => number = Math.random): BotPersonality {
+  const idx = Math.floor(rng() * BOT_PERSONALITIES.length) % BOT_PERSONALITIES.length;
+  return BOT_PERSONALITIES[idx]!;
+}
+
+/**
+ * S139 — bootstrap-facing helper: read the URL override if set,
+ * otherwise return a RANDOM personality (memoised once per page load
+ * so the choice is stable across round restarts within a single
+ * match). Pass a custom rng + cache for tests; production callers
+ * use the module-level singleton.
+ */
+let _sessionBotPersonality: BotPersonality | undefined;
+
+export function resolveSessionBotPersonality(
+  search: string | undefined,
+  rng: () => number = Math.random
+): BotPersonality {
+  if (search !== undefined && search.length > 0) {
+    try {
+      const params = new URLSearchParams(search);
+      const raw = params.get("botPersonality");
+      if (raw !== null && isBotPersonality(raw)) return raw;
+    } catch {
+      // ignored — fall through to the random path
+    }
+  }
+  if (_sessionBotPersonality === undefined) {
+    _sessionBotPersonality = pickRandomBotPersonality(rng);
+  }
+  return _sessionBotPersonality;
+}
+
+/** S139 — test-only escape hatch for the session memoisation. */
+export function _resetSessionBotPersonality(): void {
+  _sessionBotPersonality = undefined;
+}
+
 export function difficultyComponentPatch(preset: DifficultyPreset): {
   BotBrain: { aggression: number; nextDecisionIn: number };
   BomberStats: { maxBombs: number; range: number; activeBombs: number; alive: true };
