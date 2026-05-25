@@ -131,6 +131,15 @@ function spawnRagdoll(
 ): void {
   const bodyEntities: Record<string, EntityId> = {};
   const bodyHandles: Record<string, BodyHandle> = {};
+  // S135-hotfix — impulse used to be applied verbatim to every body, so a
+  // 10-body bomber template multiplied the requested momentum 10× and the
+  // ragdoll launched like an atomic bomb (user playtest, 2026-05-25).
+  // Apply it to the first body only ("root" by convention — torso for the
+  // kaboom-bomber template). Joints transmit the resulting acceleration
+  // to the rest of the chain on subsequent ticks, which is the physically
+  // correct behaviour for an impulse arriving at the bomber's centre of
+  // mass.
+  let impulseApplied = false;
   for (const def of template.bodies) {
     // S133 — pose-snapshot: if bodyPoses[def.name] is provided, use it as
     // the body's spawn pose; otherwise fall back to root.position +
@@ -173,8 +182,9 @@ function spawnRagdoll(
           : {})
     });
     adapter.acquireCollider(handle, colliderSpecFor(def));
-    if (impulse !== undefined) {
+    if (impulse !== undefined && !impulseApplied) {
       adapter.applyImpulse(handle, impulse);
+      impulseApplied = true;
     }
     const bodyEntityId: EntityId = `${rootId}.body.${def.name}.${nextBodyId()}`;
     world.addEntity(bodyEntityId);

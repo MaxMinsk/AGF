@@ -112,6 +112,49 @@ describe("ragdoll spawn → sync → teardown (S128)", () => {
     adapter.dispose();
   });
 
+  it("S135-hotfix — impulse is applied to the first body only (not duplicated per body)", async () => {
+    // Pre-hotfix the spawn-system applied the full impulse to every
+    // body, so a 10-body bomber template multiplied the requested
+    // momentum by 10. After: impulse hits only the first body
+    // (root/torso by convention) and joints transmit the motion to
+    // the rest on subsequent ticks. This template has NO joints so
+    // we can directly observe only body[0] moving on the first step.
+    registerRagdollTemplate("ten-free", {
+      linearDamping: 0,
+      angularDamping: 0,
+      bodies: Array.from({ length: 10 }, (_, i) => ({
+        name: `b${i}`,
+        shape: "sphere" as const,
+        dimensions: [0.05, 0, 0] as [number, number, number],
+        anchor: [i * 0.5, 0, 0] as [number, number, number]
+      }))
+    });
+    const { world, adapter, tick } = await setup();
+    world.addEntity("root.free");
+    world.setComponent("root.free", "Transform", { position: [0, 0, 0] });
+    world.setComponent("root.free", "RagdollSpawnRequest", {
+      templateKey: "ten-free",
+      impulse: [1.0, 0, 0]
+    });
+    tick(); // spawn + one physics step
+    const state = world.getComponent<{ bodyEntities: Record<string, string> }>("root.free", "RagdollState")!;
+    const body0Pos = world.getComponent<{ position: number[] }>(state.bodyEntities["b0"]!, "Transform")!.position;
+    // body[0] picks up the impulse and moves forward on +X.
+    expect(body0Pos[0]!).toBeGreaterThan(0.0001);
+    // bodies[1..9] have no joints to b0 here, so they should stay
+    // essentially at their spawn anchor on the first tick. Pre-hotfix
+    // they would each have absorbed the full impulse and moved on +X.
+    for (let i = 1; i < 10; i += 1) {
+      const bodyPos = world.getComponent<{ position: number[] }>(state.bodyEntities[`b${i}`]!, "Transform")!.position;
+      const expectedX = i * 0.5;
+      // Tolerance: should be essentially the spawn anchor (no impulse
+      // received). 1mm tolerance covers Rapier's internal numerical
+      // drift on the very first step.
+      expect(Math.abs(bodyPos[0]! - expectedX)).toBeLessThan(0.001);
+    }
+    adapter.dispose();
+  });
+
   it("RagdollTeardownRequest cleans up bodies, joints, RagdollState", async () => {
     registerRagdollTemplate("pair2", {
       bodies: [
