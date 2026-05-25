@@ -240,6 +240,10 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
         // S86 KABOOM-DEATH-PARTICLES. Spawn a short-lived 'glow' puff
         // at the dead bomber's cell. The M19 ParticleEmitterSystem
         // cleans the entity up when lifetime elapses.
+        // S137 KABOOM-DEATH-DUST-PUFF. Pair the glow with a denser
+        // 'spark' burst so the death frame reads as 'BOOM' instead of
+        // 'fizz'. Both emitters live on the same cell + tick down to
+        // cleanup independently.
         const pos = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
         if (pos !== undefined) {
           const puffId = `${id}.death-puff`;
@@ -256,6 +260,22 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
               elapsed: 0,
               rate: 30,
               maxParticles: 10
+            });
+          }
+          const dustId = `${id}.death-dust`;
+          if (!world.hasEntity(dustId)) {
+            world.addEntity(dustId);
+            world.setComponent(dustId, TRANSFORM, {
+              position: [pos.gx ?? 0, 0.5, pos.gz ?? 0],
+              rotation: [0, 0, 0],
+              scale: [1, 1, 1]
+            });
+            world.setComponent(dustId, PARTICLE_EMITTER, {
+              preset: "spark",
+              lifetime: 0.35,
+              elapsed: 0,
+              rate: 80,
+              maxParticles: 24
             });
           }
         }

@@ -33,9 +33,12 @@
     {
       "id": "FEAT-KABOOM-DEATH-DUST-PUFF-001",
       "title": "Add a spark burst alongside the S86 glow puff for a punchier death cue",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/audio-binding-system.ts — on the same alive→false edge that already spawns the 'glow' puff, also spawn a 'spark' emitter at the same cell with lifetime 0.35s, rate 80, maxParticles 24. The visual reads as glow + debris simultaneously, matching the ragdoll launch frame. Existing glow stays as the lingering aura.",
-      "epic": "KABOOM-CREW-MVP-1"
+      "epic": "KABOOM-CREW-MVP-1",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/systems/audio-binding-system.ts now spawns BOTH a glow puff (existing S86, preset:glow, lifetime 0.5s, rate 30, maxParticles 10) AND a spark dust burst (new, preset:spark, lifetime 0.35s, rate 80, maxParticles 24) on the alive→false edge. Two entities — <id>.death-puff and <id>.death-dust — at the same cell so the visual layers. The particle-emitter-system auto-cleans both when their lifetime elapses. Typecheck passes; 267/267 kaboom tests green."
+      ]
     },
     {
       "id": "TEST-KABOOM-DEATH-DUST-PUFF-001",
