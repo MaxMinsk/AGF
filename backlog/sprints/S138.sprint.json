@@ -33,9 +33,12 @@
     {
       "id": "FEAT-KABOOM-PICKUP-COLLIDER-001",
       "title": "pickup-spawn-system writes static colliders on every spawned pickup",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/pickup-spawn-system.ts — alongside the existing Transform / MeshRenderer / GridPosition / GridOccupant / Pickup / ParticleEmitter writes, also setComponent RigidBody3D{type:fixed} + Collider3D{kind:box,size:[visual.scale[0], visual.scale[1], visual.scale[2]]}. Box covers all pickup mesh kinds (sphere/box/cylinder) with a slight rounding error that's invisible at this scale. removeEntity in pickup-collect-system releases the body via physics-sync phase-1.",
-      "epic": "M24"
+      "epic": "M24",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/systems/pickup-spawn-system.ts now writes RigidBody3D{type:fixed} + Collider3D{kind:box,size:visual.scale[]} on every pickup spawn. Box collider covers all pickup mesh kinds (sphere/box/cylinder) cleanly with size matching the per-kind visual. Cleanup is automatic via physics-sync phase-1 on entity removal. Typecheck passes; 6/6 pickup-spawn tests green."
+      ]
     },
     {
       "id": "TEST-KABOOM-PICKUP-COLLIDER-001",

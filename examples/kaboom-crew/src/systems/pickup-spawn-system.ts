@@ -28,6 +28,8 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const TWEENS: ComponentName = "Tweens";
 const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
+const RIGID_BODY_3D: ComponentName = "RigidBody3D";
+const COLLIDER_3D: ComponentName = "Collider3D";
 
 // S095 KABOOM-SPAWN-POP-TWEEN — pickups grow with the same overshoot
 // envelope as bombs (see bomb-placement-system).
@@ -174,5 +176,17 @@ function spawnPickup(
     elapsed: 0,
     rate: IDLE_EMITTER_RATE,
     maxParticles: IDLE_EMITTER_MAX_PARTICLES
+  });
+  // S138 KABOOM-PICKUP-COLLIDER — static Rapier body so ragdoll
+  // bodies bounce off pickups sitting on the floor. Box collider
+  // covers all pickup mesh kinds (sphere / box / cylinder) cleanly;
+  // size matches the per-kind visual scale. Cleanup is automatic:
+  // pickup-collect-system's world.removeEntity releases the body via
+  // physics-sync phase-1 (same path soft-blocks use, proven by S136
+  // TEST-SOFT-BLOCK-COLLIDER-CLEANUP-001).
+  world.setComponent(id, RIGID_BODY_3D, { type: "fixed" });
+  world.setComponent(id, COLLIDER_3D, {
+    kind: "box",
+    size: [visual.scale[0], visual.scale[1], visual.scale[2]]
   });
 }
