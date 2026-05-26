@@ -58,7 +58,8 @@
         "alive": { "type": "boolean", "default": true },
         "canKick": { "type": "boolean", "default": false, "description": "S100 KABOOM-KICK-POWER-UP. True after collecting a 'kick' pickup. Enables sliding your own bomb forward when walking into its cell." },
         "remoteDetonateCharges": { "type": "integer", "minimum": 0, "default": 0, "description": "S100 KABOOM-REMOTE-DETONATE-PUP. Each charge converts the NEXT placed bomb into a paused (fuseRemaining=Infinity) bomb that the player triggers manually via the 'remote-detonate' InputAction (or F key). Capped at 3 per bomber." },
-        "shield": { "type": "boolean", "default": false, "description": "S109 KABOOM-SHIELD-POWER-UP. True after collecting a 'shield' pickup. Absorbs the next lethal blast (alive STAYS true, shield flips to false) and triggers hit-recoil instead of ragdoll. One-shot, binary (no stacking)." }
+        "shield": { "type": "boolean", "default": false, "description": "S109 KABOOM-SHIELD-POWER-UP. True after collecting a 'shield' pickup. Absorbs the next lethal blast (alive STAYS true, shield flips to false) and triggers hit-recoil instead of ragdoll. One-shot, binary (no stacking)." },
+        "pierce": { "type": "boolean", "default": false, "description": "S142 KABOOM-PIERCE-BOMB (GDP-2026-05-26-002, gameplay-systems.md §5.3). True after collecting a 'pierce' pickup. The NEXT placed bomb's blast walks through the first soft block in each direction without stopping; second soft block stops it normally. Carried at placement time — bomb-placement-system copies BomberStats.pierce → Bomb.pierce when spawning, so the owner can lose pierce afterwards without stripping the in-flight bomb." }
       }
     },
     "bombComponent": {
@@ -69,7 +70,8 @@
       "properties": {
         "fuseRemaining": { "type": "number", "minimum": 0 },
         "range": { "type": "integer", "minimum": 1 },
-        "ownerId": { "type": "string", "minLength": 1 }
+        "ownerId": { "type": "string", "minLength": 1 },
+        "pierce": { "type": "boolean", "default": false, "description": "S142 KABOOM-PIERCE-BOMB. When true the blast walks through the first soft block in each direction; subsequent soft blocks stop it. Carried at placement time from owner's BomberStats.pierce." }
       }
     },
     "placeBombRequestComponent": {
@@ -93,7 +95,8 @@
         "originGx": { "type": "integer", "minimum": 0 },
         "originGz": { "type": "integer", "minimum": 0 },
         "range": { "type": "integer", "minimum": 1 },
-        "ownerId": { "type": "string", "minLength": 1 }
+        "ownerId": { "type": "string", "minLength": 1 },
+        "pierce": { "type": "boolean", "default": false, "description": "S142 KABOOM-PIERCE-BOMB. Copied from the detonating Bomb.pierce. When true, blast-propagation walks through the first soft block in each direction (still destroying it) before stopping on a normal block." }
       }
     },
     "blastTileComponent": {
@@ -201,12 +204,12 @@
     "pickupComponent": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true), `remote-detonate` (S100 — +1 BomberStats.remoteDetonateCharges, capped at 3), `shield` (S109 — one-shot blast protection: sets BomberStats.shield=true; consumed by the next lethal blast).",
+      "description": "Power-up item. PickupCollectSystem detects a bomber entering the same grid cell + applies the effect to BomberStats. Kinds: `bomb-up` (+1 maxBombs), `fire-up` (+1 range), `speed-up` (+1 GridMover speed), `kick` (S100 — sets BomberStats.canKick=true), `remote-detonate` (S100 — +1 BomberStats.remoteDetonateCharges, capped at 3), `shield` (S109 — one-shot blast protection: sets BomberStats.shield=true; consumed by the next lethal blast), `pierce` (S142 — sets BomberStats.pierce=true; the next placed bomb's blast walks through the first soft block in each direction).",
       "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate", "shield"]
+          "enum": ["bomb-up", "fire-up", "speed-up", "kick", "remote-detonate", "shield", "pierce"]
         }
       }
     },

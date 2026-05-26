@@ -2,8 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S142",
   "title": "Pierce-bomb power-up — blast walks through the first soft block",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-26",
+  "archivedAt": "2026-05-26",
   "notes": [
     "Promotes GDP-2026-05-26-002 (priority: should, KABOOM-CREW-MVP-2). The first far-future power-up from gameplay-systems.md §5.3: a Pierce bomb's blast walks through the first soft block in each direction without stopping (still destroying it). Subsequent soft blocks in the same direction stop the blast as normal — pierce is single-block, not infinite. Tactical depth = stack pierce + range = long block-clearing lines threading enemies behind cover.",
     "Schema: BomberStats.pierce + Bomb.pierce as optional booleans (default false). Pickup.kind gains 'pierce'. The pierce flag is CARRIED AT PLACEMENT — bomb-placement copies BomberStats.pierce → Bomb.pierce when spawning, so the owner can lose pierce after the bomb is on the ground without the bomb losing it.",
@@ -13,58 +14,82 @@
     {
       "id": "SCHEMA-KABOOM-PIERCE-001",
       "title": "Pickup.kind enum + BomberStats.pierce + Bomb.pierce in scene-extensions schema",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — Pickup.kind enum gains 'pierce'. BomberStats gains optional `pierce: boolean` (default false). Bomb gains optional `pierce: boolean` (default false; carried at placement time from BomberStats). Description blurb references gameplay-systems.md §5.3 + GDP-2026-05-26-002.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: scene-extensions.schema.json — Pickup.kind enum adds 'pierce', bomberStatsComponent + bombComponent + blastEventComponent gain optional pierce booleans with S142 description references. engine:check passes on kaboom-crew."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PIERCE-PICKUP-SPAWN-001",
       "title": "pickup-spawn-system: 'pierce' joins the drop table",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/pickup-spawn-system.ts — add 'pierce' to PICKUP_KIND list and PICKUP_VISUAL ({ mesh, color, scale, yOffset } — distinctive accent like a sharp red triangle or sparking cyan box; pick something visually distinct from existing kinds). Drop weight is half of bomb-up rarity per GDP. Existing weighted-pick generator handles the new kind.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: pickup-spawn-system PickupKind union + PICKUP_VISUAL + PICKUP_KINDS drop table all gain 'pierce' (red shard cylinder, ~half rarity)."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PIERCE-PICKUP-COLLECT-001",
       "title": "pickup-collect-system: 'pierce' branch flips BomberStats.pierce = true",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/pickup-collect-system.ts — pierce branch in tryApplyPickup. Idempotent: BomberStats.pierce already true → no-op (no negative feedback). Mirrors the existing kick / shield branch shape.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: pickup-collect-system 'pierce' branch flips BomberStats.pierce=true, idempotent silent-no-op when already true, pickup still consumed. BomberStats type alias gains optional pierce field. 2 regression tests."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PIERCE-PLACEMENT-001",
       "title": "bomb-placement-system: copy BomberStats.pierce → Bomb.pierce at spawn",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/bomb-placement-system.ts — when building the Bomb component on the placed bomb entity, read BomberStats.pierce on the owner and stamp it into the Bomb component. Bomb keeps its pierce flag for its entire lifetime; the owner losing pierce afterwards doesn't strip the in-flight bomb.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bomb-placement-system copies stats.pierce → Bomb.pierce when spawning. Type aliases extended. 2 regression tests (pierce owner + non-pierce baseline)."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PIERCE-BLAST-001",
       "title": "blast-propagation: walk through the FIRST soft block when bomb.pierce is true",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/blast-propagation-system.ts — the propagation loop is the key change. Pre-fix: walk cells in each direction; stop at first hard block, destroy + stop at first soft block. Pierce: walk cells in each direction; stop at first hard block; destroy + CONTINUE on the first soft block; destroy + stop on the second soft block. Each direction tracks its own pierce-budget (1) independently. The pierce flag is read off the Bomb component (not the owner's BomberStats — see SCHEMA + PLACEMENT stories).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: blast-propagation per-direction pierceBudget = (event.pierce ? 1 : 0). On first soft-block hit: destroy + decrement budget + continue when budget > 0; otherwise stop. Hard blocks ALWAYS stop. bomb-fuse copies bomb.pierce → BlastEvent.pierce. BlastEvent schema extended with optional pierce field."
+      ]
     },
     {
       "id": "TEST-KABOOM-PIERCE-001",
       "title": "Unit tests covering pierce pickup → flag → bomb → blast",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Cover the chain: (1) pickup-collect-system test — pierce pickup flips BomberStats.pierce; (2) bomb-placement-system test — pierce owner places → Bomb.pierce true; non-pierce → Bomb.pierce false/undefined; (3) blast-propagation tests: pierce + 2 soft blocks in a row → both destroyed; pierce + 3 soft blocks → first + second destroyed, third untouched; non-pierce baseline test stays green; pierce + hard block → still stops at hard block; multi-direction independence (4 directions × 2 destroyed each); range interaction (range=2 + pierce extends the lane by 1 extra-past-soft-block).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: 6 new tests in bomb-blast-system.test.ts (pierce 2-block / 3-block / hard-wall stop / multi-direction / non-pierce baseline / event-carries-pierce) + 2 in pickup-collect + 2 in bomb-placement. Existing tests untouched. 322/322 kaboom tests pass."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PIERCE-HUD-001",
       "title": "HUD: 'P' flag in the per-bomber power-up line when pierce is on",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Wherever the existing K (kick) / R (remote) / S (shield) flags are rendered in the HUD overlay, add a 'P' flag for pierce. Bottom-left per-bomber section. Reads BomberStats.pierce off the live snapshot.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts HUD plumbing carries pierce through the snapshot map; players type list gains pierce?: boolean; per-bomber flag line appends 'P' when stats.pierce=true. K/R/S/P are now the active flag glyphs."
+      ]
     },
     {
       "id": "DOC-KABOOM-PIERCE-001",
       "title": "README + scene-extensions descriptions document pierce",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/README.md gains a row in the power-ups list (if one exists) or a small paragraph explaining pierce. Schema descriptions mention pierce is carried at placement time. Reference GDP-2026-05-26-002 + gameplay-systems.md §5.3.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README gains a power-ups table listing K/R/S/P flags + pierce row. Schema descriptions reference GDP-2026-05-26-002 + gameplay-systems.md §5.3. GDP file archived to backlog/proposed-stories/archive/S142/."
+      ]
     }
   ]
 }

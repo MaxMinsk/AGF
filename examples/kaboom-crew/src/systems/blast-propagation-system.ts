@@ -33,8 +33,8 @@ const SOFT_BLOCK_DESTROYED_EVENT: ComponentName = "SoftBlockDestroyedEvent";
 // removes it the same fixedUpdate it appears.
 const HIT_RECOIL_REQUEST: ComponentName = "HitRecoilRequest";
 
-type BlastEvent = { originGx: number; originGz: number; range: number; ownerId: EntityId };
-type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId };
+type BlastEvent = { originGx: number; originGz: number; range: number; ownerId: EntityId; pierce?: boolean };
+type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean };
 type GridPos = { gx: number; gz: number };
 type Occupant = { layer?: string; blocksMovement?: boolean; blocksBlast?: boolean };
 
@@ -88,6 +88,11 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
       destroySoftBlocksAt(world, options.occupancy, event.originGx, event.originGz, nextEventId);
 
       for (const direction of DIRECTIONS) {
+        // S142 KABOOM-PIERCE-BOMB — per-direction pierce budget. Pierce
+        // bombs walk through the FIRST soft block in each direction
+        // (still destroying it); a second soft block stops the lane
+        // normally. Hard blocks always stop pierce or not.
+        let pierceBudget = event.pierce === true ? 1 : 0;
         for (let step = 1; step <= event.range; step += 1) {
           const gx = event.originGx + direction.dx * step;
           const gz = event.originGz + direction.dz * step;
@@ -100,10 +105,15 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
             if (softHere.length > 0) {
               // Soft block: spawn tile here, destroy the block, emit
               // SoftBlockDestroyedEvent so PickupSpawnSystem can roll
-              // a pickup at this cell, then stop.
+              // a pickup at this cell. Pierce-branch: if we still have
+              // budget, continue past this cell after destroying.
               spawnBlastTile(world, gx, gz, event.ownerId, nextTileId);
               for (const id of softHere) world.removeEntity(id);
               emitSoftBlockDestroyed(world, gx, gz, nextEventId);
+              if (pierceBudget > 0) {
+                pierceBudget -= 1;
+                continue;
+              }
             }
             break;
           }

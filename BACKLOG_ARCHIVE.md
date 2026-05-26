@@ -147,5 +147,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S139](backlog/sprints/S139.sprint.json)** — Bot personality variants — visual differentiation + random in solo — 7 implemented · archived 2026-05-25
 - **[S140](backlog/sprints/S140.sprint.json)** — Arena variety — corridor map + random pick per page load — 6 implemented · archived 2026-05-25
 - **[S141](backlog/sprints/S141.sprint.json)** — Multi-bot solo — 3 bots, one of each personality — 6 implemented · archived 2026-05-26
+- **[S142](backlog/sprints/S142.sprint.json)** — Pierce-bomb power-up — blast walks through the first soft block — 8 implemented · archived 2026-05-26
 
 <!-- backlog:render:end -->

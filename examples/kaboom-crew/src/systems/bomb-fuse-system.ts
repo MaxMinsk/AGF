@@ -80,7 +80,7 @@ export function bombWiggleScale(fuseRemaining: number, now: number = Date.now())
   return 1 + Math.sin(phase) * amplitude;
 }
 
-type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId };
+type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean };
 type GridPosition = { gx: number; gz: number };
 
 export function createKaboomBombFuseSystem(options: { name?: string; nextEventId?: () => EntityId } = {}): System {
@@ -170,15 +170,20 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
       }
       // Detonate. Spawn a transient BlastEvent entity then delete the
       // bomb. BlastPropagationSystem consumes the event the same step.
+      // S142 KABOOM-PIERCE-BOMB — copy bomb.pierce → BlastEvent.pierce
+      // so the propagation step can branch on the pierce rule without
+      // looking up the (already deleted) bomb entity.
       const eventId = nextEventId();
       if (!world.hasEntity(eventId)) {
         world.addEntity(eventId);
-        world.setComponent(eventId, BLAST_EVENT, {
+        const eventData: { originGx: number; originGz: number; range: number; ownerId: EntityId; pierce?: boolean } = {
           originGx: pos.gx,
           originGz: pos.gz,
           range: bomb.range,
           ownerId: bomb.ownerId
-        });
+        };
+        if (bomb.pierce === true) eventData.pierce = true;
+        world.setComponent(eventId, BLAST_EVENT, eventData);
       }
       // Decrement the owner's activeBombs counter so they can place more.
       const ownerStats = world.getComponent<{ activeBombs?: number; maxBombs: number; range: number }>(bomb.ownerId, BOMBER_STATS);

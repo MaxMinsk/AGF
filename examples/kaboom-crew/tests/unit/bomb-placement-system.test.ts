@@ -42,6 +42,30 @@ describe("createKaboomBombPlacementSystem (S82 KABOOM-BOMB-PLACE)", () => {
     expect(world.hasComponent("player.1", "PlaceBombRequest")).toBe(false);
   });
 
+  it("S142 KABOOM-PIERCE-BOMB: pierce owner places → Bomb.pierce true", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4);
+    // Stamp pierce on the owner.
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, activeBombs: 0, alive: true, pierce: true });
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.pierce" });
+    system.frameUpdate!(ctx(world));
+    const bomb = world.getComponent<{ pierce?: boolean }>("bomb.pierce", "Bomb")!;
+    expect(bomb.pierce).toBe(true);
+  });
+
+  it("S142 KABOOM-PIERCE-BOMB: non-pierce owner places → Bomb.pierce undefined", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4);
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.plain" });
+    system.frameUpdate!(ctx(world));
+    const bomb = world.getComponent<{ pierce?: boolean }>("bomb.plain", "Bomb")!;
+    expect(bomb.pierce).toBeUndefined();
+  });
+
   it("S138 KABOOM-BOMB-COLLIDER: placed bomb carries RigidBody3D + Collider3D so ragdoll bodies bounce off", () => {
     const world = new World();
     makePlayer(world, "player.1", 3, 4);
