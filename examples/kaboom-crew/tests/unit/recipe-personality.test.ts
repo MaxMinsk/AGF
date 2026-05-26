@@ -60,8 +60,27 @@ describe("makeKaboomRecipe — personality variants (S139)", () => {
     expect(makeKaboomRecipe("player.1", "miner").paletteName).toBe("sky");
   });
 
-  it("other entity ids get the seed-driven recipe verbatim", () => {
-    const a = makeKaboomRecipe("bot.42");
+  it("S141: bot.2 + bot.3 follow the same personality-override path as bot.1", () => {
+    const bot2 = makeKaboomRecipe("bot.2", "coward");
+    expect(bot2.paletteName).toBe("slate");
+    expect(bot2.accessories).toHaveLength(1);
+    expect(bot2.accessories[0]!.kind).toBe("visor");
+
+    const bot3 = makeKaboomRecipe("bot.3", "miner");
+    expect(bot3.paletteName).toBe("sand");
+    expect(bot3.accessories).toHaveLength(1);
+    expect(bot3.accessories[0]!.kind).toBe("cap");
+
+    // bot.N without personality keeps the legacy 'rose' fallback
+    // (mirrors S139 behaviour for the connected profile).
+    const bot2NoP = makeKaboomRecipe("bot.2");
+    expect(bot2NoP.paletteName).toBe("rose");
+  });
+
+  it("non-bot, non-player entity ids get the seed-driven recipe verbatim", () => {
+    // S141 — the bot.<digits> regex now matches any numeric suffix, so
+    // pick an explicitly non-bot id to test the fall-through.
+    const a = makeKaboomRecipe("npc-keeper");
     expect(a.paletteName).not.toBe("sky");
     expect(a.paletteName).not.toBe("rose");
     // Seed-driven; just confirm a recipe was produced.

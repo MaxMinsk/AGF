@@ -32,10 +32,13 @@ Optional query params:
 
 - `?difficulty=easy` (default `normal`; also `hard`) — picks the bot
   preset applied to `bot.1` on first boot + every round restart.
-- `?botPersonality=hunter|coward|miner` — locks the bot to a specific
-  AI behaviour + visual variant. **Omit the param to get a RANDOM
-  personality per page load**, stable across round restarts in the
-  same match (S139). Each personality has a distinct palette +
+- `?botPersonality=hunter|coward|miner` — historical single-bot
+  personality override. **S141 changed the solo default: every match
+  now spawns THREE bots, one of each personality**, so the player
+  faces the full palette + AI mix every round. The match resolves
+  battle-royale style: last bomber standing wins (player → tally
+  player++, any bot → tally bot++). The URL param is preserved for
+  future per-bot overrides. Each personality has a distinct palette +
   accessory so you can read which one you're facing at a glance:
 
   | Personality | Palette  | Accessory  | AI behaviour                        |
