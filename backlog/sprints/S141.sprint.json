@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S141",
+  "title": "Multi-bot solo — 3 bots, one of each personality",
+  "status": "active",
+  "startedAt": "2026-05-26",
+  "notes": [
+    "S139 added three visually-distinct bot personalities (hunter / coward / miner) but solo only spawned one bot per round. With three slots the player faces the full palette + AI behaviour mix every match: hunter chases, coward hides, miner farms blocks — each unmistakable by colour + accessory.",
+    "Scope: solo profile only. Connected mode keeps the single server-owned bot path (server-side AI doesn't know about local multi-bot). Round-resolve already handles n bombers via the 'one alive' rule, so multi-bot rounds end when only one bomber survives — battle-royale-shaped.",
+    "Personality assignment is stable per page load: bot.1 → hunter, bot.2 → coward, bot.3 → miner. The S139 random session pick still affects the URL-less default path (lets a future override re-shuffle), but the default is now a deterministic one-of-each so every solo round shows all three variants."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-MULTI-BOT-SCENES-001",
+      "title": "Add bot.2 + bot.3 spawn instances to every scene",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/scenes/{start,wide,corridor}.scene.json — add `bot.2` + `bot.3` instances using the 'bot' prefab at distinct corners so the three bots start spread out. start: bot.1 (13,9), bot.2 (1,9), bot.3 (13,1); wide: bot.1 (15,11), bot.2 (1,11), bot.3 (15,1); corridor: bot.1 (15,5), bot.2 (8,1), bot.3 (8,5).",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-MULTI-BOT-RECIPE-001",
+      "title": "makeKaboomRecipe handles bot.2 + bot.3 with the same personality-override path",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/kaboom-recipe.ts — match any `bot.\\d+` id instead of the exact 'bot.1' literal, then apply the personality palette + accessory when personality is provided. bot.N without personality falls back to 'rose' (legacy). player.1 still gets 'sky'.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-MULTI-BOT-BOOTSTRAP-001",
+      "title": "Bootstrap spawns + tunes all three bots (one of each personality)",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/bootstrap.ts — replace the bot.1-only spawn + difficulty patches with a loop over MULTI_BOT_ASSIGNMENT = [{id: 'bot.1', personality: 'hunter'}, {id: 'bot.2', personality: 'coward'}, {id: 'bot.3', personality: 'miner'}]. For each: difficultyComponentPatch + makeKaboomRecipe + spawnBomberFor. Applied both on initial attach AND on resetRound. Connected mode still deletes bot.1 only (server owns it); bot.2 + bot.3 don't exist server-side.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "TEST-KABOOM-MULTI-BOT-RECIPE-001",
+      "title": "Unit test: bot.2 + bot.3 with personality get distinct palettes + accessories",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/tests/unit/recipe-personality.test.ts (extend) — call makeKaboomRecipe('bot.2', 'coward') / ('bot.3', 'miner') and assert paletteName + single accessory match. bot.2 without personality returns base seed-driven recipe (no forced 'rose' fallback needed since we relax the exact-match check — verify the regex/check is intentional).",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "TEST-KABOOM-MULTI-BOT-SCENES-001",
+      "title": "Scene smoke tests: every scene has the 3-bot instance set",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/tests/unit/scenes-multi-bot.test.ts — load each of start / wide / corridor and assert: bot.1 + bot.2 + bot.3 instances exist with the 'bot' prefab, each at distinct grid positions inside the grid bounds. Smoke check that scene shape stays valid through the schema (engine:check still passes).",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "DOC-KABOOM-MULTI-BOT-001",
+      "title": "README: three-bot solo is the new default",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/README.md — note that solo now spawns 3 bots, one of each personality (hunter/coward/miner). Match resolves when only one bomber is left standing (battle-royale). Player wins → tally.player++; any bot wins → tally.bot++ (collapsed across bots).",
+      "epic": "KABOOM-CREW-MVP-2"
+    }
+  ]
+}
