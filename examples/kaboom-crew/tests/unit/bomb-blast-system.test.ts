@@ -127,6 +127,123 @@ describe("Kaboom bomb pipeline (S82)", () => {
     expect(world.hasEntity("soft.east-2")).toBe(true);
   });
 
+  // S142 KABOOM-PIERCE-BOMB tests — pierce flag carries from owner to
+  // bomb to BlastEvent; propagation walks through the first soft block
+  // in each direction.
+
+  function addPierceBomb(world: World, id: string, gx: number, gz: number, opts: { range?: number; owner?: string } = {}): void {
+    world.addEntity(id);
+    world.setComponent(id, "GridPosition", { gx, gz });
+    world.setComponent(id, "GridOccupant", { layer: "bomb", blocksMovement: false, blocksBlast: false });
+    world.setComponent(id, "Bomb", {
+      fuseRemaining: 1 / 60,
+      range: opts.range ?? 3,
+      ownerId: opts.owner ?? "player.1",
+      pierce: true
+    });
+  }
+
+  it("S142 pierce bomb: blast through 2 soft blocks in a row destroys BOTH", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addPierceBomb(world, "bomb.pierce", 5, 5, { range: 3 });
+    addSoftBlock(world, "soft.east", 6, 5);
+    addSoftBlock(world, "soft.east-2", 7, 5);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    createKaboomBombFuseSystem().fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    createKaboomBlastPropagationSystem({ occupancy: occ }).fixedUpdate!(ctx(world));
+    expect(world.hasEntity("soft.east")).toBe(false);
+    expect(world.hasEntity("soft.east-2")).toBe(false);
+  });
+
+  it("S142 pierce bomb: 3 soft blocks in a row destroys first + second, third survives", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addPierceBomb(world, "bomb.pierce", 5, 5, { range: 4 });
+    addSoftBlock(world, "soft.east", 6, 5);
+    addSoftBlock(world, "soft.east-2", 7, 5);
+    addSoftBlock(world, "soft.east-3", 8, 5);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    createKaboomBombFuseSystem().fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    createKaboomBlastPropagationSystem({ occupancy: occ }).fixedUpdate!(ctx(world));
+    expect(world.hasEntity("soft.east")).toBe(false);
+    expect(world.hasEntity("soft.east-2")).toBe(false);
+    expect(world.hasEntity("soft.east-3")).toBe(true);
+  });
+
+  it("S142 pierce bomb: hard wall ALWAYS stops the blast (pierce or not)", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addPierceBomb(world, "bomb.pierce", 5, 5, { range: 3 });
+    addHardWall(world, "wall.east", 6, 5);
+    addSoftBlock(world, "soft.east-2", 7, 5);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    createKaboomBombFuseSystem().fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    createKaboomBlastPropagationSystem({ occupancy: occ }).fixedUpdate!(ctx(world));
+    expect(world.hasEntity("wall.east")).toBe(true);
+    expect(world.hasEntity("soft.east-2")).toBe(true);
+  });
+
+  it("S142 pierce bomb: multi-direction independence — 4 dirs × 2 soft blocks destroyed in each", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addPierceBomb(world, "bomb.pierce", 5, 5, { range: 3 });
+    // Cross of soft blocks in all 4 directions, 2 deep.
+    addSoftBlock(world, "soft.e1", 6, 5);
+    addSoftBlock(world, "soft.e2", 7, 5);
+    addSoftBlock(world, "soft.w1", 4, 5);
+    addSoftBlock(world, "soft.w2", 3, 5);
+    addSoftBlock(world, "soft.n1", 5, 4);
+    addSoftBlock(world, "soft.n2", 5, 3);
+    addSoftBlock(world, "soft.s1", 5, 6);
+    addSoftBlock(world, "soft.s2", 5, 7);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    createKaboomBombFuseSystem().fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    createKaboomBlastPropagationSystem({ occupancy: occ }).fixedUpdate!(ctx(world));
+    for (const id of ["soft.e1", "soft.e2", "soft.w1", "soft.w2", "soft.n1", "soft.n2", "soft.s1", "soft.s2"]) {
+      expect(world.hasEntity(id), `${id} should be destroyed`).toBe(false);
+    }
+  });
+
+  it("S142 non-pierce baseline: same 2 soft blocks → first destroyed, second survives", () => {
+    // Sanity guard the non-pierce path against the new branch.
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addBomb(world, "bomb.plain", 5, 5, { fuse: 1 / 60, range: 3 });
+    addSoftBlock(world, "soft.east", 6, 5);
+    addSoftBlock(world, "soft.east-2", 7, 5);
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    createKaboomBombFuseSystem().fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    createKaboomBlastPropagationSystem({ occupancy: occ }).fixedUpdate!(ctx(world));
+    expect(world.hasEntity("soft.east")).toBe(false);
+    expect(world.hasEntity("soft.east-2")).toBe(true);
+  });
+
+  it("S142 pierce bomb: BlastEvent carries pierce=true through bomb-fuse to propagation", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addPierceBomb(world, "bomb.pierce", 5, 5, { range: 2 });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    createKaboomBombFuseSystem().fixedUpdate!(ctx(world));
+    let pierceCount = 0;
+    for (const id of world.entityIds()) {
+      const event = world.getComponent(id, "BlastEvent") as { pierce?: boolean } | undefined;
+      if (event !== undefined && event.pierce === true) pierceCount += 1;
+    }
+    expect(pierceCount).toBe(1);
+  });
+
   it("bomb-on-bomb chain reaction sets the second bomb's fuse to 0", () => {
     const world = new World();
     addBomber(world, "player.1", 5, 5);

@@ -39,7 +39,7 @@ function addBomber(
   });
 }
 
-function addPickup(world: World, id: string, gx: number, gz: number, kind: "bomb-up" | "fire-up" | "speed-up" | "shield"): void {
+function addPickup(world: World, id: string, gx: number, gz: number, kind: "bomb-up" | "fire-up" | "speed-up" | "shield" | "pierce"): void {
   world.addEntity(id);
   world.setComponent(id, "GridPosition", { gx, gz });
   world.setComponent(id, "Pickup", { kind });
@@ -166,5 +166,31 @@ describe("createKaboomPickupCollectSystem (S82 KABOOM-PICKUPS-AND-STATS)", () =>
     const stats = world.getComponent<{ shield?: boolean }>("player.1", "BomberStats");
     expect(stats?.shield).toBe(true); // unchanged
     expect(world.hasEntity("pickup.1")).toBe(false); // pickup still consumed
+  });
+
+  // S142 KABOOM-PIERCE-BOMB.
+  it("S142 pierce pickup sets BomberStats.pierce = true + consumes the pickup", () => {
+    const world = new World();
+    addBomber(world, "player.1", 2, 2);
+    addPickup(world, "pickup.pierce", 2, 2, "pierce");
+    const occupancy = makeOccupancy(new Map([["2,2", ["player.1", "pickup.pierce"]]]));
+    const system = createKaboomPickupCollectSystem({ occupancy });
+    system.fixedUpdate!(ctx(world));
+    const stats = world.getComponent<{ pierce?: boolean }>("player.1", "BomberStats");
+    expect(stats?.pierce).toBe(true);
+    expect(world.hasEntity("pickup.pierce")).toBe(false);
+  });
+
+  it("S142 pierce pickup collected while already pierce-enabled is a silent NO-OP", () => {
+    const world = new World();
+    addBomber(world, "player.1", 2, 2);
+    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true, pierce: true });
+    addPickup(world, "pickup.pierce", 2, 2, "pierce");
+    const occupancy = makeOccupancy(new Map([["2,2", ["player.1", "pickup.pierce"]]]));
+    const system = createKaboomPickupCollectSystem({ occupancy });
+    system.fixedUpdate!(ctx(world));
+    const stats = world.getComponent<{ pierce?: boolean }>("player.1", "BomberStats");
+    expect(stats?.pierce).toBe(true); // unchanged
+    expect(world.hasEntity("pickup.pierce")).toBe(false); // still consumed
   });
 });

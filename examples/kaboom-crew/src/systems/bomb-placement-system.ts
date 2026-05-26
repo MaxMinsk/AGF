@@ -40,6 +40,12 @@ type BomberStats = {
   // this counter decrements. Player triggers all paused bombs via
   // RemoteDetonateRequest.
   remoteDetonateCharges?: number;
+  // S142 KABOOM-PIERCE-BOMB — when true, the NEXT placed bomb's blast
+  // walks through the first soft block in each direction. Carried at
+  // placement time → Bomb.pierce, so the owner can lose pierce later
+  // without stripping the in-flight bomb. Stays sticky on the bomber
+  // until a future Pierce-consume mechanic resets it (currently never).
+  pierce?: boolean;
 };
 type GridPos = { gx: number; gz: number };
 
@@ -140,11 +146,17 @@ export function createKaboomBombPlacementSystem(
       // bomb-fuse-system reads that + drops fuseRemaining to 0.
       const charges = stats.remoteDetonateCharges ?? 0;
       const usesRemote = charges > 0;
-      world.setComponent(bombId, BOMB, {
+      // S142 KABOOM-PIERCE-BOMB — copy owner's pierce flag at placement
+      // time so the bomb keeps the property even if the owner loses
+      // pierce afterwards (no mechanism today, but reserved for future
+      // negative pickups / debuffs).
+      const bombDef: { fuseRemaining: number; range: number; ownerId: string; pierce?: boolean } = {
         fuseRemaining: usesRemote ? Number.POSITIVE_INFINITY : fuseSeconds,
         range: stats.range,
         ownerId: entityId
-      });
+      };
+      if (stats.pierce === true) bombDef.pierce = true;
+      world.setComponent(bombId, BOMB, bombDef);
 
       world.setComponent(entityId, BOMBER_STATS, {
         ...stats,

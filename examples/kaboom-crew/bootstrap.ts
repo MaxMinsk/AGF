@@ -967,6 +967,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               canKick: (c["BomberStats"] as { canKick?: boolean })?.canKick,
               remoteDetonateCharges: (c["BomberStats"] as { remoteDetonateCharges?: number })?.remoteDetonateCharges,
               shield: (c["BomberStats"] as { shield?: boolean })?.shield,
+              pierce: (c["BomberStats"] as { pierce?: boolean })?.pierce,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
               targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
             };
@@ -1271,7 +1272,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -1296,8 +1297,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           const dead = p.alive === false ? " ✗" : "";
           // S109 — append a compact flag suffix `[KRS]` for any active
           // power-up. K = canKick, R = remote-detonate charges > 0,
-          // S = shield (one-shot blast protection).
-          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}`;
+          // S = shield (one-shot blast protection), P = pierce (S142).
+          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}${p.pierce === true ? "P" : ""}`;
           const flagSuffix = flags.length > 0 ? `   [${flags}]` : "";
           lines.push(
             `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}${flagSuffix}`

@@ -47,6 +47,22 @@ Optional query params:
   | coward      | `slate`  | `visor`    | Defensive — bias toward flee.       |
   | miner       | `sand`   | `cap`      | Works the soft-blocks for power-ups.|
 
+### Power-ups
+
+Pickups drop from destroyed soft blocks at ~30 % chance per block.
+HUD shows the active flags per bomber in the bottom-left line:
+**K**ick, **R**emote-detonate, **S**hield, **P**ierce.
+
+| Kind             | Effect                                                                 |
+|---               |---                                                                     |
+| `bomb-up`        | +1 `maxBombs` (cap 8).                                                 |
+| `fire-up`        | +1 blast `range` (cap 8).                                              |
+| `speed-up`       | +1 GridMover speed step (cap ~6 cells/sec).                            |
+| `kick` (S100)    | Walking into your own bomb kicks it one cell forward.                  |
+| `remote-detonate` (S100) | Next bomb is paused (fuseRemaining=∞); press F to detonate. Capped at 3 charges. |
+| `shield` (S109)  | One-shot absorbs the next lethal blast; shield flips off.              |
+| `pierce` (S142)  | Next placed bomb's blast walks through the **first** soft block in each direction (still destroys it). Second soft block in the same direction stops the lane normally. Carried at placement time. |
+
 ## Controls
 
 | Key            | Action                                                  |
