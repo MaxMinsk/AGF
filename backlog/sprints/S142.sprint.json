@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-26",
   "archivedAt": "2026-05-26",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/168",
   "notes": [
     "Promotes GDP-2026-05-26-002 (priority: should, KABOOM-CREW-MVP-2). The first far-future power-up from gameplay-systems.md §5.3: a Pierce bomb's blast walks through the first soft block in each direction without stopping (still destroying it). Subsequent soft blocks in the same direction stop the blast as normal — pierce is single-block, not infinite. Tactical depth = stack pierce + range = long block-clearing lines threading enemies behind cover.",
     "Schema: BomberStats.pierce + Bomb.pierce as optional booleans (default false). Pickup.kind gains 'pierce'. The pierce flag is CARRIED AT PLACEMENT — bomb-placement copies BomberStats.pierce → Bomb.pierce when spawning, so the owner can lose pierce after the bomb is on the ground without the bomb losing it.",
