@@ -62,6 +62,13 @@ describe("Kaboom Crew demo-30s regression (S84 KABOOM-DEMO-RECORDING)", () => {
   it("produces a stable final state for a deterministic 30 s bot-vs-bot round", () => {
     const world = buildWorld();
 
+    // S141 — start.scene now seeds 3 bots (bot.1/2/3) for multi-bot
+    // solo. This test runs a deterministic 1v1 duel, so drop the
+    // extra bots to keep the snapshot stable.
+    for (const id of ["bot.2", "bot.3"]) {
+      if (world.hasEntity(id)) world.removeEntity(id);
+    }
+
     if (world.hasComponent("player.1", "PlayerControlled")) {
       world.removeComponent("player.1", "PlayerControlled");
     }

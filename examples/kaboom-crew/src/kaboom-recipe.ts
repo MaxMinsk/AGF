@@ -32,11 +32,28 @@ export const PERSONALITY_ACCESSORY: Record<BotPersonality, AccessoryKind> = {
   miner: "cap"
 };
 
+/** S141 — match `bot.<digits>` ids so multi-bot solo lands on the same path as bot.1. */
+const BOT_ID_RE = /^bot\.\d+$/;
+
+/**
+ * S141 — assignment of personalities to the three solo-mode bots.
+ * Stable order: bot.1 hunter, bot.2 coward, bot.3 miner — so every
+ * solo match shows all three variants. Order doubles as the
+ * canonical solo bot list for the bootstrap loop.
+ */
+export const MULTI_BOT_ASSIGNMENT: ReadonlyArray<{ id: string; personality: BotPersonality }> = [
+  { id: "bot.1", personality: "hunter" },
+  { id: "bot.2", personality: "coward" },
+  { id: "bot.3", personality: "miner" }
+];
+
+export const MULTI_BOT_IDS: ReadonlyArray<string> = MULTI_BOT_ASSIGNMENT.map((b) => b.id);
+
 /**
  * Build the recipe for a kaboom-crew bomber.
  *   - player.1 → "sky" palette, seed-driven everything else.
- *   - bot.1 + personality → personality palette + single accessory.
- *   - bot.1 without personality (e.g. connected profile) → legacy "rose".
+ *   - bot.N (any digit suffix) + personality → personality palette + single accessory.
+ *   - bot.N without personality (e.g. connected profile) → legacy "rose" for backward compat.
  *   - anything else → seed-driven recipe verbatim.
  */
 export function makeKaboomRecipe(
@@ -45,7 +62,7 @@ export function makeKaboomRecipe(
 ): ResolvedCharacterRecipe {
   const base = recipeForOwner(ownerId);
   if (ownerId === "player.1") return { ...base, paletteName: "sky" };
-  if (ownerId === "bot.1") {
+  if (BOT_ID_RE.test(ownerId)) {
     if (personality === undefined) {
       return { ...base, paletteName: "rose" };
     }

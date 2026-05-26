@@ -100,6 +100,22 @@
       }
     },
     {
+      "id": "bot.2",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": { "position": [1, 0.4, 11] },
+        "GridPosition": { "gx": 1, "gz": 11 }
+      }
+    },
+    {
+      "id": "bot.3",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": { "position": [15, 0.4, 1] },
+        "GridPosition": { "gx": 15, "gz": 1 }
+      }
+    },
+    {
       "id": "wall.1",
       "prefab": "hard-block",
       "overrides": { "Transform": { "position": [3, 0.5, 3] }, "GridPosition": { "gx": 3, "gz": 3 } }

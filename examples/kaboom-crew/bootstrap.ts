@@ -45,8 +45,9 @@ import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-
 
 // S104 KABOOM-MIGRATE-PREFABS + S139 KABOOM-BOT-PERSONALITY-VISUALS.
 // The pure recipe derivation lives in ./src/kaboom-recipe so it can
-// be unit-tested without bootstrapping a runtime.
-import { makeKaboomRecipe } from "./src/kaboom-recipe";
+// be unit-tested without bootstrapping a runtime. S141 — multi-bot
+// solo assignment lives there too.
+import { makeKaboomRecipe, MULTI_BOT_ASSIGNMENT, MULTI_BOT_IDS } from "./src/kaboom-recipe";
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
 import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bomb-network-relay-system";
@@ -68,7 +69,7 @@ import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
-import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality } from "./src/difficulty";
+import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
 
@@ -270,20 +271,23 @@ function restartScene(runtime: RuntimeHandle): number {
         MatchState: { phase: "playing", target: matchTarget, matchNumber: nextMatchNumber }
       }
     },
-    // S100 KABOOM-BOT-PERSONALITY-VARIANTS — splice the URL-derived
-    // personality into the difficulty patch so a single component.set
-    // both keeps the existing aggression/decision dial AND sets the
-    // personality flag the bot-ai-system reads. S120 — on connected
-    // mode bot.1 is server-owned so we delete the scene-spawned local
-    // one rather than apply tuning patches.
+    // S100 + S141 — apply the difficulty + personality patch to all
+    // three solo bots. Connected mode keeps the single-bot path:
+    // server owns bot.1, the scene also spawns bot.2 + bot.3 so we
+    // delete every solo-bot id to let the server's snapshot land
+    // without collisions. The S139 URL-override `personality` is
+    // intentionally ignored here because the multi-bot default
+    // assigns one of each — the override flag re-purposes itself for
+    // future single-bot networked rounds.
     ...(_networkedMode
-      ? [{ kind: "entity.delete", entityId: "bot.1" } as EngineCommand]
-      : [
-          { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } } as EngineCommand,
-          { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats } as EngineCommand,
-          { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover } as EngineCommand
-        ])
+      ? MULTI_BOT_IDS.map((id) => ({ kind: "entity.delete", entityId: id } as EngineCommand))
+      : MULTI_BOT_ASSIGNMENT.flatMap(({ id, personality: p }) => [
+          { kind: "component.set", entityId: id, component: "BotBrain", data: { ...tuning.BotBrain, personality: p } } as EngineCommand,
+          { kind: "component.set", entityId: id, component: "BomberStats", data: tuning.BomberStats } as EngineCommand,
+          { kind: "component.set", entityId: id, component: "GridMover", data: tuning.GridMover } as EngineCommand
+        ]))
   ]);
+  void personality; // S141 — kept in scope for future networked-mode single-bot use.
   // S104 KABOOM-MIGRATE-PREFABS — scene.load WIPES the world including
   // the 19-entity bomber trees from the previous round. Re-spawn here
   // so the next round renders bombers. The procedural mesh registry
@@ -293,13 +297,13 @@ function restartScene(runtime: RuntimeHandle): number {
   spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
   // S120 — on connected, the server owns bot.1; the snapshot delivers
   // it and remote-bomber-decorator spawns the procbomber tree locally.
-  // Spawning here would collide with the server's claim.
+  // Spawning here would collide with the server's claim. S141 — bot.2
+  // and bot.3 are solo-only; the connected delete above wiped them.
   if (!_networkedMode) {
-    // S139 — bot recipe uses the session-stable personality so the
-    // visual marker (palette + accessory) stays consistent across
-    // round restarts in the same match.
-    const botRecipe = makeKaboomRecipe("bot.1", personality);
-    spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+    for (const { id, personality: p } of MULTI_BOT_ASSIGNMENT) {
+      const botRecipe = makeKaboomRecipe(id, p);
+      spawnBomberFor((cmds) => runtime.applyCommands(cmds), id, botRecipe);
+    }
   }
   return 1;
 }
@@ -601,41 +605,51 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       })
     ];
     if (!_networkedMode) {
-      // Static profile only — bot tuning patches.
-      initialBatch.push(
-        { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...initialTuning.BotBrain, personality: initialPersonality } },
-        { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: initialTuning.BomberStats },
-        { kind: "component.set", entityId: "bot.1", component: "GridMover", data: initialTuning.GridMover }
-      );
+      // Static profile only — bot tuning patches for all 3 solo bots
+      // (S141). Each carries its own personality slot from
+      // MULTI_BOT_ASSIGNMENT so hunter/coward/miner all spawn every
+      // round.
+      for (const { id, personality: p } of MULTI_BOT_ASSIGNMENT) {
+        initialBatch.push(
+          { kind: "component.set", entityId: id, component: "BotBrain", data: { ...initialTuning.BotBrain, personality: p } },
+          { kind: "component.set", entityId: id, component: "BomberStats", data: initialTuning.BomberStats },
+          { kind: "component.set", entityId: id, component: "GridMover", data: initialTuning.GridMover }
+        );
+      }
     } else {
-      // S120 KABOOM-MP-SPRINT-B — on connected, delete the scene-
-      // spawned bot.1 entity so the server's snapshot bot.1 can land
-      // without an id-collision rejection from ws-network-adapter.
-      initialBatch.push({ kind: "entity.delete", entityId: "bot.1" });
+      // S120 KABOOM-MP-SPRINT-B + S141 — on connected, delete every
+      // scene-spawned solo bot. The server owns bot.1; bot.2 + bot.3
+      // are solo-only and would otherwise sit idle.
+      for (const id of MULTI_BOT_IDS) {
+        initialBatch.push({ kind: "entity.delete", entityId: id });
+      }
     }
     runtime.applyCommands(initialBatch);
     // S104 KABOOM-MIGRATE-PREFABS: register the procbomber per-part
     // builders + spawn one tree per bomber root. Recipe seeded from
-    // the entity id so player.1 + bot.1 look different by default.
-    // restartScene re-spawns the trees because scene.load wipes the
-    // world.
+    // the entity id so each bomber looks different. S141 — the
+    // renderer's callback walks the static assignment to map each
+    // solo bot id to its personality; player.1 always uses the
+    // sky palette via makeKaboomRecipe.
     const playerRecipe = makeKaboomRecipe("player.1");
-    // S139 — the renderer's per-part builder callback also resolves
-    // recipes; capture the session personality in the closure so
-    // future renderer rebuilds (e.g. ProceduralMeshRegistry refresh)
-    // produce the same palette + accessory mix.
-    const recipePersonality = _networkedMode ? undefined : initialPersonality;
+    const recipePersonalityById = new Map<string, BotPersonality>(
+      _networkedMode ? [] : MULTI_BOT_ASSIGNMENT.map((b) => [b.id, b.personality] as const)
+    );
     registerProcbomberBuilders(
       runtime.renderer,
-      (ownerId) => makeKaboomRecipe(ownerId, ownerId === "bot.1" ? recipePersonality : undefined)
+      (ownerId) => makeKaboomRecipe(ownerId, recipePersonalityById.get(ownerId))
     );
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     // S120 — on connected, server owns bot.1; snapshot delivers it +
     // remote-bomber-decorator spawns the procbomber tree locally.
+    // S141 — solo spawns all three bot trees.
     if (!_networkedMode) {
-      const botRecipe = makeKaboomRecipe("bot.1", initialPersonality);
-      spawnBomberFor((cmds) => runtime.applyCommands(cmds), "bot.1", botRecipe);
+      for (const { id, personality: p } of MULTI_BOT_ASSIGNMENT) {
+        const botRecipe = makeKaboomRecipe(id, p);
+        spawnBomberFor((cmds) => runtime.applyCommands(cmds), id, botRecipe);
+      }
     }
+    void initialPersonality; // S141 — preserved for future per-bot URL overrides.
     // S117 KABOOM-BOMBER-MATERIAL-PATCH — procbomber meshes paint
     // per-vertex colour (palette + panel seams + decals + stripes),
     // but the engine's default MeshStandardMaterial has
@@ -718,12 +732,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       const personality = resolveSessionBotPersonality(
         (globalThis as unknown as { location?: { search?: string } }).location?.search
       );
+      void personality; // S141 — kept for future per-bot URL overrides.
       if (!_networkedMode) {
-        runtime.applyCommands([
-          { kind: "component.set", entityId: "bot.1", component: "BotBrain", data: { ...tuning.BotBrain, personality } },
-          { kind: "component.set", entityId: "bot.1", component: "BomberStats", data: tuning.BomberStats },
-          { kind: "component.set", entityId: "bot.1", component: "GridMover", data: tuning.GridMover }
-        ]);
+        // S141 — apply difficulty to every solo bot. Each bot keeps
+        // its own personality slot from MULTI_BOT_ASSIGNMENT.
+        runtime.applyCommands(
+          MULTI_BOT_ASSIGNMENT.flatMap(({ id, personality: p }) => [
+            { kind: "component.set", entityId: id, component: "BotBrain", data: { ...tuning.BotBrain, personality: p } } as EngineCommand,
+            { kind: "component.set", entityId: id, component: "BomberStats", data: tuning.BomberStats } as EngineCommand,
+            { kind: "component.set", entityId: id, component: "GridMover", data: tuning.GridMover } as EngineCommand
+          ])
+        );
       }
       return next;
     }
