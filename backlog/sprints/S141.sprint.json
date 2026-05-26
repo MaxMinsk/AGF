@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-26",
   "archivedAt": "2026-05-26",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/167",
   "notes": [
     "S139 added three visually-distinct bot personalities (hunter / coward / miner) but solo only spawned one bot per round. With three slots the player faces the full palette + AI behaviour mix every match: hunter chases, coward hides, miner farms blocks — each unmistakable by colour + accessory.",
     "Scope: solo profile only. Connected mode keeps the single server-owned bot path (server-side AI doesn't know about local multi-bot). Round-resolve already handles n bombers via the 'one alive' rule, so multi-bot rounds end when only one bomber survives — battle-royale-shaped.",
