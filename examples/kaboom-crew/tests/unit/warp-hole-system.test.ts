@@ -97,26 +97,29 @@ describe("createKaboomWarpHoleSystem (S149)", () => {
     expect(pos.gx).toBe(5); // unchanged
   });
 
-  it("cooldown: a second warp on the same pair within 300 ms is suppressed", () => {
+  // QA-2026-05-27-001 regression — the per-entity tracking replaces the
+  // earlier broken per-pair cooldown. A bomber that stays on the
+  // destination cell DOES NOT get ping-ponged back to the source.
+  it("QA-2026-05-27-001 regression — stationary bomber on warp DOES NOT ping-pong", () => {
     const world = new World();
     addWarp(world, "warp.0.a", 2, 1, 0, "a");
     addWarp(world, "warp.0.b", 12, 9, 0, "b");
     addBomber(world, "player.1", 2, 1);
     const occ = createGridOccupancySystem();
     const sys = createKaboomWarpHoleSystem({ occupancy: occ });
-    // First tick warps to (12, 9). Walk back to (2, 1) immediately
-    // (still within the cooldown window).
+    // First tick warps A → B. Player stays put for 60 more ticks
+    // (~1 second). Should remain at B; no return to A.
     tick(world, occ, sys);
     expect(world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!.gx).toBe(12);
-    world.setComponent("player.1", "GridPosition", { gx: 2, gz: 1 });
-    // 5 more ticks at 1/60 s each = 83 ms total elapsed since the
-    // warp — still below the 300 ms cooldown.
-    tick(world, occ, sys, 5);
+    tick(world, occ, sys, 60);
     const pos = world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!;
-    expect(pos.gx).toBe(2); // suppressed; stayed on cell A
+    expect(pos.gx).toBe(12);
+    expect(pos.gz).toBe(9);
   });
 
-  it("cooldown releases after 300 ms — next warp fires", () => {
+  it("per-entity model — walking off destination then back onto a warp re-fires", () => {
+    // Walk in → warp to B → step away (set pos to a non-warp cell) →
+    // step back onto a warp cell → should warp again.
     const world = new World();
     addWarp(world, "warp.0.a", 2, 1, 0, "a");
     addWarp(world, "warp.0.b", 12, 9, 0, "b");
@@ -125,11 +128,15 @@ describe("createKaboomWarpHoleSystem (S149)", () => {
     const sys = createKaboomWarpHoleSystem({ occupancy: occ });
     tick(world, occ, sys);
     expect(world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!.gx).toBe(12);
-    world.setComponent("player.1", "GridPosition", { gx: 2, gz: 1 });
-    // 20 ticks at 1/60 s = 333 ms — past the 300 ms cooldown.
-    tick(world, occ, sys, 20);
+    // Walk to a non-warp cell first — clears the per-entity stamp.
+    world.setComponent("player.1", "GridPosition", { gx: 11, gz: 9 });
+    tick(world, occ, sys);
+    // Now step BACK onto a warp cell. Eligible again — warps.
+    world.setComponent("player.1", "GridPosition", { gx: 12, gz: 9 });
+    tick(world, occ, sys);
     const pos = world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!;
-    expect(pos.gx).toBe(12); // warped again
+    expect(pos.gx).toBe(2);
+    expect(pos.gz).toBe(1);
   });
 
   it("two warp pairs run independently — pair-0 cooldown doesn't affect pair-1", () => {
