@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/203",
   "notes": [
     "Implements GDP-2026-05-28-007 MVP slice. Onboarding fix: HUD icons + opponent badges now expose a hover tooltip after a configurable delay (default 400 ms) showing name + one-line description + current slot state (ACTIVE / LOCKED / counter / cooldown).",
     "Out of scope (deferred to follow-ups): touch-tap-and-hold, prefers-reduced-motion, aria-describedby. Mouse hover + keyboard focus paths are covered, which is the bulk of the UX value.",
