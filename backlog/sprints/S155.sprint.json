@@ -1,0 +1,55 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S155",
+  "title": "Lifetime stats HUD + deferred S153 hooks (self-death + chain detection)",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Closes the three S153 deferrals from GDP-2026-05-27-009: the deathsByOwnBomb hook, the chainReactionsTriggered + maxChainLength hook, and the ?showLifetime=true HUD line. All wired through the existing snapshot-loop diff pattern in bootstrap.ts — no new ECS systems, no new protocol messages.",
+    "Attribution is intentionally tight: self-death requires both the local-player alive→false transition AND ≥ 1 own-bomb that disappeared this frame (so a chained-from-bot-bomb death doesn't get attributed). Chain-reaction count is the total bombs that vanished this frame when ≥ 2 — works for both fuse-chain and remote-detonate-chain detonations."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-SELF-DEATH-WIRE-001",
+      "title": "bootstrap.ts: detect local self-death via own-bomb-disappear + alive-flip diff",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — per-frame snapshot loop tracks prevAlive + prevOwnBombIds (filtered to ownerId === 'player.1'). When alive flips true → false AND ≥ 1 prevOwnBombId disappeared this frame, call profileStore.recordSelfDeath(). Tight attribution — chained-from-bot deaths don't count.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts wires prevAlive + prevOwnBombIds tracking; recordSelfDeath fires once on the alive-flip frame when an own bomb disappeared simultaneously."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-CHAIN-WIRE-001",
+      "title": "bootstrap.ts: detect chain reactions via all-bomb-disappear count",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — per-frame snapshot tracks prevAllBombIds. Each frame counts how many bombs disappeared (prev set minus current set). When count ≥ 2, call profileStore.recordChain(count). Works uniformly for fuse-chain + remote-detonate-chain detonations.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts wires prevAllBombIds tracking; recordChain fires with the disappeared-count when ≥ 2 in a single frame."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-LIFETIME-HUD-001",
+      "title": "kaboom.lifetime-hud widget — opt-in via ?showLifetime=true",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — register a new HUD widget keyed by LIFETIME_HUD_ID in the bottomLeft slot. Mounted only when URL has `?showLifetime=true` (default off — preserves the clean HUD for new players). Renders a 4-line block (LIFETIME header + matches W/M + rounds W/L/D/total + self-kills/max-chain) using cream text at 85 % opacity. Per-frame update pushes the profile store's lifetimeStats into the widget so counters tick live.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts adds the LIFETIME_HUD_ID widget gated on `?showLifetime=true`; when on, the widget renders the 4-line stats block and updates each frame from profileStore.get().lifetimeStats."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-LIFETIME-001",
+      "title": "README — document the lifetime URL flag + the S153 deferral closures",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md (Player profile section) — extended with the S155 closure notes: deathsByOwnBomb hook, chainReactionsTriggered + maxChainLength hook, and the `?showLifetime=true` HUD opt-in.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README Player-profile section documents the 3 S155 wirings + the URL flag."
+      ]
+    }
+  ]
+}
