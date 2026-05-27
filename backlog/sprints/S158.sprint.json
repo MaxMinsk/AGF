@@ -1,0 +1,69 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S158",
+  "title": "Voice synth v2 — speech-like vowels with distinct per-slot phrase shapes",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/agf/pull/198",
+  "notes": [
+    "Multi-iteration playtest pass on the procedural voice synth. Three rounds of feedback drove three commits:",
+    "1) 2026-05-27 'вокалоидов нету' — voice synth fired correctly in audio-log but produced abstract chirps. Round 1 redesign (PR #198): dual carrier (saw + square), wired-up vibrato (S109 knob that was a no-op), shaped envelope (25 ms attack, 65% sustain). Vowel reads as vowel, not click.",
+    "2) 2026-05-27 'звуки для смерти и установки бомб почти не отличаются' / 'звучит как ты-ды-дыт в обоих случаях' — phrase shapes were too similar. Round 2 patch redesign (direct push 53adde1): single-syllable shapes for place-bomb / hit + intra-syllable pitch slide via new pitchEndContour field.",
+    "3) 2026-05-27 'для смерти и победы надо повразительнее' — round 3 patch redesign (same commit): death = 2-syllable scream + 560 ms wail, victory = 5-syllable stair-step fanfare with held finale.",
+    "Mechanics added in this sprint: VowelSpec.pitchEndHz (intra-syllable slide), PhrasePatch.pitchEndContour (per-syllable end-pitch multipliers), PhrasePatch.vowelDurationsS (per-syllable duration overrides for death's long wail).",
+    "QA-2026-05-27-001 (PR #199) flagged a stale test from round 1 + a missing sprint JSON; the test was already updated in commit 53adde1, this sprint JSON closes the second issue."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-VOICE-V2-CARRIER-001",
+      "title": "Dual carrier (saw + square) + wired vibrato + shaped envelope",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts scheduleVowel — saw (75%) + square (25%) carriers replace the S110 sawtooth-only. LFO modulates both carriers' frequency via colour.vibratoHz (was a no-op since S109 'void colour' bypass). Envelope: 25 ms attack (was 5 ms) + 65% sustain + exp release. Peak gain bumped to masterGain*0.45 (was 0.30); audio-fx head gain 1.6 → 1.2 to compensate.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: voice-synth.ts scheduleVowel creates 2 carriers per vowel + LFO when vibratoHz > 0. Param-connect wrapped in try/catch for the stub-context path."
+      ]
+    },
+    {
+      "id": "SCHEMA-KABOOM-VOICE-PITCH-SLIDE-001",
+      "title": "VowelSpec.pitchEndHz + PhrasePatch.pitchEndContour + vowelDurationsS",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts — VowelSpec gains optional pitchEndHz (linear ramp over the vowel duration when set). PhrasePatch gains pitchEndContour (per-syllable end-pitch multipliers) + vowelDurationsS (per-syllable duration overrides). planUtterance wires both through. Lets a single syllable read as a sustained sliding tone instead of needing multiple rapid syllables.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: planUtterance produces VowelSpec with pitchEndHz when pitchEndContour[i] differs from pitchContour[i]; per-syllable durations override the scalar vowelDurationS when vowelDurationsS is provided."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-VOICE-PHRASES-001",
+      "title": "Distinct phrase shapes per slot",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts PHRASE_PATCHES — full rewrite. place-bomb: 1 short low 'бом!' (110 ms, slides down). hit: 1 surprise grunt 'ungh!' (140 ms, 1.1× → 0.7×). pickup: 2 syllable cheerful 'yi-pee!' rising. death: 2 syllable scream 'AHHH!' (1.4×) → long wail 'uuuuuuh' (560 ms, 0.85× → 0.25×). victory: 5 syllable stair-step fanfare 0.85× → 2.1× with a 320 ms held finale.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: PHRASE_PATCHES counts — place-bomb=1, hit=1, pickup=2, death=2, victory=5. Each has pitchEndContour for slide behaviour. death + victory use vowelDurationsS to extend specific syllables."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-VOICE-V2-001",
+      "title": "Unit tests cover dual-carrier counts + new patch shapes",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/voice-synth.test.ts — updates the carrier-count tests (2 oscillators per vowel now) + a new test for LFO osc when vibrato is set. Updates the syllable-count + pitch-shape assertions to match the new PHRASE_PATCHES.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: 19 tests pass in voice-synth.test.ts; 1778/1778 full vitest suite green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-VOICE-V2-001",
+      "title": "Sprint JSON + QA ticket promotion",
+      "status": "implemented",
+      "summary": "backlog/sprints/S158.sprint.json (this file) — missed in the original commit, closes QA-2026-05-27-001 (PR #199). Ticket file removed on promotion per docs/qa/design.md §7.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: backlog/sprints/S158.sprint.json present; QA ticket file deleted; backlog:check passes."
+      ]
+    }
+  ]
+}
