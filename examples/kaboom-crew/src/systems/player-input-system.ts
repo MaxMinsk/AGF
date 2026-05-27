@@ -24,6 +24,10 @@ const BOMBER_STATS: ComponentName = "BomberStats";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 const ROUND_RESTART_REQUEST: ComponentName = "RoundRestartRequest";
 const REMOTE_DETONATE_REQUEST: ComponentName = "RemoteDetonateRequest";
+const PICKUP_BOMB_REQUEST: ComponentName = "PickupBombRequest";
+const THROW_BOMB_REQUEST: ComponentName = "ThrowBombRequest";
+const GRID_POSITION: ComponentName = "GridPosition";
+const BOMB: ComponentName = "Bomb";
 // S098 AGF-PROBE-INPUT-INJECT — engine-side transient written by
 // runtime.injectInput. The player-input-system reads + clears it
 // each frameUpdate and fires the same downstream effect as a real
@@ -49,6 +53,10 @@ const ROUND_RESTART = new Set(["KeyR"]);
 // Space is dual-purpose — see the Space branch below for the
 // place-vs-detonate dispatch.
 const REMOTE_DETONATE_EXPLICIT = new Set(["KeyF"]);
+// S144 KABOOM-THROW-GLOVE — T key picks up the bomb under the bomber
+// (when canThrow=true + standing on own bomb), or throws the carried
+// bomb when already carrying. Edge-triggered.
+const THROW_GLOVE = new Set(["KeyT"]);
 
 type GridMoverComponent = {
   speed: number;
@@ -72,6 +80,29 @@ export type KaboomPlayerInputSystemHandle = System & {
   /** Inspect the current pressed set (test helper). */
   pressedSnapshot(): ReadonlySet<string>;
 };
+
+/**
+ * S144 — find a bomb at (gx, gz) owned by `ownerId`. Returns the
+ * bomb entity id or undefined when no own bomb sits on the cell.
+ * Linear scan — bombs are short-lived + small in count, so iterating
+ * the bomb query each T-press is fine.
+ */
+function findOwnBombAt(
+  world: World,
+  ownerId: string,
+  gx: number,
+  gz: number
+): string | undefined {
+  for (const id of world.query([BOMB, GRID_POSITION])) {
+    const pos = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (pos?.gx !== gx || pos?.gz !== gz) continue;
+    const bomb = world.getComponent<{ ownerId?: string; airborne?: boolean; carriedBy?: string }>(id, BOMB);
+    if (bomb?.ownerId !== ownerId) continue;
+    if (bomb.airborne === true || typeof bomb.carriedBy === "string") continue;
+    return id;
+  }
+  return undefined;
+}
 
 export function createKaboomPlayerInputSystem(
   options: KaboomPlayerInputSystemOptions = {}
@@ -175,6 +206,7 @@ export function createKaboomPlayerInputSystem(
     const spaceEdge = someInSetNew(SPACE_OR_PLACE_FALLBACK);
     const restartEdge = someInSetNew(ROUND_RESTART);
     const fKeyDetonateEdge = someInSetNew(REMOTE_DETONATE_EXPLICIT);
+    const throwEdge = someInSetNew(THROW_GLOVE);
     for (const entityId of query!.run()) {
       const mover = world.getComponent<GridMoverComponent>(entityId, GRID_MOVER);
       if (mover === undefined) continue;
@@ -277,6 +309,34 @@ export function createKaboomPlayerInputSystem(
       }
       if (wantDetonate && !world.hasComponent(entityId, REMOTE_DETONATE_REQUEST)) {
         world.setComponent(entityId, REMOTE_DETONATE_REQUEST, {});
+      }
+      // S144 KABOOM-THROW-GLOVE — T key dispatches pickup vs throw
+      // based on the bomber's current state. Only fires when canThrow
+      // is set; tap with canThrow=false is a silent no-op.
+      if (throwEdge) {
+        const tStats = world.getComponent<{
+          canThrow?: boolean;
+          carryingBombId?: string;
+        }>(entityId, BOMBER_STATS);
+        if (tStats?.canThrow === true) {
+          if (typeof tStats.carryingBombId === "string" && tStats.carryingBombId.length > 0) {
+            // Carrying → throw. Request consumed by bomb-throw-system.
+            if (!world.hasComponent(entityId, THROW_BOMB_REQUEST)) {
+              world.setComponent(entityId, THROW_BOMB_REQUEST, {});
+            }
+          } else {
+            // Not carrying → check if standing on own bomb. Pickup
+            // request carries the bomb id so bomb-pickup-system can
+            // validate the cell match the same fixedUpdate.
+            const pos = world.getComponent<{ gx?: number; gz?: number }>(entityId, GRID_POSITION);
+            if (pos?.gx !== undefined && pos?.gz !== undefined) {
+              const ownBomb = findOwnBombAt(world, entityId, pos.gx, pos.gz);
+              if (ownBomb !== undefined && !world.hasComponent(entityId, PICKUP_BOMB_REQUEST)) {
+                world.setComponent(entityId, PICKUP_BOMB_REQUEST, { bombId: ownBomb });
+              }
+            }
+          }
+        }
       }
     }
     // Use a copy so test injection of an external pressed set survives

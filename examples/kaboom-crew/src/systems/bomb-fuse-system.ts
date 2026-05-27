@@ -80,7 +80,7 @@ export function bombWiggleScale(fuseRemaining: number, now: number = Date.now())
   return 1 + Math.sin(phase) * amplitude;
 }
 
-type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean };
+type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean; carriedBy?: EntityId; airborne?: boolean };
 type GridPosition = { gx: number; gz: number };
 
 export function createKaboomBombFuseSystem(options: { name?: string; nextEventId?: () => EntityId } = {}): System {
@@ -131,6 +131,13 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
        // = Infinity) don't tick; they sit until a RemoteDetonateRequest
        // drops their fuse to 0 above.
       if (!Number.isFinite(bomb.fuseRemaining)) {
+        continue;
+      }
+      // S144 KABOOM-THROW-GLOVE — carried or airborne bombs pause the
+      // fuse decrement. bomb-pickup-system sets carriedBy on pickup;
+      // bomb-throw-system sets airborne for the 0.45s arc + clears
+      // both on landing.
+      if (typeof bomb.carriedBy === "string" || bomb.airborne === true) {
         continue;
       }
       const next = bomb.fuseRemaining - dt;

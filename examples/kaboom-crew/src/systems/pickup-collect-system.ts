@@ -32,7 +32,7 @@ const COLLECT_FX_LIFETIME_S = 0.35;
 const COLLECT_FX_RATE = 80;
 const COLLECT_FX_MAX_PARTICLES = 30;
 
-type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" };
+type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove" };
 type GridPos = { gx: number; gz: number };
 type BomberStats = {
   maxBombs: number;
@@ -44,6 +44,7 @@ type BomberStats = {
   remoteDetonateCharges?: number;
   shield?: boolean;
   pierce?: boolean;
+  canThrow?: boolean;
 };
 
 const REMOTE_DETONATE_CHARGES_CAP = 3;
@@ -164,6 +165,13 @@ function tryApplyPickup(
       // silent no-op (pickup still gets consumed for visual consistency).
       if (stats.pierce !== true) {
         world.setComponent(id, BOMBER_STATS, { ...stats, pierce: true });
+      }
+    } else if (kind === "throw-glove") {
+      // S144 KABOOM-THROW-GLOVE — flip BomberStats.canThrow so the
+      // bomber can pick up / throw their own placed bomb via the T
+      // key. Idempotent: already-true is a silent no-op.
+      if (stats.canThrow !== true) {
+        world.setComponent(id, BOMBER_STATS, { ...stats, canThrow: true });
       }
     } else {
       // speed-up bumps GridMover.speed AND mirrors into BomberStats.speed
