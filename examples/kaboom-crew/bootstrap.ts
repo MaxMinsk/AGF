@@ -1055,6 +1055,21 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       activeMap(): string {
         return activeMapName;
+      },
+      // S148 — diagnostic helper: fire a single voice utterance on demand
+      // from DevTools (`__agf.kaboom.testVoice("pickup", "player.1")`).
+      // Useful for debugging the voice synth without running through the
+      // game loop. Each call goes through the same audioFx.play path as
+      // real events, including the AudioContext resume gate.
+      testVoice(slot: "place-bomb" | "hit" | "pickup" | "death" | "victory", entityId: string = "player.1"): boolean {
+        const kind: AudioEventKind =
+          slot === "place-bomb" ? "voice-place-bomb" :
+          slot === "hit" ? "voice-hit" :
+          slot === "pickup" ? "voice-pickup" :
+          slot === "death" ? "voice-death" :
+          "voice-victory";
+        audioFx.play(kind, { entityId });
+        return !audioFx.isMuted();
       }
     };
 

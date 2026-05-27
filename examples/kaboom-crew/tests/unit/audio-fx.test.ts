@@ -294,3 +294,45 @@ describe("resolveAudioVolume (S86 AGF-AUDIO-VOLUME-DIAL)", () => {
     expect(out).toBe(1);
   });
 });
+
+describe("createKaboomAudioFx — voice routing (S148)", () => {
+  it("voice-* with missing entityId logs a warn and produces no sound", () => {
+    const { ctx, oscillators } = makeContext();
+    const fx = createKaboomAudioFx({ contextFactory: () => ctx });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Voice without entityId — the S145 regression we still want to
+    // observe explicitly. Should warn AND produce 0 oscillators.
+    const oscBefore = oscillators.length;
+    fx.play("voice-pickup");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("voice-pickup dropped"));
+    expect(oscillators.length).toBe(oscBefore);
+    warn.mockRestore();
+  });
+
+  it("voice-* with entityId schedules oscillators via the synth path", () => {
+    const { ctx, oscillators } = makeContext();
+    const fx = createKaboomAudioFx({ contextFactory: () => ctx });
+    const oscBefore = oscillators.length;
+    fx.play("voice-pickup", { entityId: "player.1" });
+    // emitVoice schedules multiple oscillators per syllable; for a
+    // 3-syllable pickup utterance we expect at least 2 oscillators
+    // hitting the mock context.
+    expect(oscillators.length).toBeGreaterThan(oscBefore + 1);
+  });
+
+  it("play() resumes a suspended AudioContext every call (S148 fix)", () => {
+    const { ctx } = makeContext();
+    let resumeCalls = 0;
+    (ctx as unknown as { state: string }).state = "suspended";
+    (ctx as unknown as { resume: () => Promise<void> }).resume = (): Promise<void> => {
+      resumeCalls += 1;
+      return Promise.resolve();
+    };
+    const fx = createKaboomAudioFx({ contextFactory: () => ctx });
+    fx.play("voice-pickup", { entityId: "p" });
+    fx.play("voice-pickup", { entityId: "p" });
+    // ensureContext resumes on first create (1 call); each subsequent
+    // play() while still suspended must re-resume.
+    expect(resumeCalls).toBeGreaterThanOrEqual(2);
+  });
+});
