@@ -1,0 +1,77 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S144",
+  "title": "Throw Glove power-up — pick up + throw your bomb over walls",
+  "status": "active",
+  "startedAt": "2026-05-27",
+  "notes": [
+    "Promotes GDP-2026-05-26-004 (could-priority, KABOOM-CREW-MVP-2). Throw Glove extends the S100 Kick concept with longer-range bomb relocation. When a bomber holds the glove they can PICK UP their own placed bomb (input: T key while standing on bomb cell) and CARRY it (fuse paused; bomb mounts visually on torso.back). A second press of T THROWS the bomb 3 cells in the bomber's facing direction in an arc over any obstacles in between; lands grid-snapped + resumes fuse.",
+    "Scope simplification vs the GDP spec: GDP asks for long-press Space to dual-use the place-bomb key. Long-press detection is risky to wire into the existing input system; we use a dedicated T key instead so the pickup/throw signal is unambiguous. README + HUD document the key.",
+    "Out of scope this sprint (per the original GDP): audio events (existing 'bomb-place' on landing is enough); bot AI integration (bots collect the pickup but don't use it strategically); throw distance scaling by stacking; catching thrown bombs mid-flight; throwing opponents' bombs; multiplayer server parity (deferred alongside GDP-2026-05-27-002 Pierce server parity to a connected-mode sprint)."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-THROW-001",
+      "title": "Schema: Pickup.kind += 'throw-glove'; BomberStats.canThrow; Bomb.carriedBy + airborne",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — Pickup.kind enum gains 'throw-glove'. BomberStats gains optional `canThrow: boolean` (default false). Bomb gains optional `carriedBy: string` (entity id; fuse pauses while set) + `airborne: boolean` (true during the 0.45s arc; fuse stays paused). Two new transient components: pickupBombRequestComponent + throwBombRequestComponent.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-THROW-PICKUP-SPAWN-001",
+      "title": "pickup-spawn-system: 'throw-glove' joins the drop table",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/systems/pickup-spawn-system.ts — add 'throw-glove' to PickupKind + PICKUP_VISUAL (visually distinct from the existing 7 kinds — a yellow cylinder slightly different from 'kick'; pick a lime green / teal glove silhouette). Drop weight 1 entry (~same rarity as kick / shield / pierce).",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-THROW-PICKUP-COLLECT-001",
+      "title": "pickup-collect-system: 'throw-glove' branch sets BomberStats.canThrow = true",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/systems/pickup-collect-system.ts — throw-glove branch in tryApplyPickup; idempotent silent NO-OP if already true; pickup still consumed. Mirrors the kick/pierce branch shape.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-THROW-INPUT-001",
+      "title": "Player input wires T key → PickupBombRequest or ThrowBombRequest",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/systems/player-input-system.ts — bind `KeyT` such that: (a) bomber has canThrow + is on their own bomb cell + not already carrying → write PickupBombRequest with bomberEntityId + bombEntityId; (b) bomber has canThrow + is carrying a bomb (BomberStats.carryingBombId set) → write ThrowBombRequest with bomberEntityId. BomberStats also gains `carryingBombId: string` so the input system can branch without reading the Bomb component.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-PICKUP-SYSTEM-001",
+      "title": "bomb-pickup-system consumes PickupBombRequest; bomb-fuse pauses carried bombs",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/systems/bomb-pickup-system.ts (NEW) — fixedUpdate consumes PickupBombRequest transients. For each request: validate (bomb still exists, bomber on bomb cell, bomb.ownerId == bomberId, bomb not airborne); on success, set Bomb.carriedBy = bomberId + decrement the bomber's activeBombs counter (so they can place a new bomb while carrying); store the bombId in BomberStats.carryingBombId; remove GridOccupant on the bomb so the cell unblocks. examples/kaboom-crew/src/systems/bomb-fuse-system.ts: skip fuse decrement when `bomb.carriedBy` is set.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-THROW-SYSTEM-001",
+      "title": "bomb-throw-system consumes ThrowBombRequest; computes landing + spawns arc tween",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/src/systems/bomb-throw-system.ts (NEW) — fixedUpdate consumes ThrowBombRequest. Reads bomber's facing direction from S108 BomberFaces (or GridMover.queuedDirection / lastDirection as fallback). Computes landing cell = bomberCell + facing × 3; on invalid (out of bounds, hard-block, occupied by another bomber) backs off to ×2, ×1, then bomber's own cell. Spawns the bomb back into the world at the landing cell with Bomb.airborne=true and a Tween on Transform.position (parabolic arc, 0.45s duration). On tween-end signal (via existing Tween onComplete or a Bomb.airborne + lifetime check): clear airborne, restore GridOccupant, clear BomberStats.carryingBombId, resume fuse decrement.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "TEST-KABOOM-THROW-001",
+      "title": "Unit tests covering pickup → carry → throw → land chain",
+      "status": "pending",
+      "summary": "Cover: (1) pickup-collect sets canThrow; (2) PickupBombRequest valid → carriedBy set + activeBombs decremented + carryingBombId stored; (3) PickupBombRequest invalid (wrong bomb owner / not on bomb cell) → silent NO-OP; (4) bomb-fuse skips carried bombs (no fuse decrement); (5) ThrowBombRequest lands the bomb at +3 cells in facing dir; (6) hard-block at +3 → fallback to +2; (7) hard-block at +1 → fallback to bomber cell (last-resort); (8) airborne flag flips off after the tween completes (or after a lifetime fixedUpdate threshold).",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "FEAT-KABOOM-THROW-HUD-001",
+      "title": "HUD: 'T' flag in the per-bomber power-up line when canThrow is on",
+      "status": "pending",
+      "summary": "Wherever the K / R / S / P flags are rendered, add a 'T' flag for canThrow. Bottom-left per-bomber line. Reads BomberStats.canThrow off the live snapshot.",
+      "epic": "KABOOM-CREW-MVP-2"
+    },
+    {
+      "id": "DOC-KABOOM-THROW-001",
+      "title": "README: throw-glove power-up + T-key binding",
+      "status": "pending",
+      "summary": "examples/kaboom-crew/README.md — add a row to the power-ups table for throw-glove. Document the T-key binding under Controls. Note the dedicated-key simplification vs the GDP's long-press Space proposal (with rationale link).",
+      "epic": "KABOOM-CREW-MVP-2"
+    }
+  ]
+}
