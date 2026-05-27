@@ -10,6 +10,7 @@
     "RemoteDetonateRequest": { "$ref": "#/definitions/remoteDetonateRequestComponent" },
     "PickupBombRequest": { "$ref": "#/definitions/pickupBombRequestComponent" },
     "ThrowBombRequest": { "$ref": "#/definitions/throwBombRequestComponent" },
+    "DashRequest": { "$ref": "#/definitions/dashRequestComponent" },
     "ConveyorBelt": { "$ref": "#/definitions/conveyorBeltComponent" },
     "WarpHole": { "$ref": "#/definitions/warpHoleComponent" },
     "PressurePlate": { "$ref": "#/definitions/pressurePlateComponent" },
@@ -67,6 +68,13 @@
         "pierce": { "type": "boolean", "default": false, "description": "S142 KABOOM-PIERCE-BOMB (GDP-2026-05-26-002, gameplay-systems.md §5.3). True after collecting a 'pierce' pickup. The NEXT placed bomb's blast walks through the first soft block in each direction without stopping; second soft block stops it normally. Carried at placement time — bomb-placement-system copies BomberStats.pierce → Bomb.pierce when spawning, so the owner can lose pierce afterwards without stripping the in-flight bomb." },
         "canThrow": { "type": "boolean", "default": false, "description": "S144 KABOOM-THROW-GLOVE (GDP-2026-05-26-004). True after collecting a 'throw-glove' pickup. Enables the T-key pickup/throw mechanic: when standing on the bomber's own bomb cell, T picks the bomb up (fuse pauses); while carrying, T throws the bomb 3 cells in the facing direction over obstacles." },
         "bombPass": { "type": "boolean", "default": false, "description": "S152 KABOOM-BOMB-PASS (GDP-2026-05-27-007, gameplay-systems.md §5.3). True after collecting a 'bomb-pass' pickup. Lets the bomber walk through their OWN placed bombs (after stepping off). Other bombers' bombs still block this bomber. Movement-only — does NOT grant immunity to blasts. Paired with the S152 baseline that makes bombs solid to bombers (own bomb after step-off; others' bombs always)." },
+        "dashCooldownRemainingMs": { "type": "number", "minimum": 0, "default": 0, "description": "S159 KABOOM-DASH (GDP-2026-05-27-014). Cooldown ms remaining before the bomber can dash again. Ticks down per fixedUpdate; reset to 3000 ms when a dash starts." },
+        "dashing": { "type": "boolean", "default": false, "description": "S159 — true while the bomber is mid-dash arc. Driven by dash-system; other systems may use it to skip damage paths." },
+        "dashStartGx": { "type": "number", "description": "S159 — bomber cell at dash start. Mid-arc lerp source." },
+        "dashStartGz": { "type": "number", "description": "S159 — bomber cell at dash start. Mid-arc lerp source." },
+        "dashTargetGx": { "type": "number", "description": "S159 — landing cell." },
+        "dashTargetGz": { "type": "number", "description": "S159 — landing cell." },
+        "dashElapsedMs": { "type": "number", "minimum": 0, "default": 0, "description": "S159 — ms since dash start. Lands when ≥ 200." },
         "carryingBombId": { "type": "string", "minLength": 1, "description": "S144 KABOOM-THROW-GLOVE. Entity id of the bomb the bomber is currently carrying. Set by bomb-pickup-system; cleared by bomb-throw-system on landing or by the death path on owner-death. The input system reads this to branch T-key behaviour between pickup and throw." }
       }
     },
@@ -99,6 +107,16 @@
       "additionalProperties": false,
       "description": "S144 KABOOM-THROW-GLOVE. Transient input request written by player-input-system when T fires for a bomber carrying a bomb. bomb-throw-system consumes it the same fixedUpdate.",
       "properties": {}
+    },
+    "dashRequestComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S159 KABOOM-DASH (GDP-2026-05-27-014). Transient input request written by player-input-system when Shift + direction fires. dash-system consumes + removes the same fixedUpdate. dx/dz pick a cardinal direction (-1/0/1, only one non-zero).",
+      "required": ["dx", "dz"],
+      "properties": {
+        "dx": { "type": "integer", "minimum": -1, "maximum": 1 },
+        "dz": { "type": "integer", "minimum": -1, "maximum": 1 }
+      }
     },
     "conveyorBeltComponent": {
       "type": "object",

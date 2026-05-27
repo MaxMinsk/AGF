@@ -22,7 +22,8 @@ export type PowerupIconKind =
   | "shield"
   | "pierce"
   | "throw-glove"
-  | "bomb-pass";
+  | "bomb-pass"
+  | "dash";
 
 // Cream silhouette per visual-style.md §8.3. Same colour for every icon;
 // active/inactive state is driven by container CSS (opacity + glow), not
@@ -97,6 +98,14 @@ export function powerupIconSvgInner(kind: PowerupIconKind): string {
         `<circle cx="12" cy="14" r="5.5" fill="${ICON_FILL}" stroke="${ICON_STROKE}" stroke-width="1.5"/>`,
         `<rect x="11" y="6" width="2" height="3" fill="${ICON_FILL}" stroke="${ICON_STROKE}" stroke-width="1"/>`,
         `<path d="M3 14 L20 14 L17 11 M20 14 L17 17" fill="none" stroke="${ICON_STROKE}" stroke-width="1.6" stroke-linejoin="miter"/>`
+      ].join("");
+    case "dash":
+      // Triple chevron pointing right — speed-burst silhouette. Reads
+      // as "burst of motion", distinct from speed boot.
+      return [
+        `<path d="M3 6 L9 12 L3 18" fill="none" stroke="${ICON_FILL}" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>`,
+        `<path d="M9 6 L15 12 L9 18" fill="none" stroke="${ICON_FILL}" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>`,
+        `<path d="M15 6 L21 12 L15 18" fill="none" stroke="${ICON_FILL}" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>`
       ].join("");
   }
 }

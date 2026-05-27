@@ -57,6 +57,12 @@ const REMOTE_DETONATE_EXPLICIT = new Set(["KeyF"]);
 // (when canThrow=true + standing on own bomb), or throws the carried
 // bomb when already carrying. Edge-triggered.
 const THROW_GLOVE = new Set(["KeyT"]);
+// S159 KABOOM-DASH (GDP-2026-05-27-014) — Shift modifier turns the
+// direction press into a DashRequest. Edge-triggered: dash fires
+// once on the direction press; subsequent ticks with Shift still
+// held only re-fire when the direction is released + re-pressed.
+const DASH_MODIFIER = new Set(["ShiftLeft", "ShiftRight"]);
+const DASH_REQUEST: ComponentName = "DashRequest";
 
 type GridMoverComponent = {
   speed: number;
@@ -158,6 +164,20 @@ export function createKaboomPlayerInputSystem(
       if (MOVE_DOWN.has(code)) return { dx: 0, dz: 1 };
     }
     return { dx: 0, dz: 0 };
+  }
+
+  // S159 KABOOM-DASH — edge-triggered direction. Returns { dx, dz } the
+  // FIRST frame any direction key transitions to pressed; undefined
+  // when no direction edge this frame.
+  function resolveDirectionEdge(): { dx: number; dz: number } | undefined {
+    for (const code of pressed) {
+      if (previousPressed.has(code)) continue;
+      if (MOVE_RIGHT.has(code)) return { dx: 1, dz: 0 };
+      if (MOVE_UP.has(code)) return { dx: 0, dz: -1 };
+      if (MOVE_LEFT.has(code)) return { dx: -1, dz: 0 };
+      if (MOVE_DOWN.has(code)) return { dx: 0, dz: 1 };
+    }
+    return undefined;
   }
 
   let cachedWorld: World | undefined;
@@ -280,6 +300,16 @@ export function createKaboomPlayerInputSystem(
       const prev = mover.queuedDirection;
       if (prev?.dx !== targetDirection.dx || prev?.dz !== targetDirection.dz) {
         world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: targetDirection });
+      }
+      // S159 KABOOM-DASH — Shift + direction-edge writes a DashRequest.
+      // Edge-triggered: only fires the frame a direction key
+      // transitions to pressed. dash-system reads + removes the
+      // transient + validates cooldown / blocked-path / dashing.
+      if (someInSet(DASH_MODIFIER)) {
+        const dashDir = resolveDirectionEdge();
+        if (dashDir !== undefined && !world.hasComponent(entityId, DASH_REQUEST)) {
+          world.setComponent(entityId, DASH_REQUEST, { dx: dashDir.dx, dz: dashDir.dz });
+        }
       }
       // Edge-trigger transients. BombPlacementSystem (and RoundResolveSystem)
       // consume + remove these the same frame they're written.

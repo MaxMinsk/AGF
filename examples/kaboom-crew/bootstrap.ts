@@ -62,6 +62,7 @@ import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
 import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
+import { createKaboomDashSystem } from "./src/systems/dash-system";
 import { createKaboomConveyorBeltSystem } from "./src/systems/conveyor-belt-system";
 import { createKaboomWarpHoleSystem } from "./src/systems/warp-hole-system";
 import { createKaboomPressurePlateSystem } from "./src/systems/pressure-plate-system";
@@ -456,6 +457,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // airborne flag set in time to skip the fuse decrement this tick.
     scheduler.register(createKaboomBombPickupSystem(), { profiles: ["static"] });
     scheduler.register(createKaboomBombThrowSystem({ occupancy }), { profiles: ["static"] });
+    // S159 KABOOM-DASH — consumes Shift+direction DashRequest transients;
+    // arcs the bomber 2 cells in 200ms over an arc; 3s cooldown.
+    scheduler.register(createKaboomDashSystem(), { profiles: ["static"] });
     // S146 KABOOM-CONVEYOR-BELT — push bombers + bombs along belt
     // direction. Runs BEFORE bomb-fuse-system so a belt push on the
     // same tick a bomb detonates updates GridPosition first.
@@ -1102,6 +1106,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               pierce: (c["BomberStats"] as { pierce?: boolean })?.pierce,
               canThrow: (c["BomberStats"] as { canThrow?: boolean })?.canThrow,
               bombPass: (c["BomberStats"] as { bombPass?: boolean })?.bombPass,
+              dashCooldownRemainingMs: (c["BomberStats"] as { dashCooldownRemainingMs?: number })?.dashCooldownRemainingMs,
+              dashing: (c["BomberStats"] as { dashing?: boolean })?.dashing,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
               targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
             };
@@ -1438,6 +1444,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         pierce: boolean;
         canThrow: boolean;
         bombPass: boolean;
+        // S159 KABOOM-DASH — dash is always available (no pickup);
+        // dashCooldownFraction is 0..1 where 0 = ready, 1 = just fired.
+        dashCooldownFraction: number;
         accent: string;
       };
       const buildIconCell = (
@@ -1468,6 +1477,42 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
         return wrap;
       };
+      // S159 KABOOM-DASH — dash cell with cooldown ring overlay. The
+      // dash icon stays cream when ready; when cooling down a clockwise
+      // dark wedge sweeps to mask the icon from full-mask to none.
+      const buildDashCell = (cooldownFraction: number, accent: string): HTMLElement => {
+        const fraction = Math.max(0, Math.min(1, cooldownFraction));
+        const ready = fraction <= 0;
+        const wrap = document.createElement("div");
+        const outline = ready ? `box-shadow:inset 0 0 0 1px ${accent};` : "";
+        wrap.setAttribute(
+          "style",
+          `position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;width:30px;height:36px;padding:2px;opacity:${ready ? "1" : "0.55"};${outline}background:rgba(0,0,0,0.32);`
+        );
+        const svgWrap = document.createElement("div");
+        svgWrap.setAttribute(
+          "style",
+          `position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;filter:${ready ? "none" : "grayscale(1)"};`
+        );
+        svgWrap.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" aria-label="dash">${powerupIconSvgInner("dash")}</svg>`;
+        if (!ready) {
+          // Sweep: conic-gradient acts as a clockwise mask. Reads as a
+          // shrinking pie slice that empties as cooldown approaches 0.
+          const sweepDeg = Math.round(fraction * 360);
+          const sweep = document.createElement("div");
+          sweep.setAttribute(
+            "style",
+            `position:absolute;inset:0;background:conic-gradient(rgba(0,0,0,0.78) ${sweepDeg}deg, transparent ${sweepDeg}deg);pointer-events:none;`
+          );
+          svgWrap.appendChild(sweep);
+        }
+        wrap.appendChild(svgWrap);
+        const label = document.createElement("div");
+        label.setAttribute("style", "font-size:9px;font-weight:600;color:#f4e9d3;line-height:1;");
+        label.textContent = ready ? "SHIFT" : "...";
+        wrap.appendChild(label);
+        return wrap;
+      };
       hud.add({
         id: POWERUP_GRID_ID,
         slot: "bottomLeft",
@@ -1481,6 +1526,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           pierce: false,
           canThrow: false,
           bombPass: false,
+          dashCooldownFraction: 0,
           accent: "#5fa8ff"
         } as PowerupGridData,
         render: (data: PowerupGridData): HTMLElement => {
@@ -1505,6 +1551,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           row2.appendChild(buildIconCell("pierce", data.pierce, undefined, data.accent));
           row2.appendChild(buildIconCell("throw-glove", data.canThrow, undefined, data.accent));
           row2.appendChild(buildIconCell("bomb-pass", data.bombPass, undefined, data.accent));
+          // S159 KABOOM-DASH — dash always-available, cooldown shown via overlay.
+          row2.appendChild(buildDashCell(data.dashCooldownFraction, data.accent));
           el.appendChild(row2);
           return el;
         }
@@ -1816,7 +1864,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number; dashCooldownRemainingMs?: number; dashing?: boolean }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number; owner?: string }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -1918,6 +1966,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           const speedLevel = selfSpeed !== undefined && selfSpeed > 3.5
             ? Math.max(0, Math.round(selfSpeed - 3.5))
             : 0;
+          // S159 — dash cooldown shown as 0..1 fraction. 3000ms ceiling
+          // matches DASH_COOLDOWN_MS in dash-system.ts.
+          const dashCdMs = playerSelfForHud.dashCooldownRemainingMs ?? 0;
+          const dashCooldownFraction = Math.max(0, Math.min(1, dashCdMs / 3000));
           hud.update(POWERUP_GRID_ID, {
             bombs: { current: playerSelfForHud.activeBombs ?? 0, max: playerSelfForHud.maxBombs ?? 1 },
             fire: playerSelfForHud.range ?? 2,
@@ -1928,6 +1980,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             pierce: playerSelfForHud.pierce === true,
             canThrow: playerSelfForHud.canThrow === true,
             bombPass: playerSelfForHud.bombPass === true,
+            dashCooldownFraction,
             accent
           });
         }
