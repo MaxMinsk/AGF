@@ -168,5 +168,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S161](backlog/sprints/S161.sprint.json)** — HUD icon hover tooltips — explain power-ups + opponent badges — 4 implemented · archived 2026-05-27
 - **[S162](backlog/sprints/S162.sprint.json)** — Accessory detach on death — kinematic scatter with per-kind impulse tuning — 4 implemented · archived 2026-05-27
 - **[S163](backlog/sprints/S163.sprint.json)** — Camera follow + closer framing — damped pursuit of local player — 3 implemented · archived 2026-05-27
+- **[S164](backlog/sprints/S164.sprint.json)** — Dev-agent retrospective — gap analysis from 150 sprints of lived experience — 1 implemented · archived 2026-05-28
 
 <!-- backlog:render:end -->
