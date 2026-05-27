@@ -215,14 +215,19 @@ export function createKaboomAccessoryDetachSystem(options: KaboomAccessoryDetach
         const seed = scatterSeedHash(rootId, kind);
         const impulse = computeScatterImpulse(blastDirX, blastDirZ, cfg, seed);
         // Detach from parent — clear Transform.parent so further parent-
-        // transform composition stops affecting this entity.
+        // transform composition stops affecting this entity. Anchor at
+        // the bomber's current world position + a small upward offset
+        // (~head height) so the accessory starts the scatter from where
+        // it visibly sits on the bomber instead of teleporting to the
+        // rest-pose sum (which the animation system was offsetting away
+        // from at the death frame).
         const transform = world.getComponent<TransformLike>(eid, TRANSFORM);
-        if (transform !== undefined) {
-          // Compute the entity's CURRENT world position from its parent
-          // chain so detaching doesn't snap the accessory to origin.
-          const worldPos = computeWorldPosition(world, eid) ?? transform.position ?? [0, 0.5, 0];
+        const bomberTransform = world.getComponent<TransformLike>(rootId, TRANSFORM);
+        if (transform !== undefined && bomberTransform?.position !== undefined) {
+          const headOffset = kind === "backpack" ? 0.5 : kind === "fins" ? 0.5 : 1.0;
+          const bp = bomberTransform.position;
           world.setComponent(eid, TRANSFORM, {
-            position: [worldPos[0], worldPos[1], worldPos[2]] as [number, number, number],
+            position: [bp[0] ?? 0, (bp[1] ?? 0.4) + headOffset, bp[2] ?? 0] as [number, number, number],
             rotation: (transform.rotation ?? [0, 0, 0]) as [number, number, number],
             scale: (transform.scale ?? [1, 1, 1]) as [number, number, number]
             // parent intentionally omitted — now world-root.
@@ -301,30 +306,6 @@ export function createKaboomAccessoryDetachSystem(options: KaboomAccessoryDetach
 
 function isAccessoryKind(s: string): s is AccessoryKind {
   return s === "antennae" || s === "visor" || s === "backpack" || s === "cap" || s === "fins";
-}
-
-/**
- * Walk the parent chain to derive an entity's world position. Returns
- * undefined when an ancestor entity is missing.
- */
-function computeWorldPosition(world: World, eid: EntityId): [number, number, number] | undefined {
-  let cur: EntityId | undefined = eid;
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  const guard = new Set<EntityId>();
-  while (cur !== undefined) {
-    if (guard.has(cur)) return undefined;
-    guard.add(cur);
-    const transform: TransformLike | undefined = world.getComponent<TransformLike>(cur, TRANSFORM);
-    if (transform === undefined) return undefined;
-    const p = transform.position ?? [0, 0, 0];
-    x += p[0] ?? 0;
-    y += p[1] ?? 0;
-    z += p[2] ?? 0;
-    cur = transform.parent;
-  }
-  return [x, y, z];
 }
 
 export const __ACCESSORY_DETACH_CONSTANTS = {
