@@ -1,0 +1,27 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S164",
+  "title": "Dev-agent retrospective — gap analysis from 150 sprints of lived experience",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/210",
+  "notes": [
+    "Implements GDP-2026-05-28-009. Pure documentation sprint — no engine or project code touched. Produces a 634-line forward-looking gap analysis at docs/research/dev-agent-retrospective.md.",
+    "All 10 required sections present + a process-notes §11 and two short appendices (sprint-ID chronological index, forward-looking 3-sprint cadence sketch).",
+    "Top-10 ranking by payoff/cost identifies: #1 engine billboard primitive (GDP-2026-05-27-008), #2 engine lighting (GDP-2026-05-28-001), #3 Wang autotile (GDP-2026-05-28-002), #4 snapshot-diff probe (new), #5 scaffolder script (new), #6 engine-promotion sweep, #7 hazard-stripes preset, #8 recorded-input fixtures, #9 project-local sugar probes, #10 backlog:promote + scope-delta auditor.",
+    "Game-design agent reads this output + files concrete follow-up stories from the top-10. Next retrospective at S214 per the GDP's 50-sprint cadence."
+  ],
+  "stories": [
+    {
+      "id": "DOC-AGF-DEV-RETROSPECTIVE-001",
+      "title": "Write the retrospective covering iteration / primitives / tooling / tests / probes / schemas / multiplayer / debug / AI / ranking",
+      "status": "implemented",
+      "summary": "docs/research/dev-agent-retrospective.md (NEW) — 634 lines. All 10 GDP-mandated sections present; lived-experience sourced (sprint notes S105 ragdoll arc, S144 Throw Glove, S146/S149/S151 hazard simplifications, S150 billboard deferral, S147/S154 multiplayer parity, S158 voice synth, S159-S163 recent gameplay). Top-10 ranking carries severity / close-cost / payoff / GDP cross-ref per item.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: file present at docs/research/dev-agent-retrospective.md; 634 lines; all 10 sections; top-10 ranking has the required severity/cost/payoff/xref fields per item; cross-references specific sprint IDs (not vague 'we did this a lot')."
+      ]
+    }
+  ]
+}
