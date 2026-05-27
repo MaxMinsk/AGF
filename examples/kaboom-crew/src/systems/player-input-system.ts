@@ -93,6 +93,9 @@ function findOwnBombAt(
   gx: number,
   gz: number
 ): string | undefined {
+  // T-key throw-glove pickup fires at most once per player keypress
+  // (not per frame), so a cached query would just store stale results.
+  // agf-allow: world.query
   for (const id of world.query([BOMB, GRID_POSITION])) {
     const pos = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
     if (pos?.gx !== gx || pos?.gz !== gz) continue;
