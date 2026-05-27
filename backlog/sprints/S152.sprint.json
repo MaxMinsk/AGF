@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/182",
   "notes": [
     "Promotes GDP-2026-05-27-007 (could-priority, KABOOM-CREW-MVP-2). The GDP assumes 'bombs block bombers (with a placement grace tick)' as the baseline that Bomb Pass overrides. The pre-S152 engine actually let bombers walk freely through any bomb — no baseline. This sprint ships BOTH: the classic-Bomberman bomb-block baseline (own bomb is solid for the placer after they step off; others' bombs always solid) AND the Bomb Pass override for the placer's own bombs.",
     "Implementation: a new project-local kaboom-bomb-block-system runs every frameUpdate AFTER player-input + bot-ai but BEFORE the engine's grid-movement-system (in registration order). It clears GridMover.queuedDirection when the would-be destination cell holds a blocking bomb (other's bomb, or own bomb post-step-off without bombPass). Grace is implicit: a bomb-cell-bound bomber moving to a NEIGHBOUR never has the bomb in the target cell. Mid-tween bombers (targetGx set) are skipped — the move was validated when it started.",
