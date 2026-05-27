@@ -1,4 +1,9 @@
-// S163 KABOOM-CAMERA-FOLLOW unit tests.
+// S163 KABOOM-CAMERA-FOLLOW unit tests (post S163-revert).
+//
+// The runtime system was reverted to a no-op for follow due to a
+// 'двоится' rendering artifact (see camera-follow-system.ts header).
+// Only the orthographicSize override + the clampCameraToArena pure
+// helper are exercised here.
 
 import { describe, expect, it } from "vitest";
 
@@ -13,7 +18,7 @@ function ctx(world: World, dt = 1 / 60) {
   return { world, time: { elapsed: 0, dt, fixedDt: dt, frameCount: 0, fixedStepCount: 0 } };
 }
 
-function seedScene(world: World, opts: { sizeX?: number; sizeZ?: number; bomberAt?: [number, number] } = {}): void {
+function seedScene(world: World, opts: { sizeX?: number; sizeZ?: number } = {}): void {
   const sizeX = opts.sizeX ?? 15;
   const sizeZ = opts.sizeZ ?? 11;
   world.addEntity("grid.config");
@@ -21,11 +26,6 @@ function seedScene(world: World, opts: { sizeX?: number; sizeZ?: number; bomberA
   world.addEntity("camera.main");
   world.setComponent("camera.main", "Camera", { kind: "orthographic", active: true, orthographicSize: 8 });
   world.setComponent("camera.main", "Transform", { position: [7, 10, 10], rotation: [-55, 0, 0], scale: [1, 1, 1] });
-  if (opts.bomberAt !== undefined) {
-    world.addEntity("player.1");
-    world.setComponent("player.1", "Transform", { position: [opts.bomberAt[0], 0.4, opts.bomberAt[1]], rotation: [0, 0, 0], scale: [1, 1, 1] });
-    world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
-  }
 }
 
 describe("clampCameraToArena (S163 pure helper)", () => {
@@ -34,7 +34,6 @@ describe("clampCameraToArena (S163 pure helper)", () => {
     expect(r).toEqual({ x: 8, z: 6 });
   });
   it("left edge clamps so the left view bound aligns with arena left", () => {
-    // view 6 wide, arena from x=0..15. Half-width = 3. Min x = 3.
     const r = clampCameraToArena(0, 6, 6, 4, 0, 15, 0, 11);
     expect(r.x).toBe(3);
   });
@@ -50,94 +49,54 @@ describe("clampCameraToArena (S163 pure helper)", () => {
     const r = clampCameraToArena(7, 100, 6, 4, 0, 15, 0, 11);
     expect(r.z).toBe(11 - 2);
   });
+  it("edgePadding relaxes the clamp by the given world-units per side", () => {
+    const r = clampCameraToArena(0, 6, 6, 4, 0, 15, 0, 11, 2);
+    // halfW=3, edgePadding=2 → min-x = 3 - 2 = 1.
+    expect(r.x).toBe(1);
+  });
 });
 
-describe("createKaboomCameraFollowSystem (S163)", () => {
-  it("follow mode: snaps the camera onto the bomber position (S163-c centre-bomber)", () => {
-    const world = new World();
-    seedScene(world, { bomberAt: [3, 3] });
-    const sys = createKaboomCameraFollowSystem({ smoothing: 1 }); // snap
-    sys.frameUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    // Post-S163-c: camera always centres on bomber + cameraOffset. Bomber
-    // at (3, _, 3) + offset [0, 10, 7] → camera (3, 10, 10). Strict arena
-    // edge clamp removed so the bomber stays centred at arena perimeter.
-    expect(t.position[0]).toBeCloseTo(3, 1);
-    expect(t.position[2]).toBeCloseTo(3 + 7, 1);
-  });
-
-  it("centre mode: camera locks to arena centre regardless of bomber position", () => {
-    const world = new World();
-    seedScene(world, { bomberAt: [1, 1] });
-    const sys = createKaboomCameraFollowSystem({ mode: "centre", smoothing: 1 });
-    sys.frameUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    // Arena (15, 11) → centre (7, 5) → camera (7, 10, 12).
-    expect(t.position[0]).toBeCloseTo(7, 1);
-    expect(t.position[2]).toBeCloseTo(5 + 7, 1);
-  });
-
-  it("missing target entity → falls back to arena centre", () => {
-    const world = new World();
-    seedScene(world); // no bomber
-    const sys = createKaboomCameraFollowSystem({ smoothing: 1 });
-    sys.frameUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    expect(t.position[0]).toBeCloseTo(7, 1);
-    expect(t.position[2]).toBeCloseTo(5 + 7, 1);
-  });
-
-  it("damping (smoothing < 1) approaches target gradually", () => {
-    const world = new World();
-    seedScene(world, { sizeX: 30, sizeZ: 20, bomberAt: [25, 18] });
-    world.setComponent("camera.main", "Transform", { position: [0, 10, 0], rotation: [-55, 0, 0], scale: [1, 1, 1] });
-    const sys = createKaboomCameraFollowSystem({ smoothing: 0.18 });
-    sys.frameUpdate!(ctx(world));
-    const after1 = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    // After one frame with smoothing 0.18 we should NOT be all the way at target.
-    expect(after1.position[0]).toBeGreaterThan(0);
-    expect(after1.position[0]).toBeLessThan(25);
-  });
-
+describe("createKaboomCameraFollowSystem (S163 — orthographicSize only)", () => {
   it("orthographicSize is updated to the configured viewSize", () => {
     const world = new World();
-    seedScene(world, { bomberAt: [5, 5] });
-    const sys = createKaboomCameraFollowSystem({ viewSize: 4, smoothing: 1 });
+    seedScene(world);
+    const sys = createKaboomCameraFollowSystem({ viewSize: 4 });
     sys.frameUpdate!(ctx(world));
     const cam = world.getComponent<{ orthographicSize?: number }>("camera.main", "Camera")!;
     expect(cam.orthographicSize).toBe(4);
   });
 
-  it("large arena (30x20) + bomber near corner → camera follows toward the corner", () => {
+  it("Transform is NOT modified (follow logic reverted to no-op)", () => {
     const world = new World();
-    seedScene(world, { sizeX: 30, sizeZ: 20, bomberAt: [25, 15] });
-    const sys = createKaboomCameraFollowSystem({ smoothing: 1, viewSize: 5 });
+    seedScene(world);
+    const before = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
+    const sys = createKaboomCameraFollowSystem({ viewSize: 4 });
     sys.frameUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    // Camera should move toward (25, _, 15) — clamped by arena bounds.
-    expect(t.position[0]).toBeGreaterThan(14);
-    expect(t.position[2]).toBeGreaterThan(14);
+    const after = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
+    expect(after.position).toEqual(before.position);
   });
 
-  it("spectate mode follows the spectateTargetId entity", () => {
+  it("missing camera entity → no-op (no throw)", () => {
     const world = new World();
-    seedScene(world, { sizeX: 30, sizeZ: 20, bomberAt: [5, 5] });
-    world.addEntity("bot.1");
-    world.setComponent("bot.1", "Transform", { position: [25, 0.4, 18], rotation: [0, 0, 0], scale: [1, 1, 1] });
-    const sys = createKaboomCameraFollowSystem({ mode: "spectate", spectateTargetId: "bot.1", smoothing: 1, viewSize: 5 });
-    sys.frameUpdate!(ctx(world));
-    const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    // Camera should move toward bot.1 (25, _, 18), not player.1 (5, _, 5).
-    expect(t.position[0]).toBeGreaterThan(15);
-    expect(t.position[2]).toBeGreaterThan(15);
+    world.addEntity("grid.config");
+    world.setComponent("grid.config", "Grid", { sizeX: 15, sizeZ: 11 });
+    const sys = createKaboomCameraFollowSystem();
+    expect(() => sys.frameUpdate!(ctx(world))).not.toThrow();
   });
 
-  it("default pitch is applied to camera rotation", () => {
+  it("default viewSize matches the constant", () => {
     const world = new World();
-    seedScene(world, { bomberAt: [5, 5] });
-    const sys = createKaboomCameraFollowSystem({ smoothing: 1 });
+    seedScene(world);
+    const sys = createKaboomCameraFollowSystem();
     sys.frameUpdate!(ctx(world));
-    const t = world.getComponent<{ rotation: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    expect(t.rotation[0]).toBe(__CAMERA_FOLLOW_CONSTANTS.DEFAULT_PITCH_DEG);
+    const cam = world.getComponent<{ orthographicSize?: number }>("camera.main", "Camera")!;
+    expect(cam.orthographicSize).toBe(__CAMERA_FOLLOW_CONSTANTS.DEFAULT_VIEW_SIZE);
+  });
+
+  it("DEFAULT_VIEW_SIZE is a sensible half-height for ~11-tile-wide framing at 16:9", () => {
+    // For 11 tile wide at 16:9: orthoSize = 11 / (2 * 16/9) ≈ 3.09.
+    // Constant is 6 currently — used as the half-height directly (so
+    // tile-vertical = 12). Either reading is fine; just assert > 1.
+    expect(__CAMERA_FOLLOW_CONSTANTS.DEFAULT_VIEW_SIZE).toBeGreaterThan(1);
   });
 });

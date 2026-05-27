@@ -82,6 +82,13 @@ import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-sy
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
+// S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
+// builders for hard / soft blocks + floor tiles; block-variant-system
+// rewrites MeshRenderer.mesh refs of cells at scene-load so the
+// renderer resolves through these procedural builders instead of the
+// engine box primitive.
+import { registerKaboomBlockBuilders } from "./src/register-block-builders";
+import { createKaboomBlockVariantSystem } from "./src/systems/block-variant-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioMuted, resolveAudioVolume, AUDIO_MUTED_STORAGE_KEY } from "./src/audio-fx";
 import { forwardAudioEvent } from "./src/audio-event-forward";
@@ -307,7 +314,11 @@ function startVertexColorsPoller(runtime: RuntimeHandle): void {
         const mr = (entity.components as Record<string, { mesh?: string } | undefined>)["MeshRenderer"];
         const key = mr?.mesh;
         if (typeof key !== "string") continue;
-        if (!key.startsWith("procedural:procbomber") && !key.startsWith("procedural:accessory-")) continue;
+        if (!key.startsWith("procedural:procbomber")
+            && !key.startsWith("procedural:accessory-")
+            && !key.startsWith("procedural:kaboom-hard-block")
+            && !key.startsWith("procedural:kaboom-soft-block")
+            && !key.startsWith("procedural:kaboom-floor-tile")) continue;
         const handle = registry.handleFor(entity.id);
         if (handle === undefined) continue;
         runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
@@ -484,6 +495,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(occupancy, { profiles: ["static", "connected"] });
 
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S165 KABOOM-MULTI-VARIANT-BLOCKS — rewrite hard / soft block
+    // MeshRenderer.mesh refs to point at the procedural multi-variant
+    // builders (registered in attachUi alongside registerProcbomberBuilders).
+    // Idempotent: each entity gets touched once + the system tags itself
+    // out via an internal applied-map. Re-runs on round restart when
+    // the scene reloads + the world reference changes.
+    scheduler.register(createKaboomBlockVariantSystem(), { profiles: ["static", "connected"] });
     const playerInput = createKaboomPlayerInputSystem();
     _boundPlayerInput = playerInput;
     scheduler.register(playerInput, { profiles: ["static", "connected"] });
@@ -834,6 +852,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         return makeKaboomRecipe(ownerId, recipePersonalityById.get(ownerId));
       }
     );
+    // S165 KABOOM-MULTI-VARIANT-BLOCKS — register hard / soft / floor
+    // procedural builders. block-variant-system (registered in
+    // registerSystems) rewrites cell MeshRenderer.mesh refs to
+    // procedural:kaboom-hard-block#gx,gz,scene-seed (and similarly for
+    // soft) on the next fixed tick, so the registry needs the keys
+    // BEFORE the renderer sync ticks.
+    registerKaboomBlockBuilders(runtime.renderer);
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     // S120 — on connected, server owns bot.1; snapshot delivers it +
     // remote-bomber-decorator spawns the procbomber tree locally.
