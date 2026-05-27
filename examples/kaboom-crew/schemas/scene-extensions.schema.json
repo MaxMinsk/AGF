@@ -11,6 +11,7 @@
     "PickupBombRequest": { "$ref": "#/definitions/pickupBombRequestComponent" },
     "ThrowBombRequest": { "$ref": "#/definitions/throwBombRequestComponent" },
     "ConveyorBelt": { "$ref": "#/definitions/conveyorBeltComponent" },
+    "WarpHole": { "$ref": "#/definitions/warpHoleComponent" },
     "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
@@ -107,6 +108,17 @@
         "directionDz": { "type": "integer", "minimum": -1, "maximum": 1 },
         "speedMs": { "type": "number", "minimum": 100, "default": 400 },
         "elapsedMs": { "type": "number", "minimum": 0, "description": "Internal: ms accumulated since the last push. Reset by the belt system when the threshold fires." }
+      }
+    },
+    "warpHoleComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S149 KABOOM-WARP-HOLE (GDP-2026-05-27-004, gameplay-systems.md §11). Marks a grid cell as one end of a warp pair. Bombers and bombs entering this cell are teleported to the partner cell (same pairId, opposite role) on the next fixedUpdate, with a 300 ms per-pair cooldown to prevent infinite ping-pong.",
+      "required": ["pairId", "role"],
+      "properties": {
+        "pairId": { "type": "integer", "minimum": 0, "description": "Identifier shared between the two cells of a warp pair." },
+        "role": { "type": "string", "enum": ["a", "b"], "description": "Which end of the pair this cell represents." },
+        "lastWarpAt": { "type": "number", "minimum": 0, "description": "Internal: last warp time in seconds since the system started. Both ends of a pair carry the same value; updated by warp-hole-system on every successful warp." }
       }
     },
     "placeBombRequestComponent": {

@@ -1,0 +1,66 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S149",
+  "title": "Warp Hole arena module — second hazard from gameplay-systems §11",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-004 (could-priority, KABOOM-CREW-MVP-2). Second arena hazard module after the S146 conveyor belt. A warp pair is two grid cells linked bidirectionally; bombers and bombs entering one cell teleport to the partner cell on the next fixedUpdate. 300 ms per-pair cooldown prevents infinite ping-pong; bombs mid-detonation (fuseRemaining = 0) are NOT teleported so the blast fires at the warp cell instead of becoming a damage vector.",
+    "Scope simplification vs GDP §3+§4: no warp-vortex shader (cyan / magenta / lime flat cylinders read clearly enough for playtest), no bot-AI integration (bots treat warp cells as normal cells), no audio event (defer to a follow-up polish sprint). Three pre-authored warp pairs in a new warpfield arena exercise the mechanic.",
+    "Also archives two obsolete GDPs (GDP-2026-05-26-001 + GDP-2026-05-27-001 — arena variants already shipped in S143)."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-WARPHOLE-001",
+      "title": "WarpHole component schema",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — new WarpHole component: { pairId: integer ≥ 0, role: 'a' | 'b', lastWarpAt?: number (internal sim-time stamp) }. Registered under the top-level components map. The role discriminator enforces a 2-cell pairing at schema level; pairId is integer-only.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: scene-extensions.schema.json — WarpHole component registered under top-level components map + warpHoleComponent definition (pairId integer ≥ 0, role enum 'a'|'b', optional lastWarpAt internal stamp). engine:check kaboom-crew passes."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-WARPHOLE-SYSTEM-001",
+      "title": "warp-hole-system teleports occupants to the partner cell",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/warp-hole-system.ts (NEW). Per fixedUpdate: build a pairId → (a-cell, b-cell) map from all WarpHole entities; for each pair past the 300 ms cooldown, query the occupancy index for warpable entities (bombers with alive=true, bombs with fuseRemaining > 0) on each end and teleport them to the partner cell. Stamp lastWarpAt on both ends on a successful warp. Teleport preserves Transform.y, resets GridMover.queuedDirection + currentLerp + targetGx/Gz so the bomber doesn't immediately slide back through the warp.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: warp-hole-system.ts (NEW) — per-pair cooldown 0.3 s, deferred-clock sim-time accumulator, teleport preserves Transform.y, resets GridMover queue / lerp / target, dead bombers + mid-detonation bombs ignored. Registered AFTER conveyor-belt-system in the static profile."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-WARPFIELD-SCENE-001",
+      "title": "New warpfield arena (showcases the warp module)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/scenes/warpfield.scene.json (NEW) — 15×11 grid with 4 standard hard-wall corner pillars (3,3 / 11,3 / 3,7 / 11,7), 8 soft blocks, 4 corner spawns for player.1 + bot.1 + bot.2 + bot.3 (multi-bot from S141), and 3 warp pairs: cyan diagonal (2,1 ↔ 12,9), magenta anti-diagonal (12,1 ↔ 2,9), lime vertical (7,2 ↔ 7,8). Registered in MAP_REGISTRY + MapName ('warpfield'); the S140 random-map picker includes it automatically.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: warpfield.scene.json — 15×11 grid, 4 standard hard pillars, 8 soft blocks, 4 corner spawns, 3 warp pairs (6 warp cells total, each pair gets a + b roles). MAP_REGISTRY + MapName extended. Random-pick eligible."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-WARPHOLE-001",
+      "title": "Unit tests covering warp + cooldown + edge cases",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/warp-hole-system.test.ts (NEW) — 11 tests: bomber A→B, bomber B→A symmetric, bomb with positive fuse warps (fuseRemaining preserved), bomb mid-detonation (fuse=0) stays put, 300 ms cooldown suppresses second warp, cooldown releases after 300 ms, two pairs run independently, dead bomber doesn't warp, Transform.y preserved, GridMover queue reset, warpfield.scene.json structural smoke. Also extends scenes-arena-variants.test.ts with the warpfield variant + a dedicated WarpHole describe block (3 warp-specific tests).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: warp-hole-system.test.ts adds 11 tests (all green); scenes-arena-variants.test.ts gains the warpfield variant + a WarpHole describe block (3 tests asserting 3 pairs, y ≤ 0.1, distinct a/b cells)."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-WARPHOLE-001",
+      "title": "README + GDP archive + obsolete-GDP archive",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — adds warpfield row to the maps table with cooldown note. GDP-2026-05-27-004 archived to backlog/proposed-stories/archive/S149/. GDP-2026-05-26-001 + GDP-2026-05-27-001 (both about arena variants already shipped in S143) archived to backlog/proposed-stories/archive/obsolete/.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README maps table gains warpfield row. GDP-2026-05-27-004 → backlog/proposed-stories/archive/S149/. GDP-2026-05-26-001 + GDP-2026-05-27-001 → backlog/proposed-stories/archive/obsolete/."
+      ]
+    }
+  ]
+}
