@@ -112,6 +112,12 @@ import {
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
+import {
+  tooltipFor as tooltipForPowerUp,
+  tooltipForOpponentBadge,
+  type PowerUpSlotState
+} from "./src/hud/power-up-descriptions";
+import { installIconTooltipOverlay, TOOLTIP_ATTRS, type IconTooltipOverlayHandle } from "./src/hud/icon-tooltip-overlay";
 
 const DEFAULT_ROUND_TIME_LIMIT_SECONDS = 90;
 /**
@@ -1215,6 +1221,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         audioFx.play(kind, { entityId });
         return !audioFx.isMuted();
       },
+      // S161 KABOOM-HUD-TOOLTIPS — probe surface for automated UI
+      // tests: ask the registry what a given icon's tooltip would say
+      // without spinning up DOM hover events.
+      tooltipFor(iconKey: string, slot?: PowerUpSlotState): unknown {
+        // Accept any PowerupIconKind string; registry returns text for
+        // unknown keys as undefined fields, so callers can detect
+        // unwired icons.
+        try {
+          return tooltipForPowerUp(iconKey as PowerupIconKind, slot);
+        } catch {
+          return undefined;
+        }
+      },
       // S153 — agent probes for the persistent player profile.
       // getProfile() returns the live in-memory profile (mutating the
       // result is safe — fields are copied per get()). setProfileStats
@@ -1300,7 +1319,25 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     const hud = (runtime as unknown as HudCapable).hud;
     let rafId: number | undefined;
     let hudCleanup: (() => void) | undefined;
+    let tooltipOverlay: IconTooltipOverlayHandle | undefined;
     if (hud !== undefined && typeof globalThis.requestAnimationFrame === "function") {
+      // S161 KABOOM-HUD-TOOLTIPS — single shared tooltip overlay used by
+      // power-up grid + opponent badges. URL flags ?hudTooltips=off /
+      // ?hudTooltipsDelay=N tune behaviour for tests + accessibility.
+      const tooltipParams = (() => {
+        const search = (globalThis as unknown as { location?: { search?: string } }).location?.search ?? "";
+        try {
+          const p = new URLSearchParams(search);
+          const disabled = p.get("hudTooltips") === "off";
+          const delayRaw = p.get("hudTooltipsDelay");
+          const delayParsed = delayRaw === null ? Number.NaN : Number(delayRaw);
+          const delay = Number.isFinite(delayParsed) && delayParsed >= 0 ? delayParsed : 400;
+          return { enabled: !disabled, delayMs: delay };
+        } catch {
+          return { enabled: true, delayMs: 400 };
+        }
+      })();
+      tooltipOverlay = installIconTooltipOverlay(tooltipParams);
       const STATS_ID = "kaboom.stats";
       const BANNER_ID = "kaboom.banner";
       const MINIMAP_ID = "kaboom.minimap";
@@ -1483,7 +1520,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         kind: PowerupIconKind,
         active: boolean,
         label: string | undefined,
-        accent: string
+        accent: string,
+        slot?: PowerUpSlotState
       ): HTMLElement => {
         const wrap = document.createElement("div");
         const opacity = active ? "1" : "0.32";
@@ -1505,6 +1543,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           txt.textContent = label;
           wrap.appendChild(txt);
         }
+        // S161 KABOOM-HUD-TOOLTIPS — stamp tooltip attributes so the
+        // shared overlay can read them on hover.
+        const t = tooltipForPowerUp(kind, slot);
+        wrap.setAttribute(TOOLTIP_ATTRS.NAME, t.name);
+        wrap.setAttribute(TOOLTIP_ATTRS.DESC, t.description);
+        if (t.state !== undefined) wrap.setAttribute(TOOLTIP_ATTRS.STATE, t.state);
+        wrap.setAttribute("tabindex", "0");
         return wrap;
       };
       // S159 KABOOM-DASH — dash cell with cooldown ring overlay. The
@@ -1541,6 +1586,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         label.setAttribute("style", "font-size:9px;font-weight:600;color:#f4e9d3;line-height:1;");
         label.textContent = ready ? "SHIFT" : "...";
         wrap.appendChild(label);
+        // S161 — dash tooltip stamps.
+        const cooldownMs = Math.round(fraction * 3000);
+        const t = tooltipForPowerUp("dash", { kind: "cooldown", readyLabel: "READY", cooldownMs });
+        wrap.setAttribute(TOOLTIP_ATTRS.NAME, t.name);
+        wrap.setAttribute(TOOLTIP_ATTRS.DESC, t.description);
+        if (t.state !== undefined) wrap.setAttribute(TOOLTIP_ATTRS.STATE, t.state);
+        wrap.setAttribute("tabindex", "0");
         return wrap;
       };
       hud.add({
@@ -1567,20 +1619,23 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           );
           const row1 = document.createElement("div");
           row1.setAttribute("style", "display:flex;gap:3px;");
-          row1.appendChild(buildIconCell("bomb", true, `${data.bombs.current}/${data.bombs.max}`, data.accent));
-          row1.appendChild(buildIconCell("fire", true, String(data.fire), data.accent));
+          row1.appendChild(buildIconCell("bomb", true, `${data.bombs.current}/${data.bombs.max}`, data.accent,
+            { kind: "counter", current: data.bombs.current, max: data.bombs.max }));
+          row1.appendChild(buildIconCell("fire", true, String(data.fire), data.accent,
+            { kind: "counter", current: data.fire, max: data.fire }));
           // Speed shows the *bonus level* (0+); 0 reads as "baseline" so
           // we still light the icon at the baseline state.
-          row1.appendChild(buildIconCell("speed", true, `+${data.speed}`, data.accent));
+          row1.appendChild(buildIconCell("speed", true, `+${data.speed}`, data.accent,
+            { kind: "level", level: data.speed, baseline: "baseline" }));
           el.appendChild(row1);
           const row2 = document.createElement("div");
           row2.setAttribute("style", "display:flex;gap:3px;");
-          row2.appendChild(buildIconCell("kick", data.canKick, undefined, data.accent));
-          row2.appendChild(buildIconCell("remote", data.remote, undefined, data.accent));
-          row2.appendChild(buildIconCell("shield", data.shield, undefined, data.accent));
-          row2.appendChild(buildIconCell("pierce", data.pierce, undefined, data.accent));
-          row2.appendChild(buildIconCell("throw-glove", data.canThrow, undefined, data.accent));
-          row2.appendChild(buildIconCell("bomb-pass", data.bombPass, undefined, data.accent));
+          row2.appendChild(buildIconCell("kick", data.canKick, undefined, data.accent, { kind: "flag", active: data.canKick }));
+          row2.appendChild(buildIconCell("remote", data.remote, undefined, data.accent, { kind: "flag", active: data.remote }));
+          row2.appendChild(buildIconCell("shield", data.shield, undefined, data.accent, { kind: "flag", active: data.shield }));
+          row2.appendChild(buildIconCell("pierce", data.pierce, undefined, data.accent, { kind: "flag", active: data.pierce }));
+          row2.appendChild(buildIconCell("throw-glove", data.canThrow, undefined, data.accent, { kind: "flag", active: data.canThrow }));
+          row2.appendChild(buildIconCell("bomb-pass", data.bombPass, undefined, data.accent, { kind: "flag", active: data.bombPass }));
           // S159 KABOOM-DASH — dash always-available, cooldown shown via overlay.
           row2.appendChild(buildDashCell(data.dashCooldownFraction, data.accent));
           el.appendChild(row2);
@@ -1635,6 +1690,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
                 "width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);"
               );
               wrap.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" aria-label="${icon}">${powerupIconSvgInner(icon)}</svg>`;
+              // S161 — opponent badge tooltip.
+              const t = tooltipForOpponentBadge(icon, row.id);
+              wrap.setAttribute(TOOLTIP_ATTRS.NAME, t.name);
+              wrap.setAttribute(TOOLTIP_ATTRS.DESC, t.description);
+              if (t.state !== undefined) wrap.setAttribute(TOOLTIP_ATTRS.STATE, t.state);
+              wrap.setAttribute("tabindex", "0");
               rowEl.appendChild(wrap);
             }
             el.appendChild(rowEl);
@@ -2297,6 +2358,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         if (pauseMenuMounted) hud.remove(PAUSE_MENU_ID);
         hud.remove(MINIMAP_ID);
         hud.remove(KEYS_ID);
+        if (tooltipOverlay !== undefined) tooltipOverlay.destroy();
       };
     }
 

@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S161",
+  "title": "HUD icon hover tooltips — explain power-ups + opponent badges",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "PENDING",
+  "notes": [
+    "Implements GDP-2026-05-28-007 MVP slice. Onboarding fix: HUD icons + opponent badges now expose a hover tooltip after a configurable delay (default 400 ms) showing name + one-line description + current slot state (ACTIVE / LOCKED / counter / cooldown).",
+    "Out of scope (deferred to follow-ups): touch-tap-and-hold, prefers-reduced-motion, aria-describedby. Mouse hover + keyboard focus paths are covered, which is the bulk of the UX value.",
+    "Probe surface: window.__agf.kaboom.tooltipFor(iconKey, slot) returns the same payload the overlay reads, useful for automated UI smoke tests."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-HUD-TOOLTIP-REGISTRY-001",
+      "title": "Central description registry + slot-state shaping",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/hud/power-up-descriptions.ts (NEW) — single source of truth for tooltip name + description + state. PowerUpSlotState union covers counter / level / flag / cooldown shapes. tooltipFor(kind, slot) for local-player icons + tooltipForOpponentBadge(kind, label) for opponent badge cells.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: 16 unit tests cover every PowerupIconKind, every slot-state shape, LOCKED hints for flag-style icons, opponent-badge fallback, and the plain-text renderer."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-HUD-TOOLTIP-OVERLAY-001",
+      "title": "Shared tooltip overlay element + hover delay + delegated listeners",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/hud/icon-tooltip-overlay.ts (NEW) — installIconTooltipOverlay({delayMs, enabled, root}) creates a single fixed-position DOM bubble + delegates pointerover/pointerout/focusin/focusout listeners. Mouse-hover or keyboard-focus on any element carrying data-tooltip-name + data-tooltip-desc triggers the bubble after delay; mouseleave/blur hides it; mid-flight icon-to-icon move performs an instant transition.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: live probe with ?hudTooltipsDelay=50 confirms overlay element present, hover on a power-up icon raises opacity to 1 within 200 ms, text matches registry payload."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-HUD-TOOLTIP-WIRE-001",
+      "title": "Wire data attributes on power-up grid + opponent badges + dash slot",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — buildIconCell + buildDashCell + the opponent-badges inner svg wrapper all stamp data-tooltip-name / data-tooltip-desc / data-tooltip-state + tabindex=0. Bootstrap installs the overlay once on attachUi and tears it down in hudCleanup. URL flags ?hudTooltips=off / ?hudTooltipsDelay=N supported.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: live snapshot shows data-tooltip-* attributes present on bomb / shield / pierce / kick / etc. cells; tooltipFor() probe returns matching payload."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-HUD-TOOLTIP-PROBE-001",
+      "title": "Agent probe — window.__agf.kaboom.tooltipFor",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — exposes tooltipFor(iconKey, slot) on the kaboom agent API surface. Lets automated UI tests assert registry payloads without spinning up DOM hover events.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: __agf.kaboom.tooltipFor('bomb', {kind:'counter', current:3, max:6}) returns {name:'Bomb Up', description:..., state:'3 / 6'} from live probe."
+      ]
+    }
+  ]
+}
