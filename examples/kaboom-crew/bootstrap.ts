@@ -72,7 +72,6 @@ import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-li
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
-import { createKaboomCameraFollowSystem } from "./src/systems/camera-follow-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
@@ -666,19 +665,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S162 KABOOM-ACCESSORY-DETACH — runs every fixedUpdate. Spawns
     // AccessoryDebris on bomber death, then integrates active debris.
     scheduler.register(createKaboomAccessoryDetachSystem(), { profiles: ["static"] });
-    // S163 KABOOM-CAMERA-FOLLOW — damped pursuit of the local player
-    // with arena-edge clamping. Runs each frameUpdate (presentation).
-    {
-      const cameraCfg = readCameraConfigFromUrl();
-      scheduler.register(
-        createKaboomCameraFollowSystem({
-          mode: cameraCfg.mode,
-          viewSize: cameraCfg.viewSize,
-          ...(cameraCfg.spectateTargetId !== undefined ? { spectateTargetId: cameraCfg.spectateTargetId } : {})
-        }),
-        { profiles: ["static"] }
-      );
-    }
+    // S163-revert: camera-follow system unregistered (doubling artifact).
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
     // toward the target cell. Used by `runtime.kaboom.gotoCell` (wired
@@ -791,6 +778,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
       })
     ];
+    // S163-revert: camera-follow caused persistent 'двоится' artifact
+    // ('как будто две камеры со смещением'). Both kaboom-side
+    // Transform writes AND engine-side FollowCamera produced it.
+    // Reverting all camera changes for this sprint — camera stays at
+    // the scene-authored fixed position. Re-attempt as a separate
+    // story once the rendering pipeline interaction is debugged.
     if (!_networkedMode) {
       // Static profile only — bot tuning patches for all 3 solo bots
       // (S141). Each carries its own personality slot from
