@@ -324,6 +324,63 @@ describe("Kaboom bomb pipeline (S82)", () => {
     expect(world.hasComponent("bot.1", "DeathImpulse")).toBe(true);
   });
 
+  it("S157 SHIELD-FIX — full system schedule: shielded bomber survives the bomb + tile-lifetime double-tick", () => {
+    // End-to-end repro for the user's playtest report 2026-05-27
+    // ("щит загорается но всё равно умираю"). Pre-fix bug:
+    // blast-propagation consumed the shield AND blast-tile-lifetime
+    // re-damaged the bomber on the same fixedUpdate → bomber died
+    // anyway. Post-fix: tile-lifetime's first tick after spawn
+    // initialises a per-tile "already-damaged" set with the current
+    // occupants (blast-prop handled them on the spawn step), so the
+    // shielded bomber gets exactly ONE damage attempt and survives.
+    const world = new World();
+    addBomber(world, "bot.1", 6, 5);
+    const stats = world.getComponent("bot.1", "BomberStats") as { maxBombs: number; range: number; activeBombs: number; alive: boolean };
+    world.setComponent("bot.1", "BomberStats", { ...stats, shield: true });
+    addBomb(world, "bomb.a", 5, 5, { fuse: 1 / 60, range: 2 });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const fuse = createKaboomBombFuseSystem();
+    fuse.fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    const blast = createKaboomBlastPropagationSystem({ occupancy: occ });
+    blast.fixedUpdate!(ctx(world));
+    const lifetime = createKaboomBlastTileLifetimeSystem({ occupancy: occ });
+    // Several ticks of tile-lifetime — bomber stays on the tile but
+    // shouldn't get re-damaged because they're in the already-damaged set.
+    for (let i = 0; i < 20; i += 1) {
+      occ.frameUpdate!(ctx(world));
+      lifetime.fixedUpdate!(ctx(world));
+    }
+    const after = world.getComponent("bot.1", "BomberStats") as { alive: boolean; shield: boolean };
+    expect(after.alive).toBe(true);
+    expect(after.shield).toBe(false);
+  });
+
+  it("S157 — bomber that walks INTO an active blast tile mid-life gets damaged once", () => {
+    // Tile-lifetime's "new entrant damage" path. Spawn a tile with a
+    // long lifetime, run one tick (init damaged-set with no occupants),
+    // then move a bomber onto the tile and tick again — they get hit.
+    const world = new World();
+    addBomber(world, "bot.1", 0, 0); // far from the tile initially
+    world.addEntity("blast-tile.test");
+    world.setComponent("blast-tile.test", "BlastTile", { lifetimeRemaining: 1.0 });
+    world.setComponent("blast-tile.test", "GridPosition", { gx: 6, gz: 5 });
+    world.setComponent("blast-tile.test", "GridOccupant", { layer: "blast", blocksMovement: false, blocksBlast: false });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const lifetime = createKaboomBlastTileLifetimeSystem({ occupancy: occ });
+    lifetime.fixedUpdate!(ctx(world));
+    // Bot still safe — not on the tile yet.
+    expect((world.getComponent("bot.1", "BomberStats") as { alive: boolean }).alive).toBe(true);
+    // Walk onto the tile cell.
+    world.setComponent("bot.1", "GridPosition", { gx: 6, gz: 5 });
+    occ.frameUpdate!(ctx(world));
+    lifetime.fixedUpdate!(ctx(world));
+    // Now damaged — unshielded so killed.
+    expect((world.getComponent("bot.1", "BomberStats") as { alive: boolean }).alive).toBe(false);
+  });
+
   it("blast tile lifetime ticks down and removes the tile when zero", () => {
     const world = new World();
     addBomber(world, "player.1", 5, 5);
