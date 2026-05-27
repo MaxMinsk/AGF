@@ -133,9 +133,10 @@ export function installIconTooltipOverlay(options: IconTooltipOverlayOptions = {
   }
 
   function findTooltipTarget(el: EventTarget | null): HTMLElement | null {
-    if (!(el instanceof HTMLElement)) return null;
-    if (el.hasAttribute(TOOLTIP_NAME_ATTR)) return el;
-    // Walk up — icons may have inner svg/spans.
+    // Real pointer events fire on the deepest hit node, which inside
+    // each cell is the inner <svg> / <path> — those are SVGElement,
+    // NOT HTMLElement, so we must use the broader Element base.
+    if (!(el instanceof Element)) return null;
     const ancestor = el.closest(`[${TOOLTIP_NAME_ATTR}]`);
     return ancestor instanceof HTMLElement ? ancestor : null;
   }
