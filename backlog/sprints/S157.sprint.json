@@ -1,0 +1,45 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S157",
+  "title": "Smooth bomber rotation — 120 ms angular lerp instead of instant snap",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-015 (could-priority, KABOOM-CREW-CHARACTERS). Direct response to playtest feedback 'человечки поворачиваться должны чуть анимировано а не резко менять направление'. Pure visual polish — gameplay logic stays instant on the GridMover direction; only Transform.rotation.y interpolates.",
+    "Bundled with several non-sprint fixes shipped earlier in the session: bench accessory dropdown actually updates (PR #189), accessory sway calmed then disabled (PRs #190 + #191), shield actually absorbs blast (PR #193, the high-impact playtest bug). Those are tracked here for context but each had its own PR + isn't a sprint story."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-SMOOTH-ROTATION-001",
+      "title": "Elapsed-time angular lerp + shortest-path math",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/bomber-face-movement-system.ts — extended with three pure helpers (shortestAngularDeltaDeg, stepYawLerp, SMOOTH_ROTATION_DURATION_MS=120ms). Elapsed-time-based lerp avoids Zeno-paradox decay (a naive current→target each-tick fraction never converges). Shortest-path math handles wrap-around (175° → -175° goes +10°, not -350°).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bomber-face-movement-system.ts exports the 3 pure helpers + the system uses a per-bomber FacingState (currentYaw, targetYaw, startYaw, elapsedSec) so changes to target reset the lerp start + elapsed. 1775/1775 vitest green (was 1762; 13 new tests in bomber-face-movement-system.test.ts)."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-SMOOTH-ROTATION-001",
+      "title": "Pure-function + system-level tests",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/bomber-face-movement-system.test.ts — 13 new tests: 6 for shortestAngularDeltaDeg (zero, CW/CCW, wrap-around both directions, ±180 deterministic), 5 for stepYawLerp (elapsed ≤ 0, ≥ duration, ~14% per fixedUpdate, converges over 10 ticks, the 120ms constant), 2 for the system (single tick covers a fraction, 0°→270° goes shortest-path via -90° monotonically).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bomber-face-movement-system.test.ts has 22 tests total (9 pre-S157 + 13 new). All pass."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-SMOOTH-ROTATION-001",
+      "title": "Archive GDP-2026-05-27-015",
+      "status": "implemented",
+      "summary": "Move backlog/proposed-stories/GDP-2026-05-27-015.story-proposal.json to backlog/proposed-stories/archive/S157/. No README change — the rotation is invisible in static screenshots + the bomber-face-movement-system doc header already describes the behaviour.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: GDP-2026-05-27-015 → backlog/proposed-stories/archive/S157/."
+      ]
+    }
+  ]
+}
