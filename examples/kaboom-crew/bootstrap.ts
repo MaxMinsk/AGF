@@ -71,6 +71,7 @@ import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
+import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
@@ -628,6 +629,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S160 KABOOM-SUDDEN-DEATH — runs after round-resolve so phase-flip
     // wins over a new ring spawn on the resolving tick.
     scheduler.register(createKaboomSuddenDeathSystem(), { profiles: ["static"] });
+    // S162 KABOOM-ACCESSORY-DETACH — runs every fixedUpdate. Spawns
+    // AccessoryDebris on bomber death, then integrates active debris.
+    scheduler.register(createKaboomAccessoryDetachSystem(), { profiles: ["static"] });
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
     // toward the target cell. Used by `runtime.kaboom.gotoCell` (wired

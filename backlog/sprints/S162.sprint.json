@@ -1,0 +1,58 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S162",
+  "title": "Accessory detach on death — kinematic scatter with per-kind impulse tuning",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/204",
+  "notes": [
+    "Implements GDP-2026-05-27-012 MVP slice via a project-local kinematic system. On BomberStats.alive=false the accessory-detach system finds entities matching `<rootId>.accessoryN.<kind>`, clears their parent (so they stop riding the body), computes a deterministic scatter impulse from DeathImpulse direction + per-kind config (antennae fly up, backpack flies opposite-to-blast, cap straight up with spin, visor falls fast, fins lateral spread), and stamps AccessoryDebris.",
+    "Per fixedUpdate the system integrates each AccessoryDebris: position += velocity*dt; vy -= 9.8*dt; rotation += spin*dt; scale shrinks to 0 over the final 300 ms; removeEntity on lifetime expiry (default 1500 ms).",
+    "Deferred to a future engine-side follow-up: full Rapier-rigid-body integration through engine/physics/ragdoll/ (RagdollTemplate.accessoryBodies, ACCESSORY_DEBRIS collision group, true rigid-body inertia). The kinematic version reads convincingly at the 1.5 s death-window scale and avoids touching the cross-cutting ragdoll spawn/sync/teardown systems for this sprint.",
+    "Live probe with ?suddenDeathTriggerS=3 confirmed: 3 accessory entities present in start scene; after sudden-death kills a bot, AccessoryDetachFired marker stamped on bomber + AccessoryDebris entities mid-flight 2 s later.",
+    "Playtest tuning pass 2026-05-27 ('accessories fly too far'): halved per-kind speedMagnitudes, lifetime 1500→1000 ms, fade 300→250 ms, gravity 9.8→12 cells/sec². Debris now settles within ~1 tile of the bomber."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-ACCESSORY-DEBRIS-001",
+      "title": "AccessoryDebris + AccessoryDetachFired components",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — AccessoryDebris {vx, vy, vz, spinX/Y/Z, elapsedMs, lifetimeMs, fadeMs, gravity} carries kinematic state for in-flight accessory entities. AccessoryDetachFired marker prevents the detach system from re-firing on the same death frame.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: engine:check examples/kaboom-crew passes; round-trip both components through the runtime."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-ACCESSORY-DETACH-SYSTEM-001",
+      "title": "Accessory-detach system — detect death, scatter impulse, integrate, despawn",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/accessory-detach-system.ts (NEW) — on dead bombers without AccessoryDetachFired, walks `<rootId>.accessoryN.<kind>` ids, computes computeScatterImpulse(blastDir, kindConfig, hash) per accessory, clears Transform.parent, removes SpringPivot + SoftAttached, stamps AccessoryDebris. Integration loop advances every AccessoryDebris entity each tick. computeScatterImpulse + scatterSeedHash exported as deterministic pure helpers.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 17 unit tests pass (scatter determinism, blast-east bias direction per kind, dead-bomber spawns debris, alive bomber skipped, AccessoryDetachFired prevents re-fire, parent cleared, position integration, gravity reduces vy, lifetime despawn, non-matching ids skipped, SpringPivot + SoftAttached removed)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-ACCESSORY-DETACH-BOOT-001",
+      "title": "Register accessory-detach system in bootstrap",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — imports createKaboomAccessoryDetachSystem + registers under profiles=[\"static\"] after sudden-death. No URL flags — feature is always on.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: live probe confirms AccessoryDetachFired stamped on dying bombers; AccessoryDebris entities visible 2 s after a sudden-death wave."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-ACCESSORY-DETACH-001",
+      "title": "Unit tests + full kaboom suite green",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/accessory-detach-system.test.ts — 17 tests. Full kaboom unit suite 615/615 pass.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: vitest run examples/kaboom-crew/tests/unit → 615/615 pass; typecheck + engine:check green."
+      ]
+    }
+  ]
+}
