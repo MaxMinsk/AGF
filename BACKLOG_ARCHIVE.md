@@ -156,5 +156,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S149](backlog/sprints/S149.sprint.json)** — Warp Hole arena module — second hazard from gameplay-systems §11 — 5 implemented · archived 2026-05-27
 - **[S150](backlog/sprints/S150.sprint.json)** — Opponent active-state badges — Layer 3 of GDP-2026-05-27-005 (HUD approximation) — 5 implemented · archived 2026-05-27
 - **[S151](backlog/sprints/S151.sprint.json)** — Pressure Plate arena module — third hazard from gameplay-systems §11 — 5 implemented · archived 2026-05-27
+- **[S152](backlog/sprints/S152.sprint.json)** — Bomb Pass power-up + classic-Bomberman bomb-block baseline — 6 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->

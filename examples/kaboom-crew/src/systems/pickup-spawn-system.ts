@@ -46,7 +46,7 @@ const IDLE_EMITTER_RATE = 8;
 const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
-type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove";
+type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove" | "bomb-pass";
 
 type PickupVisual = {
   mesh: string;
@@ -73,7 +73,9 @@ const PICKUP_VISUAL: Record<PickupKind, PickupVisual> = {
   // S142 KABOOM-PIERCE-BOMB — tall narrow red shard so it reads as a piercing implement from above.
   "pierce": { mesh: "cylinder", color: "#ff3b3b", scale: [0.18, 0.55, 0.18], yOffset: 0.34 },
   // S144 KABOOM-THROW-GLOVE — short fat lime-green cylinder (glove silhouette) to read distinctly from kick (yellow short cylinder).
-  "throw-glove": { mesh: "cylinder", color: "#9ee84a", scale: [0.5, 0.25, 0.5], yOffset: 0.23 }
+  "throw-glove": { mesh: "cylinder", color: "#9ee84a", scale: [0.5, 0.25, 0.5], yOffset: 0.23 },
+  // S152 KABOOM-BOMB-PASS — wide flat purple disc (phasing silhouette) — reads distinctly from the existing 8 kinds.
+  "bomb-pass": { mesh: "cylinder", color: "#b46aff", scale: [0.5, 0.1, 0.5], yOffset: 0.2 }
 };
 
 // Drop table — entries appear in PICK proportionally to how many times they
@@ -87,7 +89,9 @@ const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
   "remote-detonate",
   "shield",
   "pierce",
-  "throw-glove"
+  "throw-glove",
+  // S152 KABOOM-BOMB-PASS — same ~half-rarity as kick/pierce/throw-glove.
+  "bomb-pass"
 ];
 
 export type PickupSpawnSystemOptions = {

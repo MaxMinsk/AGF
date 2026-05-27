@@ -21,7 +21,8 @@ export type PowerupIconKind =
   | "remote"
   | "shield"
   | "pierce"
-  | "throw-glove";
+  | "throw-glove"
+  | "bomb-pass";
 
 // Cream silhouette per visual-style.md §8.3. Same colour for every icon;
 // active/inactive state is driven by container CSS (opacity + glow), not
@@ -89,6 +90,14 @@ export function powerupIconSvgInner(kind: PowerupIconKind): string {
       return [
         `<path d="M6 10 L6 18 C6 20 7 21 9 21 L17 21 C19 21 20 20 20 18 L20 12 L18 12 L18 8 L15 8 L15 12 L13 12 L13 6 L10 6 L10 12 L8 12 L8 10 Z" fill="${ICON_FILL}" stroke="${ICON_STROKE}" stroke-width="1.5"/>`
       ].join("");
+    case "bomb-pass":
+      // Bomb-with-arrows-through — round bomb body with horizontal arrow
+      // overlay, signalling "walk through". Reads as bomb + motion vector.
+      return [
+        `<circle cx="12" cy="14" r="5.5" fill="${ICON_FILL}" stroke="${ICON_STROKE}" stroke-width="1.5"/>`,
+        `<rect x="11" y="6" width="2" height="3" fill="${ICON_FILL}" stroke="${ICON_STROKE}" stroke-width="1"/>`,
+        `<path d="M3 14 L20 14 L17 11 M20 14 L17 17" fill="none" stroke="${ICON_STROKE}" stroke-width="1.6" stroke-linejoin="miter"/>`
+      ].join("");
   }
 }
 
@@ -115,7 +124,8 @@ export const PICKUP_TOOLTIP_LABEL: Record<string, string> = {
   "remote-detonate": "REMOTE",
   "shield": "SHIELD",
   "pierce": "PIERCE",
-  "throw-glove": "THROW GLOVE"
+  "throw-glove": "THROW GLOVE",
+  "bomb-pass": "BOMB PASS"
 };
 
 /** Pickup-kind → icon mapping for the tooltip layer. */
@@ -127,5 +137,6 @@ export const PICKUP_ICON: Record<string, PowerupIconKind> = {
   "remote-detonate": "remote",
   "shield": "shield",
   "pierce": "pierce",
-  "throw-glove": "throw-glove"
+  "throw-glove": "throw-glove",
+  "bomb-pass": "bomb-pass"
 };

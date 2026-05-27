@@ -32,7 +32,7 @@ const COLLECT_FX_LIFETIME_S = 0.35;
 const COLLECT_FX_RATE = 80;
 const COLLECT_FX_MAX_PARTICLES = 30;
 
-type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove" };
+type Pickup = { kind: "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove" | "bomb-pass" };
 type GridPos = { gx: number; gz: number };
 type BomberStats = {
   maxBombs: number;
@@ -45,6 +45,7 @@ type BomberStats = {
   shield?: boolean;
   pierce?: boolean;
   canThrow?: boolean;
+  bombPass?: boolean;
 };
 
 const REMOTE_DETONATE_CHARGES_CAP = 3;
@@ -172,6 +173,14 @@ function tryApplyPickup(
       // key. Idempotent: already-true is a silent no-op.
       if (stats.canThrow !== true) {
         world.setComponent(id, BOMBER_STATS, { ...stats, canThrow: true });
+      }
+    } else if (kind === "bomb-pass") {
+      // S152 KABOOM-BOMB-PASS — flip BomberStats.bombPass so the
+      // bomber can walk through their OWN placed bombs after stepping
+      // off. Others' bombs still block. Idempotent: already-true is a
+      // silent no-op (pickup still gets consumed for visual parity).
+      if (stats.bombPass !== true) {
+        world.setComponent(id, BOMBER_STATS, { ...stats, bombPass: true });
       }
     } else {
       // speed-up bumps GridMover.speed AND mirrors into BomberStats.speed

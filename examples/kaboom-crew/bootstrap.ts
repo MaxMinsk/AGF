@@ -70,6 +70,7 @@ import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
+import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomRemoteBomberDecoratorSystem } from "./src/systems/remote-bomber-decorator-system";
 import { createKaboomRemoteBomberInterpolatorSystem } from "./src/systems/remote-bomber-interpolator-system";
@@ -538,6 +539,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // a phantom local bot.1 — but we suppress that spawn entirely
     // (FEAT-CLIENT-SUPPRESS-LOCAL-BOT-001).
     scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static"] });
+
+    // S152 KABOOM-BOMB-BLOCK — runs AFTER input + bot-ai so the just-
+    // written GridMover.queuedDirection is cleared before the NEXT
+    // frame's grid-movement-system reads it. Implements the classic-
+    // Bomberman "bomb blocks bomber" baseline (own bomb after step-off,
+    // others' always) + the Bomb Pass override (own bomb passable for
+    // bombers with BomberStats.bombPass=true).
+    scheduler.register(createKaboomBombBlockSystem({ occupancy }), { profiles: ["static", "connected"] });
 
     // Round resolve gets a late-bound onRestart closure so it can fire
     // the auto-restart timer (default 3 s after win/loss/draw) without
@@ -1036,6 +1045,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               speed: (c["BomberStats"] as { speed?: number })?.speed,
               pierce: (c["BomberStats"] as { pierce?: boolean })?.pierce,
               canThrow: (c["BomberStats"] as { canThrow?: boolean })?.canThrow,
+              bombPass: (c["BomberStats"] as { bombPass?: boolean })?.bombPass,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
               targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
             };
@@ -1324,6 +1334,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         shield: boolean;
         pierce: boolean;
         canThrow: boolean;
+        bombPass: boolean;
         accent: string;
       };
       const buildIconCell = (
@@ -1366,6 +1377,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           shield: false,
           pierce: false,
           canThrow: false,
+          bombPass: false,
           accent: "#5fa8ff"
         } as PowerupGridData,
         render: (data: PowerupGridData): HTMLElement => {
@@ -1389,6 +1401,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           row2.appendChild(buildIconCell("shield", data.shield, undefined, data.accent));
           row2.appendChild(buildIconCell("pierce", data.pierce, undefined, data.accent));
           row2.appendChild(buildIconCell("throw-glove", data.canThrow, undefined, data.accent));
+          row2.appendChild(buildIconCell("bomb-pass", data.bombPass, undefined, data.accent));
           el.appendChild(row2);
           return el;
         }
@@ -1554,7 +1567,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; speed?: number }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -1634,6 +1647,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             shield: playerSelfForHud.shield === true,
             pierce: playerSelfForHud.pierce === true,
             canThrow: playerSelfForHud.canThrow === true,
+            bombPass: playerSelfForHud.bombPass === true,
             accent
           });
         }
