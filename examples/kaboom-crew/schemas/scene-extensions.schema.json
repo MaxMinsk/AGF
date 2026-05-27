@@ -10,6 +10,7 @@
     "RemoteDetonateRequest": { "$ref": "#/definitions/remoteDetonateRequestComponent" },
     "PickupBombRequest": { "$ref": "#/definitions/pickupBombRequestComponent" },
     "ThrowBombRequest": { "$ref": "#/definitions/throwBombRequestComponent" },
+    "ConveyorBelt": { "$ref": "#/definitions/conveyorBeltComponent" },
     "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
@@ -95,6 +96,18 @@
       "additionalProperties": false,
       "description": "S144 KABOOM-THROW-GLOVE. Transient input request written by player-input-system when T fires for a bomber carrying a bomb. bomb-throw-system consumes it the same fixedUpdate.",
       "properties": {}
+    },
+    "conveyorBeltComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S146 KABOOM-CONVEYOR-BELT (GDP-2026-05-26-003, gameplay-systems.md §11). Marks a grid cell as a belt that pushes bombers + bombs along (directionDx, directionDz) every speedMs ms. Belts are arena fixtures — immune to blasts.",
+      "required": ["directionDx", "directionDz"],
+      "properties": {
+        "directionDx": { "type": "integer", "minimum": -1, "maximum": 1 },
+        "directionDz": { "type": "integer", "minimum": -1, "maximum": 1 },
+        "speedMs": { "type": "number", "minimum": 100, "default": 400 },
+        "elapsedMs": { "type": "number", "minimum": 0, "description": "Internal: ms accumulated since the last push. Reset by the belt system when the threshold fires." }
+      }
     },
     "placeBombRequestComponent": {
       "type": "object",
