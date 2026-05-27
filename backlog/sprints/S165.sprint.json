@@ -1,0 +1,77 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S165",
+  "title": "Kaboom Crew per-tile mesh variety — 4 procedural variants per family",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "PENDING",
+  "notes": [
+    "Implements GDP-2026-05-28-003. Replaces the single-mesh path for hard blocks + soft blocks with 4 procedural variants each. Floor-tile builder + registry slot also ready (variant key registered) but the scene's single stretched-box floor isn't subdivided into per-cell entities yet — that's a future story.",
+    "Per-cell variant selection is RANDOM (deterministic per cell+sceneSeed). Wang autotile (GDP-2026-05-28-002) will replace selection later; bitmask param on the builders is reserved for that.",
+    "Selector hash needed a Murmur3 finalizer pass — initial rotate-multiply collapsed every cell to variant 0; caught by the 'distinct variants across grid' test.",
+    "Prefabs left untouched; project-local block-variant-system rewrites MeshRenderer.mesh at scene-load (queries GridOccupant.layer='block'/'wall' + GridPosition, applied-once-per-entity)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-HARD-BLOCK-VARIANTS-001",
+      "title": "buildHardBlockVariant(0..3) — 4 procedural hard-block geometries",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/hard-block-variants.ts (NEW) — plain / chamfered+seam panel / horizontal-groove girder / rivet plate. All 1×1×1 outer dims. Warm-grey #7a7570 primary with #494744 bottom-25% shadow per visual-style.md §5.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 4 structurally-different BufferGeometries; position+color attribute presence; bitmask param reserved (no consumption)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-SOFT-BLOCK-VARIANTS-001",
+      "title": "buildSoftBlockVariant(0..3) — 4 procedural soft-block geometries",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/soft-block-variants.ts (NEW) — crate (X-cross) / pallet (horizontal strips) / barrel-corner (box + cylinder bump) / drum (cylinder + cap). Warm-tan #a08055 primary.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 4 structurally-different BufferGeometries; position+color attrs present."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-FLOOR-TILE-VARIANTS-001",
+      "title": "buildFloorTileVariant(0..3) — 4 procedural floor-tile geometries (registered, unused for now)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/floor-tile-variants.ts (NEW) — plain / diagonal stripe / centre dot / panelled edge. 1×0.05×1 thin slab, dark-slate #1d2536 primary. Procedural key 'procedural:kaboom-floor-tile' registered; the start scene's single stretched-box floor entity is NOT yet subdivided into per-cell tiles — deferred to a future story.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: builder produces 4 distinct geometries; outer dimensions 1×0.05×1 verified."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PER-CELL-SELECTOR-001",
+      "title": "selectVariantIndex(gx, gz, sceneSeed) — deterministic 0..3 selector",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/per-cell-variant-selector.ts (NEW) — FNV-1a seed mix + Murmur3 finalizer. encodeBlockSeed / decodeBlockSeed helpers for the procedural-ref seed fragment.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: same inputs → same output; different (gx,gz) on same seed → variance across grid (≥3 distinct variants over 15×11); encode/decode roundtrip."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BLOCK-REGISTRATION-001",
+      "title": "Procedural-mesh registration + per-scene rewriter system",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/register-block-builders.ts + examples/kaboom-crew/src/systems/block-variant-system.ts. Registers procedural:kaboom-hard-block / -soft-block / -floor-tile. block-variant-system queries (GridOccupant.layer='block'|'wall', GridPosition, MeshRenderer) at scene-load and rewrites MeshRenderer.mesh to 'procedural:KEY#gx,gz,scene-seed'. Internal applied-map prevents re-rewriting + GC's on entity destroy.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: block-variant-system registered in bootstrap; vertex-colors poller allowlist extended for the new procedural keys."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-BLOCK-VARIANTS-001",
+      "title": "Unit tests for variant builders + selector",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/block-variants.test.ts — 15 tests. Structural-difference + position+color attribute presence for all three families; bitmask non-consumption guard; selector determinism + variance + seed-sensitivity; encode/decode roundtrip + malformed-seed handling; floor-tile slab dimensions. Also updated camera-follow tests to reflect S163-revert no-op state (5 tests, no follow assertions).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 15 block-variant tests pass; 6 stale camera-follow tests replaced with 7 no-op tests; full kaboom unit suite + procedural-mesh-registry + doctor tests green."
+      ]
+    }
+  ]
+}
