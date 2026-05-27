@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import plazaScene from "../../scenes/plaza.scene.json";
 import crossScene from "../../scenes/cross.scene.json";
 import pitScene from "../../scenes/pit.scene.json";
+import beltZoneScene from "../../scenes/belt-zone.scene.json";
 
 type Instance = {
   id: string;
@@ -32,7 +33,10 @@ type Variant = {
 const VARIANTS: ReadonlyArray<Variant> = [
   { name: "plaza", scene: plazaScene as Scene, gridSizeX: 13, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 10 },
   { name: "cross", scene: crossScene as Scene, gridSizeX: 17, gridSizeZ: 17, hardMin: 24, hardMax: 30, softMin: 12, softMax: 20 },
-  { name: "pit", scene: pitScene as Scene, gridSizeX: 11, gridSizeZ: 11, hardMin: 36, hardMax: 42, softMin: 14, softMax: 24 }
+  { name: "pit", scene: pitScene as Scene, gridSizeX: 11, gridSizeZ: 11, hardMin: 36, hardMax: 42, softMin: 14, softMax: 24 },
+  // S146 belt-zone: hard walls + soft blocks are the only non-belt
+  // instances; belts live as entities and are checked separately below.
+  { name: "belt-zone", scene: beltZoneScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 10 }
 ];
 
 describe("S143 arena variants — plaza / cross / pit structural smoke", () => {
@@ -96,4 +100,31 @@ describe("S143 arena variants — plaza / cross / pit structural smoke", () => {
       });
     });
   }
+});
+
+describe("S146 belt-zone arena — ConveyorBelt entities", () => {
+  const scene = beltZoneScene as Scene;
+
+  it("has at least 4 belt cells", () => {
+    const belts = scene.entities.filter((e) => e.components["ConveyorBelt"] !== undefined);
+    expect(belts.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("each belt cell carries a valid direction (not zero-vector)", () => {
+    const belts = scene.entities.filter((e) => e.components["ConveyorBelt"] !== undefined);
+    for (const b of belts) {
+      const cb = b.components["ConveyorBelt"] as { directionDx?: number; directionDz?: number };
+      const nonZero = (cb.directionDx ?? 0) !== 0 || (cb.directionDz ?? 0) !== 0;
+      expect(nonZero, `belt ${b.id} direction must be non-zero`).toBe(true);
+    }
+  });
+
+  it("belt cells sit BELOW bombers (y ≤ 0.1) so the floor reads underneath", () => {
+    const belts = scene.entities.filter((e) => e.components["ConveyorBelt"] !== undefined);
+    for (const b of belts) {
+      const t = b.components["Transform"] as { position?: number[] } | undefined;
+      const y = t?.position?.[1] ?? 0;
+      expect(y, `belt ${b.id} y=${y} must be ≤ 0.1`).toBeLessThanOrEqual(0.1);
+    }
+  });
 });

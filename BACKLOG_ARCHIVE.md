@@ -150,5 +150,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S142](backlog/sprints/S142.sprint.json)** — Pierce-bomb power-up — blast walks through the first soft block — 8 implemented · archived 2026-05-26
 - **[S143](backlog/sprints/S143.sprint.json)** — Arena variants — plaza + cross + pit (3 of 4 from GDP-2026-05-26-001 still missing after S140) — 8 implemented · archived 2026-05-27
 - **[S144](backlog/sprints/S144.sprint.json)** — Throw Glove power-up — pick up + throw your bomb over walls — 9 implemented · archived 2026-05-27
+- **[S146](backlog/sprints/S146.sprint.json)** — Conveyor Belt arena module — first hazard from gameplay-systems §11 — 7 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->

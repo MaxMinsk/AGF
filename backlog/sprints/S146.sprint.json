@@ -2,8 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S146",
   "title": "Conveyor Belt arena module — first hazard from gameplay-systems §11",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
   "notes": [
     "Promotes GDP-2026-05-26-003 (could-priority, KABOOM-CREW-MVP-2). First entry from the gameplay-systems §11 arena module catalogue: a conveyor belt is a chain of grid cells tagged with a direction vector; any bomber or bomb standing on a belt cell gets pushed one cell in the belt direction per N fixedUpdates. Belts add intentional grid-level movement that's not under player control — fundamental to the modern-arcade vocabulary (Boomerang Fu, Super Bomberman R, Bombergrounds: Reborn). Sets the pattern for future hazard modules (Warp Hole, Bomb Rail, Pressure Plate, etc.).",
     "Scope simplification vs the GDP spec: visuals use a flat colour-tinted floor instead of the proposed `hazard-stripes` scrolling shader (named in visual-style.md §3 but not yet implemented). Tint readability is enough for the playtest cycle; the shader work is deferred to a dedicated polish sprint. Bot AI integration also out of scope — bots treat belt cells as normal cells (no avoidance, no exploitation). New 'belt-zone' arena variant adds belts to a fresh scene so the mechanic ships with a place to playtest.",
@@ -13,51 +14,72 @@
     {
       "id": "SCHEMA-KABOOM-CONVEYOR-001",
       "title": "ConveyorBelt component schema",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — new ConveyorBelt component: { directionDx: -1|0|1, directionDz: -1|0|1, speedMs: number ≥ 100 (default 400) }. Register under top-level components map. directionDx and directionDz cannot BOTH be 0 (validation hint).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: scene-extensions.schema.json — ConveyorBelt component registered under top-level components map + conveyorBeltComponent definition (directionDx/dz integer -1..1, speedMs ≥ 100 default 400, optional elapsedMs internal accumulator). engine:check passes."
+      ]
     },
     {
       "id": "FEAT-KABOOM-CONVEYOR-SYSTEM-001",
       "title": "conveyor-belt-system pushes occupants in the belt direction",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/src/systems/conveyor-belt-system.ts (NEW). Per-belt-cell timer accumulates fixedDt × 1000 (ms). When elapsed ≥ speedMs: lookup occupants at the cell, push each one (bomber or bomb) one cell along (directionDx, directionDz). Push succeeds if dest is in-bounds + not blocked by a hard wall + not occupied by another bomb (for bomb-push). Bomber push uses the same Transform+GridPosition snap as the kick system. Tie-break by entity id order. Reset elapsed to 0 (or elapsed - speedMs to preserve sub-tick precision).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: conveyor-belt-system.ts (NEW) — per-belt ms accumulator, on threshold pushes bombers (Transform+GridPosition snap, queuedDirection reset) + bombs (refuses dest holding another bomb). Hard-wall destination blocks all pushes. Zero-direction no-op. Sub-threshold ticks accumulate. Registered before bomb-fuse-system."
+      ]
     },
     {
       "id": "FEAT-KABOOM-CONVEYOR-VISUAL-001",
       "title": "Belt cells render with a flat hazard-tint colour",
-      "status": "pending",
+      "status": "implemented",
       "summary": "ConveyorBelt entities in the scene carry a MeshRenderer with a recognisable yellow/black tint (e.g. #ffd54f base, slight dim on alternate cells via the y-axis sign — fast colour-only readability). Mesh is a thin 0.95×0.05×0.95 box sitting at y=0.06 (above the floor but below bombers). hazard-stripes shader is deferred per sprint notes.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: belt cells in belt-zone.scene.json render as a thin 0.95×0.05×0.95 box at y=0.06 with the hazard-tint colour (#ffd54f/#e0a020 alternating for the linear belt; lime-green for the loop)."
+      ]
     },
     {
       "id": "FEAT-KABOOM-BELT-ZONE-SCENE-001",
       "title": "New belt-zone arena (showcases the conveyor module)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/scenes/belt-zone.scene.json — 15×11 grid like start. Two belt chains: a 5-cell rightward belt across the middle (gz=5, gx=4..8) and a 4-cell U-loop in a corner (forms a small carousel). Player.1 + 3 bots at standard corners. Register in MAP_REGISTRY + MapName. Random-pick from S140 picks this up automatically.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/scenes/belt-zone.scene.json — 15×11 grid with a 5-cell rightward belt across the middle (gz=5, gx=4..8) + 4-cell U-loop in the top-right corner (11..12 × 1..2). 4 corner spawns. Registered in MAP_REGISTRY + MapName ('belt-zone'). engine:check passes."
+      ]
     },
     {
       "id": "TEST-KABOOM-CONVEYOR-001",
       "title": "Unit tests covering belt-tick + push contract",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/conveyor-belt-system.test.ts — 6+ tests: (1) bomber on a +X belt drifts one cell after speedMs accumulates; (2) bomb on belt drifts the same way; (3) destination blocked by hard wall → push silently fails, occupant stays; (4) destination occupied by another bomb → bomb push fails; (5) timer accumulates correctly (sub-speedMs ticks don't push); (6) belt cell survives a blast through it (belts are arena fixtures, not destructibles).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/conveyor-belt-system.test.ts adds 7 tests covering bomber push, bomb push, hard-wall destination block, bomb-vs-bomb destination block, sub-threshold accumulator, zero-vector no-op, multi-belt determinism."
+      ]
     },
     {
       "id": "TEST-KABOOM-BELT-ZONE-SCENE-001",
       "title": "Structural smoke test for belt-zone.scene.json",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/scenes-arena-variants.test.ts (extend) — add belt-zone to the variant table with expected counts (≥4 belt cells, ≥4 hard walls, ≥4 soft blocks, 4 distinct multi-bot spawn cells). engine:check must still pass.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/scenes-arena-variants.test.ts adds belt-zone to the variants table (15×11, 4-8 hard, 4-10 soft) + a separate describe block asserting ≥4 belt cells, each carries non-zero direction, each sits at y ≤ 0.1 (below bombers)."
+      ]
     },
     {
       "id": "DOC-KABOOM-CONVEYOR-001",
       "title": "README: belt-zone arena + ConveyorBelt component docs",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/README.md — belt-zone row in the maps table + brief gameplay note. GDP-2026-05-26-003 archived to backlog/proposed-stories/archive/S146/.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README maps table gains belt-zone row with conveyor description. GDP-2026-05-26-003 archived to backlog/proposed-stories/archive/S146/."
+      ]
     }
   ]
 }

@@ -26,6 +26,7 @@ import corridorSceneJson from "./scenes/corridor.scene.json";
 import plazaSceneJson from "./scenes/plaza.scene.json";
 import crossSceneJson from "./scenes/cross.scene.json";
 import pitSceneJson from "./scenes/pit.scene.json";
+import beltZoneSceneJson from "./scenes/belt-zone.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -59,6 +60,7 @@ import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
 import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
+import { createKaboomConveyorBeltSystem } from "./src/systems/conveyor-belt-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
@@ -156,9 +158,10 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["corridor", corridorSceneJson],
   ["plaza", plazaSceneJson],
   ["cross", crossSceneJson],
-  ["pit", pitSceneJson]
+  ["pit", pitSceneJson],
+  ["belt-zone", beltZoneSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit";
+type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
@@ -407,6 +410,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // airborne flag set in time to skip the fuse decrement this tick.
     scheduler.register(createKaboomBombPickupSystem(), { profiles: ["static"] });
     scheduler.register(createKaboomBombThrowSystem({ occupancy }), { profiles: ["static"] });
+    // S146 KABOOM-CONVEYOR-BELT — push bombers + bombs along belt
+    // direction. Runs BEFORE bomb-fuse-system so a belt push on the
+    // same tick a bomb detonates updates GridPosition first.
+    scheduler.register(createKaboomConveyorBeltSystem({ occupancy }), { profiles: ["static"] });
     // S117 KABOOM-MP-SPRINT-B — fuse-system stays on the static path
     // only. On the connected profile the server is authoritative on the
     // fuse + emits blastEvent when it hits zero; running the local fuse
