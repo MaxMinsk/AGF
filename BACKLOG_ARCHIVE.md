@@ -162,5 +162,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S155](backlog/sprints/S155.sprint.json)** — Lifetime stats HUD + deferred S153 hooks (self-death + chain detection) — 4 implemented · archived 2026-05-27
 - **[S156](backlog/sprints/S156.sprint.json)** — Cosmetic unlocks MVP — 5 starter unlocks on top of the persistent profile — 7 implemented · archived 2026-05-27
 - **[S157](backlog/sprints/S157.sprint.json)** — Smooth bomber rotation — 120 ms angular lerp instead of instant snap — 3 implemented · archived 2026-05-27
+- **[S158](backlog/sprints/S158.sprint.json)** — Voice synth v2 — speech-like vowels with distinct per-slot phrase shapes — 5 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->
