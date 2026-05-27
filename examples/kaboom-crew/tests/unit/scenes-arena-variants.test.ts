@@ -11,6 +11,7 @@ import crossScene from "../../scenes/cross.scene.json";
 import pitScene from "../../scenes/pit.scene.json";
 import beltZoneScene from "../../scenes/belt-zone.scene.json";
 import warpfieldScene from "../../scenes/warpfield.scene.json";
+import platePuzzleScene from "../../scenes/plate-puzzle.scene.json";
 
 type Instance = {
   id: string;
@@ -40,7 +41,10 @@ const VARIANTS: ReadonlyArray<Variant> = [
   { name: "belt-zone", scene: beltZoneScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 10 },
   // S149 warpfield: 15×11 with 4 standard hard pillars + soft blocks.
   // Warp pair cells live as entities and are checked separately below.
-  { name: "warpfield", scene: warpfieldScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 12 }
+  { name: "warpfield", scene: warpfieldScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 12 },
+  // S151 plate-puzzle: 15×11 arena with 4 pressure plates that spawn
+  // a bomb at the centre cell each time stepped on (showcase scene).
+  { name: "plate-puzzle", scene: platePuzzleScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 12 }
 ];
 
 describe("S143 arena variants — plaza / cross / pit structural smoke", () => {
