@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/210",
   "notes": [
     "Implements GDP-2026-05-28-009. Pure documentation sprint — no engine or project code touched. Produces a 634-line forward-looking gap analysis at docs/research/dev-agent-retrospective.md.",
     "All 10 required sections present + a process-notes §11 and two short appendices (sprint-ID chronological index, forward-looking 3-sprint cadence sketch).",
