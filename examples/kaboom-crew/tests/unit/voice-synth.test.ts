@@ -220,30 +220,46 @@ function makeStubContext() {
 }
 
 describe("emitVoice (S110 babble synth wiring)", () => {
-  it("schedules one carrier oscillator per syllable (3 bandpass formants each)", () => {
-    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), consonantStyle: 1.0, noiseMix: 0 };
+  it("schedules dual carriers (saw + square) per syllable (3 bandpass formants each)", () => {
+    // S158 KABOOM-VOICE-V2 — vowel uses two carriers (sawtooth +
+    // square) for richer speech-like timbre. Vibrato is also wired
+    // (was a no-op since S109); we force vibratoHz=0 here so the
+    // LFO-osc add doesn't muddy the count.
+    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), consonantStyle: 1.0, noiseMix: 0, vibratoHz: 0, vibratoDepth: 0 };
     for (const slot of ["place-bomb", "hit", "pickup", "death", "victory"] as const) {
       const { ctx, stats, reset } = makeStubContext();
       reset();
       emitVoice(ctx as any, colour, slot, { masterGain: 0.5, terminal: ctx.destination as any });
       const expectedSyllables = PHRASE_PATCHES[slot].pitchContour.length;
       const s = stats();
-      // Each syllable: 1 carrier oscillator + (style=1) 1 click oscillator. With style=1, noiseMix=0 → 2 oscillators per syllable.
-      expect(s.startedOsc).toBe(expectedSyllables * 2);
-      // 3 bandpass formants per vowel + 1 bandpass per consonant when noise present (none here, style=1) = 3 per syllable.
+      // Per syllable: 2 vowel carriers (saw + square) + 1 click osc (style=1) = 3.
+      expect(s.startedOsc).toBe(expectedSyllables * 3);
+      // 3 bandpass formants per vowel + 1 bandpass per consonant when
+      // noise present (none here, style=1) = 3 per syllable.
       expect(s.createdFilters).toBe(expectedSyllables * 3);
     }
   });
 
   it("with consonantStyle=0 (pure noise) emits noise bursts for every consonant", () => {
-    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), consonantStyle: 0, noiseMix: 0 };
+    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), consonantStyle: 0, noiseMix: 0, vibratoHz: 0, vibratoDepth: 0 };
     const { ctx, stats } = makeStubContext();
     emitVoice(ctx as any, colour, "victory", { masterGain: 0.5, terminal: ctx.destination as any });
     const expectedSyllables = PHRASE_PATCHES.victory.pitchContour.length;
     // One noise BufferSource per consonant (no click oscillator with style=0).
     expect(stats().startedNoise).toBe(expectedSyllables);
-    // Carrier oscillator per syllable; no click oscillator.
-    expect(stats().startedOsc).toBe(expectedSyllables);
+    // 2 vowel carriers per syllable; no click oscillator.
+    expect(stats().startedOsc).toBe(expectedSyllables * 2);
+  });
+
+  it("S158 — vibrato wires an LFO oscillator per syllable when colour vibratoHz > 0", () => {
+    // With vibrato non-zero the LFO adds one extra oscillator per
+    // syllable on top of the 2 vowel carriers + (style=1) 1 click.
+    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), consonantStyle: 1, noiseMix: 0, vibratoHz: 5, vibratoDepth: 0.02 };
+    const { ctx, stats } = makeStubContext();
+    emitVoice(ctx as any, colour, "hit", { masterGain: 0.5, terminal: ctx.destination as any });
+    const syll = PHRASE_PATCHES.hit.pitchContour.length;
+    // 2 vowel + 1 click + 1 LFO = 4 per syllable.
+    expect(stats().startedOsc).toBe(syll * 4);
   });
 
   it("noiseMix>0 schedules an additional gravel-noise burst over the utterance", () => {

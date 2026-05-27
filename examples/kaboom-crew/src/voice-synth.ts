@@ -352,19 +352,65 @@ function scheduleVowel(
   colour: VoiceColour,
   options: EmitVoiceOptions
 ): void {
+  // S158 KABOOM-VOICE-V2 — speech-like vowel pulse. Replaces the
+  // S110 sawtooth-only carrier with a richer dual-source (sawtooth +
+  // pulse-train approximation), wired-up vibrato (S109 colour knob
+  // that was a no-op since 2026-05), tighter formant Q for vowel
+  // clarity, and a slower-attack envelope (~25 ms rise) that reads
+  // as "vowel start" rather than "click+ring". Playtest 2026-05-27:
+  // user expected речь-like vocals but heard chirps/bops.
   const end = startAt + spec.durationS;
-  const carrier = c.createOscillator();
-  carrier.type = "sawtooth";
-  carrier.frequency.setValueAtTime(spec.pitchHz, startAt);
 
-  // Optional vibrato — handled inline because the test stub may not
-  // wire a connect on the modulator. When vibrato is 0, skip entirely.
-  void colour;
+  // Two carriers mixed: sawtooth (rich harmonics → formants pick out
+  // resonances) + square-wave fundamental (slightly hollow, gives
+  // the synth a vowel-like timbre when summed). Both share the same
+  // base pitch + vibrato modulation.
+  const sawCarrier = c.createOscillator();
+  sawCarrier.type = "sawtooth";
+  sawCarrier.frequency.setValueAtTime(spec.pitchHz, startAt);
 
-  // Two parallel bandpass formants per syllable (F1 + F2). A third
-  // light formant sits at F2 * 1.6 for body. Each filter gets its own
-  // setValueAtTime'd frequency at startAt so the timeline schedules
-  // them correctly even when multiple syllables stack.
+  const squareCarrier = c.createOscillator();
+  squareCarrier.type = "square";
+  squareCarrier.frequency.setValueAtTime(spec.pitchHz, startAt);
+
+  // Vibrato — LFO modulating both carriers' frequency. Wired up via
+  // the colour knob (was bypassed since S109). Depth scales by the
+  // carrier's pitch so the wobble feels proportional.
+  if (colour.vibratoHz > 0.01 && colour.vibratoDepth > 0.0005) {
+    const lfo = c.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.setValueAtTime(colour.vibratoHz, startAt);
+    const lfoGain = c.createGain();
+    lfoGain.gain.setValueAtTime(spec.pitchHz * colour.vibratoDepth, startAt);
+    lfo.connect(lfoGain);
+    // AudioParam.connect works on BiquadFilter/Gain — vibrato writes
+    // into the frequency parameter of both carriers.
+    const sawFreq = sawCarrier.frequency as unknown as AudioNodeLike;
+    const squareFreq = squareCarrier.frequency as unknown as AudioNodeLike;
+    if (typeof (lfoGain as unknown as { connect?: (n: AudioNodeLike) => void }).connect === "function") {
+      try { lfoGain.connect(sawFreq); } catch { /* test stub may not support param-connect */ }
+      try { lfoGain.connect(squareFreq); } catch { /* idem */ }
+    }
+    lfo.start(startAt);
+    lfo.stop(end + 0.01);
+  }
+
+  // Carrier mix node — sawtooth gets the bulk of the energy (richer
+  // harmonics), square adds a touch of warmth.
+  const carrierMix = c.createGain();
+  carrierMix.gain.setValueAtTime(1, startAt);
+  const sawGain = c.createGain();
+  sawGain.gain.setValueAtTime(0.75, startAt);
+  const squareGain = c.createGain();
+  squareGain.gain.setValueAtTime(0.25, startAt);
+  sawCarrier.connect(sawGain);
+  squareCarrier.connect(squareGain);
+  sawGain.connect(carrierMix);
+  squareGain.connect(carrierMix);
+
+  // Three parallel bandpass formants (F1 + F2 + F3=F2*1.6). Q comes
+  // from the spec — slightly tightened ranges in the patches give a
+  // clearer vowel.
   const filterSum = c.createGain();
   filterSum.gain.setValueAtTime(1.0 / 3, startAt);
   for (const hz of [spec.formantF1Hz, spec.formantF2Hz, Math.min(3800, spec.formantF2Hz * 1.6)]) {
@@ -372,20 +418,32 @@ function scheduleVowel(
     bp.type = "bandpass";
     bp.frequency.setValueAtTime(Math.max(60, hz), startAt);
     if (bp.Q !== undefined) bp.Q.setValueAtTime(spec.formantQ, startAt);
-    carrier.connect(bp);
+    carrierMix.connect(bp);
     bp.connect(filterSum);
   }
 
-  // Envelope on top of the filter sum.
+  // S158 — slower attack (25 ms) reads as a vowel onset rather than a
+  // click. Sustain at full peak for the bulk of the vowel, then
+  // exponential fade. Peak gain bumped to masterGain * 0.45 (was
+  // 0.30) so the vocal sits above the percussive SFX in the mix.
   const envelopeGain = c.createGain();
+  const attackS = Math.min(0.025, spec.durationS * 0.25);
+  const peak = options.masterGain * 0.45;
   envelopeGain.gain.setValueAtTime(0, startAt);
-  envelopeGain.gain.linearRampToValueAtTime(options.masterGain * 0.30, startAt + 0.005);
+  envelopeGain.gain.linearRampToValueAtTime(peak, startAt + attackS);
+  // Hold a touch then exp-fade so the vowel has audible body.
+  const sustainEnd = startAt + spec.durationS * 0.65;
+  if (sustainEnd > startAt + attackS) {
+    envelopeGain.gain.linearRampToValueAtTime(peak * 0.85, sustainEnd);
+  }
   envelopeGain.gain.exponentialRampToValueAtTime(0.0001, end);
   filterSum.connect(envelopeGain);
   envelopeGain.connect(options.terminal);
 
-  carrier.start(startAt);
-  carrier.stop(end + 0.01);
+  sawCarrier.start(startAt);
+  sawCarrier.stop(end + 0.01);
+  squareCarrier.start(startAt);
+  squareCarrier.stop(end + 0.01);
 }
 
 function scheduleGravelNoise(
