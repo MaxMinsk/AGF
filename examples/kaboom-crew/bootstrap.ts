@@ -74,6 +74,7 @@ import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
+import { forwardAudioEvent } from "./src/audio-event-forward";
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
@@ -712,8 +713,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       // Cap the log so a long-running session doesn't grow unbounded.
       if (_audioLog.length > 200) _audioLog.splice(0, _audioLog.length - 200);
       // S91 KABOOM-AUDIO-POSITIONAL-ADOPT — forward the world-space
-      // position to audioFx so it routes through a PannerNode.
-      audioFx.play(kind, c?.position !== undefined ? { position: c.position } : undefined);
+      // position to audioFx so it routes through a PannerNode. S145
+      // hotfix — also forward entityId so the voice-* synth path
+      // (audio-fx playVoice) emits the per-bomber seeded utterance.
+      // Without entityId the synth early-returned and every voice-*
+      // event was silently swallowed. Logic in ./src/audio-event-forward.
+      forwardAudioEvent(kind, c, (k, ctx) => audioFx.play(k, ctx));
     };
 
     // S86 KABOOM-PAUSE-MENU. Mutable presets list for the Difficulty
