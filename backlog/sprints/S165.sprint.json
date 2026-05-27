@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/212",
   "notes": [
     "Implements GDP-2026-05-28-003. Replaces the single-mesh path for hard blocks + soft blocks with 4 procedural variants each. Floor-tile builder + registry slot also ready (variant key registered) but the scene's single stretched-box floor isn't subdivided into per-cell entities yet — that's a future story.",
     "Per-cell variant selection is RANDOM (deterministic per cell+sceneSeed). Wang autotile (GDP-2026-05-28-002) will replace selection later; bitmask param on the builders is reserved for that.",
