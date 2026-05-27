@@ -1,0 +1,66 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S151",
+  "title": "Pressure Plate arena module — third hazard from gameplay-systems §11",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-006 (could-priority, KABOOM-CREW-MVP-2). Third arena hazard module after the S146 conveyor belt and S149 warp hole. A pressure plate is a single grid cell tagged with a trigger action; when any alive bomber or active bomb sits on the cell, the action fires (with per-plate cooldown). Sets a more LOGIC-DRIVEN hazard pattern alongside the movement-driven conveyor and the teleport-driven warp.",
+    "Scope simplification vs GDP §3: only the 'spawn-bomb' triggerAction ships in v1. The other two action types — 'open-gate' (flip a hard-block off for N seconds) and 'arena-event' (broadcast a project-local ECS event) — defer to follow-up sprints. Same scope-reduction pattern S146 + S149 used for their fancy visuals.",
+    "Bot AI integration also deferred: bots treat plate cells as neutral travel cost. Sufficient for a pattern-demonstrating sprint; strategic plate use is a polish concern."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-PRESSURE-PLATE-001",
+      "title": "PressurePlate component schema (spawn-bomb action)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — new PressurePlate component: { plateId: integer ≥ 0, triggerAction: 'spawn-bomb' (enum reserved for future actions), cooldownMs: 500..5000 (default 1000), actionPayload: object passthrough, lastTriggerAt?: number (internal) }. Registered under the top-level components map.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: scene-extensions.schema.json — PressurePlate component registered + pressurePlateComponent definition (plateId integer, triggerAction enum currently spawn-bomb only, cooldownMs 500..5000, actionPayload object). engine:check kaboom-crew passes."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PRESSURE-PLATE-SYSTEM-001",
+      "title": "pressure-plate-system: spawn-bomb on occupancy + cooldown",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/pressure-plate-system.ts (NEW). Per fixedUpdate: for each PressurePlate cell sorted by plateId, check the occupancy index for any alive bomber or active bomb (fuse > 0); when occupied AND past the cooldown, spawn a Bomb entity at actionPayload.spawnGx/Gz with payload range + fuseS (defaults 2 / 2.0). ownerId on the spawned bomb is the plate's own entity id so the bomb is unowned w.r.t. any bomber's activeBombs counter. Stamp lastTriggerAt on the plate. Registered AFTER warp-hole so a warp that lands on a plate triggers in the same tick.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: pressure-plate-system.ts (NEW) — per-plate cooldown, sim-time clock, deterministic plateId-ordered iteration, alive-bomber + active-bomb occupancy gate, spawn-bomb action emits a fully-formed Bomb entity (Transform, MeshRenderer, GridPosition, GridOccupant, RigidBody3D, Collider3D, Bomb). Dead bombers + mid-detonation bombs are ignored. Registered in the static profile after warp-hole."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PLATE-PUZZLE-SCENE-001",
+      "title": "New plate-puzzle arena (showcases the pressure-plate module)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/scenes/plate-puzzle.scene.json (NEW) — 15×11 grid with 4 standard hard pillars, 6 soft blocks, 4 corner spawns (player.1 + bot.1/2/3), and 4 yellow pressure plates around the centre. Each plate triggers spawn-bomb at (7, 5) with range=2, fuseS=1.5, cooldownMs=2000. Registered in MAP_REGISTRY + MapName ('plate-puzzle'); the S140 random-map picker includes it automatically.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: plate-puzzle.scene.json — 15×11 grid, 4 standard hard pillars, 6 soft blocks, 4 corner spawns, 4 PressurePlate cells around the centre with 4 unique plateIds, all firing spawn-bomb at (7,5). MAP_REGISTRY + MapName extended. Random-pick eligible."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-PRESSURE-PLATE-001",
+      "title": "Unit tests for the pressure-plate-system + scene smoke",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/pressure-plate-system.test.ts (NEW) — 7 tests: bomber on plate spawns bomb at configured cell, spawned bomb carries fuse + range + ownerId, dead bomber doesn't trigger, empty plate cell doesn't trigger, cooldown enforces single trigger then waits for the configured cooldownMs, two plates fire independently in the same tick, plate-puzzle.scene.json structural smoke (4 plates, unique ids, all spawn at centre). scenes-arena-variants.test.ts gains a plate-puzzle row.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: pressure-plate-system.test.ts — 7 tests pass; scenes-arena-variants.test.ts gains the plate-puzzle variant (1 new variant + 7 standard scene smoke tests). 1689/1689 vitest green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-PRESSURE-PLATE-001",
+      "title": "README + GDP archive",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — plate-puzzle row added to the maps table with the spawn-bomb behaviour described. GDP-2026-05-27-006 archived to backlog/proposed-stories/archive/S151/. Open-gate + arena-event action types are documented as deferred follow-up work in this sprint's notes.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README maps table gains plate-puzzle row. GDP-2026-05-27-006 → backlog/proposed-stories/archive/S151/."
+      ]
+    }
+  ]
+}

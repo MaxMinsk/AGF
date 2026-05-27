@@ -12,6 +12,7 @@
     "ThrowBombRequest": { "$ref": "#/definitions/throwBombRequestComponent" },
     "ConveyorBelt": { "$ref": "#/definitions/conveyorBeltComponent" },
     "WarpHole": { "$ref": "#/definitions/warpHoleComponent" },
+    "PressurePlate": { "$ref": "#/definitions/pressurePlateComponent" },
     "BlastEvent": { "$ref": "#/definitions/blastEventComponent" },
     "BlastTile": { "$ref": "#/definitions/blastTileComponent" },
     "BotBrain": { "$ref": "#/definitions/botBrainComponent" },
@@ -119,6 +120,23 @@
         "pairId": { "type": "integer", "minimum": 0, "description": "Identifier shared between the two cells of a warp pair." },
         "role": { "type": "string", "enum": ["a", "b"], "description": "Which end of the pair this cell represents." },
         "lastWarpAt": { "type": "number", "minimum": 0, "description": "Internal: last warp time in seconds since the system started. Both ends of a pair carry the same value; updated by warp-hole-system on every successful warp." }
+      }
+    },
+    "pressurePlateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S151 KABOOM-PRESSURE-PLATE (GDP-2026-05-27-006, gameplay-systems.md §11). Third hazard module after Conveyor Belt + Warp Hole. Marks a grid cell as a trigger: when any alive bomber or active bomb is on the cell, the configured action fires (with per-plate cooldown). S151 ships the 'spawn-bomb' triggerAction only — 'open-gate' and 'arena-event' are deferred to follow-up sprints per sprint notes.",
+      "required": ["plateId", "triggerAction", "actionPayload"],
+      "properties": {
+        "plateId": { "type": "integer", "minimum": 0, "description": "Unique identifier for ordering tie-breaks + future cross-plate references." },
+        "triggerAction": { "type": "string", "enum": ["spawn-bomb"], "description": "Action fired on occupancy. v1 ships spawn-bomb only; future sprints extend the enum with open-gate + arena-event." },
+        "cooldownMs": { "type": "number", "minimum": 500, "maximum": 5000, "default": 1000, "description": "Minimum ms between successive triggers on the same plate. Default 1000 ms." },
+        "actionPayload": {
+          "type": "object",
+          "description": "Action-specific config. For spawn-bomb: { spawnGx, spawnGz, range?, fuseS? }. Authored as untyped JSON; pressure-plate-system narrows by triggerAction.",
+          "additionalProperties": true
+        },
+        "lastTriggerAt": { "type": "number", "minimum": 0, "description": "Internal: last trigger time in seconds since the system started. Maintained by pressure-plate-system." }
       }
     },
     "placeBombRequestComponent": {

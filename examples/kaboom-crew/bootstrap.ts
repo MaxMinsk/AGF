@@ -28,6 +28,7 @@ import crossSceneJson from "./scenes/cross.scene.json";
 import pitSceneJson from "./scenes/pit.scene.json";
 import beltZoneSceneJson from "./scenes/belt-zone.scene.json";
 import warpfieldSceneJson from "./scenes/warpfield.scene.json";
+import platePuzzleSceneJson from "./scenes/plate-puzzle.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -63,6 +64,7 @@ import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
 import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
 import { createKaboomConveyorBeltSystem } from "./src/systems/conveyor-belt-system";
 import { createKaboomWarpHoleSystem } from "./src/systems/warp-hole-system";
+import { createKaboomPressurePlateSystem } from "./src/systems/pressure-plate-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
@@ -177,9 +179,10 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["cross", crossSceneJson],
   ["pit", pitSceneJson],
   ["belt-zone", beltZoneSceneJson],
-  ["warpfield", warpfieldSceneJson]
+  ["warpfield", warpfieldSceneJson],
+  ["plate-puzzle", platePuzzleSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield";
+type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
@@ -438,6 +441,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // warps THIS tick is at its destination by the time the fuse
     // resolves to zero next tick.
     scheduler.register(createKaboomWarpHoleSystem({ occupancy }), { profiles: ["static"] });
+    // S151 KABOOM-PRESSURE-PLATE — triggers configured actions on
+    // occupancy with per-plate cooldown. Runs AFTER warp-hole so a
+    // bomber that warps onto a plate triggers in the same tick.
+    scheduler.register(createKaboomPressurePlateSystem({ occupancy }), { profiles: ["static"] });
     // S117 KABOOM-MP-SPRINT-B — fuse-system stays on the static path
     // only. On the connected profile the server is authoritative on the
     // fuse + emits blastEvent when it hits zero; running the local fuse
