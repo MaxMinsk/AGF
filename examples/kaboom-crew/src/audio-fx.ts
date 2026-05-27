@@ -471,13 +471,32 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     slot: VoiceSlot,
     position: readonly [number, number, number] | undefined
   ): void {
-    if (entityId === undefined) return;
+    if (entityId === undefined) {
+      // S148 — diagnostic in case the caller forgot to forward entityId
+      // (which is exactly the S145 wiring bug). Surfacing this in the
+      // dev console makes the next regression obvious instead of silent.
+      if (typeof console !== "undefined") {
+        console.warn(`[kaboom audio] voice-${slot} dropped — entityId missing in PositionalPlayContext`);
+      }
+      return;
+    }
     const colour = lookupVoice(entityId);
-    // Route the voice through the same connectOutput pipe as the
-    // other SFX — a small head gain so the chain has somewhere to
-    // terminate before connectOutput's optional panner.
+    // S148 — diagnostic so the dev console shows voice events actually
+    // hitting the synth path. If `kaboomVoiceLog` is set on `window`,
+    // emit a line per call. Default off in production, easy to flip on
+    // from DevTools: `window.kaboomVoiceLog = true`.
+    const g = globalThis as unknown as { kaboomVoiceLog?: boolean; window?: { kaboomVoiceLog?: boolean } };
+    const wantLog = g.kaboomVoiceLog === true || g.window?.kaboomVoiceLog === true;
+    if (wantLog && typeof console !== "undefined") {
+      console.info(`[kaboom voice] slot=${slot} entityId=${entityId} state=${c.state}`);
+    }
+    // S148 — bump voice head gain to 1.6 so the formant signal sits a
+    // touch higher in the mix relative to the percussive SFX. Voice
+    // gains in voice-synth.ts top out around masterGain*0.30 for the
+    // vowel envelope, so the head multiplier compensates without
+    // clipping at masterGain=0.4 default.
     const head = c.createGain();
-    head.gain.setValueAtTime(1.0, c.currentTime);
+    head.gain.setValueAtTime(1.6, c.currentTime);
     connectOutput(c, head, position);
     emitVoice(c, colour, slot, { masterGain, terminal: head });
   }
@@ -504,6 +523,16 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
       if (muted) return;
       const c = ensureContext();
       if (c === undefined) return;
+      // S148 — Web Audio auto-suspends the context after a tab loses
+      // focus or sometimes after the initial create-before-gesture
+      // window. ensureContext only resumes ONCE at creation; re-check
+      // every play() so the next user gesture revives playback.
+      if (c.state === "suspended" && typeof c.resume === "function") {
+        c.resume().catch(() => {
+          // Browser may still reject; this play call no-ops, the next
+          // one after a real gesture will retry.
+        });
+      }
       // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Bomber-driven events pass
       // through the panner when a position is provided; UI chimes
       // (match-*) ignore the position even if the caller supplies one
