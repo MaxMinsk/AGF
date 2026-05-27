@@ -1490,6 +1490,67 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
       });
 
+      // S155 KABOOM-LIFETIME-HUD — opt-in lifetime stats line at the
+      // bottom of the bottom-left panel. URL: `?showLifetime=true`.
+      // Reads from the S153 profile store; updates each frame so
+      // counters tick in real time as the user plays.
+      const showLifetime = (() => {
+        const search = (globalThis as unknown as { location?: { search?: string } }).location?.search ?? "";
+        try {
+          return new URLSearchParams(search).get("showLifetime") === "true";
+        } catch {
+          return false;
+        }
+      })();
+      const LIFETIME_HUD_ID = "kaboom.lifetime-hud";
+      type LifetimeHudData = {
+        matchesPlayed: number;
+        matchesWon: number;
+        roundsPlayed: number;
+        roundsWon: number;
+        roundsDraw: number;
+        roundsLost: number;
+        deathsByOwnBomb: number;
+        maxChainLength: number;
+      };
+      if (showLifetime) {
+        hud.add({
+          id: LIFETIME_HUD_ID,
+          slot: "bottomLeft",
+          initial: {
+            matchesPlayed: 0,
+            matchesWon: 0,
+            roundsPlayed: 0,
+            roundsWon: 0,
+            roundsDraw: 0,
+            roundsLost: 0,
+            deathsByOwnBomb: 0,
+            maxChainLength: 0
+          } as LifetimeHudData,
+          render: (data: LifetimeHudData): HTMLElement => {
+            const el = document.createElement("div");
+            el.setAttribute(
+              "style",
+              "display:flex;flex-direction:column;gap:2px;padding-top:6px;font-size:10px;color:#f4e9d3;opacity:0.85;"
+            );
+            const header = document.createElement("div");
+            header.setAttribute("style", "font-weight:600;letter-spacing:1px;");
+            header.textContent = "LIFETIME";
+            el.appendChild(header);
+            const lineA = document.createElement("div");
+            lineA.textContent = `matches: ${data.matchesWon}/${data.matchesPlayed}`;
+            el.appendChild(lineA);
+            const lineB = document.createElement("div");
+            lineB.textContent = `rounds: W:${data.roundsWon} L:${data.roundsLost} D:${data.roundsDraw} (${data.roundsPlayed})`;
+            el.appendChild(lineB);
+            const lineC = document.createElement("div");
+            lineC.textContent = `self-kills: ${data.deathsByOwnBomb}   max-chain: ${data.maxChainLength}`;
+            el.appendChild(lineC);
+            return el;
+          }
+        });
+      }
+
       // S148 KABOOM-POWERUP-TOOLTIP — transient centre-screen banner that
       // tells the player WHAT they just picked up. One active tooltip at
       // a time; replacement on rapid chains uses the same widget id so
@@ -1538,6 +1599,18 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       let prevRoundNumber: number = 0;
       let prevMatchPhase: string = "playing";
       let prevMatchNumber: number = 0;
+      // S155 — self-death + chain-reaction stat hooks.
+      // prevAlive tracks the local player's alive state across frames
+      // to detect true→false transitions exactly once.
+      // prevOwnBombIds carries the set of bombs owned by player.1 in
+      // the previous frame; bombs that disappear this frame are a
+      // detonation signal. self-death attribution requires a recently-
+      // detonated own bomb + the alive flip in the same frame.
+      // prevAllBombIds tracks ALL bomb ids — drops in size by ≥2 mean
+      // a chain reaction this frame.
+      let prevAlive: boolean = true;
+      let prevOwnBombIds = new Set<string>();
+      let prevAllBombIds = new Set<string>();
       const PICKUP_TOOLTIP_FADE_IN_MS = 150;
       const PICKUP_TOOLTIP_HOLD_MS = 1200;
       const PICKUP_TOOLTIP_FADE_OUT_MS = 300;
@@ -1605,7 +1678,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           };
           players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number }>;
           remotePeers?: number;
-          bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
+          bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number; owner?: string }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
         };
         // Stats line — one row per bomber + a persistent score line.
@@ -1767,6 +1840,54 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           }
         }
         prevPickupCells = currentPickupCells;
+
+        // S155 — self-death + chain-reaction stat hooks.
+        // Pull bomb ids from the snapshot. own-bomb subset is filtered
+        // by ownerId === LOCAL_BOMBER_ID. We diff against the
+        // previous frame's sets to detect detonations this frame.
+        const currentAllBombIds = new Set<string>();
+        const currentOwnBombIds = new Set<string>();
+        for (const b of s.bombs) {
+          currentAllBombIds.add(b.id);
+          if (b.owner === "player.1") currentOwnBombIds.add(b.id);
+        }
+        // Chain reactions: ≥ 2 bombs detonated (disappeared) this frame.
+        let disappearedTotal = 0;
+        for (const id of prevAllBombIds) {
+          if (!currentAllBombIds.has(id)) disappearedTotal += 1;
+        }
+        if (disappearedTotal >= 2) profileStore.recordChain(disappearedTotal);
+        // Self-death: local player alive flipped true → false AND at
+        // least one own bomb disappeared this frame (the detonation
+        // that did it). Tight attribution — chained-from-bot-bomb
+        // cases don't count.
+        const aliveNow = playerSelfForHud?.alive ?? true;
+        if (prevAlive && !aliveNow) {
+          let ownDisappeared = 0;
+          for (const id of prevOwnBombIds) {
+            if (!currentOwnBombIds.has(id)) ownDisappeared += 1;
+          }
+          if (ownDisappeared > 0) profileStore.recordSelfDeath();
+        }
+        prevAlive = aliveNow;
+        prevOwnBombIds = currentOwnBombIds;
+        prevAllBombIds = currentAllBombIds;
+
+        // S155 — push the live lifetime stats into the HUD widget,
+        // but only when the user opted in via `?showLifetime=true`.
+        if (showLifetime) {
+          const p = profileStore.get();
+          hud.update(LIFETIME_HUD_ID, {
+            matchesPlayed: p.lifetimeStats.matchesPlayed,
+            matchesWon: p.lifetimeStats.matchesWon,
+            roundsPlayed: p.lifetimeStats.roundsPlayed,
+            roundsWon: p.lifetimeStats.roundsWon,
+            roundsDraw: p.lifetimeStats.roundsDraw,
+            roundsLost: p.lifetimeStats.roundsLost,
+            deathsByOwnBomb: p.lifetimeStats.deathsByOwnBomb,
+            maxChainLength: p.lifetimeStats.maxChainLength
+          });
+        }
 
         // S148 — drive the pickup-tooltip lifecycle (fade-in / hold /
         // fade-out). Holding time is short on purpose — the icon grid

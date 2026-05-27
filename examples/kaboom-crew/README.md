@@ -154,6 +154,18 @@ Agent probes on `window.__agf.kaboom`:
   use).
 - `resetProfile()` — clears localStorage + starts fresh.
 
+S155 wired the deferred stat hooks:
+
+- **deathsByOwnBomb** ticks when the local player's `alive` flips to
+  false AND a player.1-owned bomb just disappeared (tight attribution
+  — chained-from-bot-bomb deaths don't count).
+- **chainReactionsTriggered + maxChainLength** tick whenever ≥ 2
+  bombs detonate in the same frame.
+
+URL `?showLifetime=true` mounts a small lifetime-stats panel in the
+bottom-left HUD (matches W/M, rounds W/L/D, self-kills, max chain).
+Default off so the HUD stays clean for new players.
+
 ## Agent surface
 
 The project exposes a small control surface on
