@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/175",
   "notes": [
     "Promotes GDP-2026-05-27-002 (priority: should, KABOOM-CREW-MVP-NETWORK). S142 shipped Pierce client-side and explicitly deferred server-side parity to a connected-mode sprint. This story IS that follow-up. Before this lands, connected-mode pierce is a visual desync — Tab A's local sim shows the blast walking through the first soft block, Tab B's authoritative server view stops at it.",
     "Scope = one branch in the server's blast-cell walker + the placement copy (mirror of S142 FEAT-KABOOM-PIERCE-PLACEMENT-001) + parity tests. No protocol changes (snapshot already carries pierce flag).",
