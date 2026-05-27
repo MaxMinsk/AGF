@@ -26,7 +26,10 @@
     "AgentGotoResult": { "$ref": "#/definitions/agentGotoResultComponent" },
     "GamePaused": { "$ref": "#/definitions/gamePausedComponent" },
     "DeathImpulse": { "$ref": "#/definitions/deathImpulseComponent" },
-    "HitRecoil": { "$ref": "#/definitions/hitRecoilComponent" }
+    "HitRecoil": { "$ref": "#/definitions/hitRecoilComponent" },
+    "SuddenDeathConfig": { "$ref": "#/definitions/suddenDeathConfigComponent" },
+    "SuddenDeathState": { "$ref": "#/definitions/suddenDeathStateComponent" },
+    "SuddenDeathBlock": { "$ref": "#/definitions/suddenDeathBlockComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -49,6 +52,36 @@
         "startedAt": { "type": "number" },
         "blastDirX": { "type": "number" },
         "blastDirZ": { "type": "number" }
+      }
+    },
+    "suddenDeathConfigComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S160 KABOOM-SUDDEN-DEATH. Singleton config on the kaboom.game-state entity. When RoundState.elapsed reaches `triggerAtElapsedS`, the sudden-death-system begins spawning rings of hard blocks from the arena perimeter inward, one ring every `ringIntervalS` seconds. Bombers / bombs / pickups on a cell at spawn time are destroyed (kill credit attributed to SUDDEN_DEATH on bomber kills).",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "Master switch — set to false via URL flag ?suddenDeath=off for testing or chill-mode." },
+        "triggerAtElapsedS": { "type": "number", "minimum": 0, "default": 60, "description": "RoundState.elapsed value (seconds) at which sudden death first fires. 30 s before the 90 s timeout by default." },
+        "ringIntervalS": { "type": "number", "minimum": 0.1, "default": 2, "description": "Seconds between successive ring spawns after trigger." },
+        "ringWidth": { "type": "integer", "minimum": 1, "default": 1, "description": "Ring thickness in cells. Currently only 1 supported but reserved for future tuning." }
+      }
+    },
+    "suddenDeathStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S160 KABOOM-SUDDEN-DEATH. Runtime state singleton co-located with SuddenDeathConfig on kaboom.game-state. Persists across fixedUpdates so the system knows whether it has triggered yet + how many rings it has already spawned.",
+      "properties": {
+        "activated": { "type": "boolean", "default": false, "description": "Set to true the first tick RoundState.elapsed crosses triggerAtElapsedS." },
+        "activatedAt": { "type": "number", "minimum": 0, "description": "Snapshot of RoundState.elapsed at activation. Used to schedule successive ring spawns." },
+        "ringsSpawned": { "type": "integer", "minimum": 0, "default": 0, "description": "Count of rings spawned so far. Drives the depth of the next ring (depth = ringsSpawned)." }
+      }
+    },
+    "suddenDeathBlockComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S160 KABOOM-SUDDEN-DEATH. Marker on each spawned wall block so consumers can distinguish it from arena hard-blocks (e.g. for the red emissive accent + the kill-credit path on bomber death).",
+      "properties": {
+        "spawnedAtElapsedS": { "type": "number", "minimum": 0, "description": "RoundState.elapsed when this block was placed. Cosmetic; useful for animations / debug." },
+        "ringIndex": { "type": "integer", "minimum": 0, "description": "0-based ring depth from the perimeter — 0 is the outermost ring." }
       }
     },
     "bomberStatsComponent": {

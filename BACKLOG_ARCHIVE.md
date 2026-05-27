@@ -164,5 +164,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S157](backlog/sprints/S157.sprint.json)** — Smooth bomber rotation — 120 ms angular lerp instead of instant snap — 3 implemented · archived 2026-05-27
 - **[S158](backlog/sprints/S158.sprint.json)** — Voice synth v2 — speech-like vowels with distinct per-slot phrase shapes — 5 implemented · archived 2026-05-27
 - **[S159](backlog/sprints/S159.sprint.json)** — Dash mechanic — Shift+direction 2-cell arc burst with 3s cooldown — 5 implemented · archived 2026-05-27
+- **[S160](backlog/sprints/S160.sprint.json)** — Sudden Death — shrinking arena hazard forces stalemate resolution — 4 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->

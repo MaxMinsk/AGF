@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S160",
+  "title": "Sudden Death — shrinking arena hazard forces stalemate resolution",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "PENDING",
+  "notes": [
+    "Implements GDP-2026-05-27-013 MVP slice. At RoundState.elapsed >= triggerAtElapsedS (default 60 s) the sudden-death system begins spawning red hard-block rings from the arena perimeter inward, one ring per ringIntervalS (default 2 s). Bombers / bombs / pickups on a closing cell are cleared.",
+    "Out of scope (deferred to follow-ups): bot AI flee-to-centre decision, screen-edge red pulse vignette, SUDDEN DEATH banner, klaxon + thud audio events, server-authoritative parity. Visual is currently a flat red emissive box per spawned cell — sells the read but doesn't yet have the upward-rise tween.",
+    "Live playtest (?suddenDeathTriggerS=3) confirmed: at elapsed≈3 s the first perimeter ring spawns, at elapsed≈5 s ringsSpawned=2 and the round resolves 'lost' when bombers can't escape the closing wall. 32/32 dash+sudden-death unit tests pass."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-SUDDEN-DEATH-001",
+      "title": "SuddenDeathConfig / State / Block schema",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — three new components: SuddenDeathConfig (enabled, triggerAtElapsedS, ringIntervalS, ringWidth) seeded on kaboom.game-state; SuddenDeathState (activated, activatedAt, ringsSpawned) runtime singleton; SuddenDeathBlock marker tag on each spawned wall cell.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: engine:check examples/kaboom-crew passes; all three components round-trip through the runtime."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-SUDDEN-DEATH-SYSTEM-001",
+      "title": "Sudden-death system — activate, ring spawn, clear-cell",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/sudden-death-system.ts (NEW) — fixedUpdate reads RoundState.elapsed + SuddenDeathConfig, activates at elapsed>=triggerAt (activatedAt anchored to triggerAt so lag spikes can't drift the schedule), spawns a new ring per ringInterval. Each spawned cell: BomberStats.alive=false for occupants, removeEntity for bombs/pickups, then create a fixed-body GridOccupant(wall) hard-block with SuddenDeathBlock tag + red emissive MeshRenderer.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: 11 system unit tests pass (activation gating, ring schedule, bomber kill, bomb/pickup clear, MeshRenderer color, disable flag, round-phase gating, lag-spike catch-up)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-SUDDEN-DEATH-BOOT-001",
+      "title": "Bootstrap seed + URL config + restart-path re-seed",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — readSuddenDeathFromUrl() honours ?suddenDeath=off + ?suddenDeathTriggerS=N. SuddenDeathConfig added to the initial kaboom.game-state upsert AND to the restartScene() entity.create so URL flags survive auto-restart. SuddenDeathState intentionally NOT re-seeded so each round starts cold. createKaboomSuddenDeathSystem registered after round-resolve so a resolving round wins over a new ring spawn on the same tick.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: live probe with ?suddenDeathTriggerS=3 observes activated=true, ringsSpawned=2, 88 SuddenDeathBlocks within ~5 s of Space."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-SUDDEN-DEATH-001",
+      "title": "Unit tests + live playtest verification",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/sudden-death-system.test.ts — 16 tests covering ringCells pure helper (perimeter / inner / centre / out-of-bounds / rectangular) and createKaboomSuddenDeathSystem (no-fire-before-trigger, activate-on-trigger, ring schedule, bomber/bomb/pickup clear, GridOccupant + MeshRenderer assertions, disable flag, round-phase gating, lag-spike catch-up).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: 16 sudden-death tests pass; combined dash+sudden-death suite 32/32; engine:check + typecheck green."
+      ]
+    }
+  ]
+}
