@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createKaboomAudioFx, parseAudioVolumeParam, resolveAudioVolume, type AudioContextLike } from "../../src/audio-fx";
+import { createKaboomAudioFx, parseAudioVolumeParam, resolveAudioMuted, resolveAudioVolume, AUDIO_MUTED_STORAGE_KEY, type AudioContextLike } from "../../src/audio-fx";
 
 type Spy = ReturnType<typeof vi.fn>;
 type FakeOsc = {
@@ -292,6 +292,67 @@ describe("resolveAudioVolume (S86 AGF-AUDIO-VOLUME-DIAL)", () => {
     const s = fakeStorage({ "agf.audio.volume": "loud" });
     const out = resolveAudioVolume({ search: "", storage: s.api, defaultVolume: 1 });
     expect(out).toBe(1);
+  });
+});
+
+describe("resolveAudioMuted + mute toggle (QA-2026-05-27-001 regression)", () => {
+  function fakeStorage(initial: Record<string, string> = {}) {
+    const store = new Map(Object.entries(initial));
+    return {
+      raw: store,
+      api: {
+        getItem(k: string): string | null { return store.get(k) ?? null; },
+        setItem(k: string, v: string): void { store.set(k, v); }
+      }
+    };
+  }
+
+  it("undefined storage → not muted", () => {
+    expect(resolveAudioMuted()).toBe(false);
+  });
+
+  it("missing key → not muted (default state)", () => {
+    const s = fakeStorage();
+    expect(resolveAudioMuted({ storage: s.api })).toBe(false);
+  });
+
+  it("explicit '1' → muted", () => {
+    const s = fakeStorage({ [AUDIO_MUTED_STORAGE_KEY]: "1" });
+    expect(resolveAudioMuted({ storage: s.api })).toBe(true);
+  });
+
+  it("'0' (explicit unmute) → not muted", () => {
+    const s = fakeStorage({ [AUDIO_MUTED_STORAGE_KEY]: "0" });
+    expect(resolveAudioMuted({ storage: s.api })).toBe(false);
+  });
+
+  it("garbage value → not muted (fail-safe)", () => {
+    const s = fakeStorage({ [AUDIO_MUTED_STORAGE_KEY]: "yes" });
+    expect(resolveAudioMuted({ storage: s.api })).toBe(false);
+  });
+
+  it("QA-2026-05-27-001 — masterGain=0 alone does NOT auto-mute (the silencer bug)", () => {
+    // Pre-fix: audio-fx initialized `muted = masterGain === 0`, which
+    // combined with the volume-dial-as-mute-toggle silenced audio on
+    // reload after one click on the pause-menu Audio button. After
+    // the fix the mute flag is purely user-controlled.
+    const fx = createKaboomAudioFx({ masterGain: 0 });
+    expect(fx.isMuted()).toBe(false);
+  });
+
+  it("QA-2026-05-27-001 — round-trip toggle: mute → unmute brings audio back through play()", () => {
+    const { ctx, oscillators } = makeContext();
+    const fx = createKaboomAudioFx({ contextFactory: () => ctx });
+    fx.play("bomb-place");
+    const afterFirstPlay = oscillators.length;
+    expect(afterFirstPlay).toBeGreaterThan(0);
+    fx.setMuted(true);
+    const mutedSnapshot = oscillators.length;
+    fx.play("bomb-place");
+    expect(oscillators.length).toBe(mutedSnapshot); // no new osc
+    fx.setMuted(false);
+    fx.play("bomb-place");
+    expect(oscillators.length).toBeGreaterThan(mutedSnapshot); // play emits again
   });
 });
 

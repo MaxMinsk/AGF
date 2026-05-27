@@ -79,7 +79,7 @@ import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/syste
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 import { projectedBlastCells } from "./src/danger";
-import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
+import { createKaboomAudioFx, resolveAudioMuted, resolveAudioVolume, AUDIO_MUTED_STORAGE_KEY } from "./src/audio-fx";
 import { forwardAudioEvent } from "./src/audio-event-forward";
 // S148 KABOOM-POWERUP-HUD — icon grid + pickup tooltip widgets read
 // the same per-frame snapshot the stats line uses.
@@ -743,6 +743,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       ...(audioGlobals.localStorage !== undefined ? { storage: audioGlobals.localStorage } : {})
     });
     const audioFx = createKaboomAudioFx({ masterGain: 0.4 * dial });
+    // QA-2026-05-27-001 — restore the muted preference from its OWN
+    // localStorage key (`agf.audio.muted`). The previous bug wrote "0"
+    // to the volume key on mute, permanently silencing audio on reload
+    // even after the user toggled unmute.
+    if (audioGlobals.localStorage !== undefined) {
+      const persistedMuted = resolveAudioMuted({ storage: audioGlobals.localStorage });
+      if (persistedMuted) audioFx.setMuted(true);
+    }
     _audioLog = [];
     _boundAudioEvent = (kind, c): void => {
       const entry: AudioLogEntry = { kind, ts: Date.now() };
@@ -841,15 +849,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           });
           root.appendChild(diffBtn);
           // S89 KABOOM-PAUSE-AUDIO-MUTE — toggle audioFx.setMuted +
-          // persist to the same localStorage key the volume dial uses.
-          // Muted state writes "0"; unmuting restores "1" so a future
-          // ?audio= override still takes precedence over the stored value.
+          // persist to the dedicated muted-state localStorage key.
+          // QA-2026-05-27-001 fix: writes to `agf.audio.muted`, NOT
+          // `agf.audio.volume`. The volume dial stays under the user's
+          // control via `?audio=` + `agf.audio.volume`; the mute toggle
+          // is a separate boolean preference.
           const audioBtn = mkBtn(`Audio: ${audioFx.isMuted() ? "OFF" : "ON"}`, () => {
             const next = !audioFx.isMuted();
             audioFx.setMuted(next);
             try {
               const storage = (globalThis as unknown as { localStorage?: Storage }).localStorage;
-              storage?.setItem("agf.audio.volume", next ? "0" : "1");
+              storage?.setItem(AUDIO_MUTED_STORAGE_KEY, next ? "1" : "0");
             } catch {
               // ignore quota / disabled storage
             }

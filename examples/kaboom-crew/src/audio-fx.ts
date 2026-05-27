@@ -97,6 +97,12 @@ export function parseAudioVolumeParam(raw: string | undefined | null): number | 
 }
 
 const AUDIO_VOLUME_STORAGE_KEY = "agf.audio.volume";
+// QA-2026-05-27-001 — mute state is its own key. Earlier the pause-menu
+// Audio toggle reused `agf.audio.volume`, writing "0" on mute. That
+// permanently silenced all audio on reload because the volume dial
+// init then read 0 → masterGain stuck at 0 → every play() routed
+// through a 0-gain envelope, even after the user toggled unmute.
+export const AUDIO_MUTED_STORAGE_KEY = "agf.audio.muted";
 
 /**
  * Resolve the effective master volume by checking, in order:
@@ -143,6 +149,28 @@ export function resolveAudioVolume(options: {
     }
   }
   return defaultVolume;
+}
+
+/**
+ * QA-2026-05-27-001 — read the persistent mute flag from a DEDICATED
+ * localStorage key (`agf.audio.muted`). Separate from the volume dial
+ * key so toggling mute doesn't permanently zero the volume.
+ *
+ * Returns false (i.e. "audio enabled") when the storage is missing,
+ * unset, or the stored value is anything other than the literal
+ * string "1". URL `?audio=0` still silences via the volume path; this
+ * is purely the pause-menu Audio toggle's preference.
+ */
+export function resolveAudioMuted(options: {
+  storage?: { getItem(key: string): string | null } | undefined;
+} = {}): boolean {
+  const storage = options.storage;
+  if (storage === undefined) return false;
+  try {
+    return storage.getItem(AUDIO_MUTED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 // Narrow AudioContext surface the synth needs. Lets the unit test mock
@@ -229,7 +257,13 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // S89 KABOOM-PAUSE-AUDIO-MUTE. When muted, play() returns early
   // without touching the AudioContext — the context stays alive so
   // unmute is a free no-arg toggle (no autoplay-policy round trip).
-  let muted = masterGain === 0;
+  //
+  // QA-2026-05-27-001 — muted is NOT inferred from masterGain anymore.
+  // A `?audio=0` URL silences via the gain math (masterGain * factor =
+  // 0); the muted flag is reserved for the pause-menu toggle, which
+  // setMuted controls explicitly. Conflating the two caused permanent
+  // silence after one click on the pause-menu Audio button.
+  let muted = false;
   // S095 KABOOM-AUDIO-MIXER-DUCK-ON-MATCH-END. Shared gain node sits
   // between every NON-match event and `c.destination`; ducked when a
   // match chime plays so simultaneous bomb/blast/footstep events feel
