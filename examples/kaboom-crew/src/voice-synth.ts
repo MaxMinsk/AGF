@@ -108,12 +108,24 @@ export type VoiceSlot = "place-bomb" | "hit" | "pickup" | "death" | "victory";
 export type PhrasePatch = {
   /** Pitch multipliers per syllable. Length = syllable count. */
   pitchContour: ReadonlyArray<number>;
+  /** S158 — optional end-pitch multipliers, one per syllable. When set
+   *  + differs from pitchContour[i], the carriers ramp linearly across
+   *  the vowel duration (intra-syllable slide). The death wail uses
+   *  this to produce one long sustained falling tone instead of
+   *  multiple rapid syllables. Defaults to pitchContour (flat per
+   *  syllable) when omitted. */
+  pitchEndContour?: ReadonlyArray<number>;
   /** Per-syllable [F1 delta, F2 delta] in Hz from the bomber's base colour. */
   vowelDeltas: ReadonlyArray<readonly [number, number]>;
   /** Base inter-syllable gap in seconds (before phrasePaceMultiplier scales it). */
   gapS: number;
-  /** Vowel pulse length in seconds. */
+  /** Vowel pulse length in seconds. Scalar (uniform per syllable). */
   vowelDurationS: number;
+  /** S158 — optional per-syllable vowel duration overrides. Length must
+   *  match pitchContour when set. Lets a single sustained syllable be
+   *  longer than the others (death's 350 ms wail). Defaults to the
+   *  scalar vowelDurationS for every syllable when omitted. */
+  vowelDurationsS?: ReadonlyArray<number>;
   /** Consonant transient length in seconds (0 = no consonant). */
   consonantDurationS: number;
 };
@@ -131,39 +143,66 @@ export type PhrasePatch = {
  *   victory    → 5-syllable rising flourish ("yi-pi-pa-ha-a!")
  */
 export const PHRASE_PATCHES: Readonly<Record<VoiceSlot, PhrasePatch>> = {
+  // S158 KABOOM-VOICE-V2 — distinct PHRASE shapes per slot. Playtest
+  // 2026-05-27 (second pass): user heard "ty-dy-dyt" rhythm in both
+  // place-bomb and death because both used 3-4 rapid syllables with
+  // similar gaps. Fixed by giving most slots SINGLE-syllable shapes
+  // with intra-syllable pitch slides (via pitchEndContour) so the
+  // phrase rhythm itself is distinct:
+  //   place-bomb → 1 short low "bom!" (no babble at all).
+  //   hit        → 1 short "ungh!" with downward slide.
+  //   pickup     → 2 syllables, RISING "yi-pee!".
+  //   death      → 1 LONG sustained falling "uuuuuuuh" (350 ms).
+  //                Single syllable + pitch slide = no "ty-dy-dyt".
+  //   victory    → 3 syllable triumphant flourish "hu-zah-yeah!".
   "place-bomb": {
-    pitchContour: [1.0, 1.0, 1.0],
-    vowelDeltas: [[0, 0], [0, 200], [-100, 0]],
-    gapS: 0.020,
-    vowelDurationS: 0.060,
-    consonantDurationS: 0.015
+    pitchContour: [0.65],
+    pitchEndContour: [0.55],
+    vowelDeltas: [[-180, -400]],
+    gapS: 0,
+    vowelDurationS: 0.110,
+    consonantDurationS: 0.020
   },
   hit: {
-    pitchContour: [1.0, 0.7],
-    vowelDeltas: [[150, 200], [0, -100]],
-    gapS: 0.015,
-    vowelDurationS: 0.060,
-    consonantDurationS: 0.015
+    pitchContour: [1.1],
+    pitchEndContour: [0.7],
+    vowelDeltas: [[100, 100]],
+    gapS: 0,
+    vowelDurationS: 0.140,
+    consonantDurationS: 0.020
   },
   pickup: {
-    pitchContour: [1.0, 1.15, 1.3],
-    vowelDeltas: [[0, 300], [-50, 100], [-100, 0]],
-    gapS: 0.018,
-    vowelDurationS: 0.060,
+    pitchContour: [1.0, 1.35],
+    pitchEndContour: [1.15, 1.55],
+    vowelDeltas: [[0, 300], [-50, 200]],
+    gapS: 0.025,
+    vowelDurationS: 0.090,
     consonantDurationS: 0.012
   },
   death: {
-    pitchContour: [1.0, 0.85, 0.7, 0.55],
-    vowelDeltas: [[-150, -100], [-100, 0], [-150, -100], [-100, -150]],
-    gapS: 0.030,
-    vowelDurationS: 0.080,
-    consonantDurationS: 0.015
+    // S158 v3 — playtest 2026-05-27 (third pass): "повразительнее".
+    // Two-syllable death: short scream "AHHH!" → long descending
+    // wail "uuuuuuh". Total ~750 ms with extreme pitch drop (1.4× →
+    // 0.25×). Gravel noise from the colour.noiseMix knob adds rasp.
+    pitchContour: [1.4, 0.85],
+    pitchEndContour: [0.95, 0.25],
+    vowelDeltas: [[300, 200], [-280, -400]],
+    gapS: 0.020,
+    vowelDurationS: 0.180,
+    vowelDurationsS: [0.180, 0.560],
+    consonantDurationS: 0.020
   },
   victory: {
-    pitchContour: [1.0, 1.15, 1.3, 1.45, 1.5],
-    vowelDeltas: [[0, 200], [-50, 100], [-100, 0], [50, 300], [100, 200]],
-    gapS: 0.022,
-    vowelDurationS: 0.060,
+    // S158 v3 — playtest 2026-05-27 (third pass): "повразительнее".
+    // 5-syllable triumphant fanfare: low-rising lead + 3 stair-step
+    // climb + held high finale. Total ~1.1 s. Wide pitch range
+    // (0.8× → 2.0×) + slide on the finale for an "AAA!" hold.
+    pitchContour: [0.85, 1.05, 1.30, 1.60, 1.95],
+    pitchEndContour: [0.95, 1.15, 1.45, 1.75, 2.10],
+    vowelDeltas: [[-80, 100], [0, 200], [50, 300], [100, 350], [150, 400]],
+    gapS: 0.045,
+    vowelDurationS: 0.110,
+    vowelDurationsS: [0.110, 0.110, 0.130, 0.130, 0.320],
     consonantDurationS: 0.015
   }
 };
@@ -184,8 +223,14 @@ export type ConsonantSpec = {
 export type VowelSpec = {
   /** Length in seconds. */
   durationS: number;
-  /** Pitch in Hz. */
+  /** Pitch in Hz at the START of the vowel. */
   pitchHz: number;
+  /** S158 KABOOM-VOICE-V2 — pitch in Hz at the END of the vowel. When
+   *  different from pitchHz the carrier ramps linearly over the vowel
+   *  duration (intra-syllable pitch slide). Used by the death wail to
+   *  read as a single sustained descending tone instead of multiple
+   *  rapid syllables. Defaults to pitchHz (flat) when omitted. */
+  pitchEndHz?: number;
   /** First formant in Hz (after delta + drift). */
   formantF1Hz: number;
   /** Second formant in Hz. */
@@ -213,7 +258,6 @@ export function planUtterance(colour: VoiceColour, slot: VoiceSlot): ReadonlyArr
   const syllableCount = patch.pitchContour.length;
   const gap = patch.gapS * colour.phrasePaceMultiplier;
   const consonantDur = patch.consonantDurationS;
-  const vowelDur = patch.vowelDurationS;
 
   const out: SyllableSchedule[] = [];
   let cursor = 0;
@@ -221,6 +265,11 @@ export function planUtterance(colour: VoiceColour, slot: VoiceSlot): ReadonlyArr
     const start = cursor;
     const pitchMul = patch.pitchContour[i]!;
     const pitchHz = colour.basePitchHz * pitchMul;
+    // S158 — intra-syllable pitch slide. When pitchEndContour is set
+    // and differs from the start multiplier, the carrier ramps from
+    // pitchHz to pitchEndHz over the syllable's vowel duration.
+    const pitchEndMul = patch.pitchEndContour?.[i] ?? pitchMul;
+    const pitchEndHz = colour.basePitchHz * pitchEndMul;
     const [dF1, dF2] = patch.vowelDeltas[i]!;
     // Drift amount scales the delta — 0 = ignore deltas (monotone),
     // 1 = full delta (max expressiveness). Knob is 0..0.3; we
@@ -237,9 +286,13 @@ export function planUtterance(colour: VoiceColour, slot: VoiceSlot): ReadonlyArr
             pitchHz: colour.basePitchHz * 1.5
           }
         : null;
+    // S158 — per-syllable vowel duration override (lets death's
+    // sustained wail be 350 ms while the others stay ~100 ms).
+    const vowelDur = patch.vowelDurationsS?.[i] ?? patch.vowelDurationS;
     const vowel: VowelSpec = {
       durationS: vowelDur,
       pitchHz,
+      ...(Math.abs(pitchEndHz - pitchHz) > 0.5 ? { pitchEndHz } : {}),
       formantF1Hz: Math.max(80, colour.formantF1Hz + dF1 * drift),
       formantF2Hz: Math.max(150, colour.formantF2Hz + dF2 * drift),
       formantQ: colour.formantQ
@@ -372,6 +425,16 @@ function scheduleVowel(
   const squareCarrier = c.createOscillator();
   squareCarrier.type = "square";
   squareCarrier.frequency.setValueAtTime(spec.pitchHz, startAt);
+
+  // S158 — intra-syllable pitch slide. When pitchEndHz is set and
+  // differs, the carriers ramp linearly over the vowel duration. The
+  // death wail uses this to read as a single sustained descending tone
+  // rather than a rapid "ty-dy-dyt" babble.
+  if (spec.pitchEndHz !== undefined && Math.abs(spec.pitchEndHz - spec.pitchHz) > 0.5) {
+    const slideEnd = startAt + spec.durationS;
+    try { sawCarrier.frequency.linearRampToValueAtTime(spec.pitchEndHz, slideEnd); } catch { /* stub */ }
+    try { squareCarrier.frequency.linearRampToValueAtTime(spec.pitchEndHz, slideEnd); } catch { /* stub */ }
+  }
 
   // Vibrato — LFO modulating both carriers' frequency. Wired up via
   // the colour knob (was bypassed since S109). Depth scales by the

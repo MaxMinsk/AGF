@@ -61,11 +61,13 @@ describe("PHRASE_PATCHES (S110)", () => {
     }
   });
 
-  it("syllable counts match the design override", () => {
-    expect(PHRASE_PATCHES["place-bomb"].pitchContour.length).toBe(3);
-    expect(PHRASE_PATCHES.hit.pitchContour.length).toBe(2);
-    expect(PHRASE_PATCHES.pickup.pitchContour.length).toBe(3);
-    expect(PHRASE_PATCHES.death.pitchContour.length).toBe(4);
+  it("S158 — slot syllable counts (distinct phrase shapes; death scream+wail, victory fanfare)", () => {
+    // S158 v3: place-bomb / hit single; pickup 2; death 2 (scream +
+    // wail); victory 5 (stair-step fanfare).
+    expect(PHRASE_PATCHES["place-bomb"].pitchContour.length).toBe(1);
+    expect(PHRASE_PATCHES.hit.pitchContour.length).toBe(1);
+    expect(PHRASE_PATCHES.pickup.pitchContour.length).toBe(2);
+    expect(PHRASE_PATCHES.death.pitchContour.length).toBe(2);
     expect(PHRASE_PATCHES.victory.pitchContour.length).toBe(5);
   });
 
@@ -76,15 +78,19 @@ describe("PHRASE_PATCHES (S110)", () => {
     }
   });
 
-  it("pickup + victory are rising contours; death is falling; place-bomb is flat", () => {
+  it("S158 — slot pitch shapes: pickup + victory rising, death + place-bomb sliding via pitchEndContour", () => {
+    // Rising multi-syllable contours.
     const pickup = PHRASE_PATCHES.pickup.pitchContour;
     expect(pickup[pickup.length - 1]!).toBeGreaterThan(pickup[0]!);
     const victory = PHRASE_PATCHES.victory.pitchContour;
     expect(victory[victory.length - 1]!).toBeGreaterThan(victory[0]!);
-    const death = PHRASE_PATCHES.death.pitchContour;
-    expect(death[death.length - 1]!).toBeLessThan(death[0]!);
-    const place = PHRASE_PATCHES["place-bomb"].pitchContour;
-    expect(place.every((p) => p === place[0]!)).toBe(true);
+    // S158 single-syllable shapes — pitch slide lives in pitchEndContour.
+    const death = PHRASE_PATCHES.death;
+    expect(death.pitchEndContour?.[0]!).toBeLessThan(death.pitchContour[0]!);
+    const place = PHRASE_PATCHES["place-bomb"];
+    expect(place.pitchEndContour?.[0]!).toBeLessThan(place.pitchContour[0]!);
+    const hit = PHRASE_PATCHES.hit;
+    expect(hit.pitchEndContour?.[0]!).toBeLessThan(hit.pitchContour[0]!);
   });
 });
 
