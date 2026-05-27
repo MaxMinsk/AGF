@@ -1,4 +1,4 @@
-// S161 KABOOM-HUD-TOOLTIPS — registry tests.
+// S161 KABOOM-HUD-TOOLTIPS — registry tests + S161-c hover-state tests.
 
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +10,7 @@ import {
   tooltipToPlainText,
   type PowerUpSlotState
 } from "../../src/hud/power-up-descriptions";
+import { hoverActionFor, tooltipIdentityKey } from "../../src/hud/icon-tooltip-overlay";
 
 const ALL_KINDS: ReadonlyArray<PowerupIconKind> = [
   "bomb",
@@ -103,6 +104,54 @@ describe("tooltipToPlainText (S161)", () => {
   it("two lines when state present", () => {
     const txt = tooltipToPlainText({ name: "Shield", description: "desc", state: "ACTIVE" });
     expect(txt).toBe("Shield — desc\nACTIVE");
+  });
+});
+
+describe("tooltipIdentityKey (S161-c regression — HUD re-render storm)", () => {
+  it("name+state combine into one stable key", () => {
+    expect(tooltipIdentityKey("Bomb Up", "0 / 1")).toBe("Bomb Up::0 / 1");
+  });
+  it("missing state still produces a stable key", () => {
+    expect(tooltipIdentityKey("Shield", null)).toBe("Shield::");
+    expect(tooltipIdentityKey("Shield", undefined)).toBe("Shield::");
+  });
+  it("null name returns null (caller can short-circuit)", () => {
+    expect(tooltipIdentityKey(null, "anything")).toBeNull();
+  });
+  it("differs when state changes (e.g. cooldown ticking)", () => {
+    const a = tooltipIdentityKey("Dash", "READY");
+    const b = tooltipIdentityKey("Dash", "COOLDOWN 1.5s");
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("hoverActionFor (S161-c regression)", () => {
+  it("incoming null key → skip (no target)", () => {
+    expect(hoverActionFor(null, null, false, false)).toBe("skip");
+  });
+  it("first hover, no pending, not visible → schedule", () => {
+    expect(hoverActionFor("Bomb Up::0 / 1", null, false, false)).toBe("schedule");
+  });
+  it("same icon hovered again while timer armed → skip (was the re-render bug — used to schedule)", () => {
+    // This was the actual bug: with reference-equality the second
+    // pointerover on a re-rendered DOM element returned a different
+    // reference, so we'd cancel the timer + restart it forever and
+    // the show() call never fired. By comparing keys, we skip.
+    expect(hoverActionFor("Bomb Up::0 / 1", "Bomb Up::0 / 1", true, false)).toBe("skip");
+  });
+  it("different icon while visible → instant transition (Bomb→Fire)", () => {
+    expect(hoverActionFor("Fire Up::2 / 2", "Bomb Up::0 / 1", false, true)).toBe("instant");
+  });
+  it("same icon while visible → skip (no flicker)", () => {
+    expect(hoverActionFor("Bomb Up::0 / 1", "Bomb Up::0 / 1", false, true)).toBe("skip");
+  });
+  it("different icon, no pending, not visible → schedule", () => {
+    expect(hoverActionFor("Fire Up::2 / 2", "Bomb Up::0 / 1", false, false)).toBe("schedule");
+  });
+  it("state change on same icon while visible → instant (e.g. dash cooldown tick)", () => {
+    // Dash cell's state changes from 'READY' to 'COOLDOWN 1.5s' on
+    // press. While the tooltip is visible, swap content instantly.
+    expect(hoverActionFor("Dash::COOLDOWN 1.5s", "Dash::READY", false, true)).toBe("instant");
   });
 });
 
