@@ -46,7 +46,7 @@ const IDLE_EMITTER_RATE = 8;
 const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
-type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce";
+type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove";
 
 type PickupVisual = {
   mesh: string;
@@ -71,12 +71,14 @@ const PICKUP_VISUAL: Record<PickupKind, PickupVisual> = {
   // S109 KABOOM-SHIELD-POWER-UP — flat-bottomed cyan sphere (dome silhouette) for one-shot blast protection.
   "shield": { mesh: "sphere", color: "#36e0e8", scale: [0.4, 0.3, 0.4], yOffset: 0.26 },
   // S142 KABOOM-PIERCE-BOMB — tall narrow red shard so it reads as a piercing implement from above.
-  "pierce": { mesh: "cylinder", color: "#ff3b3b", scale: [0.18, 0.55, 0.18], yOffset: 0.34 }
+  "pierce": { mesh: "cylinder", color: "#ff3b3b", scale: [0.18, 0.55, 0.18], yOffset: 0.34 },
+  // S144 KABOOM-THROW-GLOVE — short fat lime-green cylinder (glove silhouette) to read distinctly from kick (yellow short cylinder).
+  "throw-glove": { mesh: "cylinder", color: "#9ee84a", scale: [0.5, 0.25, 0.5], yOffset: 0.23 }
 };
 
 // Drop table — entries appear in PICK proportionally to how many times they
-// occur. Shield + pierce list once for ~half the rarity of stat-bump
-// pickups (which list twice). Re-balance after playtest.
+// occur. Shield + pierce + throw-glove list once for ~half the rarity of
+// stat-bump pickups (which list twice). Re-balance after playtest.
 const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
   "bomb-up", "bomb-up",
   "fire-up", "fire-up",
@@ -84,7 +86,8 @@ const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
   "kick",
   "remote-detonate",
   "shield",
-  "pierce"
+  "pierce",
+  "throw-glove"
 ];
 
 export type PickupSpawnSystemOptions = {

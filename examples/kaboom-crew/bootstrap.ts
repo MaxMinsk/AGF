@@ -57,6 +57,8 @@ import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bom
 import { createKaboomConnectedBlastDecoderSystem } from "./src/systems/connected-blast-decoder-system";
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
+import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
+import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
@@ -399,6 +401,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S100 KABOOM-KICK-POWER-UP — runs after player-input populates
     // queuedDirection, before grid-movement commits the step.
     scheduler.register(createKaboomBombKickSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S144 KABOOM-THROW-GLOVE — pickup + throw systems run before
+    // fuse-system so a carried/airborne bomb has its carriedBy /
+    // airborne flag set in time to skip the fuse decrement this tick.
+    scheduler.register(createKaboomBombPickupSystem(), { profiles: ["static"] });
+    scheduler.register(createKaboomBombThrowSystem({ occupancy }), { profiles: ["static"] });
     // S117 KABOOM-MP-SPRINT-B — fuse-system stays on the static path
     // only. On the connected profile the server is authoritative on the
     // fuse + emits blastEvent when it hits zero; running the local fuse
@@ -974,6 +981,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               remoteDetonateCharges: (c["BomberStats"] as { remoteDetonateCharges?: number })?.remoteDetonateCharges,
               shield: (c["BomberStats"] as { shield?: boolean })?.shield,
               pierce: (c["BomberStats"] as { pierce?: boolean })?.pierce,
+              canThrow: (c["BomberStats"] as { canThrow?: boolean })?.canThrow,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
               targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
             };
@@ -1278,7 +1286,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -1301,10 +1309,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         lines.push(`phase: ${phase}   ${timeStr}`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
-          // S109 — append a compact flag suffix `[KRS]` for any active
-          // power-up. K = canKick, R = remote-detonate charges > 0,
-          // S = shield (one-shot blast protection), P = pierce (S142).
-          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}${p.pierce === true ? "P" : ""}`;
+          // S109 — append a compact flag suffix `[KRSPT]` for any
+          // active power-up. K = canKick, R = remote-detonate > 0,
+          // S = shield, P = pierce (S142), T = throw-glove (S144).
+          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}${p.pierce === true ? "P" : ""}${p.canThrow === true ? "T" : ""}`;
           const flagSuffix = flags.length > 0 ? `   [${flags}]` : "";
           lines.push(
             `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}${flagSuffix}`

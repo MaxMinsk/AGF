@@ -65,6 +65,7 @@ HUD shows the active flags per bomber in the bottom-left line:
 | `remote-detonate` (S100) | Next bomb is paused (fuseRemaining=∞); press F to detonate. Capped at 3 charges. |
 | `shield` (S109)  | One-shot absorbs the next lethal blast; shield flips off.              |
 | `pierce` (S142)  | Next placed bomb's blast walks through the **first** soft block in each direction (still destroys it). Second soft block in the same direction stops the lane normally. Carried at placement time. |
+| `throw-glove` (S144) | Press **T** while standing on your own bomb to pick it up (fuse pauses). Press **T** again to throw the bomb 3 cells in your facing direction in an arc over obstacles (graceful fallback to ×2 / ×1 / your cell when blocked). Fuse resumes on landing. |
 
 ## Controls
 
@@ -73,6 +74,8 @@ HUD shows the active flags per bomber in the bottom-left line:
 | W / A / S / D  | Move player.1 (also arrow keys).                        |
 | Space          | Place a bomb on the current cell. First Space dismisses |
 |                | the title screen.                                       |
+| F              | Detonate paused (remote-detonate) bombs.                |
+| T              | Throw-glove (S144): pick up your bomb / throw it.       |
 | R              | Restart the round immediately.                          |
 
 The round auto-restarts three seconds after `RoundState.phase`
