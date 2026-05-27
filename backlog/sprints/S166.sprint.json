@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/213",
   "notes": [
     "Ships the §VISUAL TREATMENT polish from GDP-2026-05-27-013 that was deferred when S160 shipped sudden-death core logic. On the tick we observe SuddenDeathState.activated flipping false→true, mount a centre HUD banner ('SUDDEN DEATH', cream font, red-bordered card, 1.5 s fade-in/hold/fade-out cycle) plus a screen-edge red box-shadow vignette pulse (~1 s).",
     "On round restart (SuddenDeathState component goes missing) both elements reset so the next round can re-trigger them.",
