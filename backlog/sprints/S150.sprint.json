@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/178",
   "notes": [
     "Completes the third layer of GDP-2026-05-27-005. The user now sees discrete active-state icons (shield / pierce / remote-charges > 0 / throw-glove) per non-self ALIVE bomber in the bottom-left HUD panel, with a personality-coloured swatch so they map back to the on-screen bomber at a glance. Hidden when no discrete state is active — the panel stays quiet during the early game and only telegraphs current threats.",
     "Deviation from GDP §3 Layer 3: the canonical spec calls for world-space billboards above each bomber's head. The engine has no world-to-screen / billboard primitive yet, so this sprint ships a HUD-side approximation. Same pattern S146 (conveyor belt) + S149 (warp-hole) used for their fancy shader/visual deferrals. The world-space variant is filed as a deferred follow-up in the GDP archive note.",
