@@ -85,8 +85,9 @@ describe("createSpringPivotSystem (S105)", () => {
   });
 
   it("default k + damping apply when component omits them", () => {
-    expect(DEFAULT_SPRING_K).toBe(18);
-    expect(DEFAULT_SPRING_DAMPING).toBe(0.4);
+    // S157 — tuned for accessory sway calmness (was k=18, damping=0.4).
+    expect(DEFAULT_SPRING_K).toBe(30);
+    expect(DEFAULT_SPRING_DAMPING).toBe(6);
   });
 
   it("writes back the updated velocity into the component", () => {
