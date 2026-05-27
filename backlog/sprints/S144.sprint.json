@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/170",
   "notes": [
     "Promotes GDP-2026-05-26-004 (could-priority, KABOOM-CREW-MVP-2). Throw Glove extends the S100 Kick concept with longer-range bomb relocation. When a bomber holds the glove they can PICK UP their own placed bomb (input: T key while standing on bomb cell) and CARRY it (fuse paused; bomb mounts visually on torso.back). A second press of T THROWS the bomb 3 cells in the bomber's facing direction in an arc over any obstacles in between; lands grid-snapped + resumes fuse.",
     "Scope simplification vs the GDP spec: GDP asks for long-press Space to dual-use the place-bomb key. Long-press detection is risky to wire into the existing input system; we use a dedicated T key instead so the pickup/throw signal is unambiguous. README + HUD document the key.",
