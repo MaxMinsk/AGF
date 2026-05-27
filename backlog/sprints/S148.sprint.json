@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/176",
   "notes": [
     "Promotes the first two layers of GDP-2026-05-27-005 (should-priority, KABOOM-CREW-MVP-2). Direct response to user playtest feedback 2026-05-27: 'непонятно какими повер-апами владеет игрок, приходится гадать'. Replaces the [KRSPT] text flag suffix with an icon grid (2 rows × 3-5 slots, 24×24 px) + a transient centre-screen pickup tooltip (96×96 icon + 1.5 s fade) that teaches the icon→pickup mapping on every collect.",
     "Scope: LOCAL player HUD only. Layer 3 (opponent badges over remote bombers' heads) deferred to a follow-up sprint to keep this sprint focused + below 8 stories. The local-player HUD is the higher-impact piece per the user's wording ('игрок' — the player, not opponents).",
