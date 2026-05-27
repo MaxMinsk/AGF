@@ -4,8 +4,8 @@
     {
       "id": "camera.main",
       "components": {
-        "Camera": { "kind": "orthographic", "active": true, "orthographicSize": 10, "near": 0.1, "far": 100 },
-        "Transform": { "position": [8, 14, 15], "rotation": [-55, 0, 0], "scale": [1, 1, 1] }
+        "Camera": { "kind": "orthographic", "active": true, "orthographicSize": 11, "near": 0.1, "far": 100 },
+        "Transform": { "position": [8, 14, 19], "rotation": [-55, 0, 0], "scale": [1, 1, 1] }
       }
     },
     {
