@@ -53,18 +53,17 @@ describe("clampCameraToArena (S163 pure helper)", () => {
 });
 
 describe("createKaboomCameraFollowSystem (S163)", () => {
-  it("follow mode: snaps the camera toward the bomber position over a few ticks", () => {
+  it("follow mode: snaps the camera onto the bomber position (S163-c centre-bomber)", () => {
     const world = new World();
     seedScene(world, { bomberAt: [3, 3] });
     const sys = createKaboomCameraFollowSystem({ smoothing: 1 }); // snap
     sys.frameUpdate!(ctx(world));
     const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
-    // Bomber at (3, _, 3); arena 15×11; view ~11 tiles wide. Clamp keeps
-    // camera near (3 clamped right ↑ to min-x, 3 clamped down ↑ to min-z).
-    // With viewSize=6 default, viewWidth ≈ 21.3, viewDepth=12, both >= arena
-    // dims, so camera lands at arena centre (7, ~, 5). Camera offset adds [0,10,7].
-    expect(t.position[0]).toBeCloseTo(7, 1);
-    expect(t.position[2]).toBeCloseTo(5 + 7, 1);
+    // Post-S163-c: camera always centres on bomber + cameraOffset. Bomber
+    // at (3, _, 3) + offset [0, 10, 7] → camera (3, 10, 10). Strict arena
+    // edge clamp removed so the bomber stays centred at arena perimeter.
+    expect(t.position[0]).toBeCloseTo(3, 1);
+    expect(t.position[2]).toBeCloseTo(3 + 7, 1);
   });
 
   it("centre mode: camera locks to arena centre regardless of bomber position", () => {
@@ -73,6 +72,7 @@ describe("createKaboomCameraFollowSystem (S163)", () => {
     const sys = createKaboomCameraFollowSystem({ mode: "centre", smoothing: 1 });
     sys.frameUpdate!(ctx(world));
     const t = world.getComponent<{ position: ReadonlyArray<number> }>("camera.main", "Transform")!;
+    // Arena (15, 11) → centre (7, 5) → camera (7, 10, 12).
     expect(t.position[0]).toBeCloseTo(7, 1);
     expect(t.position[2]).toBeCloseTo(5 + 7, 1);
   });
