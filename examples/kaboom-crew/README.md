@@ -166,6 +166,30 @@ URL `?showLifetime=true` mounts a small lifetime-stats panel in the
 bottom-left HUD (matches W/M, rounds W/L/D, self-kills, max chain).
 Default off so the HUD stays clean for new players.
 
+### Cosmetic unlocks (S156)
+
+Five starter unlocks are tied to lifetime stat thresholds. Each
+unlock adds one accessory to player.1's recipe pool. A gold centre
+banner appears for ~2.5 s on each unlock crossing.
+
+| Id | Accessory | Condition |
+|---|---|---|
+| `first-win` | cap | First match win |
+| `survivalist` | fins | Win 10 rounds |
+| `chain-reactionist` | antennae | Trigger a 5-bomb chain reaction |
+| `pyromaniac` | visor | Kill yourself with your own bomb 5 times |
+| `veteran` | backpack | Play 50 rounds |
+
+Profile schema bumped to v2 with in-place v1 → v2 migration
+(`cosmeticUnlocks` initialised empty; lifetime stats preserved).
+
+Agent probes:
+
+- `getUnlocks()` — returns `{ earned: [...], catalog: [...] }` with
+  per-unlock progress + locked / unlocked state.
+- `forceUnlock(id)` — test-only; adds an unlock id.
+- `resetUnlocks()` — test-only; drops all unlocks.
+
 ## Agent surface
 
 The project exposes a small control surface on

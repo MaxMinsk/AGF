@@ -92,6 +92,14 @@ import {
 } from "./src/powerup-icons";
 // S153 KABOOM-PLAYER-PROFILE — localStorage-backed persistent profile.
 import { createProfileStore, type ProfileStore } from "./src/profile/profile-store";
+// S156 KABOOM-COSMETIC-UNLOCKS — 5 starter unlocks + banner on threshold cross.
+import {
+  checkUnlocks,
+  findUnlock,
+  UNLOCK_DEFS,
+  unlockedAccessoryKinds,
+  type UnlockId
+} from "./src/profile/unlock-checker";
 // S150 KABOOM-OPPONENT-BADGES — Layer 3 of GDP-2026-05-27-005 (HUD
 // approximation; world-space billboards deferred to a follow-up).
 import {
@@ -329,7 +337,17 @@ function restartScene(runtime: RuntimeHandle): number {
   // so the next round renders bombers. The procedural mesh registry
   // persists across scene.load (renderer-level), so the per-part
   // builders stay registered.
-  const playerRecipe = makeKaboomRecipe("player.1");
+  // S156 — filter accessories to the unlocked subset when the profile
+  // store is bound (i.e. after attachUi). Pre-bind path falls back to
+  // the default 5-kind pool.
+  const unlockedKinds = _boundProfileStore !== undefined
+    ? unlockedAccessoryKinds(_boundProfileStore.get().cosmeticUnlocks)
+    : undefined;
+  const playerRecipe = makeKaboomRecipe(
+    "player.1",
+    undefined,
+    unlockedKinds !== undefined ? { unlockedAccessoryKinds: unlockedKinds } : {}
+  );
   spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
   // S120 — on connected, the server owns bot.1; the snapshot delivers
   // it and remote-bomber-decorator spawns the procbomber tree locally.
@@ -387,6 +405,10 @@ let _boundOccupancy: import("../../engine/core/systems/grid-occupancy-system").G
 type AudioLogEntry = { kind: AudioEventKind; entityId?: string; ts: number };
 let _boundAudioEvent: ((kind: AudioEventKind, ctx?: { entityId?: string; position?: readonly [number, number, number] }) => void) | undefined;
 let _audioLog: AudioLogEntry[] = [];
+// S156 — module-level profile store handle. Created in attachUi;
+// restartScene() reads it to filter the player.1 recipe's accessory
+// pool to the unlocked subset (when available; missing → no filter).
+let _boundProfileStore: ProfileStore | undefined;
 
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler, playerId, networked, getNetwork }: ProjectBootstrapContext): void {
@@ -616,6 +638,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // buildFlatStartScene re-read the URL each call).
     seedActiveMapFromUrl();
 
+    // S156 KABOOM-COSMETIC-UNLOCKS — bring up the profile store FIRST
+    // so the player.1 recipe spawn below can read cosmeticUnlocks and
+    // filter accessories accordingly. Storage is the same DOM
+    // localStorage the audio-volume code uses; passing nothing leaves
+    // the store in-memory-only (HMR / no-DOM tests).
+    {
+      const ls = (globalThis as unknown as { localStorage?: Storage }).localStorage;
+      _boundProfileStore = createProfileStore(ls !== undefined ? { storage: ls } : {});
+      _boundProfileStore.get(); // hydrate + bump lastSeenAt
+    }
+
     _boundRestart = (): void => {
       restartScene(runtime);
     };
@@ -694,13 +727,28 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // renderer's callback walks the static assignment to map each
     // solo bot id to its personality; player.1 always uses the
     // sky palette via makeKaboomRecipe.
-    const playerRecipe = makeKaboomRecipe("player.1");
+    // S156 — pass the unlocked accessory kinds so the player.1 recipe
+    // only picks from earned accessories. Bots stay personality-driven.
+    const initialUnlockedKinds = _boundProfileStore !== undefined
+      ? unlockedAccessoryKinds(_boundProfileStore.get().cosmeticUnlocks)
+      : undefined;
+    const playerRecipe = makeKaboomRecipe(
+      "player.1",
+      undefined,
+      initialUnlockedKinds !== undefined ? { unlockedAccessoryKinds: initialUnlockedKinds } : {}
+    );
     const recipePersonalityById = new Map<string, BotPersonality>(
       _networkedMode ? [] : MULTI_BOT_ASSIGNMENT.map((b) => [b.id, b.personality] as const)
     );
     registerProcbomberBuilders(
       runtime.renderer,
-      (ownerId) => makeKaboomRecipe(ownerId, recipePersonalityById.get(ownerId))
+      (ownerId) => {
+        if (ownerId === "player.1" && _boundProfileStore !== undefined) {
+          const kinds = unlockedAccessoryKinds(_boundProfileStore.get().cosmeticUnlocks);
+          return makeKaboomRecipe(ownerId, undefined, { unlockedAccessoryKinds: kinds });
+        }
+        return makeKaboomRecipe(ownerId, recipePersonalityById.get(ownerId));
+      }
     );
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     // S120 — on connected, server owns bot.1; snapshot delivers it +
@@ -763,15 +811,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       if (persistedMuted) audioFx.setMuted(true);
     }
 
-    // S153 KABOOM-PLAYER-PROFILE — bring up the localStorage-backed
-    // profile store. Hot path: round-resolve + pickup-collect hooks
-    // (wired later in the snapshot loop). Agent probes exposed via
-    // window.__agf.kaboom.{getProfile,setProfileStats,resetProfile}.
-    const profileStorage = audioGlobals.localStorage !== undefined
-      ? { storage: audioGlobals.localStorage }
-      : {};
-    const profileStore: ProfileStore = createProfileStore(profileStorage);
-    profileStore.get(); // ensure default profile exists + lastSeenAt updates
+    // S153 KABOOM-PLAYER-PROFILE / S156 KABOOM-COSMETIC-UNLOCKS — the
+    // store is hoisted to the top of attachUi (so the player.1 recipe
+    // can read cosmeticUnlocks before spawn). Alias here for the
+    // existing snapshot-loop call sites that already use `profileStore`.
+    const profileStore: ProfileStore = _boundProfileStore!;
     _audioLog = [];
     _boundAudioEvent = (kind, c): void => {
       const entry: AudioLogEntry = { kind, ts: Date.now() };
@@ -1150,6 +1194,37 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       },
       resetProfile(): void {
         profileStore.reset();
+      },
+      // S156 KABOOM-COSMETIC-UNLOCKS — agent probes for the unlock
+      // system. getUnlocks returns the live earned ids + the unlock
+      // catalogue (id → label / accessory / threshold) for tests.
+      // forceUnlock + resetUnlocks are test-only.
+      getUnlocks(): unknown {
+        const p = profileStore.get();
+        return {
+          earned: [...p.cosmeticUnlocks],
+          catalog: UNLOCK_DEFS.map((d) => ({
+            id: d.id,
+            accessory: d.accessory,
+            label: d.label,
+            description: d.description,
+            progress: d.progress(p.lifetimeStats),
+            unlocked: p.cosmeticUnlocks.includes(d.id)
+          }))
+        };
+      },
+      forceUnlock(id: string): boolean {
+        const def = findUnlock(id);
+        if (def === undefined) return false;
+        const live = profileStore.get();
+        if (live.cosmeticUnlocks.includes(id)) return true;
+        profileStore.setUnlocks([...live.cosmeticUnlocks, id]);
+        profileStore.flush();
+        return true;
+      },
+      resetUnlocks(): void {
+        profileStore.removeUnlock();
+        profileStore.flush();
       }
     };
 
@@ -1551,6 +1626,71 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         });
       }
 
+      // S156 KABOOM-COSMETIC-UNLOCKS — centre-bottom banner that
+      // celebrates a newly-earned unlock. Mounted on demand (newly-
+      // unlocked event); 2.5s lifecycle (fade-in 0.2s + hold 2.0s +
+      // fade-out 0.3s). Replacement: rapid threshold crossings queue
+      // — current banner finishes its fade-out, next one mounts.
+      const UNLOCK_BANNER_ID = "kaboom.unlock-banner";
+      type UnlockBannerData = {
+        unlockId: string;
+        opacity: number;
+      };
+      const unlockBannerSpec = {
+        id: UNLOCK_BANNER_ID,
+        slot: "center" as const,
+        initial: { unlockId: "first-win", opacity: 0 } as UnlockBannerData,
+        render: (data: UnlockBannerData): HTMLElement => {
+          const el = document.createElement("div");
+          const def = findUnlock(data.unlockId);
+          el.setAttribute(
+            "style",
+            `display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 22px;background:rgba(20,16,8,0.65);border:2px solid #f0b94a;opacity:${data.opacity.toFixed(3)};`
+          );
+          const accessoryKind = def?.accessory ?? "cap";
+          const iconKey = accessoryKind === "cap" ? "kick" : accessoryKind === "fins" ? "speed" : accessoryKind === "antennae" ? "remote" : accessoryKind === "visor" ? "shield" : "pierce";
+          const svgWrap = document.createElement("div");
+          svgWrap.innerHTML = `<svg viewBox="0 0 24 24" width="72" height="72" xmlns="http://www.w3.org/2000/svg" aria-label="${accessoryKind}">${powerupIconSvgInner(iconKey as PowerupIconKind)}</svg>`;
+          el.appendChild(svgWrap);
+          const header = document.createElement("div");
+          header.setAttribute("style", "font-size:20px;font-weight:700;color:#f0b94a;letter-spacing:1.5px;");
+          header.textContent = `UNLOCKED: ${def?.label.toUpperCase() ?? data.unlockId.toUpperCase()}`;
+          el.appendChild(header);
+          if (def !== undefined) {
+            const sub = document.createElement("div");
+            sub.setAttribute("style", "font-size:13px;color:#f4e9d3;opacity:0.85;");
+            sub.textContent = def.description;
+            el.appendChild(sub);
+            const acc = document.createElement("div");
+            acc.setAttribute("style", "font-size:11px;color:#f4e9d3;opacity:0.65;letter-spacing:1px;");
+            acc.textContent = `accessory: ${def.accessory}`;
+            el.appendChild(acc);
+          }
+          return el;
+        }
+      };
+      let unlockBannerMounted = false;
+      let unlockBannerStartMs: number | undefined;
+      let unlockBannerCurrentId: string | undefined;
+      const unlockBannerQueue: UnlockId[] = [];
+      const UNLOCK_BANNER_FADE_IN_MS = 200;
+      const UNLOCK_BANNER_HOLD_MS = 2000;
+      const UNLOCK_BANNER_FADE_OUT_MS = 300;
+      const enqueueUnlockBanners = (ids: ReadonlyArray<UnlockId>): void => {
+        for (const id of ids) unlockBannerQueue.push(id);
+      };
+      const promoteNextUnlockBanner = (): void => {
+        const next = unlockBannerQueue.shift();
+        if (next === undefined) return;
+        if (!unlockBannerMounted) {
+          hud.add(unlockBannerSpec);
+          unlockBannerMounted = true;
+        }
+        unlockBannerCurrentId = next;
+        unlockBannerStartMs = performance.now();
+        hud.update(UNLOCK_BANNER_ID, { unlockId: next, opacity: 0 });
+      };
+
       // S148 KABOOM-POWERUP-TOOLTIP — transient centre-screen banner that
       // tells the player WHAT they just picked up. One active tooltip at
       // a time; replacement on rapid chains uses the same widget id so
@@ -1872,6 +2012,46 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         prevAlive = aliveNow;
         prevOwnBombIds = currentOwnBombIds;
         prevAllBombIds = currentAllBombIds;
+
+        // S156 KABOOM-COSMETIC-UNLOCKS — run the checker each frame
+        // (cheap: a 5-entry array scan). Persists newly-unlocked ids
+        // to the profile + enqueues a banner. Banner queue + lifecycle
+        // is driven by the dedicated state machine below.
+        {
+          const live = profileStore.get();
+          const result = checkUnlocks(live.lifetimeStats, live.cosmeticUnlocks);
+          if (result.newlyUnlocked.length > 0) {
+            profileStore.setUnlocks(result.allUnlocked);
+            enqueueUnlockBanners(result.newlyUnlocked);
+          }
+        }
+        // S156 — banner lifecycle. Promotes the next queued banner
+        // when the current one finishes its fade-out (or no banner
+        // is showing yet). 2.5s total per banner.
+        if (unlockBannerMounted && unlockBannerStartMs !== undefined && unlockBannerCurrentId !== undefined) {
+          const age = performance.now() - unlockBannerStartMs;
+          let opacity = 0;
+          if (age < UNLOCK_BANNER_FADE_IN_MS) {
+            opacity = age / UNLOCK_BANNER_FADE_IN_MS;
+          } else if (age < UNLOCK_BANNER_FADE_IN_MS + UNLOCK_BANNER_HOLD_MS) {
+            opacity = 1;
+          } else {
+            const fadeOut = age - UNLOCK_BANNER_FADE_IN_MS - UNLOCK_BANNER_HOLD_MS;
+            opacity = Math.max(0, 1 - fadeOut / UNLOCK_BANNER_FADE_OUT_MS);
+          }
+          if (opacity <= 0 && age > UNLOCK_BANNER_FADE_IN_MS + UNLOCK_BANNER_HOLD_MS) {
+            hud.remove(UNLOCK_BANNER_ID);
+            unlockBannerMounted = false;
+            unlockBannerCurrentId = undefined;
+            unlockBannerStartMs = undefined;
+            // Promote the next queued one — small gap is implicit
+            // (next frame).
+          } else {
+            hud.update(UNLOCK_BANNER_ID, { unlockId: unlockBannerCurrentId, opacity });
+          }
+        } else if (unlockBannerQueue.length > 0) {
+          promoteNextUnlockBanner();
+        }
 
         // S155 — push the live lifetime stats into the HUD widget,
         // but only when the user opted in via `?showLifetime=true`.

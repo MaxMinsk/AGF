@@ -1,0 +1,86 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S156",
+  "title": "Cosmetic unlocks MVP — 5 starter unlocks on top of the persistent profile",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-011 (should-priority, KABOOM-CREW-MVP-2). Builds directly on S153 (profile MVP) + S155 (deferred stat hooks shipped). The 5 starter unlocks map 1:1 to the existing 5-accessory catalog from S106 — no new accessory art, no schema work in procbomber-bench. Profile schema bumped to v2 with in-place v1 → v2 migration.",
+    "Each unlock fires once on threshold crossing + queues a centre-screen gold banner (~2.5s lifecycle). The player.1 recipe's random-default accessory pool is filtered to the unlocked subset — earned accessories show up randomly on the bomber across rounds.",
+    "Scope reductions vs GDP §3: in-game Unlocks panel (the 'what do I need to do' menu) is deferred to a follow-up; agent probes (getUnlocks / forceUnlock / resetUnlocks) cover the v1 inspection surface. The unlock-fanfare audio event + victory voice layering also deferred — the gold banner alone is enough signal."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-UNLOCK-CHECKER-001",
+      "title": "unlock-checker module — pure helpers for the 5 starter unlocks",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/profile/unlock-checker.ts (NEW). Exports UNLOCK_DEFS (5 entries: first-win → cap, survivalist → fins, chain-reactionist → antennae, pyromaniac → visor, veteran → backpack), checkUnlocks(stats, current) → { allUnlocked, newlyUnlocked }, unlockedAccessoryKinds(ids), findUnlock(id). Stat-rollback is defensive: earned unlocks aren't lost when stats are reset.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: unlock-checker.ts ships UNLOCK_DEFS (5 distinct ids → 5 distinct accessory kinds) + checkUnlocks pure function. 16 unit tests cover thresholds, newly-vs-already, multi-unlock, rollback defence, unknown ids."
+      ]
+    },
+    {
+      "id": "SCHEMA-KABOOM-PROFILE-V2-001",
+      "title": "Profile schema v2: cosmeticUnlocks + in-place v1 → v2 migration",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/profile/profile-store.ts — PROFILE_FORMAT_VERSION bumped to 2. PlayerProfile gains `cosmeticUnlocks: string[]`. Read path detects v1 + migrates in-place: lifetime stats preserved; cosmeticUnlocks initialised []. Default profile + corrupt fallback path also initialise the field. New store methods setUnlocks / removeUnlock.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: profile-store.ts version=2 with PROFILE_PRIOR_FORMAT_VERSIONS={1}; readFromStorage migrates v1 in place; setUnlocks / removeUnlock methods present. 5 new tests cover migration + setUnlocks + removeUnlock + future-version fallback."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-RECIPE-FILTER-001",
+      "title": "makeKaboomRecipe filters player.1 accessory pool to the unlocked subset",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/kaboom-recipe.ts — third optional `options.unlockedAccessoryKinds` param. When supplied, the player.1 branch keeps only accessories with kinds in the allowed set. Default behaviour (no param) matches the pre-S156 5-kind pool — keeps legacy callers + tests green.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: makeKaboomRecipe accepts unlockedAccessoryKinds option; player.1 accessories are filtered to that set; legacy callers without the option get the unchanged behaviour."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-UNLOCK-WIRE-001",
+      "title": "bootstrap wires checker + banner + recipe filter",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — profileStore hoisted to the top of attachUi (was at line ~780) so the player.1 spawn at ~705 reads cosmeticUnlocks. Per-frame snapshot loop calls checkUnlocks(); newly-unlocked ids persist via setUnlocks + enqueue a gold banner. Banner lifecycle (fade-in 200ms / hold 2000ms / fade-out 300ms) drives opacity; queue promotes the next banner after current finishes. restartScene helper reads the same store handle so recipe respawn keeps the unlock filter live.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts has a hoisted profileStore + unlock-banner widget + per-frame checker call. Banner queue handles multi-unlock crossings sequentially. recipe pipeline (initial spawn + restartScene) reads unlockedAccessoryKinds."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-UNLOCK-PROBES-001",
+      "title": "Agent probes: getUnlocks / forceUnlock / resetUnlocks",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — three new entries on the runtime.kaboom + window.__agf.kaboom surface. getUnlocks() returns { earned, catalog: [...] } with per-unlock progress + locked/unlocked state. forceUnlock(id) for test fixtures. resetUnlocks() clears the array.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: __agf.kaboom.getUnlocks() returns earned + catalog; forceUnlock(id) writes + persists; resetUnlocks() clears."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-UNLOCK-001",
+      "title": "Unit tests covering checker + migration",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/unlock-checker.test.ts (NEW, 16 tests) covers UNLOCK_DEFS catalogue + checkUnlocks (all 5 thresholds, newly-vs-already, multi-unlock, rollback defence, unknown id forward-compat) + unlockedAccessoryKinds (empty, single, all 5, dedup, unknown skip) + findUnlock. examples/kaboom-crew/tests/unit/profile-store.test.ts (extended, 5 new tests) covers v1→v2 migration, v2 roundtrip, setUnlocks persistence, removeUnlock(id/all), future-version fallback.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: unlock-checker.test.ts — 16 tests pass. profile-store.test.ts gains 5 migration/unlock tests. 1760/1760 full vitest green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-UNLOCK-001",
+      "title": "README documents the 5 unlocks + agent probes + archive GDP",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — Cosmetic unlocks subsection added under the Player profile section. Includes the 5-row table (id / accessory / condition) + the schema migration note + the 3 agent probes. GDP-2026-05-27-011 archived to backlog/proposed-stories/archive/S156/.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README.md Player-profile section documents the 5 unlocks + agent probes. GDP-2026-05-27-011 → backlog/proposed-stories/archive/S156/."
+      ]
+    }
+  ]
+}
