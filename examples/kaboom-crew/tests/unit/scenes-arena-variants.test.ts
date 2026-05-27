@@ -10,6 +10,7 @@ import plazaScene from "../../scenes/plaza.scene.json";
 import crossScene from "../../scenes/cross.scene.json";
 import pitScene from "../../scenes/pit.scene.json";
 import beltZoneScene from "../../scenes/belt-zone.scene.json";
+import warpfieldScene from "../../scenes/warpfield.scene.json";
 
 type Instance = {
   id: string;
@@ -36,7 +37,10 @@ const VARIANTS: ReadonlyArray<Variant> = [
   { name: "pit", scene: pitScene as Scene, gridSizeX: 11, gridSizeZ: 11, hardMin: 36, hardMax: 42, softMin: 14, softMax: 24 },
   // S146 belt-zone: hard walls + soft blocks are the only non-belt
   // instances; belts live as entities and are checked separately below.
-  { name: "belt-zone", scene: beltZoneScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 10 }
+  { name: "belt-zone", scene: beltZoneScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 10 },
+  // S149 warpfield: 15×11 with 4 standard hard pillars + soft blocks.
+  // Warp pair cells live as entities and are checked separately below.
+  { name: "warpfield", scene: warpfieldScene as Scene, gridSizeX: 15, gridSizeZ: 11, hardMin: 4, hardMax: 8, softMin: 4, softMax: 12 }
 ];
 
 describe("S143 arena variants — plaza / cross / pit structural smoke", () => {
@@ -125,6 +129,53 @@ describe("S146 belt-zone arena — ConveyorBelt entities", () => {
       const t = b.components["Transform"] as { position?: number[] } | undefined;
       const y = t?.position?.[1] ?? 0;
       expect(y, `belt ${b.id} y=${y} must be ≤ 0.1`).toBeLessThanOrEqual(0.1);
+    }
+  });
+});
+
+describe("S149 warpfield arena — WarpHole entities", () => {
+  const scene = warpfieldScene as Scene;
+
+  it("has 3 warp pairs (6 warp cells, pairIds 0/1/2 each with a + b)", () => {
+    const warps = scene.entities.filter((e) => e.components["WarpHole"] !== undefined);
+    expect(warps.length).toBe(6);
+    const pairs = new Map<number, { a: number; b: number }>();
+    for (const w of warps) {
+      const c = w.components["WarpHole"] as { pairId: number; role: "a" | "b" };
+      const entry = pairs.get(c.pairId) ?? { a: 0, b: 0 };
+      entry[c.role] += 1;
+      pairs.set(c.pairId, entry);
+    }
+    expect(pairs.size).toBe(3);
+    for (const [pairId, entry] of pairs) {
+      expect(entry.a, `pair ${pairId} a-end`).toBe(1);
+      expect(entry.b, `pair ${pairId} b-end`).toBe(1);
+    }
+  });
+
+  it("warp cells sit BELOW bombers (y ≤ 0.1)", () => {
+    const warps = scene.entities.filter((e) => e.components["WarpHole"] !== undefined);
+    for (const w of warps) {
+      const t = w.components["Transform"] as { position?: number[] } | undefined;
+      const y = t?.position?.[1] ?? 0;
+      expect(y, `warp ${w.id} y=${y} must be ≤ 0.1`).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it("each warp pair has DIFFERENT a + b cells (non-degenerate teleport)", () => {
+    const warps = scene.entities.filter((e) => e.components["WarpHole"] !== undefined);
+    const byPair = new Map<number, Array<{ gx: number; gz: number }>>();
+    for (const w of warps) {
+      const c = w.components["WarpHole"] as { pairId: number };
+      const gp = w.components["GridPosition"] as { gx: number; gz: number };
+      const list = byPair.get(c.pairId) ?? [];
+      list.push(gp);
+      byPair.set(c.pairId, list);
+    }
+    for (const [pairId, cells] of byPair) {
+      const k0 = `${cells[0]!.gx},${cells[0]!.gz}`;
+      const k1 = `${cells[1]!.gx},${cells[1]!.gz}`;
+      expect(k0, `pair ${pairId}`).not.toBe(k1);
     }
   });
 });

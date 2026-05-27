@@ -27,6 +27,7 @@ import plazaSceneJson from "./scenes/plaza.scene.json";
 import crossSceneJson from "./scenes/cross.scene.json";
 import pitSceneJson from "./scenes/pit.scene.json";
 import beltZoneSceneJson from "./scenes/belt-zone.scene.json";
+import warpfieldSceneJson from "./scenes/warpfield.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -61,6 +62,7 @@ import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
 import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
 import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
 import { createKaboomConveyorBeltSystem } from "./src/systems/conveyor-belt-system";
+import { createKaboomWarpHoleSystem } from "./src/systems/warp-hole-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
@@ -167,9 +169,10 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["plaza", plazaSceneJson],
   ["cross", crossSceneJson],
   ["pit", pitSceneJson],
-  ["belt-zone", beltZoneSceneJson]
+  ["belt-zone", beltZoneSceneJson],
+  ["warpfield", warpfieldSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone";
+type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
@@ -422,6 +425,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // direction. Runs BEFORE bomb-fuse-system so a belt push on the
     // same tick a bomb detonates updates GridPosition first.
     scheduler.register(createKaboomConveyorBeltSystem({ occupancy }), { profiles: ["static"] });
+    // S149 KABOOM-WARP-HOLE — instant cross-arena teleport. Runs AFTER
+    // conveyor-belt so a belt-push that lands on a warp cell triggers
+    // the teleport in the same tick. Before bomb-fuse so a bomb that
+    // warps THIS tick is at its destination by the time the fuse
+    // resolves to zero next tick.
+    scheduler.register(createKaboomWarpHoleSystem({ occupancy }), { profiles: ["static"] });
     // S117 KABOOM-MP-SPRINT-B — fuse-system stays on the static path
     // only. On the connected profile the server is authoritative on the
     // fuse + emits blastEvent when it hits zero; running the local fuse

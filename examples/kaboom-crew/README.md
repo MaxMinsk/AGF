@@ -33,6 +33,7 @@ Optional query params:
   | cross      | 17×17 | + shaped hard-wall divider; 4 quadrants meet at centre.    |
   | pit        | 11×11 | Hard-block ring around a 9×9 interior; dense engagements.  |
   | belt-zone  | 15×11 | First hazard arena (S146): 5-cell `+X` conveyor across the middle + a 4-cell U-loop carousel in the corner. Belts push bombers + bombs every 400ms. |
+  | warpfield  | 15×11 | Second hazard arena (S149): 3 warp pairs (cyan / magenta / lime) teleport bombers + bombs across the map. 300 ms cooldown per pair prevents ping-pong. |
 
 - `?difficulty=easy` (default `normal`; also `hard`) — picks the bot
   preset applied to `bot.1` on first boot + every round restart.
