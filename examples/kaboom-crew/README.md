@@ -54,8 +54,13 @@ Optional query params:
 ### Power-ups
 
 Pickups drop from destroyed soft blocks at ~30 % chance per block.
-HUD shows the active flags per bomber in the bottom-left line:
-**K**ick, **R**emote-detonate, **S**hield, **P**ierce.
+S148: HUD shows the local player's power-ups as a bottom-left icon
+grid (row 1 = numeric bomb / fire / speed counts; row 2 = binary
+kick / remote / shield / pierce / throw-glove unlocks, full-colour
+when active, grey when locked). Every pickup triggers a centre-
+screen tooltip with a 96 px icon + label (`KICK`, `FIRE UP`, `PIERCE`,
+…) that fades after ~1.5 s — teaches the icon→effect mapping on
+every collect.
 
 | Kind             | Effect                                                                 |
 |---               |---                                                                     |
@@ -111,11 +116,14 @@ leaves `playing`. The HUD center banner reads `YOU WIN — restart in
 | Slot         | Widget                                                |
 |---           |---                                                    |
 | Bottom-left  | `Round N   W:A L:B D:C` + phase/timer + per-bomber    |
-|              | `bombs A/B fire C` lines (✗ marker on dead).          |
+|              | `bombs A/B fire C` lines (✗ marker on dead) + the     |
+|              | S148 power-up icon grid for the local player.         |
 | Bottom-right | Canvas2D minimap — triangle markers for bombers,      |
 |              | dark dots for live bombs, coloured rects for pickups. |
 | Centre       | Title-screen overlay before first round; win/loss     |
-|              | banner once the round resolves; otherwise empty.      |
+|              | banner once the round resolves; the S148 pickup       |
+|              | tooltip (96 px icon + label) for ~1.5 s after each    |
+|              | local pickup-collect.                                 |
 
 ## Agent surface
 
