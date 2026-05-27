@@ -29,7 +29,9 @@
     "HitRecoil": { "$ref": "#/definitions/hitRecoilComponent" },
     "SuddenDeathConfig": { "$ref": "#/definitions/suddenDeathConfigComponent" },
     "SuddenDeathState": { "$ref": "#/definitions/suddenDeathStateComponent" },
-    "SuddenDeathBlock": { "$ref": "#/definitions/suddenDeathBlockComponent" }
+    "SuddenDeathBlock": { "$ref": "#/definitions/suddenDeathBlockComponent" },
+    "AccessoryDebris": { "$ref": "#/definitions/accessoryDebrisComponent" },
+    "AccessoryDetachFired": { "$ref": "#/definitions/accessoryDetachFiredComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -82,6 +84,32 @@
       "properties": {
         "spawnedAtElapsedS": { "type": "number", "minimum": 0, "description": "RoundState.elapsed when this block was placed. Cosmetic; useful for animations / debug." },
         "ringIndex": { "type": "integer", "minimum": 0, "description": "0-based ring depth from the perimeter — 0 is the outermost ring." }
+      }
+    },
+    "accessoryDebrisComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S162 KABOOM-ACCESSORY-DETACH. Stamped on accessory entities that detached from a dying bomber. The accessory-detach system advances Transform.position using vx/vy/vz each tick, applies gravity, and tweens the mesh opacity to 0 in the final fadeMs. On lifetime expiry the entity is removed.",
+      "required": ["vx", "vy", "vz", "elapsedMs", "lifetimeMs"],
+      "properties": {
+        "vx": { "type": "number", "description": "Linear velocity X in cells/sec." },
+        "vy": { "type": "number", "description": "Linear velocity Y (vertical) in cells/sec." },
+        "vz": { "type": "number", "description": "Linear velocity Z in cells/sec." },
+        "spinX": { "type": "number", "default": 0, "description": "Rotation rate around X axis (deg/sec)." },
+        "spinY": { "type": "number", "default": 0, "description": "Rotation rate around Y axis (deg/sec)." },
+        "spinZ": { "type": "number", "default": 0, "description": "Rotation rate around Z axis (deg/sec)." },
+        "elapsedMs": { "type": "number", "minimum": 0, "description": "Time since detach (ms)." },
+        "lifetimeMs": { "type": "number", "minimum": 0, "description": "Total lifetime before removeEntity (ms)." },
+        "fadeMs": { "type": "number", "minimum": 0, "default": 300, "description": "Final-window duration (ms) over which the mesh scale tweens to 0." },
+        "gravity": { "type": "number", "default": 9.8, "description": "Vertical gravity in cells/sec² applied to vy each tick." }
+      }
+    },
+    "accessoryDetachFiredComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S162 KABOOM-ACCESSORY-DETACH. Marker on a bomber root that has already had its accessories detached this death — prevents the accessory-detach system from firing twice if alive flips back and forth on the same death frame.",
+      "properties": {
+        "firedAtElapsedS": { "type": "number", "minimum": 0 }
       }
     },
     "bomberStatsComponent": {
