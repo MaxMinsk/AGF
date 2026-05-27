@@ -95,7 +95,7 @@ describe("checkUnlocks (S156)", () => {
       maxChainLength: 5,
       deathsByOwnBomb: 5
     }), []);
-    expect(r.newlyUnlocked.sort()).toEqual(["chain-reactionist", "first-win", "pyromaniac"]);
+    expect([...r.newlyUnlocked].sort()).toEqual(["chain-reactionist", "first-win", "pyromaniac"]);
     expect(r.allUnlocked.length).toBe(3);
   });
 
@@ -144,7 +144,7 @@ describe("unlockedAccessoryKinds (S156)", () => {
 
   it("all 5 unlocks → all 5 accessory kinds", () => {
     const r = unlockedAccessoryKinds(["first-win", "survivalist", "chain-reactionist", "pyromaniac", "veteran"]);
-    expect(r.sort()).toEqual(["antennae", "backpack", "cap", "fins", "visor"]);
+    expect([...r].sort()).toEqual(["antennae", "backpack", "cap", "fins", "visor"]);
   });
 });
 

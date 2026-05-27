@@ -24,7 +24,7 @@ import type {
   ProjectUiHandle
 } from "../../engine/runtime/project-bootstrap";
 
-import { buildPivotRepositionCommands, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
+import { buildPivotRepositionCommands, spawnBomberAccessories, spawnBomberTree, type BomberTreeResult } from "./src/bomber-tree-spawner";
 import { accessoriesOf, defaultBenchState, mountsOf, postureOf, resolvePalette, shapesOf, sizesOf, spreadOf, texturingOf, type BenchState } from "./src/bench-state";
 import { ACCESSORY_KINDS, accessoryKey, generateAccessory } from "./src/accessories/catalog";
 import { generatePart } from "./src/generators/bomber-parts";
@@ -166,20 +166,31 @@ export const procbomberBenchBootstrap: ProjectBootstrap = {
         .map((e) => e.kind)
         .join(",");
       if (desiredKinds !== currentKinds) {
-        // Delete previous accessory entities.
+        // S157 FIX-BENCH-ACCESSORY-DISPLAY — delete the previous
+        // accessory entities + spawn the new ones via the dedicated
+        // spawnBomberAccessories helper. The old path called
+        // spawnBomberTree which re-issued entity.create for body
+        // parts that already existed → world.addEntity threw and the
+        // accessory spawn never ran. Dropdown changes had no visible
+        // effect on the character. The helper only touches the
+        // accessory branch so the body tree stays untouched.
         const deletes = tree.accessoryEntities.map((e) => ({
           kind: "entity.delete" as const,
           entityId: e.id
         }));
         if (deletes.length > 0) runtime.applyCommands(deletes);
-        // Re-spawn the tree's accessory branch only by calling
-        // spawnBomberTree again — duplicates of body parts get the
-        // same ids (idempotent component.set + entity.create on
-        // existing ids).
-        tree = spawnBomberTree(
+        const nextAccessories = spawnBomberAccessories(
           (cmds) => runtime.applyCommands(cmds),
           { rootId: BOMBER_ROOT_ID, sizes, accessories: desiredAccessories }
         );
+        // Update the tracked tree so the next rebuild diffs against
+        // the actual spawned entities.
+        tree = {
+          limbPivots: tree.limbPivots,
+          meshEntities: tree.meshEntities,
+          pivotEntities: tree.pivotEntities,
+          accessoryEntities: nextAccessories
+        };
       }
     };
     const scheduleRebuild = (): void => {

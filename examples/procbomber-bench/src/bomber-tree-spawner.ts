@@ -281,6 +281,13 @@ export function spawnBomberTree(
   // S106 KABOOM-ACCESSORY-SPAWNER. Spawn one entity per recipe accessory,
   // parented to the named mount socket's owning mesh (head or torso).
   // SoftAttached tag opts the entity into spring-pivot sway (S106-5).
+  //
+  // S157 FIX-BENCH-ACCESSORY-DISPLAY (2026-05-27): the accessory branch
+  // is also exposed as a standalone function (spawnBomberAccessories
+  // below) so the bench can rebuild accessories on dropdown change
+  // without re-running entity.create on body parts (which already
+  // exist + throw "Entity 'bomber.torso' already exists"). The inline
+  // version stays so the initial-spawn path is unchanged.
   const accessoryEntities: { id: string; kind: AccessoryKind; socket: MountSocketName }[] = [];
   const sockets = computeMountSockets(sizes);
   let accessorySlot = 0;
@@ -382,4 +389,116 @@ export function spawnBomberTree(
   applyCommands(commands);
 
   return { limbPivots, meshEntities, pivotEntities, accessoryEntities };
+}
+
+/**
+ * S157 FIX-BENCH-ACCESSORY-DISPLAY — spawn accessory entities only.
+ * Used by the bench's rebuildAll when the accessory dropdown set
+ * changes: callers delete the old accessory entities then call this
+ * to spawn the new ones, WITHOUT touching the body tree. Previously
+ * the bench re-ran spawnBomberTree which tried to entity.create the
+ * already-existing torso/head/limbs → world.addEntity threw + the
+ * accessory spawn never ran. Result: dropdown changes had no visible
+ * effect on the character.
+ *
+ * Mirrors the inline accessory branch in spawnBomberTree (sockets +
+ * mirror-fins). Returns the spawned accessoryEntities list so callers
+ * can track them for the next delete pass.
+ */
+export function spawnBomberAccessories(
+  applyCommands: (commands: ReadonlyArray<EngineCommand>) => void,
+  options: {
+    rootId: string;
+    sizes: BomberPartSizes;
+    accessories: ReadonlyArray<BomberAccessory>;
+    /** Optional seed suffix matching spawnBomberTree's keyPrefix scheme. Mostly unused outside multi-seed previews. */
+    seed?: string;
+  }
+): ReadonlyArray<{ id: string; kind: AccessoryKind; socket: MountSocketName }> {
+  const { rootId, sizes } = options;
+  const seedSuffix = options.seed !== undefined ? `#${options.seed}` : "";
+  const ent = (suffix: string): string => `${rootId}.${suffix}`;
+  const sockets = computeMountSockets(sizes);
+  const commands: EngineCommand[] = [];
+  const out: { id: string; kind: AccessoryKind; socket: MountSocketName }[] = [];
+  let slot = 0;
+  for (const accessory of options.accessories) {
+    const socketName = accessory.mountSocket ?? DEFAULT_SOCKET_BY_KIND[accessory.kind];
+    const socket = sockets[socketName];
+    if (socket === undefined) continue;
+    const parentId = ent(socket.parentSuffix);
+    const accessoryId = ent(`accessory${slot}.${accessory.kind}`);
+    slot += 1;
+    out.push({ id: accessoryId, kind: accessory.kind, socket: socketName });
+    commands.push({ kind: "entity.create", entityId: accessoryId });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "Transform",
+      data: {
+        parent: parentId,
+        position: socket.position,
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "MeshRenderer",
+      data: { mesh: `procedural:procbomber-accessory-${accessory.kind}${seedSuffix}` }
+    });
+    commands.push({ kind: "component.set", entityId: accessoryId, component: SOFT_ATTACHED, data: {} });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "SpringPivot",
+      data: { restRotation: [0, 0, 0], velocity: [0, 0, 0] }
+    });
+    commands.push({
+      kind: "component.set",
+      entityId: accessoryId,
+      component: "ShadowCaster",
+      data: { dynamic: true }
+    });
+    if (accessory.kind === "fins") {
+      const rightSocket = sockets["torso.sideR"];
+      const rightId = ent(`accessory${slot}.fins-mirror`);
+      slot += 1;
+      out.push({ id: rightId, kind: "fins", socket: "torso.sideR" });
+      commands.push({ kind: "entity.create", entityId: rightId });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "Transform",
+        data: {
+          parent: ent(rightSocket.parentSuffix),
+          position: rightSocket.position,
+          rotation: [0, 0, 0],
+          scale: [-1, 1, 1]
+        }
+      });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "MeshRenderer",
+        data: { mesh: `procedural:procbomber-accessory-fins${seedSuffix}` }
+      });
+      commands.push({ kind: "component.set", entityId: rightId, component: SOFT_ATTACHED, data: {} });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "SpringPivot",
+        data: { restRotation: [0, 0, 0], velocity: [0, 0, 0] }
+      });
+      commands.push({
+        kind: "component.set",
+        entityId: rightId,
+        component: "ShadowCaster",
+        data: { dynamic: true }
+      });
+    }
+  }
+  applyCommands(commands);
+  return out;
 }
