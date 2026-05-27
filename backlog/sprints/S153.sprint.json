@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/185",
   "notes": [
     "Promotes GDP-2026-05-27-009 (should-priority, KABOOM-CREW-MVP-2). Foundation for future cosmetic unlocks + cross-session match history. Lands a pure-additive localStorage layer: stable playerId, lifetime stats (matches, rounds, pickups, chains, self-deaths), per-kind pickup counter. No existing system changes — only NEW data persistence.",
     "Privacy stance documented explicitly in the module header + README: localStorage is per-origin per-browser; nothing leaves the user's machine; the user can clear it via browser tools at will.",
