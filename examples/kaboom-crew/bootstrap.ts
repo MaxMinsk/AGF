@@ -72,6 +72,7 @@ import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-li
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
+import { createKaboomCameraFollowSystem } from "./src/systems/camera-follow-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
@@ -152,6 +153,39 @@ function readRoundTimeLimit(): number {
     return parsed;
   } catch {
     return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+  }
+}
+
+// S163 — read camera-follow URL flags.
+function readCameraConfigFromUrl(): {
+  mode: "follow" | "centre" | "spectate";
+  viewSize: number;
+  spectateTargetId?: string;
+} {
+  const defaults = { mode: "follow" as const, viewSize: 11 / (2 * (16 / 9)) };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const p = new URLSearchParams(search);
+    const cam = p.get("camera") ?? "follow";
+    let mode: "follow" | "centre" | "spectate";
+    let spectateTargetId: string | undefined;
+    if (cam === "centre") mode = "centre";
+    else if (cam.startsWith("spectate-")) {
+      mode = "spectate";
+      spectateTargetId = cam.slice("spectate-".length);
+    } else mode = "follow";
+    const viewSizeRaw = p.get("viewSize");
+    const viewSizeParsed = viewSizeRaw === null ? Number.NaN : Number(viewSizeRaw);
+    const tileWide = Number.isFinite(viewSizeParsed) && viewSizeParsed >= 8 && viewSizeParsed <= 20
+      ? viewSizeParsed
+      : 11;
+    const orthoSize = tileWide / (2 * (16 / 9));
+    return spectateTargetId !== undefined
+      ? { mode, viewSize: orthoSize, spectateTargetId }
+      : { mode, viewSize: orthoSize };
+  } catch {
+    return defaults;
   }
 }
 
@@ -632,6 +666,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S162 KABOOM-ACCESSORY-DETACH — runs every fixedUpdate. Spawns
     // AccessoryDebris on bomber death, then integrates active debris.
     scheduler.register(createKaboomAccessoryDetachSystem(), { profiles: ["static"] });
+    // S163 KABOOM-CAMERA-FOLLOW — damped pursuit of the local player
+    // with arena-edge clamping. Runs each frameUpdate (presentation).
+    {
+      const cameraCfg = readCameraConfigFromUrl();
+      scheduler.register(
+        createKaboomCameraFollowSystem({
+          mode: cameraCfg.mode,
+          viewSize: cameraCfg.viewSize,
+          ...(cameraCfg.spectateTargetId !== undefined ? { spectateTargetId: cameraCfg.spectateTargetId } : {})
+        }),
+        { profiles: ["static"] }
+      );
+    }
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
     // toward the target cell. Used by `runtime.kaboom.gotoCell` (wired
