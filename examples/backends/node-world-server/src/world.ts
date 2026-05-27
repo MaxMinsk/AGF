@@ -109,7 +109,7 @@ const DEFAULT_MATCH_TARGET = 3;
 const ROUND_RESOLVE_NEXT_ROUND_DELAY_S = 3.0;
 
 /** Kaboom pickup kinds — matches the protocol's pickupCollected enum. */
-export type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce";
+export type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "bomb-pass";
 
 // Drop table — repeated entries scale relative frequency (S82 client mirror).
 const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
@@ -120,7 +120,9 @@ const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
   "remote-detonate",
   "shield",
   // S147 KABOOM-PIERCE-SERVER-PARITY — match the S142 client drop table.
-  "pierce"
+  "pierce",
+  // S154 KABOOM-BOMB-PASS-SERVER-PARITY — match the S152 client drop table.
+  "bomb-pass"
 ];
 const DEFAULT_DROP_CHANCE = 0.3;
 const DEFAULT_WORLD_SEED = 0xc0ffee;
@@ -140,6 +142,8 @@ type ServerBomberStats = {
   speed?: number;
   /** S147 KABOOM-PIERCE-SERVER-PARITY — true after collecting a pierce pickup; carried into Bomb.pierce on placement. */
   pierce?: boolean;
+  /** S154 KABOOM-BOMB-PASS-SERVER-PARITY — true after collecting a bomb-pass pickup; lets the bomber walk back through their OWN placed bombs. Others' bombs still block. Movement-only — no blast immunity. */
+  bombPass?: boolean;
 };
 
 const MAX_BOMBS_CAP = 8;
@@ -174,6 +178,11 @@ function applyPickupEffect(stats: ServerBomberStats, kind: PickupKind): ServerBo
       // at placement into Bomb.pierce so the placed bomb keeps the
       // property even if the bomber loses pierce afterwards.
       return stats.pierce === true ? undefined : { ...stats, pierce: true };
+    case "bomb-pass":
+      // S154 KABOOM-BOMB-PASS-SERVER-PARITY — idempotent flip.
+      // Consumed by the server's movement integration to allow the
+      // bomber to walk back through their own placed bombs.
+      return stats.bombPass === true ? undefined : { ...stats, bombPass: true };
     case "speed-up": {
       // S122 — speed-up authoritative on the server. Add SPEED_UP_STEP
       // to BomberStats.speed, capped at MAX_SPEED_CAP. Default base is
@@ -974,6 +983,39 @@ export class ServerWorld {
     return bombId;
   }
 
+  /**
+   * S154 KABOOM-BOMB-PASS-SERVER-PARITY — does a bomb at (gx, gz)
+   * block this bomber from entering? Mirrors the S152 client rule:
+   *   - Other's bomb → always blocks.
+   *   - Own bomb AND bomber is not currently on it AND bombPass !== true → blocks.
+   *   - Otherwise → no block.
+   * Returns false when there's no bomb at the cell.
+   */
+  private bombBlocksMovement(
+    bomberEntityId: string,
+    targetGx: number,
+    targetGz: number,
+    stats: ServerBomberStats | undefined
+  ): boolean {
+    for (const bombId of this.bombIds) {
+      const bombGp = this.world.getComponent<{ gx?: number; gz?: number }>(bombId, GRID_POSITION);
+      if (bombGp?.gx !== targetGx || bombGp?.gz !== targetGz) continue;
+      const bomb = this.world.getComponent<{ ownerId?: string }>(bombId, BOMB);
+      if (bomb === undefined) {
+        // Unknown bomb component — treat as blocking (defensive).
+        return true;
+      }
+      const isOwn = bomb.ownerId === bomberEntityId;
+      if (!isOwn) return true; // other's bomb → always blocks
+      // Own bomb. Server's integration loop calls this when the target
+      // cell IS different from the current cell, so "still on it"
+      // (grace) doesn't apply here — the bomber is walking BACK onto
+      // their own bomb. Allowed only when bombPass is set.
+      if (stats?.bombPass !== true) return true;
+    }
+    return false;
+  }
+
   setIntent(playerId: string, direction: Vec2, sequence: number | undefined): void {
     const entityId = playerEntityId(playerId);
     const intent = this.world.getComponent<IntentLike>(entityId, SERVER_INTENT_MOVE);
@@ -1018,11 +1060,36 @@ export class ServerWorld {
       let nextX = pos[0] ?? 0;
       let nextZ = pos[2] ?? 0;
       if (dx !== 0 || dz !== 0) {
-        nextX = nextX + dx * speed * dt;
-        nextZ = nextZ + dz * speed * dt;
-        this.world.setComponent(entityId, TRANSFORM, {
-          position: [nextX, pos[1] ?? 0.4, nextZ]
-        });
+        const tentativeX = nextX + dx * speed * dt;
+        const tentativeZ = nextZ + dz * speed * dt;
+        // S154 KABOOM-BOMB-PASS-SERVER-PARITY — block movement onto a
+        // bomb cell when the rule says it should be solid. Mirrors the
+        // S152 client kaboom-bomb-block-system. Computed on the cell
+        // the move would END UP IN; the current cell stays passable
+        // (natural step-off grace). Applied to HUMAN bombers only —
+        // the bot AI already has its own bomb avoidance via danger
+        // maps + doesn't currently track bomb-block in its BFS, so
+        // gating bots here would dead-end their pathing.
+        const currentGx = Math.round(nextX);
+        const currentGz = Math.round(nextZ);
+        const targetGx = Math.round(tentativeX);
+        const targetGz = Math.round(tentativeZ);
+        const crossesIntoNewCell = targetGx !== currentGx || targetGz !== currentGz;
+        const isHumanBomber = entityId.startsWith("player.");
+        let blocked = false;
+        if (crossesIntoNewCell && isHumanBomber) {
+          blocked = this.bombBlocksMovement(entityId, targetGx, targetGz, stats);
+        }
+        if (!blocked) {
+          nextX = tentativeX;
+          nextZ = tentativeZ;
+          this.world.setComponent(entityId, TRANSFORM, {
+            position: [nextX, pos[1] ?? 0.4, nextZ]
+          });
+        }
+        // When blocked, leave Transform untouched — the bomber stays
+        // on the current cell. Client predicts the move; the next
+        // snapshot reconciles by holding position.
       }
       // S118 KABOOM-MP-SPRINT-B chunk 2 — derive GridPosition from the
       // (possibly-updated) Transform. Always write — even when the
@@ -1422,6 +1489,9 @@ export class ServerWorld {
         // mode HUD's P-flag (S142 FEAT-KABOOM-PIERCE-HUD-001) lights up
         // for both tabs.
         if (stats.pierce === true) out["pierce"] = true;
+        // S154 KABOOM-BOMB-PASS-SERVER-PARITY — surface bombPass so the
+        // S148 HUD icon grid lights up on connected-mode clients too.
+        if (stats.bombPass === true) out["bombPass"] = true;
         // S122 — ship custom speed when it differs from the baseline.
         if (stats.speed !== undefined && stats.speed !== PLAYER_SPEED) {
           out["speed"] = stats.speed;

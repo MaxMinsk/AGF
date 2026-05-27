@@ -1,0 +1,66 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S154",
+  "title": "Bomb Pass server parity — node-world-server enforces the S152 bomb-block rule",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-010 Priority 1 only (Bomb Pass). The other four mirrors (Throw Glove, Conveyor, Warp, Pressure Plate) stay in the queue per the GDP's 'ship 3-of-5 per sprint MAX' guidance + this sprint goes for the smallest single-rule port that follows the S147 Pierce template.",
+    "Server scope expansion vs the GDP §3 P1: the GDP assumed server-side movement validation existed. The pre-S154 server's tick() loop integrated intent → Transform → GridPosition with NO collision check — the client owned movement validation and the server tracked loosely. To enforce the bomb-block rule the server now reverts the Transform write when the would-be cell holds a blocking bomb. This is a small but real change to server authority on movement.",
+    "Bot AI is INTENTIONALLY exempt from the server-side bomb-block: the bot's BFS path planner doesn't see bombs as obstacles, and gating bots here would dead-end their pathing without a deeper AI integration. The S125 hunter-routes regression test was updated to use a direct GridPosition write (instead of the previous setIntent walk that crossed the bot's bombing path) — same test intent (BFS around hard-wall pillar) with bomb-block-aware setup."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-BOMB-PASS-SERVER-001",
+      "title": "Server PickupKind + ServerBomberStats gain bomb-pass",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/world.ts — PickupKind union adds 'bomb-pass'. PICKUP_KINDS drop table includes 'bomb-pass' (single entry, matches the S152 client ~half-rarity). ServerBomberStats type adds optional `bombPass?: boolean`. applyPickupEffect gains the 'bomb-pass' branch: idempotent flip (stats.bombPass === true → undefined no-op).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: PickupKind + PICKUP_KINDS + ServerBomberStats + applyPickupEffect all carry bomb-pass; pickup flips BomberStats.bombPass=true; second pickup is a silent no-op."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-BLOCK-SERVER-001",
+      "title": "Server tick() loop reverts moves blocked by a bomb",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/world.ts — the movement integration in tick() now computes the would-be next cell and calls a new bombBlocksMovement helper before writing Transform. Other's bomb → block; own bomb post-step-off + bombPass !== true → block; otherwise allowed. When blocked, Transform stays at the previous position (client predicts; server reconciles via the next snapshot). Bot AI is exempt (entityId.startsWith('player.') gate) — bot BFS doesn't see bombs as obstacles.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: tick() integration computes tentativeX/Z; isHumanBomber + crossesIntoNewCell gate the bombBlocksMovement call; blocked moves leave Transform untouched. Helper inspects this.bombIds, distinguishes own vs other's bomb, honours bombPass."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-PASS-SNAPSHOT-001",
+      "title": "Snapshot ships BomberStats.bombPass for connected-mode HUD parity",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/world.ts — snapshot serializer emits BomberStats.bombPass when true. Lets the S148 HUD icon grid + S150 opponent-badges light up on connected-mode clients without protocol changes.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: snapshot's BomberStats includes bombPass: true after a bomb-pass pickup; absent before."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-BOMB-PASS-SERVER-001",
+      "title": "Parity tests + S125 regression update",
+      "status": "implemented",
+      "summary": "tests/unit/node-world-server-map.test.ts — new describe block (7 tests): pickup flips bombPass, snapshot ships bombPass, other's bomb blocks human, own bomb post-step-off blocks human (no bombPass), bombPass enables walk-back, bombPass does NOT cross-block others' bombs, bots are exempt. S125 hunter-routes regression test updated to use a direct GridPosition write — same intent, bomb-block-aware setup.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: 7 new parity tests pass; the S125 test now positions alice via direct GridPosition setComponent. 92/92 tests in node-world-server-map.test.ts green; 1734/1734 full vitest green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-BOMB-PASS-SERVER-001",
+      "title": "Archive GDP-2026-05-27-010 partial promotion",
+      "status": "implemented",
+      "summary": "GDP-2026-05-27-010 STAYS in proposed-stories — the remaining 4 ports (Throw Glove, Conveyor, Warp, Pressure Plate) are documented as deferred follow-ups in this sprint's notes. No archive yet; close-out will happen when the last port lands.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: sprint notes document the partial-promotion + the 4 remaining ports. GDP file untouched (game-designer's domain)."
+      ]
+    }
+  ]
+}
