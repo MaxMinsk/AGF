@@ -1,0 +1,46 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S163",
+  "title": "Camera follow + closer framing — damped pursuit of local player",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "PENDING",
+  "notes": [
+    "Implements GDP-2026-05-28-008. Camera now follows the local player (player.1) with damped lerp + arena-edge clamping + a ~11-tile-wide closer frame instead of fitting the whole arena. orthographicSize derives from the requested tile-width via aspect ratio (~16:9).",
+    "Out of scope per GDP: dead-bomber holdover transition, spectator [1]/[2]/[3]/[4] keybinds, look-ahead toward facing direction, multi-target framing. The URL flag ?camera=spectate-bomber.X works for spectator-by-id but no in-game UI for switching.",
+    "Live probe confirmed: at start of round camera.main.Camera.orthographicSize=3.09 (was 8), Transform.position lerping toward player.1 + offset, then snapping to arena-clamped centre when player near edge."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-CAMERA-FOLLOW-001",
+      "title": "Camera-follow system + arena-edge clamping",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/camera-follow-system.ts (NEW) — each frameUpdate reads the target bomber's Transform.position, clamps the desired centre to keep the orthographic frustum inside grid bounds, damps the camera position via frame-rate-aware exponential lerp (smoothing default 0.18), and writes the result. clampCameraToArena pure helper is exported for unit tests. Supports follow / centre / spectate modes.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: 13 unit tests cover the clamp helper (centre stays, left/right/top/bottom clamp, view-wider-than-arena case) and the system (snap follow, centre mode, missing target fallback, damping behaviour, orthographicSize override, large-arena corner follow, spectate mode, pitch applied)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-CAMERA-URL-001",
+      "title": "URL flags ?camera=follow|centre|spectate-X + ?viewSize=N",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — readCameraConfigFromUrl() parses the three modes + the 8..20 tile-wide viewSize. Camera-follow system is registered after sudden-death; mode + viewSize + spectateTargetId pass through.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: ?camera=centre disables follow; ?viewSize=16 widens the frame; ?camera=spectate-bot.1 follows the named bot."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-CAMERA-FOLLOW-001",
+      "title": "Unit tests + live verification",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/camera-follow-system.test.ts — 13 tests. Full kaboom unit suite still green. Live probe confirmed orthographicSize override + lerp toward player.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: typecheck + engine:check + 13 new tests pass; live probe shows the camera tightening to ~11-tile frame after Space."
+      ]
+    }
+  ]
+}
