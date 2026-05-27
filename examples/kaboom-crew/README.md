@@ -131,6 +131,29 @@ leaves `playing`. The HUD center banner reads `YOU WIN — restart in
 |              | tooltip (96 px icon + label) for ~1.5 s after each    |
 |              | local pickup-collect.                                 |
 
+## Player profile (S153)
+
+The project keeps a persistent player profile in `localStorage` under
+`kaboom.player.profile.v1`. It holds:
+
+- A stable `playerId` (generated once on first load, persists across
+  page refreshes + browser restarts).
+- `createdAt` + `lastSeenAt` timestamps.
+- Lifetime stats: matchesPlayed/Won, roundsPlayed/Won/Lost/Draw,
+  deathsByOwnBomb, chainReactionsTriggered + maxChainLength,
+  pickupsCollected per-kind counter.
+
+**Privacy stance**: localStorage is per-origin per-browser. Nothing
+leaves the user's machine — no analytics, no server transmission. The
+user can clear it any time via browser tools.
+
+Agent probes on `window.__agf.kaboom`:
+
+- `getProfile()` — returns the live profile.
+- `setProfileStats(partial)` — overrides stat values (QA / fixture
+  use).
+- `resetProfile()` — clears localStorage + starts fresh.
+
 ## Agent surface
 
 The project exposes a small control surface on

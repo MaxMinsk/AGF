@@ -90,6 +90,8 @@ import {
   powerupIconSvgInner,
   type PowerupIconKind
 } from "./src/powerup-icons";
+// S153 KABOOM-PLAYER-PROFILE — localStorage-backed persistent profile.
+import { createProfileStore, type ProfileStore } from "./src/profile/profile-store";
 // S150 KABOOM-OPPONENT-BADGES — Layer 3 of GDP-2026-05-27-005 (HUD
 // approximation; world-space billboards deferred to a follow-up).
 import {
@@ -760,6 +762,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       const persistedMuted = resolveAudioMuted({ storage: audioGlobals.localStorage });
       if (persistedMuted) audioFx.setMuted(true);
     }
+
+    // S153 KABOOM-PLAYER-PROFILE — bring up the localStorage-backed
+    // profile store. Hot path: round-resolve + pickup-collect hooks
+    // (wired later in the snapshot loop). Agent probes exposed via
+    // window.__agf.kaboom.{getProfile,setProfileStats,resetProfile}.
+    const profileStorage = audioGlobals.localStorage !== undefined
+      ? { storage: audioGlobals.localStorage }
+      : {};
+    const profileStore: ProfileStore = createProfileStore(profileStorage);
+    profileStore.get(); // ensure default profile exists + lastSeenAt updates
     _audioLog = [];
     _boundAudioEvent = (kind, c): void => {
       const entry: AudioLogEntry = { kind, ts: Date.now() };
@@ -1122,6 +1134,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           "voice-victory";
         audioFx.play(kind, { entityId });
         return !audioFx.isMuted();
+      },
+      // S153 — agent probes for the persistent player profile.
+      // getProfile() returns the live in-memory profile (mutating the
+      // result is safe — fields are copied per get()). setProfileStats
+      // is for QA / screenshot fixtures that want a specific stat
+      // baseline. resetProfile clears localStorage + drops the
+      // in-memory state so the next read creates a fresh profile.
+      getProfile(): unknown {
+        return profileStore.get();
+      },
+      setProfileStats(partial: Record<string, unknown>): void {
+        profileStore.setStats(partial as Parameters<typeof profileStore.setStats>[0]);
+        profileStore.flush();
+      },
+      resetProfile(): void {
+        profileStore.reset();
       }
     };
 
@@ -1502,6 +1530,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       // Diff source for local pickup-collect detection. Re-bound each
       // frame from the snapshot's pickup list.
       let prevPickupCells = new Map<string, string>();
+      // S153 — prior-frame round + match phase, used to detect
+      // resolved-transitions and bump profile stats exactly once per
+      // outcome. The first frame's "playing → playing" transition does
+      // nothing.
+      let prevRoundPhase: string = "playing";
+      let prevRoundNumber: number = 0;
+      let prevMatchPhase: string = "playing";
+      let prevMatchNumber: number = 0;
       const PICKUP_TOOLTIP_FADE_IN_MS = 150;
       const PICKUP_TOOLTIP_HOLD_MS = 1200;
       const PICKUP_TOOLTIP_FADE_OUT_MS = 300;
@@ -1578,6 +1614,37 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         const elapsed = Math.floor(s.round?.elapsed ?? 0);
         const roundNumber = s.round?.roundNumber ?? 1;
         const tally = s.round?.tally ?? { player: 0, bot: 0, draws: 0 };
+
+        // S153 — detect round-just-resolved (phase transitioned from
+        // 'playing' to one of 'won' | 'lost' | 'draw' within the same
+        // roundNumber). The roundNumber guard prevents a double-count
+        // when the auto-restart bumps numbers + phase together.
+        if (
+          prevRoundPhase === "playing" &&
+          phase !== "playing" &&
+          roundNumber === prevRoundNumber
+        ) {
+          const outcome: "won" | "lost" | "draw" =
+            phase === "won" ? "won" : phase === "lost" ? "lost" : "draw";
+          profileStore.recordRoundOutcome(outcome);
+        }
+        prevRoundPhase = phase;
+        prevRoundNumber = roundNumber;
+        // S153 — match transition: phase 'playing' → 'resolved'.
+        const profileMatchPhase = s.match?.phase ?? "playing";
+        const profileMatchNumber = s.match?.matchNumber ?? 1;
+        if (
+          prevMatchPhase === "playing" &&
+          profileMatchPhase === "resolved" &&
+          profileMatchNumber === prevMatchNumber
+        ) {
+          const winner = s.match?.lastMatchWinner;
+          const matchOutcome: "won" | "lost" | "draw" =
+            winner === "player" ? "won" : winner === "draw" ? "draw" : "lost";
+          profileStore.recordMatchOutcome(matchOutcome);
+        }
+        prevMatchPhase = profileMatchPhase;
+        prevMatchNumber = profileMatchNumber;
         // S115 KABOOM-MATCH-STRUCTURE — promote the tally line to include
         // match info. Format: `Match N | Round R/T | W:n L:n D:n`. When
         // MatchState isn't readable yet (first frame), fall back to the
@@ -1695,6 +1762,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           const wasHere = prevPickupCells.get(selfKey);
           if (wasHere !== undefined && !currentPickupCells.has(selfKey)) {
             showPickupTooltip(wasHere, accent);
+            // S153 — lifetime stat: per-kind pickup counter.
+            profileStore.recordPickup(wasHere);
           }
         }
         prevPickupCells = currentPickupCells;

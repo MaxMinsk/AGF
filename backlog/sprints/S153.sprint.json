@@ -1,0 +1,69 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S153",
+  "title": "Persistent player profile (localStorage MVP) — stable playerId + lifetime stats",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-009 (should-priority, KABOOM-CREW-MVP-2). Foundation for future cosmetic unlocks + cross-session match history. Lands a pure-additive localStorage layer: stable playerId, lifetime stats (matches, rounds, pickups, chains, self-deaths), per-kind pickup counter. No existing system changes — only NEW data persistence.",
+    "Privacy stance documented explicitly in the module header + README: localStorage is per-origin per-browser; nothing leaves the user's machine; the user can clear it via browser tools at will.",
+    "Scope reductions vs GDP §3:",
+    "- deathsByOwnBomb + chainReactionsTriggered + maxChainLength counters are SHIPPED in the store API (recordSelfDeath, recordChain) but the bootstrap event-hook for them is deferred to a follow-up. Round + match + pickup hooks ARE wired this sprint.",
+    "- preferredRecipeSeed field present in the schema but no recipe-reapplication path yet — opens the door without committing the wiring.",
+    "- ?showLifetime=true HUD indicator deferred. Agent probes (getProfile / setProfileStats / resetProfile) cover the v1 inspection surface."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-PROFILE-STORE-001",
+      "title": "profile-store module with localStorage persistence + debounced writes",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/profile/profile-store.ts (NEW). createProfileStore({ storage, now, genId, setTimeoutFn, clearTimeoutFn }) returns { get, load, flush, incrementStat, setStats, recordRoundOutcome, recordMatchOutcome, recordPickup, recordChain, recordSelfDeath, reset }. Stored under key 'kaboom.player.profile.v1'. Schema version mismatch + corrupt JSON fall back to defaults with a console.warn. 2-second write debounce batches rapid stat bumps; flush() forces immediate persistence. Default profile uses crypto.randomUUID() (with a Math.random fallback for older test envs).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: profile-store.ts ships the 11-method ProfileStore interface. createProfileStore handles empty storage, missing key, schema version mismatch, corrupt JSON. Debounced writes; flush() forces a write. 16 unit tests in profile-store.test.ts cover the full API."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PROFILE-EVENTS-001",
+      "title": "Bootstrap event hooks for round-resolve + match-resolve + pickup-collect",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — instantiate the profile store at attachUi (passing window.localStorage). Per-frame snapshot loop tracks prev round/match phase + number and emits recordRoundOutcome / recordMatchOutcome on the 'playing → won|lost|draw|resolved' transition (guarded against double-count by the round/match number tie). pickup-collect detection (the existing S148 wasHere flow for the tooltip) also calls profileStore.recordPickup(kind). Self-death + chain-reaction hooks deferred to a follow-up sprint.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts wires profileStore to round + match transitions + pickup-collect. prevRoundPhase + prevRoundNumber detect a single resolve event per round; match-resolved detected similarly. The S148 tooltip wasHere flow also bumps the per-kind pickup counter."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PROFILE-PROBES-001",
+      "title": "Agent probes — getProfile / setProfileStats / resetProfile",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — three new entries on the runtime.kaboom + window.__agf.kaboom surface. getProfile() returns the live profile. setProfileStats(partial) overrides counters + flushes immediately (QA / fixture use). resetProfile() clears the localStorage entry + drops the in-memory state.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: __agf.kaboom.getProfile() returns the live PlayerProfile object; setProfileStats({roundsWon: 10}) updates + persists; resetProfile() wipes storage + the next getProfile() returns a fresh playerId."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-PROFILE-001",
+      "title": "Unit tests covering the profile-store API end-to-end",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/profile-store.test.ts (NEW) — 16 tests: default-on-empty, memoised playerId, load-from-storage roundtrip with lastSeenAt refresh, schema version mismatch + corrupt JSON fall back to defaults (with console.warn), debounced writes + flush, recordRoundOutcome, recordMatchOutcome, recordPickup, recordChain (max tracking), recordSelfDeath, setStats partial replace, reset() flow, unknown-key forward-compat, 'pickupsCollected.X' sub-key route, undefined-storage in-memory mode.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: profile-store.test.ts — 16 tests pass; covers every record* method + the edge cases (mismatch, corrupt, undefined storage, unknown key). 1727/1727 full vitest suite green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-PROFILE-001",
+      "title": "README documents the profile + privacy stance + agent probes; archive GDP",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md gains a 'Player profile' section above the Agent surface section. Documents the localStorage key + version, the lifetime stats fields, the privacy stance (per-origin per-browser, no tracking, user-clearable), and the 3 agent probes. GDP-2026-05-27-009 archived to backlog/proposed-stories/archive/S153/.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README.md — Player profile section added (storage key, lifetime fields, privacy stance, agent probes). GDP-2026-05-27-009 → backlog/proposed-stories/archive/S153/."
+      ]
+    }
+  ]
+}
