@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/172",
   "notes": [
     "Promotes GDP-2026-05-26-003 (could-priority, KABOOM-CREW-MVP-2). First entry from the gameplay-systems §11 arena module catalogue: a conveyor belt is a chain of grid cells tagged with a direction vector; any bomber or bomb standing on a belt cell gets pushed one cell in the belt direction per N fixedUpdates. Belts add intentional grid-level movement that's not under player control — fundamental to the modern-arcade vocabulary (Boomerang Fu, Super Bomberman R, Bombergrounds: Reborn). Sets the pattern for future hazard modules (Warp Hole, Bomb Rail, Pressure Plate, etc.).",
     "Scope simplification vs the GDP spec: visuals use a flat colour-tinted floor instead of the proposed `hazard-stripes` scrolling shader (named in visual-style.md §3 but not yet implemented). Tint readability is enough for the playtest cycle; the shader work is deferred to a dedicated polish sprint. Bot AI integration also out of scope — bots treat belt cells as normal cells (no avoidance, no exploitation). New 'belt-zone' arena variant adds belts to a fresh scene so the mechanic ships with a place to playtest.",
