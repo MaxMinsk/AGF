@@ -5,11 +5,17 @@
 // bomber or bomb landing on a warp cell is teleported to the partner
 // cell (same pairId, opposite role) on the next fixedUpdate.
 //
-// Per-pair cooldown (300 ms) prevents infinite ping-pong: when an
-// entity warps, both cells of the pair stamp lastWarpAt to the
-// current sim time; subsequent warps within the cooldown window are
-// suppressed, so the bomber/bomb stays on the destination cell long
-// enough to step off.
+// QA-2026-05-27-001 fix — anti-ping-pong is PER-ENTITY, not per-pair.
+// When the system warps entity E from cell A to cell B, it records
+// recentlyWarpedTo[E] = B. As long as E's GridPosition stays on B,
+// the system skips E during its scan of B (E doesn't get re-warped
+// to A). The moment E's GridPosition changes (they walked off OR
+// were displaced by something else), the recording is cleared and E
+// becomes eligible again. Lets the user walk in → arrive → walk off,
+// no ping-pong, while still warping anyone else who arrives on the
+// cell. The earlier per-pair cooldown was a debounce that broke when
+// the player couldn't step off in 300 ms (gridmover at speed=4 takes
+// ~250 ms per cell — half the cooldown).
 //
 // Bombs warp normally while fuseRemaining > 0; bombs in the middle
 // of detonation (fuseRemaining = 0 + pending BlastEvent) are NOT
@@ -29,11 +35,11 @@ const BOMB: ComponentName = "Bomb";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_MOVER: ComponentName = "GridMover";
 
-const COOLDOWN_SECONDS = 0.3;
-
 type WarpHoleComponent = {
   pairId: number;
   role: "a" | "b";
+  // Legacy field — kept in the schema for backward-compat with already-
+  // authored scenes, but the system no longer reads or writes it.
   lastWarpAt?: number;
 };
 
@@ -60,41 +66,50 @@ export function createKaboomWarpHoleSystem(options: {
   const occupancy = options.occupancy;
   let cachedWorld: World | undefined;
   let warps: QueryHandle | undefined;
-  // Sim-time accumulator; using context.time.fixedDt instead of
-  // performance.now keeps the cooldown deterministic in tests.
-  let simTime = 0;
+  // Per-entity 'just warped to' tracking. Cleared as soon as the
+  // entity's GridPosition no longer matches the recorded destination
+  // cell (i.e. they walked off, or any other system displaced them).
+  // QA-2026-05-27-001 fix.
+  const recentlyWarpedTo = new Map<EntityId, { gx: number; gz: number }>();
 
   const fixedUpdate = (context: SystemContext): void => {
     const world = context.world;
     if (world !== cachedWorld) {
       warps = world.createQuery([WARP_HOLE, GRID_POSITION]);
       cachedWorld = world;
-      simTime = 0;
+      recentlyWarpedTo.clear();
     }
-    simTime += Math.max(0, context.time.fixedDt);
+
+    // Garbage-collect entries whose entity has moved off the recorded
+    // warp destination. Runs first so the scan below sees the up-to-
+    // date set. Also clears entries whose entity no longer exists.
+    for (const [entityId, target] of recentlyWarpedTo) {
+      if (!world.hasEntity(entityId)) {
+        recentlyWarpedTo.delete(entityId);
+        continue;
+      }
+      const pos = world.getComponent<GridPos>(entityId, GRID_POSITION);
+      if (pos === undefined || pos.gx !== target.gx || pos.gz !== target.gz) {
+        recentlyWarpedTo.delete(entityId);
+      }
+    }
 
     // Build pairId → (a-cell, b-cell) map. Iterating warp entities is
     // O(N) with N = number of warp cells, typically <8 per arena.
     const warpIds = [...warps!.run()].sort();
-    type PairEntry = { aId?: EntityId; bId?: EntityId; aPos?: GridPos; bPos?: GridPos; lastWarpAt: number };
+    type PairEntry = { aId?: EntityId; bId?: EntityId; aPos?: GridPos; bPos?: GridPos };
     const pairs = new Map<number, PairEntry>();
     for (const warpId of warpIds) {
       const warp = world.getComponent<WarpHoleComponent>(warpId, WARP_HOLE);
       const pos = world.getComponent<GridPos>(warpId, GRID_POSITION);
       if (warp === undefined || pos === undefined) continue;
-      const existing = pairs.get(warp.pairId) ?? { lastWarpAt: -Infinity };
+      const existing = pairs.get(warp.pairId) ?? {};
       if (warp.role === "a") {
         existing.aId = warpId;
         existing.aPos = pos;
       } else {
         existing.bId = warpId;
         existing.bPos = pos;
-      }
-      // Treat the absence of lastWarpAt as "never warped" so the first
-      // warp on a fresh pair isn't accidentally inside the cooldown
-      // window. Once the system stamps a value both ends share it.
-      if (warp.lastWarpAt !== undefined) {
-        existing.lastWarpAt = Math.max(existing.lastWarpAt, warp.lastWarpAt);
       }
       pairs.set(warp.pairId, existing);
     }
@@ -105,28 +120,19 @@ export function createKaboomWarpHoleSystem(options: {
         // Authoring error — engine:check should catch this at load.
         continue;
       }
-      if (simTime - entry.lastWarpAt < COOLDOWN_SECONDS) continue;
-
       // For each end of the pair, look at occupants and teleport them
-      // to the partner cell. We collect occupants first so we don't
-      // re-process the just-teleported entity on the partner cell in
-      // the same tick.
-      const aOccupants = collectWarpableOccupants(world, occupancy, entry.aPos.gx, entry.aPos.gz);
-      const bOccupants = collectWarpableOccupants(world, occupancy, entry.bPos.gx, entry.bPos.gz);
-      let warped = false;
+      // to the partner cell. Skip occupants whose recentlyWarpedTo
+      // matches THIS cell — they were just warped here and haven't
+      // stepped off yet.
+      const aOccupants = collectWarpableOccupants(world, occupancy, entry.aPos.gx, entry.aPos.gz, recentlyWarpedTo);
+      const bOccupants = collectWarpableOccupants(world, occupancy, entry.bPos.gx, entry.bPos.gz, recentlyWarpedTo);
       for (const id of aOccupants) {
         teleport(world, id, entry.bPos.gx, entry.bPos.gz);
-        warped = true;
+        recentlyWarpedTo.set(id, { gx: entry.bPos.gx, gz: entry.bPos.gz });
       }
       for (const id of bOccupants) {
         teleport(world, id, entry.aPos.gx, entry.aPos.gz);
-        warped = true;
-      }
-      if (warped) {
-        const stampedA = { ...world.getComponent<WarpHoleComponent>(entry.aId, WARP_HOLE)!, lastWarpAt: simTime };
-        const stampedB = { ...world.getComponent<WarpHoleComponent>(entry.bId, WARP_HOLE)!, lastWarpAt: simTime };
-        world.setComponent(entry.aId, WARP_HOLE, stampedA);
-        world.setComponent(entry.bId, WARP_HOLE, stampedB);
+        recentlyWarpedTo.set(id, { gx: entry.aPos.gx, gz: entry.aPos.gz });
       }
       void pairId;
     }
@@ -139,10 +145,16 @@ function collectWarpableOccupants(
   world: World,
   occupancy: GridOccupancyQuery,
   gx: number,
-  gz: number
+  gz: number,
+  recentlyWarpedTo: Map<EntityId, { gx: number; gz: number }>
 ): Array<EntityId> {
   const out: Array<EntityId> = [];
   for (const id of occupancy.occupants(gx, gz)) {
+    // QA-2026-05-27-001 — skip entities that were warped INTO this
+    // cell and haven't stepped off yet. Without this guard a stationary
+    // bomber on the destination cell ping-pongs forever every tick.
+    const recent = recentlyWarpedTo.get(id);
+    if (recent !== undefined && recent.gx === gx && recent.gz === gz) continue;
     if (world.hasComponent(id, BOMBER_STATS)) {
       const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
       if (stats?.alive === false) continue;
