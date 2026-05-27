@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S159",
   "title": "Dash mechanic — Shift+direction 2-cell arc burst with 3s cooldown",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/201",
   "notes": [
     "Implements GDP-2026-05-27-014. Walk + Kick + Throw glove were the only movement verbs; dash gives every bomber a universal escape/chase tool with a 3-second cooldown and 2-cell range.",
     "Scope kept tight to the GDP's MVP slice: schema + input edge-detect + dash-system + HUD cooldown ring + unit tests. Bot AI dash decisions, dash voice slot, and animation pose (mid-arc lean) are out of scope and remain in the GDP backlog.",
