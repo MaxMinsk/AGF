@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/194",
   "notes": [
     "Promotes GDP-2026-05-27-015 (could-priority, KABOOM-CREW-CHARACTERS). Direct response to playtest feedback 'человечки поворачиваться должны чуть анимировано а не резко менять направление'. Pure visual polish — gameplay logic stays instant on the GridMover direction; only Transform.rotation.y interpolates.",
     "Bundled with several non-sprint fixes shipped earlier in the session: bench accessory dropdown actually updates (PR #189), accessory sway calmed then disabled (PRs #190 + #191), shield actually absorbs blast (PR #193, the high-impact playtest bug). Those are tracked here for context but each had its own PR + isn't a sprint story."
