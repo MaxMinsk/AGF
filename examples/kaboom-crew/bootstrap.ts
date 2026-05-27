@@ -87,6 +87,13 @@ import {
   powerupIconSvgInner,
   type PowerupIconKind
 } from "./src/powerup-icons";
+// S150 KABOOM-OPPONENT-BADGES — Layer 3 of GDP-2026-05-27-005 (HUD
+// approximation; world-space billboards deferred to a follow-up).
+import {
+  badgesForOpponent,
+  isOpponent,
+  opponentAccentColor
+} from "./src/opponent-badges";
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
@@ -1370,6 +1377,61 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
       });
 
+      // S150 KABOOM-OPPONENT-BADGES — HUD-side approximation of Layer 3
+      // from GDP-2026-05-27-005. World-space billboards deferred to a
+      // follow-up (no engine billboard primitive yet). Per non-self
+      // ALIVE bomber with at least one discrete active state, render
+      // a row: [palette swatch] [bomber id] [active-state icons]. Hide
+      // rows where no discrete state is active (preserves the "is the
+      // bot a threat right now" telegraph; quiet HUD otherwise).
+      const OPPONENT_BADGES_ID = "kaboom.opponent-badges";
+      type OpponentBadgeRow = {
+        id: string;
+        icons: ReadonlyArray<PowerupIconKind>;
+        accent: string;
+      };
+      type OpponentBadgesData = { rows: ReadonlyArray<OpponentBadgeRow> };
+      hud.add({
+        id: OPPONENT_BADGES_ID,
+        slot: "bottomLeft",
+        initial: { rows: [] } as OpponentBadgesData,
+        render: (data: OpponentBadgesData): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute(
+            "style",
+            "display:flex;flex-direction:column;gap:2px;padding-top:6px;"
+          );
+          for (const row of data.rows) {
+            const rowEl = document.createElement("div");
+            rowEl.setAttribute(
+              "style",
+              "display:flex;align-items:center;gap:4px;font-size:10px;color:#f4e9d3;"
+            );
+            const swatch = document.createElement("div");
+            swatch.setAttribute(
+              "style",
+              `width:8px;height:8px;background:${row.accent};border:1px solid #0a0a0a;flex-shrink:0;`
+            );
+            rowEl.appendChild(swatch);
+            const idEl = document.createElement("div");
+            idEl.setAttribute("style", "font-weight:600;min-width:42px;");
+            idEl.textContent = row.id;
+            rowEl.appendChild(idEl);
+            for (const icon of row.icons) {
+              const wrap = document.createElement("div");
+              wrap.setAttribute(
+                "style",
+                "width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);"
+              );
+              wrap.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" aria-label="${icon}">${powerupIconSvgInner(icon)}</svg>`;
+              rowEl.appendChild(wrap);
+            }
+            el.appendChild(rowEl);
+          }
+          return el;
+        }
+      });
+
       // S148 KABOOM-POWERUP-TOOLTIP — transient centre-screen banner that
       // tells the player WHAT they just picked up. One active tooltip at
       // a time; replacement on rapid chains uses the same widget id so
@@ -1558,6 +1620,34 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             accent
           });
         }
+
+        // S150 KABOOM-OPPONENT-BADGES — push per-opponent active-state
+        // rows. Static MULTI_BOT_ASSIGNMENT supplies the personality →
+        // colour mapping for solo; connected mode (no personality)
+        // falls through to the rose accent.
+        const opponentRows: Array<OpponentBadgeRow> = [];
+        for (const p of s.players) {
+          if (!isOpponent(p.id)) continue;
+          const icons = badgesForOpponent({
+            alive: p.alive,
+            shield: p.shield,
+            pierce: p.pierce,
+            remoteDetonateCharges: p.remoteDetonateCharges,
+            canThrow: p.canThrow
+          });
+          if (icons.length === 0) continue;
+          // Personality for solo bots comes from the static assignment
+          // table; this stays in sync with kaboom-recipe.ts at compile
+          // time. Connected-mode bots don't expose personality in the
+          // snapshot yet (GDP-2026-05-27-003 work) → fallback hue.
+          const personality = MULTI_BOT_ASSIGNMENT.find((b) => b.id === p.id)?.personality;
+          opponentRows.push({
+            id: p.id,
+            icons,
+            accent: opponentAccentColor(personality)
+          });
+        }
+        hud.update(OPPONENT_BADGES_ID, { rows: opponentRows });
 
         // S148 KABOOM-POWERUP-TOOLTIP — diff prev vs current pickup
         // cells; any pickup that disappeared on the local player's

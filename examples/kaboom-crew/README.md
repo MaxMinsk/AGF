@@ -118,7 +118,10 @@ leaves `playing`. The HUD center banner reads `YOU WIN — restart in
 |---           |---                                                    |
 | Bottom-left  | `Round N   W:A L:B D:C` + phase/timer + per-bomber    |
 |              | `bombs A/B fire C` lines (✗ marker on dead) + the     |
-|              | S148 power-up icon grid for the local player.         |
+|              | S148 power-up icon grid for the local player + the    |
+|              | S150 opponent-badges strip (one compact row per alive |
+|              | non-self bomber with any active shield / pierce /     |
+|              | remote / throw-glove state; quiet otherwise).         |
 | Bottom-right | Canvas2D minimap — triangle markers for bombers,      |
 |              | dark dots for live bombs, coloured rects for pickups. |
 | Centre       | Title-screen overlay before first round; win/loss     |

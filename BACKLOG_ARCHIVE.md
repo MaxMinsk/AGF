@@ -154,5 +154,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S147](backlog/sprints/S147.sprint.json)** — Pierce-bomb server-side parity — node-world-server mirrors the S142 client branch — 6 implemented · archived 2026-05-27
 - **[S148](backlog/sprints/S148.sprint.json)** — Power-up HUD icons + pickup tooltip — Layers 1+2 of GDP-2026-05-27-005 — 6 implemented · archived 2026-05-27
 - **[S149](backlog/sprints/S149.sprint.json)** — Warp Hole arena module — second hazard from gameplay-systems §11 — 5 implemented · archived 2026-05-27
+- **[S150](backlog/sprints/S150.sprint.json)** — Opponent active-state badges — Layer 3 of GDP-2026-05-27-005 (HUD approximation) — 5 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->
