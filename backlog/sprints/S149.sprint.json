@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/177",
   "notes": [
     "Promotes GDP-2026-05-27-004 (could-priority, KABOOM-CREW-MVP-2). Second arena hazard module after the S146 conveyor belt. A warp pair is two grid cells linked bidirectionally; bombers and bombs entering one cell teleport to the partner cell on the next fixedUpdate. 300 ms per-pair cooldown prevents infinite ping-pong; bombs mid-detonation (fuseRemaining = 0) are NOT teleported so the blast fires at the warp cell instead of becoming a damage vector.",
     "Scope simplification vs GDP §3+§4: no warp-vortex shader (cyan / magenta / lime flat cylinders read clearly enough for playtest), no bot-AI integration (bots treat warp cells as normal cells), no audio event (defer to a follow-up polish sprint). Three pre-authored warp pairs in a new warpfield arena exercise the mechanic.",
