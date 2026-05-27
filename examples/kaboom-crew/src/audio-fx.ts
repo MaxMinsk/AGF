@@ -114,7 +114,7 @@ export const AUDIO_MUTED_STORAGE_KEY = "agf.audio.muted";
  */
 export function resolveAudioVolume(options: {
   search?: string;
-  storage?: { getItem(key: string): string | null; setItem(key: string, value: string): void } | undefined;
+  storage?: { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem?: (key: string) => void } | undefined;
   defaultVolume?: number;
 } = {}): number {
   const defaultVolume = Math.max(0, Math.min(1, options.defaultVolume ?? 1));
@@ -142,7 +142,28 @@ export function resolveAudioVolume(options: {
       const raw = storage.getItem(AUDIO_VOLUME_STORAGE_KEY);
       if (raw !== null) {
         const parsed = parseAudioVolumeParam(raw);
-        if (parsed !== undefined) return parsed;
+        if (parsed !== undefined) {
+          // QA-2026-05-27-001 follow-up — orphan-zero migration. Pre-
+          // fix-#181 the pause-menu Audio toggle wrote "0" to this
+          // key on mute. After #181 mute lives in agf.audio.muted +
+          // the toggle never writes "0" here again. But users whose
+          // localStorage was poisoned BEFORE #181 still have the
+          // legacy "0" stuck → masterGain = 0 on boot, world stays
+          // silent forever. When we see a stored 0 with no URL
+          // override + no muted flag set, treat it as legacy + clear
+          // it. Real "?audio=0" intentional silences come via the
+          // URL path above which sets fromUrl, so this branch is
+          // unreachable for the legitimate-silence case.
+          if (parsed === 0) {
+            try {
+              storage.removeItem?.(AUDIO_VOLUME_STORAGE_KEY);
+            } catch {
+              // ignore
+            }
+            return defaultVolume;
+          }
+          return parsed;
+        }
       }
     } catch {
       // ignore

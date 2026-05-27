@@ -270,7 +270,8 @@ describe("resolveAudioVolume (S86 AGF-AUDIO-VOLUME-DIAL)", () => {
       raw: store,
       api: {
         getItem(k: string): string | null { return store.get(k) ?? null; },
-        setItem(k: string, v: string): void { store.set(k, v); }
+        setItem(k: string, v: string): void { store.set(k, v); },
+        removeItem(k: string): void { store.delete(k); }
       }
     };
   }
@@ -292,6 +293,20 @@ describe("resolveAudioVolume (S86 AGF-AUDIO-VOLUME-DIAL)", () => {
     const s = fakeStorage({ "agf.audio.volume": "loud" });
     const out = resolveAudioVolume({ search: "", storage: s.api, defaultVolume: 1 });
     expect(out).toBe(1);
+  });
+  it("QA-2026-05-27-001 follow-up — legacy stored '0' (orphan from old mute-toggle bug) clears + returns defaultVolume", () => {
+    const s = fakeStorage({ "agf.audio.volume": "0" });
+    const out = resolveAudioVolume({ search: "", storage: s.api, defaultVolume: 1 });
+    expect(out).toBe(1);
+    // The migration also clears the legacy key so subsequent reads
+    // don't keep hitting the same path.
+    expect(s.raw.has("agf.audio.volume")).toBe(false);
+  });
+  it("URL `?audio=0` still produces 0 (intentional silence) + persists", () => {
+    const s = fakeStorage();
+    const out = resolveAudioVolume({ search: "?audio=0", storage: s.api });
+    expect(out).toBe(0);
+    expect(s.raw.get("agf.audio.volume")).toBe("0");
   });
 });
 

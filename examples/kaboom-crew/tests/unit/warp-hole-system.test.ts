@@ -117,9 +117,12 @@ describe("createKaboomWarpHoleSystem (S149)", () => {
     expect(pos.gz).toBe(9);
   });
 
-  it("per-entity model — walking off destination then back onto a warp re-fires", () => {
-    // Walk in → warp to B → step away (set pos to a non-warp cell) →
-    // step back onto a warp cell → should warp again.
+  it("post-cooldown re-entry re-fires the warp (~0.55 s grace then eligible again)", () => {
+    // After fix-#195 grace was extended to a time-based 0.55 s entity-
+    // wide cooldown (held-key continuous play would re-trigger
+    // immediately otherwise). Walking off + back onto a warp cell
+    // BEFORE the cooldown expires keeps the player put. AFTER the
+    // cooldown expires, re-entry triggers a fresh warp.
     const world = new World();
     addWarp(world, "warp.0.a", 2, 1, 0, "a");
     addWarp(world, "warp.0.b", 12, 9, 0, "b");
@@ -128,15 +131,22 @@ describe("createKaboomWarpHoleSystem (S149)", () => {
     const sys = createKaboomWarpHoleSystem({ occupancy: occ });
     tick(world, occ, sys);
     expect(world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!.gx).toBe(12);
-    // Walk to a non-warp cell first — clears the per-entity stamp.
+    // Walk off + back during the cooldown — no re-warp.
     world.setComponent("player.1", "GridPosition", { gx: 11, gz: 9 });
     tick(world, occ, sys);
-    // Now step BACK onto a warp cell. Eligible again — warps.
     world.setComponent("player.1", "GridPosition", { gx: 12, gz: 9 });
     tick(world, occ, sys);
-    const pos = world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!;
-    expect(pos.gx).toBe(2);
-    expect(pos.gz).toBe(1);
+    const mid = world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!;
+    expect(mid.gx).toBe(12);
+    // Move off + sleep through the cooldown (~40 ticks at 1/60 ≈ 0.67 s).
+    world.setComponent("player.1", "GridPosition", { gx: 11, gz: 9 });
+    tick(world, occ, sys, 40);
+    // Step back onto the warp cell — eligible again.
+    world.setComponent("player.1", "GridPosition", { gx: 12, gz: 9 });
+    tick(world, occ, sys);
+    const after = world.getComponent<{ gx: number; gz: number }>("player.1", "GridPosition")!;
+    expect(after.gx).toBe(2);
+    expect(after.gz).toBe(1);
   });
 
   it("two warp pairs run independently — pair-0 cooldown doesn't affect pair-1", () => {
