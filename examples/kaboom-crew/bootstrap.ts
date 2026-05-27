@@ -1989,6 +1989,20 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       const TITLE_FADE_MS = 250;
       let titleFadeStartMs: number | undefined;
 
+      // S166 KABOOM-SUDDEN-DEATH-VISUALS — deferred polish from
+      // GDP-2026-05-27-013 §VISUAL TREATMENT. On the first tick we
+      // observe SuddenDeathState.activated=true, mount a centre
+      // banner ("SUDDEN DEATH", red+cream, 1.5s) and a screen-edge
+      // red vignette pulse (0.5s fade-in / 0.5s fade-out).
+      const SUDDEN_DEATH_BANNER_ID = "kaboom.sudden-death-banner";
+      let suddenDeathPulseStartMs: number | undefined;
+      let suddenDeathBannerMounted = false;
+      let lastSuddenDeathActivated = false;
+      // Edge-vignette element — added on demand to the document body.
+      let suddenDeathVignette: HTMLElement | undefined;
+      const SUDDEN_DEATH_PULSE_TOTAL_MS = 1000;
+      const SUDDEN_DEATH_BANNER_TOTAL_MS = 1500;
+
       const update = (): void => {
         // S096 KABOOM-TITLE-SCREEN-FADE — fade rather than snap.
         if (titleScreenMounted && gameStarted) {
@@ -2004,6 +2018,110 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           } else {
             hud.update(TITLE_ID, { text: "Kaboom Crew\nPress SPACE to start", opacity });
           }
+        }
+
+        // S166 — drive sudden-death banner + vignette pulse.
+        try {
+          const sdSnap = runtime.snapshot();
+          const sdComponents = sdSnap.entities.find((e) => e.id === "kaboom.game-state")?.components as Record<string, unknown> | undefined;
+          const sd = sdComponents?.["SuddenDeathState"] as { activated?: boolean } | undefined;
+          const activated = sd?.activated === true;
+          if (activated && !lastSuddenDeathActivated) {
+            suddenDeathPulseStartMs = performance.now();
+            // Mount the banner once.
+            if (!suddenDeathBannerMounted) {
+              hud.add({
+                id: SUDDEN_DEATH_BANNER_ID,
+                slot: "center" as const,
+                initial: { opacity: 0 },
+                render: (data: { opacity: number }): HTMLElement => {
+                  const el = document.createElement("div");
+                  el.setAttribute(
+                    "style",
+                    [
+                      `opacity:${data.opacity}`,
+                      "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+                      "font-size:32px",
+                      "font-weight:800",
+                      "letter-spacing:6px",
+                      "color:#f4ede0",
+                      "text-shadow:0 0 12px #ff4040,0 0 4px #ff4040",
+                      "padding:14px 24px",
+                      "background:rgba(255,64,64,0.18)",
+                      "border:2px solid #ff4040",
+                      "pointer-events:none"
+                    ].join(";")
+                  );
+                  el.textContent = "SUDDEN DEATH";
+                  return el;
+                }
+              } as unknown);
+              suddenDeathBannerMounted = true;
+            }
+            // Mount the vignette once.
+            if (suddenDeathVignette === undefined) {
+              suddenDeathVignette = document.createElement("div");
+              suddenDeathVignette.id = "kaboom-sudden-death-vignette";
+              suddenDeathVignette.setAttribute(
+                "style",
+                [
+                  "position:fixed",
+                  "inset:0",
+                  "pointer-events:none",
+                  "z-index:9000",
+                  "box-shadow:inset 0 0 120px 60px rgba(255,64,64,0.0)",
+                  "transition:box-shadow 0.4s ease-out",
+                  "opacity:0"
+                ].join(";")
+              );
+              document.body.appendChild(suddenDeathVignette);
+            }
+          }
+          // Update banner + vignette opacity each tick of the pulse window.
+          if (suddenDeathPulseStartMs !== undefined) {
+            const elapsedMs = performance.now() - suddenDeathPulseStartMs;
+            // Banner fade in 250 ms → hold 1000 ms → fade out 250 ms = 1500 ms.
+            let bannerOpacity = 0;
+            if (elapsedMs < 250) bannerOpacity = elapsedMs / 250;
+            else if (elapsedMs < 1250) bannerOpacity = 1;
+            else if (elapsedMs < SUDDEN_DEATH_BANNER_TOTAL_MS) bannerOpacity = 1 - (elapsedMs - 1250) / 250;
+            else bannerOpacity = 0;
+            if (suddenDeathBannerMounted) {
+              hud.update(SUDDEN_DEATH_BANNER_ID, { opacity: bannerOpacity });
+              if (elapsedMs >= SUDDEN_DEATH_BANNER_TOTAL_MS) {
+                hud.remove(SUDDEN_DEATH_BANNER_ID);
+                suddenDeathBannerMounted = false;
+              }
+            }
+            // Vignette pulse: 0 → 0.7 over 400 ms, hold 200 ms, 0.7 → 0 over 400 ms.
+            if (suddenDeathVignette !== undefined) {
+              let vOpacity = 0;
+              if (elapsedMs < 400) vOpacity = elapsedMs / 400;
+              else if (elapsedMs < 600) vOpacity = 1;
+              else if (elapsedMs < SUDDEN_DEATH_PULSE_TOTAL_MS) vOpacity = 1 - (elapsedMs - 600) / 400;
+              else vOpacity = 0;
+              suddenDeathVignette.style.opacity = String(vOpacity * 0.7);
+              suddenDeathVignette.style.boxShadow = `inset 0 0 ${120 + vOpacity * 40}px ${40 + vOpacity * 60}px rgba(255,64,64,${0.5 * vOpacity})`;
+              if (elapsedMs >= Math.max(SUDDEN_DEATH_PULSE_TOTAL_MS, SUDDEN_DEATH_BANNER_TOTAL_MS)) {
+                suddenDeathPulseStartMs = undefined;
+              }
+            }
+          }
+          // Reset on round restart (activated flips back to false when
+          // the new round's SuddenDeathState is missing).
+          if (!activated && lastSuddenDeathActivated) {
+            if (suddenDeathBannerMounted) {
+              hud.remove(SUDDEN_DEATH_BANNER_ID);
+              suddenDeathBannerMounted = false;
+            }
+            suddenDeathPulseStartMs = undefined;
+            if (suddenDeathVignette !== undefined) {
+              suddenDeathVignette.style.opacity = "0";
+            }
+          }
+          lastSuddenDeathActivated = activated;
+        } catch {
+          // best-effort — sudden-death is presentation polish.
         }
 
         const s = api.status() as {
@@ -2428,6 +2546,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         hud.remove(MINIMAP_ID);
         hud.remove(KEYS_ID);
         if (tooltipOverlay !== undefined) tooltipOverlay.destroy();
+        if (suddenDeathBannerMounted) hud.remove(SUDDEN_DEATH_BANNER_ID);
+        if (suddenDeathVignette !== undefined) {
+          suddenDeathVignette.remove();
+          suddenDeathVignette = undefined;
+        }
       };
     }
 

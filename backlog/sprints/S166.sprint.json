@@ -1,0 +1,36 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S166",
+  "title": "Sudden Death visual cues — banner + screen-edge red vignette pulse",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "PENDING",
+  "notes": [
+    "Ships the §VISUAL TREATMENT polish from GDP-2026-05-27-013 that was deferred when S160 shipped sudden-death core logic. On the tick we observe SuddenDeathState.activated flipping false→true, mount a centre HUD banner ('SUDDEN DEATH', cream font, red-bordered card, 1.5 s fade-in/hold/fade-out cycle) plus a screen-edge red box-shadow vignette pulse (~1 s).",
+    "On round restart (SuddenDeathState component goes missing) both elements reset so the next round can re-trigger them.",
+    "Live probe (?suddenDeathTriggerS=2) confirmed: banner + vignette in DOM at activation moment; multi-variant red sudden-death walls visible alongside the vignette + the S165 hard/soft-block variants."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-SUDDEN-DEATH-BANNER-001",
+      "title": "Centre HUD banner — 'SUDDEN DEATH' fade-in/hold/fade-out",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — drives a kaboom.sudden-death-banner widget. 32 px cream font, letter-spacing 6 px, red text-shadow + red 2 px border. Fade-in 250 ms → hold 1000 ms → fade-out 250 ms.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: banner with text 'SUDDEN DEATH' present in DOM at activation moment; removed after 1.5 s; re-mounted on next round's activation."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-SUDDEN-DEATH-VIGNETTE-001",
+      "title": "Screen-edge red box-shadow vignette pulse",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — appends a kaboom-sudden-death-vignette div to document.body on first activation; per-frame opacity + box-shadow extent driven by elapsed-since-activation (peak at 0.4-0.6 s, fades by 1 s). Cleaned up on hudCleanup.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: #kaboom-sudden-death-vignette in DOM after activation; opacity > 0 during the 1 s pulse window; reset to 0 when the round ends."
+      ]
+    }
+  ]
+}
