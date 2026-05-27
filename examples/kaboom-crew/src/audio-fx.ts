@@ -545,13 +545,14 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     if (wantLog && typeof console !== "undefined") {
       console.info(`[kaboom voice] slot=${slot} entityId=${entityId} state=${c.state}`);
     }
-    // S148 — bump voice head gain to 1.6 so the formant signal sits a
-    // touch higher in the mix relative to the percussive SFX. Voice
-    // gains in voice-synth.ts top out around masterGain*0.30 for the
-    // vowel envelope, so the head multiplier compensates without
-    // clipping at masterGain=0.4 default.
+    // S148 + S158 — voice head gain. S158 voice synth raised its
+    // internal peak to masterGain*0.45 (was 0.30) so this head
+    // multiplier scales DOWN to 1.2 (was 1.6) to keep the final
+    // output comparable to percussive SFX without clipping at
+    // masterGain=0.4 default. The vowel still sits prominently in
+    // the mix.
     const head = c.createGain();
-    head.gain.setValueAtTime(1.6, c.currentTime);
+    head.gain.setValueAtTime(1.2, c.currentTime);
     connectOutput(c, head, position);
     emitVoice(c, colour, slot, { masterGain, terminal: head });
   }
