@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/202",
   "notes": [
     "Implements GDP-2026-05-27-013 MVP slice. At RoundState.elapsed >= triggerAtElapsedS (default 60 s) the sudden-death system begins spawning red hard-block rings from the arena perimeter inward, one ring per ringIntervalS (default 2 s). Bombers / bombs / pickups on a closing cell are cleared.",
     "Out of scope (deferred to follow-ups): bot AI flee-to-centre decision, screen-edge red pulse vignette, SUDDEN DEATH banner, klaxon + thud audio events, server-authoritative parity. Visual is currently a flat red emissive box per spawned cell — sells the read but doesn't yet have the upward-rise tween.",
