@@ -77,6 +77,14 @@ import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-syst
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioVolume } from "./src/audio-fx";
 import { forwardAudioEvent } from "./src/audio-event-forward";
+// S148 KABOOM-POWERUP-HUD — icon grid + pickup tooltip widgets read
+// the same per-frame snapshot the stats line uses.
+import {
+  PICKUP_ICON,
+  PICKUP_TOOLTIP_LABEL,
+  powerupIconSvgInner,
+  type PowerupIconKind
+} from "./src/powerup-icons";
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
 import { upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
@@ -992,6 +1000,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               canKick: (c["BomberStats"] as { canKick?: boolean })?.canKick,
               remoteDetonateCharges: (c["BomberStats"] as { remoteDetonateCharges?: number })?.remoteDetonateCharges,
               shield: (c["BomberStats"] as { shield?: boolean })?.shield,
+              speed: (c["BomberStats"] as { speed?: number })?.speed,
               pierce: (c["BomberStats"] as { pierce?: boolean })?.pierce,
               canThrow: (c["BomberStats"] as { canThrow?: boolean })?.canThrow,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
@@ -1265,6 +1274,150 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         }
       });
 
+      // S148 KABOOM-POWERUP-HUD — bottom-left icon grid. Replaces the
+      // text-flag suffix the stats line carried since S109. Row 1 is
+      // the three numeric stats (bomb / fire / speed) with a current
+      // value next to the icon. Row 2 is the binary unlocks (kick /
+      // remote / shield / pierce / throw-glove); active state renders
+      // full-colour with a thin cream outline, inactive renders
+      // desaturated at 30 % opacity. Per visual-style.md §1 + §8.3.
+      const POWERUP_GRID_ID = "kaboom.powerup-grid";
+      type PowerupGridData = {
+        bombs: { current: number; max: number };
+        fire: number;
+        speed: number;
+        canKick: boolean;
+        remote: boolean;
+        shield: boolean;
+        pierce: boolean;
+        canThrow: boolean;
+        accent: string;
+      };
+      const buildIconCell = (
+        kind: PowerupIconKind,
+        active: boolean,
+        label: string | undefined,
+        accent: string
+      ): HTMLElement => {
+        const wrap = document.createElement("div");
+        const opacity = active ? "1" : "0.32";
+        const outline = active ? `box-shadow:inset 0 0 0 1px ${accent};` : "";
+        wrap.setAttribute(
+          "style",
+          `display:flex;flex-direction:column;align-items:center;gap:1px;width:30px;height:36px;padding:2px;opacity:${opacity};${outline}background:rgba(0,0,0,0.32);`
+        );
+        const svgWrap = document.createElement("div");
+        svgWrap.setAttribute(
+          "style",
+          `width:24px;height:24px;display:flex;align-items:center;justify-content:center;filter:${active ? "none" : "grayscale(1)"};`
+        );
+        svgWrap.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" aria-label="${kind}">${powerupIconSvgInner(kind)}</svg>`;
+        wrap.appendChild(svgWrap);
+        if (label !== undefined) {
+          const txt = document.createElement("div");
+          txt.setAttribute("style", "font-size:9px;font-weight:600;color:#f4e9d3;line-height:1;");
+          txt.textContent = label;
+          wrap.appendChild(txt);
+        }
+        return wrap;
+      };
+      hud.add({
+        id: POWERUP_GRID_ID,
+        slot: "bottomLeft",
+        initial: {
+          bombs: { current: 0, max: 1 },
+          fire: 2,
+          speed: 0,
+          canKick: false,
+          remote: false,
+          shield: false,
+          pierce: false,
+          canThrow: false,
+          accent: "#5fa8ff"
+        } as PowerupGridData,
+        render: (data: PowerupGridData): HTMLElement => {
+          const el = document.createElement("div");
+          el.setAttribute(
+            "style",
+            "display:flex;flex-direction:column;gap:3px;padding-top:4px;"
+          );
+          const row1 = document.createElement("div");
+          row1.setAttribute("style", "display:flex;gap:3px;");
+          row1.appendChild(buildIconCell("bomb", true, `${data.bombs.current}/${data.bombs.max}`, data.accent));
+          row1.appendChild(buildIconCell("fire", true, String(data.fire), data.accent));
+          // Speed shows the *bonus level* (0+); 0 reads as "baseline" so
+          // we still light the icon at the baseline state.
+          row1.appendChild(buildIconCell("speed", true, `+${data.speed}`, data.accent));
+          el.appendChild(row1);
+          const row2 = document.createElement("div");
+          row2.setAttribute("style", "display:flex;gap:3px;");
+          row2.appendChild(buildIconCell("kick", data.canKick, undefined, data.accent));
+          row2.appendChild(buildIconCell("remote", data.remote, undefined, data.accent));
+          row2.appendChild(buildIconCell("shield", data.shield, undefined, data.accent));
+          row2.appendChild(buildIconCell("pierce", data.pierce, undefined, data.accent));
+          row2.appendChild(buildIconCell("throw-glove", data.canThrow, undefined, data.accent));
+          el.appendChild(row2);
+          return el;
+        }
+      });
+
+      // S148 KABOOM-POWERUP-TOOLTIP — transient centre-screen banner that
+      // tells the player WHAT they just picked up. One active tooltip at
+      // a time; replacement on rapid chains uses the same widget id so
+      // the existing instance just receives updated data.
+      const PICKUP_TOOLTIP_ID = "kaboom.pickup-tooltip";
+      type PickupTooltipData = {
+        kind: string;
+        opacity: number;
+        accent: string;
+      };
+      const pickupTooltipSpec = {
+        id: PICKUP_TOOLTIP_ID,
+        slot: "center" as const,
+        initial: { kind: "bomb-up", opacity: 0, accent: "#5fa8ff" } as PickupTooltipData,
+        render: (data: PickupTooltipData): HTMLElement => {
+          const el = document.createElement("div");
+          const icon = PICKUP_ICON[data.kind];
+          const label = PICKUP_TOOLTIP_LABEL[data.kind] ?? data.kind.toUpperCase();
+          el.setAttribute(
+            "style",
+            `display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 18px;background:rgba(0,0,0,0.55);border:1.5px solid ${data.accent};opacity:${data.opacity.toFixed(3)};`
+          );
+          if (icon !== undefined) {
+            const svgWrap = document.createElement("div");
+            svgWrap.innerHTML = `<svg viewBox="0 0 24 24" width="64" height="64" xmlns="http://www.w3.org/2000/svg" aria-label="${icon}">${powerupIconSvgInner(icon)}</svg>`;
+            el.appendChild(svgWrap);
+          }
+          const labelEl = document.createElement("div");
+          labelEl.setAttribute("style", "font-size:18px;font-weight:700;color:#f4e9d3;letter-spacing:1px;");
+          labelEl.textContent = label;
+          el.appendChild(labelEl);
+          return el;
+        }
+      };
+      let pickupTooltipMounted = false;
+      let pickupTooltipKind: string | undefined;
+      let pickupTooltipStartMs: number | undefined;
+      // Diff source for local pickup-collect detection. Re-bound each
+      // frame from the snapshot's pickup list.
+      let prevPickupCells = new Map<string, string>();
+      const PICKUP_TOOLTIP_FADE_IN_MS = 150;
+      const PICKUP_TOOLTIP_HOLD_MS = 1200;
+      const PICKUP_TOOLTIP_FADE_OUT_MS = 300;
+      const PICKUP_TOOLTIP_REPLACE_FADE_MS = 100;
+      const showPickupTooltip = (kind: string, accent: string): void => {
+        // Replacement path: if a tooltip is already on, fast-fade is
+        // implicit because we just overwrite the start time + data.
+        // Centre-slot bookkeeping mirrors the controls-hint widget.
+        if (!pickupTooltipMounted) {
+          hud.add(pickupTooltipSpec);
+          pickupTooltipMounted = true;
+        }
+        pickupTooltipKind = kind;
+        pickupTooltipStartMs = performance.now();
+        hud.update(PICKUP_TOOLTIP_ID, { kind, opacity: 0, accent });
+      };
+
       const colorFor = (id: string): string =>
         id === "player.1" ? "#5fa8ff" : id === "bot.1" ? "#ff7a36" : "#ffffff";
 
@@ -1313,7 +1466,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; speed?: number }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -1336,13 +1489,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         lines.push(`phase: ${phase}   ${timeStr}`);
         for (const p of s.players) {
           const dead = p.alive === false ? " ✗" : "";
-          // S109 — append a compact flag suffix `[KRSPT]` for any
-          // active power-up. K = canKick, R = remote-detonate > 0,
-          // S = shield, P = pierce (S142), T = throw-glove (S144).
-          const flags = `${p.canKick === true ? "K" : ""}${(p.remoteDetonateCharges ?? 0) > 0 ? "R" : ""}${p.shield === true ? "S" : ""}${p.pierce === true ? "P" : ""}${p.canThrow === true ? "T" : ""}`;
-          const flagSuffix = flags.length > 0 ? `   [${flags}]` : "";
+          // S148 — text power-up flags removed; the powerup-grid widget
+          // below renders the active state as icons. Stats line keeps
+          // bombs/fire for at-a-glance numeric reference only.
           lines.push(
-            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}${flagSuffix}`
+            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
           );
         }
         // S114 KABOOM-MP-HUD-PEER-COUNT — only render when there are
@@ -1372,6 +1523,79 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         // is also stuck (and the bug is upstream).
         const pressed = api.input();
         hud.update(KEYS_ID, { pressed });
+
+        // S148 KABOOM-POWERUP-HUD — push the local player's stats into
+        // the icon grid. Falls back to a clean default state when the
+        // self entity is missing (pre-spawn / between rounds).
+        const playerSelfForHud = s.players.find((p) => p.id === "player.1");
+        const accent = colorFor("player.1");
+        if (playerSelfForHud !== undefined) {
+          const selfSpeed = playerSelfForHud.speed;
+          // S122 — speed bonus level shown is (snapshot speed − baseline 3.5),
+          // rounded + clamped to 0. When speed is absent (solo client), the
+          // grid reads 0 (baseline).
+          const speedLevel = selfSpeed !== undefined && selfSpeed > 3.5
+            ? Math.max(0, Math.round(selfSpeed - 3.5))
+            : 0;
+          hud.update(POWERUP_GRID_ID, {
+            bombs: { current: playerSelfForHud.activeBombs ?? 0, max: playerSelfForHud.maxBombs ?? 1 },
+            fire: playerSelfForHud.range ?? 2,
+            speed: speedLevel,
+            canKick: playerSelfForHud.canKick === true,
+            remote: (playerSelfForHud.remoteDetonateCharges ?? 0) > 0,
+            shield: playerSelfForHud.shield === true,
+            pierce: playerSelfForHud.pierce === true,
+            canThrow: playerSelfForHud.canThrow === true,
+            accent
+          });
+        }
+
+        // S148 KABOOM-POWERUP-TOOLTIP — diff prev vs current pickup
+        // cells; any pickup that disappeared on the local player's
+        // current cell triggers the tooltip. Bot collects fall through
+        // silently — preserves the "where did that go" tension per the
+        // GDP §6.2 OUT-OF-SCOPE note.
+        const currentPickupCells = new Map<string, string>();
+        for (const pk of s.pickups) {
+          if (pk.gx === undefined || pk.gz === undefined || pk.kind === undefined) continue;
+          currentPickupCells.set(`${pk.gx},${pk.gz}`, pk.kind);
+        }
+        if (playerSelfForHud?.gx !== undefined && playerSelfForHud?.gz !== undefined) {
+          const selfKey = `${playerSelfForHud.gx},${playerSelfForHud.gz}`;
+          const wasHere = prevPickupCells.get(selfKey);
+          if (wasHere !== undefined && !currentPickupCells.has(selfKey)) {
+            showPickupTooltip(wasHere, accent);
+          }
+        }
+        prevPickupCells = currentPickupCells;
+
+        // S148 — drive the pickup-tooltip lifecycle (fade-in / hold /
+        // fade-out). Holding time is short on purpose — the icon grid
+        // carries the persistent state, the tooltip just teaches what
+        // was just collected.
+        if (pickupTooltipMounted && pickupTooltipStartMs !== undefined && pickupTooltipKind !== undefined) {
+          const age = performance.now() - pickupTooltipStartMs;
+          let opacity = 0;
+          if (age < PICKUP_TOOLTIP_FADE_IN_MS) {
+            opacity = age / PICKUP_TOOLTIP_FADE_IN_MS;
+          } else if (age < PICKUP_TOOLTIP_FADE_IN_MS + PICKUP_TOOLTIP_HOLD_MS) {
+            opacity = 1;
+          } else {
+            const fadeOut = age - PICKUP_TOOLTIP_FADE_IN_MS - PICKUP_TOOLTIP_HOLD_MS;
+            opacity = Math.max(0, 1 - fadeOut / PICKUP_TOOLTIP_FADE_OUT_MS);
+          }
+          if (opacity <= 0 && age > PICKUP_TOOLTIP_FADE_IN_MS + PICKUP_TOOLTIP_HOLD_MS) {
+            hud.remove(PICKUP_TOOLTIP_ID);
+            pickupTooltipMounted = false;
+            pickupTooltipKind = undefined;
+            pickupTooltipStartMs = undefined;
+          } else {
+            hud.update(PICKUP_TOOLTIP_ID, { kind: pickupTooltipKind, opacity, accent });
+          }
+        }
+        // Reference unused constants to keep the linter happy until the
+        // replace-fade animation lands (kept named for future use).
+        void PICKUP_TOOLTIP_REPLACE_FADE_MS;
 
         // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. Update the AudioListener
         // to track the local player so positional SFX pan relative

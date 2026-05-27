@@ -1,0 +1,76 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S148",
+  "title": "Power-up HUD icons + pickup tooltip — Layers 1+2 of GDP-2026-05-27-005",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes the first two layers of GDP-2026-05-27-005 (should-priority, KABOOM-CREW-MVP-2). Direct response to user playtest feedback 2026-05-27: 'непонятно какими повер-апами владеет игрок, приходится гадать'. Replaces the [KRSPT] text flag suffix with an icon grid (2 rows × 3-5 slots, 24×24 px) + a transient centre-screen pickup tooltip (96×96 icon + 1.5 s fade) that teaches the icon→pickup mapping on every collect.",
+    "Scope: LOCAL player HUD only. Layer 3 (opponent badges over remote bombers' heads) deferred to a follow-up sprint to keep this sprint focused + below 8 stories. The local-player HUD is the higher-impact piece per the user's wording ('игрок' — the player, not opponents).",
+    "Icon art is procedural inline SVG built from primitive shapes (rect / circle / path) per visual-style.md §8.3 — mono cream silhouettes, no rounded corners, no emoji. Zero new asset pipeline work; no jsdom dependency added (inner-markup is pure string)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-POWERUP-ICONS-001",
+      "title": "Procedural SVG icon library for the 8 power-up kinds",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/powerup-icons.ts (NEW) — single-file library exporting (1) powerupIconSvgInner(kind) returning the inner SVG markup as a string, (2) createPowerupIconSvg(kind, sizePx) returning an SVGSVGElement, (3) PICKUP_ICON + PICKUP_TOOLTIP_LABEL maps for the tooltip layer. Each icon is built from rect / circle / path primitives in a 24×24 viewBox so containers can scale to any size without re-authoring.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/src/powerup-icons.ts ships 8 distinct silhouettes (bomb, fire, speed, kick, remote, shield, pierce, throw-glove) + PICKUP_ICON + PICKUP_TOOLTIP_LABEL maps covering every shippable pickup kind (8 server kinds, 8 client kinds)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-POWERUP-HUD-GRID-001",
+      "title": "kaboom.powerup-grid HUD widget — bottomLeft icon grid",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — register a new HUD widget keyed by POWERUP_GRID_ID. Row 1 (always visible numeric stats): bomb / fire / speed icons with N/MAX or +N labels. Row 2 (binary unlocks): kick / remote / shield / pierce / throw-glove icons with active = full-colour + cream outline, inactive = grayscale + 32 % opacity. Player's primary palette colour tints the active outline.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts adds the powerup-grid widget in the bottomLeft slot with the 2-row layout; per-frame snapshot loop pushes BomberStats into it; active vs inactive states render with distinct opacity + grayscale filter."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-POWERUP-TOOLTIP-001",
+      "title": "kaboom.pickup-tooltip HUD widget — transient centre-screen banner on collect",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — register a new HUD widget keyed by PICKUP_TOOLTIP_ID. Mounts on local pickup-collect (detected via per-frame snapshot diff of pickup cells that disappear on the local player's current GridPosition), shows the 96×96 icon + label (e.g. 'KICK', 'FIRE UP'), fades in over 150 ms, holds 1200 ms, fades out over 300 ms. Replacement chain reuses the same widget id so the next collect just resets the start time + data.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts adds the pickup-tooltip widget in the center slot; pickup-disappear-on-local-cell detection drives the showPickupTooltip path; lifecycle (fade-in 150 / hold 1200 / fade-out 300) drives opacity from 0 → 1 → 0 then removes the widget."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-POWERUP-HUD-INTEGRATION-001",
+      "title": "Replace [KRSPT] text flag suffix; thread snapshot stats.speed",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — stats line drops the `   [KRSPT]` suffix from the per-bomber row (icon grid carries the same information visually). status() function gains stats.speed off BomberStats so the powerup-grid can render the speed bonus level. Players type alias extends with speed?: number.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts stats line per-bomber row is `id bombs N/M fire X` with no flag suffix; status().players returns speed; powerup-grid reads it as speedLevel = max(0, round(speed − 3.5))."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-POWERUP-ICONS-001",
+      "title": "Unit tests for the icon library + pickup-kind coverage",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/powerup-icons.test.ts (NEW) — 33 tests: each kind produces non-empty markup (8) + uses the cream fill colour (8) + 8 distinct silhouettes (1) + PICKUP_ICON covers all 8 pickup kinds (8) + PICKUP_TOOLTIP_LABEL covers all 8 (8). No DOM dependency: tests the inner-markup string only (createPowerupIconSvg is a thin DOM wrapper covered by the live HUD).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/powerup-icons.test.ts — 33 tests pass; no jsdom dependency added."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-POWERUP-HUD-001",
+      "title": "README + GDP archive",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — replace the K/R/S/P/T flag legend (if present) with a brief paragraph: 'The bottom-left HUD shows the local player's power-ups as an icon grid. The transient banner that appears on pickup names what you just collected.' GDP-2026-05-27-005 stays in proposed-stories (Layer 3 still pending) but a note is added documenting the split.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README.md updated — the K/R/S/P/T flag legend replaced by a paragraph describing the icon grid + pickup tooltip; the HUD slot table mentions both widgets. GDP-2026-05-27-005 stays in proposed-stories (Layer 3 still pending); sprint notes document the split."
+      ]
+    }
+  ]
+}
