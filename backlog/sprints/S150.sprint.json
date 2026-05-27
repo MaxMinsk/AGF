@@ -1,0 +1,66 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S150",
+  "title": "Opponent active-state badges — Layer 3 of GDP-2026-05-27-005 (HUD approximation)",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Completes the third layer of GDP-2026-05-27-005. The user now sees discrete active-state icons (shield / pierce / remote-charges > 0 / throw-glove) per non-self ALIVE bomber in the bottom-left HUD panel, with a personality-coloured swatch so they map back to the on-screen bomber at a glance. Hidden when no discrete state is active — the panel stays quiet during the early game and only telegraphs current threats.",
+    "Deviation from GDP §3 Layer 3: the canonical spec calls for world-space billboards above each bomber's head. The engine has no world-to-screen / billboard primitive yet, so this sprint ships a HUD-side approximation. Same pattern S146 (conveyor belt) + S149 (warp-hole) used for their fancy shader/visual deferrals. The world-space variant is filed as a deferred follow-up in the GDP archive note.",
+    "Strictly excludes numeric stats (bombs / fire / speed levels) and Kick — the GDP explicitly preserves the tactical guessing layer for those (gameplay-systems.md §14)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-OPPONENT-BADGES-EXTRACT-001",
+      "title": "Pure badge extractor + accent palette helper",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/opponent-badges.ts (NEW) — exports badgesForOpponent(stats) returning a fixed-order array of PowerupIconKind for the discrete-state set (shield / pierce / remote when charges > 0 / throw-glove). Dead bombers return []. Also exports LOCAL_BOMBER_ID + isOpponent(id) helpers and opponentAccentColor(personality) mapping hunter/coward/miner → palette head hex (rose fallback for unknown).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: opponent-badges.ts ships badgesForOpponent + isOpponent + opponentAccentColor. Order is fixed (shield, pierce, remote, throw-glove). Dead bombers + zero remote charges + zero discrete states all return []."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-OPPONENT-BADGES-WIDGET-001",
+      "title": "kaboom.opponent-badges HUD widget",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — register a new HUD widget keyed by OPPONENT_BADGES_ID. Renders one row per opponent with at least one active state: [palette swatch 8×8 px] [bomber id] [16×16 icon strip]. Rows stack vertically in the bottomLeft slot, below the powerup-grid. Hidden when the rows array is empty.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts adds the OPPONENT_BADGES_ID widget in the bottomLeft slot with vertical stack layout. Each row carries a swatch tinted by opponentAccentColor + the bomber id + the icon strip from badgesForOpponent."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-OPPONENT-BADGES-INTEGRATION-001",
+      "title": "Per-frame snapshot push for opponent badges",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — every animation frame, iterate s.players, filter out the LOCAL_BOMBER_ID, compute badgesForOpponent(stats) for each. Skip rows with empty icon arrays (no clutter). MULTI_BOT_ASSIGNMENT supplies personality → accent for solo bots; connected-mode bots fall through to the rose accent until GDP-2026-05-27-003 surfaces personality in the protocol.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bootstrap.ts per-frame loop pushes { rows: [...] } into the opponent-badges widget; empty-icon opponents are skipped; personality → accent comes from MULTI_BOT_ASSIGNMENT for solo, falls through to rose for unknown."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-OPPONENT-BADGES-001",
+      "title": "Unit tests for badge extractor + helpers",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/opponent-badges.test.ts (NEW) — 17 tests: badgesForOpponent (dead, all-off, each state on, fixed order, never numeric / kick, zero remote charges, undefined alive defaults), isOpponent (local + 4 opponent ids), opponentAccentColor (hunter / coward / miner / unknown fallback).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/opponent-badges.test.ts — 17 tests pass; covers every discrete state branch + the personality colour map."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-OPPONENT-BADGES-001",
+      "title": "README + GDP archive",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — HUD slot table mentions the opponent-badges strip. GDP-2026-05-27-005 archived to backlog/proposed-stories/archive/S150/ (all three layers now shipped; world-space billboard variant deferred to a future polish sprint per sprint notes).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README HUD slot table updated. GDP-2026-05-27-005 → backlog/proposed-stories/archive/S150/."
+      ]
+    }
+  ]
+}
