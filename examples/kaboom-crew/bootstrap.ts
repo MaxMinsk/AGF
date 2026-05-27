@@ -23,6 +23,9 @@ import { createMinimapWidget } from "../../engine/runtime/ui/minimap";
 import startSceneJson from "./scenes/start.scene.json";
 import wideSceneJson from "./scenes/wide.scene.json";
 import corridorSceneJson from "./scenes/corridor.scene.json";
+import plazaSceneJson from "./scenes/plaza.scene.json";
+import crossSceneJson from "./scenes/cross.scene.json";
+import pitSceneJson from "./scenes/pit.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -147,9 +150,12 @@ const PROJECT_PREFABS: ReadonlyMap<string, PrefabDefinition> = new Map<string, P
 const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["start", startSceneJson],
   ["wide", wideSceneJson],
-  ["corridor", corridorSceneJson]
+  ["corridor", corridorSceneJson],
+  ["plaza", plazaSceneJson],
+  ["cross", crossSceneJson],
+  ["pit", pitSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor";
+type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.

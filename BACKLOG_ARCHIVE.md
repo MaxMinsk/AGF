@@ -148,5 +148,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S140](backlog/sprints/S140.sprint.json)** — Arena variety — corridor map + random pick per page load — 6 implemented · archived 2026-05-25
 - **[S141](backlog/sprints/S141.sprint.json)** — Multi-bot solo — 3 bots, one of each personality — 6 implemented · archived 2026-05-26
 - **[S142](backlog/sprints/S142.sprint.json)** — Pierce-bomb power-up — blast walks through the first soft block — 8 implemented · archived 2026-05-26
+- **[S143](backlog/sprints/S143.sprint.json)** — Arena variants — plaza + cross + pit (3 of 4 from GDP-2026-05-26-001 still missing after S140) — 8 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->
