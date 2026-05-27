@@ -22,7 +22,8 @@ const KINDS: ReadonlyArray<PowerupIconKind> = [
   "remote",
   "shield",
   "pierce",
-  "throw-glove"
+  "throw-glove",
+  "bomb-pass"
 ];
 
 describe("powerupIconSvgInner", () => {
@@ -58,7 +59,8 @@ describe("PICKUP_ICON mapping", () => {
     "remote-detonate",
     "shield",
     "pierce",
-    "throw-glove"
+    "throw-glove",
+    "bomb-pass"
   ];
 
   for (const kind of REQUIRED_PICKUP_KINDS) {

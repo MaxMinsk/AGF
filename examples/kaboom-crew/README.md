@@ -74,6 +74,7 @@ every collect.
 | `shield` (S109)  | One-shot absorbs the next lethal blast; shield flips off.              |
 | `pierce` (S142)  | Next placed bomb's blast walks through the **first** soft block in each direction (still destroys it). Second soft block in the same direction stops the lane normally. Carried at placement time. |
 | `throw-glove` (S144) | Press **T** while standing on your own bomb to pick it up (fuse pauses). Press **T** again to throw the bomb 3 cells in your facing direction in an arc over obstacles (graceful fallback to ×2 / ×1 / your cell when blocked). Fuse resumes on landing. |
+| `bomb-pass` (S152) | Walk back through your OWN placed bombs (after stepping off). Other bombers' bombs still block you. Movement-only — does NOT grant blast immunity. Pairs with the S152 classic-Bomberman baseline: bombs are now solid for bombers (own bomb after step-off; others' bombs always). |
 
 ## Controls
 

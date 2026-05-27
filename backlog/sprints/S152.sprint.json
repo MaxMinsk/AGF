@@ -1,0 +1,76 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S152",
+  "title": "Bomb Pass power-up + classic-Bomberman bomb-block baseline",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-007 (could-priority, KABOOM-CREW-MVP-2). The GDP assumes 'bombs block bombers (with a placement grace tick)' as the baseline that Bomb Pass overrides. The pre-S152 engine actually let bombers walk freely through any bomb — no baseline. This sprint ships BOTH: the classic-Bomberman bomb-block baseline (own bomb is solid for the placer after they step off; others' bombs always solid) AND the Bomb Pass override for the placer's own bombs.",
+    "Implementation: a new project-local kaboom-bomb-block-system runs every frameUpdate AFTER player-input + bot-ai but BEFORE the engine's grid-movement-system (in registration order). It clears GridMover.queuedDirection when the would-be destination cell holds a blocking bomb (other's bomb, or own bomb post-step-off without bombPass). Grace is implicit: a bomb-cell-bound bomber moving to a NEIGHBOUR never has the bomb in the target cell. Mid-tween bombers (targetGx set) are skipped — the move was validated when it started.",
+    "Server parity (multiplayer connected mode) deferred — node-world-server's blast/placement pipeline is the next surface to mirror this; tracked as a follow-up."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-BOMB-PASS-001",
+      "title": "Pickup.kind enum + BomberStats.bombPass schema",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — Pickup.kind enum gains 'bomb-pass'. BomberStats gains optional `bombPass: boolean` (default false). Description blurb references GDP-2026-05-27-007 + the S152 baseline pairing.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: scene-extensions.schema.json — Pickup.kind enum adds 'bomb-pass'; BomberStats gains bombPass boolean. engine:check kaboom-crew passes."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-PASS-PICKUP-001",
+      "title": "pickup-spawn + pickup-collect plumbing for bomb-pass",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/pickup-spawn-system.ts — 'bomb-pass' in PickupKind union + PICKUP_VISUAL (wide flat purple disc, distinct from the existing 8 kinds) + PICKUP_KINDS drop table (single entry, ~half rarity matching kick/pierce/throw-glove). examples/kaboom-crew/src/systems/pickup-collect-system.ts — new 'bomb-pass' branch flips BomberStats.bombPass = true; idempotent silent no-op when already true.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: pickup-spawn-system carries 'bomb-pass' in the visual table + drop table; pickup-collect-system flips BomberStats.bombPass=true on first collection, idempotent on repeats."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-BLOCK-SYSTEM-001",
+      "title": "bomb-block-system — classic baseline + bombPass override",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/bomb-block-system.ts (NEW). Project-local frameUpdate system that intercepts movement BEFORE grid-movement reads queuedDirection. Per bomber: if the would-be target cell holds a bomb that's (a) not the bomber's own → block, or (b) own bomb AND bomber.bombPass !== true → block. Blocking = setComponent(GridMover, queuedDirection={dx:0,dz:0}). Skips dead bombers + bombers mid-tween (targetGx set). Registered in both static + connected profiles after player-input + bot-ai.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bomb-block-system.ts (NEW) — per-frame intercept on GridMover.queuedDirection. Other's bomb at target → block. Own bomb post-step-off without bombPass → block. Own bomb post-step-off WITH bombPass → allowed. Walking AWAY from own bomb (target is neighbour) → no block (natural grace). Mid-tween + dead skipped. Registered in scheduler after player-input + bot-ai."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-PASS-HUD-001",
+      "title": "Power-up HUD: bomb-pass icon slot",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/powerup-icons.ts — 'bomb-pass' added to PowerupIconKind union with a bomb-with-arrows-through silhouette; PICKUP_ICON + PICKUP_TOOLTIP_LABEL maps extended. examples/kaboom-crew/bootstrap.ts — PowerupGridData gains bombPass; row 2 of the powerup-grid renders a 6th binary slot; status().players surfaces bombPass; per-frame loop pushes it.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: powerup-icons.ts ships the 9th icon ('bomb-pass'). PICKUP_ICON + PICKUP_TOOLTIP_LABEL cover it. Powerup-grid row 2 renders a 6th cell that lights up when bombPass=true."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-BOMB-PASS-001",
+      "title": "Unit tests for the bomb-block-system + icon coverage",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/tests/unit/bomb-block-system.test.ts (NEW) — 11 tests: empty cell (no block), other's bomb (block), own bomb walking-away (no block, natural grace), own bomb walk-back without bombPass (block), own bomb walk-back WITH bombPass (allowed), bombPass does NOT cross-block others' bombs, mid-tween skipped, dead skipped, zero-direction no-op, kick combo (bomber walks into kicked bomb's old empty cell), multi-bomb cell (any blocking bomb blocks). examples/kaboom-crew/tests/unit/powerup-icons.test.ts extended with the bomb-pass kind (icon distinctness + pickup mappings).",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: bomb-block-system.test.ts — 11 tests pass; powerup-icons.test.ts gains bomb-pass coverage. 1711/1711 vitest green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-BOMB-PASS-001",
+      "title": "README + GDP archive",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/README.md — bomb-pass row added to the power-ups table with the baseline-pairing note. GDP-2026-05-27-007 archived to backlog/proposed-stories/archive/S152/. Server-parity follow-up documented in this sprint's notes.",
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: README power-ups table gains the bomb-pass row. GDP-2026-05-27-007 → backlog/proposed-stories/archive/S152/."
+      ]
+    }
+  ]
+}
