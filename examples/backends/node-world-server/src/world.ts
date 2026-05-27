@@ -109,7 +109,7 @@ const DEFAULT_MATCH_TARGET = 3;
 const ROUND_RESOLVE_NEXT_ROUND_DELAY_S = 3.0;
 
 /** Kaboom pickup kinds — matches the protocol's pickupCollected enum. */
-export type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield";
+export type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce";
 
 // Drop table — repeated entries scale relative frequency (S82 client mirror).
 const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
@@ -118,7 +118,9 @@ const PICKUP_KINDS: ReadonlyArray<PickupKind> = [
   "speed-up", "speed-up",
   "kick",
   "remote-detonate",
-  "shield"
+  "shield",
+  // S147 KABOOM-PIERCE-SERVER-PARITY — match the S142 client drop table.
+  "pierce"
 ];
 const DEFAULT_DROP_CHANCE = 0.3;
 const DEFAULT_WORLD_SEED = 0xc0ffee;
@@ -136,6 +138,8 @@ type ServerBomberStats = {
   shield?: boolean;
   /** S122 — additive movement speed in cells/sec; default PLAYER_SPEED when absent. */
   speed?: number;
+  /** S147 KABOOM-PIERCE-SERVER-PARITY — true after collecting a pierce pickup; carried into Bomb.pierce on placement. */
+  pierce?: boolean;
 };
 
 const MAX_BOMBS_CAP = 8;
@@ -165,6 +169,11 @@ function applyPickupEffect(stats: ServerBomberStats, kind: PickupKind): ServerBo
       };
     case "shield":
       return stats.shield === true ? undefined : { ...stats, shield: true };
+    case "pierce":
+      // S147 KABOOM-PIERCE-SERVER-PARITY — idempotent flip. Carried
+      // at placement into Bomb.pierce so the placed bomb keeps the
+      // property even if the bomber loses pierce afterwards.
+      return stats.pierce === true ? undefined : { ...stats, pierce: true };
     case "speed-up": {
       // S122 — speed-up authoritative on the server. Add SPEED_UP_STEP
       // to BomberStats.speed, capped at MAX_SPEED_CAP. Default base is
@@ -487,10 +496,13 @@ export class ServerWorld {
    * Returns true when ≥1 such escape cell exists.
    */
   private botHasTwoStepEscape(gx: number, gz: number, dangerCells: Set<string>): boolean {
-    const stats = this.world.getComponent<{ range?: number }>(BOT_ENTITY_ID, BOMBER_STATS);
+    const stats = this.world.getComponent<{ range?: number; pierce?: boolean }>(BOT_ENTITY_ID, BOMBER_STATS);
     const simRange = stats?.range ?? DEFAULT_BOMB_RANGE;
+    const simPierce = stats?.pierce === true;
     const sim = new Set(dangerCells);
-    for (const cell of computeBlastCells(this.map, gx, gz, simRange)) {
+    // S147 — when the bot is itself carrying Pierce, the simulated bomb
+    // walks one extra cell per direction; reflect that in the trap test.
+    for (const cell of computeBlastCells(this.map, gx, gz, simRange, simPierce)) {
       sim.add(`${cell.gx},${cell.gz}`);
     }
     // BFS up to depth 2. Origin is in sim so it never qualifies; we
@@ -549,10 +561,12 @@ export class ServerWorld {
     // Simulate the bomb the coward is about to place — it would cover
     // its origin + the cardinal walk. Skip ANY cell within that walk
     // (using the bot's range) AS DANGER for escape-route purposes.
-    const stats = this.world.getComponent<{ range?: number }>(BOT_ENTITY_ID, BOMBER_STATS);
+    const stats = this.world.getComponent<{ range?: number; pierce?: boolean }>(BOT_ENTITY_ID, BOMBER_STATS);
     const simRange = stats?.range ?? DEFAULT_BOMB_RANGE;
+    const simPierce = stats?.pierce === true;
     const sim = new Set(dangerCells);
-    for (const cell of computeBlastCells(this.map, gx, gz, simRange)) {
+    // S147 — pierce widens the simulated bomb by one cell per direction.
+    for (const cell of computeBlastCells(this.map, gx, gz, simRange, simPierce)) {
       sim.add(`${cell.gx},${cell.gz}`);
     }
     for (const [dx, dz] of BOT_DIRECTIONS) {
@@ -704,10 +718,13 @@ export class ServerWorld {
     const danger = new Set<string>();
     for (const bombId of this.bombIds) {
       const gp = this.world.getComponent<{ gx?: number; gz?: number }>(bombId, GRID_POSITION);
-      const bomb = this.world.getComponent<{ range?: number }>(bombId, BOMB);
+      const bomb = this.world.getComponent<{ range?: number; pierce?: boolean }>(bombId, BOMB);
       if (gp?.gx === undefined || gp?.gz === undefined) continue;
       const range = bomb?.range ?? DEFAULT_BOMB_RANGE;
-      const cells = computeBlastCells(this.map, gp.gx, gp.gz, range);
+      // S147 — bot dodge map must include the extra cell that an active
+      // Pierce bomb threatens; otherwise the bot would happily walk
+      // through the pierce extension and die.
+      const cells = computeBlastCells(this.map, gp.gx, gp.gz, range, bomb?.pierce === true);
       for (const cell of cells) danger.add(`${cell.gx},${cell.gz}`);
     }
     return danger;
@@ -754,11 +771,17 @@ export class ServerWorld {
     this.world.addEntity(bombId);
     this.world.setComponent(bombId, TRANSFORM, { position: [gx, 0.35, gz] });
     this.world.setComponent(bombId, GRID_POSITION, { gx, gz });
-    this.world.setComponent(bombId, BOMB, {
+    // S147 KABOOM-PIERCE-SERVER-PARITY — carry pierce flag at placement,
+    // mirroring the S142 client placement rule. The bomb keeps pierce
+    // even if the bomber loses it before detonation.
+    const ownerStats = this.world.getComponent<ServerBomberStats>(ownerEntityId, BOMBER_STATS);
+    const bombComponent: { fuseRemaining: number; range: number; ownerId: string; pierce?: boolean } = {
       fuseRemaining: DEFAULT_BOMB_FUSE_SECONDS,
       range: stats?.maxBombs !== undefined ? DEFAULT_BOMB_RANGE : DEFAULT_BOMB_RANGE,
       ownerId: ownerEntityId
-    });
+    };
+    if (ownerStats?.pierce === true) bombComponent.pierce = true;
+    this.world.setComponent(bombId, BOMB, bombComponent);
     this.bombIds.add(bombId);
     return bombId;
   }
@@ -937,11 +960,15 @@ export class ServerWorld {
     this.world.addEntity(bombId);
     this.world.setComponent(bombId, TRANSFORM, { position: [gx, 0.35, gz] });
     this.world.setComponent(bombId, GRID_POSITION, { gx, gz });
-    this.world.setComponent(bombId, BOMB, {
+    // S147 KABOOM-PIERCE-SERVER-PARITY — carry pierce flag at placement.
+    const ownerStats = this.world.getComponent<ServerBomberStats>(playerEntId, BOMBER_STATS);
+    const bombComponent: { fuseRemaining: number; range: number; ownerId: string; pierce?: boolean } = {
       fuseRemaining: DEFAULT_BOMB_FUSE_SECONDS,
       range: DEFAULT_BOMB_RANGE,
       ownerId: playerEntId
-    });
+    };
+    if (ownerStats?.pierce === true) bombComponent.pierce = true;
+    this.world.setComponent(bombId, BOMB, bombComponent);
     this.bombIds.add(bombId);
     this.world.setComponent(playerEntId, SERVER_LAST_ACTIVITY, { lastActivity: this.elapsed } satisfies ActivityLike);
     return bombId;
@@ -1023,7 +1050,7 @@ export class ServerWorld {
     // because we collect detonated ids first then delete after.
     const detonated: BlastEvent[] = [];
     for (const bombId of this.bombIds) {
-      const bomb = this.world.getComponent<{ fuseRemaining?: number; range?: number; ownerId?: string }>(bombId, BOMB);
+      const bomb = this.world.getComponent<{ fuseRemaining?: number; range?: number; ownerId?: string; pierce?: boolean }>(bombId, BOMB);
       if (bomb === undefined) continue;
       const fuse = bomb.fuseRemaining ?? 0;
       if (!Number.isFinite(fuse)) continue; // paused remote bombs — out of scope for S117
@@ -1041,7 +1068,9 @@ export class ServerWorld {
           ownerId: bomb.ownerId ?? "",
           bombId,
           // S118 — populate cells from the authoritative map walk.
-          cells: computeBlastCells(this.map, originGx, originGz, range)
+          // S147 — pass the bomb's pierce flag so the walker walks
+          // through the first soft block per direction when set.
+          cells: computeBlastCells(this.map, originGx, originGz, range, bomb.pierce === true)
         });
       } else {
         this.world.setComponent(bombId, BOMB, { ...bomb, fuseRemaining: next });
@@ -1065,7 +1094,7 @@ export class ServerWorld {
           if (detonatedIds.has(bombId)) continue;
           const gp = this.world.getComponent<{ gx?: number; gz?: number }>(bombId, GRID_POSITION);
           if (gp?.gx !== cell.gx || gp?.gz !== cell.gz) continue;
-          const bomb = this.world.getComponent<{ range?: number; ownerId?: string }>(bombId, BOMB);
+          const bomb = this.world.getComponent<{ range?: number; ownerId?: string; pierce?: boolean }>(bombId, BOMB);
           if (bomb === undefined) continue;
           const range = bomb.range ?? DEFAULT_BOMB_RANGE;
           detonatedIds.add(bombId);
@@ -1075,7 +1104,9 @@ export class ServerWorld {
             range,
             ownerId: bomb.ownerId ?? "",
             bombId,
-            cells: computeBlastCells(this.map, cell.gx, cell.gz, range)
+            // S147 — chained pierce bombs keep their own pierce; not
+            // inherited from the trigger.
+            cells: computeBlastCells(this.map, cell.gx, cell.gz, range, bomb.pierce === true)
           });
           if (detonated.length >= CHAIN_DEPTH_CAP) break;
         }
@@ -1387,6 +1418,10 @@ export class ServerWorld {
           out["remoteDetonateCharges"] = stats.remoteDetonateCharges;
         }
         if (stats.shield === true) out["shield"] = true;
+        // S147 KABOOM-PIERCE-SERVER-PARITY — ship pierce so the connected-
+        // mode HUD's P-flag (S142 FEAT-KABOOM-PIERCE-HUD-001) lights up
+        // for both tabs.
+        if (stats.pierce === true) out["pierce"] = true;
         // S122 — ship custom speed when it differs from the baseline.
         if (stats.speed !== undefined && stats.speed !== PLAYER_SPEED) {
           out["speed"] = stats.speed;

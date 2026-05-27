@@ -148,7 +148,8 @@ export function computeBlastCells(
   map: LoadedMap,
   originGx: number,
   originGz: number,
-  range: number
+  range: number,
+  pierce: boolean = false
 ): Array<{ gx: number; gz: number }> {
   const out: Array<{ gx: number; gz: number }> = [{ gx: originGx, gz: originGz }];
   const directions: Array<readonly [number, number]> = [
@@ -158,13 +159,25 @@ export function computeBlastCells(
     [0, -1]
   ];
   for (const [dx, dz] of directions) {
+    // S147 KABOOM-PIERCE-SERVER-PARITY — per-direction budget mirrors
+    // the client blast-propagation-system. Pierce walks through the
+    // FIRST soft block in each direction (still destroying it);
+    // subsequent soft blocks stop the lane normally. Hard walls
+    // always stop regardless of budget.
+    let pierceBudget = pierce ? 1 : 0;
     for (let step = 1; step <= range; step += 1) {
       const gx = originGx + dx * step;
       const gz = originGz + dz * step;
       const cell = map.cellAt(gx, gz);
       if (cell === "hard-wall") break;
       out.push({ gx, gz });
-      if (cell === "soft-block") break;
+      if (cell === "soft-block") {
+        if (pierceBudget > 0) {
+          pierceBudget -= 1;
+          continue;
+        }
+        break;
+      }
     }
   }
   return out;

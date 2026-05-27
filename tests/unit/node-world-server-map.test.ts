@@ -130,6 +130,181 @@ describe("computeBlastCells (S118)", () => {
   });
 });
 
+describe("computeBlastCells pierce (S147 KABOOM-PIERCE-SERVER-PARITY)", () => {
+  // GDP-2026-05-27-002 acceptance scenarios. Pierce walks through the
+  // FIRST soft block per direction (still destroying it); the second
+  // soft block stops the lane normally. Hard walls always stop.
+  it("pierce=false: standard rule — stop at first soft block", () => {
+    const map = loadMapFromScene({
+      entities: [{ id: "grid.config", components: { Grid: { sizeX: 11, sizeZ: 11 } } }],
+      instances: [
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 6, gz: 5 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 7, gz: 5 } } }
+      ]
+    });
+    const cells = computeBlastCells(map, 5, 5, 3, false);
+    expect(cells).toContainEqual({ gx: 6, gz: 5 }); // first soft included
+    expect(cells).not.toContainEqual({ gx: 7, gz: 5 }); // second blocked
+  });
+
+  it("scenario A — pierce through ONE soft per direction (the cell past it is included)", () => {
+    // Plus-shaped arena with 1 soft block at distance 1 in each cardinal direction.
+    const map = loadMapFromScene({
+      entities: [{ id: "grid.config", components: { Grid: { sizeX: 11, sizeZ: 11 } } }],
+      instances: [
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 6, gz: 5 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 4, gz: 5 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 5, gz: 6 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 5, gz: 4 } } }
+      ]
+    });
+    const cells = computeBlastCells(map, 5, 5, 3, true);
+    // Each direction: soft included + the cell PAST it is included.
+    expect(cells).toContainEqual({ gx: 6, gz: 5 });
+    expect(cells).toContainEqual({ gx: 7, gz: 5 }); // pierce extension
+    expect(cells).toContainEqual({ gx: 4, gz: 5 });
+    expect(cells).toContainEqual({ gx: 3, gz: 5 }); // pierce extension
+    expect(cells).toContainEqual({ gx: 5, gz: 6 });
+    expect(cells).toContainEqual({ gx: 5, gz: 7 }); // pierce extension
+    expect(cells).toContainEqual({ gx: 5, gz: 4 });
+    expect(cells).toContainEqual({ gx: 5, gz: 3 }); // pierce extension
+  });
+
+  it("scenario B — pierce stops on SECOND soft block per direction (budget=1)", () => {
+    // +X direction has soft-block at 6 AND 7. Pierce walks through 6,
+    // includes it, then includes 7 and stops there. Cell 8 NOT touched.
+    const map = loadMapFromScene({
+      entities: [{ id: "grid.config", components: { Grid: { sizeX: 11, sizeZ: 11 } } }],
+      instances: [
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 6, gz: 5 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 7, gz: 5 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 8, gz: 5 } } }
+      ]
+    });
+    const cells = computeBlastCells(map, 5, 5, 4, true);
+    expect(cells).toContainEqual({ gx: 6, gz: 5 });
+    expect(cells).toContainEqual({ gx: 7, gz: 5 });
+    expect(cells).not.toContainEqual({ gx: 8, gz: 5 });
+  });
+
+  it("scenario C — hard wall always stops regardless of pierce budget", () => {
+    // +X direction has soft at 6 and hard at 7. Pierce walks through
+    // 6, but 7 is hard — wall always stops + IS NOT included.
+    const map = loadMapFromScene({
+      entities: [{ id: "grid.config", components: { Grid: { sizeX: 11, sizeZ: 11 } } }],
+      instances: [
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 6, gz: 5 } } },
+        { prefab: "hard-block", overrides: { GridPosition: { gx: 7, gz: 5 } } }
+      ]
+    });
+    const cells = computeBlastCells(map, 5, 5, 4, true);
+    expect(cells).toContainEqual({ gx: 6, gz: 5 }); // soft included
+    expect(cells).not.toContainEqual({ gx: 7, gz: 5 }); // hard never included
+    expect(cells).not.toContainEqual({ gx: 8, gz: 5 });
+  });
+
+  it("pierce-budget is PER-DIRECTION (one direction's pierce doesn't deplete another's)", () => {
+    // +X and -X both have a single soft block; pierce should fire in both.
+    const map = loadMapFromScene({
+      entities: [{ id: "grid.config", components: { Grid: { sizeX: 11, sizeZ: 11 } } }],
+      instances: [
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 6, gz: 5 } } },
+        { prefab: "soft-block", overrides: { GridPosition: { gx: 4, gz: 5 } } }
+      ]
+    });
+    const cells = computeBlastCells(map, 5, 5, 2, true);
+    expect(cells).toContainEqual({ gx: 7, gz: 5 }); // pierce east
+    expect(cells).toContainEqual({ gx: 3, gz: 5 }); // pierce west
+  });
+});
+
+describe("ServerWorld pierce pickup + placement (S147 KABOOM-PIERCE-SERVER-PARITY)", () => {
+  it("pierce pickup flips BomberStats.pierce=true", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    // Pre-pickup: pierce should be absent.
+    const preStats = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["BomberStats"] as { pierce?: boolean };
+    expect(preStats.pierce).not.toBe(true);
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "pierce");
+    world.tick(0.016);
+    const stats = world.snapshot().entities.find((e) => e.id === "player.alice")!.components["BomberStats"] as { pierce?: boolean };
+    expect(stats.pierce).toBe(true);
+  });
+
+  it("bomb placed by a pierce-bomber carries Bomb.pierce=true", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "pierce");
+    world.tick(0.016);
+    const bombId = world.placeBomb("alice", 7, 4)!;
+    expect(bombId).toBeDefined();
+    const snap = world.snapshot();
+    const bomb = snap.entities.find((e) => e.id === bombId)!;
+    expect((bomb.components["Bomb"] as { pierce?: boolean }).pierce).toBe(true);
+  });
+
+  it("bomb placed by a non-pierce bomber omits Bomb.pierce", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    const bombId = world.placeBomb("alice", 7, 4)!;
+    const snap = world.snapshot();
+    const bomb = snap.entities.find((e) => e.id === bombId)!;
+    expect((bomb.components["Bomb"] as { pierce?: boolean }).pierce).toBeUndefined();
+  });
+
+  it("pierce bomb's BlastEvent.cells include the cell past the first soft block", () => {
+    // Default map has soft-block.1 at (4, 5) and soft-block.2 at (5, 5).
+    // Bomb at (3, 5) range=4 walks +X: pierce should walk 4→5→6, not stop at 4.
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    // Crank alice's range so the +X walk can REACH past (5,5) even with pierce.
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "fire-up");
+    world.tick(0.016);
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "fire-up");
+    world.tick(0.016);
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "pierce");
+    world.tick(0.016);
+    world.placeBomb("alice", 3, 5);
+    world.tick(3.0);
+    const events = world.drainBlastEvents();
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    const blast = events.find((e) => e.originGx === 3 && e.originGz === 5)!;
+    expect(blast).toBeDefined();
+    // +X walk from (3,5): step1=(4,5) soft → pierce eats it → step2=(5,5) soft → STOP (budget=0).
+    expect(blast.cells).toContainEqual({ gx: 4, gz: 5 });
+    expect(blast.cells).toContainEqual({ gx: 5, gz: 5 }); // included even with pierce — second soft stops the lane
+    expect(blast.cells).not.toContainEqual({ gx: 6, gz: 5 }); // budget spent on 4,5
+  });
+
+  it("non-pierce bomb stops at the first soft block (control case for the parity scenario)", () => {
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "fire-up");
+    world.tick(0.016);
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "fire-up");
+    world.tick(0.016);
+    // No pierce pickup. Same bomb at (3, 5) should ONLY destroy (4, 5).
+    world.placeBomb("alice", 3, 5);
+    world.tick(3.0);
+    const events = world.drainBlastEvents();
+    const blast = events.find((e) => e.originGx === 3 && e.originGz === 5)!;
+    expect(blast.cells).toContainEqual({ gx: 4, gz: 5 });
+    expect(blast.cells).not.toContainEqual({ gx: 5, gz: 5 }); // standard rule
+  });
+
+  it("pierce flag is preserved on the bomb even after the bomber loses pierce (defensive — but no current loser path)", () => {
+    // Today there's no mechanism that strips pierce from BomberStats
+    // after pickup. But the placement copy guarantees the bomb keeps
+    // its branch independent of the owner — this test pins the contract.
+    const world = new ServerWorld({ pickupDropChance: 0, spawnBot: false });
+    world.join("alice");
+    (world as unknown as { spawnPickup: (gx: number, gz: number, kind: string) => string }).spawnPickup(0, 0, "pierce");
+    world.tick(0.016);
+    const bombId = world.placeBomb("alice", 7, 4)!;
+    expect((world.snapshot().entities.find((e) => e.id === bombId)!.components["Bomb"] as { pierce?: boolean }).pierce).toBe(true);
+  });
+});
+
 describe("ServerWorld bomb detonation emits blast cells (S118)", () => {
   it("detonation populates BlastEvent.cells", () => {
     const world = new ServerWorld();

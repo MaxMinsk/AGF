@@ -1,0 +1,76 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S147",
+  "title": "Pierce-bomb server-side parity — node-world-server mirrors the S142 client branch",
+  "status": "archived",
+  "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "notes": [
+    "Promotes GDP-2026-05-27-002 (priority: should, KABOOM-CREW-MVP-NETWORK). S142 shipped Pierce client-side and explicitly deferred server-side parity to a connected-mode sprint. This story IS that follow-up. Before this lands, connected-mode pierce is a visual desync — Tab A's local sim shows the blast walking through the first soft block, Tab B's authoritative server view stops at it.",
+    "Scope = one branch in the server's blast-cell walker + the placement copy (mirror of S142 FEAT-KABOOM-PIERCE-PLACEMENT-001) + parity tests. No protocol changes (snapshot already carries pierce flag).",
+    "Bot AI parity — extended the server's bot dodge map + self-bomb-sim escape checks to consume the new pierce flag so a Pierce bomber doesn't trap itself and a bot doesn't path through a pierce extension. Out of scope: stacking pierce, pierce-aware strategic bot scoring."
+  ],
+  "stories": [
+    {
+      "id": "SCHEMA-KABOOM-PIERCE-SERVER-001",
+      "title": "Server PickupKind + ServerBomberStats gain pierce",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/world.ts — PickupKind union adds 'pierce'. PICKUP_KINDS drop table includes 'pierce' (single entry, mirroring S142 ~half-rarity). ServerBomberStats type adds optional `pierce?: boolean`. applyPickupEffect gains the 'pierce' branch: idempotent flip (stats.pierce === true → undefined no-op).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: PickupKind union + PICKUP_KINDS drop table + ServerBomberStats + applyPickupEffect all carry pierce in examples/backends/node-world-server/src/world.ts. Pickup pierce flips BomberStats.pierce=true; second pickup of same kind is a silent no-op."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PIERCE-SERVER-PROPAGATION-001",
+      "title": "computeBlastCells gains pierce-budget walker",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/map-loader.ts — `computeBlastCells` signature gets optional `pierce: boolean = false` (back-compat for unrelated call sites). Per-direction implementation tracks `pierceBudget = pierce ? 1 : 0`. On a soft-block hit: include the cell, decrement budget when > 0 + continue; otherwise stop. Hard walls always stop and ARE NOT included. Mirror of S142 blast-propagation-system.ts.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: computeBlastCells(map, ox, oz, range, true) walks through the first soft block per direction, stops on the second; hard walls always stop; per-direction budget is independent (5 unit tests in tests/unit/node-world-server-map.test.ts)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PIERCE-SERVER-PLACEMENT-001",
+      "title": "Server placeBomb / placeBombForEntity copy stats.pierce → bomb.pierce",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/world.ts — both `placeBomb(playerId, gx, gz)` (external client API) and `placeBombForEntity(BOT_ENTITY_ID, ...)` (bot AI) read the owner's ServerBomberStats and, when pierce === true, write `bomb.pierce = true` into the Bomb component. Non-pierce owners produce a Bomb without the pierce field (keeps the snapshot lean). The bomb's fuse loop + the chain-detonation loop both read bomb.pierce and pass it to computeBlastCells.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: placeBomb + placeBombForEntity stamp pierce when ownerStats.pierce === true; fuse-loop computeBlastCells gets bomb.pierce; chain-detonation computeBlastCells gets the chained bomb's own pierce (chained bombs are not retroactively pierced by the trigger)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-PIERCE-SERVER-BOT-AI-001",
+      "title": "Server bot AI dodge map + escape sims respect pierce",
+      "status": "implemented",
+      "summary": "examples/backends/node-world-server/src/world.ts — computeBlastDangerCells reads bomb.pierce off each active bomb so a Pierce bomb's extension cell is treated as dangerous. botHasTwoStepEscape + hasSafeEscape read the bot's own BomberStats.pierce so the simulated bomb in the escape-route projection matches the bomb that would actually be placed. Out of scope: pierce-aware strategic scoring (carried-over from GDP-2026-05-26-002).",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: dangerCells + 2-step escape + coward-escape sims all pass pierce through computeBlastCells. Existing bot-survival tests stay green (no regressions: bot survives ≥10s solo, hunter chases, miner picks up pickups)."
+      ]
+    },
+    {
+      "id": "TEST-KABOOM-PIERCE-SERVER-001",
+      "title": "Pierce parity tests — walker + placement + propagation",
+      "status": "implemented",
+      "summary": "tests/unit/node-world-server-map.test.ts — adds two describe blocks: 'computeBlastCells pierce (S147)' covers the 3 GDP scenarios (pierce + 1 soft per dir, pierce + 2 softs blocks at second, pierce + hard wall always stops, pierce budget per-direction, pierce=false control) + 'ServerWorld pierce pickup + placement (S147)' covers BomberStats flip, bomb stamping, BlastEvent.cells include the extension, control case without pierce, owner-loses-pierce contract.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: 12 new tests in tests/unit/node-world-server-map.test.ts (5 walker + 5 ServerWorld + 2 control). Existing 100+ tests in the file remain green. npm run typecheck + npm run test stay green."
+      ]
+    },
+    {
+      "id": "DOC-KABOOM-PIERCE-SERVER-001",
+      "title": "Archive GDP-2026-05-27-002",
+      "status": "implemented",
+      "summary": "Move backlog/proposed-stories/GDP-2026-05-27-002.story-proposal.json into backlog/proposed-stories/archive/S147/. No README change needed — the S142 README row already documents pierce; this sprint is a pure parity port.",
+      "epic": "KABOOM-CREW-MVP-NETWORK",
+      "verification": [
+        "acceptance: backlog/proposed-stories/archive/S147/GDP-2026-05-27-002.story-proposal.json present, source file removed."
+      ]
+    }
+  ]
+}
