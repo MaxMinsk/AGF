@@ -15,7 +15,13 @@
 //     surface for v1.
 
 const PROFILE_STORAGE_KEY = "kaboom.player.profile.v1";
-const PROFILE_FORMAT_VERSION = 1 as const;
+// S156 — schema bumped to v2: PlayerProfile gained `cosmeticUnlocks`
+// + the load path migrates v1 profiles in-place (existing lifetime
+// stats preserved; cosmeticUnlocks initialised []). The storage key
+// stays at v1 so previously-saved profiles round-trip without a
+// fresh key — versioning lives in the agfFormatVersion field.
+const PROFILE_FORMAT_VERSION = 2 as const;
+const PROFILE_PRIOR_FORMAT_VERSIONS = new Set<number>([1]);
 // Write debounce — batches rapid stat bumps so a chain detonation
 // doesn't hammer localStorage. flushProfile() forces a write on demand
 // (tests + clean shutdown).
@@ -43,6 +49,8 @@ export type PlayerProfile = {
   lastSeenAt: number;
   preferredRecipeSeed?: number;
   lifetimeStats: LifetimeStats;
+  /** S156 — list of unlock ids the player has earned (e.g. 'first-win'). Stable string keys; future unlocks won't shift indices. */
+  cosmeticUnlocks: string[];
 };
 
 function defaultLifetimeStats(): LifetimeStats {
@@ -66,7 +74,8 @@ function defaultProfile(now: number, genId: () => string): PlayerProfile {
     playerId: genId(),
     createdAt: now,
     lastSeenAt: now,
-    lifetimeStats: defaultLifetimeStats()
+    lifetimeStats: defaultLifetimeStats(),
+    cosmeticUnlocks: []
   };
 }
 
@@ -105,6 +114,10 @@ export type ProfileStore = {
   recordSelfDeath(): void;
   /** Clears the profile from storage AND resets the in-memory state. */
   reset(): void;
+  /** S156 — replace cosmeticUnlocks. Caller computes via unlock-checker. */
+  setUnlocks(unlocks: ReadonlyArray<string>): void;
+  /** S156 — testing/agent escape hatch: drop a specific unlock (or all). */
+  removeUnlock(id?: string): void;
 };
 
 export function createProfileStore(deps: ProfileStoreDeps = {}): ProfileStore {
@@ -134,20 +147,36 @@ export function createProfileStore(deps: ProfileStoreDeps = {}): ProfileStore {
       const raw = storage.getItem(PROFILE_STORAGE_KEY);
       if (raw === null) return undefined;
       const parsed = JSON.parse(raw) as PlayerProfile;
-      if (parsed.agfFormatVersion !== PROFILE_FORMAT_VERSION) {
-        // Schema mismatch → fall back to defaults. The legacy entry
-        // stays in storage; a future migration story can rescue it.
-        // Warn at most once per load.
-        console.warn(`[kaboom.profile] Stored profile has unknown format version ${String(parsed.agfFormatVersion)}; using defaults.`);
-        return undefined;
+      if (parsed.agfFormatVersion === PROFILE_FORMAT_VERSION) {
+        // Current version — defensive rehydrate of missing sub-fields.
+        if (parsed.lifetimeStats === undefined) {
+          parsed.lifetimeStats = defaultLifetimeStats();
+        } else if (parsed.lifetimeStats.pickupsCollected === undefined) {
+          parsed.lifetimeStats.pickupsCollected = {};
+        }
+        if (parsed.cosmeticUnlocks === undefined) parsed.cosmeticUnlocks = [];
+        return parsed;
       }
-      // Defensive — re-hydrate pickupsCollected if it's somehow missing.
-      if (parsed.lifetimeStats === undefined) {
-        parsed.lifetimeStats = defaultLifetimeStats();
-      } else if (parsed.lifetimeStats.pickupsCollected === undefined) {
-        parsed.lifetimeStats.pickupsCollected = {};
+      if (PROFILE_PRIOR_FORMAT_VERSIONS.has(parsed.agfFormatVersion as unknown as number)) {
+        // S156 — v1 → v2 migration: lifetime stats preserved; new
+        // cosmeticUnlocks field initialised empty. The next save
+        // rewrites the entry with agfFormatVersion=2.
+        const migrated: PlayerProfile = {
+          ...parsed,
+          agfFormatVersion: PROFILE_FORMAT_VERSION,
+          lifetimeStats: parsed.lifetimeStats ?? defaultLifetimeStats(),
+          cosmeticUnlocks: []
+        };
+        if (migrated.lifetimeStats.pickupsCollected === undefined) {
+          migrated.lifetimeStats.pickupsCollected = {};
+        }
+        return migrated;
       }
-      return parsed;
+      // Unknown future version → fall back to defaults. The legacy
+      // entry stays in storage; a future migration story can rescue
+      // it. Warn at most once per load.
+      console.warn(`[kaboom.profile] Stored profile has unknown format version ${String(parsed.agfFormatVersion)}; using defaults.`);
+      return undefined;
     } catch (err) {
       console.warn(`[kaboom.profile] Failed to parse stored profile: ${String(err)}`);
       return undefined;
@@ -269,6 +298,20 @@ export function createProfileStore(deps: ProfileStoreDeps = {}): ProfileStore {
           // ignore
         }
       }
+    },
+    setUnlocks(unlocks): void {
+      const profile = ensure();
+      profile.cosmeticUnlocks = [...unlocks];
+      schedule();
+    },
+    removeUnlock(id): void {
+      const profile = ensure();
+      if (id === undefined) {
+        profile.cosmeticUnlocks = [];
+      } else {
+        profile.cosmeticUnlocks = profile.cosmeticUnlocks.filter((u) => u !== id);
+      }
+      schedule();
     }
   };
 }

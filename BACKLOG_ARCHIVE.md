@@ -160,5 +160,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S153](backlog/sprints/S153.sprint.json)** — Persistent player profile (localStorage MVP) — stable playerId + lifetime stats — 5 implemented · archived 2026-05-27
 - **[S154](backlog/sprints/S154.sprint.json)** — Bomb Pass server parity — node-world-server enforces the S152 bomb-block rule — 5 implemented · archived 2026-05-27
 - **[S155](backlog/sprints/S155.sprint.json)** — Lifetime stats HUD + deferred S153 hooks (self-death + chain detection) — 4 implemented · archived 2026-05-27
+- **[S156](backlog/sprints/S156.sprint.json)** — Cosmetic unlocks MVP — 5 starter unlocks on top of the persistent profile — 7 implemented · archived 2026-05-27
 
 <!-- backlog:render:end -->

@@ -275,4 +275,97 @@ describe("createProfileStore (S153)", () => {
     store.flush();
     expect(store.get().lifetimeStats.roundsWon).toBe(1);
   });
+
+  describe("S156 v1 → v2 migration", () => {
+    it("v1 profile in storage loads with cosmeticUnlocks=[]; lifetime stats preserved", () => {
+      const s = fakeStorage({
+        [__PROFILE_STORAGE_KEY]: JSON.stringify({
+          agfFormatVersion: 1,
+          playerId: "legacy-id",
+          createdAt: 100,
+          lastSeenAt: 200,
+          lifetimeStats: {
+            matchesPlayed: 12,
+            matchesWon: 5,
+            roundsPlayed: 40,
+            roundsWon: 18,
+            roundsLost: 15,
+            roundsDraw: 7,
+            deathsByOwnBomb: 3,
+            chainReactionsTriggered: 2,
+            maxChainLength: 4,
+            pickupsCollected: { "bomb-up": 8 }
+          }
+          // NOTE: no cosmeticUnlocks field — v1 didn't have it.
+        })
+      });
+      const store = createProfileStore({ storage: s.api, now: () => FIXED_NOW });
+      const p = store.get();
+      expect(p.agfFormatVersion).toBe(2);
+      expect(p.playerId).toBe("legacy-id");
+      expect(p.cosmeticUnlocks).toEqual([]); // initialised
+      expect(p.lifetimeStats.matchesPlayed).toBe(12); // preserved
+      expect(p.lifetimeStats.maxChainLength).toBe(4); // preserved
+      expect(p.lifetimeStats.pickupsCollected["bomb-up"]).toBe(8); // preserved
+    });
+
+    it("v2 profile in storage round-trips without re-init", () => {
+      const s = fakeStorage({
+        [__PROFILE_STORAGE_KEY]: JSON.stringify({
+          agfFormatVersion: 2,
+          playerId: "v2-id",
+          createdAt: 100,
+          lastSeenAt: 200,
+          lifetimeStats: {
+            matchesPlayed: 1, matchesWon: 1,
+            roundsPlayed: 4, roundsWon: 2, roundsLost: 1, roundsDraw: 1,
+            deathsByOwnBomb: 0, chainReactionsTriggered: 0, maxChainLength: 0,
+            pickupsCollected: {}
+          },
+          cosmeticUnlocks: ["first-win", "veteran"]
+        })
+      });
+      const store = createProfileStore({ storage: s.api, now: () => FIXED_NOW });
+      const p = store.get();
+      expect(p.cosmeticUnlocks).toEqual(["first-win", "veteran"]);
+    });
+
+    it("setUnlocks persists to storage on flush", () => {
+      const s = fakeStorage();
+      const store = createProfileStore({ storage: s.api, now: () => FIXED_NOW, genId: () => FIXED_ID });
+      store.setUnlocks(["first-win", "pyromaniac"]);
+      store.flush();
+      const stored = JSON.parse(s.raw.get(__PROFILE_STORAGE_KEY)!) as PlayerProfile;
+      expect(stored.cosmeticUnlocks).toEqual(["first-win", "pyromaniac"]);
+    });
+
+    it("removeUnlock(id) drops one; removeUnlock() drops all", () => {
+      const s = fakeStorage();
+      const store = createProfileStore({ storage: s.api, now: () => FIXED_NOW, genId: () => FIXED_ID });
+      store.setUnlocks(["first-win", "veteran", "pyromaniac"]);
+      store.removeUnlock("veteran");
+      store.flush();
+      expect(store.get().cosmeticUnlocks).toEqual(["first-win", "pyromaniac"]);
+      store.removeUnlock();
+      store.flush();
+      expect(store.get().cosmeticUnlocks).toEqual([]);
+    });
+
+    it("future version (v99) — falls back to defaults (warns)", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const s = fakeStorage({
+        [__PROFILE_STORAGE_KEY]: JSON.stringify({
+          agfFormatVersion: 99,
+          playerId: "future-id",
+          lifetimeStats: { matchesPlayed: 999 }
+        })
+      });
+      const store = createProfileStore({ storage: s.api, now: () => FIXED_NOW, genId: () => "fresh" });
+      const p = store.get();
+      expect(p.playerId).toBe("fresh");
+      expect(p.cosmeticUnlocks).toEqual([]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
 });

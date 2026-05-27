@@ -58,10 +58,23 @@ export const MULTI_BOT_IDS: ReadonlyArray<string> = MULTI_BOT_ASSIGNMENT.map((b)
  */
 export function makeKaboomRecipe(
   ownerId: string,
-  personality?: BotPersonality
+  personality?: BotPersonality,
+  options?: { unlockedAccessoryKinds?: ReadonlyArray<string> }
 ): ResolvedCharacterRecipe {
   const base = recipeForOwner(ownerId);
-  if (ownerId === "player.1") return { ...base, paletteName: "sky" };
+  if (ownerId === "player.1") {
+    // S156 KABOOM-COSMETIC-UNLOCKS — filter the random-default
+    // accessories to the unlocked subset. When the caller doesn't
+    // supply an unlocked list (legacy callers, tests), behaviour
+    // matches the pre-S156 default (all 5 kinds available).
+    const unlocked = options?.unlockedAccessoryKinds;
+    if (unlocked !== undefined) {
+      const allowed = new Set(unlocked);
+      const filtered = (base.accessories ?? []).filter((a) => allowed.has(a.kind));
+      return { ...base, paletteName: "sky", accessories: filtered };
+    }
+    return { ...base, paletteName: "sky" };
+  }
   if (BOT_ID_RE.test(ownerId)) {
     if (personality === undefined) {
       return { ...base, paletteName: "rose" };
