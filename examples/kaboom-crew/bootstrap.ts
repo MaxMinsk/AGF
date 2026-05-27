@@ -70,6 +70,7 @@ import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagat
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
+import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
 import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
@@ -144,6 +145,24 @@ function readRoundTimeLimit(): number {
     return parsed;
   } catch {
     return DEFAULT_ROUND_TIME_LIMIT_SECONDS;
+  }
+}
+
+// S160 — read sudden-death URL flags (?suddenDeath=off, ?suddenDeathTriggerS=N).
+function readSuddenDeathFromUrl(): { enabled: boolean; triggerAtElapsedS: number } {
+  const defaults = { enabled: true, triggerAtElapsedS: 60 };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const params = new URLSearchParams(search);
+    const sd = params.get("suddenDeath");
+    const enabled = sd === "off" ? false : defaults.enabled;
+    const triggerRaw = params.get("suddenDeathTriggerS");
+    const triggerParsed = triggerRaw === null ? Number.NaN : Number(triggerRaw);
+    const triggerAtElapsedS = Number.isFinite(triggerParsed) && triggerParsed >= 0 ? triggerParsed : defaults.triggerAtElapsedS;
+    return { enabled, triggerAtElapsedS };
+  } catch {
+    return defaults;
   }
 }
 
@@ -313,7 +332,13 @@ function restartScene(runtime: RuntimeHandle): number {
       kind: "entity.create",
       entityId: "kaboom.game-state",
       components: {
-        MatchState: { phase: "playing", target: matchTarget, matchNumber: nextMatchNumber }
+        MatchState: { phase: "playing", target: matchTarget, matchNumber: nextMatchNumber },
+        // S160 KABOOM-SUDDEN-DEATH — re-seed config on every restart
+        // so the URL flags (?suddenDeath=off, ?suddenDeathTriggerS=N)
+        // persist across rounds. SuddenDeathState is intentionally NOT
+        // re-seeded — the system creates it lazily on activation, and
+        // the previous round's state should NOT carry over.
+        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 }
       }
     },
     // S100 + S141 — apply the difficulty + personality patch to all
@@ -594,6 +619,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       }),
       { profiles: ["static"] }
     );
+    // S160 KABOOM-SUDDEN-DEATH — runs after round-resolve so phase-flip
+    // wins over a new ring spawn on the resolving tick.
+    scheduler.register(createKaboomSuddenDeathSystem(), { profiles: ["static"] });
 
     // S82 KABOOM-AGENT-CONTROLS: drives any entity with AgentGoto
     // toward the target cell. Used by `runtime.kaboom.gotoCell` (wired
@@ -688,7 +716,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       // (best-of-N session).
       ...upsertEntityCommands(runtime.world, "kaboom.game-state", {
         GamePaused: { reason: "title-screen" },
-        MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 }
+        MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 },
+        // S160 KABOOM-SUDDEN-DEATH — config singleton co-located on game-state.
+        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 }
       }),
       // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
       // present from frame 0 — RoundResolveSystem's ensureRoundState would
