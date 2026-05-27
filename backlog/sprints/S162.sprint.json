@@ -5,12 +5,13 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/204",
   "notes": [
     "Implements GDP-2026-05-27-012 MVP slice via a project-local kinematic system. On BomberStats.alive=false the accessory-detach system finds entities matching `<rootId>.accessoryN.<kind>`, clears their parent (so they stop riding the body), computes a deterministic scatter impulse from DeathImpulse direction + per-kind config (antennae fly up, backpack flies opposite-to-blast, cap straight up with spin, visor falls fast, fins lateral spread), and stamps AccessoryDebris.",
     "Per fixedUpdate the system integrates each AccessoryDebris: position += velocity*dt; vy -= 9.8*dt; rotation += spin*dt; scale shrinks to 0 over the final 300 ms; removeEntity on lifetime expiry (default 1500 ms).",
     "Deferred to a future engine-side follow-up: full Rapier-rigid-body integration through engine/physics/ragdoll/ (RagdollTemplate.accessoryBodies, ACCESSORY_DEBRIS collision group, true rigid-body inertia). The kinematic version reads convincingly at the 1.5 s death-window scale and avoids touching the cross-cutting ragdoll spawn/sync/teardown systems for this sprint.",
-    "Live probe with ?suddenDeathTriggerS=3 confirmed: 3 accessory entities present in start scene; after sudden-death kills a bot, AccessoryDetachFired marker stamped on bomber + AccessoryDebris entities mid-flight 2 s later."
+    "Live probe with ?suddenDeathTriggerS=3 confirmed: 3 accessory entities present in start scene; after sudden-death kills a bot, AccessoryDetachFired marker stamped on bomber + AccessoryDebris entities mid-flight 2 s later.",
+    "Playtest tuning pass 2026-05-27 ('accessories fly too far'): halved per-kind speedMagnitudes, lifetime 1500→1000 ms, fade 300→250 ms, gravity 9.8→12 cells/sec². Debris now settles within ~1 tile of the bomber."
   ],
   "stories": [
     {

@@ -28,9 +28,14 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const SOFT_ATTACHED: ComponentName = "SoftAttached";
 const SPRING_PIVOT: ComponentName = "SpringPivot";
 
-const DEFAULT_LIFETIME_MS = 1500;
-const DEFAULT_FADE_MS = 300;
-const DEFAULT_GRAVITY = 9.8;
+// S162 follow-up (live playtest 2026-05-27 "accessories fly too far") —
+// halved the impulse magnitudes + dropped lifetime 1500→1000ms so
+// debris settles within the bomber's tile-radius rather than sailing
+// across the arena. Determinism is unaffected (hash + config produce
+// identical impulses; only the magnitudes shrank).
+const DEFAULT_LIFETIME_MS = 1000;
+const DEFAULT_FADE_MS = 250;
+const DEFAULT_GRAVITY = 12;
 
 export type AccessoryKind = "antennae" | "visor" | "backpack" | "cap" | "fins";
 
@@ -54,11 +59,11 @@ export type AccessoryScatterConfig = {
 };
 
 export const DEFAULT_ACCESSORY_SCATTER: Record<AccessoryKind, AccessoryScatterConfig> = {
-  antennae: { verticalBias: 1.8, horizontalSpread: 1.0, bombDirectionalBias: 0.2, speedMagnitude: 2.5, spinDegPerSec: 540 },
-  visor: { verticalBias: 0.2, horizontalSpread: 0.4, bombDirectionalBias: 0.1, speedMagnitude: 1.5, spinDegPerSec: 240 },
-  backpack: { verticalBias: 0.6, horizontalSpread: 0.3, bombDirectionalBias: -0.8, speedMagnitude: 2.2, spinDegPerSec: 200 },
-  cap: { verticalBias: 2.0, horizontalSpread: 0.4, bombDirectionalBias: 0.0, speedMagnitude: 2.8, spinDegPerSec: 360 },
-  fins: { verticalBias: 0.3, horizontalSpread: 1.2, bombDirectionalBias: 0.3, speedMagnitude: 2.0, spinDegPerSec: 180 }
+  antennae: { verticalBias: 1.4, horizontalSpread: 1.0, bombDirectionalBias: 0.2, speedMagnitude: 1.4, spinDegPerSec: 540 },
+  visor: { verticalBias: 0.2, horizontalSpread: 0.4, bombDirectionalBias: 0.1, speedMagnitude: 0.8, spinDegPerSec: 240 },
+  backpack: { verticalBias: 0.5, horizontalSpread: 0.3, bombDirectionalBias: -0.7, speedMagnitude: 1.2, spinDegPerSec: 200 },
+  cap: { verticalBias: 1.6, horizontalSpread: 0.4, bombDirectionalBias: 0.0, speedMagnitude: 1.6, spinDegPerSec: 360 },
+  fins: { verticalBias: 0.3, horizontalSpread: 1.2, bombDirectionalBias: 0.3, speedMagnitude: 1.1, spinDegPerSec: 180 }
 };
 
 type TransformLike = {

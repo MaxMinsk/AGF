@@ -184,9 +184,11 @@ describe("createKaboomAccessoryDetachSystem (S162)", () => {
 });
 
 describe("__ACCESSORY_DETACH_CONSTANTS", () => {
-  it("export defaults are sensible", () => {
-    expect(__ACCESSORY_DETACH_CONSTANTS.DEFAULT_LIFETIME_MS).toBe(1500);
-    expect(__ACCESSORY_DETACH_CONSTANTS.DEFAULT_FADE_MS).toBe(300);
-    expect(__ACCESSORY_DETACH_CONSTANTS.DEFAULT_GRAVITY).toBe(9.8);
+  it("export defaults are sensible (post-playtest tuning)", () => {
+    // Live playtest 2026-05-27 said accessories flew too far — these
+    // tightened defaults keep debris within ~1 tile of the bomber.
+    expect(__ACCESSORY_DETACH_CONSTANTS.DEFAULT_LIFETIME_MS).toBe(1000);
+    expect(__ACCESSORY_DETACH_CONSTANTS.DEFAULT_FADE_MS).toBe(250);
+    expect(__ACCESSORY_DETACH_CONSTANTS.DEFAULT_GRAVITY).toBe(12);
   });
 });
