@@ -2,8 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S143",
   "title": "Arena variants — plaza + cross + pit (3 of 4 from GDP-2026-05-26-001 still missing after S140)",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-27",
+  "archivedAt": "2026-05-27",
   "notes": [
     "Promotes GDP-2026-05-27-001 (should priority, KABOOM-CREW-MVP-2). S140 shipped the corridor variant + the MAP_REGISTRY infrastructure + the random-map-per-pageload default. This sprint fills in the remaining 3 variants the original GDP-2026-05-26-001 asked for so the session-topology variety scales to 6 distinct arenas (start, wide, corridor, plaza, cross, pit).",
     "Each variant is a hand-written JSON scene (matches the S140 corridor pattern). Generator-driven scenes were the original GDP ask but the existing kaboom-arena-small.gen.mjs is the start-arena recipe; rather than retrofit it to emit 3 more variants, we keep the data-first authoring path since the S136 floor-physics + S141 multi-bot tweaks were applied directly to JSON.",
@@ -13,58 +14,82 @@
     {
       "id": "FEAT-KABOOM-PLAZA-SCENE-001",
       "title": "New plaza arena (13×11, sparse soft blocks, open lanes)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/scenes/plaza.scene.json — 13×11 grid, ortho camera framing the smaller aspect, sun + ambient lights re-used, physical floor (RigidBody3D{fixed}+Collider3D matching size), 4 hard-block pillars (one in each interior quadrant), ~6 soft blocks scattered (sparse — ~20% density rewards Pierce + Fire-Up). player.1 + bot.1 spawn at opposite corners (1,1) ↔ (11,9). bot.2 + bot.3 fill the remaining two corners so multi-bot from S141 has cells.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/scenes/plaza.scene.json (new) — 13×11 grid, ortho camera, physical floor, 4 hard-block centre pillars at (4,3)(8,3)(4,7)(8,7), 7 soft blocks scattered for ~20% interior density. player.1 (1,1), bot.1 (11,9), bot.2 (1,9), bot.3 (11,1) at the four corners. engine:check passes."
+      ]
     },
     {
       "id": "FEAT-KABOOM-CROSS-SCENE-001",
       "title": "New cross arena (17×17, + shape of hard walls dividing 4 quadrants)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/scenes/cross.scene.json — 17×17 grid; hard-block walls at gx=8 + gz=8 form a + shape with a 3×3 centre plaza (gx=7..9 / gz=7..9) connecting all 4 quadrants. ~12 soft blocks scattered per quadrant. 4 spawn cells at the quadrant corners (1,1), (15,1), (1,15), (15,15) — natively support 1 player + 3 bots from S141. Centre plaza kept empty for chokepoint fights.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/scenes/cross.scene.json (new) — 17×17 grid. Hard-wall + shape: 14 cells at gx=8 (gz 0..6 + 10..16) + 14 cells at gz=8 (gx 0..6 + 10..16) leaving a 3×3 centre plaza. 16 soft blocks (4 per quadrant). 4 corner spawns (1,1)(15,1)(1,15)(15,15) for 1 player + 3 bots. engine:check passes."
+      ]
     },
     {
       "id": "FEAT-KABOOM-PIT-SCENE-001",
       "title": "New pit arena (11×11, hard-block ring around the perimeter)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/scenes/pit.scene.json — 11×11 grid; the outer ring (gx==0 or gx==10 or gz==0 or gz==10) is filled with hard-block walls so the playable interior is 9×9. ~16 soft blocks scattered in the interior (~45% density — dense, faster engagements). player.1 spawn at (1,1) inside the ring; bot.1 at (9,9); bot.2 + bot.3 at (9,1) + (1,9).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/scenes/pit.scene.json (new) — 11×11 grid, hard-block ring (40 cells) around 9×9 interior, 18 soft blocks scattered in interior. player.1 (1,1), bot.1 (9,9), bot.2 (9,1), bot.3 (1,9) inside the ring. engine:check passes."
+      ]
     },
     {
       "id": "FEAT-KABOOM-MAP-REGISTRY-EXTEND-001",
       "title": "Register plaza, cross, pit in MAP_REGISTRY + MapName union",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/bootstrap.ts — import the 3 new scene JSONs, extend MAP_REGISTRY + MapName union with 'plaza', 'cross', 'pit'. resolveSessionMap from S140 already honours arbitrary entries; no URL or random-picker changes needed.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/bootstrap.ts imports plaza/cross/pit JSONs, extends MAP_REGISTRY map + MapName union with the 3 new keys. resolveSessionMap from S140 picks them up automatically; URL ?map=plaza|cross|pit now works alongside existing maps."
+      ]
     },
     {
       "id": "TEST-KABOOM-NEW-SCENES-001",
       "title": "Structural smoke tests for plaza / cross / pit",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/scenes-arena-variants.test.ts — per-variant assertions mirroring the S140 corridor-scene test pattern: scene id matches; grid sizeX/sizeZ match the spec; floor has RigidBody3D+Collider3D matching size; player.1 + bot.1 + bot.2 + bot.3 instances at distinct cells; hard-block count + soft-block count are within spec ranges. engine:check still passes on the kaboom-crew project.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/scenes-arena-variants.test.ts asserts per-variant scene id, grid sizeX/sizeZ, floor RigidBody3D+Collider3D matching dimensions, 4 distinct multi-bot spawn cells, hard-block count within spec range, soft-block count within spec range, ortho camera active. 18 tests (6 per variant)."
+      ]
     },
     {
       "id": "TEST-KABOOM-MAP-PICK-UNIFORM-001",
       "title": "Map-pick distribution test extends to all 6 variants",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/tests/unit/map-pick.test.ts — extend the uniform-distribution test to assert every entry in a 6-key registry can be picked given the right rng value. Boundary checks for 0.0, ~1/6, ~2/6, ~3/6, ~4/6, ~5/6.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/tests/unit/map-pick.test.ts gains S143 6-bucket distribution test — rng values 0.0/0.2/0.34/0.5/0.67/0.85/0.9999 land on the 6 maps as expected. Existing S140 tests still pass."
+      ]
     },
     {
       "id": "DOC-KABOOM-MAP-VARIANTS-001",
       "title": "README maps table refreshed with plaza, cross, pit rows",
-      "status": "pending",
+      "status": "implemented",
       "summary": "examples/kaboom-crew/README.md — extend the maps table from S140 with the 3 new variants. Each row: name, grid size, one-line gameplay description (open lanes / quadrant choke / dense pit).",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: examples/kaboom-crew/README.md maps table extends from 3 rows to 6 (added plaza, cross, pit with grid + one-line gameplay description)."
+      ]
     },
     {
       "id": "HOUSEKEEPING-ARCHIVE-STALE-GDPS-001",
       "title": "Archive stale GDP-2026-05-24-001 + 24-002 (ragdoll module — already shipped)",
-      "status": "pending",
+      "status": "implemented",
       "summary": "GDP-2026-05-24-001 (engine ragdoll module) shipped via S126-S129. GDP-2026-05-24-002 (kaboom-crew ragdoll migration) shipped via S132. Both proposals are stale; move them into backlog/proposed-stories/archive/already-done/ so the inbox shows only actionable items.",
-      "epic": "KABOOM-CREW-MVP-2"
+      "epic": "KABOOM-CREW-MVP-2",
+      "verification": [
+        "acceptance: GDP-2026-05-24-001 + 24-002 moved via git mv into backlog/proposed-stories/archive/already-done/ + new README.md in that directory records the source-sprint mapping (S126-S129 for the engine ragdoll, S132 for the kaboom-crew migration). Inbox now only carries actionable items."
+      ]
     }
   ]
 }

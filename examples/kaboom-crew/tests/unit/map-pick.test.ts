@@ -50,6 +50,24 @@ describe("resolveSessionMap (S140)", () => {
     expect(resolveSessionMap(undefined, reg, () => 0.9999)).toBe("corridor");
   });
 
+  it("S143: random pick scales to 6 entries — every variant reachable from the rng bucket", () => {
+    const reg = registryWith("start", "wide", "corridor", "plaza", "cross", "pit");
+    // 6 buckets at 1/6 ≈ 0.1667 each.
+    const cases: ReadonlyArray<[number, string]> = [
+      [0.0, "start"],
+      [0.2, "wide"],
+      [0.34, "corridor"],
+      [0.5, "plaza"],
+      [0.67, "cross"],
+      [0.85, "pit"],
+      [0.9999, "pit"]
+    ];
+    for (const [rngValue, expected] of cases) {
+      _resetSessionMap();
+      expect(resolveSessionMap(undefined, reg, () => rngValue), `rng=${rngValue}`).toBe(expected);
+    }
+  });
+
   it("memoises the random pick across calls without URL", () => {
     const reg = registryWith("start", "wide", "corridor");
     let calls = 0;

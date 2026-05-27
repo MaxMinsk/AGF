@@ -24,11 +24,14 @@ Optional query params:
   param to get a RANDOM map per page load** (S140), stable across
   round restarts in the same match. Available arenas:
 
-  | Map      | Grid  | Shape                                       |
-  |---       |---    |---                                          |
-  | start    | 15×11 | Default square arena with 4 corner pillars. |
-  | wide     | 17×13 | Wider square — more room to manoeuvre.      |
-  | corridor | 17×7  | Long narrow corridor with maze pillars.     |
+  | Map      | Grid  | Shape                                                      |
+  |---       |---    |---                                                         |
+  | start    | 15×11 | Default square arena with 4 corner pillars.                |
+  | wide     | 17×13 | Wider square — more room to manoeuvre.                     |
+  | corridor | 17×7  | Long narrow corridor with maze pillars.                    |
+  | plaza    | 13×11 | Sparse open lanes — rewards Fire-Up + Pierce blast chains. |
+  | cross    | 17×17 | + shaped hard-wall divider; 4 quadrants meet at centre.    |
+  | pit      | 11×11 | Hard-block ring around a 9×9 interior; dense engagements.  |
 
 - `?difficulty=easy` (default `normal`; also `hard`) — picks the bot
   preset applied to `bot.1` on first boot + every round restart.
