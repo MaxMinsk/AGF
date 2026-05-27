@@ -20,8 +20,16 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 export const SPRING_PIVOT = "SpringPivot";
 const TRANSFORM = "Transform";
 
-export const DEFAULT_SPRING_K = 18;
-export const DEFAULT_SPRING_DAMPING = 0.4;
+// S157 FIX-ACCESSORY-OSCILLATION (playtest 2026-05-27): accessories
+// were "вертятся как будто подвержены физике" during bomber movement.
+// Pre-fix damping=0.4 was massively underdamped against the soft-
+// attach nudge magnitude (factor=600) — every direction change
+// imparted ~600 deg/s of angular velocity and the accessory kept
+// oscillating for seconds. New constants: stiffer spring (30 vs 18)
+// + much more damping (6 vs 0.4, ratio 0.55 of critical for k=30).
+// Plus the nudge factor drops to 150 in soft-attach-sway-system.
+export const DEFAULT_SPRING_K = 30;
+export const DEFAULT_SPRING_DAMPING = 6;
 
 export type SpringPivotComponent = {
   /** Target rotation (deg) the pivot is springing back toward. */

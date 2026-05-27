@@ -22,7 +22,11 @@ const SPRING_PIVOT = "SpringPivot";
 const TRANSFORM = "Transform";
 const LOCAL_TO_WORLD = "LocalToWorld";
 
-export const SOFT_ATTACH_LINEAR_TO_ANGULAR_DEG_PER_S = 600;
+// S157 FIX-ACCESSORY-OSCILLATION (playtest 2026-05-27): factor cut 4×
+// (was 600). 600 deg/s of nudge per unit parent velocity combined
+// with the under-damped spring made accessories spin almost-freely.
+// 150 keeps the lean-back feel during motion without the spin-out.
+export const SOFT_ATTACH_LINEAR_TO_ANGULAR_DEG_PER_S = 150;
 
 type TransformLike = { parent?: string };
 type LocalToWorldLike = {
