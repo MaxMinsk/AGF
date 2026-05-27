@@ -5,6 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/169",
   "notes": [
     "Promotes GDP-2026-05-27-001 (should priority, KABOOM-CREW-MVP-2). S140 shipped the corridor variant + the MAP_REGISTRY infrastructure + the random-map-per-pageload default. This sprint fills in the remaining 3 variants the original GDP-2026-05-26-001 asked for so the session-topology variety scales to 6 distinct arenas (start, wide, corridor, plaza, cross, pit).",
     "Each variant is a hand-written JSON scene (matches the S140 corridor pattern). Generator-driven scenes were the original GDP ask but the existing kaboom-arena-small.gen.mjs is the start-arena recipe; rather than retrofit it to emit 3 more variants, we keep the data-first authoring path since the S136 floor-physics + S141 multi-bot tweaks were applied directly to JSON.",
