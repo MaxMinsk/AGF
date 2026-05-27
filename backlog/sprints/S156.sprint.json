@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-27",
   "archivedAt": "2026-05-27",
-  "prUrl": "https://github.com/MaxMinsk/AGF/pull/PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/188",
   "notes": [
     "Promotes GDP-2026-05-27-011 (should-priority, KABOOM-CREW-MVP-2). Builds directly on S153 (profile MVP) + S155 (deferred stat hooks shipped). The 5 starter unlocks map 1:1 to the existing 5-accessory catalog from S106 — no new accessory art, no schema work in procbomber-bench. Profile schema bumped to v2 with in-place v1 → v2 migration.",
     "Each unlock fires once on threshold crossing + queues a centre-screen gold banner (~2.5s lifecycle). The player.1 recipe's random-default accessory pool is filtered to the unlocked subset — earned accessories show up randomly on the bomber across rounds.",
