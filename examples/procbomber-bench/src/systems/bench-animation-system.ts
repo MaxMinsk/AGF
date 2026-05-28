@@ -231,6 +231,14 @@ export function createBenchAnimationSystem(): System {
           };
           basePoses.set(id, base);
         }
+        // S178 KABOOM-BOMBER-HEIGHT-LIFT — when the bomber is standing
+        // on a raised heightmap cell, the kaboom bomber-height-lift
+        // system stamps a HeightLift { offsetY } component. Add the
+        // offset so the idle/walk bob still oscillates around the
+        // ELEVATED base instead of locking the bomber to its spawn Y.
+        const heightLift = world.getComponent<{ offsetY?: number }>(id, "HeightLift");
+        const baseYWithLift = base.y + (heightLift?.offsetY ?? 0);
+        const liftedBase = { x: base.x, y: baseYWithLift, z: base.z };
         const nextElapsed = (state.elapsed ?? 0) + dt;
         const limbPivots = world.getComponent<LimbPivots>(id, LIMB_PIVOTS);
 
@@ -300,7 +308,7 @@ export function createBenchAnimationSystem(): System {
 
         switch (state.kind) {
           case "idle-bob": {
-            setTransformPosition(world, id, base.x, idleBobY(nextElapsed, base.y), base.z);
+            setTransformPosition(world, id, liftedBase.x, idleBobY(nextElapsed, liftedBase.y), liftedBase.z);
             applyRestPose();
             break;
           }
@@ -312,7 +320,7 @@ export function createBenchAnimationSystem(): System {
             // S110 BAL-WALK-ANIMATION-PHASE-MUS — phase is now driven by
             // travelled distance via walkPhaseS, not wall-clock. Slow
             // bombers visibly stride slower; fast bombers hustle.
-            setTransformPosition(world, id, base.x, walkRootBobY(walkPhaseS, base.y), base.z);
+            setTransformPosition(world, id, liftedBase.x, walkRootBobY(walkPhaseS, liftedBase.y), liftedBase.z);
             if (limbPivots !== undefined) {
               setTransformRotationXFromRad(world, limbPivots.shoulderL, walkSwingRotation(walkPhaseS, "shoulderL"));
               setTransformRotationXFromRad(world, limbPivots.shoulderR, walkSwingRotation(walkPhaseS, "shoulderR"));
@@ -333,7 +341,7 @@ export function createBenchAnimationSystem(): System {
             // arm; write shoulder pitch (X) + yaw (Y) + elbow bend (X).
             // Right arm holds the arm-rest pose so the user sees the
             // asymmetry clearly.
-            setTransformPosition(world, id, base.x, base.y, base.z);
+            setTransformPosition(world, id, liftedBase.x, liftedBase.y, liftedBase.z);
             if (limbPivots !== undefined) {
               const L1 = state.upperArmLength ?? 0.2;
               const L2 = state.forearmLength ?? 0.2;
@@ -359,7 +367,7 @@ export function createBenchAnimationSystem(): System {
             break;
           }
           case "limb-test": {
-            setTransformPosition(world, id, base.x, base.y, base.z);
+            setTransformPosition(world, id, liftedBase.x, liftedBase.y, liftedBase.z);
             if (limbPivots !== undefined) {
               const active = limbTestActivePivot(nextElapsed);
               for (const name of LIMB_PIVOT_NAMES) {
@@ -377,7 +385,7 @@ export function createBenchAnimationSystem(): System {
             // The broader RagdollActive guard at the top of the loop
             // handles the engine ragdoll module's case.
             if (world.hasComponent(id, "DeathAnim")) break;
-            setTransformPosition(world, id, base.x, base.y, base.z);
+            setTransformPosition(world, id, liftedBase.x, liftedBase.y, liftedBase.z);
             applyRestPose();
             break;
           }

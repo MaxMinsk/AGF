@@ -1,6 +1,7 @@
 import { expandScenePrefabs, type PrefabDefinition } from "../../engine/core/scene/expand-prefabs";
 import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupancy-system";
 import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
+import { createKaboomBomberHeightLiftSystem } from "./src/systems/bomber-height-lift-system";
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type { EngineCommand } from "../../engine/core/commands/types";
@@ -556,6 +557,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(occupancy, { profiles: ["static", "connected"] });
 
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S178 KABOOM-BOMBER-HEIGHT-LIFT — keep bombers/bombs/pickups Y in
+    // sync with the cell they stand on. Runs AFTER grid-movement so
+    // the Y-write lands on the post-tween GridPosition.
+    scheduler.register(createKaboomBomberHeightLiftSystem(), { profiles: ["static", "connected"] });
     // S165 KABOOM-MULTI-VARIANT-BLOCKS + S170 KABOOM-WANG-INTEGRATION —
     // stamp WangTile + WangTileFamilyMember on every hard / soft block
     // cell. The engine resolver (registered immediately below) computes
