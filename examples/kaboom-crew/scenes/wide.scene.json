@@ -36,28 +36,28 @@
         "Light": {
           "kind": "directional",
           "color": "#ffffff",
-          "intensity": 2.5,
+          "intensity": 2.16,
           "castShadow": true,
           "shadow": {
             "mapSize": 2048,
-            "bias": -0.0005,
-            "normalBias": 0.02,
-            "radius": 2,
+            "bias": 0,
+            "normalBias": 0.285,
+            "radius": 4.4,
             "camera": {
-              "left": -18,
-              "right": 18,
-              "top": 18,
-              "bottom": -18,
+              "left": -26,
+              "right": 26,
+              "top": 26,
+              "bottom": -26,
               "near": 0.5,
-              "far": 50
+              "far": 60
             }
           }
         },
         "Transform": {
           "position": [
-            0,
-            8,
-            4
+            -2,
+            8.5,
+            2.5
           ],
           "rotation": [
             -45,
@@ -78,7 +78,7 @@
         "Light": {
           "kind": "ambient",
           "color": "#ffffff",
-          "intensity": 0.15
+          "intensity": 0.18
         },
         "Transform": {
           "position": [
