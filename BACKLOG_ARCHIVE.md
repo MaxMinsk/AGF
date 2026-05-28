@@ -172,5 +172,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S165](backlog/sprints/S165.sprint.json)** — Kaboom Crew per-tile mesh variety — 4 procedural variants per family — 6 implemented · archived 2026-05-28
 - **[S166](backlog/sprints/S166.sprint.json)** — Sudden Death visual cues — banner + screen-edge red vignette pulse — 2 implemented · archived 2026-05-28
 - **[S167](backlog/sprints/S167.sprint.json)** — Recipe-driven voice — voice colour derives from appearance — 3 implemented · archived 2026-05-28
+- **[S168](backlog/sprints/S168.sprint.json)** — Voice synth tuning — formant glide + per-vowel pitch jitter + drift floor — 3 implemented · archived 2026-05-28
 
 <!-- backlog:render:end -->

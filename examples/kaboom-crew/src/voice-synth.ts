@@ -60,8 +60,22 @@ const VOICE_RANGES = {
   noiseMix: [0, 0.4] as const,
   phrasePaceMultiplier: [0.6, 1.4] as const,
   consonantStyle: [0, 1] as const,
-  vowelDriftAmount: [0, 0.3] as const
+  // S168 GDP-028-005 change 4 — push the minimum drift to 0.20 so no
+  // bomber ends up dead-monotone. Ceiling 0.6 (was 0.3) lets per-
+  // syllable F1/F2 deltas read as distinct vowels rather than
+  // washing into a single timbre.
+  vowelDriftAmount: [0.20, 0.60] as const
 };
+
+// S168 GDP-028-005 change 5 — formant glide depth ranges. Real speech
+// vowels move spectrally; with glide 0 we get static beeps. ±5% glide
+// at midpoint produces a "voiced" reading without breaking vowel
+// identity.
+const FORMANT_GLIDE_PER_VOWEL = 0.05;
+// S168 GDP-028-005 change 6 — per-vowel pitch jitter. Deterministic
+// from (seed hash, syllable index). ±3% removes the "too perfect synth"
+// reading without changing phrase intent.
+const PITCH_JITTER_PER_VOWEL = 0.03;
 
 function makeSeedStream(seed: string): () => number {
   let h = 2166136261;
@@ -375,20 +389,31 @@ export function planUtterance(colour: VoiceColour, slot: VoiceSlot): ReadonlyArr
 
   const out: SyllableSchedule[] = [];
   let cursor = 0;
+  // S168 GDP-028-005 — per-vowel pitch jitter. Hash the syllable index
+  // mixed with a slot-derived offset; deterministic per (slot, i).
+  const jitterSlotOffset = slot.length * 31;
   for (let i = 0; i < syllableCount; i += 1) {
     const start = cursor;
     const pitchMul = patch.pitchContour[i]!;
-    const pitchHz = colour.basePitchHz * pitchMul;
+    // 32-bit xorshift on (i * 2654435761 + slotOffset) gives a
+    // stable ±1 value per syllable.
+    let h = ((i * 2654435761) ^ jitterSlotOffset) >>> 0;
+    h ^= h << 13; h >>>= 0;
+    h ^= h >>> 17;
+    h ^= (h << 5) >>> 0;
+    const jitter01 = ((h >>> 0) / 0xffffffff) * 2 - 1; // -1..1
+    const pitchJitter = 1 + jitter01 * PITCH_JITTER_PER_VOWEL;
+    const pitchHz = colour.basePitchHz * pitchMul * pitchJitter;
     // S158 — intra-syllable pitch slide. When pitchEndContour is set
     // and differs from the start multiplier, the carrier ramps from
     // pitchHz to pitchEndHz over the syllable's vowel duration.
     const pitchEndMul = patch.pitchEndContour?.[i] ?? pitchMul;
-    const pitchEndHz = colour.basePitchHz * pitchEndMul;
+    const pitchEndHz = colour.basePitchHz * pitchEndMul * pitchJitter;
     const [dF1, dF2] = patch.vowelDeltas[i]!;
-    // Drift amount scales the delta — 0 = ignore deltas (monotone),
-    // 1 = full delta (max expressiveness). Knob is 0..0.3; we
-    // normalise by 0.3 so 0.3 = 100% delta.
-    const drift = Math.min(1, colour.vowelDriftAmount / 0.3);
+    // S168 — knob is 0.20..0.60; normalise by 0.60 so the upper end
+    // applies full delta. Lower-end bombers still get 33% delta minimum
+    // (0.20/0.60), preventing dead-monotone voices.
+    const drift = Math.min(1, colour.vowelDriftAmount / 0.6);
     const consonant: ConsonantSpec | null =
       consonantDur > 0
         ? {
@@ -588,12 +613,43 @@ function scheduleVowel(
   // Three parallel bandpass formants (F1 + F2 + F3=F2*1.6). Q comes
   // from the spec — slightly tightened ranges in the patches give a
   // clearer vowel.
+  //
+  // S168 GDP-028-005 — formant glide. Real speech vowels GLIDE between
+  // F1/F2 targets across the vowel. Without this even doubled vowel
+  // durations read as static beeps. Each formant ramps:
+  //   start: base
+  //   mid:   base × (1 ± FORMANT_GLIDE_PER_VOWEL)   (sign per formant)
+  //   end:   base
+  // The ±5% glide is subtle enough to preserve vowel identity but
+  // adds the spectral motion ear-marks of voiced speech.
   const filterSum = c.createGain();
   filterSum.gain.setValueAtTime(1.0 / 3, startAt);
-  for (const hz of [spec.formantF1Hz, spec.formantF2Hz, Math.min(3800, spec.formantF2Hz * 1.6)]) {
+  const midAt = startAt + spec.durationS * 0.5;
+  const formantHz = [
+    spec.formantF1Hz,
+    spec.formantF2Hz,
+    Math.min(3800, spec.formantF2Hz * 1.6)
+  ];
+  // Alternate glide direction per formant so F1 rises while F2 dips —
+  // mimics the typical [i→a] glide shape.
+  const glideDir = [1, -1, 1];
+  for (let i = 0; i < formantHz.length; i += 1) {
+    const hz = formantHz[i]!;
+    const dir = glideDir[i]!;
     const bp = c.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.setValueAtTime(Math.max(60, hz), startAt);
+    const baseHz = Math.max(60, hz);
+    const midHz = Math.max(60, baseHz * (1 + dir * FORMANT_GLIDE_PER_VOWEL));
+    bp.frequency.setValueAtTime(baseHz, startAt);
+    if (typeof bp.frequency.linearRampToValueAtTime === "function") {
+      try {
+        bp.frequency.linearRampToValueAtTime(midHz, midAt);
+        bp.frequency.linearRampToValueAtTime(baseHz, end);
+      } catch {
+        // Stub AudioContext in unit tests may not implement
+        // linearRampToValueAtTime — silently fall back to static.
+      }
+    }
     if (bp.Q !== undefined) bp.Q.setValueAtTime(spec.formantQ, startAt);
     carrierMix.connect(bp);
     bp.connect(filterSum);

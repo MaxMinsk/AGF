@@ -1,0 +1,48 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S168",
+  "title": "Voice synth tuning — formant glide + per-vowel pitch jitter + drift floor",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "PENDING",
+  "notes": [
+    "Implements GDP-2026-05-28-005 changes 4-6 (changes 1-3 already applied in S158 PHRASE_PATCHES redesign).",
+    "Change 4 (drift floor): vowelDriftAmount range [0, 0.3] → [0.20, 0.60]. No bomber gets dead-monotone vowels; high end applies full delta. planUtterance normalises by 0.6.",
+    "Change 5 (formant glide): each vowel's bandpass filters now linear-ramp frequency from base → ±5% mid → base end. F1 rises while F2 dips (mimics [i→a] glide). Vowels read as voiced speech, not static beeps.",
+    "Change 6 (pitch jitter): ±3% deterministic jitter per (slot, syllable index). Removes 'too perfect synth' feel without changing phrase intent.",
+    "S110 carrier-count + S158 PHRASE_PATCHES intact. Test stubs without linearRampToValueAtTime fall back to static frequency."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-VOICE-DRIFT-FLOOR-001",
+      "title": "vowelDriftAmount range floor 0.20, ceiling 0.60",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts — VOICE_RANGES.vowelDriftAmount updated; planUtterance normalises by 0.6 so the upper end applies full vowel-delta. Voice-recipe-driven path now passes [0.2, 0.6] envelopes implicitly via the lerp.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: voice-synth.test.ts range assertion updated; planUtterance test at driftAmount=0.6 matches full delta within float tolerance."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-VOICE-FORMANT-GLIDE-001",
+      "title": "Per-vowel formant glide via bandpass frequency ramp",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts scheduleVowel — each of the 3 parallel bandpass formants (F1, F2, F3=F2*1.6) now linear-ramps from base → ±5% mid → base end across the vowel duration. Glide direction alternates (F1 up, F2 down, F3 up) for the typical [i→a] spectral motion. AudioParam ramp is feature-detected so the unit-test stub (only setValueAtTime) falls through cleanly.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: typecheck green; voice-synth.test.ts still passes (stub falls back to static); audio-fx BiquadFilterLike type extended with optional linearRampToValueAtTime."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-VOICE-PITCH-JITTER-001",
+      "title": "±3% per-syllable pitch jitter (deterministic)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts planUtterance — each syllable's pitchHz + pitchEndHz is multiplied by 1 ± 3% derived from an xorshift hash of (syllable index, slot string length). Same (colour, slot) produces identical jitter sequence across calls.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: two new tests — determinism (same plan twice = identical pitchHz) + envelope (within ±3% of base*contour). Updated existing 'vowel pitchHz = base * contour' test to accept the jitter envelope."
+      ]
+    }
+  ]
+}
