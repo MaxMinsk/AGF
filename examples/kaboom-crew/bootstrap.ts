@@ -870,33 +870,75 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       ? applyTerrainmapCommands(initialSourceScene)
       : [];
 
+    // S176 fix: when ?map=X selects a non-default scene, prepend a
+    // scene.load + replace the upsertEntityCommands path with a fresh
+    // entity.create for game-state / round-state singletons. The
+    // engine initially loaded start.scene.json (per src/main.ts) +
+    // restartScene already wrote kaboom.game-state; my scene.load
+    // wipes them, so we must NOT use upsertEntityCommands (which
+    // evaluates against the pre-wipe world). Force entity.create.
+    const needsSceneLoadOverride = activeMapName !== "start" && initialSourceScene !== undefined;
+    // S176 fix: scene.load only iterates entities[] — it does NOT expand
+    // instances[]. Pre-expand prefabs so bots / blocks / pickups appear.
+    const expandedInitialScene = needsSceneLoadOverride
+      ? buildFlatStartScene(activeMapName)
+      : undefined;
+    const gameStateCmds: EngineCommand[] = needsSceneLoadOverride
+      ? [{
+          kind: "entity.create",
+          entityId: "kaboom.game-state",
+          components: {
+            GamePaused: { reason: "title-screen" },
+            MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 },
+            SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 },
+            ArenaTheme: { themeKey: initialThemeKey }
+          }
+        }]
+      : upsertEntityCommands(runtime.world, "kaboom.game-state", {
+          GamePaused: { reason: "title-screen" },
+          MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 },
+          SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 },
+          ArenaTheme: { themeKey: initialThemeKey }
+        });
     const initialBatch: EngineCommand[] = [
+      ...(needsSceneLoadOverride && expandedInitialScene !== undefined
+        ? [{ kind: "scene.load" as const, scene: expandedInitialScene }]
+        : []),
       ...initialHeightmapCommands,
       ...initialTerrainmapCommands,
-      // S84 + S115 — single kaboom.game-state singleton carries
-      // GamePaused (title-screen / pause overlay) AND MatchState
-      // (best-of-N session).
-      ...upsertEntityCommands(runtime.world, "kaboom.game-state", {
-        GamePaused: { reason: "title-screen" },
-        MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 },
-        // S160 KABOOM-SUDDEN-DEATH — config singleton co-located on game-state.
-        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 },
-        // S171 KABOOM-ARENA-THEMES MVP — picked up by arena-theme-apply-system.
-        ArenaTheme: { themeKey: initialThemeKey }
-      }),
-      // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
-      // present from frame 0 — RoundResolveSystem's ensureRoundState would
-      // otherwise create a singleton without it.
-      ...upsertEntityCommands(runtime.world, "kaboom.round-state", {
-        RoundState: {
-          phase: "playing",
-          elapsed: 0,
-          roundNumber: 1,
-          tally: { player: 0, bot: 0, draws: 0 },
-          timeLimit: readRoundTimeLimit(),
-          matchTarget: readMatchTargetFromUrl() ?? 3
-        }
-      })
+      // S84 + S115 — single kaboom.game-state singleton (resolved above
+      // via needsSceneLoadOverride: entity.create when a scene.load is
+      // about to wipe the world, otherwise upsert against live state).
+      ...gameStateCmds,
+      // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front. Same
+      // entity.create-vs-upsert split as game-state above: when my
+      // scene.load wipes the world, the upsert would emit component.set
+      // against a since-deleted entity.
+      ...(needsSceneLoadOverride
+        ? [{
+            kind: "entity.create" as const,
+            entityId: "kaboom.round-state",
+            components: {
+              RoundState: {
+                phase: "playing",
+                elapsed: 0,
+                roundNumber: 1,
+                tally: { player: 0, bot: 0, draws: 0 },
+                timeLimit: readRoundTimeLimit(),
+                matchTarget: readMatchTargetFromUrl() ?? 3
+              }
+            }
+          }]
+        : upsertEntityCommands(runtime.world, "kaboom.round-state", {
+            RoundState: {
+              phase: "playing",
+              elapsed: 0,
+              roundNumber: 1,
+              tally: { player: 0, bot: 0, draws: 0 },
+              timeLimit: readRoundTimeLimit(),
+              matchTarget: readMatchTargetFromUrl() ?? 3
+            }
+          }))
     ];
     // S163-revert: camera-follow caused persistent 'двоится' artifact
     // ('как будто две камеры со смещением'). Both kaboom-side

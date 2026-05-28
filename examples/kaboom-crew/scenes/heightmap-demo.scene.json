@@ -145,6 +145,22 @@
       }
     },
     {
+      "id": "bot.2",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": { "position": [1, 0.4, 9] },
+        "GridPosition": { "gx": 1, "gz": 9 }
+      }
+    },
+    {
+      "id": "bot.3",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": { "position": [13, 0.4, 1] },
+        "GridPosition": { "gx": 13, "gz": 1 }
+      }
+    },
+    {
       "id": "wall.center",
       "prefab": "hard-block",
       "overrides": {
