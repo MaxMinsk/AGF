@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S173",
   "title": "Variable cell height MVP — Heightmap singleton + cliff-aware blast + movement",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/223",
   "notes": [
     "Scoped MVP of GDP-2026-05-28-010. Heightmap is a SINGLETON component on the grid-config entity (NOT per-cell entities). Cliffs are computed lazily by pure helpers in engine/grid/height-query (no Cliff marker entity this sprint — the per-edge marker design from the GDP is deferred until ramp authoring lands in GDP-2026-05-28-011).",
     "Visual treatment of raised cells is OUT OF SCOPE this sprint — the floor stays a flat plane; the gameplay rules are validatable via the prototype scene's heightmap by walking into a cliff and watching the blast stop. The cuboid floor mesh + cliff-face shader come in a follow-up alongside ramps so the visual seam isn't half-shipped.",

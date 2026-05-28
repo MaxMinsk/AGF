@@ -177,5 +177,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S170](backlog/sprints/S170.sprint.json)** — Kaboom Crew Wang autotile integration — Stage 3 of GDP-2026-05-28-004 — 4 implemented · archived 2026-05-28
 - **[S171](backlog/sprints/S171.sprint.json)** — Per-arena themes (MVP) + vertex-colors restart fix — 4 implemented · archived 2026-05-28
 - **[S172](backlog/sprints/S172.sprint.json)** — Theme-aware block palettes — variant builders parameterised by ArenaTheme — 2 implemented · archived 2026-05-28
+- **[S173](backlog/sprints/S173.sprint.json)** — Variable cell height MVP — Heightmap singleton + cliff-aware blast + movement — 7 implemented · archived 2026-05-28
 
 <!-- backlog:render:end -->
