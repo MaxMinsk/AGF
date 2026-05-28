@@ -88,6 +88,12 @@ import {
   Vector3,
   WebGLRenderer,
   WebGLRenderTarget,
+  DepthTexture,
+  UnsignedIntType,
+  DepthFormat,
+  RGBAFormat,
+  NearestFilter,
+  type Camera,
   FrontSide,
   BackSide,
   DoubleSide,
@@ -1547,6 +1553,87 @@ export class ThreeRenderAdapter {
 
   planarMirrorCount(): number {
     return this.planarMirrors.size;
+  }
+
+  // ---- S185 ENGINE-POSTFX-PRIMITIVE: render-target primitives ----
+  private readonly renderTargets = new Map<number, {
+    target: WebGLRenderTarget;
+    depthTexture: DepthTexture | undefined;
+  }>();
+  private nextRenderTargetHandle = 1;
+
+  /**
+   * Acquire a render target sized `(width × height)`. When `depthTexture`
+   * is true, also allocate a DepthTexture so a follow-up pass can sample
+   * scene depth (the building block for outline-occluder + SSAO + DOF).
+   */
+  acquireRenderTarget(spec: {
+    width: number;
+    height: number;
+    depthTexture?: boolean;
+    nearestFilter?: boolean;
+  }): number {
+    const handle = this.nextRenderTargetHandle++;
+    const options: ConstructorParameters<typeof WebGLRenderTarget>[2] = {
+      format: RGBAFormat
+    };
+    if (spec.nearestFilter === true) {
+      options.minFilter = NearestFilter;
+      options.magFilter = NearestFilter;
+    }
+    const target = new WebGLRenderTarget(spec.width, spec.height, options);
+    let depthTex: DepthTexture | undefined;
+    if (spec.depthTexture === true) {
+      depthTex = new DepthTexture(spec.width, spec.height, UnsignedIntType);
+      depthTex.format = DepthFormat;
+      target.depthTexture = depthTex;
+    }
+    this.renderTargets.set(handle, { target, depthTexture: depthTex });
+    return handle;
+  }
+
+  releaseRenderTarget(handle: number): void {
+    const entry = this.renderTargets.get(handle);
+    if (entry === undefined) return;
+    entry.target.dispose();
+    entry.depthTexture?.dispose();
+    this.renderTargets.delete(handle);
+  }
+
+  /** Resize an existing target — call from the project's resize handler
+   *  so the texture matches the canvas DPR. */
+  resizeRenderTarget(handle: number, width: number, height: number): void {
+    const entry = this.renderTargets.get(handle);
+    if (entry === undefined) return;
+    entry.target.setSize(width, height);
+  }
+
+  /**
+   * Render `scene` into the target using `camera`. The device's current
+   * render target is saved + restored so this method is safe to call
+   * mid-frame as a pre-pass.
+   */
+  renderSceneToTarget(handle: number, scene: Scene, camera: Camera): void {
+    const entry = this.renderTargets.get(handle);
+    if (entry === undefined) return;
+    const previous = (this.device as { getRenderTarget?(): WebGLRenderTarget | null }).getRenderTarget?.() ?? null;
+    this.device.setRenderTarget(entry.target);
+    this.device.render(scene, camera);
+    this.device.setRenderTarget(previous);
+  }
+
+  /** Colour texture written by `renderSceneToTarget`. */
+  getRenderTargetColorTexture(handle: number): Texture | undefined {
+    return this.renderTargets.get(handle)?.target.texture;
+  }
+
+  /** Depth texture — present only when target acquired with `depthTexture: true`. */
+  getRenderTargetDepthTexture(handle: number): Texture | undefined {
+    return this.renderTargets.get(handle)?.depthTexture;
+  }
+
+  renderTargetCount(): number {
+    return this.renderTargets.size;
   }
 
   /**
