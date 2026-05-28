@@ -2,7 +2,6 @@ import { expandScenePrefabs, type PrefabDefinition } from "../../engine/core/sce
 import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupancy-system";
 import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
 import { createKaboomBomberHeightLiftSystem } from "./src/systems/bomber-height-lift-system";
-import { mountKaboomShadowTuner } from "./src/ui/shadow-tuner";
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type { EngineCommand } from "../../engine/core/commands/types";
@@ -1034,7 +1033,6 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // spawns once + needs an explicit poll until every mesh handle
     // exists (MeshLifecycleSystem creates them on the next tick).
     startVertexColorsPoller(runtime);
-    mountKaboomShadowTuner(runtime);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
