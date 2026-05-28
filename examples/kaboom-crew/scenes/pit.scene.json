@@ -36,7 +36,22 @@
         "Light": {
           "kind": "directional",
           "color": "#ffffff",
-          "intensity": 1.5
+          "intensity": 1.5,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": -0.0005,
+            "normalBias": 0.02,
+            "radius": 2,
+            "camera": {
+              "left": -18,
+              "right": 18,
+              "top": 18,
+              "bottom": -18,
+              "near": 0.5,
+              "far": 50
+            }
+          }
         },
         "Transform": {
           "position": [

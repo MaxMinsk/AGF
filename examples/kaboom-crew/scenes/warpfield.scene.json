@@ -4,113 +4,644 @@
     {
       "id": "camera.main",
       "components": {
-        "Camera": { "kind": "orthographic", "active": true, "orthographicSize": 8, "near": 0.1, "far": 100 },
-        "Transform": { "position": [7, 10, 10], "rotation": [-55, 0, 0], "scale": [1, 1, 1] }
+        "Camera": {
+          "kind": "orthographic",
+          "active": true,
+          "orthographicSize": 8,
+          "near": 0.1,
+          "far": 100
+        },
+        "Transform": {
+          "position": [
+            7,
+            10,
+            10
+          ],
+          "rotation": [
+            -55,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
       }
     },
     {
       "id": "light.sun",
       "components": {
-        "Light": { "kind": "directional", "color": "#ffffff", "intensity": 1.5 },
-        "Transform": { "position": [0, 8, 4], "rotation": [-45, 30, 0], "scale": [1, 1, 1] }
+        "Light": {
+          "kind": "directional",
+          "color": "#ffffff",
+          "intensity": 1.5,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": -0.0005,
+            "normalBias": 0.02,
+            "radius": 2,
+            "camera": {
+              "left": -18,
+              "right": 18,
+              "top": 18,
+              "bottom": -18,
+              "near": 0.5,
+              "far": 50
+            }
+          }
+        },
+        "Transform": {
+          "position": [
+            0,
+            8,
+            4
+          ],
+          "rotation": [
+            -45,
+            30,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
       }
     },
     {
       "id": "light.ambient",
       "components": {
-        "Light": { "kind": "ambient", "color": "#ffffff", "intensity": 0.3 },
-        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        "Light": {
+          "kind": "ambient",
+          "color": "#ffffff",
+          "intensity": 0.3
+        },
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
       }
     },
     {
       "id": "grid.config",
       "components": {
-        "Grid": { "cellSize": 1, "sizeX": 15, "sizeZ": 11, "originX": 0, "originZ": 0 },
-        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        "Grid": {
+          "cellSize": 1,
+          "sizeX": 15,
+          "sizeZ": 11,
+          "originX": 0,
+          "originZ": 0
+        },
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
       }
     },
     {
       "id": "floor",
       "components": {
-        "Transform": { "position": [7, -0.05, 5], "rotation": [0, 0, 0], "scale": [15, 0.1, 11] },
-        "MeshRenderer": { "mesh": "box", "color": "#1d2536" },
-        "RigidBody3D": { "type": "fixed" },
-        "Collider3D": { "kind": "box", "size": [15, 0.1, 11] }
+        "Transform": {
+          "position": [
+            7,
+            -0.05,
+            5
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            15,
+            0.1,
+            11
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#1d2536"
+        },
+        "RigidBody3D": {
+          "type": "fixed"
+        },
+        "Collider3D": {
+          "kind": "box",
+          "size": [
+            15,
+            0.1,
+            11
+          ]
+        }
       }
     },
     {
       "id": "warp.0.a",
       "components": {
-        "Transform": { "position": [2, 0.06, 1], "rotation": [0, 0, 0], "scale": [0.9, 0.05, 0.9] },
-        "MeshRenderer": { "mesh": "cylinder", "color": "#36e0e8" },
-        "GridPosition": { "gx": 2, "gz": 1 },
-        "WarpHole": { "pairId": 0, "role": "a" }
+        "Transform": {
+          "position": [
+            2,
+            0.06,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.9,
+            0.05,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "cylinder",
+          "color": "#36e0e8"
+        },
+        "GridPosition": {
+          "gx": 2,
+          "gz": 1
+        },
+        "WarpHole": {
+          "pairId": 0,
+          "role": "a"
+        }
       }
     },
     {
       "id": "warp.0.b",
       "components": {
-        "Transform": { "position": [12, 0.06, 9], "rotation": [0, 0, 0], "scale": [0.9, 0.05, 0.9] },
-        "MeshRenderer": { "mesh": "cylinder", "color": "#36e0e8" },
-        "GridPosition": { "gx": 12, "gz": 9 },
-        "WarpHole": { "pairId": 0, "role": "b" }
+        "Transform": {
+          "position": [
+            12,
+            0.06,
+            9
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.9,
+            0.05,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "cylinder",
+          "color": "#36e0e8"
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 9
+        },
+        "WarpHole": {
+          "pairId": 0,
+          "role": "b"
+        }
       }
     },
     {
       "id": "warp.1.a",
       "components": {
-        "Transform": { "position": [12, 0.06, 1], "rotation": [0, 0, 0], "scale": [0.9, 0.05, 0.9] },
-        "MeshRenderer": { "mesh": "cylinder", "color": "#e040fb" },
-        "GridPosition": { "gx": 12, "gz": 1 },
-        "WarpHole": { "pairId": 1, "role": "a" }
+        "Transform": {
+          "position": [
+            12,
+            0.06,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.9,
+            0.05,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "cylinder",
+          "color": "#e040fb"
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 1
+        },
+        "WarpHole": {
+          "pairId": 1,
+          "role": "a"
+        }
       }
     },
     {
       "id": "warp.1.b",
       "components": {
-        "Transform": { "position": [2, 0.06, 9], "rotation": [0, 0, 0], "scale": [0.9, 0.05, 0.9] },
-        "MeshRenderer": { "mesh": "cylinder", "color": "#e040fb" },
-        "GridPosition": { "gx": 2, "gz": 9 },
-        "WarpHole": { "pairId": 1, "role": "b" }
+        "Transform": {
+          "position": [
+            2,
+            0.06,
+            9
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.9,
+            0.05,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "cylinder",
+          "color": "#e040fb"
+        },
+        "GridPosition": {
+          "gx": 2,
+          "gz": 9
+        },
+        "WarpHole": {
+          "pairId": 1,
+          "role": "b"
+        }
       }
     },
     {
       "id": "warp.2.a",
       "components": {
-        "Transform": { "position": [7, 0.06, 2], "rotation": [0, 0, 0], "scale": [0.9, 0.05, 0.9] },
-        "MeshRenderer": { "mesh": "cylinder", "color": "#9ee84a" },
-        "GridPosition": { "gx": 7, "gz": 2 },
-        "WarpHole": { "pairId": 2, "role": "a" }
+        "Transform": {
+          "position": [
+            7,
+            0.06,
+            2
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.9,
+            0.05,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "cylinder",
+          "color": "#9ee84a"
+        },
+        "GridPosition": {
+          "gx": 7,
+          "gz": 2
+        },
+        "WarpHole": {
+          "pairId": 2,
+          "role": "a"
+        }
       }
     },
     {
       "id": "warp.2.b",
       "components": {
-        "Transform": { "position": [7, 0.06, 8], "rotation": [0, 0, 0], "scale": [0.9, 0.05, 0.9] },
-        "MeshRenderer": { "mesh": "cylinder", "color": "#9ee84a" },
-        "GridPosition": { "gx": 7, "gz": 8 },
-        "WarpHole": { "pairId": 2, "role": "b" }
+        "Transform": {
+          "position": [
+            7,
+            0.06,
+            8
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.9,
+            0.05,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "cylinder",
+          "color": "#9ee84a"
+        },
+        "GridPosition": {
+          "gx": 7,
+          "gz": 8
+        },
+        "WarpHole": {
+          "pairId": 2,
+          "role": "b"
+        }
       }
     }
   ],
   "instances": [
-    { "id": "player.1", "prefab": "player", "overrides": { "Transform": { "position": [0, 0.4, 0] }, "GridPosition": { "gx": 0, "gz": 0 } } },
-    { "id": "bot.1", "prefab": "bot", "overrides": { "Transform": { "position": [14, 0.4, 0] }, "GridPosition": { "gx": 14, "gz": 0 } } },
-    { "id": "bot.2", "prefab": "bot", "overrides": { "Transform": { "position": [0, 0.4, 10] }, "GridPosition": { "gx": 0, "gz": 10 } } },
-    { "id": "bot.3", "prefab": "bot", "overrides": { "Transform": { "position": [14, 0.4, 10] }, "GridPosition": { "gx": 14, "gz": 10 } } },
-
-    { "id": "hard.0", "prefab": "hard-block", "overrides": { "Transform": { "position": [3, 0.5, 3] }, "GridPosition": { "gx": 3, "gz": 3 } } },
-    { "id": "hard.1", "prefab": "hard-block", "overrides": { "Transform": { "position": [11, 0.5, 3] }, "GridPosition": { "gx": 11, "gz": 3 } } },
-    { "id": "hard.2", "prefab": "hard-block", "overrides": { "Transform": { "position": [3, 0.5, 7] }, "GridPosition": { "gx": 3, "gz": 7 } } },
-    { "id": "hard.3", "prefab": "hard-block", "overrides": { "Transform": { "position": [11, 0.5, 7] }, "GridPosition": { "gx": 11, "gz": 7 } } },
-
-    { "id": "soft.0", "prefab": "soft-block", "overrides": { "Transform": { "position": [5, 0.5, 5] }, "GridPosition": { "gx": 5, "gz": 5 } } },
-    { "id": "soft.1", "prefab": "soft-block", "overrides": { "Transform": { "position": [9, 0.5, 5] }, "GridPosition": { "gx": 9, "gz": 5 } } },
-    { "id": "soft.2", "prefab": "soft-block", "overrides": { "Transform": { "position": [7, 0.5, 4] }, "GridPosition": { "gx": 7, "gz": 4 } } },
-    { "id": "soft.3", "prefab": "soft-block", "overrides": { "Transform": { "position": [7, 0.5, 6] }, "GridPosition": { "gx": 7, "gz": 6 } } },
-    { "id": "soft.4", "prefab": "soft-block", "overrides": { "Transform": { "position": [6, 0.5, 3] }, "GridPosition": { "gx": 6, "gz": 3 } } },
-    { "id": "soft.5", "prefab": "soft-block", "overrides": { "Transform": { "position": [8, 0.5, 7] }, "GridPosition": { "gx": 8, "gz": 7 } } },
-    { "id": "soft.6", "prefab": "soft-block", "overrides": { "Transform": { "position": [4, 0.5, 2] }, "GridPosition": { "gx": 4, "gz": 2 } } },
-    { "id": "soft.7", "prefab": "soft-block", "overrides": { "Transform": { "position": [10, 0.5, 8] }, "GridPosition": { "gx": 10, "gz": 8 } } }
+    {
+      "id": "player.1",
+      "prefab": "player",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.4,
+            0
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 0
+        }
+      }
+    },
+    {
+      "id": "bot.1",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": {
+          "position": [
+            14,
+            0.4,
+            0
+          ]
+        },
+        "GridPosition": {
+          "gx": 14,
+          "gz": 0
+        }
+      }
+    },
+    {
+      "id": "bot.2",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.4,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "bot.3",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": {
+          "position": [
+            14,
+            0.4,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 14,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard.0",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            3,
+            0.5,
+            3
+          ]
+        },
+        "GridPosition": {
+          "gx": 3,
+          "gz": 3
+        }
+      }
+    },
+    {
+      "id": "hard.1",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            11,
+            0.5,
+            3
+          ]
+        },
+        "GridPosition": {
+          "gx": 11,
+          "gz": 3
+        }
+      }
+    },
+    {
+      "id": "hard.2",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            3,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 3,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "id": "hard.3",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            11,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 11,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "id": "soft.0",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft.1",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            9,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 9,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft.2",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            7,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 7,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "soft.3",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            7,
+            0.5,
+            6
+          ]
+        },
+        "GridPosition": {
+          "gx": 7,
+          "gz": 6
+        }
+      }
+    },
+    {
+      "id": "soft.4",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            3
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 3
+        }
+      }
+    },
+    {
+      "id": "soft.5",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            8,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 8,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "id": "soft.6",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            2
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 2
+        }
+      }
+    },
+    {
+      "id": "soft.7",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            8
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 8
+        }
+      }
+    }
   ]
 }
