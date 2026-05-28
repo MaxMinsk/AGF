@@ -35,6 +35,11 @@ import {
   selectVariantIndex,
   type VariantIndex
 } from "./blocks/per-cell-variant-selector";
+import {
+  ARENA_THEMES,
+  isArenaThemeKey,
+  type ArenaThemeKey
+} from "./themes/theme-table";
 
 export const HARD_BLOCK_MESH_KEY = "kaboom-hard-block";
 export const SOFT_BLOCK_MESH_KEY = "kaboom-soft-block";
@@ -79,23 +84,45 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     return buildFloorTileVariant(idx as FloorTileVariantIndex);
   });
 
-  // S170 — per-variant builders. The seed is ignored; the variant
-  // identity is the registry key itself. The registry caches one
-  // BufferGeometry per (key, seed) tuple — using a fixed seed
-  // ("default") collapses every cell sharing the same variant into a
-  // single cached geometry.
+  // S170 + S172 — per-variant builders. The seed encodes the active
+  // arena theme key (S172). Registry caches one BufferGeometry per
+  // (key, seed) tuple, so (variant 0, theme=warehouse) and (variant 0,
+  // theme=bunker) end up as distinct cached geometries with the
+  // theme's hard/soft block palette baked in via paintVertexColors.
   for (let i = 0; i < HARD_BLOCK_VARIANT_KEYS.length; i += 1) {
     const variantIndex = i as HardBlockVariantIndex;
-    registry.register(HARD_BLOCK_VARIANT_KEYS[i]!, () =>
-      buildHardBlockVariant(variantIndex)
+    registry.register(HARD_BLOCK_VARIANT_KEYS[i]!, (seed) =>
+      buildHardBlockVariant(variantIndex, hardPaletteForSeed(seed))
     );
   }
   for (let i = 0; i < SOFT_BLOCK_VARIANT_KEYS.length; i += 1) {
     const variantIndex = i as SoftBlockVariantIndex;
-    registry.register(SOFT_BLOCK_VARIANT_KEYS[i]!, () =>
-      buildSoftBlockVariant(variantIndex)
+    registry.register(SOFT_BLOCK_VARIANT_KEYS[i]!, (seed) =>
+      buildSoftBlockVariant(variantIndex, softPaletteForSeed(seed))
     );
   }
+}
+
+/**
+ * Resolve a HardBlockPalette from a procedural-mesh seed string. The
+ * mesh-sync bridge in block-variant-system writes seeds of the form
+ * `<themeKey>` (S172) so the cached procedural geometry is per-theme.
+ * Unknown / missing themes fall back to the default palette.
+ */
+function hardPaletteForSeed(seed: string): { primary?: string; accent?: string } {
+  const themeKey = parseThemeKey(seed);
+  if (themeKey === undefined) return {};
+  return ARENA_THEMES[themeKey].hardBlockPalette;
+}
+
+function softPaletteForSeed(seed: string): { primary?: string; accent?: string } {
+  const themeKey = parseThemeKey(seed);
+  if (themeKey === undefined) return {};
+  return ARENA_THEMES[themeKey].softBlockPalette;
+}
+
+function parseThemeKey(seed: string): ArenaThemeKey | undefined {
+  return isArenaThemeKey(seed) ? seed : undefined;
 }
 
 /**

@@ -1,0 +1,36 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S172",
+  "title": "Theme-aware block palettes — variant builders parameterised by ArenaTheme",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "PENDING",
+  "notes": [
+    "Connects S171 themes with S165 block variants. Previously the theme only tinted the floor entity; hard + soft blocks ignored the theme palette (used hard-coded #7a7570 / #a08055 constants). Now buildHardBlockVariant + buildSoftBlockVariant accept an optional palette argument; the kaboom mesh-sync bridge encodes the active theme key in the procedural mesh seed (procedural:kaboom-hard-block-0#factory etc.) so the procedural-mesh-registry caches one BufferGeometry per (variant, theme) tuple.",
+    "Default palette falls back to the legacy constants (backwards compat) — calling buildHardBlockVariant(0) without a palette produces identical geometry to before. Shadow + seam tints are derived from primary if only primary is provided (Color.multiplyScalar fallback).",
+    "Live probe with ?theme=factory confirmed: soft blocks render rusty orange-red (factory softBlockPalette), hard blocks render warm dark grey (factory hardBlockPalette). Floor tints to factory floorPrimaryHex via the existing S171 theme-apply system."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-BLOCK-PALETTE-PARAM-001",
+      "title": "buildHardBlockVariant + buildSoftBlockVariant accept optional palette",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/hard-block-variants.ts + soft-block-variants.ts. New HardBlockPalette / SoftBlockPalette types. Signature: build...(index, palette?, bitmask?). Default palette uses existing constants (back-compat). Shadow + seam auto-derive from primary via Color.multiplyScalar when not explicitly supplied.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 8 new theme-palette tests pass — default palette matches legacy constants, explicit primary changes color attribute sum, distinct primaries produce distinct geometries, bitmask still accepted as third arg."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BLOCK-SEED-THEME-001",
+      "title": "Mesh-sync bridge encodes theme in procedural seed; registry caches per (variant, theme)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/block-variant-system.ts — mesh-sync writes 'procedural:kaboom-hard-block-N#themeKey'. Reads ArenaTheme.themeKey from kaboom.game-state (default 'warehouse'). Cache key per-cell is now (variant, theme) so a theme change re-writes the mesh ref. examples/kaboom-crew/src/register-block-builders.ts — per-variant builders parse the seed for a known theme key and look up ARENA_THEMES[key].hardBlockPalette / softBlockPalette.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: live ?theme=factory probe shows mesh refs like 'procedural:kaboom-soft-block-0#factory' on 8 cells; screenshot confirms rusty orange-red soft blocks + warm dark grey hard blocks; existing wang-integration tests updated to accept optional #seed suffix."
+      ]
+    }
+  ]
+}

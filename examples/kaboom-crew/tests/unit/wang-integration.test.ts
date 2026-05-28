@@ -135,16 +135,16 @@ describe("S170 KABOOM-WANG-INTEGRATION — full bridge flow", () => {
 
     // Centre (1,1): bitmask 15 → variant 2 → procedural:kaboom-soft-block-2.
     const centreMesh = world.getComponent<{ mesh?: string }>("soft-1-1", "MeshRenderer");
-    expect(centreMesh?.mesh).toBe("procedural:kaboom-soft-block-2");
+    expect(centreMesh?.mesh).toMatch(/^procedural:kaboom-soft-block-2(#|$)/);
 
     // Top-left (0,0): bitmask 6 → variant 1 → procedural:kaboom-soft-block-1.
     const tlMesh = world.getComponent<{ mesh?: string }>("soft-0-0", "MeshRenderer");
-    expect(tlMesh?.mesh).toBe(`procedural:kaboom-soft-block-${softBlockBitmaskToVariant(0b0110)}`);
-    expect(tlMesh?.mesh).toBe("procedural:kaboom-soft-block-1");
+    expect(tlMesh?.mesh).toMatch(new RegExp(`^procedural:kaboom-soft-block-${softBlockBitmaskToVariant(0b0110)}(#|$)`));
+    expect(tlMesh?.mesh).toMatch(/^procedural:kaboom-soft-block-1(#|$)/);
 
     // Top-edge centre (1,0): bitmask 7 → variant 1 (T-junction).
     const tcMesh = world.getComponent<{ mesh?: string }>("soft-1-0", "MeshRenderer");
-    expect(tcMesh?.mesh).toBe("procedural:kaboom-soft-block-1");
+    expect(tcMesh?.mesh).toMatch(/^procedural:kaboom-soft-block-1(#|$)/);
   });
 
   it("mesh-sync bridge writes the matching key for an isolated cell (variant 3)", () => {
@@ -157,7 +157,7 @@ describe("S170 KABOOM-WANG-INTEGRATION — full bridge flow", () => {
     const mesh = world.getComponent<{ mesh?: string }>("isolated", "MeshRenderer");
     // Isolated → bitmask 0 → variant 3.
     expect(softBlockBitmaskToVariant(0)).toBe(3);
-    expect(mesh?.mesh).toBe("procedural:kaboom-soft-block-3");
+    expect(mesh?.mesh).toMatch(/^procedural:kaboom-soft-block-3(#|$)/);
   });
 
   it("hard blocks resolve to procedural:kaboom-hard-block-N keys", () => {
@@ -171,10 +171,10 @@ describe("S170 KABOOM-WANG-INTEGRATION — full bridge flow", () => {
     // h1 (0,0) has east neighbour only → bitmask 4 → variant 0.
     expect(hardBlockBitmaskToVariant(0b0100)).toBe(0);
     const h1 = world.getComponent<{ mesh?: string }>("h1", "MeshRenderer");
-    expect(h1?.mesh).toBe("procedural:kaboom-hard-block-0");
+    expect(h1?.mesh).toMatch(/^procedural:kaboom-hard-block-0(#|$)/);
     // h2 (1,0) has west neighbour only → bitmask 1 → variant 0.
     const h2 = world.getComponent<{ mesh?: string }>("h2", "MeshRenderer");
-    expect(h2?.mesh).toBe("procedural:kaboom-hard-block-0");
+    expect(h2?.mesh).toMatch(/^procedural:kaboom-hard-block-0(#|$)/);
   });
 
   it("hard + soft families resolve independently — neighbour of different family doesn't count", () => {
@@ -188,10 +188,10 @@ describe("S170 KABOOM-WANG-INTEGRATION — full bridge flow", () => {
     createKaboomWangMeshSyncSystem().fixedUpdate!(makeContext(world));
     const centre = world.getComponent<{ mesh?: string }>("centre", "MeshRenderer");
     // Bitmask 0 (isolated) → soft variant 3.
-    expect(centre?.mesh).toBe("procedural:kaboom-soft-block-3");
+    expect(centre?.mesh).toMatch(/^procedural:kaboom-soft-block-3(#|$)/);
     // Hard north: hard has no other hard cells → bitmask 0 → variant 3.
     const n = world.getComponent<{ mesh?: string }>("n", "MeshRenderer");
-    expect(n?.mesh).toBe("procedural:kaboom-hard-block-3");
+    expect(n?.mesh).toMatch(/^procedural:kaboom-hard-block-3(#|$)/);
   });
 
   it("registerKaboomWangFamilies is idempotent (HMR re-import safe)", () => {

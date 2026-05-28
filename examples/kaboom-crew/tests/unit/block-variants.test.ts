@@ -53,11 +53,12 @@ describe("buildHardBlockVariant (S165 GDP-003)", () => {
   });
 
   it("accepts the optional bitmask argument without consuming it", () => {
-    // v1 ignores bitmask — same input + bitmask varying should still
-    // return the SAME geometry shape (vertex count). The function just
-    // has to NOT crash.
+    // S165 reserves the bitmask param for future Wang autotile. v1
+    // ignores it; same input + bitmask varying should return geometry
+    // with the same vertex count (S172 inserted palette between
+    // index + bitmask, so bitmask is now the third arg).
     const a = buildHardBlockVariant(2);
-    const b = buildHardBlockVariant(2, 7);
+    const b = buildHardBlockVariant(2, undefined, 7);
     expect(vertexSignature(a).count).toBe(vertexSignature(b).count);
   });
 });
