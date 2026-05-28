@@ -80,20 +80,26 @@ Bomb logic is **grid-authoritative**, not physics-authoritative. This is
 non-negotiable: the future Node/.NET server must validate placement and
 explosion outcomes against the same rules.
 
-### Bombs (planned, MVP-2)
+### Power-ups (status as of S163)
 
 | Power-up | Effect | Status |
 |---|---|---|
 | Bomb Up | +1 maxBombs | ✅ shipped (MVP-0) |
 | Fire Up | +1 range | ✅ shipped (MVP-0) |
 | Speed Up | +GridMover.speed | ✅ shipped (MVP-0) |
-| Kick | Walking into your bomb pushes it one cell in walk direction | proposed |
-| Remote | Manual detonation — fuse paused while remote-armed | proposed |
-| Shield | One-shot blast protection, consumed on hit | proposed |
+| Kick | Walking into your bomb pushes it one cell forward | ✅ shipped (S100) |
+| Remote | Manual detonation — fuse paused while remote-armed | ✅ shipped (S104) |
+| Shield | One-shot blast protection + hit-recoil on consumption | ✅ shipped (S109) |
+| Pierce | Blast walks through the first soft block | ✅ shipped (S142, server parity S147) |
+| Throw Glove | Pick up + throw your bomb over walls | ✅ shipped (S144) |
+| Bomb Pass | Walk through your own bombs | ✅ shipped (S152, server parity S154) |
 
-Later (post-MVP-2): Pierce, Bomb Pass, Throw Glove. Skull-curse is
-explicitly **deferred** — it punishes new players harder than veterans,
-and that contradicts pillar 2.
+Power-up vocabulary now complete for MVP-2. Future deferred:
+**Pierce-bomb stacking** (multi-block pierce — explicitly out per
+GDP-2026-05-26-002), **Punch Glove** (longer-range kick), **Line Bomb**
+(drop bombs in line), **Power Bomb** (first bomb with bonus range).
+Skull-curse explicitly **rejected** — punishes new players harder than
+veterans, contradicts pillar 2.
 
 ### Blocks (shipped)
 
@@ -321,25 +327,32 @@ primary danger telegraph (alongside bomb-mesh wiggle in the final
 
 ---
 
-## Multiplayer model (planned)
+## Multiplayer model (status as of S163 — mostly shipped)
 
-This section is intentionally **forward-looking** — none of it ships
-yet. It's here so dev sees the shape we are aiming at before the first
-network sprint.
+The bulk of multiplayer shipped across S109 → S125 (Sprints A + B + C
+of the original GDP-2026-05-20-007 + GDP-022-011 + GDP-022-012 chain),
+plus follow-up parity sweeps S147 (Pierce) + S154 (Bomb Pass).
 
-- **Drop-in / drop-out world**, no matchmaking. World exists before
-  players connect; players appear in the current state; leaving doesn't
-  end the world.
+- **Drop-in / drop-out world**, no matchmaking. ✅ shipped (S125 Sprint C).
 - **Server authority** on bomb placement, fuse, blast, block
-  destruction, pickup collection, damage, bot logic. VFX + audio +
-  camera are client presentation only.
-- **Three profiles**: `static` (offline local), `connected` (WebSocket
-  mirror, fast iteration), `authoritative` (server owns gameplay).
-  AGF's protocol contract already covers this — Kaboom Crew is the
-  first concrete consumer.
-- **Practical player counts**: 1 human + bots (MVP-2), 1–4 humans +
-  bots (MVP-3), 8 in one region (stretch). 64-player battle royale is
-  explicitly **out of scope**.
+  destruction, pickup collection, damage, bot logic. ✅ shipped
+  (S117-S125 Sprint B).
+- **Three profiles**: `static` ✅, `connected` ✅, `authoritative`
+  ✅ (server-side via Node reference server).
+- **Recipe sync** — per-player CharacterRecipe travels via joinWorld
+  payload. ✅ shipped (S112).
+- **Reconnect grace** — 5s window survives page refresh / network
+  hiccup. ✅ shipped (S125).
+- **Server-side bot fill** — multi-bot in connected mode is the
+  remaining gap (pending GDP-2026-05-27-003); connected mode currently
+  spawns one bot vs multi-bot solo's three.
+- **Practical player counts**: 1-4 humans + server-bots (MVP-3 path
+  partially closed via per-Presence procedural bombers from S109).
+- **Multiplayer parity sweep**: Pierce (S147) + Bomb Pass (S154)
+  shipped server-side. Conveyor Belt + Warp Hole + Pressure Plate +
+  Throw Glove still pending server parity per GDP-2026-05-27-010
+  (4 of 5 priorities remain).
+- 64-player battle royale stays **out of scope**.
 
 ---
 
