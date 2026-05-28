@@ -22,7 +22,7 @@
 import type { ComponentName, EntityId } from "../ecs/types";
 import type { QueryHandle, World } from "../ecs/world";
 import { gridToWorld, isInBounds, type GridConfig } from "../grid";
-import { isCliffEdge } from "../../grid/height-query";
+import { isPassableEdge } from "../../grid/height-query";
 import type { System, SystemContext } from "./types";
 import type { GridOccupancyQuery } from "./grid-occupancy-system";
 
@@ -93,12 +93,13 @@ export function createGridMovementSystem(options: GridMovementSystemOptions): Sy
     if (!isInBounds(grid, gx, gz)) return false;
     if (occupancy.blocked(gx, gz, "movement")) return false;
     // S173 GDP-2026-05-28-010 — cliffs hard-block movement in this MVP.
-    // Ramps (GDP-2026-05-28-011) will introduce a bypass; until then a
-    // height delta between cardinal-adjacent cells is impassable for the
-    // walker just like a hard wall. Other movement systems (kicks,
+    // S174 GDP-2026-05-28-011 — Ramps suppress the cliff for the pair
+    // they connect, so use `isPassableEdge` (cliff-aware AND ramp-aware)
+    // instead of the raw `isCliffEdge`. Other movement systems (kicks,
     // conveyors, warps) intentionally stay cliff-agnostic for now per
-    // the story scope — they're a smaller blast radius and bigger lift.
-    if (isCliffEdge(world, fromGx, fromGz, gx, gz)) return false;
+    // the S173 sprint scope — they're a smaller blast radius and bigger
+    // lift.
+    if (!isPassableEdge(world, fromGx, fromGz, gx, gz)) return false;
     return true;
   }
 

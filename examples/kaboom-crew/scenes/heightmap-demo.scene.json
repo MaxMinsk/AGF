@@ -5,9 +5,9 @@
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -93,6 +93,38 @@
         "RigidBody3D": { "type": "fixed" },
         "Collider3D": { "kind": "box", "size": [15, 0.1, 11] }
       }
+    },
+    {
+      "id": "ramp.east.low",
+      "components": {
+        "Transform": {
+          "position": [4, 0.0, 5],
+          "rotation": [0, 0, 0],
+          "scale": [0.95, 0.05, 0.95]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#5a6b8a"
+        },
+        "GridPosition": { "gx": 4, "gz": 5 },
+        "Ramp": { "fromHeight": 0, "toHeight": 1, "direction": "E" }
+      }
+    },
+    {
+      "id": "ramp.east.high",
+      "components": {
+        "Transform": {
+          "position": [5, 0.0, 5],
+          "rotation": [0, 0, 0],
+          "scale": [0.95, 0.05, 0.95]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#5a6b8a"
+        },
+        "GridPosition": { "gx": 5, "gz": 5 },
+        "Ramp": { "fromHeight": 1, "toHeight": 2, "direction": "E" }
+      }
     }
   ],
   "instances": [
@@ -116,16 +148,16 @@
       "id": "wall.center",
       "prefab": "hard-block",
       "overrides": {
-        "Transform": { "position": [6, 0.5, 5] },
-        "GridPosition": { "gx": 6, "gz": 5 }
+        "Transform": { "position": [3, 0.5, 7] },
+        "GridPosition": { "gx": 3, "gz": 7 }
       }
     },
     {
       "id": "soft.east",
       "prefab": "soft-block",
       "overrides": {
-        "Transform": { "position": [9, 0.45, 5] },
-        "GridPosition": { "gx": 9, "gz": 5 }
+        "Transform": { "position": [10, 0.45, 5] },
+        "GridPosition": { "gx": 10, "gz": 5 }
       }
     }
   ]

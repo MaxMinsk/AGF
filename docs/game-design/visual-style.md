@@ -121,22 +121,31 @@ browser, on a laptop.
 
 Approach: **lean on shader stylisation, not on light fidelity.**
 
-### 4.1 Light setup
+### 4.1 Light setup (REVISED 2026-05-28 — multi-light + shadows in scope)
 
-- One **directional light** (key light) coming from the upper-left of
-  the arena at ~60° elevation. Fixed across all arenas — consistent
-  lighting is a readability anchor.
-- One **hemispheric ambient light** (sky / ground tint) at low
-  intensity. Sky is a warm beige tint (matches the diorama frame),
-  ground is a cool dark teal.
-- **No point lights, no spot lights, no shadow maps in MVP-1/MVP-2.**
-  Real-time shadow maps are expensive on WebGL and inconsistent
-  across browsers. The `block-solid` shader's bottom-strip darkening
-  fakes contact shadows convincingly enough for top-down play.
-- Emissive materials (pickup-glow, bomb-pulse, blast-flash) are the
-  ONLY light sources visible to the player. They don't actually
-  illuminate other geometry — they just glow. Plays well with a
-  later post-fx bloom pass if we add one.
+Earlier rule was "one directional + ambient, no shadows" as the
+MVP-1 floor. **Revised target** (memory: `project-visual-fidelity-
+evolution`):
+
+- One **directional key light** from the upper-left at ~60° elevation
+  with **shadow casting enabled** (1024×1024 shadow map; orthographic
+  projection sized to the active arena).
+- One **hemispheric ambient light** (warm sky / cool ground tint) at
+  low intensity. Unchanged from before.
+- Up to **2 dynamic point lights** that the engine module from
+  `GDP-2026-05-28-001` exposes. Project assigns them per scene —
+  typical use: one over a key gameplay area (centre arena), one
+  attached to a moving entity (e.g. a remote-armed bomb pulsing
+  light during its fuse). Shadow casting per-light, configurable.
+- **Emissive materials still light themselves**, but ALSO contribute
+  to scene lighting via small attached point lights where the project
+  declares it. Bomb-pulse (final 0.6s of fuse) attaches a brief red
+  point light; pickup-glow attaches a soft cyan point light. Plays
+  well with the bloom post-fx pass.
+- **Shadow caster tags shipped in S107** (`KABOOM-CREW-SHADOW-CASTER-
+  TAGS`) — bombers + bombs + pickups + soft blocks tag themselves
+  shadow-cast OR shadow-receive (or both). Hard blocks both cast +
+  receive. Arena floor receives but doesn't cast.
 
 ### 4.2 Post-fx — what we allow, what we don't
 
@@ -148,13 +157,23 @@ Approach: **lean on shader stylisation, not on light fidelity.**
 | Chromatic aberration | **Banned** | Visual noise that hurts readability. |
 | Motion blur | **Banned** | Hides bomb trajectories. |
 | Depth of field | **Banned** | Hides off-camera danger. |
-| SSAO / SSGI / SSR | **Banned** | Performance cost not paid back at this art bar. |
+| SSAO | Allowed (under perf budget) — moved from banned 2026-05-28; modest contact shadows for visual depth |
+| SSGI / SSR | **Banned** | Performance cost not paid back at this art bar; SSAO is the substitute. |
 | Film grain | **Banned** | Contradicts the toy-scale identity (toys aren't film). |
 | Outline post-pass | Allowed | Pairs with `outline-occluder` for behind-wall visibility. |
 
 ### 4.3 Shadows
 
-Real shadow maps are explicitly **out of MVP-1/MVP-2**. The
+**REVISED 2026-05-28**: real shadow maps are now **in scope** via the
+new lighting engine module (`GDP-2026-05-28-001`). 1024×1024 shadow
+map per dynamic light, orthographic for directional, perspective for
+points. The pre-revision content below is kept as historical
+context — the `block-solid` bottom-strip fake-shadow remains as a
+no-shadow fallback when shadow maps are disabled (perf-constrained
+clients).
+
+Real shadow maps WERE explicitly out of MVP-1/MVP-2 (legacy):
+The
 substitute is the `block-solid` bottom-strip trick plus a small
 soft-circle "contact shadow" decal painted under each bomber and
 bomb. The decal moves with the entity, scales with its motion (slight
