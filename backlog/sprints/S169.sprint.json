@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/217",
   "notes": [
     "Implements GDP-2026-05-28-002 MVP. New engine module engine/render/autotile/ providing: WangTileFamily registry (AJV-validated, variants.length === 16 enforced), pure bitmask helpers (computeWangBitmask + resolveVariantIndex), and a WangTileResolverSystem that runs full resolveAll on the first tick + per-cell + 4-neighbour re-resolves on each subsequent fixedUpdate via the world's dirty queue.",
     "Bitmask encoding per design doc: bit3=N (gz-1), bit2=E (gx+1), bit1=S (gz+1), bit0=W (gx-1). Defensive clamping on input (non-finite → 0, > 15 → 15, etc.).",
