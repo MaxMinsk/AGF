@@ -60,6 +60,9 @@ export type KaboomAudioFx = {
    * autoplay policy may delay creation until the first play()).
    */
   setListenerPosition(x: number, y: number, z: number): void;
+  /** S167 KABOOM-RECIPE-VOICE — replace the cached voice colour for
+   *  an entity. Used by the bench when the user changes recipe fields. */
+  setVoiceColour(entityId: string, colour: VoiceColour): void;
 };
 
 export const AUDIO_VOLUME_STORAGE_KEY_EXPORT = "agf.audio.volume";
@@ -69,6 +72,10 @@ export type AudioFxOptions = {
   contextFactory?: () => AudioContextLike | undefined;
   /** Global gain multiplier for every SFX. Default 0.4. */
   masterGain?: number;
+  /** S167 KABOOM-RECIPE-VOICE — optional resolver from entity id to a
+   *  pre-computed VoiceColour. Called once per entityId; cached after.
+   *  Returning undefined falls back to the seed-from-entity-id path. */
+  voiceColourResolver?: (entityId: string) => VoiceColour | undefined;
 };
 
 /**
@@ -512,10 +519,13 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
   // reused across every voice event triggered by that entity. Cache
   // never shrinks (~30 voice colours per game session is negligible).
   const voiceCache = new Map<string, VoiceColour>();
+  const recipeResolver = options.voiceColourResolver;
   function lookupVoice(entityId: string): VoiceColour {
     let colour = voiceCache.get(entityId);
     if (colour === undefined) {
-      colour = voiceParamsFromSeed(entityId);
+      // S167 — prefer the recipe-driven resolver; fall back to seed.
+      const resolved = recipeResolver?.(entityId);
+      colour = resolved ?? voiceParamsFromSeed(entityId);
       voiceCache.set(entityId, colour);
     }
     return colour;
@@ -628,6 +638,14 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     },
     isMuted(): boolean {
       return muted;
+    },
+    /** S167 KABOOM-RECIPE-VOICE — pre-seed the voice-colour cache for
+     *  an entity with a recipe-derived colour. Subsequent voice plays
+     *  for that entity use this colour instead of the seed-from-entity-id
+     *  fallback. Re-call with a new colour to swap voice mid-run (e.g.
+     *  the bench dropdown changing a recipe field). */
+    setVoiceColour(entityId: string, colour: VoiceColour): void {
+      voiceCache.set(entityId, colour);
     },
     setListenerPosition(x: number, y: number, z: number): void {
       // S91 KABOOM-AUDIO-POSITIONAL-ADOPT. AudioContext may not exist

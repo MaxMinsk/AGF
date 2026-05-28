@@ -54,6 +54,7 @@ import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-
 // be unit-tested without bootstrapping a runtime. S141 — multi-bot
 // solo assignment lives there too.
 import { makeKaboomRecipe, MULTI_BOT_ASSIGNMENT, MULTI_BOT_IDS } from "./src/kaboom-recipe";
+import { voiceParamsFromRecipe } from "./src/voice-synth";
 import { createKaboomPlayerInputSystem } from "./src/systems/player-input-system";
 import { createKaboomBombPlacementSystem } from "./src/systems/bomb-placement-system";
 import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bomb-network-relay-system";
@@ -910,7 +911,29 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       ...(audioGlobals.location?.search !== undefined ? { search: audioGlobals.location.search } : {}),
       ...(audioGlobals.localStorage !== undefined ? { storage: audioGlobals.localStorage } : {})
     });
-    const audioFx = createKaboomAudioFx({ masterGain: 0.4 * dial });
+    // S167 KABOOM-RECIPE-VOICE — derive each bomber's voice colour from
+    // its character recipe (proportions + palette + accessories) instead
+    // of the raw entity id. Personality is sourced from MULTI_BOT_ASSIGNMENT
+    // when the entity id matches a bot slot.
+    const botPersonalityById = new Map<string, "hunter" | "miner" | "coward">(
+      MULTI_BOT_ASSIGNMENT.map(({ id, personality }) => [id, personality])
+    );
+    const voiceResolver = (entityId: string): import("./src/voice-synth").VoiceColour | undefined => {
+      try {
+        const recipe = makeKaboomRecipe(entityId, botPersonalityById.get(entityId));
+        return voiceParamsFromRecipe({
+          seed: recipe.seed,
+          torsoHeight: recipe.torsoHeight,
+          headSize: recipe.headSize,
+          paletteName: recipe.paletteName,
+          accessoryKinds: (recipe.accessories ?? []).map((a) => a.kind as string),
+          ...(botPersonalityById.has(entityId) ? { botPersonality: botPersonalityById.get(entityId) } : {})
+        });
+      } catch {
+        return undefined;
+      }
+    };
+    const audioFx = createKaboomAudioFx({ masterGain: 0.4 * dial, voiceColourResolver: voiceResolver });
     // QA-2026-05-27-001 — restore the muted preference from its OWN
     // localStorage key (`agf.audio.muted`). The previous bug wrote "0"
     // to the volume key on mute, permanently silencing audio on reload
