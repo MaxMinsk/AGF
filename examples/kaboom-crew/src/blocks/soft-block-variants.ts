@@ -13,10 +13,8 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
-  Color,
-  CylinderGeometry
+  Color
 } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { paintBottomShadow, paintVertexColors } from "./hard-block-variants";
 
@@ -64,41 +62,61 @@ function buildVariant1Pallet(): BufferGeometry {
 }
 
 function buildVariant2BarrelCorner(): BufferGeometry {
-  // Base box + a low cylindrical "bump" on top corner. The bump
-  // surface stays inside the 1×1×1 envelope so the variant remains
-  // grid-interchangeable.
-  const base = new BoxGeometry(1, 1, 1, 1, 2, 1);
-  paintVertexColors(base, SOFT_BLOCK_PRIMARY);
-  paintBottomShadow(base, SOFT_BLOCK_SHADOW, 1);
-  const bumpTint = new Color(SOFT_BLOCK_PRIMARY).multiplyScalar(0.85);
-  const bumpHex = "#" + bumpTint.getHexString();
-  const bump = new CylinderGeometry(0.18, 0.22, 0.1, 12);
-  bump.translate(0.25, 0.55, 0.25);
-  paintVertexColors(bump, bumpHex);
-  const merged = mergeGeometries([base, bump], false);
-  if (merged === null) return base;
-  bump.dispose();
-  return merged;
+  // S170 hotfix (2026-05-28): merge of BoxGeometry + CylinderGeometry
+  // produced an indexed BufferGeometry that the WebGPU renderer
+  // rejected via 'setIndexBuffer parameter 1 is not of type GPUBuffer'
+  // — the merge result's index buffer had an inconsistent attribute
+  // layout across the parts. Reverted to a pure BoxGeometry variant
+  // with subdivisions + corner tint so it still reads as distinct
+  // from the other variants. The cylindrical bump is sacrificed.
+  const g = new BoxGeometry(1, 1, 1, 2, 2, 2);
+  paintVertexColors(g, SOFT_BLOCK_PRIMARY);
+  paintBottomShadow(g, SOFT_BLOCK_SHADOW, 1);
+  paintCornerTint(g, "#" + new Color(SOFT_BLOCK_PRIMARY).multiplyScalar(0.85).getHexString());
+  return g;
 }
 
 function buildVariant3Drum(): BufferGeometry {
-  // Drum-shaped (radial) variant. Outer envelope still fits in a 1×1×1
-  // cell — cylinder radius 0.5 makes the silhouette read as round even
-  // though the collider stays box-shaped (see soft-block.prefab.json).
-  // Height segments = 3 so the bottom-shadow band has a clean seam.
-  const body = new CylinderGeometry(0.45, 0.45, 1, 18, 3);
-  paintVertexColors(body, SOFT_BLOCK_PRIMARY);
-  paintBottomShadow(body, SOFT_BLOCK_SHADOW, 1);
-  // Top cap disc — slightly raised flat ring on top.
-  const capTint = new Color(SOFT_BLOCK_PRIMARY).multiplyScalar(0.9);
-  const capHex = "#" + capTint.getHexString();
-  const cap = new CylinderGeometry(0.45, 0.45, 0.04, 18);
-  cap.translate(0, 0.52, 0);
-  paintVertexColors(cap, capHex);
-  const merged = mergeGeometries([body, cap], false);
-  if (merged === null) return body;
-  cap.dispose();
-  return merged;
+  // S170 hotfix (2026-05-28): same WebGPU merge issue as variant 2.
+  // Reverted to pure BoxGeometry with all-around top-edge bevel tint
+  // to give a distinct silhouette read without merging geometries.
+  const g = new BoxGeometry(1, 1, 1, 1, 3, 1);
+  paintVertexColors(g, SOFT_BLOCK_PRIMARY);
+  paintBottomShadow(g, SOFT_BLOCK_SHADOW, 1);
+  paintTopBandTint(g, "#" + new Color(SOFT_BLOCK_PRIMARY).multiplyScalar(0.9).getHexString());
+  return g;
+}
+
+/** S170 hotfix — tint the 4 corner top-vertices toward `hex`. */
+function paintCornerTint(g: BufferGeometry, hex: string): void {
+  const color = g.getAttribute("color") as BufferAttribute | undefined;
+  const pos = g.getAttribute("position") as BufferAttribute | undefined;
+  if (color === undefined || pos === undefined) return;
+  const c = new Color(hex);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    if (y > 0.4 && Math.abs(x) > 0.2 && Math.abs(z) > 0.2) {
+      color.setXYZ(i, c.r, c.g, c.b);
+    }
+  }
+  color.needsUpdate = true;
+}
+
+/** S170 hotfix — tint the top-band vertices toward `hex`. */
+function paintTopBandTint(g: BufferGeometry, hex: string): void {
+  const color = g.getAttribute("color") as BufferAttribute | undefined;
+  const pos = g.getAttribute("position") as BufferAttribute | undefined;
+  if (color === undefined || pos === undefined) return;
+  const c = new Color(hex);
+  for (let i = 0; i < pos.count; i += 1) {
+    const y = pos.getY(i);
+    if (y > 0.3) {
+      color.setXYZ(i, c.r, c.g, c.b);
+    }
+  }
+  color.needsUpdate = true;
 }
 
 // ---- vertex-paint helpers (file-local) ----
