@@ -24,6 +24,7 @@ const DEATH_IMPULSE: ComponentName = "DeathImpulse";
 const ACCESSORY_DEBRIS: ComponentName = "AccessoryDebris";
 const ACCESSORY_DETACH_FIRED: ComponentName = "AccessoryDetachFired";
 const TRANSFORM: ComponentName = "Transform";
+const LOCAL_TO_WORLD: ComponentName = "LocalToWorld";
 const GRID_POSITION: ComponentName = "GridPosition";
 const SOFT_ATTACHED: ComponentName = "SoftAttached";
 const SPRING_PIVOT: ComponentName = "SpringPivot";
@@ -215,19 +216,34 @@ export function createKaboomAccessoryDetachSystem(options: KaboomAccessoryDetach
         const seed = scatterSeedHash(rootId, kind);
         const impulse = computeScatterImpulse(blastDirX, blastDirZ, cfg, seed);
         // Detach from parent — clear Transform.parent so further parent-
-        // transform composition stops affecting this entity. Anchor at
-        // the bomber's current world position + a small upward offset
-        // (~head height) so the accessory starts the scatter from where
-        // it visibly sits on the bomber instead of teleporting to the
-        // rest-pose sum (which the animation system was offsetting away
-        // from at the death frame).
+        // transform composition stops affecting this entity. Use the
+        // engine's resolved LocalToWorld.position to seed the world
+        // anchor — this is the accessory's CURRENT rendered world
+        // position after parent-chain composition + any animation
+        // rotations have been applied. Falls back to the previous
+        // bomber-position-plus-offset approximation when LocalToWorld
+        // isn't yet present (e.g. first frame before the render
+        // transform-resolve system has run).
         const transform = world.getComponent<TransformLike>(eid, TRANSFORM);
-        const bomberTransform = world.getComponent<TransformLike>(rootId, TRANSFORM);
-        if (transform !== undefined && bomberTransform?.position !== undefined) {
-          const headOffset = kind === "backpack" ? 0.5 : kind === "fins" ? 0.5 : 1.0;
-          const bp = bomberTransform.position;
+        const ltw = world.getComponent<{ position?: ReadonlyArray<number> }>(eid, LOCAL_TO_WORLD);
+        if (transform !== undefined) {
+          let worldX: number;
+          let worldY: number;
+          let worldZ: number;
+          if (ltw?.position !== undefined) {
+            worldX = ltw.position[0] ?? 0;
+            worldY = ltw.position[1] ?? 0;
+            worldZ = ltw.position[2] ?? 0;
+          } else {
+            const bomberTransform = world.getComponent<TransformLike>(rootId, TRANSFORM);
+            const bp = bomberTransform?.position ?? [0, 0.4, 0];
+            const headOffset = kind === "backpack" ? 0.5 : kind === "fins" ? 0.5 : 1.0;
+            worldX = bp[0] ?? 0;
+            worldY = (bp[1] ?? 0.4) + headOffset;
+            worldZ = bp[2] ?? 0;
+          }
           world.setComponent(eid, TRANSFORM, {
-            position: [bp[0] ?? 0, (bp[1] ?? 0.4) + headOffset, bp[2] ?? 0] as [number, number, number],
+            position: [worldX, worldY, worldZ] as [number, number, number],
             rotation: (transform.rotation ?? [0, 0, 0]) as [number, number, number],
             scale: (transform.scale ?? [1, 1, 1]) as [number, number, number]
             // parent intentionally omitted — now world-root.
