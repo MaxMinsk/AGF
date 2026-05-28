@@ -31,6 +31,7 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 import {
   WANG_TILE,
   WANG_TILE_FAMILY_MEMBER,
+  resolveAll as resolveAllWangTiles,
   type WangTileComponent,
   type WangTileFamilyMemberComponent
 } from "../../../../engine/render/autotile";
@@ -85,6 +86,7 @@ export function createKaboomBlockVariantSystem(
       cachedWorld = world;
       applied.clear();
     }
+    let stampedThisTick = 0;
     for (const id of cellQuery!.run()) {
       if (applied.has(id)) continue;
       const occ = world.getComponent<GridOccupantComponent>(id, GRID_OCCUPANT);
@@ -95,19 +97,20 @@ export function createKaboomBlockVariantSystem(
           ? SOFT_BLOCK_WANG_FAMILY
           : undefined;
       if (familyName === undefined) continue;
-      // Defensive: skip cells without a grid position — they shouldn't
-      // exist in practice but `query([GRID_OCCUPANT, GRID_POSITION])`
-      // returns the join so this is a no-op safety net.
       const pos = world.getComponent<GridPositionComponent>(id, GRID_POSITION);
       if (pos?.gx === undefined || pos.gz === undefined) continue;
-      // Stamp WangTile + WangTileFamilyMember. The resolver picks
-      // these up next tick (or this same tick if it runs after us).
       const wangTile: WangTileComponent = { familyName };
       const member: WangTileFamilyMemberComponent = { familyName };
       world.setComponent(id, WANG_TILE, wangTile);
       world.setComponent(id, WANG_TILE_FAMILY_MEMBER, member);
       applied.add(id);
+      stampedThisTick += 1;
     }
+    // S170 hotfix: call resolveAll synchronously right after stamping so
+    // the engine resolver writes currentVariantIndex this same tick.
+    // Live probe found that the standalone wang-tile-resolver-system
+    // wasn't writing the field in time for the mesh-sync bridge to read.
+    if (stampedThisTick > 0) resolveAllWangTiles(world);
     // Prune entries for entities that were destroyed (soft block blown
     // up by a blast). Keeps the set from leaking across rounds.
     for (const id of [...applied]) {
