@@ -154,7 +154,9 @@ export function createKaboomWangMeshSyncSystem(
   // entity-id → last variant index written. Skip the setComponent
   // when nothing changed so the renderer adapter doesn't re-bind a
   // mesh handle that's already pointing at the right geometry.
-  const lastVariantById = new Map<EntityId, KaboomBlockVariantIndex>();
+  // S172 — cache the (variant, theme) tuple per cell so a theme change
+  // through HMR or scene-restart actually re-writes the mesh ref.
+  const lastByCell = new Map<EntityId, { variant: KaboomBlockVariantIndex; theme: string }>();
   let cachedWorld: World | undefined;
   let wangQuery: QueryHandle | undefined;
 
@@ -163,8 +165,12 @@ export function createKaboomWangMeshSyncSystem(
     if (world !== cachedWorld) {
       wangQuery = world.createQuery([WANG_TILE]);
       cachedWorld = world;
-      lastVariantById.clear();
+      lastByCell.clear();
     }
+    // S172 — read the active arena theme from kaboom.game-state.
+    const themeComponent = world.getComponent<{ themeKey?: string }>("kaboom.game-state", "ArenaTheme");
+    const themeKey = themeComponent?.themeKey ?? "warehouse";
+
     for (const id of wangQuery!.run()) {
       const wang = world.getComponent<WangTileComponent>(id, WANG_TILE);
       if (wang === undefined) continue;
@@ -178,20 +184,20 @@ export function createKaboomWangMeshSyncSystem(
 
       const variantIndex = mapFamilyBitmask(familyName, bitmask);
       if (variantIndex === undefined) continue;
-      const meshKey = meshKeyFor(familyName, variantIndex);
+      const meshKey = meshKeyFor(familyName, variantIndex, themeKey);
       if (meshKey === undefined) continue;
 
-      const prev = lastVariantById.get(id);
-      if (prev === variantIndex) continue;
+      const prev = lastByCell.get(id);
+      if (prev !== undefined && prev.variant === variantIndex && prev.theme === themeKey) continue;
 
       const mr = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
       const next: MeshRendererComponent = { ...(mr ?? {}), mesh: meshKey };
       world.setComponent(id, MESH_RENDERER, next);
-      lastVariantById.set(id, variantIndex);
+      lastByCell.set(id, { variant: variantIndex, theme: themeKey });
     }
     // Prune destroyed entities — same pattern as the variant system.
-    for (const id of [...lastVariantById.keys()]) {
-      if (!world.hasEntity(id)) lastVariantById.delete(id);
+    for (const id of [...lastByCell.keys()]) {
+      if (!world.hasEntity(id)) lastByCell.delete(id);
     }
   };
 
@@ -209,13 +215,18 @@ function mapFamilyBitmask(
 
 function meshKeyFor(
   familyName: string,
-  variantIndex: KaboomBlockVariantIndex
+  variantIndex: KaboomBlockVariantIndex,
+  themeKey: string
 ): string | undefined {
+  // S172 — encode the theme key in the procedural-mesh seed so the
+  // renderer caches one BufferGeometry per (variant, theme) tuple.
+  // The block-builder reads the seed back out and looks up the
+  // matching hard/softBlockPalette from ARENA_THEMES.
   if (familyName === HARD_BLOCK_WANG_FAMILY) {
-    return `procedural:${HARD_BLOCK_VARIANT_KEYS[variantIndex]!}`;
+    return `procedural:${HARD_BLOCK_VARIANT_KEYS[variantIndex]!}#${themeKey}`;
   }
   if (familyName === SOFT_BLOCK_WANG_FAMILY) {
-    return `procedural:${SOFT_BLOCK_VARIANT_KEYS[variantIndex]!}`;
+    return `procedural:${SOFT_BLOCK_VARIANT_KEYS[variantIndex]!}#${themeKey}`;
   }
   return undefined;
 }

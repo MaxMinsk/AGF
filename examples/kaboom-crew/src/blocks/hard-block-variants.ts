@@ -29,6 +29,28 @@ export const HARD_BLOCK_SHADOW = "#494744";
 /** Panel-seam accent for variant 1. */
 export const HARD_BLOCK_SEAM = "#3a3835";
 
+/** S172 — palette parameter for theme-aware tinting. All fields optional;
+ *  missing fields fall back to the legacy hard-block constants. */
+export type HardBlockPalette = {
+  primary?: string;
+  shadow?: string;
+  seam?: string;
+};
+
+function darkerHex(hex: string, multiplier: number): string {
+  const c = new Color(hex).multiplyScalar(multiplier);
+  return "#" + c.getHexString();
+}
+
+function resolveHardPalette(p?: HardBlockPalette): Required<HardBlockPalette> {
+  const primary = p?.primary ?? HARD_BLOCK_PRIMARY;
+  return {
+    primary,
+    shadow: p?.shadow ?? (p?.primary !== undefined ? darkerHex(primary, 0.55) : HARD_BLOCK_SHADOW),
+    seam: p?.seam ?? (p?.primary !== undefined ? darkerHex(primary, 0.45) : HARD_BLOCK_SEAM)
+  };
+}
+
 export type HardBlockVariantIndex = 0 | 1 | 2 | 3;
 
 /**
@@ -40,56 +62,50 @@ export type HardBlockVariantIndex = 0 | 1 | 2 | 3;
  */
 export function buildHardBlockVariant(
   index: HardBlockVariantIndex,
+  palette?: HardBlockPalette,
   bitmask?: number
 ): BufferGeometry {
   void bitmask; // reserved for Wang autotile lookup
+  const p = resolveHardPalette(palette);
   switch (index) {
-    case 0: return buildVariant0Plain();
-    case 1: return buildVariant1Panel();
-    case 2: return buildVariant2Girder();
-    case 3: return buildVariant3Plate();
+    case 0: return buildVariant0Plain(p);
+    case 1: return buildVariant1Panel(p);
+    case 2: return buildVariant2Girder(p);
+    case 3: return buildVariant3Plate(p);
   }
 }
 
 // ---- variants ----
 
-function buildVariant0Plain(): BufferGeometry {
-  // 2 segments per face so the bottom-shadow band has a clean seam.
+function buildVariant0Plain(p: Required<HardBlockPalette>): BufferGeometry {
   const g = new BoxGeometry(1, 1, 1, 1, 2, 1);
-  paintVertexColors(g, HARD_BLOCK_PRIMARY);
-  paintBottomShadow(g, HARD_BLOCK_SHADOW, 1);
+  paintVertexColors(g, p.primary);
+  paintBottomShadow(g, p.shadow, 1);
   return g;
 }
 
-function buildVariant1Panel(): BufferGeometry {
-  // X subdivided so the centre-seam vertices can be darkened to read
-  // as a panel split down the middle. Y=2 for the shadow band.
+function buildVariant1Panel(p: Required<HardBlockPalette>): BufferGeometry {
   const g = new BoxGeometry(1, 1, 1, 2, 2, 1);
-  paintVertexColors(g, HARD_BLOCK_PRIMARY);
-  paintBottomShadow(g, HARD_BLOCK_SHADOW, 1);
-  paintCenterSeamX(g, HARD_BLOCK_SEAM);
+  paintVertexColors(g, p.primary);
+  paintBottomShadow(g, p.shadow, 1);
+  paintCenterSeamX(g, p.seam);
   chamferCorners(g, 0.08);
   return g;
 }
 
-function buildVariant2Girder(): BufferGeometry {
-  // Y subdivided into 3 bands so the middle band reads as a darker
-  // horizontal groove.
+function buildVariant2Girder(p: Required<HardBlockPalette>): BufferGeometry {
   const g = new BoxGeometry(1, 1, 1, 1, 3, 1);
-  paintVertexColors(g, HARD_BLOCK_PRIMARY);
-  paintBottomShadow(g, HARD_BLOCK_SHADOW, 1);
-  paintHorizontalGrooveBand(g, HARD_BLOCK_SEAM);
+  paintVertexColors(g, p.primary);
+  paintBottomShadow(g, p.shadow, 1);
+  paintHorizontalGrooveBand(g, p.seam);
   return g;
 }
 
-function buildVariant3Plate(): BufferGeometry {
-  // 4 rivet bumps glued to the top face. mergeGeometries needs every
-  // input to share the same attribute set, so we paint colours on the
-  // base + each rivet BEFORE merging.
+function buildVariant3Plate(p: Required<HardBlockPalette>): BufferGeometry {
   const base = new BoxGeometry(1, 1, 1, 1, 2, 1);
-  paintVertexColors(base, HARD_BLOCK_PRIMARY);
-  paintBottomShadow(base, HARD_BLOCK_SHADOW, 1);
-  const rivetTint = new Color(HARD_BLOCK_PRIMARY).multiplyScalar(0.75);
+  paintVertexColors(base, p.primary);
+  paintBottomShadow(base, p.shadow, 1);
+  const rivetTint = new Color(p.primary).multiplyScalar(0.75);
   const rivetHex = "#" + rivetTint.getHexString();
   const rivetOffsets: ReadonlyArray<[number, number]> = [
     [-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]

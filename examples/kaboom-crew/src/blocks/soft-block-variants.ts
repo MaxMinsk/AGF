@@ -27,50 +27,65 @@ export const SOFT_BLOCK_SHADOW = "#5e4a2f";
 /** Plank seam accent. */
 export const SOFT_BLOCK_SEAM = "#54402a";
 
+/** S172 — palette parameter for theme-aware tinting. All fields optional. */
+export type SoftBlockPalette = {
+  primary?: string;
+  shadow?: string;
+  seam?: string;
+};
+
+function darkerHex(hex: string, multiplier: number): string {
+  const c = new Color(hex).multiplyScalar(multiplier);
+  return "#" + c.getHexString();
+}
+
+function resolveSoftPalette(p?: SoftBlockPalette): Required<SoftBlockPalette> {
+  const primary = p?.primary ?? SOFT_BLOCK_PRIMARY;
+  return {
+    primary,
+    shadow: p?.shadow ?? (p?.primary !== undefined ? darkerHex(primary, 0.5) : SOFT_BLOCK_SHADOW),
+    seam: p?.seam ?? (p?.primary !== undefined ? darkerHex(primary, 0.45) : SOFT_BLOCK_SEAM)
+  };
+}
+
 export type SoftBlockVariantIndex = 0 | 1 | 2 | 3;
 
 export function buildSoftBlockVariant(
   index: SoftBlockVariantIndex,
+  palette?: SoftBlockPalette,
   bitmask?: number
 ): BufferGeometry {
   void bitmask; // reserved for Wang autotile
+  const p = resolveSoftPalette(palette);
   switch (index) {
-    case 0: return buildVariant0Crate();
-    case 1: return buildVariant1Pallet();
-    case 2: return buildVariant2BarrelCorner();
-    case 3: return buildVariant3Drum();
+    case 0: return buildVariant0Crate(p);
+    case 1: return buildVariant1Pallet(p);
+    case 2: return buildVariant2BarrelCorner(p);
+    case 3: return buildVariant3Drum(p);
   }
 }
 
-function buildVariant0Crate(): BufferGeometry {
-  // 2 subdivisions per axis so the diagonal X-cross seam has nearby
-  // vertices to darken. The cross is faked by tinting the centre +
-  // corner vertices on the +Z face.
+function buildVariant0Crate(p: Required<SoftBlockPalette>): BufferGeometry {
   const g = new BoxGeometry(1, 1, 1, 2, 2, 2);
-  paintVertexColors(g, SOFT_BLOCK_PRIMARY);
-  paintBottomShadow(g, SOFT_BLOCK_SHADOW, 1);
-  paintCrateXCross(g, SOFT_BLOCK_SEAM);
+  paintVertexColors(g, p.primary);
+  paintBottomShadow(g, p.shadow, 1);
+  paintCrateXCross(g, p.seam);
   return g;
 }
 
-function buildVariant1Pallet(): BufferGeometry {
-  // 4 horizontal Y-bands so alternating rows can be darkened to read
-  // as stacked planks.
+function buildVariant1Pallet(p: Required<SoftBlockPalette>): BufferGeometry {
   const g = new BoxGeometry(1, 1, 1, 1, 4, 1);
-  paintVertexColors(g, SOFT_BLOCK_PRIMARY);
-  paintBottomShadow(g, SOFT_BLOCK_SHADOW, 1);
-  paintHorizontalStrips(g, SOFT_BLOCK_SEAM);
+  paintVertexColors(g, p.primary);
+  paintBottomShadow(g, p.shadow, 1);
+  paintHorizontalStrips(g, p.seam);
   return g;
 }
 
-function buildVariant2BarrelCorner(): BufferGeometry {
-  // Base box + a low cylindrical "bump" on top corner. The bump
-  // surface stays inside the 1×1×1 envelope so the variant remains
-  // grid-interchangeable.
+function buildVariant2BarrelCorner(p: Required<SoftBlockPalette>): BufferGeometry {
   const base = new BoxGeometry(1, 1, 1, 1, 2, 1);
-  paintVertexColors(base, SOFT_BLOCK_PRIMARY);
-  paintBottomShadow(base, SOFT_BLOCK_SHADOW, 1);
-  const bumpTint = new Color(SOFT_BLOCK_PRIMARY).multiplyScalar(0.85);
+  paintVertexColors(base, p.primary);
+  paintBottomShadow(base, p.shadow, 1);
+  const bumpTint = new Color(p.primary).multiplyScalar(0.85);
   const bumpHex = "#" + bumpTint.getHexString();
   const bump = new CylinderGeometry(0.18, 0.22, 0.1, 12);
   bump.translate(0.25, 0.55, 0.25);
@@ -81,16 +96,11 @@ function buildVariant2BarrelCorner(): BufferGeometry {
   return merged;
 }
 
-function buildVariant3Drum(): BufferGeometry {
-  // Drum-shaped (radial) variant. Outer envelope still fits in a 1×1×1
-  // cell — cylinder radius 0.5 makes the silhouette read as round even
-  // though the collider stays box-shaped (see soft-block.prefab.json).
-  // Height segments = 3 so the bottom-shadow band has a clean seam.
+function buildVariant3Drum(p: Required<SoftBlockPalette>): BufferGeometry {
   const body = new CylinderGeometry(0.45, 0.45, 1, 18, 3);
-  paintVertexColors(body, SOFT_BLOCK_PRIMARY);
-  paintBottomShadow(body, SOFT_BLOCK_SHADOW, 1);
-  // Top cap disc — slightly raised flat ring on top.
-  const capTint = new Color(SOFT_BLOCK_PRIMARY).multiplyScalar(0.9);
+  paintVertexColors(body, p.primary);
+  paintBottomShadow(body, p.shadow, 1);
+  const capTint = new Color(p.primary).multiplyScalar(0.9);
   const capHex = "#" + capTint.getHexString();
   const cap = new CylinderGeometry(0.45, 0.45, 0.04, 18);
   cap.translate(0, 0.52, 0);
