@@ -19,7 +19,6 @@
 
 import type { ComponentName } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
-import { isRampEdge } from "./ramp-query";
 
 export const HEIGHTMAP: ComponentName = "Heightmap";
 const GRID: ComponentName = "Grid";
@@ -83,9 +82,16 @@ export function getCellHeight(world: World, gx: number, gz: number): number {
  * `false` so the helper degrades gracefully — gameplay code that does
  * diagonal movement should add its own cardinal-decomposition path.
  *
+ * S179 — semantic change. Was: any non-zero height delta = cliff.
+ * Now: bombers can STEP +/-1 cell height for free (climbing onto
+ * adjacent stepped terrain), but a delta > 1 is a cliff. So a
+ * staircase H=0 → H=1 → H=2 is fully traversable cell-by-cell,
+ * while H=0 → H=2 directly is blocked. Removed the separate Ramp
+ * component — the heightmap itself encodes ramps now (a row of
+ * height 1 between height 0 and height 2 is the ramp).
+ *
  * Cliffs are symmetric: walking up a cliff and falling down a cliff
- * both return true. Ramps in a future story will override this for
- * pairs they connect.
+ * both return true.
  */
 export function isCliffEdge(
   world: World,
@@ -94,33 +100,18 @@ export function isCliffEdge(
   toGx: number,
   toGz: number
 ): boolean {
-  // Only cardinal cardinal adjacency makes sense. Anything else
-  // (diagonal, same cell, distance > 1) returns false so callers can
-  // safely probe arbitrary neighbours without spurious blocks.
   const dx = Math.abs(toGx - fromGx);
   const dz = Math.abs(toGz - fromGz);
   if (dx + dz !== 1) return false;
   const fromHeight = getCellHeight(world, fromGx, fromGz);
   const toHeight = getCellHeight(world, toGx, toGz);
-  return fromHeight !== toHeight;
+  return Math.abs(fromHeight - toHeight) > 1;
 }
 
 /**
- * S174 GDP-2026-05-28-011 — Ramp-aware passability check.
- *
- * Returns `false` (NOT passable, i.e. blocked) when the edge between
- * `(fromGx, fromGz)` and `(toGx, toGz)` crosses a cliff that is NOT
- * suppressed by a ramp. Returns `true` (passable) when either:
- *   - the two cells are at the same height (no cliff), or
- *   - a ramp connects exactly this pair (cliff is suppressed).
- *
- * `isCliffEdge` is intentionally kept pure (height-delta only) so
- * height-only consumers stay simple; gameplay code that respects ramps
- * (movement, blast walker) calls `isPassableEdge` instead.
- *
- * Non-cardinal pairs return `true` — the helper is meant to short-
- * circuit cardinal passability checks; gameplay code that probes
- * arbitrary neighbours is expected to bail before calling this.
+ * Passability check. As of S179, this is just `!isCliffEdge` — the
+ * Ramp component path is gone; the heightmap encodes ramps via H=1
+ * stepping cells. Kept as a named helper so callers stay readable.
  */
 export function isPassableEdge(
   world: World,
@@ -129,8 +120,7 @@ export function isPassableEdge(
   toGx: number,
   toGz: number
 ): boolean {
-  if (!isCliffEdge(world, fromGx, fromGz, toGx, toGz)) return true;
-  return isRampEdge(world, fromGx, fromGz, toGx, toGz);
+  return !isCliffEdge(world, fromGx, fromGz, toGx, toGz);
 }
 
 /**
