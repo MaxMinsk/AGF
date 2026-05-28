@@ -18,6 +18,7 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
+import { isCliffEdge } from "../../../../engine/grid/height-query";
 
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const BOMB: ComponentName = "Bomb";
@@ -96,6 +97,16 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
         for (let step = 1; step <= event.range; step += 1) {
           const gx = event.originGx + direction.dx * step;
           const gz = event.originGz + direction.dz * step;
+          // S173 GDP-2026-05-28-010 — cliffs hard-stop the blast.
+          // Check the step FROM the previous cell TO the next cell.
+          // Walls / soft-blocks already stop the lane below; the cliff
+          // check is a peer check that fires when the heights differ
+          // even on otherwise-passable terrain.
+          const prevGx = event.originGx + direction.dx * (step - 1);
+          const prevGz = event.originGz + direction.dz * (step - 1);
+          if (isCliffEdge(world, prevGx, prevGz, gx, gz)) {
+            break;
+          }
           if (cellBlocksBlast(world, options.occupancy, gx, gz)) {
             // Still destroy the wall? Hard walls absorb the blast and
             // survive — Bomberman tradition. Soft blocks block blast

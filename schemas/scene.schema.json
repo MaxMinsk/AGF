@@ -26,6 +26,18 @@
         "$ref": "#/definitions/instance"
       }
     },
+    "heightmap": {
+      "type": "array",
+      "description": "S173 GDP-2026-05-28-010 — optional scene-level shortcut for bulk-authoring per-cell heights. Outer index is gz, inner is gx; entries are integers 0..4. On scene-load the project bootstrap promotes this into a Heightmap component on the scene's Grid singleton (typically the `grid.config` entity). When omitted, the arena stays flat (every cell at height 0) and existing gameplay rules are unchanged.",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        }
+      }
+    },
     "environment": {
       "type": "object",
       "additionalProperties": false,
@@ -274,6 +286,9 @@
             },
             "GridMover": {
               "$ref": "components/grid.schema.json#/definitions/gridMoverComponent"
+            },
+            "Heightmap": {
+              "$ref": "components/grid.schema.json#/definitions/heightmapComponent"
             }
           }
         }

@@ -9,6 +9,7 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
+import { getCellHeight } from "../../../../engine/grid/height-query";
 
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";
@@ -112,8 +113,12 @@ export function createKaboomBombPlacementSystem(
       const bombId = nextBombId(entityId);
       if (world.hasEntity(bombId)) continue;
       world.addEntity(bombId);
+      // S173 GDP-2026-05-28-010 — bomb sits on top of its cell when the
+      // arena has a heightmap; on flat arenas (no heightmap) the lookup
+      // returns 0 and the Y stays at the authored 0.35.
+      const cellHeight = getCellHeight(world, pos.gx, pos.gz);
       world.setComponent(bombId, TRANSFORM, {
-        position: [pos.gx, 0.35, pos.gz],
+        position: [pos.gx, 0.35 + cellHeight, pos.gz],
         rotation: [0, 0, 0],
         scale: [0, 0, 0]
       });

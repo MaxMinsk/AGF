@@ -1,0 +1,88 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S173",
+  "title": "Variable cell height MVP — Heightmap singleton + cliff-aware blast + movement",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/223",
+  "notes": [
+    "Scoped MVP of GDP-2026-05-28-010. Heightmap is a SINGLETON component on the grid-config entity (NOT per-cell entities). Cliffs are computed lazily by pure helpers in engine/grid/height-query (no Cliff marker entity this sprint — the per-edge marker design from the GDP is deferred until ramp authoring lands in GDP-2026-05-28-011).",
+    "Visual treatment of raised cells is OUT OF SCOPE this sprint — the floor stays a flat plane; the gameplay rules are validatable via the prototype scene's heightmap by walking into a cliff and watching the blast stop. The cuboid floor mesh + cliff-face shader come in a follow-up alongside ramps so the visual seam isn't half-shipped.",
+    "Bot AI pathfinding is intentionally cliff-agnostic this sprint — existing bots may bonk against cliffs in heightmap arenas. Acceptable for v1 because heightmap arenas are opt-in (only the new prototype scene ships one); kicks, conveyors, warps also stay cliff-agnostic for the same reason."
+  ],
+  "outOfScope": [
+    "Cuboid floor rendering (visual treatment of raised cells)",
+    "Cliff-face shader / vertex coloring",
+    "Bot AI pathfinding cliff-awareness",
+    "Camera Y-tracking on plateau (cursed camera-follow path stays no-op)",
+    "Kick / conveyor / warp cliff-aware checks",
+    "Ramps (separate story GDP-2026-05-28-011)",
+    "Per-cell height authoring inside scene entities (just the top-level heightmap[][] shortcut)"
+  ],
+  "stories": [
+    {
+      "id": "FEAT-ENGINE-HEIGHTMAP-SCHEMA-001",
+      "title": "Heightmap component schema + scene-level shortcut",
+      "status": "implemented",
+      "summary": "schemas/components/grid.schema.json — new heightmapComponent definition (`{ values: integer[][]; }`, each entry 0..4, indexed as values[gz][gx]). schemas/scene.schema.json — registers Heightmap as a built-in scene component AND adds an optional top-level `heightmap?: number[][]` field as a bulk-author shortcut. engine/core/ecs/types.ts — SceneInput gains the optional `heightmap` field.",
+      "verification": [
+        "acceptance: prototype scene heightmap-demo.scene.json validates against the bundled scene schema; existing start.scene.json + every example scene still validate (114 scene-schema tests + 26 project-check tests pass)."
+      ]
+    },
+    {
+      "id": "FEAT-ENGINE-HEIGHT-QUERY-001",
+      "title": "Pure height-query helpers — getCellHeight + isCliffEdge",
+      "status": "implemented",
+      "summary": "engine/grid/height-query.ts (NEW) — `getCellHeight(world, gx, gz)` reads the Heightmap singleton (located via Grid entity or any entity carrying Heightmap), returns values[gz][gx] ?? 0. `isCliffEdge(world, fromGx, fromGz, toGx, toGz)` returns true when two cardinal-adjacent cells have different heights; returns false for non-cardinal pairs (diagonal, distance > 1, same cell) so gameplay code can probe neighbours safely. No DOM / Three.js / project deps. Exposed `readHeightFromValues(values, gx, gz)` for callers with the values array already in hand.",
+      "verification": [
+        "acceptance: 14 tests in tests/unit/engine-grid-height-query.test.ts cover missing heightmap (default 0), flat heightmap, plateau lookup, negative indices, sparse rows/cols, cliff detection cardinals only, diagonals + distance > 1 ignored."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-HEIGHTMAP-BOOTSTRAP-001",
+      "title": "Bootstrap promotes scene heightmap into the Heightmap singleton + lifts spawn Y",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/bootstrap-helpers.ts — new `applyHeightmapCommands(scene)` builds (1) a `component.set Heightmap` on the first entity carrying Grid + (2) per-entity `component.set Transform` commands that lift Y by the cell's authored height for any expanded entity sitting on a non-zero cell (skips Transform.parent children to avoid double-lifting limb meshes). examples/kaboom-crew/bootstrap.ts — calls the helper in both the initial-batch path (attachUi) and the restartScene path so heightmap-aware arenas survive R-restart.",
+      "verification": [
+        "acceptance: 5 tests in bomber-spawn-height-lift.test.ts cover no-heightmap → no commands, Heightmap singleton written, Y lifted by cell height, height-0 cells untouched, parent-Transform children skipped."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BLAST-CLIFF-STOP-001",
+      "title": "Blast propagation stops at cliff edges",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/blast-propagation-system.ts — per-cardinal walker now checks isCliffEdge(prevCell, nextCell) before the existing cellBlocksBlast check; height-delta hard-stops the lane (no BlastTile beyond the cliff). Reverse direction is symmetric: a bomb on a plateau detonating downhill also stops at the cliff edge.",
+      "verification": [
+        "acceptance: 3 tests in blast-cliff-stop.test.ts cover east-walker stop at +2 cliff, plateau-down walker stop in all four cardinals, flat-arena fallback (1 + 4*range tiles); existing bomb-blast-system suite (12 tests) stays green."
+      ]
+    },
+    {
+      "id": "FEAT-ENGINE-MOVEMENT-CLIFF-BLOCK-001",
+      "title": "Grid mover refuses to cross cliff edges",
+      "status": "implemented",
+      "summary": "engine/core/systems/grid-movement-system.ts — isPassable(grid, gx, gz, world, fromGx, fromGz) gains a cliff check via engine/grid/height-query. Both the queued direction AND the lane-assist perpendicular fallback consult the heightmap. Kicks / conveyors / warps intentionally stay cliff-agnostic this sprint (documented in sprint notes).",
+      "verification": [
+        "acceptance: 4 tests in grid-mover-cliff-block.test.ts cover east-cliff refused (lane-assist may still pick perpendicular flat), surrounded-by-cliff refused (no fallback → stays put), symmetric down-cliff refused, flat-arena unchanged; existing 15 grid-movement + grid-occupancy tests stay green."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BOMB-PICKUP-Y-LIFT-001",
+      "title": "Bomb + pickup spawn Y honours cell height",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/bomb-placement-system.ts + pickup-spawn-system.ts — both look up getCellHeight(world, gx, gz) on spawn and add it to the authored Y (0.35 for bombs, per-kind for pickups). Falls back to 0 on flat arenas so existing scenes pay no visual change.",
+      "verification": [
+        "acceptance: existing bomb-placement + pickup-spawn test suites (~30 tests) stay green; manual probe on heightmap-demo arena: a bomb placed on the plateau cell renders at Y ≈ 2.35; no regression on flat arenas (Y stays at 0.35)."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-HEIGHTMAP-DEMO-SCENE-001",
+      "title": "Prototype heightmap-demo scene",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/scenes/heightmap-demo.scene.json (NEW) — 15×11 arena with a 3×3 plateau (height 2) at (gx 5..7, gz 4..6). Player at (1,1), bot at (13,9), hard-block + soft-block on the flat for blast-pipeline sanity. Validates against the bundled scene schema. Not yet wired into MAP_REGISTRY (the scene is opt-in until visuals land alongside ramps).",
+      "verification": [
+        "acceptance: scene validates via the bundled scene-schema AJV compile; engine:check examples/kaboom-crew passes (no diagnostics)."
+      ]
+    }
+  ]
+}

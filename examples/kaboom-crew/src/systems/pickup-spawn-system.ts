@@ -19,6 +19,7 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import { createSeededRng } from "../../../../engine/core/util/seeded-rng";
+import { getCellHeight } from "../../../../engine/grid/height-query";
 
 const SOFT_BLOCK_DESTROYED_EVENT: ComponentName = "SoftBlockDestroyedEvent";
 const PICKUP: ComponentName = "Pickup";
@@ -157,8 +158,11 @@ function spawnPickup(
   if (world.hasEntity(id)) return;
   const visual = PICKUP_VISUAL[kind];
   world.addEntity(id);
+  // S173 GDP-2026-05-28-010 — pickup sits on top of its cell when the
+  // arena has a heightmap (default 0 on flat arenas).
+  const cellHeight = getCellHeight(world, gx, gz);
   world.setComponent(id, TRANSFORM, {
-    position: [gx, visual.yOffset, gz],
+    position: [gx, visual.yOffset + cellHeight, gz],
     rotation: [0, 0, 0],
     scale: [0, 0, 0]
   });
