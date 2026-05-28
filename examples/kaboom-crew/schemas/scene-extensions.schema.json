@@ -31,7 +31,8 @@
     "SuddenDeathState": { "$ref": "#/definitions/suddenDeathStateComponent" },
     "SuddenDeathBlock": { "$ref": "#/definitions/suddenDeathBlockComponent" },
     "AccessoryDebris": { "$ref": "#/definitions/accessoryDebrisComponent" },
-    "AccessoryDetachFired": { "$ref": "#/definitions/accessoryDetachFiredComponent" }
+    "AccessoryDetachFired": { "$ref": "#/definitions/accessoryDetachFiredComponent" },
+    "ArenaTheme": { "$ref": "#/definitions/arenaThemeComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -110,6 +111,19 @@
       "description": "S162 KABOOM-ACCESSORY-DETACH. Marker on a bomber root that has already had its accessories detached this death — prevents the accessory-detach system from firing twice if alive flips back and forth on the same death frame.",
       "properties": {
         "firedAtElapsedS": { "type": "number", "minimum": 0 }
+      }
+    },
+    "arenaThemeComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S171 KABOOM-ARENA-THEMES MVP (GDP-2026-05-28-013). Singleton co-located on the kaboom.game-state entity. Identifies which visual theme should be applied to the active arena at scene-load. The arena-theme-apply-system reads themeKey, looks up the matching palette in examples/kaboom-crew/src/themes/theme-table.ts, and writes MeshRenderer.color on the floor entity. URL flag ?theme=warehouse|factory|dock|lab|bunker overrides scene defaults; default-arena→theme mapping lives in ARENA_DEFAULT_THEME alongside the theme table. v1 only re-tints the floor; lighting + block palette re-tinting is deferred.",
+      "required": ["themeKey"],
+      "properties": {
+        "themeKey": {
+          "type": "string",
+          "enum": ["warehouse", "factory", "dock", "lab", "bunker"],
+          "description": "Which of the 5 registered themes to apply. Defaults to 'warehouse' when the component is absent or carries an unknown key."
+        }
       }
     },
     "bomberStatsComponent": {

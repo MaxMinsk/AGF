@@ -93,6 +93,15 @@ import {
   createKaboomBlockVariantSystem,
   createKaboomWangMeshSyncSystem
 } from "./src/systems/block-variant-system";
+// S171 KABOOM-ARENA-THEMES MVP (GDP-2026-05-28-013) — re-tint the floor
+// MeshRenderer.color at scene-load from a registered theme. Lighting +
+// block-palette re-tinting deferred (see theme-table.ts header).
+import { createArenaThemeApplySystem } from "./src/systems/arena-theme-apply-system";
+import {
+  defaultThemeForArena,
+  isArenaThemeKey,
+  type ArenaThemeKey
+} from "./src/themes/theme-table";
 // S170 KABOOM-WANG-INTEGRATION (GDP-2026-05-28-004 Stage 3) — engine
 // Wang autotile resolver + Kaboom-side family registration.
 import { createWangTileResolverSystem } from "../../engine/render/autotile";
@@ -200,6 +209,21 @@ function readCameraConfigFromUrl(): {
       : { mode, viewSize: orthoSize };
   } catch {
     return defaults;
+  }
+}
+
+// S171 KABOOM-ARENA-THEMES MVP — read `?theme=warehouse|factory|dock|lab|bunker`.
+// Returns undefined when the param is absent or unparseable so callers
+// fall back to defaultThemeForArena() / "warehouse".
+function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return undefined;
+  try {
+    const v = new URLSearchParams(search).get("theme");
+    if (v === null) return undefined;
+    return isArenaThemeKey(v) ? v : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -312,13 +336,17 @@ function buildFlatStartScene(map: MapName = activeMapName): SceneInput {
  */
 function startVertexColorsPoller(runtime: RuntimeHandle): void {
   if (typeof requestAnimationFrame === "undefined") return; // SSR / node — no-op
-  const patched = new Set<string>();
+  // S171 fix: key the patched-set by HANDLE id, not entity id. scene.load
+  // recreates entities with the same string ids but fresh mesh handles —
+  // the old per-entity guard was skipping the new handles, leaving the
+  // new procedural meshes with vertexColors=false → textures looked
+  // "missing" after restart, only the material's base colour rendered.
+  const patchedHandles = new Set<number>();
   const tick = (): void => {
     try {
       const snap = runtime.snapshot();
       const registry = runtime.renderer.meshRegistry();
       for (const entity of snap.entities) {
-        if (patched.has(entity.id)) continue;
         const mr = (entity.components as Record<string, { mesh?: string } | undefined>)["MeshRenderer"];
         const key = mr?.mesh;
         if (typeof key !== "string") continue;
@@ -329,8 +357,9 @@ function startVertexColorsPoller(runtime: RuntimeHandle): void {
             && !key.startsWith("procedural:kaboom-floor-tile")) continue;
         const handle = registry.handleFor(entity.id);
         if (handle === undefined) continue;
+        if (patchedHandles.has(handle)) continue;
         runtime.renderer.adapter.setMeshMaterialPatch(handle, { vertexColors: true });
-        patched.add(entity.id);
+        patchedHandles.add(handle);
       }
     } catch {
       // best-effort — first frames before runtime is fully ready may
@@ -397,7 +426,12 @@ function restartScene(runtime: RuntimeHandle): number {
         // persist across rounds. SuddenDeathState is intentionally NOT
         // re-seeded — the system creates it lazily on activation, and
         // the previous round's state should NOT carry over.
-        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 }
+        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 },
+        // S171 KABOOM-ARENA-THEMES MVP — re-seed on restart so the URL
+        // flag (?theme=...) and the per-arena default survive the
+        // scene.load wipe. Arena defaults look up by the (possibly-
+        // updated) activeMapName.
+        ArenaTheme: { themeKey: readArenaThemeFromUrl() ?? defaultThemeForArena(activeMapName) }
       }
     },
     // S100 + S141 — apply the difficulty + personality patch to all
@@ -519,6 +553,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       { profiles: ["static", "connected"] }
     );
     scheduler.register(createKaboomWangMeshSyncSystem(), { profiles: ["static", "connected"] });
+    // S171 KABOOM-ARENA-THEMES MVP (GDP-2026-05-28-013) — re-tint the
+    // floor entity's MeshRenderer.color from the active theme. Reads
+    // ArenaTheme.themeKey off the kaboom.game-state singleton; bootstrap
+    // seeds it from the URL flag / per-arena default in the initialBatch
+    // + restartScene paths below. Runs once per world; cheap.
+    scheduler.register(createArenaThemeApplySystem(), { profiles: ["static", "connected"] });
     const playerInput = createKaboomPlayerInputSystem();
     _boundPlayerInput = playerInput;
     scheduler.register(playerInput, { profiles: ["static", "connected"] });
@@ -789,6 +829,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // these singletons already exist. Use the idempotent upsert helper
     // so the second pass updates the existing entities via
     // component.set instead of throwing on duplicate entity.create.
+    // S171 KABOOM-ARENA-THEMES MVP — URL `?theme=` overrides; otherwise
+    // default per-arena (warehouse for unknown arenas). The activeMapName
+    // was seeded a few lines up from `?map=` so defaultThemeForArena
+    // sees the right scene id.
+    const initialThemeKey: ArenaThemeKey =
+      readArenaThemeFromUrl() ?? defaultThemeForArena(activeMapName);
     const initialBatch: EngineCommand[] = [
       // S84 + S115 — single kaboom.game-state singleton carries
       // GamePaused (title-screen / pause overlay) AND MatchState
@@ -797,7 +843,9 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         GamePaused: { reason: "title-screen" },
         MatchState: { phase: "playing", target: readMatchTargetFromUrl() ?? 3, matchNumber: 1 },
         // S160 KABOOM-SUDDEN-DEATH — config singleton co-located on game-state.
-        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 }
+        SuddenDeathConfig: { ...readSuddenDeathFromUrl(), ringIntervalS: 2, ringWidth: 1 },
+        // S171 KABOOM-ARENA-THEMES MVP — picked up by arena-theme-apply-system.
+        ArenaTheme: { themeKey: initialThemeKey }
       }),
       // S85 KABOOM-ROUND-TIMER. Seed RoundState up-front so the timeLimit is
       // present from frame 0 — RoundResolveSystem's ensureRoundState would
