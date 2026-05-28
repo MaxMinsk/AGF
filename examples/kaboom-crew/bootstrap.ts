@@ -29,6 +29,7 @@ import pitSceneJson from "./scenes/pit.scene.json";
 import beltZoneSceneJson from "./scenes/belt-zone.scene.json";
 import warpfieldSceneJson from "./scenes/warpfield.scene.json";
 import platePuzzleSceneJson from "./scenes/plate-puzzle.scene.json";
+import heightmapDemoSceneJson from "./scenes/heightmap-demo.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -290,9 +291,10 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["pit", pitSceneJson],
   ["belt-zone", beltZoneSceneJson],
   ["warpfield", warpfieldSceneJson],
-  ["plate-puzzle", platePuzzleSceneJson]
+  ["plate-puzzle", platePuzzleSceneJson],
+  ["heightmap-demo", heightmapDemoSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle";
+type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
