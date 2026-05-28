@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/215",
   "notes": [
     "Implements GDP-2026-05-28-006. Voice axes now key off the character recipe (proportions + palette family + accessories + bot personality) instead of just hashing the entity-id seed. Same bomber's voice changes audibly when palette or accessories change.",
     "Mapping per the GDP: basePitchHz ← inverted torsoHeight + backpack-bass; formantF1Hz ← headSize; formantF2Hz ← visor (muffles); formantQ ← warm/cool palette family; vibratoHz/vibratoDepth ← fins (fluttery); noiseMix ← antennae (robotic); phrasePaceMultiplier ← bot personality; consonantStyle ← cap (softens). Seed jitter (±5..15%) preserves individual identity within identical recipes.",
