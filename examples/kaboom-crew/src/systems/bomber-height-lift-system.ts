@@ -22,14 +22,12 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import { getCellHeight } from "../../../../engine/grid/height-query";
-import { getRampAt, rampStandOnHeight } from "../../../../engine/grid/ramp-query";
 
 const TRANSFORM: ComponentName = "Transform";
 const GRID_POSITION: ComponentName = "GridPosition";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const BOMB: ComponentName = "Bomb";
 const PICKUP: ComponentName = "Pickup";
-const RAMP: ComponentName = "Ramp";
 
 type TransformLike = {
   position?: ReadonlyArray<number>;
@@ -110,17 +108,9 @@ export function createKaboomBomberHeightLiftSystem(): System {
   return { name, fixedUpdate };
 }
 
-/** Pure helper — resolve the cell's "stand-on" Y for entities walking
- *  through it. Ramps return their midpoint per S174; regular cells
- *  return the heightmap height. */
+/** Pure helper — resolve the cell's "stand-on" Y. S179: heightmap-only
+ *  (the Ramp component is gone; stepped terrain encodes ramps via H=1
+ *  cells the bomber can traverse for free). */
 function standOnHeightAt(world: World, gx: number, gz: number): number {
-  const baseCellHeight = getCellHeight(world, gx, gz);
-  // rampStandOnHeight returns the midpoint when a ramp is present at
-  // (gx, gz); otherwise falls back to baseCellHeight.
-  return rampStandOnHeight(world, gx, gz, baseCellHeight);
+  return getCellHeight(world, gx, gz);
 }
-
-// Mark RAMP + getRampAt intentionally used as types — getRampAt is
-// invoked internally via rampStandOnHeight.
-void RAMP;
-void getRampAt;

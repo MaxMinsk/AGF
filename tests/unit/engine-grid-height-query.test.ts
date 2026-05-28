@@ -138,13 +138,24 @@ describe("engine/grid/height-query (S173)", () => {
       expect(isCliffEdge(world, 1, 1, 0, 1)).toBe(true);
     });
 
-    it("returns true even when the delta is a single step (height delta = 1)", () => {
+    it("S179 — returns false for a single-step delta (bombers can climb ±1)", () => {
       const world = makeWorldWithGrid();
       addHeightmap(world, [
         [0, 1],
         [0, 1]
       ]);
-      expect(isCliffEdge(world, 0, 0, 1, 0)).toBe(true);
+      expect(isCliffEdge(world, 0, 0, 1, 0)).toBe(false);
+      // Reverse direction: stepping down 1 is equally free.
+      expect(isCliffEdge(world, 1, 0, 0, 0)).toBe(false);
+    });
+
+    it("S179 — staircase traversal: each H=0→1→2 step is passable", () => {
+      const world = makeWorldWithGrid();
+      addHeightmap(world, [
+        [0, 1, 2]
+      ]);
+      expect(isCliffEdge(world, 0, 0, 1, 0)).toBe(false);
+      expect(isCliffEdge(world, 1, 0, 2, 0)).toBe(false);
     });
 
     it("returns false for diagonal pairs (only cardinals are cliffs)", () => {

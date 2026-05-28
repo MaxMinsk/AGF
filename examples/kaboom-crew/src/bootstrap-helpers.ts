@@ -106,34 +106,18 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
     }
   ];
 
-  // S177 KABOOM-HEIGHTMAP-VISUALS — spawn a per-cell "floor pillar" box
+  // S177 KABOOM-HEIGHTMAP-VISUALS + S179 — spawn a per-cell pillar box
   // for every heightmap cell with height > 0. Without this, raised
-  // cells are invisible (gameplay rules still work — bombers stop at
-  // cliffs — but the user can't see WHERE the cliffs are). Color
-  // brightens with height so the user reads a gradient (H=1 → lighter,
-  // H=2+ → lightest). The cliff-face look comes from the bottom
-  // vertices being darker via the existing block-builder pattern, but
-  // for now we just lerp a single hex.
-  //
-  // Skip cells that already host an authored ramp entity — the ramp
-  // entity carries its own visual at the midpoint height, and adding
-  // a pillar there would double-up. Plateau cells (no ramp, height>0)
-  // get the full pillar.
-  const rampCellKeys = new Set<string>();
-  for (const entity of scene.entities) {
-    const c = entity.components as Record<string, unknown>;
-    if (c["Ramp"] === undefined) continue;
-    const gp = c["GridPosition"] as { gx?: number; gz?: number } | undefined;
-    if (gp?.gx === undefined || gp?.gz === undefined) continue;
-    rampCellKeys.add(`${gp.gx},${gp.gz}`);
-  }
+  // cells are invisible (gameplay rules still work — bombers can't
+  // step delta>1 — but the user can't see WHERE the steps are).
+  // Color brightens with height so the user reads a gradient (H=1 →
+  // lighter, H=2+ → lightest).
   for (let gz = 0; gz < heightmap.length; gz += 1) {
     const row = heightmap[gz];
     if (row === undefined) continue;
     for (let gx = 0; gx < row.length; gx += 1) {
       const h = row[gx] ?? 0;
       if (h <= 0) continue;
-      if (rampCellKeys.has(`${gx},${gz}`)) continue;
       const pillarId = `heightmap.pillar.${gx}.${gz}`;
       commands.push({
         kind: "entity.create",
@@ -157,25 +141,14 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
   // Transform.position[1] at 0.45 / 0.5 — lifting just the root keeps
   // child meshes correct (children parent to root via Transform.parent).
   //
-  // S174 GDP-2026-05-28-011 — Ramps. Entities carrying a Ramp component
-  // get lifted to the MIDPOINT between fromHeight + toHeight rather
-  // than the raw cell height — so the ramp's visual surface sits half-
-  // way up the cliff it bridges. v1 uses the same procedural floor mesh
-  // (no wedge), so the midpoint lift is the only visual hint that it's
-  // a ramp. A proper wedge mesh + smooth Y interpolation during cell-
-  // tween land in a follow-up sprint (see S174 sprint notes).
+  // S179 — heightmap-only lift. Ramps are gone; the heightmap encodes
+  // stepped terrain directly. Every entity authored on a cell with
+  // height > 0 gets lifted by that height.
   for (const entity of scene.entities) {
     const components = entity.components as Record<string, unknown>;
     const gridPos = components["GridPosition"] as { gx?: number; gz?: number } | undefined;
     if (gridPos === undefined || typeof gridPos.gx !== "number" || typeof gridPos.gz !== "number") continue;
-    const baseCellHeight = readHeightFromValues(heightmap, gridPos.gx, gridPos.gz);
-    const ramp = components["Ramp"] as
-      | { fromHeight?: number; toHeight?: number; direction?: string }
-      | undefined;
-    const liftHeight =
-      ramp !== undefined && typeof ramp.fromHeight === "number" && typeof ramp.toHeight === "number"
-        ? (ramp.fromHeight + ramp.toHeight) / 2
-        : baseCellHeight;
+    const liftHeight = readHeightFromValues(heightmap, gridPos.gx, gridPos.gz);
     if (liftHeight === 0) continue;
     const transform = components["Transform"] as
       | { position?: ReadonlyArray<number>; rotation?: ReadonlyArray<number>; scale?: ReadonlyArray<number>; parent?: string }
