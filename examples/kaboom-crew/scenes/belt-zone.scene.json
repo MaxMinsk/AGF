@@ -36,7 +36,7 @@
         "Light": {
           "kind": "directional",
           "color": "#ffffff",
-          "intensity": 1.5,
+          "intensity": 2.5,
           "castShadow": true,
           "shadow": {
             "mapSize": 2048,
@@ -78,7 +78,7 @@
         "Light": {
           "kind": "ambient",
           "color": "#ffffff",
-          "intensity": 0.3
+          "intensity": 0.15
         },
         "Transform": {
           "position": [
