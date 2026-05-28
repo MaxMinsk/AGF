@@ -1,0 +1,56 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S171",
+  "title": "Per-arena themes (MVP) + vertex-colors restart fix",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "PENDING",
+  "notes": [
+    "Implements GDP-2026-05-28-013 MVP slice. Five themes (warehouse / factory / dock / lab / bunker) registered as pure data; the apply-system tints the floor entity's MeshRenderer.color per the active theme. Lighting tint + block-palette re-tinting + Wang variant re-colouring all stay deferred until the lighting engine (GDP-028-001) lands and the variant builders are parameterised.",
+    "Default-arena → theme mapping: default + wide → warehouse; corridor → bunker; plaza → lab; cross → factory; pit → dock. URL flag ?theme=warehouse|factory|dock|lab|bunker overrides on every (re)start.",
+    "Bonus fix shipped in the same branch: vertex-colors poller in bootstrap.ts was keying its 'patched' set by entity ID, but scene.load recreates entities with the same string IDs and fresh mesh handles. New handles never received vertexColors=true → textures appeared to disappear after restart, only material.color rendered. Now keyed by handle ID so each fresh handle gets patched on its first poll tick."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-ARENA-THEMES-TABLE-001",
+      "title": "Theme registry — 5 themes + default-arena mapping",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/themes/theme-table.ts (NEW). ARENA_THEMES static record with 5 themes carrying floorPrimaryHex, hardBlockPalette, softBlockPalette, accentEmissive, skyColor, ambientHemisphericSky/Ground, directionalLightTint. ARENA_DEFAULT_THEME map drives the per-arena default. Helpers: getArenaTheme, listArenaThemeKeys, isArenaThemeKey, defaultThemeForArena.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 12 unit tests cover registry lookup, all 5 keys present, hex validity, default-arena mapping."
+      ]
+    },
+    {
+      "id": "SCHEMA-KABOOM-ARENA-THEME-001",
+      "title": "ArenaTheme component schema",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — adds ArenaTheme component with required themeKey enum (warehouse | factory | dock | lab | bunker).",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: engine:check examples/kaboom-crew passes; component round-trips through the runtime."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-ARENA-THEME-APPLY-001",
+      "title": "Theme-apply system + URL flag wiring",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/arena-theme-apply-system.ts (NEW). Runs on cachedWorld swap; reads ArenaTheme.themeKey from kaboom.game-state, writes MeshRenderer.color = theme.floorPrimaryHex on the floor entity. Defensive fallback to warehouse on missing / unknown key. examples/kaboom-crew/bootstrap.ts — readArenaThemeFromUrl, seed ArenaTheme on initial + restartScene game-state, register the apply-system.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 15 system tests cover resolver, applier, idempotency, world-swap re-apply, defensive fallback. Live: floor tints to theme.floorPrimaryHex on Space; ?theme=bunker URL switches the tint."
+      ]
+    },
+    {
+      "id": "FIX-KABOOM-VERTEX-COLORS-RESTART-001",
+      "title": "Vertex-colors poller keyed by handle ID (not entity ID)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts startVertexColorsPoller — patched set now stores mesh handle IDs (number) instead of entity string IDs. scene.load recreates entities with the same string IDs but fresh mesh handles; the old per-entity guard was skipping the new handles, leaving the new procedural meshes with vertexColors=false → textures appeared to disappear after restart. Live playtest confirmed the regression + the fix.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: bot.1's procbomber meshes still render with vertex colours after round restart; live probe confirms no errors + entity count > 0 on round 2."
+      ]
+    }
+  ]
+}
