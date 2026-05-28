@@ -87,7 +87,33 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
-  WebGLRenderTarget
+  WebGLRenderTarget,
+  FrontSide,
+  BackSide,
+  DoubleSide,
+  LessDepth,
+  LessEqualDepth,
+  GreaterDepth,
+  GreaterEqualDepth,
+  AlwaysDepth,
+  AlwaysStencilFunc,
+  NeverStencilFunc,
+  EqualStencilFunc,
+  NotEqualStencilFunc,
+  LessStencilFunc,
+  LessEqualStencilFunc,
+  GreaterStencilFunc,
+  GreaterEqualStencilFunc,
+  KeepStencilOp,
+  ReplaceStencilOp,
+  IncrementStencilOp,
+  DecrementStencilOp,
+  InvertStencilOp,
+  ZeroStencilOp,
+  type DepthModes,
+  type Side,
+  type StencilFunc,
+  type StencilOp
 } from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -383,6 +409,34 @@ export type MaterialPatch = {
   /** S57 REFLECTION-cube-probe: optional per-object envmap override (CubeTexture). Falls back to `scene.environment` when undefined. */
   envMap?: Texture;
   envMapIntensity?: number;
+  /**
+   * S184 OUTLINE-OCCLUDER. Per-mesh depth-test override. `"greater"`
+   * makes the material render ONLY where the depth buffer says the
+   * fragment is BEHIND something else — i.e. when an occluder hides
+   * this mesh. The standard `"less"` keeps the usual rendering. Used
+   * by project-local outline rendering: a duplicate "outline" mesh
+   * tagged with depthFunc=greater + depthWrite=false produces a
+   * see-through silhouette visible only when the bomber is hidden.
+   */
+  depthFunc?: "less" | "lessEqual" | "greater" | "greaterEqual" | "always";
+  /** S184 — disable depth writes so the outline doesn't poison the buffer for later passes. */
+  depthWrite?: boolean;
+  /** S184 — render front/back/both faces. `"back"` flips culling. */
+  side?: "front" | "back" | "double";
+  /** S184 — polygon-offset pair (factor, units). Positive values push
+   *  the geometry AWAY from the camera in depth; useful to prevent
+   *  outline meshes from z-fighting with the surface they duplicate. */
+  polygonOffset?: { factor: number; units: number };
+  /** S184 — stencil buffer controls. Drives the outline-occluder
+   *  pattern: original mesh writes stencilRef into the buffer; the
+   *  outline duplicate renders only where stencil != stencilRef
+   *  (and that pixel is therefore NOT covered by the original). */
+  stencilWrite?: boolean;
+  stencilRef?: number;
+  /** stencilFunc: "always" | "never" | "equal" | "notEqual" | "less" | "lessEqual" | "greater" | "greaterEqual" */
+  stencilFunc?: "always" | "never" | "equal" | "notEqual" | "less" | "lessEqual" | "greater" | "greaterEqual";
+  /** stencilZPass: what to write when both depth + stencil tests pass. "replace" writes stencilRef into the buffer. */
+  stencilZPass?: "keep" | "replace" | "increment" | "decrement" | "invert" | "zero";
 };
 
 export type CameraParams = {
@@ -2299,6 +2353,18 @@ export class ThreeRenderAdapter {
     if (patch.color !== undefined) material.color.set(patch.color);
     if (patch.opacity !== undefined) material.opacity = patch.opacity;
     if (patch.transparent !== undefined) material.transparent = patch.transparent;
+    if (patch.depthFunc !== undefined) material.depthFunc = depthFuncFor(patch.depthFunc);
+    if (patch.depthWrite !== undefined) material.depthWrite = patch.depthWrite;
+    if (patch.side !== undefined) material.side = sideFor(patch.side);
+    if (patch.polygonOffset !== undefined) {
+      material.polygonOffset = true;
+      material.polygonOffsetFactor = patch.polygonOffset.factor;
+      material.polygonOffsetUnits = patch.polygonOffset.units;
+    }
+    if (patch.stencilWrite !== undefined) material.stencilWrite = patch.stencilWrite;
+    if (patch.stencilRef !== undefined) material.stencilRef = patch.stencilRef;
+    if (patch.stencilFunc !== undefined) material.stencilFunc = stencilFuncFor(patch.stencilFunc);
+    if (patch.stencilZPass !== undefined) material.stencilZPass = stencilOpFor(patch.stencilZPass);
     if (patch.vertexColors !== undefined) {
       // S102 PALETTE-FIX. Toggle vertex-colour blending. When enabled,
       // force the base colour to white so per-vertex tints multiply by 1.
@@ -3495,6 +3561,52 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }
 `;
+
+/** S184 — map MaterialPatch.depthFunc string to three.js DepthModes. */
+function depthFuncFor(kind: "less" | "lessEqual" | "greater" | "greaterEqual" | "always"): DepthModes {
+  switch (kind) {
+    case "less": return LessDepth;
+    case "lessEqual": return LessEqualDepth;
+    case "greater": return GreaterDepth;
+    case "greaterEqual": return GreaterEqualDepth;
+    case "always": return AlwaysDepth;
+  }
+}
+
+/** S184 — map MaterialPatch.side string to three.js Side. */
+function sideFor(kind: "front" | "back" | "double"): Side {
+  switch (kind) {
+    case "front": return FrontSide;
+    case "back": return BackSide;
+    case "double": return DoubleSide;
+  }
+}
+
+/** S184 — map MaterialPatch.stencilFunc string to three.js StencilFunc. */
+function stencilFuncFor(kind: "always" | "never" | "equal" | "notEqual" | "less" | "lessEqual" | "greater" | "greaterEqual"): StencilFunc {
+  switch (kind) {
+    case "always": return AlwaysStencilFunc;
+    case "never": return NeverStencilFunc;
+    case "equal": return EqualStencilFunc;
+    case "notEqual": return NotEqualStencilFunc;
+    case "less": return LessStencilFunc;
+    case "lessEqual": return LessEqualStencilFunc;
+    case "greater": return GreaterStencilFunc;
+    case "greaterEqual": return GreaterEqualStencilFunc;
+  }
+}
+
+/** S184 — map MaterialPatch.stencilZPass string to three.js StencilOp. */
+function stencilOpFor(kind: "keep" | "replace" | "increment" | "decrement" | "invert" | "zero"): StencilOp {
+  switch (kind) {
+    case "keep": return KeepStencilOp;
+    case "replace": return ReplaceStencilOp;
+    case "increment": return IncrementStencilOp;
+    case "decrement": return DecrementStencilOp;
+    case "invert": return InvertStencilOp;
+    case "zero": return ZeroStencilOp;
+  }
+}
 
 function shadowAlgorithmType(
   kind: "pcf" | "vsm" | "pcss" | undefined,
