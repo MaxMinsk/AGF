@@ -2225,7 +2225,20 @@ export class ThreeRenderAdapter {
     this.nextMeshHandle += 1;
     const material = new MeshStandardMaterial({ color: new Color(initial.color ?? DEFAULT_COLOR) });
     this.registerWithCsm(material);
-    const mesh = new Mesh(initial.geometry, material);
+    // S170-WebGPU-fix (2026-05-28): clone the geometry per-mesh. The
+    // procedural-mesh-registry caches one BufferGeometry per
+    // (key, seed) and re-hands the SAME instance to every entity
+    // resolving the same procedural ref. When one of those entities
+    // is removed (soft block destroyed by blast) releaseMesh
+    // disposes the shared geometry, freeing its GPU buffer; every
+    // other live entity referencing the same geometry then crashes
+    // WebGPU on the next setIndexBuffer.
+    //
+    // Cloning is cheap (BufferAttribute arrays are copied, not
+    // re-uploaded — Three creates fresh GPU buffers on first draw
+    // anyway). Memory cost: one geometry copy per live mesh; small
+    // vs the savings of not crashing.
+    const mesh = new Mesh(initial.geometry.clone(), material);
     this.meshes.set(handle, mesh);
     this.scene.add(mesh);
     return handle;

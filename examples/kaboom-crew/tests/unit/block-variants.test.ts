@@ -15,28 +15,13 @@ import {
 function vertexSignature(g: ReturnType<typeof buildHardBlockVariant>): {
   count: number;
   positionSum: number;
-  colorSum: number;
 } {
   const pos = g.getAttribute("position");
-  const col = g.getAttribute("color");
-  let posSum = 0;
+  let sum = 0;
   for (let i = 0; i < pos.count; i += 1) {
-    posSum += pos.getX(i) + pos.getY(i) + pos.getZ(i);
+    sum += pos.getX(i) + pos.getY(i) + pos.getZ(i);
   }
-  // S170 hotfix — variants that share BoxGeometry differ only in
-  // vertex-color tinting; include the colour sum so the signature
-  // still distinguishes them.
-  let colSum = 0;
-  if (col !== undefined) {
-    for (let i = 0; i < col.count; i += 1) {
-      colSum += col.getX(i) + col.getY(i) + col.getZ(i);
-    }
-  }
-  return {
-    count: pos.count,
-    positionSum: Math.round(posSum * 1000) / 1000,
-    colorSum: Math.round(colSum * 1000) / 1000
-  };
+  return { count: pos.count, positionSum: Math.round(sum * 1000) / 1000 };
 }
 
 describe("buildHardBlockVariant (S165 GDP-003)", () => {
@@ -49,7 +34,7 @@ describe("buildHardBlockVariant (S165 GDP-003)", () => {
       const sa = sigs[a]!;
       for (let b = a + 1; b < sigs.length; b += 1) {
         const sb = sigs[b]!;
-        const differ = sa.count !== sb.count || sa.positionSum !== sb.positionSum || sa.colorSum !== sb.colorSum;
+        const differ = sa.count !== sb.count || sa.positionSum !== sb.positionSum;
         expect(
           differ,
           `variants ${a} and ${b} are indistinguishable (sigs ${JSON.stringify(sa)} vs ${JSON.stringify(sb)})`
@@ -85,7 +70,7 @@ describe("buildSoftBlockVariant (S165 GDP-003)", () => {
       const sa = sigs[a]!;
       for (let b = a + 1; b < sigs.length; b += 1) {
         const sb = sigs[b]!;
-        const differ = sa.count !== sb.count || sa.positionSum !== sb.positionSum || sa.colorSum !== sb.colorSum;
+        const differ = sa.count !== sb.count || sa.positionSum !== sb.positionSum;
         expect(
           differ,
           `soft-block variants ${a} and ${b} are indistinguishable`
@@ -112,7 +97,7 @@ describe("buildFloorTileVariant (S165 GDP-003)", () => {
     // on the position-sum (the plain variant has fewer subdivisions).
     // Sum-based check is loose by design — patterns paint, they don't
     // displace.
-    const distinctSigs = new Set(sigs.map((s) => `${s.count}:${s.positionSum}:${s.colorSum}`));
+    const distinctSigs = new Set(sigs.map((s) => `${s.count}:${s.positionSum}`));
     // At least plain (1 subdivision) vs the 4-segment variants is
     // structurally different — distinctSigs should hold > 1 entry.
     expect(distinctSigs.size).toBeGreaterThan(1);

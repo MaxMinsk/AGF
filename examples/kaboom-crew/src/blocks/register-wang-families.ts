@@ -88,10 +88,10 @@ function buildVariants(
   return variants;
 }
 
-// S170 hotfix: eager module-load registration. Live probe found the
-// resolver was running BEFORE attachUi's explicit call (via system
-// fixedUpdate firing first), leaving getWangTileFamily() returning
-// undefined and currentVariantIndex unwritten. Eager registration at
-// import time guarantees families are in the registry before any
-// system tick. Idempotent through the duplicate-name guard's try/catch.
+// Module-load registration. attachUi calls registerKaboomWangFamilies()
+// too, but the scheduler can fire its first fixedUpdate BEFORE
+// attachUi runs — the engine resolver-system + block-variant-system
+// would then see an empty Wang-tile-family registry and skip the
+// resolve. Registering eagerly at import time means the families
+// are present by the time any system tick fires.
 registerKaboomWangFamilies();

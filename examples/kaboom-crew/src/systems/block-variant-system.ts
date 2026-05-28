@@ -86,7 +86,7 @@ export function createKaboomBlockVariantSystem(
       cachedWorld = world;
       applied.clear();
     }
-    let stampedThisTick = 0;
+    let stamped = 0;
     for (const id of cellQuery!.run()) {
       if (applied.has(id)) continue;
       const occ = world.getComponent<GridOccupantComponent>(id, GRID_OCCUPANT);
@@ -104,13 +104,15 @@ export function createKaboomBlockVariantSystem(
       world.setComponent(id, WANG_TILE, wangTile);
       world.setComponent(id, WANG_TILE_FAMILY_MEMBER, member);
       applied.add(id);
-      stampedThisTick += 1;
+      stamped += 1;
     }
-    // S170 hotfix: call resolveAll synchronously right after stamping so
-    // the engine resolver writes currentVariantIndex this same tick.
-    // Live probe found that the standalone wang-tile-resolver-system
-    // wasn't writing the field in time for the mesh-sync bridge to read.
-    if (stampedThisTick > 0) resolveAllWangTiles(world);
+    // S170 — call the engine resolver synchronously after stamping so
+    // the cells we just tagged get currentVariantIndex written THIS
+    // tick. Without this the engine resolver-system runs on a later
+    // tick (or sometimes never under the tick-ordering rules) and
+    // mesh-sync sees undefined currentVariantIndex for the lifetime
+    // of the round.
+    if (stamped > 0) resolveAllWangTiles(world);
     // Prune entries for entities that were destroyed (soft block blown
     // up by a blast). Keeps the set from leaking across rounds.
     for (const id of [...applied]) {
