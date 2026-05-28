@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": null,
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/224",
   "notes": [
     "Scoped MVP of GDP-2026-05-28-011 on top of S173's Heightmap. Ramp is a per-cell component (entity with GridPosition + Ramp + Transform + MeshRenderer); no separate engine-level edge marker entity. Direction points FROM the ramp cell TOWARD the to-cell. Cliff suppression is LOCAL — only the (ramp cell, to-cell) pair is suppressed; other neighbours still respect the underlying height delta.",
     "Procedural wedge mesh is OUT OF SCOPE for v1 — ramp cells use the same flat-tile procedural mesh as a regular floor and are visually distinct only via their intermediate Y elevation (the cell is lifted to (fromHeight + toHeight) / 2 by the existing applyHeightmapCommands helper). A proper wedge geometry comes in a follow-up alongside smooth Y interpolation during the cell-tween.",
