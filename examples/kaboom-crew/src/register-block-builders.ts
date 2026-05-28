@@ -1,10 +1,20 @@
-// S165 KABOOM-MULTI-VARIANT-BLOCKS (GDP-2026-05-28-003) — register the
-// three procedural-mesh builders (hard-block / soft-block / floor-tile)
-// with the renderer. The block-variant-system rewrites the
-// MeshRenderer.mesh of each soft / hard block at scene-load so it
-// resolves through this registry with a `<gx>,<gz>,<sceneSeed>` seed
-// fragment. Each builder decodes the seed, picks a variant 0..3 via
-// selectVariantIndex, and returns the corresponding BufferGeometry.
+// S165 KABOOM-MULTI-VARIANT-BLOCKS (GDP-2026-05-28-003) +
+// S170 KABOOM-WANG-INTEGRATION (GDP-2026-05-28-004 Stage 3) — register
+// the three block-family procedural-mesh builders with the renderer.
+//
+// S165 path (still registered for floor-tile + as a fallback for hard
+// / soft blocks): the family key `kaboom-hard-block` resolves through
+// a single seed-aware builder that decodes a `<gx>,<gz>,<sceneSeed>`
+// fragment and picks one of 4 variants.
+//
+// S170 path (the active path for hard / soft blocks): register 4
+// distinct per-variant keys per family — `kaboom-hard-block-0` ..
+// `kaboom-hard-block-3` (and soft-block twins). The Wang resolver +
+// kaboom-side mesh-sync bridge write `procedural:kaboom-hard-block-N`
+// onto each cell's MeshRenderer.mesh once the Wang bitmask resolves.
+// Per-variant keys keep the procedural-mesh-registry cache trivial
+// (one cached BufferGeometry per variant, shared across every cell
+// that ends up at that bitmask).
 
 import type { ThreeRenderer } from "../../../engine/render/three-renderer";
 
@@ -30,11 +40,29 @@ export const HARD_BLOCK_MESH_KEY = "kaboom-hard-block";
 export const SOFT_BLOCK_MESH_KEY = "kaboom-soft-block";
 export const FLOOR_TILE_MESH_KEY = "kaboom-floor-tile";
 
+/** S170 — per-variant mesh keys. Wang resolver writes these onto cells. */
+export const HARD_BLOCK_VARIANT_KEYS = [
+  "kaboom-hard-block-0",
+  "kaboom-hard-block-1",
+  "kaboom-hard-block-2",
+  "kaboom-hard-block-3"
+] as const;
+export const SOFT_BLOCK_VARIANT_KEYS = [
+  "kaboom-soft-block-0",
+  "kaboom-soft-block-1",
+  "kaboom-soft-block-2",
+  "kaboom-soft-block-3"
+] as const;
+
 /**
  * Register the 3 block-family builders with the renderer's procedural
  * mesh registry. Calls before scene-load + the block-variant-system
  * pass so the registry already has the keys when MeshLifecycleSystem
  * resolves the rewritten mesh refs.
+ *
+ * S170 also registers the 4 per-variant keys per family so the Wang
+ * resolver bridge can pick a variant by index without re-deriving from
+ * a seed string.
  */
 export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
   const registry = renderer.proceduralMeshRegistry();
@@ -50,6 +78,24 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     const idx = variantForSeed(seedHash);
     return buildFloorTileVariant(idx as FloorTileVariantIndex);
   });
+
+  // S170 — per-variant builders. The seed is ignored; the variant
+  // identity is the registry key itself. The registry caches one
+  // BufferGeometry per (key, seed) tuple — using a fixed seed
+  // ("default") collapses every cell sharing the same variant into a
+  // single cached geometry.
+  for (let i = 0; i < HARD_BLOCK_VARIANT_KEYS.length; i += 1) {
+    const variantIndex = i as HardBlockVariantIndex;
+    registry.register(HARD_BLOCK_VARIANT_KEYS[i]!, () =>
+      buildHardBlockVariant(variantIndex)
+    );
+  }
+  for (let i = 0; i < SOFT_BLOCK_VARIANT_KEYS.length; i += 1) {
+    const variantIndex = i as SoftBlockVariantIndex;
+    registry.register(SOFT_BLOCK_VARIANT_KEYS[i]!, () =>
+      buildSoftBlockVariant(variantIndex)
+    );
+  }
 }
 
 /**

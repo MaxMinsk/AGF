@@ -89,7 +89,14 @@ import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-syst
 // renderer resolves through these procedural builders instead of the
 // engine box primitive.
 import { registerKaboomBlockBuilders } from "./src/register-block-builders";
-import { createKaboomBlockVariantSystem } from "./src/systems/block-variant-system";
+import {
+  createKaboomBlockVariantSystem,
+  createKaboomWangMeshSyncSystem
+} from "./src/systems/block-variant-system";
+// S170 KABOOM-WANG-INTEGRATION (GDP-2026-05-28-004 Stage 3) — engine
+// Wang autotile resolver + Kaboom-side family registration.
+import { createWangTileResolverSystem } from "../../engine/render/autotile";
+import { registerKaboomWangFamilies } from "./src/blocks/register-wang-families";
 import { projectedBlastCells } from "./src/danger";
 import { createKaboomAudioFx, resolveAudioMuted, resolveAudioVolume, AUDIO_MUTED_STORAGE_KEY } from "./src/audio-fx";
 import { forwardAudioEvent } from "./src/audio-event-forward";
@@ -496,13 +503,22 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(occupancy, { profiles: ["static", "connected"] });
 
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static", "connected"] });
-    // S165 KABOOM-MULTI-VARIANT-BLOCKS — rewrite hard / soft block
-    // MeshRenderer.mesh refs to point at the procedural multi-variant
-    // builders (registered in attachUi alongside registerProcbomberBuilders).
-    // Idempotent: each entity gets touched once + the system tags itself
-    // out via an internal applied-map. Re-runs on round restart when
-    // the scene reloads + the world reference changes.
+    // S165 KABOOM-MULTI-VARIANT-BLOCKS + S170 KABOOM-WANG-INTEGRATION —
+    // stamp WangTile + WangTileFamilyMember on every hard / soft block
+    // cell. The engine resolver (registered immediately below) computes
+    // the Wang bitmask + writes currentVariantIndex; the mesh-sync
+    // bridge after it rewrites MeshRenderer.mesh to the per-variant
+    // procedural key (procedural:kaboom-hard-block-N).
+    //
+    // Run order matters: variant-system → resolver → mesh-sync. The
+    // first stamps the tags; the second resolves the bitmask; the
+    // third propagates the variant index into the renderer.
     scheduler.register(createKaboomBlockVariantSystem(), { profiles: ["static", "connected"] });
+    scheduler.register(
+      createWangTileResolverSystem({ name: "engine.wang-tile-resolver" }),
+      { profiles: ["static", "connected"] }
+    );
+    scheduler.register(createKaboomWangMeshSyncSystem(), { profiles: ["static", "connected"] });
     const playerInput = createKaboomPlayerInputSystem();
     _boundPlayerInput = playerInput;
     scheduler.register(playerInput, { profiles: ["static", "connected"] });
@@ -853,13 +869,18 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         return makeKaboomRecipe(ownerId, recipePersonalityById.get(ownerId));
       }
     );
-    // S165 KABOOM-MULTI-VARIANT-BLOCKS — register hard / soft / floor
-    // procedural builders. block-variant-system (registered in
-    // registerSystems) rewrites cell MeshRenderer.mesh refs to
-    // procedural:kaboom-hard-block#gx,gz,scene-seed (and similarly for
-    // soft) on the next fixed tick, so the registry needs the keys
-    // BEFORE the renderer sync ticks.
+    // S165 KABOOM-MULTI-VARIANT-BLOCKS + S170 KABOOM-WANG-INTEGRATION —
+    // register hard / soft / floor procedural builders AND the per-
+    // variant Wang mesh keys (`kaboom-hard-block-0` ..
+    // `kaboom-hard-block-3` etc). block-variant-system stamps WangTile
+    // + WangTileFamilyMember; the engine resolver writes the variant
+    // index; the kaboom-side mesh-sync bridge writes
+    // `procedural:kaboom-hard-block-N` onto MeshRenderer.mesh. The
+    // registry needs ALL the keys before the renderer sync ticks.
     registerKaboomBlockBuilders(runtime.renderer);
+    // S170 — Wang family registration is idempotent (HMR-safe) so the
+    // call is unconditional.
+    registerKaboomWangFamilies();
     spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     // S120 — on connected, server owns bot.1; snapshot delivers it +
     // remote-bomber-decorator spawns the procbomber tree locally.
