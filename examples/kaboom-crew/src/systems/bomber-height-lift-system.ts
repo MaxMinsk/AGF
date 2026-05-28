@@ -35,6 +35,13 @@ const PICKUP: ComponentName = "Pickup";
  *  camera's vertical budget. */
 const STEP_JUMP_ARC_PEAK = 0.4;
 
+/** S182 — step-jump body squash. Bomber's Y-scale dips at takeoff +
+ *  landing windows of the arc so the hop reads as a real jump.
+ *  Linearly ramps from `SQUASH_AMOUNT` at t=0 to 0 at t=`SQUASH_WIDTH`,
+ *  symmetric at the landing end. Outside the windows scale stays 1. */
+const SQUASH_AMOUNT = 0.12;
+const SQUASH_WIDTH = 0.18;
+
 type TransformLike = {
   position?: ReadonlyArray<number>;
   rotation?: ReadonlyArray<number>;
@@ -51,6 +58,9 @@ export function createKaboomBomberHeightLiftSystem(): System {
   // we lift FROM. Stays in sync across rounds because scene-load wipes
   // entities and the map gets cleared via cachedWorld swap.
   const authoredBaseY = new Map<EntityId, number>();
+  // S182 — authored Transform.scale per bomber, captured on first sight
+  // so the step-jump squash modulates from the right baseline.
+  const authoredScale = new Map<EntityId, [number, number, number]>();
   let cachedWorld: World | undefined;
   let bombers: QueryHandle | undefined;
   let bombs: QueryHandle | undefined;
@@ -64,6 +74,7 @@ export function createKaboomBomberHeightLiftSystem(): System {
       pickups = world.createQuery([PICKUP, GRID_POSITION, TRANSFORM]);
       cachedWorld = world;
       authoredBaseY.clear();
+      authoredScale.clear();
     }
 
     const liftOne = (entityId: EntityId): void => {
@@ -102,7 +113,10 @@ export function createKaboomBomberHeightLiftSystem(): System {
       });
     };
 
-    for (const id of bombers!.run()) liftOne(id);
+    for (const id of bombers!.run()) {
+      liftOne(id);
+      applyStepJumpSquash(world, id, authoredScale);
+    }
     for (const id of bombs!.run()) liftOne(id);
     for (const id of pickups!.run()) liftOne(id);
 
@@ -110,9 +124,74 @@ export function createKaboomBomberHeightLiftSystem(): System {
     for (const id of [...authoredBaseY.keys()]) {
       if (!world.hasEntity(id)) authoredBaseY.delete(id);
     }
+    for (const id of [...authoredScale.keys()]) {
+      if (!world.hasEntity(id)) authoredScale.delete(id);
+    }
   };
 
   return { name, fixedUpdate };
+}
+
+/** S182 — apply step-jump body squash to a bomber's Transform.scale.
+ *  Y-scale dips by SQUASH_AMOUNT at the takeoff (t=0) and landing
+ *  (t=1) ends of the arc, returning to 1 by t=SQUASH_WIDTH and again
+ *  from t=1-SQUASH_WIDTH onward. X/Z scale compensate slightly so the
+ *  volume reads as a squash rather than a shrink. Outside the
+ *  step-jump window, restore the bomber's authored base scale. */
+function applyStepJumpSquash(
+  world: World,
+  entityId: EntityId,
+  authoredScale: Map<EntityId, [number, number, number]>
+): void {
+  const transform = world.getComponent<TransformLike>(entityId, TRANSFORM);
+  if (transform === undefined || transform.scale === undefined) return;
+  const currentScale = transform.scale;
+  let base = authoredScale.get(entityId);
+  if (base === undefined) {
+    base = [
+      currentScale[0] ?? 1,
+      currentScale[1] ?? 1,
+      currentScale[2] ?? 1
+    ];
+    authoredScale.set(entityId, base);
+  }
+  const mover = world.getComponent<GridMover>(entityId, GRID_MOVER);
+  const pos = world.getComponent<GridPos>(entityId, GRID_POSITION);
+  let squashY = 1;
+  if (
+    mover !== undefined &&
+    pos?.gx !== undefined &&
+    pos?.gz !== undefined &&
+    typeof mover.targetGx === "number" &&
+    typeof mover.targetGz === "number" &&
+    typeof mover.currentLerp === "number" &&
+    mover.currentLerp > 0 &&
+    mover.currentLerp < 1
+  ) {
+    const fromH = getCellHeight(world, pos.gx, pos.gz);
+    const toH = getCellHeight(world, mover.targetGx, mover.targetGz);
+    if (Math.abs(toH - fromH) === 1) {
+      const t = mover.currentLerp;
+      const takeoff = Math.max(0, 1 - t / SQUASH_WIDTH);
+      const landing = Math.max(0, 1 - (1 - t) / SQUASH_WIDTH);
+      squashY = 1 - SQUASH_AMOUNT * Math.max(takeoff, landing);
+    }
+  }
+  const stretch = 1 + (1 - squashY) * 0.5; // volume-preserving widen in X/Z
+  const targetX = base[0] * stretch;
+  const targetY = base[1] * squashY;
+  const targetZ = base[2] * stretch;
+  if (
+    Math.abs((currentScale[0] ?? 1) - targetX) < 1e-4 &&
+    Math.abs((currentScale[1] ?? 1) - targetY) < 1e-4 &&
+    Math.abs((currentScale[2] ?? 1) - targetZ) < 1e-4
+  ) {
+    return;
+  }
+  world.setComponent(entityId, TRANSFORM, {
+    ...transform,
+    scale: [targetX, targetY, targetZ] as [number, number, number]
+  });
 }
 
 /** S181 — resolve the entity's stand-on Y for the current tick.
