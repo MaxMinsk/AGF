@@ -238,7 +238,11 @@ type BufferSourceLike = AudioNodeLike & {
 type AudioBufferLike = { getChannelData(channel: number): Float32Array };
 type BiquadFilterLike = AudioNodeLike & {
   type: string;
-  frequency: { setValueAtTime(value: number, when: number): void };
+  frequency: {
+    setValueAtTime(value: number, when: number): void;
+    /** S168 — optional ramp on real AudioParam; stub may omit. */
+    linearRampToValueAtTime?(value: number, when: number): void;
+  };
   /** S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — bandpass resonance used by the formant chain. Optional because the test stub may omit it. */
   Q?: { setValueAtTime(value: number, when: number): void };
 };

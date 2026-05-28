@@ -46,8 +46,10 @@ describe("voiceParamsFromSeed (S110 10-knob)", () => {
       expect(v.phrasePaceMultiplier).toBeLessThanOrEqual(1.4);
       expect(v.consonantStyle).toBeGreaterThanOrEqual(0);
       expect(v.consonantStyle).toBeLessThanOrEqual(1);
-      expect(v.vowelDriftAmount).toBeGreaterThanOrEqual(0);
-      expect(v.vowelDriftAmount).toBeLessThanOrEqual(0.3);
+      // S168 GDP-028-005 — range tightened to 0.20..0.60 so no bomber
+      // gets dead-monotone vowels.
+      expect(v.vowelDriftAmount).toBeGreaterThanOrEqual(0.20);
+      expect(v.vowelDriftAmount).toBeLessThanOrEqual(0.60);
     }
   });
 });
@@ -113,12 +115,15 @@ describe("planUtterance (S110 pure planner)", () => {
     }
   });
 
-  it("vowel pitchHz = colour.basePitchHz × pitchContour[i]", () => {
+  it("vowel pitchHz ≈ colour.basePitchHz × pitchContour[i] (within ±3% jitter envelope)", () => {
     const colour = voiceParamsFromSeed("alice");
     const schedule = planUtterance(colour, "victory");
     const contour = PHRASE_PATCHES.victory.pitchContour;
     for (let i = 0; i < schedule.length; i += 1) {
-      expect(schedule[i]!.vowel.pitchHz).toBeCloseTo(colour.basePitchHz * contour[i]!, 6);
+      const expected = colour.basePitchHz * contour[i]!;
+      const actual = schedule[i]!.vowel.pitchHz;
+      // S168 GDP-028-005 — pitch carries a deterministic ±3% jitter per syllable.
+      expect(Math.abs(actual - expected) / expected).toBeLessThanOrEqual(0.031);
     }
   });
 
@@ -145,13 +150,34 @@ describe("planUtterance (S110 pure planner)", () => {
     }
   });
 
-  it("vowelDriftAmount=0.3 → vowel formants follow the delta table", () => {
-    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), vowelDriftAmount: 0.3 };
+  it("S168 GDP-028-005 — drift normalisation by 0.6: vowelDriftAmount=0.6 applies full delta", () => {
+    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), vowelDriftAmount: 0.6 };
     const schedule = planUtterance(colour, "pickup");
     const deltas = PHRASE_PATCHES.pickup.vowelDeltas;
     for (let i = 0; i < schedule.length; i += 1) {
       expect(schedule[i]!.vowel.formantF1Hz).toBeCloseTo(colour.formantF1Hz + deltas[i]![0]!, 3);
       expect(schedule[i]!.vowel.formantF2Hz).toBeCloseTo(colour.formantF2Hz + deltas[i]![1]!, 3);
+    }
+  });
+
+  it("S168 GDP-028-005 — pitch jitter is deterministic per (slot, syllable index)", () => {
+    const colour = voiceParamsFromSeed("alice");
+    const a = planUtterance(colour, "pickup");
+    const b = planUtterance(colour, "pickup");
+    for (let i = 0; i < a.length; i += 1) {
+      expect(b[i]!.vowel.pitchHz).toBeCloseTo(a[i]!.vowel.pitchHz, 6);
+    }
+  });
+
+  it("S168 GDP-028-005 — pitch jitter envelope stays within ±3% of expected base*multiplier", () => {
+    const colour: VoiceColour = { ...voiceParamsFromSeed("alice"), basePitchHz: 200 };
+    const schedule = planUtterance(colour, "pickup");
+    const contour = PHRASE_PATCHES.pickup.pitchContour;
+    for (let i = 0; i < schedule.length; i += 1) {
+      const expected = 200 * contour[i]!;
+      const actual = schedule[i]!.vowel.pitchHz;
+      const pct = Math.abs(actual - expected) / expected;
+      expect(pct).toBeLessThanOrEqual(0.031); // 3% + tiny float fudge
     }
   });
 
