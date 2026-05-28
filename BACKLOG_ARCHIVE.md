@@ -174,5 +174,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S167](backlog/sprints/S167.sprint.json)** — Recipe-driven voice — voice colour derives from appearance — 3 implemented · archived 2026-05-28
 - **[S168](backlog/sprints/S168.sprint.json)** — Voice synth tuning — formant glide + per-vowel pitch jitter + drift floor — 3 implemented · archived 2026-05-28
 - **[S169](backlog/sprints/S169.sprint.json)** — Engine Wang tile autotile primitive — family registry + bitmask resolver + ECS system — 5 implemented · archived 2026-05-28
+- **[S170](backlog/sprints/S170.sprint.json)** — Kaboom Crew Wang autotile integration — Stage 3 of GDP-2026-05-28-004 — 4 implemented · archived 2026-05-28
 
 <!-- backlog:render:end -->

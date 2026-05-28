@@ -2,8 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S170",
   "title": "Kaboom Crew Wang autotile integration — Stage 3 of GDP-2026-05-28-004",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/218",
   "notes": [
     "Implements Stage 3 of GDP-2026-05-28-004 — Kaboom Crew adopts the engine Wang tile autotile primitive (S169) to drive per-cell mesh selection for hard + soft blocks. Stages 1 (variants) shipped in S165; Stage 2 (lighting) deferred to the lighting engine GDP-2026-05-28-001.",
     "Project-local 16→4 lookup table collapses Wang's 16-bitmask space onto the 4 procedural mesh builders S165 already ships: isolated→3, single-edge→0, two-edge / T-junction→1, surrounded→2. Hard + soft families share the same table.",
