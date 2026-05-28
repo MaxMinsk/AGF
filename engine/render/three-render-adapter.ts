@@ -2239,6 +2239,13 @@ export class ThreeRenderAdapter {
     // anyway). Memory cost: one geometry copy per live mesh; small
     // vs the savings of not crashing.
     const mesh = new Mesh(initial.geometry.clone(), material);
+    // S180-shadow-default: single-mesh path was the only acquire* that
+    // forgot to opt the new Mesh into shadows. acquireBucket /
+    // acquireBatchedBucket already default castShadow + receiveShadow
+    // to true; mirror here so blocks/floor/pillars cast + receive
+    // without per-entity opt-in.
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     this.meshes.set(handle, mesh);
     this.scene.add(mesh);
     return handle;
