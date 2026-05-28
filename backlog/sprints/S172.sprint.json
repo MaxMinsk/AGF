@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/222",
   "notes": [
     "Connects S171 themes with S165 block variants. Previously the theme only tinted the floor entity; hard + soft blocks ignored the theme palette (used hard-coded #7a7570 / #a08055 constants). Now buildHardBlockVariant + buildSoftBlockVariant accept an optional palette argument; the kaboom mesh-sync bridge encodes the active theme key in the procedural mesh seed (procedural:kaboom-hard-block-0#factory etc.) so the procedural-mesh-registry caches one BufferGeometry per (variant, theme) tuple.",
     "Default palette falls back to the legacy constants (backwards compat) — calling buildHardBlockVariant(0) without a palette produces identical geometry to before. Shadow + seam tints are derived from primary if only primary is provided (Color.multiplyScalar fallback).",
