@@ -106,6 +106,50 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
     }
   ];
 
+  // S177 KABOOM-HEIGHTMAP-VISUALS — spawn a per-cell "floor pillar" box
+  // for every heightmap cell with height > 0. Without this, raised
+  // cells are invisible (gameplay rules still work — bombers stop at
+  // cliffs — but the user can't see WHERE the cliffs are). Color
+  // brightens with height so the user reads a gradient (H=1 → lighter,
+  // H=2+ → lightest). The cliff-face look comes from the bottom
+  // vertices being darker via the existing block-builder pattern, but
+  // for now we just lerp a single hex.
+  //
+  // Skip cells that already host an authored ramp entity — the ramp
+  // entity carries its own visual at the midpoint height, and adding
+  // a pillar there would double-up. Plateau cells (no ramp, height>0)
+  // get the full pillar.
+  const rampCellKeys = new Set<string>();
+  for (const entity of scene.entities) {
+    const c = entity.components as Record<string, unknown>;
+    if (c["Ramp"] === undefined) continue;
+    const gp = c["GridPosition"] as { gx?: number; gz?: number } | undefined;
+    if (gp?.gx === undefined || gp?.gz === undefined) continue;
+    rampCellKeys.add(`${gp.gx},${gp.gz}`);
+  }
+  for (let gz = 0; gz < heightmap.length; gz += 1) {
+    const row = heightmap[gz];
+    if (row === undefined) continue;
+    for (let gx = 0; gx < row.length; gx += 1) {
+      const h = row[gx] ?? 0;
+      if (h <= 0) continue;
+      if (rampCellKeys.has(`${gx},${gz}`)) continue;
+      const pillarId = `heightmap.pillar.${gx}.${gz}`;
+      commands.push({
+        kind: "entity.create",
+        entityId: pillarId,
+        components: {
+          Transform: {
+            position: [gx, h / 2 - 0.025, gz],
+            rotation: [0, 0, 0],
+            scale: [0.96, h + 0.05, 0.96]
+          },
+          MeshRenderer: { mesh: "box", color: colorForHeight(h) }
+        }
+      } as EngineCommand);
+    }
+  }
+
   // Lift Transform.y for every expanded entity whose GridPosition sits
   // on a non-zero cell. We use the entity's authored GridPosition rather
   // than worldToGrid(Transform.position) because scenes that ship a
@@ -236,4 +280,18 @@ function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
   if (family === "grass") return GRASS_WANG_FAMILY_NAME;
   // 'floor' has no overlay entity; anything else is unknown to v1.
   return undefined;
+}
+
+/** S177 — gradient for heightmap pillar colour. H=0 → floor backdrop;
+ *  higher = lighter so the user can read elevation at a glance. */
+function colorForHeight(height: number): string {
+  // base #1d2536 (start scene's floor colour) → step toward #708090
+  // (slate) per height unit. Clamp at H=4.
+  const clamped = Math.max(0, Math.min(4, height));
+  const t = clamped / 4;
+  const lerpChannel = (a: number, b: number): number => Math.round(a + (b - a) * t);
+  const r = lerpChannel(0x1d, 0x70);
+  const g = lerpChannel(0x25, 0x80);
+  const b = lerpChannel(0x36, 0x90);
+  return "#" + r.toString(16).padStart(2, "0") + g.toString(16).padStart(2, "0") + b.toString(16).padStart(2, "0");
 }
