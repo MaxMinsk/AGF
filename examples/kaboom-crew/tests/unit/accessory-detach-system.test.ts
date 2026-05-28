@@ -170,6 +170,40 @@ describe("createKaboomAccessoryDetachSystem (S162)", () => {
     expect(world.hasComponent(weird, "AccessoryDebris")).toBe(false);
   });
 
+  it("S166-b: accessory uses LocalToWorld.position when available (animated pose)", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5, false);
+    const a1 = addAccessory(world, "player.1", 0, "antennae", "player.1");
+    // Simulate transform-resolve having written LocalToWorld with an
+    // animation-displaced position (e.g. mid-bob frame).
+    world.setComponent(a1, "LocalToWorld", { position: [5.07, 1.43, 5.02], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    const sys = createKaboomAccessoryDetachSystem();
+    sys.fixedUpdate!(ctx(world));
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>(a1, "Transform")!;
+    // Position seeded from LocalToWorld, with one tick of integration
+    // (vy * dt ≈ 0.033 on Y at most) — tolerance reflects that.
+    expect(t.position[0]).toBeCloseTo(5.07, 1);
+    expect(t.position[1]).toBeGreaterThanOrEqual(1.42);
+    expect(t.position[1]).toBeLessThanOrEqual(1.50);
+    expect(t.position[2]).toBeCloseTo(5.02, 1);
+  });
+
+  it("S166-b: fallback to bomber+offset when LocalToWorld is missing", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5, false);
+    const a1 = addAccessory(world, "player.1", 0, "antennae", "player.1");
+    // No LocalToWorld — first-frame fallback.
+    const sys = createKaboomAccessoryDetachSystem();
+    sys.fixedUpdate!(ctx(world));
+    const t = world.getComponent<{ position: ReadonlyArray<number> }>(a1, "Transform")!;
+    // Bomber Transform.position is [5, 0.5, 5] (addBomber default).
+    // Antennae headOffset = 1.0 → expect y ≈ 1.5 (plus one tick of integration).
+    expect(t.position[0]).toBeCloseTo(5, 1);
+    expect(t.position[1]).toBeGreaterThanOrEqual(1.49);
+    expect(t.position[1]).toBeLessThanOrEqual(1.57);
+    expect(t.position[2]).toBeCloseTo(5, 1);
+  });
+
   it("SpringPivot + SoftAttached removed on detach", () => {
     const world = new World();
     addBomber(world, "player.1", 5, 5, false);
