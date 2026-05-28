@@ -31,6 +31,10 @@ import {
   type FloorTileVariantIndex
 } from "./blocks/floor-tile-variants";
 import {
+  buildGrassVariant,
+  type GrassVariantIndex
+} from "./blocks/grass-variants";
+import {
   decodeBlockSeed,
   selectVariantIndex,
   type VariantIndex
@@ -57,6 +61,13 @@ export const SOFT_BLOCK_VARIANT_KEYS = [
   "kaboom-soft-block-1",
   "kaboom-soft-block-2",
   "kaboom-soft-block-3"
+] as const;
+/** S176 — per-variant mesh keys for the grass floor-overlay family. */
+export const GRASS_VARIANT_KEYS = [
+  "kaboom-grass-0",
+  "kaboom-grass-1",
+  "kaboom-grass-2",
+  "kaboom-grass-3"
 ] as const;
 
 /**
@@ -99,6 +110,17 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     const variantIndex = i as SoftBlockVariantIndex;
     registry.register(SOFT_BLOCK_VARIANT_KEYS[i]!, (seed) =>
       buildSoftBlockVariant(variantIndex, softPaletteForSeed(seed))
+    );
+  }
+  // S176 KABOOM-FLOOR-WANG-TILES MVP — register the 4 grass variant
+  // keys. No palette parameter this sprint — terrain palettes are
+  // hardcoded (theme integration is a follow-up). The seed is ignored
+  // because the mesh-sync bridge writes a constant seed (one geometry
+  // per variant cached for the whole world).
+  for (let i = 0; i < GRASS_VARIANT_KEYS.length; i += 1) {
+    const variantIndex = i as GrassVariantIndex;
+    registry.register(GRASS_VARIANT_KEYS[i]!, (_seed) =>
+      buildGrassVariant(variantIndex)
     );
   }
 }

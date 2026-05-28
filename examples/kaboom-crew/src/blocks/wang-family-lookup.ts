@@ -72,6 +72,20 @@ export function softBlockBitmaskToVariant(bitmask: number): KaboomBlockVariantIn
 }
 
 /**
+ * S176 KABOOM-FLOOR-WANG-TILES MVP (GDP-2026-05-28-012) — grass twin
+ * of `hardBlockBitmaskToVariant`. Re-uses the SAME 16→4 lookup table:
+ * the grass interior (bitmask 15 — surrounded by grass) maps to the
+ * filler variant; isolated grass tiles map to the isolated variant;
+ * edge bitmasks map to the edge / corner / T-junction variants. v1
+ * deliberately re-uses the table to keep the contract identical to
+ * the hard / soft block families — a follow-up sprint can split the
+ * grass table out if a different visual mapping is needed.
+ */
+export function grassBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
+  return LOOKUP_TABLE[clampBitmask(bitmask)]!;
+}
+
+/**
  * Pure helper exposing the 16-entry lookup table. Useful for tests +
  * any debug surface that wants to inspect the full mapping without
  * invoking the functions 16 times.

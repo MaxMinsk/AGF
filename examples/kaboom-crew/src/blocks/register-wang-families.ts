@@ -26,6 +26,7 @@ import {
 } from "../../../../engine/render/autotile";
 
 import {
+  grassBitmaskToVariant,
   hardBlockBitmaskToVariant,
   softBlockBitmaskToVariant
 } from "./wang-family-lookup";
@@ -34,12 +35,19 @@ import {
 export const HARD_BLOCK_WANG_FAMILY = "kaboom-hard-block";
 /** Wang family name for Kaboom soft (destructible) blocks. */
 export const SOFT_BLOCK_WANG_FAMILY = "kaboom-soft-block";
+/** S176 — Wang family name for grass floor-overlay terrain cells. */
+export const GRASS_WANG_FAMILY = "kaboom-grass";
 
 /**
- * Register both Kaboom Crew Wang families with the engine registry.
+ * Register every Kaboom Crew Wang family with the engine registry.
  * Idempotent across HMR re-imports — duplicate-name errors are
  * swallowed so the second `attachUi` call after a hot-reload doesn't
  * crash the bootstrap.
+ *
+ * S176 — registers a THIRD family ("kaboom-grass") alongside hard +
+ * soft block. The 16 → 4 collapse re-uses the shared lookup table so
+ * grass cells map onto 4 procedural mesh keys (the
+ * `procedural:kaboom-grass-{0..3}` builders).
  *
  * Call site: `attachUi` in bootstrap.ts, alongside
  * `registerKaboomBlockBuilders`.
@@ -47,6 +55,7 @@ export const SOFT_BLOCK_WANG_FAMILY = "kaboom-soft-block";
 export function registerKaboomWangFamilies(): void {
   registerFamilySafe(buildHardBlockFamily());
   registerFamilySafe(buildSoftBlockFamily());
+  registerFamilySafe(buildGrassFamily());
 }
 
 function registerFamilySafe(family: WangTileFamily): void {
@@ -73,6 +82,13 @@ function buildSoftBlockFamily(): WangTileFamily {
   return {
     name: SOFT_BLOCK_WANG_FAMILY,
     variants: buildVariants(SOFT_BLOCK_WANG_FAMILY, softBlockBitmaskToVariant)
+  };
+}
+
+function buildGrassFamily(): WangTileFamily {
+  return {
+    name: GRASS_WANG_FAMILY,
+    variants: buildVariants(GRASS_WANG_FAMILY, grassBitmaskToVariant)
   };
 }
 

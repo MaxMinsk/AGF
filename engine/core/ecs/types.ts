@@ -68,4 +68,16 @@ export type SceneInput = {
    * gameplay systems can query heights via `engine/grid/height-query`.
    */
   heightmap?: ReadonlyArray<ReadonlyArray<number>>;
+  /**
+   * S176 GDP-2026-05-28-012 — optional scene-level shortcut for the
+   * floor-terrain family per cell. Outer index is gz, inner is gx;
+   * entries are project-defined family-name strings (e.g. 'floor',
+   * 'grass'). Engine treats this as an opaque ReadonlyArray of
+   * ReadonlyArray of strings — the meaning of the entries is a
+   * project-level concern. The Kaboom Crew bootstrap reads this field
+   * and spawns per-cell overlay entities for non-default cells. Scenes
+   * without a `terrainmap` render with the project's single stretched-
+   * box floor backdrop and pay zero per-cell overhead.
+   */
+  terrainmap?: ReadonlyArray<ReadonlyArray<string>>;
 };

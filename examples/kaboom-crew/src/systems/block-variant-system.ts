@@ -36,15 +36,18 @@ import {
   type WangTileFamilyMemberComponent
 } from "../../../../engine/render/autotile";
 import {
+  GRASS_WANG_FAMILY,
   HARD_BLOCK_WANG_FAMILY,
   SOFT_BLOCK_WANG_FAMILY
 } from "../blocks/register-wang-families";
 import {
+  grassBitmaskToVariant,
   hardBlockBitmaskToVariant,
   softBlockBitmaskToVariant,
   type KaboomBlockVariantIndex
 } from "../blocks/wang-family-lookup";
 import {
+  GRASS_VARIANT_KEYS,
   HARD_BLOCK_VARIANT_KEYS,
   SOFT_BLOCK_VARIANT_KEYS
 } from "../register-block-builders";
@@ -210,6 +213,7 @@ function mapFamilyBitmask(
 ): KaboomBlockVariantIndex | undefined {
   if (familyName === HARD_BLOCK_WANG_FAMILY) return hardBlockBitmaskToVariant(bitmask);
   if (familyName === SOFT_BLOCK_WANG_FAMILY) return softBlockBitmaskToVariant(bitmask);
+  if (familyName === GRASS_WANG_FAMILY) return grassBitmaskToVariant(bitmask);
   return undefined;
 }
 
@@ -227,6 +231,12 @@ function meshKeyFor(
   }
   if (familyName === SOFT_BLOCK_WANG_FAMILY) {
     return `procedural:${SOFT_BLOCK_VARIANT_KEYS[variantIndex]!}#${themeKey}`;
+  }
+  // S176 KABOOM-FLOOR-WANG-TILES MVP — grass family has no theme-aware
+  // palette this sprint, so the seed component is omitted (the registry
+  // caches one geometry per variant for the whole world).
+  if (familyName === GRASS_WANG_FAMILY) {
+    return `procedural:${GRASS_VARIANT_KEYS[variantIndex]!}`;
   }
   return undefined;
 }

@@ -38,6 +38,17 @@
         }
       }
     },
+    "terrainmap": {
+      "type": "array",
+      "description": "S176 GDP-2026-05-28-012 — optional scene-level shortcut for bulk-authoring per-cell floor-terrain family. Outer index is gz, inner is gx; entries are project-defined family-name strings (the engine treats them as opaque). Project bootstraps consume this field at scene-load to spawn per-cell overlay entities for non-default cells. Scenes without a `terrainmap` keep the project's single stretched-box floor backdrop.",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "environment": {
       "type": "object",
       "additionalProperties": false,
