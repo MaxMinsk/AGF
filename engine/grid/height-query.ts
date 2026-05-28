@@ -19,6 +19,7 @@
 
 import type { ComponentName } from "../core/ecs/types";
 import type { World } from "../core/ecs/world";
+import { isRampEdge } from "./ramp-query";
 
 export const HEIGHTMAP: ComponentName = "Heightmap";
 const GRID: ComponentName = "Grid";
@@ -102,6 +103,34 @@ export function isCliffEdge(
   const fromHeight = getCellHeight(world, fromGx, fromGz);
   const toHeight = getCellHeight(world, toGx, toGz);
   return fromHeight !== toHeight;
+}
+
+/**
+ * S174 GDP-2026-05-28-011 — Ramp-aware passability check.
+ *
+ * Returns `false` (NOT passable, i.e. blocked) when the edge between
+ * `(fromGx, fromGz)` and `(toGx, toGz)` crosses a cliff that is NOT
+ * suppressed by a ramp. Returns `true` (passable) when either:
+ *   - the two cells are at the same height (no cliff), or
+ *   - a ramp connects exactly this pair (cliff is suppressed).
+ *
+ * `isCliffEdge` is intentionally kept pure (height-delta only) so
+ * height-only consumers stay simple; gameplay code that respects ramps
+ * (movement, blast walker) calls `isPassableEdge` instead.
+ *
+ * Non-cardinal pairs return `true` — the helper is meant to short-
+ * circuit cardinal passability checks; gameplay code that probes
+ * arbitrary neighbours is expected to bail before calling this.
+ */
+export function isPassableEdge(
+  world: World,
+  fromGx: number,
+  fromGz: number,
+  toGx: number,
+  toGz: number
+): boolean {
+  if (!isCliffEdge(world, fromGx, fromGz, toGx, toGz)) return true;
+  return isRampEdge(world, fromGx, fromGz, toGx, toGz);
 }
 
 /**

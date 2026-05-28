@@ -1,0 +1,89 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S174",
+  "title": "Ramps MVP — per-cell Ramp component bridges a single-step cliff for movement + blast",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": null,
+  "notes": [
+    "Scoped MVP of GDP-2026-05-28-011 on top of S173's Heightmap. Ramp is a per-cell component (entity with GridPosition + Ramp + Transform + MeshRenderer); no separate engine-level edge marker entity. Direction points FROM the ramp cell TOWARD the to-cell. Cliff suppression is LOCAL — only the (ramp cell, to-cell) pair is suppressed; other neighbours still respect the underlying height delta.",
+    "Procedural wedge mesh is OUT OF SCOPE for v1 — ramp cells use the same flat-tile procedural mesh as a regular floor and are visually distinct only via their intermediate Y elevation (the cell is lifted to (fromHeight + toHeight) / 2 by the existing applyHeightmapCommands helper). A proper wedge geometry comes in a follow-up alongside smooth Y interpolation during the cell-tween.",
+    "Smooth Y interpolation during a cell-tween is OUT OF SCOPE for v1. Bombers' Y is preserved by grid-movement-system across the tween (it never writes Y), so a bomber crossing a ramp pair will visually step at the cell boundary rather than smoothly lerp through the slope. Cell-by-cell stepping is functional even if less polished; the visual interpolation lands alongside the wedge mesh.",
+    "Bot AI pathfinding is intentionally ramp-agnostic this sprint — bots may still bonk against cliffs even when a ramp would have routed them up. Acceptable for v1 because heightmap arenas are opt-in (only the prototype scene ships one). Kicks / conveyors / warps also stay cliff-and-ramp-agnostic for the same reason.",
+    "v1 supports only delta = 1 ramps. The prototype heightmap-demo scene authors a 2-step chain manually (0 → ramp → 1 → ramp → 2 plateau) to validate the chained traversal."
+  ],
+  "outOfScope": [
+    "Procedural wedge mesh (ramps render as flat lifted tiles for v1)",
+    "Smooth Y interpolation during the bomber cell-tween (Y steps per cell)",
+    "Bot AI pathfinding cliff-and-ramp awareness (bots may still bonk)",
+    "Multi-tile ramp series with delta > 1 in a single ramp cell (only delta=1 supported; the scene authors a 2-step chain manually)",
+    "Camera Y-tracking changes (cursed; stays no-op)",
+    "Kick / conveyor / warp ramp-aware checks (same scope rationale as S173 cliff)"
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-RAMP-SCHEMA-001",
+      "title": "Ramp component schema (project-local)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — new `rampComponent` definition: `{ fromHeight: 0..4 integer, toHeight: 0..4 integer, direction: 'N'|'E'|'S'|'W' }`. Registered in the top-level `components` map as `Ramp`. v1 trusts authors to pair toHeight = fromHeight + 1 (no JSON-schema-level dependency check — would require draft-07 conditional refs); ramp-query helpers don't enforce it either, but anything beyond a unit delta hits the same cliff edge as a flat → tall step and stops moving.",
+      "verification": [
+        "acceptance: prototype scene heightmap-demo.scene.json validates against the bundled scene + project-extension schemas; existing 226 unit test files (2045 tests) still pass."
+      ]
+    },
+    {
+      "id": "FEAT-ENGINE-RAMP-QUERY-001",
+      "title": "Pure ramp-query helpers — getRampAt + isRampEdge + rampStandOnHeight",
+      "status": "implemented",
+      "summary": "engine/grid/ramp-query.ts (NEW) — `getRampAt(world, gx, gz)` returns the Ramp component at the cell (linear scan; ramps are rare enough that an index isn't justified). `isRampEdge(world, fromGx, fromGz, toGx, toGz)` returns true for climbing (ramp at FROM points at TO) AND descending (ramp at TO points back at FROM); false for non-cardinal pairs, same-cell, distance > 1, unrelated pairs. `rampStandOnHeight(world, gx, gz, baseCellHeight)` returns the midpoint on a ramp cell, base cell height otherwise — used by gameplay code that needs the bomber's stand-on Y. `rampDirectionDelta` maps N/E/S/W to (dx, dz) unit vectors. No DOM / Three.js / project deps.",
+      "verification": [
+        "acceptance: 16 tests in tests/unit/engine-grid-ramp-query.test.ts cover all four directions, climbing + descending, non-cardinal / same-cell / distance > 1 guards, chained ramps, and rampStandOnHeight midpoint math."
+      ]
+    },
+    {
+      "id": "FEAT-ENGINE-PASSABLE-EDGE-001",
+      "title": "isPassableEdge — ramp-aware cliff check on engine/grid/height-query",
+      "status": "implemented",
+      "summary": "engine/grid/height-query.ts — keeps `isCliffEdge` pure (height-delta only) and adds `isPassableEdge(world, fromGx, fromGz, toGx, toGz)` = `!isCliffEdge || isRampEdge`. Gameplay code that respects ramps (grid-movement-system, blast-propagation-system) consults the new helper; height-only consumers (engine-internal tools, future cliff-face shader) keep using `isCliffEdge`.",
+      "verification": [
+        "acceptance: 5 tests in examples/kaboom-crew/tests/unit/ramp-cliff-suppression.test.ts cover cliff-with-ramp suppressed, cliff-without-ramp still impassable, flat edges unchanged, and the local-only nature of the suppression (other cliff edges of the same cell still block)."
+      ]
+    },
+    {
+      "id": "FEAT-ENGINE-MOVEMENT-RAMP-AWARE-001",
+      "title": "Grid mover crosses ramp endpoints (cliff suppressed by Ramp)",
+      "status": "implemented",
+      "summary": "engine/core/systems/grid-movement-system.ts — isPassable() now consults `isPassableEdge` instead of `isCliffEdge` for both the queued cardinal AND the lane-assist perpendicular fallback. Bombers can step from a flat cell onto a ramp cell, from the ramp cell onto the to-cell, and descend in reverse. Other movement systems (kicks, conveyors, warps) stay ramp-agnostic for the same reason they stayed cliff-agnostic in S173 (scope).",
+      "verification": [
+        "acceptance: 4 tests in examples/kaboom-crew/tests/unit/grid-mover-walks-ramp.test.ts cover climbing onto a ramp cell, stepping onto the plateau to-cell, descending back to flat, and unrelated cliff edges still refused. Existing S173 grid-mover-cliff-block.test.ts (5 tests) stays green — the new helper returns the same `isCliffEdge` truth on cells without a ramp."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-BLAST-RAMP-AWARE-001",
+      "title": "Blast propagation walks through ramps (cliff suppressed by Ramp)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/blast-propagation-system.ts — per-cardinal walker now consults `isPassableEdge` instead of `isCliffEdge`. A blast walking east from H=0 across a ramp at H=0→1 continues onto the to-cell and beyond at H=1 (until a non-ramp cliff or a wall stops it). Descending blasts (bomb on plateau, blast walks west) walk back through the same ramp into the flat. Other cliff edges still hard-stop the lane.",
+      "verification": [
+        "acceptance: 3 tests in examples/kaboom-crew/tests/unit/blast-walks-ramp.test.ts cover east-walking blast crossing a ramp, blast on a non-ramp row still stops, descending blast walks back through the ramp. Existing S173 blast-cliff-stop.test.ts (3 tests) stays green."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-RAMP-Y-LIFT-001",
+      "title": "Scene-load lifts ramp cells to the midpoint between fromHeight + toHeight",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/bootstrap-helpers.ts — applyHeightmapCommands now special-cases entities carrying a Ramp component: lifts their Transform.y by `(fromHeight + toHeight) / 2` rather than the raw heightmap cell height. The lift commands flow through the same scene-load pipeline (initial + restart) so flat arenas without ramps pay zero overhead. v1 reuses the regular procedural floor mesh — only the Y elevation hints at the slope.",
+      "verification": [
+        "acceptance: 2 new tests in examples/kaboom-crew/tests/unit/bomber-spawn-height-lift.test.ts (lift to 0.5 for a 0→1 ramp, lift to 1.5 for a 1→2 ramp) plus the 5 existing tests stay green."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-RAMP-DEMO-SCENE-001",
+      "title": "Prototype heightmap-demo scene adds a 2-step ramp chain to the plateau",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/scenes/heightmap-demo.scene.json — heightmap reshaped from a 3×3 plateau at gx 5..7 to a 2×3 plateau at gx 6..7 plus an east-facing ramp chain on row gz=5: (gx=4, gz=5) ramp 0→1 + (gx=5, gz=5) ramp 1→2 lifts the bomber from the flat onto the H=2 plateau in two steps. Hard block moved out of the ramp path. Scene validates against the bundled scene + project schemas; engine:check examples/kaboom-crew passes. Not yet wired into MAP_REGISTRY (heightmap arenas remain opt-in until the wedge-mesh visual lands).",
+      "verification": [
+        "acceptance: engine:check examples/kaboom-crew passes (no diagnostics); scene validates via the bundled scene-schema AJV compile; manual review confirms the 2-step chain (H=0 → ramp 0→1 → ramp 1→2 → plateau H=2) on row gz=5 reaches the plateau."
+      ]
+    }
+  ]
+}

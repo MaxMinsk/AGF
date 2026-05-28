@@ -97,12 +97,27 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
   // heightmap reliably author both. Soft- / hard-block prefabs author
   // Transform.position[1] at 0.45 / 0.5 — lifting just the root keeps
   // child meshes correct (children parent to root via Transform.parent).
+  //
+  // S174 GDP-2026-05-28-011 — Ramps. Entities carrying a Ramp component
+  // get lifted to the MIDPOINT between fromHeight + toHeight rather
+  // than the raw cell height — so the ramp's visual surface sits half-
+  // way up the cliff it bridges. v1 uses the same procedural floor mesh
+  // (no wedge), so the midpoint lift is the only visual hint that it's
+  // a ramp. A proper wedge mesh + smooth Y interpolation during cell-
+  // tween land in a follow-up sprint (see S174 sprint notes).
   for (const entity of scene.entities) {
     const components = entity.components as Record<string, unknown>;
     const gridPos = components["GridPosition"] as { gx?: number; gz?: number } | undefined;
     if (gridPos === undefined || typeof gridPos.gx !== "number" || typeof gridPos.gz !== "number") continue;
-    const cellHeight = readHeightFromValues(heightmap, gridPos.gx, gridPos.gz);
-    if (cellHeight === 0) continue;
+    const baseCellHeight = readHeightFromValues(heightmap, gridPos.gx, gridPos.gz);
+    const ramp = components["Ramp"] as
+      | { fromHeight?: number; toHeight?: number; direction?: string }
+      | undefined;
+    const liftHeight =
+      ramp !== undefined && typeof ramp.fromHeight === "number" && typeof ramp.toHeight === "number"
+        ? (ramp.fromHeight + ramp.toHeight) / 2
+        : baseCellHeight;
+    if (liftHeight === 0) continue;
     const transform = components["Transform"] as
       | { position?: ReadonlyArray<number>; rotation?: ReadonlyArray<number>; scale?: ReadonlyArray<number>; parent?: string }
       | undefined;
@@ -116,7 +131,7 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
       kind: "component.set",
       entityId: entity.id,
       component: "Transform",
-      data: { ...transform, position: [tx, (ty ?? 0) + cellHeight, tz] }
+      data: { ...transform, position: [tx, (ty ?? 0) + liftHeight, tz] }
     });
   }
 
