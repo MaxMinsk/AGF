@@ -17,10 +17,8 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
-  Color,
-  CylinderGeometry
+  Color
 } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /** Warm grey primary tone (visual-style.md hard-block-primary). */
 export const HARD_BLOCK_PRIMARY = "#7a7570";
@@ -83,35 +81,38 @@ function buildVariant2Girder(): BufferGeometry {
 }
 
 function buildVariant3Plate(): BufferGeometry {
-  // 4 rivet bumps glued to the top face. mergeGeometries needs every
-  // input to share the same attribute set, so we paint colours on the
-  // base + each rivet BEFORE merging.
-  const base = new BoxGeometry(1, 1, 1, 1, 2, 1);
-  paintVertexColors(base, HARD_BLOCK_PRIMARY);
-  paintBottomShadow(base, HARD_BLOCK_SHADOW, 1);
-  const rivetTint = new Color(HARD_BLOCK_PRIMARY).multiplyScalar(0.75);
-  const rivetHex = "#" + rivetTint.getHexString();
-  const rivetOffsets: ReadonlyArray<[number, number]> = [
-    [-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]
-  ];
-  const parts: BufferGeometry[] = [base];
-  for (const [ox, oz] of rivetOffsets) {
-    const rivet = new CylinderGeometry(0.06, 0.06, 0.08, 8);
-    rivet.translate(ox, 0.54, oz);
-    paintVertexColors(rivet, rivetHex);
-    parts.push(rivet);
-  }
-  const merged = mergeGeometries(parts, false);
-  // Defensive fallback — mergeGeometries returns null when attribute
-  // sets don't line up. Shouldn't happen because we paint colour on
-  // every input, but ship the base alone rather than crash.
-  if (merged === null) return base;
-  // Dispose source geometries we won't return.
-  for (const part of parts) {
-    if (part !== base) part.dispose();
-  }
-  return merged;
+  // S170 hotfix (2026-05-28): mergeGeometries (BoxGeometry + 4
+  // CylinderGeometry rivets) produced an indexed BufferGeometry that
+  // WebGPU rejected — the merged index buffer's attribute layout
+  // didn't line up with what setIndexBuffer expected. Replaced the
+  // rivet-merge with corner-vertex tinting on a subdivided BoxGeometry
+  // so the variant still reads distinct without ever calling
+  // mergeGeometries. WebGL + WebGPU both happy.
+  const g = new BoxGeometry(1, 1, 1, 1, 2, 1);
+  paintVertexColors(g, HARD_BLOCK_PRIMARY);
+  paintBottomShadow(g, HARD_BLOCK_SHADOW, 1);
+  const rivetHex = "#" + new Color(HARD_BLOCK_PRIMARY).multiplyScalar(0.75).getHexString();
+  paintTopCornerDots(g, rivetHex);
+  return g;
 }
+
+/** S170 hotfix — tint the 4 top-corner vertices toward `hex` to fake rivets. */
+function paintTopCornerDots(g: BufferGeometry, hex: string): void {
+  const color = g.getAttribute("color") as BufferAttribute | undefined;
+  const pos = g.getAttribute("position") as BufferAttribute | undefined;
+  if (color === undefined || pos === undefined) return;
+  const c = new Color(hex);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    if (y > 0.45 && Math.abs(x) > 0.4 && Math.abs(z) > 0.4) {
+      color.setXYZ(i, c.r, c.g, c.b);
+    }
+  }
+  color.needsUpdate = true;
+}
+
 
 // ---- helpers ----
 
