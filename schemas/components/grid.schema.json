@@ -104,6 +104,26 @@
           "default": false
         }
       }
+    },
+    "heightmapComponent": {
+      "description": "S173 GDP-2026-05-28-010 — variable cell-height singleton. Sits next to Grid on the grid-config entity. `values` is a 2D integer array indexed by [gz][gx]; each entry is the cell's height in cells (0..4). Cells beyond the array, or whose row/column is shorter than the grid extent, are treated as height 0 by `engine/grid/height-query.ts`. The heightmap is opt-in per scene: scenes without a Heightmap component (or without a top-level `heightmap` field that the bootstrap promotes to one) keep the flat-arena gameplay rules unchanged. Adjacent cells with different heights form an impassable cliff for both movement and blast propagation in this MVP (ramps come in GDP-2026-05-28-011).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["values"],
+      "properties": {
+        "values": {
+          "type": "array",
+          "description": "Row-major 2D array: outer index is gz (row), inner index is gx (column). Each entry is an integer height 0..4. Missing entries default to 0.",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
+          }
+        }
+      }
     }
   }
 }

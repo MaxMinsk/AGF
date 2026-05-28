@@ -135,7 +135,7 @@ import {
   opponentAccentColor
 } from "./src/opponent-badges";
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
-import { upsertEntityCommands } from "./src/bootstrap-helpers";
+import { applyHeightmapCommands, upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
 import {
   tooltipFor as tooltipForPowerUp,
@@ -404,8 +404,16 @@ function restartScene(runtime: RuntimeHandle): number {
     (globalThis as unknown as { location?: { search?: string } }).location?.search
   );
   const tuning = difficultyComponentPatch(preset);
+  // S173 GDP-2026-05-28-010 — build the scene up front so the heightmap
+  // post-pass can read its top-level `heightmap` field + lift bomber/
+  // block Y values to match. The applyHeightmapCommands helper returns
+  // an empty list on flat arenas so scenes without a heightmap pay zero
+  // overhead.
+  const restartScene_ = buildFlatStartScene();
+  const heightmapCommands_ = applyHeightmapCommands(restartScene_);
   runtime.applyCommands([
-    { kind: "scene.load", scene: buildFlatStartScene() },
+    { kind: "scene.load", scene: restartScene_ },
+    ...heightmapCommands_,
     {
       kind: "entity.create",
       entityId: "kaboom.round-state",
@@ -835,7 +843,18 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // sees the right scene id.
     const initialThemeKey: ArenaThemeKey =
       readArenaThemeFromUrl() ?? defaultThemeForArena(activeMapName);
+    // S173 GDP-2026-05-28-010 — promote the source scene's optional
+    // top-level `heightmap` field into a Heightmap component on the
+    // grid singleton + lift Y of any non-zero-cell entity. Pulled from
+    // the registered scene JSON for the active map; on flat arenas this
+    // returns no commands so startup pays nothing extra.
+    const initialSourceScene = MAP_REGISTRY.get(activeMapName) as SceneInput | undefined;
+    const initialHeightmapCommands = initialSourceScene !== undefined
+      ? applyHeightmapCommands(initialSourceScene)
+      : [];
+
     const initialBatch: EngineCommand[] = [
+      ...initialHeightmapCommands,
       // S84 + S115 — single kaboom.game-state singleton carries
       // GamePaused (title-screen / pause overlay) AND MatchState
       // (best-of-N session).

@@ -60,4 +60,12 @@ export type SceneInput = {
   environment?: SceneEnvironmentInput;
   /** Optional prefab instances. `expandScenePrefabs` flattens them into regular entities at scene-load time. */
   instances?: ReadonlyArray<SceneInstanceInput>;
+  /**
+   * S173 GDP-2026-05-28-010 — optional scene-level shortcut for
+   * variable cell height. Outer index is gz, inner is gx; entries are
+   * integer cell heights (0..4). At scene-load the project bootstrap
+   * promotes this into a Heightmap component on the Grid singleton so
+   * gameplay systems can query heights via `engine/grid/height-query`.
+   */
+  heightmap?: ReadonlyArray<ReadonlyArray<number>>;
 };
