@@ -25,9 +25,15 @@ import { getCellHeight } from "../../../../engine/grid/height-query";
 
 const TRANSFORM: ComponentName = "Transform";
 const GRID_POSITION: ComponentName = "GridPosition";
+const GRID_MOVER: ComponentName = "GridMover";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const BOMB: ComponentName = "Bomb";
 const PICKUP: ComponentName = "Pickup";
+
+/** S181 — step-jump arc peak above the higher of (fromHeight,toHeight),
+ *  in cell units. 0.4 reads as a clear hop without overshooting the
+ *  camera's vertical budget. */
+const STEP_JUMP_ARC_PEAK = 0.4;
 
 type TransformLike = {
   position?: ReadonlyArray<number>;
@@ -37,6 +43,7 @@ type TransformLike = {
 };
 
 type GridPos = { gx?: number; gz?: number };
+type GridMover = { currentLerp?: number; targetGx?: number; targetGz?: number };
 
 export function createKaboomBomberHeightLiftSystem(): System {
   const name = "kaboom.bomber-height-lift";
@@ -65,7 +72,7 @@ export function createKaboomBomberHeightLiftSystem(): System {
       if (typeof transform.parent === "string" && transform.parent.length > 0) return;
       const pos = world.getComponent<GridPos>(entityId, GRID_POSITION);
       if (pos?.gx === undefined || pos?.gz === undefined) return;
-      const standOn = standOnHeightAt(world, pos.gx, pos.gz);
+      const standOn = standOnHeightAt(world, pos.gx, pos.gz, entityId);
       // Bombers have a BenchAnimationState driver that overwrites
       // Transform.position.y each fixedUpdate (idle bob + walk root
       // bob). Writing Transform directly would last one tick before
@@ -108,9 +115,22 @@ export function createKaboomBomberHeightLiftSystem(): System {
   return { name, fixedUpdate };
 }
 
-/** Pure helper — resolve the cell's "stand-on" Y. S179: heightmap-only
- *  (the Ramp component is gone; stepped terrain encodes ramps via H=1
- *  cells the bomber can traverse for free). */
-function standOnHeightAt(world: World, gx: number, gz: number): number {
-  return getCellHeight(world, gx, gz);
+/** S181 — resolve the entity's stand-on Y for the current tick.
+ *  Mid-tween between two cells whose height differs by 1, the bomber
+ *  arcs along a parabola peaking STEP_JUMP_ARC_PEAK cells above the
+ *  higher of (fromHeight, toHeight). Outside of that window we fall
+ *  back to the cell's static height (S179 heightmap-only model). */
+function standOnHeightAt(world: World, gx: number, gz: number, entityId: EntityId): number {
+  const cellH = getCellHeight(world, gx, gz);
+  const mover = world.getComponent<GridMover>(entityId, GRID_MOVER);
+  if (mover === undefined) return cellH;
+  const { currentLerp, targetGx, targetGz } = mover;
+  if (typeof targetGx !== "number" || typeof targetGz !== "number") return cellH;
+  if (typeof currentLerp !== "number" || currentLerp <= 0 || currentLerp >= 1) return cellH;
+  const toH = getCellHeight(world, targetGx, targetGz);
+  if (Math.abs(toH - cellH) !== 1) return cellH;
+  const t = currentLerp;
+  const baseY = cellH + (toH - cellH) * t;
+  const arcY = STEP_JUMP_ARC_PEAK * 4 * t * (1 - t);
+  return baseY + arcY;
 }
