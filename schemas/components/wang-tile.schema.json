@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentsgameframework.dev/schemas/components/wang-tile.schema.json",
+  "title": "AGF Wang tile components",
+  "description": "S169 ENGINE-WANG-AUTOTILE primitive. Generic neighbour-aware tile-variant resolver (`engine/render/autotile/`). A 'tile family' (e.g. 'soft-block', 'hard-block', 'floor') ships 16 mesh variants — one per N/E/S/W edge bitmask of same-family neighbours; the resolver picks the matching variant for each cell. Schema captures the component shapes + the registered family/variant data shapes for runtime validation. WangTile cells coexist with project-specific family-membership components — projects either tag cells with the generic `WangTileFamilyMember` (familyName) or use their own gameplay markers and project-side predicates.",
+  "type": "object",
+  "definitions": {
+    "wangTileVariant": {
+      "description": "S169 — one mesh variant in a Wang tile family. Index 0..15 in `WangTileFamily.variants` matches the neighbour bitmask (bit3=N, bit2=E, bit1=S, bit0=W). `meshKey` is opaque to the engine — the project consumer looks it up in its own MeshHandleRegistry or procedural builder map.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["meshKey"],
+      "properties": {
+        "meshKey": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opaque mesh identifier resolved by the consumer."
+        },
+        "rotationY": {
+          "type": "number",
+          "description": "Optional rotation about Y axis, in radians, applied by the consumer when spawning the variant mesh."
+        },
+        "mirrorX": {
+          "type": "boolean",
+          "description": "Optional X-axis mirror flag applied by the consumer when spawning the variant mesh."
+        }
+      }
+    },
+    "wangTileFamily": {
+      "description": "S169 — full family registered at bootstrap. `variants` MUST contain exactly 16 entries; the array index is the neighbour bitmask. Duplicate entries (same meshKey across multiple bitmask indices) are allowed — different rotations of the same mesh is a common authoring pattern.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "variants"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": { "$ref": "#/definitions/wangTileVariant" }
+        }
+      }
+    },
+    "wangTileComponent": {
+      "description": "S169 — per-cell component placed on a tile entity. `familyName` selects the registered family; `currentVariantIndex` and `currentMeshKey` are runtime outputs written by `WangTileResolverSystem` and read by the project's mesh-spawn consumer. Engine writes; consumer reads.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["familyName"],
+      "properties": {
+        "familyName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "currentVariantIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Resolver output: 0..15 index into the family's variants[]. Absent until the first resolve."
+        },
+        "currentMeshKey": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolver output: the resolved variant's meshKey. Convenience mirror so consumers don't need to re-index variants[]."
+        },
+        "currentMeshEntityId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional consumer-managed back-reference to the spawned variant mesh entity. The engine resolver does NOT write this in v1 (mesh entity spawn/dispose is a consumer concern); reserved so the schema covers the documented field name."
+        }
+      }
+    },
+    "wangTileFamilyMemberComponent": {
+      "description": "S169 — generic family-membership tag. Place on the same entity as `WangTile` (or any cell-grid entity) to declare that the cell belongs to a Wang tile family. The resolver's default same-family predicate compares this component's `familyName`. Projects that prefer their own gameplay markers (e.g. `SoftBlock`, `HardBlock`) can supply a custom predicate to the resolver factory instead of writing this component.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["familyName"],
+      "properties": {
+        "familyName": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

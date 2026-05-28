@@ -1,0 +1,68 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S169",
+  "title": "Engine Wang tile autotile primitive — family registry + bitmask resolver + ECS system",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/217",
+  "notes": [
+    "Implements GDP-2026-05-28-002 MVP. New engine module engine/render/autotile/ providing: WangTileFamily registry (AJV-validated, variants.length === 16 enforced), pure bitmask helpers (computeWangBitmask + resolveVariantIndex), and a WangTileResolverSystem that runs full resolveAll on the first tick + per-cell + 4-neighbour re-resolves on each subsequent fixedUpdate via the world's dirty queue.",
+    "Bitmask encoding per design doc: bit3=N (gz-1), bit2=E (gx+1), bit1=S (gz+1), bit0=W (gx-1). Defensive clamping on input (non-finite → 0, > 15 → 15, etc.).",
+    "Scope-down: the system only WRITES currentVariantIndex + currentMeshKey on the WangTile component. Mesh entity spawn/dispose is deferred to the consumer story (GDP-2026-05-28-004 Kaboom Crew integration). This keeps the engine module decoupled from any specific mesh-management approach.",
+    "WangTileFamilyMember is a NEW family-membership marker — engine-agnostic naming so any grid game can use it without leaking project-specific component names into the engine. Projects can also supply a custom sameFamilyPredicateFactory if they have their own family tag.",
+    "Out of scope per GDP: registerProceduralWangFamily helper, doctor integration, scene-schema wiring of WangTile, mesh entity spawn/dispose, Kaboom Crew consumer integration."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-AGF-WANG-TILE-REGISTRY-001",
+      "title": "Wang tile family registry — register/get/list/clear with AJV validation",
+      "status": "implemented",
+      "summary": "engine/render/autotile/family-registry.ts (NEW). registerWangTileFamily throws on duplicate names, on variants.length !== 16, on empty name. JSON-schema validation against schemas/components/wang-tile.schema.json. clearWangTileFamilies as a test seam.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: 10 registry tests pass — register, lookup, list-sorted, duplicate-name error, 15-variant error, empty-name error, clear, AJV malformed-variant rejection."
+      ]
+    },
+    {
+      "id": "FEAT-AGF-WANG-TILE-BITMASK-001",
+      "title": "Pure bitmask helpers — computeWangBitmask + resolveVariantIndex",
+      "status": "implemented",
+      "summary": "engine/render/autotile/bitmask.ts (NEW). computeWangBitmask takes a sameFamily(gx,gz) predicate supplied by the caller — engine stays generic. resolveVariantIndex clamps non-finite / out-of-range inputs to safe values.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: 14 bitmask tests cover all 16 N/E/S/W neighbourhood combinations + clamping edge cases."
+      ]
+    },
+    {
+      "id": "FEAT-AGF-WANG-TILE-RESOLVER-001",
+      "title": "WangTileResolverSystem — full resolveAll on first tick + per-cell + 4-neighbour re-resolve on dirty",
+      "status": "implemented",
+      "summary": "engine/render/autotile/wang-tile-resolver-system.ts (NEW). Constants WANG_TILE + WANG_TILE_FAMILY_MEMBER. resolveAll(world, factory?) standalone for tests; createWangTileResolverSystem returns a System with fixedUpdate. Internal (gx,gz)→entityId cache speeds up neighbour lookups. Steady-state with no changes is a no-op (only consumes dirty queues).",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: 11 system tests — first-tick full resolve, neighbour add re-resolves cell + 4 neighbours, family-member remove flows, steady-state no-op, custom predicate factory, mixed-family scenes, unregistered-family graceful skip."
+      ]
+    },
+    {
+      "id": "SCHEMA-AGF-WANG-TILE-001",
+      "title": "schemas/components/wang-tile.schema.json — WangTile + WangTileFamilyMember + family + variant types",
+      "status": "implemented",
+      "summary": "schemas/components/wang-tile.schema.json (NEW). Definitions for wangTileVariant, wangTileFamily, wangTileComponent, wangTileFamilyMemberComponent. Not wired into scene.schema.json — schema-driven scene authoring is deferred to the consumer story.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: AJV compiles the schema without error; family-registry tests validate fixtures against it."
+      ]
+    },
+    {
+      "id": "TEST-AGF-WANG-TILE-001",
+      "title": "Wang tile test suite — 35 tests across registry / bitmask / resolver",
+      "status": "implemented",
+      "summary": "tests/unit/wang-tile-family-registry.test.ts (10) + tests/unit/wang-tile-bitmask.test.ts (14) + tests/unit/wang-tile-resolver-system.test.ts (11). Tests landed in tests/unit/ not engine/render/autotile/__tests__/ because vitest.config.ts only includes tests/unit/** + examples/*/tests/unit/**.",
+      "epic": "AGF-ENGINE-OBSERVABILITY",
+      "verification": [
+        "acceptance: 35/35 wang-tile tests pass; full unit suite 1934/1934 (no regressions); typecheck + engine:check + imports:check + systems:check all green."
+      ]
+    }
+  ]
+}
