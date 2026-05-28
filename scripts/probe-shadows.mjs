@@ -1,6 +1,6 @@
 import { chromium } from "@playwright/test";
 
-const URL = process.env.URL ?? "http://localhost:5180/?project=kaboom-crew&map=heightmap-demo";
+const URL = process.env.URL ?? "http://127.0.0.1:5180/?project=kaboom-crew";
 const OUT = process.env.OUT ?? "/tmp/probe-shadows.png";
 
 const browser = await chromium.launch({ headless: true });
@@ -11,22 +11,18 @@ const errors = [];
 const warns = [];
 page.on("console", (m) => {
   const t = m.type();
-  const text = m.text();
-  if (t === "error") errors.push(text);
-  if (t === "warning") warns.push(text);
+  if (t === "error") errors.push(m.text());
+  if (t === "warning") warns.push(m.text());
 });
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 
-await page.goto(URL, { waitUntil: "load", timeout: 15000 });
-await page.waitForSelector("canvas", { timeout: 8000 });
-await page.waitForTimeout(800);
-await page.keyboard.press("Space");
-await page.waitForTimeout(1500);
-await page.screenshot({ path: OUT, fullPage: false });
+await page.goto(URL, { waitUntil: "load", timeout: 25000 });
+await page.waitForFunction(() => window.__agf?.rendererReady, { timeout: 20000 });
+await page.evaluate(() => window.__agf.rendererReady);
+await page.waitForTimeout(3500);
+await page.screenshot({ path: OUT });
 
 console.log("ERRORS:", errors.length);
 for (const e of errors) console.log("  ", e);
-console.log("WARNS:", warns.length);
-for (const w of warns.slice(0, 6)) console.log("  ", w);
 console.log("SCREENSHOT:", OUT);
 await browser.close();

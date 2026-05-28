@@ -1568,9 +1568,20 @@ export class ThreeRenderAdapter {
       case "ambient":
         light = new AmbientLight(color, intensity);
         break;
-      case "directional":
-        light = new DirectionalLight(color, intensity);
+      case "directional": {
+        const dir = new DirectionalLight(color, intensity);
+        // S180-shadow-fix: DirectionalLight derives its
+        // shadow-casting direction from `light.position` →
+        // `light.target.position`. Three.js only updates
+        // `target.matrixWorld` automatically when target is part of
+        // the scene graph; without that the shadow camera's basis is
+        // stale and shadows render at world origin instead of under
+        // the meshes that cast them. Same fix the SpotLight branch
+        // below already had.
+        this.scene.add(dir.target);
+        light = dir;
         break;
+      }
       case "point":
         light = new PointLight(color, intensity, spec.distance ?? 0, spec.decay ?? 2);
         break;
@@ -1615,6 +1626,7 @@ export class ThreeRenderAdapter {
     if (light === undefined) return;
     this.scene.remove(light);
     if (light instanceof SpotLight) this.scene.remove(light.target);
+    if (light instanceof DirectionalLight) this.scene.remove(light.target);
     light.dispose();
     this.lights.delete(handle);
   }
