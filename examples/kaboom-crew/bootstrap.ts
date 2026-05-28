@@ -2,6 +2,7 @@ import { expandScenePrefabs, type PrefabDefinition } from "../../engine/core/sce
 import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupancy-system";
 import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
 import { createKaboomBomberHeightLiftSystem } from "./src/systems/bomber-height-lift-system";
+import { createKaboomStepJumpFxSystem } from "./src/systems/step-jump-fx-system";
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type { EngineCommand } from "../../engine/core/commands/types";
@@ -561,6 +562,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // sync with the cell they stand on. Runs AFTER grid-movement so
     // the Y-write lands on the post-tween GridPosition.
     scheduler.register(createKaboomBomberHeightLiftSystem(), { profiles: ["static", "connected"] });
+    // S183 KABOOM-STEP-JUMP-LANDING-FX — dust puff particle emitter
+    // when a bomber crosses a cell whose height differs by ±1 from
+    // the previous cell. Runs after height-lift so the puff lands on
+    // the post-tween GridPosition.
+    scheduler.register(createKaboomStepJumpFxSystem(), { profiles: ["static", "connected"] });
     // S165 KABOOM-MULTI-VARIANT-BLOCKS + S170 KABOOM-WANG-INTEGRATION —
     // stamp WangTile + WangTileFamilyMember on every hard / soft block
     // cell. The engine resolver (registered immediately below) computes
