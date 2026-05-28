@@ -2420,6 +2420,30 @@ export class ThreeRenderAdapter {
     mesh.geometry = geometry;
   }
 
+  /**
+   * S187 — swap the mesh's entire material instance (used by project
+   * code that builds a custom NodeMaterial / ShaderMaterial outside
+   * the adapter's standard kind-based recipe). Disposes the previous
+   * material; the new one is owned by the adapter from now on and
+   * gets disposed in releaseMesh.
+   */
+  setMeshMaterial(handle: MeshHandle, material: Material): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    disposeMaterial(mesh.material);
+    mesh.material = material;
+    this.registerWithCsm(material);
+  }
+
+  /** S187 — set Object3D.renderOrder so callers can force outline meshes
+   *  to draw AFTER the main scene (needed for `viewportDepthTexture`
+   *  sampling, which has to read final scene depth). */
+  setMeshRenderOrder(handle: MeshHandle, order: number): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    mesh.renderOrder = order;
+  }
+
   setMeshMaterialPatch(handle: MeshHandle, patch: MaterialPatch): void {
     const mesh = this.meshes.get(handle);
     if (mesh === undefined) return;

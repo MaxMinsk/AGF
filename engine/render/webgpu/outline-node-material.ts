@@ -89,6 +89,54 @@ export async function createOutlineOccluderMaterial(
 }
 
 /**
+ * S187 — optimised variant: samples `viewportDepthTexture` (the
+ * currently-bound colour pass's depth buffer) instead of a pre-pass
+ * RT. Trades the multi-pass cost (RT alloc + double-render of the
+ * scene) for relying on render order: the outline must render AFTER
+ * everything else in the main pass, so the depth buffer it samples
+ * already contains the world's depth at this pixel.
+ *
+ * Self-occlusion caveat: a bomber's own torso also writes depth, so
+ * the same outline material sees its own arm as "occluded by torso".
+ * The smoothstep across `softEdge` masks small NDC deltas (limb-vs-
+ * torso depth differences are millimetre-scale in NDC); cross-wall
+ * occlusion has much larger deltas and reads as full opacity. Tune
+ * `softEdge` if self-overlap becomes visible.
+ */
+export async function createOutlineOccluderViewportMaterial(
+  opts: Omit<OutlineOccluderOptions, "depthTexture">
+): Promise<Material> {
+  const [tsl, webgpu] = await Promise.all([
+    import("three/tsl"),
+    import("three/webgpu")
+  ]);
+
+  const t = tsl as unknown as TslFactoriesViewport;
+  const wg = webgpu as unknown as { MeshBasicNodeMaterial: new () => Material & NodeMaterialFields };
+
+  const material = new wg.MeshBasicNodeMaterial();
+  material.transparent = true;
+  material.depthWrite = false;
+  // Standard depth test would cull the outline at pixels where its
+  // surface is BEHIND something in the buffer (which is the case we
+  // explicitly want to render). Turn it off and drive the comparison
+  // through the smoothstep below instead.
+  material.depthTest = false;
+
+  const opacity = opts.opacity ?? 0.85;
+  const softEdge = opts.softEdge ?? 0.01;
+
+  const sceneDepth = t.viewportDepthTexture(t.screenUV).r;
+  const myDepth = t.screenCoordinate.z;
+  const occluded = t.smoothstep(t.float(0), t.float(softEdge), myDepth.sub(sceneDepth));
+
+  material.colorNode = t.color(opts.color);
+  material.opacityNode = occluded.mul(t.float(opacity));
+
+  return material;
+}
+
+/**
  * Minimal structural shape of the TSL factories we need. Three.js's
  * `three/tsl` entrypoint has no published types as of r0.184; we type
  * what we use structurally so call sites don't scatter `as unknown`.
@@ -103,6 +151,15 @@ type TslNode = {
 
 type TslFactories = {
   texture(map: DepthTexture, uv: TslNode): TslNode;
+  screenUV: TslNode;
+  screenCoordinate: TslNode;
+  color(input: string | number): TslNode;
+  float(value: number): TslNode;
+  smoothstep(low: TslNode, high: TslNode, value: TslNode): TslNode;
+};
+
+type TslFactoriesViewport = {
+  viewportDepthTexture(uv: TslNode): TslNode;
   screenUV: TslNode;
   screenCoordinate: TslNode;
   color(input: string | number): TslNode;
