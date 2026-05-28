@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/221",
   "notes": [
     "Implements GDP-2026-05-28-013 MVP slice. Five themes (warehouse / factory / dock / lab / bunker) registered as pure data; the apply-system tints the floor entity's MeshRenderer.color per the active theme. Lighting tint + block-palette re-tinting + Wang variant re-colouring all stay deferred until the lighting engine (GDP-028-001) lands and the variant builders are parameterised.",
     "Default-arena → theme mapping: default + wide → warehouse; corridor → bunker; plaza → lab; cross → factory; pit → dock. URL flag ?theme=warehouse|factory|dock|lab|bunker overrides on every (re)start.",
