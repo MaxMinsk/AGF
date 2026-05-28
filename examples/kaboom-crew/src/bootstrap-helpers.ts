@@ -1,4 +1,6 @@
 // S139 — small idempotent-upsert helpers for the kaboom-crew bootstrap.
+// S176 — extended with applyTerrainmapCommands for grass floor-overlay
+// per-cell entity spawn at scene-load (GDP-2026-05-28-012).
 //
 // The HMR replay path re-runs attachUi against a live world that
 // already contains the singletons created on the prior attach. The
@@ -16,6 +18,19 @@ import type { EngineCommand } from "../../../engine/core/commands/types";
 import type { SceneInput } from "../../../engine/core/ecs/types";
 import type { World } from "../../../engine/core/ecs/world";
 import { readHeightFromValues } from "../../../engine/grid/height-query";
+
+/** S176 — terrain family identifier (must match scene-extensions.schema.json). */
+export type FloorTerrainFamily = "floor" | "grass";
+
+/** S176 — the family name treated as the no-overlay default. Cells of
+ *  this family get no per-cell entity (the scene's stretched-box floor
+ *  renders them). */
+export const DEFAULT_TERRAIN_FAMILY: FloorTerrainFamily = "floor";
+
+/** S176 — Wang family name for grass overlay cells. Mirrors the
+ *  registration in `./blocks/register-wang-families.ts` (`GRASS_WANG_FAMILY`)
+ *  but lives here too to keep the helper free of cyclic imports. */
+const GRASS_WANG_FAMILY_NAME = "kaboom-grass";
 
 /**
  * Build an idempotent set of commands that creates the entity if it
@@ -136,4 +151,89 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
   }
 
   return commands;
+}
+
+/**
+ * S176 KABOOM-FLOOR-WANG-TILES MVP (GDP-2026-05-28-012) — read the
+ * scene's optional top-level `terrainmap?: string[][]` field and emit
+ * `entity.create` commands for per-cell floor-overlay entities at
+ * cells whose family is NOT the default ('floor').
+ *
+ * Outer index is gz, inner is gx. Cells with the default family value
+ * (`DEFAULT_TERRAIN_FAMILY` === 'floor') get NO entity — the scene's
+ * single stretched-box floor backdrop renders them.
+ *
+ * For each non-default cell the helper emits an entity carrying:
+ *   - GridPosition { gx, gz }
+ *   - GridOccupant { layer: 'floor-overlay', blocksMovement: false, blocksBlast: false } — non-blocking
+ *   - Transform { position: [gx, 0.02, gz], rotation, scale } — flush above the backdrop
+ *   - MeshRenderer { mesh: 'box', color: '#ffffff' } — placeholder; the block-variant-system
+ *     stamps WangTile + WangTileFamilyMember, the engine resolver writes a variant index,
+ *     and the kaboom-side mesh-sync bridge rewrites this mesh ref to
+ *     `procedural:kaboom-grass-{0..3}` once the bitmask resolves
+ *   - FloorTerrain { family }
+ *   - WangTile + WangTileFamilyMember { familyName: 'kaboom-grass' } — pre-stamped here
+ *     so the resolver picks the cells up on its very first sweep
+ *
+ * Heightmap lift applies via the existing `applyHeightmapCommands`
+ * pipeline (called separately). Terrain overlay cells on raised
+ * heightmap cells get lifted automatically because they carry
+ * GridPosition + Transform.
+ *
+ * Returns an empty array when the scene has no `terrainmap` so flat
+ * arenas pay zero overhead. v1 only knows about the 'grass' family;
+ * unknown family strings are skipped with no diagnostic (the caller's
+ * schema validation is the source of truth).
+ */
+export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
+  const terrainmap = scene.terrainmap;
+  if (terrainmap === undefined || terrainmap.length === 0) return [];
+
+  const commands: EngineCommand[] = [];
+  for (let gz = 0; gz < terrainmap.length; gz += 1) {
+    const row = terrainmap[gz];
+    if (row === undefined) continue;
+    for (let gx = 0; gx < row.length; gx += 1) {
+      const family = row[gx];
+      if (family === undefined) continue;
+      if (family === DEFAULT_TERRAIN_FAMILY) continue;
+      const wangFamilyName = wangFamilyFor(family as FloorTerrainFamily);
+      if (wangFamilyName === undefined) continue; // unknown family — skip silently.
+      const entityId = `terrain.${gx}.${gz}`;
+      commands.push({
+        kind: "entity.create",
+        entityId,
+        components: {
+          GridPosition: { gx, gz },
+          GridOccupant: {
+            layer: "floor-overlay",
+            blocksMovement: false,
+            blocksBlast: false
+          },
+          Transform: {
+            position: [gx, 0.02, gz],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1]
+          },
+          MeshRenderer: {
+            // Placeholder — kaboom mesh-sync rewrites this once the
+            // Wang resolver writes `currentVariantIndex`. Using the
+            // 'box' built-in keeps the renderer happy in the gap.
+            mesh: "box",
+            color: "#ffffff"
+          },
+          FloorTerrain: { family },
+          WangTile: { familyName: wangFamilyName },
+          WangTileFamilyMember: { familyName: wangFamilyName }
+        }
+      } as EngineCommand);
+    }
+  }
+  return commands;
+}
+
+function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
+  if (family === "grass") return GRASS_WANG_FAMILY_NAME;
+  // 'floor' has no overlay entity; anything else is unknown to v1.
+  return undefined;
 }

@@ -30,6 +30,7 @@ import beltZoneSceneJson from "./scenes/belt-zone.scene.json";
 import warpfieldSceneJson from "./scenes/warpfield.scene.json";
 import platePuzzleSceneJson from "./scenes/plate-puzzle.scene.json";
 import heightmapDemoSceneJson from "./scenes/heightmap-demo.scene.json";
+import grassDemoSceneJson from "./scenes/grass-demo.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -136,7 +137,7 @@ import {
   opponentAccentColor
 } from "./src/opponent-badges";
 import { difficultyComponentPatch, readDifficultyFromUrl, resolveSessionBotPersonality, type BotPersonality } from "./src/difficulty";
-import { applyHeightmapCommands, upsertEntityCommands } from "./src/bootstrap-helpers";
+import { applyHeightmapCommands, applyTerrainmapCommands, upsertEntityCommands } from "./src/bootstrap-helpers";
 import { resolveSessionMap } from "./src/map-pick";
 import {
   tooltipFor as tooltipForPowerUp,
@@ -292,9 +293,10 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["belt-zone", beltZoneSceneJson],
   ["warpfield", warpfieldSceneJson],
   ["plate-puzzle", platePuzzleSceneJson],
-  ["heightmap-demo", heightmapDemoSceneJson]
+  ["heightmap-demo", heightmapDemoSceneJson],
+  ["grass-demo", grassDemoSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo";
+type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
 let activeMapName: MapName = "start";
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
@@ -356,7 +358,8 @@ function startVertexColorsPoller(runtime: RuntimeHandle): void {
             && !key.startsWith("procedural:accessory-")
             && !key.startsWith("procedural:kaboom-hard-block")
             && !key.startsWith("procedural:kaboom-soft-block")
-            && !key.startsWith("procedural:kaboom-floor-tile")) continue;
+            && !key.startsWith("procedural:kaboom-floor-tile")
+            && !key.startsWith("procedural:kaboom-grass")) continue;
         const handle = registry.handleFor(entity.id);
         if (handle === undefined) continue;
         if (patchedHandles.has(handle)) continue;
@@ -413,9 +416,15 @@ function restartScene(runtime: RuntimeHandle): number {
   // overhead.
   const restartScene_ = buildFlatStartScene();
   const heightmapCommands_ = applyHeightmapCommands(restartScene_);
+  // S176 KABOOM-FLOOR-WANG-TILES MVP — promote the source scene's
+  // optional top-level `terrainmap` field into per-cell floor-overlay
+  // entities. Scenes without a terrainmap return an empty list so
+  // flat arenas pay zero overhead.
+  const terrainmapCommands_ = applyTerrainmapCommands(restartScene_);
   runtime.applyCommands([
     { kind: "scene.load", scene: restartScene_ },
     ...heightmapCommands_,
+    ...terrainmapCommands_,
     {
       kind: "entity.create",
       entityId: "kaboom.round-state",
@@ -854,9 +863,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     const initialHeightmapCommands = initialSourceScene !== undefined
       ? applyHeightmapCommands(initialSourceScene)
       : [];
+    // S176 KABOOM-FLOOR-WANG-TILES MVP — spawn per-cell floor-overlay
+    // entities from the source scene's optional `terrainmap`. Empty
+    // for scenes that don't author one.
+    const initialTerrainmapCommands = initialSourceScene !== undefined
+      ? applyTerrainmapCommands(initialSourceScene)
+      : [];
 
     const initialBatch: EngineCommand[] = [
       ...initialHeightmapCommands,
+      ...initialTerrainmapCommands,
       // S84 + S115 — single kaboom.game-state singleton carries
       // GamePaused (title-screen / pause overlay) AND MatchState
       // (best-of-N session).

@@ -1,0 +1,83 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S176",
+  "title": "Floor Wang tiles MVP — FloorTerrain component + grass family + per-cell overlay spawn",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": null,
+  "notes": [
+    "Scoped MVP of GDP-2026-05-28-012 on top of the S169/S170 Wang autotile engine module + kaboom-side block integration. Ships TWO terrain families this sprint: 'floor' (the default flat-plate backdrop, no per-cell entity) and 'grass' (a thin overlay slab whose Wang variant resolves from neighbouring grass cells via the existing 16→4 lookup table). The remaining 3 families (path, stone, dirt), WallShadow secondary Wang layer + compute system, sub-variant random pick, and theme-aware grass palette are all OUT OF SCOPE and land in follow-up sprints.",
+    "Per-cell floor entities are SPAWNED ONLY for non-default cells. The current single stretched-box floor entity stays as a backdrop on every scene; the bootstrap reads the scene's optional top-level `terrainmap?: string[][]` and spawns a per-cell overlay entity (`terrain.<gx>.<gz>`) only for cells whose family != 'floor'. A fully-default arena renders the existing box (zero per-cell overhead). Heightmap lift applies via the existing applyHeightmapCommands pipeline — terrain cells on raised heightmap cells get lifted automatically.",
+    "Authoring is a 2D string array — `terrainmap?: string[][]` where rows = gz, columns = gx, each entry is 'floor' (default) or 'grass'. Bigger authoring API (non-grid terrain shapes, patch fills, blended transitions) is out of scope. The engine SceneInput type carries the new field as opaque `ReadonlyArray<ReadonlyArray<string>>`; engine-side validation is just shape (strings, indexable). Project-side semantics live in examples/kaboom-crew/src/bootstrap-helpers.ts.",
+    "Run order matters: variant-system stamps WangTile + WangTileFamilyMember on hard/soft block cells; the bootstrap helper pre-stamps the same tags on every terrain overlay entity at scene-load time (so the engine resolver picks the cells up on its very first sweep without waiting for variant-system to discover them). The resolver writes `currentVariantIndex`; the kaboom-side mesh-sync bridge maps the bitmask via the family-specific 16→4 lookup and rewrites `MeshRenderer.mesh` to `procedural:kaboom-grass-{0..3}`.",
+    "Grass palette is hardcoded constants in grass-variants.ts (GRASS_PRIMARY / GRASS_SHADOW / GRASS_HIGHLIGHT). The mesh-sync bridge intentionally OMITS the theme-seed suffix for the grass family (`procedural:kaboom-grass-N` instead of `procedural:kaboom-grass-N#<theme>`) so the registry caches one geometry per variant globally. Theme-aware grass palette integration is a follow-up — same shape as the S172 hard/soft block path.",
+    "Load the prototype scene via `?map=grass-demo` — a 15×11 arena copying the start-scene perimeter with a ~9-cell grass patch in the interior (gx 6..8 × gz 3..6 plus an extra grass cell at (gx=7, gz=7) to validate the edge-variant lookup)."
+  ],
+  "outOfScope": [
+    "WallShadow secondary Wang family + compute system (cells near hard blocks / cliffs get a darker overlay variant) — deferred",
+    "Sub-variant random pick (multiple procedural meshes per Wang index — would require engine Wang module support for `variants: WangTileVariant[][]`) — deferred",
+    "Path / stone / dirt terrain families (3 of the 5 from the GDP) — deferred to follow-up sprints",
+    "Theme-aware terrain palettes (grass tint changes per warehouse / factory / dock / lab / bunker theme) — follow-up, mirror the S172 hard/soft block path",
+    "Floor entity REPLACEMENT (the current single stretched-box floor stays as backdrop; non-default terrain cells overlay ON TOP of it)",
+    "Authoring API for non-grid terrain shapes (just a 2D string array; no patch fills, no blended transitions, no in-game painting)",
+    "Inter-family BLENDED transitions (grass fades into another family) — sharp transitions only",
+    "Animated floor tiles / floor reaction to bombs (no scorch marks, no slip / slow gameplay effects) — purely cosmetic"
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-FLOOR-TERRAIN-SCHEMA-001",
+      "title": "FloorTerrain component + scene-level terrainmap shortcut",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/schemas/scene-extensions.schema.json — new `floorTerrainComponent` definition (`{ family: 'floor' | 'grass' }`, default 'floor'). schemas/scene.schema.json — adds an optional top-level `terrainmap?: string[][]` field as a bulk-author shortcut (rows = gz, columns = gx, entries are project-defined family-name strings; engine treats them as opaque). engine/core/ecs/types.ts — SceneInput gains the optional `terrainmap` field.",
+      "verification": [
+        "acceptance: prototype scene grass-demo.scene.json validates against the bundled scene + project-extension schemas (engine:check examples/kaboom-crew passes); existing test files still pass."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-GRASS-VARIANTS-001",
+      "title": "Procedural grass variant builders (4 thin-slab BufferGeometries)",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/grass-variants.ts (NEW) — `buildGrassVariant(index: 0|1|2|3)` returns a 1×0.05×1 BufferGeometry with vertex-painted greens. Variant 0 = plain GRASS_PRIMARY; variant 1 = corner-tinted with GRASS_SHADOW; variant 2 = centre highlight with GRASS_HIGHLIGHT; variant 3 = stripe along x ≈ 0. Bitmask param is reserved for future sub-variant work and currently ignored. Palette constants are hardcoded — theme integration deferred.",
+      "verification": [
+        "acceptance: 4 tests in examples/kaboom-crew/tests/unit/grass-variants.test.ts cover distinguishable geometries (count or colour-sum differs across all 4 variants), position + color attributes present on every variant, thin-slab outer dimensions (1 × 0.05 × 1), and the bitmask param being ignored."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-GRASS-WANG-FAMILY-001",
+      "title": "Register the 'kaboom-grass' Wang family + the per-variant procedural mesh keys",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/blocks/wang-family-lookup.ts — adds `grassBitmaskToVariant(bitmask): 0|1|2|3` reusing the shared 16→4 LOOKUP_TABLE (grass shares the 'edge / corner / filler / isolated' role assignment with hard + soft blocks; no separate table this sprint). examples/kaboom-crew/src/blocks/register-wang-families.ts — adds `GRASS_WANG_FAMILY = 'kaboom-grass'` and registers a 16-variant family via the existing `buildVariants` helper. examples/kaboom-crew/src/register-block-builders.ts — adds `GRASS_VARIANT_KEYS` and registers `procedural:kaboom-grass-{0..3}` builders that call `buildGrassVariant(variantIndex)` (no palette parameter — theme integration deferred).",
+      "verification": [
+        "acceptance: typecheck + engine:check pass; existing block-variants + wang-family-lookup tests stay green (none modified). The grass family is registered eagerly at module-load time alongside the hard / soft block families."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-TERRAINMAP-SPAWN-001",
+      "title": "applyTerrainmapCommands — spawn per-cell overlay entities at scene-load",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/bootstrap-helpers.ts — new `applyTerrainmapCommands(scene)` reads `scene.terrainmap` and emits `entity.create` for every cell whose family != 'floor' (the default). Each emitted entity carries GridPosition, GridOccupant {layer: 'floor-overlay', blocksMovement: false, blocksBlast: false}, Transform {position: [gx, 0.02, gz]}, MeshRenderer {mesh: 'box', color: '#ffffff'} (placeholder — mesh-sync rewrites once the resolver runs), FloorTerrain {family}, and pre-stamped WangTile + WangTileFamilyMember {familyName: 'kaboom-grass'}. examples/kaboom-crew/bootstrap.ts — wires the helper into both the initial scene-load batch AND the restart batch alongside applyHeightmapCommands. Heightmap lift applies automatically through the existing pipeline.",
+      "verification": [
+        "acceptance: 6 tests in examples/kaboom-crew/tests/unit/terrainmap-spawn.test.ts cover empty-array short-circuit, missing-terrainmap short-circuit, all-'floor' map produces 0 entities, mixed map emits the correct entity ids + components, multi-grass cells, and ragged-row maps."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-WANG-MESH-SYNC-GRASS-001",
+      "title": "Extend mesh-sync bridge to map the grass Wang family",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/systems/block-variant-system.ts — `mapFamilyBitmask` recognises GRASS_WANG_FAMILY and routes through `grassBitmaskToVariant`. `meshKeyFor` returns `procedural:kaboom-grass-N` (intentionally no theme-seed suffix; one cached geometry per variant globally — theme integration is a follow-up). The variant-system fixedUpdate keeps the existing hard/soft block layer detection; terrain overlay entities are already pre-stamped with WangTile + WangTileFamilyMember by applyTerrainmapCommands so they flow through the engine resolver without needing variant-system to discover them.",
+      "verification": [
+        "acceptance: typecheck + engine:check pass; existing block-variant-system tests stay green. Manual trace: a grass overlay entity at scene-load carries familyName='kaboom-grass' → engine resolver computes the bitmask + writes currentVariantIndex → mesh-sync bridge writes MeshRenderer.mesh = 'procedural:kaboom-grass-N'."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-GRASS-DEMO-SCENE-001",
+      "title": "Prototype grass-demo scene + MAP_REGISTRY wiring",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/scenes/grass-demo.scene.json — 15×11 arena copying the start-scene perimeter (camera, lights, grid, floor backdrop, 4 hard-block walls, 4 soft blocks, 1 player + 3 bots) plus a top-level `terrainmap` with a ~9-cell grass patch at (gx 6..8) × (gz 3..6) and an additional grass cell at (gx=7, gz=7) to validate edge-variant resolution at a non-rectangular boundary. examples/kaboom-crew/bootstrap.ts — adds 'grass-demo' to MAP_REGISTRY + the MapName type union. Load via `?map=grass-demo`.",
+      "verification": [
+        "acceptance: engine:check examples/kaboom-crew passes (no diagnostics); scene validates via the bundled scene-schema AJV compile; manual review confirms the grass patch is present + non-rectangular."
+      ]
+    }
+  ]
+}

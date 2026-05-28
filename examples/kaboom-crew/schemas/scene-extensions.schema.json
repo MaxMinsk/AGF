@@ -33,7 +33,8 @@
     "AccessoryDebris": { "$ref": "#/definitions/accessoryDebrisComponent" },
     "AccessoryDetachFired": { "$ref": "#/definitions/accessoryDetachFiredComponent" },
     "ArenaTheme": { "$ref": "#/definitions/arenaThemeComponent" },
-    "Ramp": { "$ref": "#/definitions/rampComponent" }
+    "Ramp": { "$ref": "#/definitions/rampComponent" },
+    "FloorTerrain": { "$ref": "#/definitions/floorTerrainComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -136,6 +137,20 @@
         "fromHeight": { "type": "integer", "minimum": 0, "maximum": 4 },
         "toHeight": { "type": "integer", "minimum": 0, "maximum": 4 },
         "direction": { "type": "string", "enum": ["N", "E", "S", "W"] }
+      }
+    },
+    "floorTerrainComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S176 KABOOM-FLOOR-WANG-TILES MVP (GDP-2026-05-28-012). Tags a per-cell floor overlay entity with its terrain family. v1 ships two families: 'floor' (the default flat-plate backdrop — cells with this family typically have NO overlay entity at all; the single stretched-box floor in the scene renders them) and 'grass' (a thin overlay slab with procedural green vertex-paint variants resolved through the Wang autotile module). The remaining 3 families from the GDP (path / stone / dirt) plus the WallShadow secondary Wang layer + per-cell sub-variant random pick + theme-aware palette integration are OUT OF SCOPE this sprint — they land in follow-up sprints. The scene's optional top-level `terrainmap?: string[][]` field bulk-authors which cells become non-default; the bootstrap reads it and spawns per-cell overlay entities only for non-'floor' cells.",
+      "required": ["family"],
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": ["floor", "grass"],
+          "default": "floor",
+          "description": "Terrain family. 'floor' is the default backdrop (no overlay entity needed). 'grass' spawns a thin overlay slab whose Wang variant resolves from neighbouring grass cells."
+        }
       }
     },
     "bomberStatsComponent": {
