@@ -171,5 +171,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S164](backlog/sprints/S164.sprint.json)** — Dev-agent retrospective — gap analysis from 150 sprints of lived experience — 1 implemented · archived 2026-05-28
 - **[S165](backlog/sprints/S165.sprint.json)** — Kaboom Crew per-tile mesh variety — 4 procedural variants per family — 6 implemented · archived 2026-05-28
 - **[S166](backlog/sprints/S166.sprint.json)** — Sudden Death visual cues — banner + screen-edge red vignette pulse — 2 implemented · archived 2026-05-28
+- **[S167](backlog/sprints/S167.sprint.json)** — Recipe-driven voice — voice colour derives from appearance — 3 implemented · archived 2026-05-28
 
 <!-- backlog:render:end -->

@@ -1,0 +1,46 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S167",
+  "title": "Recipe-driven voice — voice colour derives from appearance",
+  "status": "archived",
+  "startedAt": "2026-05-28",
+  "archivedAt": "2026-05-28",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/215",
+  "notes": [
+    "Implements GDP-2026-05-28-006. Voice axes now key off the character recipe (proportions + palette family + accessories + bot personality) instead of just hashing the entity-id seed. Same bomber's voice changes audibly when palette or accessories change.",
+    "Mapping per the GDP: basePitchHz ← inverted torsoHeight + backpack-bass; formantF1Hz ← headSize; formantF2Hz ← visor (muffles); formantQ ← warm/cool palette family; vibratoHz/vibratoDepth ← fins (fluttery); noiseMix ← antennae (robotic); phrasePaceMultiplier ← bot personality; consonantStyle ← cap (softens). Seed jitter (±5..15%) preserves individual identity within identical recipes.",
+    "Out of scope per GDP: bench A/B voice playback dropdown, voice morphing on recipe change (current behaviour is snap-replace via audioFx.setVoiceColour)."
+  ],
+  "stories": [
+    {
+      "id": "FEAT-KABOOM-VOICE-RECIPE-001",
+      "title": "voiceParamsFromRecipe(recipe) — pure mapping from appearance to 10 voice knobs",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/voice-synth.ts (extended) — new VoiceRecipeInput type + voiceParamsFromRecipe(input) returning the same VoiceColour shape as the legacy voiceParamsFromSeed path. Internal helpers: clamp01, inverseLerp, WARM_PALETTES classification set. Seed-derived jitter overlay preserves per-bomber uniqueness.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: 14 unit tests cover all axis mappings (torso, head, backpack, visor, warm/cool palette, fins, antennae, cap, personality), determinism, jitter envelope, range clamping, and two composite end-to-end scenarios."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-VOICE-AUDIOFX-WIRING-001",
+      "title": "audio-fx resolver hook + setVoiceColour cache override",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/src/audio-fx.ts — AudioFxOptions gains voiceColourResolver?(entityId) called once per entity on first voice-event; result cached. KaboomAudioFx.setVoiceColour(entityId, colour) lets the bench / mid-run recipe swap replace the cached colour. Falls back to voiceParamsFromSeed when resolver returns undefined.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: typecheck green; voice cache populated via resolver on first play; setVoiceColour replaces the entry."
+      ]
+    },
+    {
+      "id": "FEAT-KABOOM-VOICE-BOOTSTRAP-WIRING-001",
+      "title": "Bootstrap voice resolver — recipe + personality lookup",
+      "status": "implemented",
+      "summary": "examples/kaboom-crew/bootstrap.ts — voiceResolver looks up the bomber's recipe via makeKaboomRecipe(entityId, personality) and personality via MULTI_BOT_ASSIGNMENT, then calls voiceParamsFromRecipe. Passed into createKaboomAudioFx options.",
+      "epic": "KABOOM-CREW-CHARACTERS",
+      "verification": [
+        "acceptance: live build green; each bomber's voice now derives from its recipe instead of just entity-id seed; full kaboom unit suite still green."
+      ]
+    }
+  ]
+}

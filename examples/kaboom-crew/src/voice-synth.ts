@@ -84,6 +84,10 @@ function lerp(min: number, max: number, t: number): number {
 /**
  * Derive a 10-knob voice colour from a seed string. Deterministic +
  * pure. Same seed → same colour on every call.
+ *
+ * Legacy path retained for the unit-test suite + entities without a
+ * resolved recipe (early-bootstrap / fallback). Modern callers use
+ * voiceParamsFromRecipe which keys voice off appearance instead.
  */
 export function voiceParamsFromSeed(seed: string): VoiceColour {
   const s = makeSeedStream(`voice.${seed}`);
@@ -98,6 +102,116 @@ export function voiceParamsFromSeed(seed: string): VoiceColour {
     phrasePaceMultiplier: lerp(VOICE_RANGES.phrasePaceMultiplier[0], VOICE_RANGES.phrasePaceMultiplier[1], s()),
     consonantStyle: lerp(VOICE_RANGES.consonantStyle[0], VOICE_RANGES.consonantStyle[1], s()),
     vowelDriftAmount: lerp(VOICE_RANGES.vowelDriftAmount[0], VOICE_RANGES.vowelDriftAmount[1], s())
+  };
+}
+
+// ---- S167 recipe-driven voice ---------------------------------------------
+
+/** Subset of CharacterRecipe that the voice mapping reads. Keeps this
+ *  module decoupled from the procbomber-bench recipe type — callers
+ *  flatten ResolvedCharacterRecipe into this shape on the way in. */
+export type VoiceRecipeInput = {
+  seed: string;
+  /** torsoHeight in world units; 0.35..0.60 is the practical range. */
+  torsoHeight?: number;
+  /** headSize in world units; 0.25..0.45 is the practical range. */
+  headSize?: number;
+  /** Palette family name — drives warm/cool formantQ bias. */
+  paletteName?: string;
+  /** Accessory kinds present on the bomber (kind strings, dedup'd by caller). */
+  accessoryKinds?: ReadonlyArray<string>;
+  /** Bot personality from S139 — drives phrasePaceMultiplier. */
+  botPersonality?: "hunter" | "miner" | "coward" | undefined;
+};
+
+const WARM_PALETTES: ReadonlySet<string> = new Set(["ember", "sand", "rose"]);
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function inverseLerp(min: number, max: number, value: number): number {
+  if (max === min) return 0;
+  return clamp01((value - min) / (max - min));
+}
+
+/**
+ * Derive a voice colour from a character recipe instead of from raw
+ * seed. Voice axes map to visible appearance features:
+ *   - basePitchHz   ← inverted torsoHeight + backpack bass + seed jitter
+ *   - formantF1Hz   ← headSize + seed jitter
+ *   - formantF2Hz   ← visor presence (muffles) + seed jitter
+ *   - formantQ      ← palette warm/cool family + seed jitter
+ *   - vibratoHz     ← fins presence (fluttery) + seed jitter
+ *   - vibratoDepth  ← fins presence + seed jitter
+ *   - noiseMix      ← antennae presence (robotic) + seed jitter
+ *   - phrasePaceMultiplier ← bot personality + seed jitter
+ *   - consonantStyle ← cap presence (softens) + seed jitter
+ *   - vowelDriftAmount ← pure seed jitter (no appearance correlate)
+ *
+ * Each axis combines an appearance-driven `voice_t` with a small
+ * seed jitter envelope (±5..15% depending on axis) so two bombers
+ * with identical recipes-except-seed have CLOSE but distinct voices.
+ */
+export function voiceParamsFromRecipe(recipe: VoiceRecipeInput): VoiceColour {
+  const jitter = makeSeedStream(`voice.recipe.${recipe.seed}`);
+  const j = (envelope: number): number => (jitter() - 0.5) * 2 * envelope;
+  const accessories = new Set(recipe.accessoryKinds ?? []);
+  const palette = recipe.paletteName ?? "";
+
+  // basePitchHz: big torso → low voice. Backpack bassier still.
+  const torsoT = inverseLerp(0.35, 0.60, recipe.torsoHeight ?? 0.45);
+  let basePitchT = 1 - torsoT;
+  if (accessories.has("backpack")) basePitchT -= 0.15;
+  basePitchT = clamp01(basePitchT + j(0.05));
+
+  // formantF1Hz: big head → high F1.
+  const headT = inverseLerp(0.25, 0.45, recipe.headSize ?? 0.35);
+  const f1T = clamp01(headT + j(0.05));
+
+  // formantF2Hz: visor muffles (low F2), no visor = brighter.
+  const f2Base = accessories.has("visor") ? 0.2 : 0.7;
+  const f2T = clamp01(f2Base + j(0.05));
+
+  // formantQ: warm palettes → resonant Q; cool palettes → mellow.
+  const qBase = WARM_PALETTES.has(palette) ? 0.85 : 0.2;
+  const qT = clamp01(qBase + j(0.10));
+
+  // Fins → fluttery vibrato.
+  const fins = accessories.has("fins");
+  const vibratoHzT = clamp01((fins ? 0.7 : 0.3) + j(0.10));
+  const vibratoDepthT = clamp01((fins ? 0.6 : 0.3) + j(0.10));
+
+  // Antennae → robotic noise.
+  const noiseT = clamp01((accessories.has("antennae") ? 0.6 : 0.2) + j(0.10));
+
+  // Personality → pace.
+  const paceBase = recipe.botPersonality === "hunter"
+    ? 0.4
+    : recipe.botPersonality === "miner"
+      ? 0.7
+      : recipe.botPersonality === "coward"
+        ? 0.5
+        : 0.5;
+  const paceT = clamp01(paceBase + j(0.15));
+
+  // Cap → softer consonants.
+  const consonantT = clamp01((accessories.has("cap") ? 0.3 : 0.6) + j(0.10));
+
+  // Vowel drift — pure seed jitter.
+  const driftT = clamp01(0.5 + j(0.15));
+
+  return {
+    basePitchHz: lerp(VOICE_RANGES.basePitchHz[0], VOICE_RANGES.basePitchHz[1], basePitchT),
+    formantF1Hz: lerp(VOICE_RANGES.formantF1Hz[0], VOICE_RANGES.formantF1Hz[1], f1T),
+    formantF2Hz: lerp(VOICE_RANGES.formantF2Hz[0], VOICE_RANGES.formantF2Hz[1], f2T),
+    formantQ: lerp(VOICE_RANGES.formantQ[0], VOICE_RANGES.formantQ[1], qT),
+    vibratoHz: lerp(VOICE_RANGES.vibratoHz[0], VOICE_RANGES.vibratoHz[1], vibratoHzT),
+    vibratoDepth: lerp(VOICE_RANGES.vibratoDepth[0], VOICE_RANGES.vibratoDepth[1], vibratoDepthT),
+    noiseMix: lerp(VOICE_RANGES.noiseMix[0], VOICE_RANGES.noiseMix[1], noiseT),
+    phrasePaceMultiplier: lerp(VOICE_RANGES.phrasePaceMultiplier[0], VOICE_RANGES.phrasePaceMultiplier[1], paceT),
+    consonantStyle: lerp(VOICE_RANGES.consonantStyle[0], VOICE_RANGES.consonantStyle[1], consonantT),
+    vowelDriftAmount: lerp(VOICE_RANGES.vowelDriftAmount[0], VOICE_RANGES.vowelDriftAmount[1], driftT)
   };
 }
 
