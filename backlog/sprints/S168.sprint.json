@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-05-28",
   "archivedAt": "2026-05-28",
-  "prUrl": "PENDING",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/216",
   "notes": [
     "Implements GDP-2026-05-28-005 changes 4-6 (changes 1-3 already applied in S158 PHRASE_PATCHES redesign).",
     "Change 4 (drift floor): vowelDriftAmount range [0, 0.3] → [0.20, 0.60]. No bomber gets dead-monotone vowels; high end applies full delta. planUtterance normalises by 0.6.",
