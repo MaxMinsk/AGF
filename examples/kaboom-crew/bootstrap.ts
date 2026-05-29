@@ -45,10 +45,8 @@ import bombPrefab from "./prefabs/bomb.prefab.json";
 // integration glue is project-local.
 import {
   registerProcbomberBuilders,
-  spawnBomberFor,
-  attachBomberOutlines
+  spawnBomberFor
 } from "./src/procbomber-integration";
-import { startOutlineMaterialBinder } from "./src/outline-material-binder";
 import { createBenchAnimationSystem } from "../procbomber-bench/src/systems/bench-animation-system";
 import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-pivot-system";
 import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
@@ -490,10 +488,7 @@ function restartScene(runtime: RuntimeHandle): number {
     undefined,
     unlockedKinds !== undefined ? { unlockedAccessoryKinds: unlockedKinds } : {}
   );
-  {
-    const tree = spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
-    attachBomberOutlines((cmds) => runtime.applyCommands(cmds), tree, "player.1");
-  }
+  spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
   // S120 — on connected, the server owns bot.1; the snapshot delivers
   // it and remote-bomber-decorator spawns the procbomber tree locally.
   // Spawning here would collide with the server's claim. S141 — bot.2
@@ -501,8 +496,7 @@ function restartScene(runtime: RuntimeHandle): number {
   if (!_networkedMode) {
     for (const { id, personality: p } of MULTI_BOT_ASSIGNMENT) {
       const botRecipe = makeKaboomRecipe(id, p);
-      const tree = spawnBomberFor((cmds) => runtime.applyCommands(cmds), id, botRecipe);
-      attachBomberOutlines((cmds) => runtime.applyCommands(cmds), tree, id);
+      spawnBomberFor((cmds) => runtime.applyCommands(cmds), id, botRecipe);
     }
   }
   return 1;
@@ -1025,18 +1019,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S170 — Wang family registration is idempotent (HMR-safe) so the
     // call is unconditional.
     registerKaboomWangFamilies();
-    {
-      const tree = spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
-      attachBomberOutlines((cmds) => runtime.applyCommands(cmds), tree, "player.1");
-    }
+    spawnBomberFor((cmds) => runtime.applyCommands(cmds), "player.1", playerRecipe);
     // S120 — on connected, server owns bot.1; snapshot delivers it +
     // remote-bomber-decorator spawns the procbomber tree locally.
     // S141 — solo spawns all three bot trees.
     if (!_networkedMode) {
       for (const { id, personality: p } of MULTI_BOT_ASSIGNMENT) {
         const botRecipe = makeKaboomRecipe(id, p);
-        const tree = spawnBomberFor((cmds) => runtime.applyCommands(cmds), id, botRecipe);
-        attachBomberOutlines((cmds) => runtime.applyCommands(cmds), tree, id);
+        spawnBomberFor((cmds) => runtime.applyCommands(cmds), id, botRecipe);
       }
     }
     void initialPersonality; // S141 — preserved for future per-bot URL overrides.
@@ -1049,9 +1039,6 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // spawns once + needs an explicit poll until every mesh handle
     // exists (MeshLifecycleSystem creates them on the next tick).
     startVertexColorsPoller(runtime);
-    // S187 KABOOM-OUTLINE-OCCLUDER — TSL viewport-depth shader swap on
-    // every outline-sibling mesh once its handle exists. WebGPU-only.
-    startOutlineMaterialBinder(runtime);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round

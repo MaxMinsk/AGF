@@ -125,48 +125,6 @@ export function spawnBomberFor(
   });
 }
 
-/**
- * S187 OUTLINE-OCCLUDER. Attach a sibling "outline" mesh entity per
- * bomber part. Each sibling parents to the matching part so it
- * inherits all animation; the procedural mesh ref is identical (same
- * geometry from the proc registry, separately cloned by acquireMesh).
- * The outline-material-binder poller swaps each sibling's material to
- * the viewport-sampling TSL outline shader after spawn.
- */
-export function attachBomberOutlines(
-  applyCommands: (cmds: ReadonlyArray<EngineCommand>) => void,
-  tree: BomberTreeResult,
-  ownerEntityId: string
-): ReadonlyArray<string> {
-  const commands: EngineCommand[] = [];
-  const outlineIds: string[] = [];
-  for (const part of tree.meshEntities) {
-    const outlineId = `${part.id}.outline`;
-    outlineIds.push(outlineId);
-    commands.push({ kind: "entity.create", entityId: outlineId });
-    commands.push({
-      kind: "component.set",
-      entityId: outlineId,
-      component: "Transform",
-      data: { parent: part.id, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
-    });
-    commands.push({
-      kind: "component.set",
-      entityId: outlineId,
-      component: "MeshRenderer",
-      data: { mesh: `procedural:procbomber-${part.partName}#${ownerEntityId}` }
-    });
-    commands.push({
-      kind: "component.set",
-      entityId: outlineId,
-      component: "OutlineMember",
-      data: { ownerEntityId }
-    });
-  }
-  applyCommands(commands);
-  return outlineIds;
-}
-
 /** Convenience: simple seed-only recipe builder. */
 export function recipeForOwner(rootId: string): ResolvedCharacterRecipe {
   return resolveRecipeFromSeed(rootId);
