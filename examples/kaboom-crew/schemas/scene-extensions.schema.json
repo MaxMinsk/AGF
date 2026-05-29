@@ -33,7 +33,8 @@
     "AccessoryDebris": { "$ref": "#/definitions/accessoryDebrisComponent" },
     "AccessoryDetachFired": { "$ref": "#/definitions/accessoryDetachFiredComponent" },
     "ArenaTheme": { "$ref": "#/definitions/arenaThemeComponent" },
-    "FloorTerrain": { "$ref": "#/definitions/floorTerrainComponent" }
+    "FloorTerrain": { "$ref": "#/definitions/floorTerrainComponent" },
+    "LootDropDecay": { "$ref": "#/definitions/lootDropDecayComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -139,6 +140,15 @@
           "default": "floor",
           "description": "Terrain family. 'floor' is the default backdrop (no overlay entity needed). 'grass' spawns a thin overlay slab whose Wang variant resolves from neighbouring grass cells."
         }
+      }
+    },
+    "lootDropDecayComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S208 KABOOM-LOOT-DROP (GDP-2026-05-30-001). Tags a pickup entity that was spawned by death-pickup-drop-system so the parallel decay system can despawn it after the per-drop lifetime expires (default 30 s). Normal soft-block pickups carry no LootDropDecay and persist until collected.",
+      "required": ["remainingS"],
+      "properties": {
+        "remainingS": { "type": "number", "minimum": 0, "description": "Seconds remaining before the pickup despawns. Decay system removes the entity when this reaches 0." }
       }
     },
     "bomberStatsComponent": {

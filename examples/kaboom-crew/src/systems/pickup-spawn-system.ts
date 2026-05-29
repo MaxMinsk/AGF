@@ -47,7 +47,7 @@ const IDLE_EMITTER_RATE = 8;
 const IDLE_EMITTER_MAX_PARTICLES = 6;
 
 type SoftBlockDestroyedEvent = { gx: number; gz: number };
-type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove" | "bomb-pass";
+export type PickupKind = "bomb-up" | "fire-up" | "speed-up" | "kick" | "remote-detonate" | "shield" | "pierce" | "throw-glove" | "bomb-pass";
 
 type PickupVisual = {
   mesh: string;
@@ -145,6 +145,23 @@ export function createKaboomPickupSpawnSystem(options: PickupSpawnSystemOptions 
   };
 
   return { name, fixedUpdate };
+}
+
+// S208 — module-level counter shared between the soft-block path and
+// external callers (death-pickup-drop). The original per-system
+// closure counter still backs the soft-block path; this counter feeds
+// the standalone `spawnKaboomPickup` helper below so any caller can
+// spawn a pickup without owning a system instance.
+let externalCounter = 0;
+
+/** S208 — drop a pickup at a specific cell, outside the normal
+ *  soft-block destruction roll. Used by death-pickup-drop-system to
+ *  shower a dying bomber's loot at their death cell. */
+export function spawnKaboomPickup(world: World, gx: number, gz: number, kind: PickupKind): EntityId {
+  externalCounter += 1;
+  const id: EntityId = `pickup.${kind}.drop.${externalCounter}.${gx}.${gz}`;
+  spawnPickup(world, gx, gz, kind, () => id);
+  return id;
 }
 
 function spawnPickup(

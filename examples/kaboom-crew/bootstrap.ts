@@ -95,6 +95,13 @@ import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/syste
 import { createKaboomCameraControlSystem, type FollowMode } from "./src/systems/camera-control-system";
 import { createKaboomCameraZoomSystem } from "./src/systems/camera-zoom-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
+import {
+  createKaboomDeathPickupDropSystem,
+  createKaboomLootDropDecaySystem,
+  LOOT_DROP_BOOLEAN_RATIO_DEFAULT,
+  LOOT_DROP_CAP_DEFAULT,
+  LOOT_DROP_LIFETIME_S_DEFAULT
+} from "./src/systems/death-pickup-drop-system";
 // S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
 // builders for hard / soft blocks + floor tiles; block-variant-system
 // rewrites MeshRenderer.mesh refs of cells at scene-load so the
@@ -255,6 +262,43 @@ function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
     return isArenaThemeKey(v) ? v : undefined;
   } catch {
     return undefined;
+  }
+}
+
+// S208 KABOOM-LOOT-DROP — read loot-drop URL flags:
+//   ?lootDrop=off              disables drops entirely
+//   ?lootDropRatio=N           overrides per-boolean drop probability (0..1)
+//   ?lootDropMax=N             overrides per-death cap (default 5)
+//   ?lootDropLifetimeS=N       overrides 30 s drop persistence
+function readLootDropParamsFromUrl(): {
+  disabled: boolean;
+  booleanRatio: number;
+  cap: number;
+  lifetimeS: number;
+} {
+  const defaults = {
+    disabled: false,
+    booleanRatio: LOOT_DROP_BOOLEAN_RATIO_DEFAULT,
+    cap: LOOT_DROP_CAP_DEFAULT,
+    lifetimeS: LOOT_DROP_LIFETIME_S_DEFAULT
+  };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const params = new URLSearchParams(search);
+    const disabled = params.get("lootDrop") === "off";
+    const ratioRaw = params.get("lootDropRatio");
+    const ratio = ratioRaw === null ? defaults.booleanRatio : Number(ratioRaw);
+    const booleanRatio = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : defaults.booleanRatio;
+    const maxRaw = params.get("lootDropMax");
+    const maxParsed = maxRaw === null ? defaults.cap : Number(maxRaw);
+    const cap = Number.isFinite(maxParsed) && maxParsed >= 0 ? Math.floor(maxParsed) : defaults.cap;
+    const lifeRaw = params.get("lootDropLifetimeS");
+    const lifeParsed = lifeRaw === null ? defaults.lifetimeS : Number(lifeRaw);
+    const lifetimeS = Number.isFinite(lifeParsed) && lifeParsed > 0 ? lifeParsed : defaults.lifetimeS;
+    return { disabled, booleanRatio, cap, lifetimeS };
+  } catch {
+    return defaults;
   }
 }
 
@@ -796,6 +840,25 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // from there on. Must run BEFORE audio-binding-system so the
     // ragdoll spawns on the same frame as the death audio.
     scheduler.register(createKaboomDeathTriggerSystem(), { profiles: ["static", "connected"] });
+
+    // S208 KABOOM-LOOT-DROP (GDP-2026-05-30-001) — watch the same
+    // alive: true → false edge the death-trigger uses and spawn ~half
+    // of the bomber's stats as pickups at their death cell. A second
+    // system below ticks the dropped pickups' lifetime so they
+    // despawn after 30 s if no one grabs them.
+    {
+      const params = readLootDropParamsFromUrl();
+      scheduler.register(
+        createKaboomDeathPickupDropSystem({
+          disabled: params.disabled,
+          capPerDeath: params.cap,
+          lifetimeS: params.lifetimeS,
+          booleanRatio: params.booleanRatio
+        }),
+        { profiles: ["static", "connected"] }
+      );
+      scheduler.register(createKaboomLootDropDecaySystem(), { profiles: ["static", "connected"] });
+    }
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
     // BenchAnimationState + LimbPivots (written by the driver above + by
