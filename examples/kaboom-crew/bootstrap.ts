@@ -87,7 +87,7 @@ import { createKaboomRemoteBomberInterpolatorSystem } from "./src/systems/remote
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
-import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
+import { createKaboomCameraControlSystem, type FollowMode } from "./src/systems/camera-control-system";
 import { createKaboomCameraZoomSystem } from "./src/systems/camera-zoom-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 // S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
@@ -226,6 +226,20 @@ function readCameraConfigFromUrl(): {
 // S171 KABOOM-ARENA-THEMES MVP — read `?theme=warehouse|factory|dock|lab|bunker`.
 // Returns undefined when the param is absent or unparseable so callers
 // fall back to defaultThemeForArena() / "warehouse".
+// S195 — `?follow=off|snap` overrides the default damped follow mode.
+function readFollowModeFromUrl(): FollowMode {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return "damped";
+  try {
+    const v = new URLSearchParams(search).get("follow");
+    if (v === "off") return "off";
+    if (v === "snap") return "snap";
+    return "damped";
+  } catch {
+    return "damped";
+  }
+}
+
 function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
   const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
   if (search === undefined || search.length === 0) return undefined;
@@ -562,6 +576,7 @@ let _boundProfileStore: ProfileStore | undefined;
 export const kaboomCrewBootstrap: ProjectBootstrap = {
   registerSystems({ scheduler, playerId, networked, getNetwork }: ProjectBootstrapContext): void {
     _networkedMode = networked;
+    const _followMode: FollowMode = readFollowModeFromUrl();
     const occupancy = createGridOccupancySystem();
     _boundOccupancy = occupancy;
     scheduler.register(occupancy, { profiles: ["static", "connected"] });
@@ -677,10 +692,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       { profiles: ["static", "connected"] }
     );
 
-    // S87 KABOOM-CAMERA-SHAKE — observe BlastEvent transients BEFORE
-    // blast-propagation consumes them. Perturbs the active camera's
-    // Transform.position; intensity scales with blast range.
-    scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static", "connected"] });
+    // S195 KABOOM-CAMERA-CONTROL — single-owner of camera.main
+    // Transform.position. Combines the S87/S95 shake (intact feel)
+    // with a new damped follow on player.1. URL flag ?follow=off|snap
+    // picks the follow mode at boot. The combined system is the
+    // antidote to S163-doubling: ONE write per fixedUpdate, no
+    // frameUpdate path.
+    scheduler.register(createKaboomCameraControlSystem({ followMode: _followMode }), {
+      profiles: ["static", "connected"]
+    });
     // S194 KABOOM-CAMERA-ZOOM-ON-ACTION — orthographicSize eases out
     // when bombs / blast tiles are active or sudden death is on; eases
     // back when the arena quiets. No position lerp (S163 doubling
