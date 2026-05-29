@@ -73,6 +73,7 @@ import { createKaboomConveyorBeltSystem } from "./src/systems/conveyor-belt-syst
 import { createKaboomWarpHoleSystem } from "./src/systems/warp-hole-system";
 import { createKaboomPressurePlateSystem } from "./src/systems/pressure-plate-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
+import { createKaboomSoftBlockDebrisSystem } from "./src/systems/soft-block-debris-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
@@ -718,6 +719,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // is also off since S117), so this is also a cleanup of an idle
     // system. Narrow to ['static'] explicitly.
     scheduler.register(createKaboomBlastPropagationSystem({ occupancy }), { profiles: ["static"] });
+    // S192 KABOOM-SOFT-BLOCK-DEBRIS — runs after blast propagation
+    // emits SoftBlockDestroyedEvent so the debris chunks spawn on the
+    // same tick the block disappears. Co-spawns 6 small box chunks
+    // with kinematic AccessoryDebris integration (engine reuse).
+    scheduler.register(createKaboomSoftBlockDebrisSystem(), { profiles: ["static", "connected"] });
     // S109 KABOOM-HIT-RECOIL — runs RIGHT AFTER blast propagation so the
     // HitRecoilRequest transient blast-propagation just wrote is consumed
     // in the same fixedUpdate (one-shot, no carry-over).
