@@ -225,6 +225,140 @@ describe("createKaboomBotAISystem (S82 KABOOM-BOT-AI)", () => {
     expect(Math.abs(mover.queuedDirection.dx) + Math.abs(mover.queuedDirection.dz)).toBeGreaterThan(0);
   });
 
+  describe("S204 bot remote-detonate", () => {
+    it("paused bomb + enemy in blast → bot writes RemoteDetonateRequest", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 1);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 1,
+        alive: true,
+        remoteDetonateCharges: 1
+      });
+      // Paused bomb owned by bot.1 at (5,5) with range 2.
+      world.addEntity("bomb.paused");
+      world.setComponent("bomb.paused", "Bomb", {
+        fuseRemaining: Infinity,
+        range: 2,
+        ownerId: "bot.1"
+      });
+      world.setComponent("bomb.paused", "GridPosition", { gx: 5, gz: 5 });
+      // Enemy (player.1) at (5,7) — within +2 cells north on same column.
+      world.addEntity("player.1");
+      world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+      world.setComponent("player.1", "GridPosition", { gx: 5, gz: 7 });
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "RemoteDetonateRequest")).toBe(true);
+    });
+
+    it("no paused bombs → no detonate request", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 1);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 0,
+        alive: true,
+        remoteDetonateCharges: 1
+      });
+      world.addEntity("player.1");
+      world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+      world.setComponent("player.1", "GridPosition", { gx: 5, gz: 5 });
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "RemoteDetonateRequest")).toBe(false);
+    });
+
+    it("paused bomb but no enemy in blast → no detonate request", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 1);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 1,
+        alive: true,
+        remoteDetonateCharges: 1
+      });
+      world.addEntity("bomb.paused");
+      world.setComponent("bomb.paused", "Bomb", {
+        fuseRemaining: Infinity,
+        range: 2,
+        ownerId: "bot.1"
+      });
+      world.setComponent("bomb.paused", "GridPosition", { gx: 5, gz: 5 });
+      // Enemy far away on different row + column.
+      world.addEntity("player.1");
+      world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+      world.setComponent("player.1", "GridPosition", { gx: 10, gz: 10 });
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "RemoteDetonateRequest")).toBe(false);
+    });
+
+    it("ticking bomb (finite fuse) is NOT a paused bomb — no detonate request", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 1);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 1,
+        alive: true,
+        remoteDetonateCharges: 1
+      });
+      // Normal ticking bomb, not paused.
+      world.addEntity("bomb.normal");
+      world.setComponent("bomb.normal", "Bomb", {
+        fuseRemaining: 1.5,
+        range: 2,
+        ownerId: "bot.1"
+      });
+      world.setComponent("bomb.normal", "GridPosition", { gx: 5, gz: 5 });
+      world.addEntity("player.1");
+      world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: true });
+      world.setComponent("player.1", "GridPosition", { gx: 5, gz: 7 });
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "RemoteDetonateRequest")).toBe(false);
+    });
+
+    it("dead enemy is ignored (no auto-trigger on already-dead bomber)", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 1);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 1,
+        alive: true,
+        remoteDetonateCharges: 1
+      });
+      world.addEntity("bomb.paused");
+      world.setComponent("bomb.paused", "Bomb", {
+        fuseRemaining: Infinity,
+        range: 2,
+        ownerId: "bot.1"
+      });
+      world.setComponent("bomb.paused", "GridPosition", { gx: 5, gz: 5 });
+      world.addEntity("player.1");
+      world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive: false });
+      world.setComponent("player.1", "GridPosition", { gx: 5, gz: 7 });
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "RemoteDetonateRequest")).toBe(false);
+    });
+  });
+
   describe("S203 bot dash escape", () => {
     it("bot in a danger cell with dash ready writes a DashRequest in a cardinal escape direction", () => {
       const world = new World();

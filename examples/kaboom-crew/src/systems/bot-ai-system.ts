@@ -27,6 +27,7 @@ const GRID_POSITION: ComponentName = "GridPosition";
 const BOMB: ComponentName = "Bomb";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const DASH_REQUEST: ComponentName = "DashRequest";
+const REMOTE_DETONATE_REQUEST: ComponentName = "RemoteDetonateRequest";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 // S88 KABOOM-BOT-DANGER-AVOID. Live BlastTiles cover an active
 // explosion for a fraction of a second — walking onto one kills.
@@ -401,8 +402,74 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
           world.setComponent(botId, PLACE_BOMB_REQUEST, {});
         }
       }
+
+      // S204 — bot triggers RemoteDetonateRequest when any of its own
+      // paused bombs has an ENEMY (not itself) inside its blast
+      // radius. Engine bomb-fuse-system reads the request next tick
+      // and drops fuseRemaining → 0 on every paused bomb the bot
+      // owns, so a well-placed paused bomb becomes a triggered trap.
+      if (shouldRemoteDetonate(world, botId)) {
+        if (!world.hasComponent(botId, REMOTE_DETONATE_REQUEST)) {
+          world.setComponent(botId, REMOTE_DETONATE_REQUEST, {});
+        }
+      }
     }
   };
 
   return { name, fixedUpdate };
+}
+
+/** S204 — returns true when this bot owns at least one paused bomb
+ *  (Bomb.fuseRemaining === Infinity) AND some enemy alive bomber sits
+ *  inside any of those bombs' blast radius cells. Pure read-only —
+ *  exported so unit tests can lock the policy without spinning the
+ *  whole system. */
+export function shouldRemoteDetonate(world: World, ownerId: EntityId): boolean {
+  const pausedBombs: Array<{ gx: number; gz: number; range: number }> = [];
+  for (const id of world.entityIds()) {
+    if (!world.hasComponent(id, BOMB)) continue;
+    const b = world.getComponent<{ fuseRemaining?: number; range?: number; ownerId?: string }>(id, BOMB);
+    if (b === undefined) continue;
+    if (b.ownerId !== ownerId) continue;
+    if (Number.isFinite(b.fuseRemaining)) continue; // paused only
+    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (gp?.gx === undefined || gp?.gz === undefined) continue;
+    pausedBombs.push({ gx: gp.gx, gz: gp.gz, range: b.range ?? 2 });
+  }
+  if (pausedBombs.length === 0) return false;
+  const enemyCells = collectAliveEnemyCells(world, ownerId);
+  if (enemyCells.length === 0) return false;
+  for (const bomb of pausedBombs) {
+    for (const enemy of enemyCells) {
+      if (cellInBlast(bomb, enemy.gx, enemy.gz)) return true;
+    }
+  }
+  return false;
+}
+
+function collectAliveEnemyCells(world: World, ownerId: EntityId): Array<{ gx: number; gz: number }> {
+  const out: Array<{ gx: number; gz: number }> = [];
+  for (const id of world.entityIds()) {
+    if (id === ownerId) continue;
+    if (!world.hasComponent(id, BOMBER_STATS)) continue;
+    const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+    if (stats?.alive === false) continue;
+    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (gp?.gx === undefined || gp?.gz === undefined) continue;
+    out.push({ gx: gp.gx, gz: gp.gz });
+  }
+  return out;
+}
+
+/** Returns true when (gx, gz) is within `bomb.range` cardinal cells of
+ *  the bomb's centre. Doesn't model wall-stops — blast walls are a
+ *  per-tick concern in propagation, and approximating them here would
+ *  cost more than the AI policy needs. Slight over-trigger (detonate
+ *  a bomb whose blast would actually stop at a wall before the enemy)
+ *  is preferable to under-trigger here. */
+function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number, gz: number): boolean {
+  if (bomb.gx === gx && bomb.gz === gz) return true;
+  if (bomb.gx === gx && Math.abs(bomb.gz - gz) <= bomb.range) return true;
+  if (bomb.gz === gz && Math.abs(bomb.gx - gx) <= bomb.range) return true;
+  return false;
 }
