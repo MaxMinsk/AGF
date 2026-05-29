@@ -87,17 +87,75 @@ export type BotAISystemOptions = {
   /** Deterministic RNG seed — keeps replay recordings reproducible. */
   seed?: number;
   name?: string;
+  /** S210 KABOOM-BOT-ACCELERATION — disable bot-only round
+   *  acceleration (URL `?botAccelerate=off`). Defaults to enabled. */
+  accelerationDisabled?: boolean;
+  /** S210 — base aggression boost added once all humans die and 2+
+   *  bots remain. URL `?botAccelerationBoost=N`. Default 0.25. */
+  accelerationBaseBoost?: number;
 };
+
+/** S210 KABOOM-BOT-ACCELERATION default base boost. Exposed for the
+ *  bootstrap URL parser + unit tests. */
+export const BOT_ACCELERATION_BASE_BOOST_DEFAULT = 0.25;
+/** S210 — boost added per 15 s elapsed since humans-all-dead. */
+export const BOT_ACCELERATION_ESCALATION_STEP = 0.10;
+/** S210 — max escalation bonus on top of the base boost. */
+export const BOT_ACCELERATION_ESCALATION_CAP = 0.30;
+/** S210 — escalation interval in seconds. */
+export const BOT_ACCELERATION_ESCALATION_INTERVAL_S = 15;
+
+/** Pure helper — given the timestamp humans first all died (or
+ *  undefined when still alive), return the current aggression boost
+ *  to add to `brain.aggression * personalityScale`. Exported so tests
+ *  lock the escalation math without spinning the whole system. */
+export function botAccelerationBoost(
+  humansAllDeadAt: number | undefined,
+  nowS: number,
+  baseBoost: number = BOT_ACCELERATION_BASE_BOOST_DEFAULT
+): number {
+  if (humansAllDeadAt === undefined) return 0;
+  const elapsed = Math.max(0, nowS - humansAllDeadAt);
+  const steps = Math.floor(elapsed / BOT_ACCELERATION_ESCALATION_INTERVAL_S);
+  const escalation = Math.min(BOT_ACCELERATION_ESCALATION_CAP, steps * BOT_ACCELERATION_ESCALATION_STEP);
+  return baseBoost + escalation;
+}
+
+/** S210 — count alive PlayerControlled bombers + alive bots in one
+ *  pass. Used by the bot-ai system to enter / exit HUMANS_DEAD mode.
+ *  Exported for tests. */
+export function countAliveBombers(world: World): { humans: number; bots: number } {
+  let humans = 0;
+  let bots = 0;
+  for (const id of world.entityIds()) {
+    if (!world.hasComponent(id, "BomberStats")) continue;
+    const stats = world.getComponent<{ alive?: boolean }>(id, "BomberStats");
+    if (stats?.alive === false) continue;
+    if (world.hasComponent(id, "PlayerControlled")) humans += 1;
+    else if (world.hasComponent(id, "BotBrain")) bots += 1;
+  }
+  return { humans, bots };
+}
 
 export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   const name = options.name ?? "kaboom.bot-ai";
   const rng: SeededRng = createSeededRng(options.seed ?? 1);
+  const accelerationDisabled = options.accelerationDisabled === true;
+  const accelerationBaseBoost = Math.max(
+    0,
+    options.accelerationBaseBoost ?? BOT_ACCELERATION_BASE_BOOST_DEFAULT
+  );
 
   let cachedWorld: World | undefined;
   let bots: QueryHandle | undefined;
   let bombs: QueryHandle | undefined;
   let blastTiles: QueryHandle | undefined;
   let pickups: QueryHandle | undefined;
+  // S210 — simulation seconds (context.time.elapsed) when all human
+  // PlayerControlled bombers first died with 2+ bots still alive.
+  // Reset on world change or whenever a human is alive again (round
+  // restart, revive, reconnect-within-grace).
+  let humansAllDeadAt: number | undefined;
 
   function buildDangerMap(world: World): Set<string> {
     const danger = new Set<string>();
@@ -206,6 +264,29 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return nearestPickup(world, pos, danger);
   }
 
+  /** S210 — when HUMANS_DEAD is active, every personality (including
+   *  coward) targets the nearest alive non-self bomber. This is what
+   *  makes coward + coward stop their mutual avoidance and engage.
+   *  Returns undefined when no other bomber is alive. */
+  function nearestOtherBomberCell(
+    world: World,
+    selfId: EntityId,
+    pos: GridPos
+  ): { gx: number; gz: number } | undefined {
+    let best: { gx: number; gz: number; dist: number } | undefined;
+    for (const id of world.entityIds()) {
+      if (id === selfId) continue;
+      if (!world.hasComponent(id, BOMBER_STATS)) continue;
+      const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+      if (stats?.alive === false) continue;
+      const p = world.getComponent<GridPos>(id, GRID_POSITION);
+      if (p === undefined) continue;
+      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
+      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+    }
+    return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
+  }
+
   function nearestPlayer(world: World, pos: GridPos): { gx: number; gz: number } | undefined {
     let best: { gx: number; gz: number; dist: number } | undefined;
     // agf-allow: world.query — bot AI ticks at DECISION_INTERVAL (~5 Hz), not per-frame.
@@ -299,7 +380,8 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     botId: EntityId,
     pos: GridPos,
     brain: BotBrain,
-    danger: Set<string>
+    danger: Set<string>,
+    boost: number
   ): boolean {
     if (danger.has(cellKey(pos.gx, pos.gz))) return false; // not while fleeing
     const stats = world.getComponent<{ activeBombs?: number; maxBombs: number; alive?: boolean }>(botId, BOMBER_STATS);
@@ -309,9 +391,16 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     // base aggression. 'coward' bombs more eagerly as a defensive
     // shield; 'miner' bombs more eagerly toward soft blocks. 'hunter'
     // uses the unscaled aggression.
+    // S210 — `boost` is the HUMANS_DEAD acceleration term; it's
+    // additive on top of the personality scale (cap 1.0).
     const persona = brain.personality ?? "hunter";
     const aggressionScale = persona === "coward" ? 1.5 : persona === "miner" ? 1.4 : 1.0;
-    const aggression = Math.min(1, brain.aggression * aggressionScale);
+    const aggression = Math.min(1, brain.aggression * aggressionScale + boost);
+    // S210 — also place bombs on EMPTY cells (no soft-block adjacent)
+    // when boosted. The GDP calls for "+20% bomb-place rate" on top of
+    // the personality bias; lifting the soft-block requirement under
+    // acceleration is what actually drives bot-vs-bot resolution.
+    const boosting = boost > 0;
     // Adjacent soft block? Look at the four cardinals — if any
     // contains a movement-blocking, non-blast-blocking occupant, it's
     // a soft block.
@@ -325,6 +414,12 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         return rng.next() < aggression;
       }
     }
+    if (boosting) {
+      // Under HUMANS_DEAD acceleration, bots will bomb open cells too,
+      // since no soft blocks usually remain by then. Probability scales
+      // with `boost` so early HUMANS_DEAD is gentler than escalated.
+      return rng.next() < Math.min(1, boost);
+    }
     return false;
   }
 
@@ -336,6 +431,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       blastTiles = world.createQuery([BLAST_TILE, GRID_POSITION]);
       pickups = world.createQuery([PICKUP, GRID_POSITION]);
       cachedWorld = world;
+      humansAllDeadAt = undefined;
     }
     // S84 KABOOM-TITLE-SCREEN. Game freezes while a GamePaused
     // singleton is present — bot decisions don't run so the title
@@ -343,6 +439,22 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     if (world.hasComponent("kaboom.game-state", "GamePaused")) return;
     const dt = Math.max(0, context.time.fixedDt);
     let danger: Set<string> | undefined;
+
+    // S210 KABOOM-BOT-ACCELERATION — detect HUMANS_DEAD edge.
+    // Triggers ONLY when all human bombers are dead AND 2+ bots
+    // still remain (no point boosting a lone bot — round resolves
+    // by itself next tick). Resets immediately if any human is
+    // alive again (round restart, reconnect-within-grace, etc.).
+    let boostNow = 0;
+    if (!accelerationDisabled) {
+      const counts = countAliveBombers(world);
+      if (counts.humans === 0 && counts.bots >= 2) {
+        if (humansAllDeadAt === undefined) humansAllDeadAt = context.time.elapsed;
+      } else {
+        humansAllDeadAt = undefined;
+      }
+      boostNow = botAccelerationBoost(humansAllDeadAt, context.time.elapsed, accelerationBaseBoost);
+    }
     for (const botId of bots!.run()) {
       const brain = world.getComponent<BotBrain>(botId, BOT_BRAIN);
       if (brain === undefined) continue;
@@ -363,7 +475,15 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       // S100 KABOOM-BOT-PERSONALITY-VARIANTS — pick the goal cell
       // based on the bot's personality (default 'hunter' chases the
       // player; 'coward' has no goal; 'miner' adds soft blocks).
-      const goal = personalityGoal(world, pos, brain.personality ?? "hunter", danger);
+      // S210 — when HUMANS_DEAD is active, every personality switches
+      // to nearest-other-bomber so cowards stop their mutual orbit
+      // and engage their fellow bots.
+      let goal: { gx: number; gz: number } | undefined;
+      if (boostNow > 0) {
+        goal = nearestOtherBomberCell(world, botId, pos) ?? personalityGoal(world, pos, brain.personality ?? "hunter", danger);
+      } else {
+        goal = personalityGoal(world, pos, brain.personality ?? "hunter", danger);
+      }
       const direction = decideDirection(pos, brain, danger, goal);
 
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
@@ -407,7 +527,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         lastDecisionDz: direction.dz
       });
 
-      if (shouldDropBomb(world, botId, pos, brain, danger)) {
+      if (shouldDropBomb(world, botId, pos, brain, danger, boostNow)) {
         if (!world.hasComponent(botId, PLACE_BOMB_REQUEST)) {
           world.setComponent(botId, PLACE_BOMB_REQUEST, {});
         }
