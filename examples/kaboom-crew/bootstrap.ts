@@ -4,6 +4,7 @@ import { createGridMovementSystem } from "../../engine/core/systems/grid-movemen
 import { createKaboomBomberHeightLiftSystem } from "./src/systems/bomber-height-lift-system";
 import { createKaboomStepJumpFxSystem } from "./src/systems/step-jump-fx-system";
 import { createKaboomPickupHoverSpinSystem } from "./src/systems/pickup-hover-spin-system";
+import { createKaboomPickupMagnetSystem } from "./src/systems/pickup-magnet-system";
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type { EngineCommand } from "../../engine/core/commands/types";
@@ -600,6 +601,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // offset; phase per-entity so a cluster of pickups doesn't bob in
     // lockstep.
     scheduler.register(createKaboomPickupHoverSpinSystem(), { profiles: ["static", "connected"] });
+    // S200 KABOOM-PICKUP-MAGNET — pickups within 1.5 cells of an alive
+    // bomber slide visually toward them. GridPosition stays put;
+    // collection still happens cell-by-cell via pickup-collect-system.
+    // Touches Transform X/Z; hover-spin owns Y/rotation, so the two
+    // systems compose without fighting over the same axes.
+    scheduler.register(createKaboomPickupMagnetSystem(), { profiles: ["static", "connected"] });
     // S165 KABOOM-MULTI-VARIANT-BLOCKS + S170 KABOOM-WANG-INTEGRATION —
     // stamp WangTile + WangTileFamilyMember on every hard / soft block
     // cell. The engine resolver (registered immediately below) computes
