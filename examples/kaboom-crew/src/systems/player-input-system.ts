@@ -301,13 +301,18 @@ export function createKaboomPlayerInputSystem(
       if (prev?.dx !== targetDirection.dx || prev?.dz !== targetDirection.dz) {
         world.setComponent(entityId, GRID_MOVER, { ...mover, queuedDirection: targetDirection });
       }
-      // S159 KABOOM-DASH — Shift + direction-edge writes a DashRequest.
-      // Edge-triggered: only fires the frame a direction key
-      // transitions to pressed. dash-system reads + removes the
-      // transient + validates cooldown / blocked-path / dashing.
-      if (someInSet(DASH_MODIFIER)) {
-        const dashDir = resolveDirectionEdge();
-        if (dashDir !== undefined && !world.hasComponent(entityId, DASH_REQUEST)) {
+      // S159 KABOOM-DASH + S197 input flip — Shift EDGE while a
+      // direction is held writes a DashRequest in the held direction.
+      // Old flow (Shift HELD + direction edge) felt unnatural: you had
+      // to pre-press Shift, then tap a direction. New flow matches
+      // muscle memory — you're already running, Shift accelerates.
+      // dash-system still owns cooldown / blocked-path / dashing checks.
+      if (someInSetNew(DASH_MODIFIER)) {
+        const dashDir = direction;
+        if (
+          (dashDir.dx !== 0 || dashDir.dz !== 0)
+          && !world.hasComponent(entityId, DASH_REQUEST)
+        ) {
           world.setComponent(entityId, DASH_REQUEST, { dx: dashDir.dx, dz: dashDir.dz });
         }
       }

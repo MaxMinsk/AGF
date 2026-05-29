@@ -206,6 +206,41 @@ describe("createKaboomPlayerInputSystem (S82 KABOOM-PLAYER-INPUT)", () => {
     expect(world.hasComponent("player", "RoundRestartRequest")).toBe(true);
   });
 
+  it("S197 dash UX flip: Shift edge while a direction is held writes a DashRequest in the held direction", () => {
+    const world = new World();
+    addPlayer(world);
+    const pressed = new Set<string>(["KeyD"]);
+    const system = createKaboomPlayerInputSystem({ pressedKeys: pressed });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "DashRequest")).toBe(false);
+    pressed.add("ShiftLeft");
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "DashRequest")).toBe(true);
+    const req = world.getComponent<{ dx: number; dz: number }>("player", "DashRequest");
+    expect(req).toEqual({ dx: 1, dz: 0 });
+  });
+
+  it("S197 dash UX flip: pressing Shift WITHOUT a direction does not write a DashRequest", () => {
+    const world = new World();
+    addPlayer(world);
+    const pressed = new Set<string>(["ShiftLeft"]);
+    const system = createKaboomPlayerInputSystem({ pressedKeys: pressed });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "DashRequest")).toBe(false);
+  });
+
+  it("S197 dash UX flip: holding Shift continuously across frames does not re-fire DashRequest", () => {
+    const world = new World();
+    addPlayer(world);
+    const pressed = new Set<string>(["KeyD", "ShiftLeft"]);
+    const system = createKaboomPlayerInputSystem({ pressedKeys: pressed });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "DashRequest")).toBe(true);
+    world.removeComponent("player", "DashRequest");
+    system.frameUpdate!(ctx(world));
+    expect(world.hasComponent("player", "DashRequest")).toBe(false);
+  });
+
   it("S98 AGF-PROBE-INPUT-INJECT: unknown actions silently no-op (engine project-agnostic)", () => {
     const world = new World();
     addPlayer(world);
