@@ -19,6 +19,7 @@ import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 import { isPassableEdge } from "../../../../engine/grid/height-query";
+import { spawnBlastScorchCross } from "./blast-scorch-system";
 
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const BOMB: ComponentName = "Bomb";
@@ -88,12 +89,18 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
       // and immediately blow it up via chain) are destroyed too.
       destroySoftBlocksAt(world, options.occupancy, event.originGx, event.originGz, nextEventId);
 
+      // S207 KABOOM-BLAST-SCORCH — track how far the blast actually
+      // reached in each cardinal direction so the scorch system can
+      // draw a single connected '+' shape after the walk completes,
+      // with rounded ends. Default 0 (no reach in that direction).
+      const reach = { east: 0, west: 0, north: 0, south: 0 };
       for (const direction of DIRECTIONS) {
         // S142 KABOOM-PIERCE-BOMB — per-direction pierce budget. Pierce
         // bombs walk through the FIRST soft block in each direction
         // (still destroying it); a second soft block stops the lane
         // normally. Hard blocks always stop pierce or not.
         let pierceBudget = event.pierce === true ? 1 : 0;
+        let lastStep = 0;
         for (let step = 1; step <= event.range; step += 1) {
           const gx = event.originGx + direction.dx * step;
           const gz = event.originGz + direction.dz * step;
@@ -139,8 +146,17 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
           spawnBlastTile(world, gx, gz, event.ownerId, nextTileId);
           damageBombersAt(world, options.occupancy, gx, gz, event.originGx, event.originGz);
           chainBombsAt(world, options.occupancy, gx, gz);
+          lastStep = step;
         }
+        // Record the maximum step the lane reached so the scorch
+        // cross knows how long each segment should be.
+        if (direction.dx === 1 && direction.dz === 0) reach.east = lastStep;
+        else if (direction.dx === -1 && direction.dz === 0) reach.west = lastStep;
+        else if (direction.dx === 0 && direction.dz === 1) reach.south = lastStep;
+        else if (direction.dx === 0 && direction.dz === -1) reach.north = lastStep;
       }
+      // S207 — single connected '+'-shaped scorch for this blast.
+      spawnBlastScorchCross(world, event.originGx, event.originGz, reach);
       // Event consumed.
       world.removeEntity(eventId);
     }
@@ -189,6 +205,10 @@ function spawnBlastTile(
       maxParticles: 12
     });
   }
+
+  // S207 — scorch is spawned once per blast as a connected '+' from
+  // the bomb origin (see scorch-cross spawn after the walk loop in
+  // the main fixedUpdate). Per-tile scorch removed.
 }
 
 function softBlockIdsAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): EntityId[] {

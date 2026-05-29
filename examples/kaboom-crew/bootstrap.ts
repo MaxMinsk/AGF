@@ -77,6 +77,7 @@ import { createKaboomWarpHoleSystem } from "./src/systems/warp-hole-system";
 import { createKaboomPressurePlateSystem } from "./src/systems/pressure-plate-system";
 import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagation-system";
 import { createKaboomSoftBlockDebrisSystem } from "./src/systems/soft-block-debris-system";
+import { createKaboomBlastScorchSystem } from "./src/systems/blast-scorch-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
@@ -828,6 +829,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // same tick the block disappears. Co-spawns 6 small box chunks
     // with kinematic AccessoryDebris integration (engine reuse).
     scheduler.register(createKaboomSoftBlockDebrisSystem(), { profiles: ["static", "connected"] });
+    // S207 KABOOM-BLAST-SCORCH — ticks the fade + GC's expired scorch
+    // entities. Spawn-side lives inside blast-propagation: one
+    // connected '+' shape per blast event with rounded ends.
+    scheduler.register(createKaboomBlastScorchSystem(), { profiles: ["static", "connected"] });
     // S109 KABOOM-HIT-RECOIL — runs RIGHT AFTER blast propagation so the
     // HitRecoilRequest transient blast-propagation just wrote is consumed
     // in the same fixedUpdate (one-shot, no carry-over).
