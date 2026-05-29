@@ -325,11 +325,60 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["grass-demo", grassDemoSceneJson]
 ]);
 type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
+
+/**
+ * S205 — per-match map rotation pool. When a match ends (matchPhase
+ * resolves), the next match steps to the next entry. Intra-match
+ * rounds stay on the same arena so players don't switch venues
+ * mid-best-of-N. Demo arenas (heightmap-demo, grass-demo) are
+ * excluded — they exist for runtime feature tests, not playable
+ * matches. URL `?map=X` overrides the rotation: when a map was
+ * picked from the URL at boot, the rotation is suppressed and every
+ * match restart uses the URL-picked map.
+ */
+const MATCH_ROTATION_POOL: ReadonlyArray<MapName> = [
+  "start",
+  "wide",
+  "corridor",
+  "plaza",
+  "cross",
+  "pit",
+  "belt-zone",
+  "warpfield",
+  "plate-puzzle"
+];
+let mapLockedFromUrl = false;
 let activeMapName: MapName = "start";
+
+/** S205 — pure helper: returns the next map in the rotation given a
+ *  monotonic match number (1-indexed). Exported for unit tests. */
+export function rotatedMapForMatch(matchNumber: number, pool: ReadonlyArray<MapName> = MATCH_ROTATION_POOL): MapName {
+  if (pool.length === 0) return "start";
+  const idx = ((matchNumber - 1) % pool.length + pool.length) % pool.length;
+  return pool[idx]!;
+}
 // Seed from `?map=` once at module load — module evaluation happens
 // after the page is opened, so `location.search` is already valid.
 function seedActiveMapFromUrl(): void {
-  activeMapName = readMapName();
+  // S205 — when ?map= is explicitly set + valid, lock the map for the
+  // entire session (no rotation). Otherwise rotation kicks in across
+  // matches based on `MatchState.matchNumber`.
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search !== undefined && search.length > 0) {
+    try {
+      const value = new URLSearchParams(search).get("map");
+      if (value !== null && MAP_REGISTRY.has(value)) {
+        activeMapName = value as MapName;
+        mapLockedFromUrl = true;
+        return;
+      }
+    } catch {
+      // fall through
+    }
+  }
+  // No URL lock — start the rotation at match #1.
+  activeMapName = rotatedMapForMatch(1);
+  mapLockedFromUrl = false;
 }
 
 function readMapName(): MapName {
@@ -427,6 +476,13 @@ function restartScene(runtime: RuntimeHandle): number {
   // S115 — bump matchNumber when a match just resolved; persist target.
   const nextMatchNumber = matchOver ? (prevMatch?.matchNumber ?? 1) + 1 : (prevMatch?.matchNumber ?? 1);
   const matchTarget = prevMatch?.target ?? prev?.matchTarget ?? readMatchTargetFromUrl() ?? 3;
+  // S205 — when a match just resolved + no URL map lock, rotate to the
+  // next arena in the pool. Intra-match restarts (matchOver=false)
+  // keep the current map so the players don't switch venues
+  // mid-best-of-N.
+  if (matchOver && !mapLockedFromUrl) {
+    activeMapName = rotatedMapForMatch(nextMatchNumber);
+  }
   // S84 KABOOM-BOT-DIFFICULTY. Re-apply the URL preset on every
   // restart so a difficulty change without reload still kicks in next
   // round. Browser-only — `globalThis.location` is undefined in node.
