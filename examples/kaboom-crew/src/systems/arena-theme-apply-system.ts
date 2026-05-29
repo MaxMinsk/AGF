@@ -110,6 +110,66 @@ export function startArenaSkyApplyPoller(runtime: {
 }
 
 /**
+ * S201 — start a project-local rAF poller that watches the active
+ * arena theme and pushes its atmospheric extras to the renderer:
+ * (1) FogExp2 colour + density (`adapter.setSceneFog`);
+ * (2) tonemap exposure scalar (`adapter.setToneMappingExposure`).
+ *
+ * URL flag `?fog=off` clears scene fog regardless of theme (useful
+ * for screenshots + bot-vs-bot regression tests where distance haze
+ * is undesirable).
+ */
+export function startArenaAtmosphericApplyPoller(runtime: {
+  snapshot(): { entities: ReadonlyArray<{ id: string; components: Record<string, unknown> }> };
+  renderer: {
+    adapter: {
+      setSceneFog(hex: string, density: number): void;
+      setToneMappingExposure(exposure: number): void;
+    };
+  };
+}): void {
+  if (typeof requestAnimationFrame === "undefined") return;
+  const fogDisabled = readFogDisabledFromUrl();
+  let lastFogColor: string | undefined;
+  let lastFogDensity: number | undefined;
+  let lastExposure: number | undefined;
+  const tick = (): void => {
+    try {
+      const snap = runtime.snapshot();
+      const game = snap.entities.find((e) => e.id === KABOOM_GAME_STATE_ID);
+      const comp = game?.components[ARENA_THEME_COMPONENT] as
+        | ArenaThemeComponent
+        | undefined;
+      const theme = resolveArenaTheme(comp?.themeKey);
+      const effectiveDensity = fogDisabled ? 0 : theme.fogDensity;
+      if (theme.fogColor !== lastFogColor || effectiveDensity !== lastFogDensity) {
+        runtime.renderer.adapter.setSceneFog(theme.fogColor, effectiveDensity);
+        lastFogColor = theme.fogColor;
+        lastFogDensity = effectiveDensity;
+      }
+      if (theme.tonemapExposure !== lastExposure) {
+        runtime.renderer.adapter.setToneMappingExposure(theme.tonemapExposure);
+        lastExposure = theme.tonemapExposure;
+      }
+    } catch {
+      // best-effort
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function readFogDisabledFromUrl(): boolean {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return false;
+  try {
+    return new URLSearchParams(search).get("fog") === "off";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * S190 — start a project-local rAF poller that watches the active
  * arena theme and pushes its lighting tint onto light.sun (directional)
  * and light.ambient (ambient) via runtime.applyCommands. Re-uses the

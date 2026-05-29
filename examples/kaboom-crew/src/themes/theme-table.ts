@@ -56,6 +56,12 @@ export type ArenaTheme = {
   readonly ambientHemisphericGround: string;
   readonly directionalLightTint: DirectionalLightTint;
   readonly floorWangFamilyKeys: FloorWangFamilyKeys;
+  /** S201 — exponential FogExp2 colour. Far cells fade into this. */
+  readonly fogColor: string;
+  /** S201 — FogExp2 density 0..0.05. 0 disables fog for this theme. */
+  readonly fogDensity: number;
+  /** S201 — multiplier on the renderer's tonemap output. 0.7..1.3. */
+  readonly tonemapExposure: number;
 };
 
 /**
@@ -75,7 +81,10 @@ export const ARENA_THEMES: Readonly<Record<ArenaThemeKey, ArenaTheme>> = Object.
     ambientHemisphericSky: "#786c5e",
     ambientHemisphericGround: "#2e2820",
     directionalLightTint: { r: 1.0, g: 0.97, b: 0.9 },
-    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" }
+    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" },
+    fogColor: "#707068",
+    fogDensity: 0.012,
+    tonemapExposure: 1.0
   },
   factory: {
     key: "factory",
@@ -87,7 +96,10 @@ export const ARENA_THEMES: Readonly<Record<ArenaThemeKey, ArenaTheme>> = Object.
     ambientHemisphericSky: "#695445",
     ambientHemisphericGround: "#2a1f15",
     directionalLightTint: { r: 1.0, g: 0.92, b: 0.8 },
-    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" }
+    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" },
+    fogColor: "#4a3a28",
+    fogDensity: 0.014,
+    tonemapExposure: 0.95
   },
   dock: {
     key: "dock",
@@ -99,7 +111,10 @@ export const ARENA_THEMES: Readonly<Record<ArenaThemeKey, ArenaTheme>> = Object.
     ambientHemisphericSky: "#587090",
     ambientHemisphericGround: "#353030",
     directionalLightTint: { r: 0.95, g: 0.97, b: 1.0 },
-    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" }
+    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" },
+    fogColor: "#707890",
+    fogDensity: 0.013,
+    tonemapExposure: 1.0
   },
   lab: {
     key: "lab",
@@ -111,7 +126,10 @@ export const ARENA_THEMES: Readonly<Record<ArenaThemeKey, ArenaTheme>> = Object.
     ambientHemisphericSky: "#b4c0d0",
     ambientHemisphericGround: "#6a7080",
     directionalLightTint: { r: 0.92, g: 0.95, b: 1.0 },
-    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" }
+    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" },
+    fogColor: "#c8d0d6",
+    fogDensity: 0.010,
+    tonemapExposure: 1.15
   },
   bunker: {
     key: "bunker",
@@ -123,7 +141,10 @@ export const ARENA_THEMES: Readonly<Record<ArenaThemeKey, ArenaTheme>> = Object.
     ambientHemisphericSky: "#383528",
     ambientHemisphericGround: "#1a1812",
     directionalLightTint: { r: 0.85, g: 0.83, b: 0.74 },
-    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" }
+    floorWangFamilyKeys: { default: "floor", wallShadow: "wall-shadow" },
+    fogColor: "#2e2c28",
+    fogDensity: 0.018,
+    tonemapExposure: 0.85
   }
 });
 
