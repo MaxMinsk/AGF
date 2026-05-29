@@ -77,6 +77,39 @@ export function applyArenaThemeToWorld(world: World, theme: ArenaTheme): void {
 }
 
 /**
+ * S189 — start a project-local rAF poller that watches the active
+ * arena theme key and pushes its `skyColor` into the renderer's
+ * scene background. Mirrors startVertexColorsPoller: cheap snapshot
+ * read each rAF, idempotent — only writes when the tracked themeKey
+ * actually changes. Mount once from `attachUi`.
+ */
+export function startArenaSkyApplyPoller(runtime: {
+  snapshot(): { entities: ReadonlyArray<{ id: string; components: Record<string, unknown> }> };
+  renderer: { adapter: { setBackgroundColor(hex: string): void } };
+}): void {
+  if (typeof requestAnimationFrame === "undefined") return;
+  let lastApplied: string | undefined;
+  const tick = (): void => {
+    try {
+      const snap = runtime.snapshot();
+      const game = snap.entities.find((e) => e.id === KABOOM_GAME_STATE_ID);
+      const comp = game?.components[ARENA_THEME_COMPONENT] as
+        | ArenaThemeComponent
+        | undefined;
+      const theme = resolveArenaTheme(comp?.themeKey);
+      if (theme.skyColor !== lastApplied) {
+        runtime.renderer.adapter.setBackgroundColor(theme.skyColor);
+        lastApplied = theme.skyColor;
+      }
+    } catch {
+      // best-effort
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/**
  * Read the active arena theme key from the kaboom.game-state singleton.
  * Returns "warehouse" when the entity / component / key is missing.
  */
