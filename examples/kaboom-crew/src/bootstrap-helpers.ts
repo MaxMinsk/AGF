@@ -18,6 +18,11 @@ import type { EngineCommand } from "../../../engine/core/commands/types";
 import type { SceneInput } from "../../../engine/core/ecs/types";
 import type { World } from "../../../engine/core/ecs/world";
 import { readHeightFromValues } from "../../../engine/grid/height-query";
+import {
+  ARENA_THEMES,
+  type ArenaThemeKey,
+  isArenaThemeKey
+} from "./themes/theme-table";
 
 /** S176 — terrain family identifier (must match scene-extensions.schema.json). */
 export type FloorTerrainFamily = "floor" | "grass";
@@ -82,7 +87,8 @@ export function upsertEntityCommands(
  * Returns an empty array when the scene has no heightmap so flat
  * arenas pay zero overhead.
  */
-export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
+export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeKey | string): EngineCommand[] {
+  const resolvedTheme: ArenaThemeKey = isArenaThemeKey(themeKey) ? themeKey : "warehouse";
   const heightmap = scene.heightmap;
   if (heightmap === undefined || heightmap.length === 0) return [];
 
@@ -128,7 +134,7 @@ export function applyHeightmapCommands(scene: SceneInput): EngineCommand[] {
             rotation: [0, 0, 0],
             scale: [0.96, h + 0.05, 0.96]
           },
-          MeshRenderer: { mesh: "box", color: colorForHeight(h) }
+          MeshRenderer: { mesh: "box", color: colorForHeight(h, resolvedTheme) }
         }
       } as EngineCommand);
     }
@@ -255,16 +261,30 @@ function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
   return undefined;
 }
 
-/** S177 — gradient for heightmap pillar colour. H=0 → floor backdrop;
- *  higher = lighter so the user can read elevation at a glance. */
-function colorForHeight(height: number): string {
-  // base #1d2536 (start scene's floor colour) → step toward #708090
-  // (slate) per height unit. Clamp at H=4.
+/** S177 + S188 — gradient for heightmap pillar colour. H=0 → arena's
+ *  floor primary; higher steps lerp toward the active theme's hard-
+ *  block primary so pillars read as raised pieces of the same arena
+ *  material instead of a generic slate gradient. Clamp at H=4. */
+function colorForHeight(height: number, themeKey: ArenaThemeKey): string {
+  const theme = ARENA_THEMES[themeKey];
+  const lowHex = theme.floorPrimaryHex;
+  const highHex = theme.hardBlockPalette.primary;
   const clamped = Math.max(0, Math.min(4, height));
   const t = clamped / 4;
-  const lerpChannel = (a: number, b: number): number => Math.round(a + (b - a) * t);
-  const r = lerpChannel(0x1d, 0x70);
-  const g = lerpChannel(0x25, 0x80);
-  const b = lerpChannel(0x36, 0x90);
+  const low = parseHexRgb(lowHex);
+  const high = parseHexRgb(highHex);
+  const lerp = (a: number, b: number): number => Math.round(a + (b - a) * t);
+  const r = lerp(low.r, high.r);
+  const g = lerp(low.g, high.g);
+  const b = lerp(low.b, high.b);
   return "#" + r.toString(16).padStart(2, "0") + g.toString(16).padStart(2, "0") + b.toString(16).padStart(2, "0");
+}
+
+function parseHexRgb(hex: string): { r: number; g: number; b: number } {
+  const trimmed = hex.startsWith("#") ? hex.slice(1) : hex;
+  return {
+    r: Number.parseInt(trimmed.slice(0, 2), 16),
+    g: Number.parseInt(trimmed.slice(2, 4), 16),
+    b: Number.parseInt(trimmed.slice(4, 6), 16)
+  };
 }

@@ -417,7 +417,9 @@ function restartScene(runtime: RuntimeHandle): number {
   // an empty list on flat arenas so scenes without a heightmap pay zero
   // overhead.
   const restartScene_ = buildFlatStartScene();
-  const heightmapCommands_ = applyHeightmapCommands(restartScene_);
+  const restartThemeKey: ArenaThemeKey =
+    readArenaThemeFromUrl() ?? defaultThemeForArena(activeMapName);
+  const heightmapCommands_ = applyHeightmapCommands(restartScene_, restartThemeKey);
   // S176 KABOOM-FLOOR-WANG-TILES MVP — promote the source scene's
   // optional top-level `terrainmap` field into per-cell floor-overlay
   // entities. Scenes without a terrainmap return an empty list so
@@ -872,7 +874,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // returns no commands so startup pays nothing extra.
     const initialSourceScene = MAP_REGISTRY.get(activeMapName) as SceneInput | undefined;
     const initialHeightmapCommands = initialSourceScene !== undefined
-      ? applyHeightmapCommands(initialSourceScene)
+      ? applyHeightmapCommands(initialSourceScene, initialThemeKey)
       : [];
     // S176 KABOOM-FLOOR-WANG-TILES MVP — spawn per-cell floor-overlay
     // entities from the source scene's optional `terrainmap`. Empty
