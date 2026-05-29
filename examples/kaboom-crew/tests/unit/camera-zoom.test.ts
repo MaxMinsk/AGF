@@ -45,6 +45,11 @@ function setSuddenDeath(world: World, activated: boolean): void {
   world.setComponent("kaboom.game-state", "SuddenDeathState", { activated });
 }
 
+function setRoundPhase(world: World, phase: "playing" | "won" | "lost" | "draw"): void {
+  if (!world.hasEntity("kaboom.round-state")) world.addEntity("kaboom.round-state");
+  world.setComponent("kaboom.round-state", "RoundState", { phase });
+}
+
 function ortho(world: World): number {
   return world.getComponent<{ orthographicSize?: number }>("camera.main", "Camera")?.orthographicSize ?? 0;
 }
@@ -107,6 +112,57 @@ describe("kaboom camera zoom on action (S194)", () => {
     const sys = createKaboomCameraZoomSystem();
     for (let i = 0; i < 120; i += 1) sys.fixedUpdate!(ctx(world));
     expect(ortho(world)).toBeLessThanOrEqual(8 + 2 + 0.05);
+  });
+
+  it("S202: round phase 'won' pulls the camera in (negative boost)", () => {
+    const world = new World();
+    seedCamera(world, 8);
+    setRoundPhase(world, "won");
+    const sys = createKaboomCameraZoomSystem();
+    for (let i = 0; i < 120; i += 1) sys.fixedUpdate!(ctx(world));
+    // ROUND_RESOLVE_ZOOM_IN = -1.5 → target ortho ≈ 6.5.
+    expect(ortho(world)).toBeLessThan(8);
+    expect(ortho(world)).toBeGreaterThan(8 - 1.6);
+  });
+
+  it("S202: 'lost' and 'draw' also pull in", () => {
+    const lost = new World();
+    seedCamera(lost, 8);
+    setRoundPhase(lost, "lost");
+    const sysLost = createKaboomCameraZoomSystem();
+    for (let i = 0; i < 120; i += 1) sysLost.fixedUpdate!(ctx(lost));
+    expect(ortho(lost)).toBeLessThan(8);
+
+    const draw = new World();
+    seedCamera(draw, 8);
+    setRoundPhase(draw, "draw");
+    const sysDraw = createKaboomCameraZoomSystem();
+    for (let i = 0; i < 120; i += 1) sysDraw.fixedUpdate!(ctx(draw));
+    expect(ortho(draw)).toBeLessThan(8);
+  });
+
+  it("S202: returning to 'playing' eases zoom back out", () => {
+    const world = new World();
+    seedCamera(world, 8);
+    setRoundPhase(world, "won");
+    const sys = createKaboomCameraZoomSystem();
+    for (let i = 0; i < 120; i += 1) sys.fixedUpdate!(ctx(world));
+    expect(ortho(world)).toBeLessThan(8);
+    setRoundPhase(world, "playing");
+    for (let i = 0; i < 240; i += 1) sys.fixedUpdate!(ctx(world));
+    expect(Math.abs(ortho(world) - 8)).toBeLessThan(0.05);
+  });
+
+  it("S202: sudden death + round resolve net to a smaller (less negative) effective boost", () => {
+    const world = new World();
+    seedCamera(world, 8);
+    setSuddenDeath(world, true);
+    setRoundPhase(world, "won");
+    const sys = createKaboomCameraZoomSystem();
+    for (let i = 0; i < 120; i += 1) sys.fixedUpdate!(ctx(world));
+    // SD adds +0.6; resolve adds -1.5; net -0.9 → 7.1.
+    expect(ortho(world)).toBeLessThan(8);
+    expect(ortho(world)).toBeGreaterThan(7.0);
   });
 
   it("non-orthographic cameras are ignored", () => {
