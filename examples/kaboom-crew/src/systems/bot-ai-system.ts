@@ -376,8 +376,18 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       // danger cell faster than a normal walk. Uses the AI-chosen
       // escape direction; only fires when that direction is a clean
       // cardinal (not both-zero) so the dash always points somewhere.
+      //
+      // S206 — hunter personality ALSO dashes proactively to close
+      // distance on the player when they're 2 or 3 cells away in
+      // the bot's chosen direction. Other personalities (coward,
+      // miner) only use dash for the escape path.
+      const inDangerNow = danger.has(cellKey(pos.gx, pos.gz));
+      const hunterChase =
+        !inDangerNow
+        && (brain.personality ?? "hunter") === "hunter"
+        && playerInDashLine(world, pos, direction);
       if (
-        danger.has(cellKey(pos.gx, pos.gz))
+        (inDangerNow || hunterChase)
         && (direction.dx !== 0 || direction.dz !== 0)
       ) {
         const stats = world.getComponent<BomberStatsForDash>(botId, BOMBER_STATS);
@@ -424,6 +434,41 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
  *  inside any of those bombs' blast radius cells. Pure read-only —
  *  exported so unit tests can lock the policy without spinning the
  *  whole system. */
+/** S206 — pure helper: returns true when an alive player.* bomber sits
+ *  2 or 3 cells in `(dx, dz)` direction from `(pos.gx, pos.gz)`, on the
+ *  same row or column as the bot. The hunter bot uses this signal to
+ *  fire an offensive DashRequest in the same direction so it closes
+ *  distance on the player before the player can react. Exported for
+ *  unit tests. */
+export function playerInDashLine(
+  world: World,
+  pos: { gx: number; gz: number },
+  direction: { dx: number; dz: number }
+): boolean {
+  if (direction.dx === 0 && direction.dz === 0) return false;
+  if (direction.dx !== 0 && direction.dz !== 0) return false; // cardinal only
+  for (const id of world.entityIds()) {
+    if (!id.startsWith("player.")) continue;
+    if (!world.hasComponent(id, BOMBER_STATS)) continue;
+    const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+    if (stats?.alive === false) continue;
+    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (gp?.gx === undefined || gp?.gz === undefined) continue;
+    const stepGx = gp.gx - pos.gx;
+    const stepGz = gp.gz - pos.gz;
+    if (direction.dx !== 0) {
+      if (stepGz !== 0) continue;
+      const dist = stepGx * Math.sign(direction.dx);
+      if (dist === 2 || dist === 3) return true;
+    } else {
+      if (stepGx !== 0) continue;
+      const dist = stepGz * Math.sign(direction.dz);
+      if (dist === 2 || dist === 3) return true;
+    }
+  }
+  return false;
+}
+
 export function shouldRemoteDetonate(world: World, ownerId: EntityId): boolean {
   const pausedBombs: Array<{ gx: number; gz: number; range: number }> = [];
   for (const id of world.entityIds()) {
