@@ -3,6 +3,7 @@ import { createGridOccupancySystem } from "../../engine/core/systems/grid-occupa
 import { createGridMovementSystem } from "../../engine/core/systems/grid-movement-system";
 import { createKaboomBomberHeightLiftSystem } from "./src/systems/bomber-height-lift-system";
 import { createKaboomStepJumpFxSystem } from "./src/systems/step-jump-fx-system";
+import { createKaboomPickupHoverSpinSystem } from "./src/systems/pickup-hover-spin-system";
 import { fadeOutOpacityCurve } from "./src/title-fade";
 import type { SceneInput } from "../../engine/core/ecs/types";
 import type { EngineCommand } from "../../engine/core/commands/types";
@@ -573,6 +574,12 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // the previous cell. Runs after height-lift so the puff lands on
     // the post-tween GridPosition.
     scheduler.register(createKaboomStepJumpFxSystem(), { profiles: ["static", "connected"] });
+    // S191 KABOOM-PICKUP-HOVER-SPIN — gentle hover + slow Y spin on
+    // pickup items so they read as collectibles at a glance. Runs
+    // after height-lift so its bob layers on top of the cell-height
+    // offset; phase per-entity so a cluster of pickups doesn't bob in
+    // lockstep.
+    scheduler.register(createKaboomPickupHoverSpinSystem(), { profiles: ["static", "connected"] });
     // S165 KABOOM-MULTI-VARIANT-BLOCKS + S170 KABOOM-WANG-INTEGRATION —
     // stamp WangTile + WangTileFamilyMember on every hard / soft block
     // cell. The engine resolver (registered immediately below) computes
