@@ -26,6 +26,7 @@ const GRID_MOVER: ComponentName = "GridMover";
 const GRID_POSITION: ComponentName = "GridPosition";
 const BOMB: ComponentName = "Bomb";
 const BOMBER_STATS: ComponentName = "BomberStats";
+const DASH_REQUEST: ComponentName = "DashRequest";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
 // S88 KABOOM-BOT-DANGER-AVOID. Live BlastTiles cover an active
 // explosion for a fraction of a second — walking onto one kills.
@@ -74,6 +75,11 @@ type GridMoverComponent = {
 
 type GridPos = { gx: number; gz: number };
 type Bomb = { range: number };
+type BomberStatsForDash = {
+  alive?: boolean;
+  dashing?: boolean;
+  dashCooldownRemainingMs?: number;
+};
 
 export type BotAISystemOptions = {
   occupancy: GridOccupancyQuery;
@@ -362,6 +368,26 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
       if (mover !== undefined) {
         world.setComponent(botId, GRID_MOVER, { ...mover, queuedDirection: direction });
+      }
+      // S203 — bot dashes to escape when the current cell is in the
+      // danger set AND the dash is ready. The dash-system inflates
+      // GridMover.speed for 240ms (S198), so the bot clears the
+      // danger cell faster than a normal walk. Uses the AI-chosen
+      // escape direction; only fires when that direction is a clean
+      // cardinal (not both-zero) so the dash always points somewhere.
+      if (
+        danger.has(cellKey(pos.gx, pos.gz))
+        && (direction.dx !== 0 || direction.dz !== 0)
+      ) {
+        const stats = world.getComponent<BomberStatsForDash>(botId, BOMBER_STATS);
+        const dashReady =
+          stats !== undefined
+          && stats.alive !== false
+          && (stats.dashCooldownRemainingMs ?? 0) <= 0
+          && stats.dashing !== true;
+        if (dashReady && !world.hasComponent(botId, DASH_REQUEST)) {
+          world.setComponent(botId, DASH_REQUEST, { dx: direction.dx, dz: direction.dz });
+        }
       }
       world.setComponent(botId, BOT_BRAIN, {
         ...brain,
