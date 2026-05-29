@@ -88,6 +88,7 @@ import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
 import { createKaboomCameraShakeSystem } from "./src/systems/camera-shake-system";
+import { createKaboomCameraZoomSystem } from "./src/systems/camera-zoom-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 // S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
 // builders for hard / soft blocks + floor tiles; block-variant-system
@@ -680,6 +681,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // blast-propagation consumes them. Perturbs the active camera's
     // Transform.position; intensity scales with blast range.
     scheduler.register(createKaboomCameraShakeSystem(), { profiles: ["static", "connected"] });
+    // S194 KABOOM-CAMERA-ZOOM-ON-ACTION — orthographicSize eases out
+    // when bombs / blast tiles are active or sudden death is on; eases
+    // back when the arena quiets. No position lerp (S163 doubling
+    // risk) — only the projection scalar.
+    scheduler.register(createKaboomCameraZoomSystem(), { profiles: ["static", "connected"] });
 
     // S132 KABOOM-DEATH-TRIGGER (replaces the S90/S105 procedural-spring
     // path). Watches BomberStats.alive true→false; detaches the 10
