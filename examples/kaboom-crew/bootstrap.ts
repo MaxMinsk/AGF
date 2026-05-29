@@ -79,6 +79,7 @@ import { createKaboomSoftBlockDebrisSystem } from "./src/systems/soft-block-debr
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
+import { createKaboomRoundCelebrationFxSystem } from "./src/systems/round-celebration-fx-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
 import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
@@ -822,6 +823,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       }),
       { profiles: ["static"] }
     );
+    // S199 KABOOM-ROUND-CELEBRATION-FX — spawns a particle burst at
+    // the winner on the round-phase transition. Runs after round-
+    // resolve so the new RoundState.phase / winnerId are visible.
+    scheduler.register(createKaboomRoundCelebrationFxSystem(), { profiles: ["static", "connected"] });
     // S160 KABOOM-SUDDEN-DEATH — runs after round-resolve so phase-flip
     // wins over a new ring spawn on the resolving tick.
     scheduler.register(createKaboomSuddenDeathSystem(), { profiles: ["static"] });
