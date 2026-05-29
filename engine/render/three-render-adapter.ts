@@ -1637,6 +1637,16 @@ export class ThreeRenderAdapter {
   }
 
   /**
+   * S189 — set the scene's background colour at runtime. Project code
+   * calls this from a project-local "theme-apply" system to recolour
+   * the backdrop when the arena swaps themes. Replaces any previously
+   * set background (Color, gradient texture, HDR equirect, cube map).
+   */
+  setBackgroundColor(hex: string | number): void {
+    this.scene.background = new Color(hex);
+  }
+
+  /**
    * S57 GROUND-skybox. Mounts (or replaces) the curved-bottom sky mesh
    * plus an invisible shadow-catcher plane at the same height. The
    * shadow-catcher uses ShadowMaterial — fully transparent except for

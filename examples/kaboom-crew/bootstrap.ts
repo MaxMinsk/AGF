@@ -100,7 +100,10 @@ import {
 // S171 KABOOM-ARENA-THEMES MVP (GDP-2026-05-28-013) — re-tint the floor
 // MeshRenderer.color at scene-load from a registered theme. Lighting +
 // block-palette re-tinting deferred (see theme-table.ts header).
-import { createArenaThemeApplySystem } from "./src/systems/arena-theme-apply-system";
+import {
+  createArenaThemeApplySystem,
+  startArenaSkyApplyPoller
+} from "./src/systems/arena-theme-apply-system";
 import {
   defaultThemeForArena,
   isArenaThemeKey,
@@ -1041,6 +1044,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // spawns once + needs an explicit poll until every mesh handle
     // exists (MeshLifecycleSystem creates them on the next tick).
     startVertexColorsPoller(runtime);
+    // S189 KABOOM-ARENA-SKY-COLOR — sync the scene background to the
+    // active theme's skyColor whenever the ArenaTheme component
+    // changes (initial load + restart + URL flag flip).
+    startArenaSkyApplyPoller(runtime);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
