@@ -70,6 +70,7 @@ import { createKaboomBombFuseColorSystem } from "./src/systems/bomb-fuse-color-s
 import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
 import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
 import { createKaboomDashSystem } from "./src/systems/dash-system";
+import { createKaboomDashTrailSystem } from "./src/systems/dash-trail-system";
 import { createKaboomConveyorBeltSystem } from "./src/systems/conveyor-belt-system";
 import { createKaboomWarpHoleSystem } from "./src/systems/warp-hole-system";
 import { createKaboomPressurePlateSystem } from "./src/systems/pressure-plate-system";
@@ -661,6 +662,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S159 KABOOM-DASH — consumes Shift+direction DashRequest transients;
     // arcs the bomber 2 cells in 200ms over an arc; 3s cooldown.
     scheduler.register(createKaboomDashSystem(), { profiles: ["static"] });
+    // S197 KABOOM-DASH-TRAIL — co-spawn a short-lived 'glow' emitter
+    // every ~35ms while BomberStats.dashing is true, so the dash
+    // reads as a comet tail along the arc.
+    scheduler.register(createKaboomDashTrailSystem(), { profiles: ["static", "connected"] });
     // S146 KABOOM-CONVEYOR-BELT — push bombers + bombs along belt
     // direction. Runs BEFORE bomb-fuse-system so a belt push on the
     // same tick a bomb detonates updates GridPosition first.
