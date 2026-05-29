@@ -224,4 +224,84 @@ describe("createKaboomBotAISystem (S82 KABOOM-BOT-AI)", () => {
     // SOMETHING was picked — not frozen at (0,0).
     expect(Math.abs(mover.queuedDirection.dx) + Math.abs(mover.queuedDirection.dz)).toBeGreaterThan(0);
   });
+
+  describe("S203 bot dash escape", () => {
+    it("bot in a danger cell with dash ready writes a DashRequest in a cardinal escape direction", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 3);
+      addBomb(world, "bomb.1", 3, 5, 4);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(true);
+      const req = world.getComponent<{ dx: number; dz: number }>("bot.1", "DashRequest");
+      expect(req).toBeDefined();
+      expect(Math.abs(req!.dx) + Math.abs(req!.dz)).toBe(1);
+    });
+
+    it("bot NOT in danger does not dash", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 1);
+      addBomb(world, "bomb.1", 8, 8, 2);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+
+    it("bot in danger but on cooldown does not dash", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 3);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 0,
+        alive: true,
+        dashCooldownRemainingMs: 1500
+      });
+      addBomb(world, "bomb.1", 3, 5, 4);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+
+    it("bot in danger but already dashing does not write another DashRequest", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 3);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 0,
+        alive: true,
+        dashing: true
+      });
+      addBomb(world, "bomb.1", 3, 5, 4);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+
+    it("dead bot does not dash", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 3);
+      world.setComponent("bot.1", "BomberStats", {
+        maxBombs: 1,
+        range: 2,
+        activeBombs: 0,
+        alive: false
+      });
+      addBomb(world, "bomb.1", 3, 5, 4);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+  });
 });
