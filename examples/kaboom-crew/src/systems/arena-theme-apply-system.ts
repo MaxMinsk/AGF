@@ -110,6 +110,75 @@ export function startArenaSkyApplyPoller(runtime: {
 }
 
 /**
+ * S190 — start a project-local rAF poller that watches the active
+ * arena theme and pushes its lighting tint onto light.sun (directional)
+ * and light.ambient (ambient) via runtime.applyCommands. Re-uses the
+ * existing engine light-lifecycle-system as the application path — the
+ * poller just stamps the Light component's `color` field, the system
+ * propagates it to the underlying Three.js light next tick.
+ *
+ * Idempotent — only emits commands when the resolved themeKey changes.
+ */
+export function startArenaLightApplyPoller(runtime: {
+  snapshot(): { entities: ReadonlyArray<{ id: string; components: Record<string, unknown> }> };
+  applyCommands(commands: ReadonlyArray<unknown>): void;
+}): void {
+  if (typeof requestAnimationFrame === "undefined") return;
+  let lastApplied: string | undefined;
+  const tick = (): void => {
+    try {
+      const snap = runtime.snapshot();
+      const game = snap.entities.find((e) => e.id === KABOOM_GAME_STATE_ID);
+      const comp = game?.components[ARENA_THEME_COMPONENT] as
+        | ArenaThemeComponent
+        | undefined;
+      const theme = resolveArenaTheme(comp?.themeKey);
+      if (theme.key === lastApplied) {
+        requestAnimationFrame(tick);
+        return;
+      }
+      const sun = snap.entities.find((e) => e.id === "light.sun");
+      const sunLight = sun?.components["Light"] as { color?: string; intensity?: number } | undefined;
+      const ambient = snap.entities.find((e) => e.id === "light.ambient");
+      const ambientLight = ambient?.components["Light"] as { color?: string; intensity?: number } | undefined;
+      const commands: unknown[] = [];
+      if (sunLight !== undefined) {
+        commands.push({
+          kind: "component.set",
+          entityId: "light.sun",
+          component: "Light",
+          data: { ...sunLight, color: tintToHex(theme.directionalLightTint) }
+        });
+      }
+      if (ambientLight !== undefined) {
+        commands.push({
+          kind: "component.set",
+          entityId: "light.ambient",
+          component: "Light",
+          data: { ...ambientLight, color: theme.ambientHemisphericSky }
+        });
+      }
+      if (commands.length > 0) runtime.applyCommands(commands);
+      lastApplied = theme.key;
+    } catch {
+      // best-effort
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/** Convert a directionalLightTint (r/g/b in [0,1]) to a #rrggbb hex
+ *  string by treating it as a multiplier against pure white. */
+export function tintToHex(tint: { r: number; g: number; b: number }): string {
+  const c = (v: number): string => {
+    const clamped = Math.max(0, Math.min(1, v));
+    return Math.round(clamped * 255).toString(16).padStart(2, "0");
+  };
+  return "#" + c(tint.r) + c(tint.g) + c(tint.b);
+}
+
+/**
  * Read the active arena theme key from the kaboom.game-state singleton.
  * Returns "warehouse" when the entity / component / key is missing.
  */

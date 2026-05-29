@@ -102,7 +102,8 @@ import {
 // block-palette re-tinting deferred (see theme-table.ts header).
 import {
   createArenaThemeApplySystem,
-  startArenaSkyApplyPoller
+  startArenaSkyApplyPoller,
+  startArenaLightApplyPoller
 } from "./src/systems/arena-theme-apply-system";
 import {
   defaultThemeForArena,
@@ -1048,6 +1049,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // active theme's skyColor whenever the ArenaTheme component
     // changes (initial load + restart + URL flag flip).
     startArenaSkyApplyPoller(runtime);
+    // S190 KABOOM-ARENA-LIGHT-TINT — recolour light.sun + light.ambient
+    // from theme.directionalLightTint / ambientHemisphericSky on theme
+    // change. Engine light-lifecycle-system propagates the colour to
+    // the underlying Three.js light next tick.
+    startArenaLightApplyPoller(runtime);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
