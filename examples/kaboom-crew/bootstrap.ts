@@ -66,6 +66,7 @@ import { createKaboomPlaceBombNetworkRelaySystem } from "./src/systems/place-bom
 import { createKaboomConnectedBlastDecoderSystem } from "./src/systems/connected-blast-decoder-system";
 import { createKaboomBombKickSystem } from "./src/systems/bomb-kick-system";
 import { createKaboomBombFuseSystem } from "./src/systems/bomb-fuse-system";
+import { createKaboomBombFuseColorSystem } from "./src/systems/bomb-fuse-color-system";
 import { createKaboomBombPickupSystem } from "./src/systems/bomb-pickup-system";
 import { createKaboomBombThrowSystem } from "./src/systems/bomb-throw-system";
 import { createKaboomDashSystem } from "./src/systems/dash-system";
@@ -679,6 +680,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // fuse + emits blastEvent when it hits zero; running the local fuse
     // would double-detonate.
     scheduler.register(createKaboomBombFuseSystem(), { profiles: ["static"] });
+    // S196 KABOOM-BOMB-FUSE-COLOR — visual telegraph in the final
+    // 0.6s of fuse: lerp the bomb's MeshRenderer.color toward bright
+    // orange so the player can read 'about to blow' at a glance,
+    // independent of the S90 scale wiggle. Runs on both profiles
+    // (visual only, server-authoritative fuse on connected still
+    // drives bomb.fuseRemaining the same way).
+    scheduler.register(createKaboomBombFuseColorSystem(), { profiles: ["static", "connected"] });
     // S84 KABOOM-AUDIO-WIRE — register BEFORE blast-propagation so the
     // binding system sees the BlastEvent transient before propagation
     // consumes it. The late-bound closure indirects to attachUi where
