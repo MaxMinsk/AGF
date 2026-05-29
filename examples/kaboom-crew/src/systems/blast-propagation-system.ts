@@ -128,6 +128,11 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
                 pierceBudget -= 1;
                 continue;
               }
+            } else {
+              // S193 — hard wall absorbed the blast. Spawn a tiny ping
+              // spark at the wall's edge so the player sees WHERE the
+              // blast stopped, not just an arbitrary fade.
+              spawnHardWallPing(world, gx, gz, direction.dx, direction.dz);
             }
             break;
           }
@@ -218,6 +223,29 @@ function destroySoftBlocksAt(
   if (ids.length === 0) return;
   for (const id of ids) world.removeEntity(id);
   emitSoftBlockDestroyed(world, gx, gz, nextEventId);
+}
+
+/** S193 — co-spawn a short-lived spark emitter at the wall's edge.
+ *  Positioned ~0.5 cells toward the camera-facing side of the wall
+ *  (`-dx, -dz` from cell centre) so the sparks read as bouncing off
+ *  the impact face rather than emerging from inside the block. */
+let hardWallPingCounter = 0;
+function spawnHardWallPing(world: World, gx: number, gz: number, dx: number, dz: number): void {
+  hardWallPingCounter += 1;
+  const emitterId = `kaboom.hard-wall-ping.${hardWallPingCounter}.${gx}.${gz}`;
+  world.addEntity(emitterId);
+  world.setComponent(emitterId, TRANSFORM, {
+    position: [gx - dx * 0.5, 0.4, gz - dz * 0.5],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1]
+  });
+  world.setComponent(emitterId, "ParticleEmitter", {
+    preset: "spark",
+    lifetime: 0.18,
+    elapsed: 0,
+    rate: 60,
+    maxParticles: 8
+  });
 }
 
 function emitSoftBlockDestroyed(
