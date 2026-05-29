@@ -35,6 +35,7 @@ import {
   CanvasTexture,
   Color,
   DirectionalLight,
+  FogExp2,
   EquirectangularReflectionMapping,
   HemisphereLight,
   IcosahedronGeometry,
@@ -1644,6 +1645,31 @@ export class ThreeRenderAdapter {
    */
   setBackgroundColor(hex: string | number): void {
     this.scene.background = new Color(hex);
+  }
+
+  /**
+   * S201 — set scene fog (FogExp2 — exponential distance fade).
+   * `density` ≈ 0..0.05 in practice; 0 disables. Set both per-theme
+   * to bind the distant haze to the active arena's palette.
+   */
+  setSceneFog(hex: string | number, density: number): void {
+    if (density <= 0) {
+      this.scene.fog = null;
+      return;
+    }
+    if (this.scene.fog instanceof FogExp2) {
+      this.scene.fog.color.set(hex);
+      this.scene.fog.density = density;
+    } else {
+      this.scene.fog = new FogExp2(new Color(hex).getHex(), density);
+    }
+  }
+
+  /** S201 — scalar multiplier on the renderer's tonemap output. >1
+   *  brightens, <1 dims. Used by per-theme atmosphere to match each
+   *  arena's mood (lab punchier, bunker dimmer). */
+  setToneMappingExposure(exposure: number): void {
+    this.device.toneMappingExposure = exposure;
   }
 
   /**

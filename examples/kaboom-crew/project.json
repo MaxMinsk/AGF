@@ -8,6 +8,7 @@
     "mode": "webgpu",
     "background": "#0a0e1c",
     "batching": { "auto": true },
+    "color": { "toneMapping": "aces-filmic", "exposure": 1.0 },
     "particlePreWarmPresets": ["spark", "glow", "pulse"]
   },
   "physics": {

@@ -110,7 +110,8 @@ import {
 import {
   createArenaThemeApplySystem,
   startArenaSkyApplyPoller,
-  startArenaLightApplyPoller
+  startArenaLightApplyPoller,
+  startArenaAtmosphericApplyPoller
 } from "./src/systems/arena-theme-apply-system";
 import {
   defaultThemeForArena,
@@ -1118,6 +1119,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // change. Engine light-lifecycle-system propagates the colour to
     // the underlying Three.js light next tick.
     startArenaLightApplyPoller(runtime);
+    // S201 KABOOM-ARENA-ATMOSPHERIC — push the per-theme fog colour +
+    // density + tonemap exposure to the renderer each theme change.
+    // ?fog=off URL flag clears scene fog regardless of theme.
+    startArenaAtmosphericApplyPoller(runtime);
     let titleScreenMounted = false;
     let gameStarted = false;
     // S85 KABOOM-CONTROLS-HINT — performance.now() when the round
