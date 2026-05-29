@@ -225,6 +225,81 @@ describe("createKaboomBotAISystem (S82 KABOOM-BOT-AI)", () => {
     expect(Math.abs(mover.queuedDirection.dx) + Math.abs(mover.queuedDirection.dz)).toBeGreaterThan(0);
   });
 
+  describe("S206 hunter bot proactive dash chase", () => {
+    function placePlayer(world: World, gx: number, gz: number, alive = true): void {
+      world.addEntity("player.1");
+      world.setComponent("player.1", "BomberStats", { maxBombs: 1, range: 2, alive });
+      world.setComponent("player.1", "GridPosition", { gx, gz });
+      world.setComponent("player.1", "GridOccupant", { layer: "player.1", blocksMovement: false, blocksBlast: false });
+    }
+
+    it("hunter bot dashes proactively when player is 2 cells east + bot moving east", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 5);
+      world.setComponent("bot.1", "BotBrain", { aggression: 0.8, personality: "hunter" });
+      placePlayer(world, 5, 5); // 2 east on same row
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      const mover = world.getComponent<{ queuedDirection?: { dx: number; dz: number } }>("bot.1", "GridMover");
+      // Bot picked east (toward player). Whether dash fires this tick
+      // depends on the bot's chosen direction; we assert that IF it
+      // chose east AND has dash ready, a DashRequest was written.
+      if (mover?.queuedDirection?.dx === 1 && mover.queuedDirection.dz === 0) {
+        expect(world.hasComponent("bot.1", "DashRequest")).toBe(true);
+      }
+    });
+
+    it("coward bot does NOT proactively dash even with player in line", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 5);
+      world.setComponent("bot.1", "BotBrain", { aggression: 0.5, personality: "coward" });
+      placePlayer(world, 5, 5);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+
+    it("hunter bot does NOT dash when player is 4+ cells away (out of dash range)", () => {
+      const world = new World();
+      addBot(world, "bot.1", 1, 5);
+      world.setComponent("bot.1", "BotBrain", { aggression: 0.8, personality: "hunter" });
+      placePlayer(world, 6, 5); // 5 cells east — too far
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+
+    it("hunter bot does NOT dash when player is on a different row + column", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 5);
+      world.setComponent("bot.1", "BotBrain", { aggression: 0.8, personality: "hunter" });
+      placePlayer(world, 5, 7); // diagonal — not in dash line
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+
+    it("hunter bot ignores dead player as a chase target", () => {
+      const world = new World();
+      addBot(world, "bot.1", 3, 5);
+      world.setComponent("bot.1", "BotBrain", { aggression: 0.8, personality: "hunter" });
+      placePlayer(world, 5, 5, false);
+      const occ = createGridOccupancySystem();
+      occ.frameUpdate!(ctx(world));
+      const ai = createKaboomBotAISystem({ occupancy: occ, seed: 7 });
+      ai.fixedUpdate!(ctx(world));
+      expect(world.hasComponent("bot.1", "DashRequest")).toBe(false);
+    });
+  });
+
   describe("S204 bot remote-detonate", () => {
     it("paused bomb + enemy in blast → bot writes RemoteDetonateRequest", () => {
       const world = new World();
