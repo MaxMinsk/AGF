@@ -280,11 +280,19 @@ function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
 //   ?revenge=off              disables the feature
 //   ?revengeCount=N           per-round bomb budget per dead bomber
 //   ?revengeCooldownS=N       seconds between successive launches
-function readRevengeParamsFromUrl(): { disabled: boolean; bombsBudget: number; cooldownS: number } {
+//   ?revengeBotAi=on          enable bot auto-fire (off by default;
+//                             waits for the V2 arc/telegraph polish)
+function readRevengeParamsFromUrl(): {
+  disabled: boolean;
+  bombsBudget: number;
+  cooldownS: number;
+  botAutoFire: boolean;
+} {
   const defaults = {
     disabled: false,
     bombsBudget: REVENGE_BUDGET_DEFAULT,
-    cooldownS: REVENGE_COOLDOWN_S_DEFAULT
+    cooldownS: REVENGE_COOLDOWN_S_DEFAULT,
+    botAutoFire: false
   };
   const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
   if (search === undefined || search.length === 0) return defaults;
@@ -297,7 +305,8 @@ function readRevengeParamsFromUrl(): { disabled: boolean; bombsBudget: number; c
     const coolRaw = params.get("revengeCooldownS");
     const coolParsed = coolRaw === null ? defaults.cooldownS : Number(coolRaw);
     const cooldownS = Number.isFinite(coolParsed) && coolParsed >= 0 ? coolParsed : defaults.cooldownS;
-    return { disabled, bombsBudget, cooldownS };
+    const botAutoFire = params.get("revengeBotAi") === "on";
+    return { disabled, bombsBudget, cooldownS, botAutoFire };
   } catch {
     return defaults;
   }
@@ -996,7 +1005,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         createKaboomRevengeSystem({
           disabled: params.disabled,
           bombsBudget: params.bombsBudget,
-          cooldownS: params.cooldownS
+          cooldownS: params.cooldownS,
+          botAutoFire: params.botAutoFire
         }),
         { profiles: ["static", "connected"] }
       );

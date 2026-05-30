@@ -72,6 +72,13 @@ export type KaboomRevengeSystemOptions = {
   cooldownS?: number;
   /** Override bot cooldown (defaults to REVENGE_BOT_COOLDOWN_S_DEFAULT). */
   botCooldownS?: number;
+  /** S211 hotfix: bot auto-fire is OFF by default. Without an arc
+   *  animation + warning telegraph, dead bots spamming revenge
+   *  bombs at the player's exact cell every 6 s feels unfair (the
+   *  player has no signal that a bomb is about to spawn under
+   *  them). URL `?revengeBotAi=on` re-enables once the visual
+   *  telegraph lands in V2. */
+  botAutoFire?: boolean;
   /** Override the revenge bomb's blast range. */
   bombRange?: number;
   /** Optional id factory — tests inject deterministic counters. */
@@ -84,6 +91,7 @@ export function createKaboomRevengeSystem(options: KaboomRevengeSystemOptions = 
   const bombsBudget = Math.max(0, Math.floor(options.bombsBudget ?? REVENGE_BUDGET_DEFAULT));
   const cooldownS = Math.max(0, options.cooldownS ?? REVENGE_COOLDOWN_S_DEFAULT);
   const botCooldownS = Math.max(0, options.botCooldownS ?? REVENGE_BOT_COOLDOWN_S_DEFAULT);
+  const botAutoFire = options.botAutoFire === true;
   const bombRange = Math.max(1, Math.floor(options.bombRange ?? REVENGE_BOMB_RANGE_DEFAULT));
   let counter = 0;
   const nextBombId =
@@ -170,22 +178,29 @@ export function createKaboomRevengeSystem(options: KaboomRevengeSystemOptions = 
 
     // 4. Bot auto-fire: every dead bot with cooldown=0 + budget>0
     // posts a RevengeBombRequest targeting the alive bomber nearest
-    // to the BOT'S last grid position (death cell).
-    for (const id of states!.run()) {
-      if (!world.hasComponent(id, BOT_BRAIN)) continue;
-      if (world.hasComponent(id, REVENGE_BOMB_REQUEST)) continue;
-      const rs = world.getComponent<RevengeStateRead>(id, REVENGE_STATE);
-      if (rs === undefined) continue;
-      if ((rs.cooldownRemainingS ?? 0) > 0) continue;
-      if ((rs.bombsRemaining ?? 0) <= 0) continue;
-      const myPos = world.getComponent<GridPos>(id, GRID_POSITION);
-      if (myPos === undefined) continue;
-      const target = nearestAliveBomberCell(world, id);
-      if (target === undefined) continue;
-      world.setComponent(id, REVENGE_BOMB_REQUEST, {
-        targetGx: target.gx,
-        targetGz: target.gz
-      });
+    // to the BOT'S last grid position (death cell). DISABLED by
+    // default in V1 — without an arc/telegraph animation, dead bots
+    // spawning bombs at the alive player's exact cell every 6 s
+    // reads as 'random bombs falling under me'. Opt-in via
+    // `?revengeBotAi=on`; manual revenge launches (probe / future
+    // mouse UI) work regardless of this flag.
+    if (botAutoFire) {
+      for (const id of states!.run()) {
+        if (!world.hasComponent(id, BOT_BRAIN)) continue;
+        if (world.hasComponent(id, REVENGE_BOMB_REQUEST)) continue;
+        const rs = world.getComponent<RevengeStateRead>(id, REVENGE_STATE);
+        if (rs === undefined) continue;
+        if ((rs.cooldownRemainingS ?? 0) > 0) continue;
+        if ((rs.bombsRemaining ?? 0) <= 0) continue;
+        const myPos = world.getComponent<GridPos>(id, GRID_POSITION);
+        if (myPos === undefined) continue;
+        const target = nearestAliveBomberCell(world, id);
+        if (target === undefined) continue;
+        world.setComponent(id, REVENGE_BOMB_REQUEST, {
+          targetGx: target.gx,
+          targetGz: target.gz
+        });
+      }
     }
 
     // 5. Consume RevengeBombRequest entities — validate + spawn.

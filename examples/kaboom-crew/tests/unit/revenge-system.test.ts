@@ -161,16 +161,26 @@ describe("kaboom revenge (S211)", () => {
     expect(rs.cooldownRemainingS).toBeCloseTo(REVENGE_COOLDOWN_S_DEFAULT - 1, 3);
   });
 
-  it("bot auto-fire: dead bot with cooldown=0 emits RevengeBombRequest at nearest alive bomber", () => {
+  it("bot auto-fire: OFF by default — dead bot does NOT spawn revenge bombs", () => {
     const world = new World();
     setupBomber(world, "player.1", 3, 3);
     setupBomber(world, "bot.1", 8, 8, { isBot: true });
     setupRoundState(world);
     const sys = createKaboomRevengeSystem();
     killBomber(world, "bot.1");
+    for (let i = 0; i < 30; i += 1) sys.fixedUpdate!(ctx(world));
+    expect(countRevengeBombs(world)).toBe(0);
+  });
+
+  it("bot auto-fire (botAutoFire:true): dead bot with cooldown=0 spawns revenge bomb at nearest alive bomber", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 3, 3);
+    setupBomber(world, "bot.1", 8, 8, { isBot: true });
+    setupRoundState(world);
+    const sys = createKaboomRevengeSystem({ botAutoFire: true });
+    killBomber(world, "bot.1");
     sys.fixedUpdate!(ctx(world));
     sys.fixedUpdate!(ctx(world));
-    // First-tick init left the bot at cooldown 0; second tick auto-fired and spawned a bomb at player.1's cell.
     expect(countRevengeBombs(world)).toBe(1);
     for (const id of world.entityIds()) {
       if (!id.startsWith("revenge-bomb.")) continue;
