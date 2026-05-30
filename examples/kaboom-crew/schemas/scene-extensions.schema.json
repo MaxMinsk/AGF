@@ -34,7 +34,9 @@
     "AccessoryDetachFired": { "$ref": "#/definitions/accessoryDetachFiredComponent" },
     "ArenaTheme": { "$ref": "#/definitions/arenaThemeComponent" },
     "FloorTerrain": { "$ref": "#/definitions/floorTerrainComponent" },
-    "LootDropDecay": { "$ref": "#/definitions/lootDropDecayComponent" }
+    "LootDropDecay": { "$ref": "#/definitions/lootDropDecayComponent" },
+    "RevengeState": { "$ref": "#/definitions/revengeStateComponent" },
+    "RevengeBombRequest": { "$ref": "#/definitions/revengeBombRequestComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -140,6 +142,26 @@
           "default": "floor",
           "description": "Terrain family. 'floor' is the default backdrop (no overlay entity needed). 'grass' spawns a thin overlay slab whose Wang variant resolves from neighbouring grass cells."
         }
+      }
+    },
+    "revengeStateComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S211 KABOOM-REVENGE (GDP-2026-05-30-002). Stamped on a bomber the moment BomberStats.alive flips false. Lets the dead bomber keep participating: each tick the cooldown ticks down; when it reaches 0 the bomber can fire a RevengeBombRequest that spawns a bomb at an arbitrary cell with ownerId = the dead bomber (kill credit goes back to them). Capped at `bombsRemaining` per round; cleared on RoundState.phase 'playing' edge (round restart).",
+      "required": ["bombsRemaining"],
+      "properties": {
+        "bombsRemaining": { "type": "integer", "minimum": 0, "description": "Revenge bombs still available this round. Decrements on launch; round restart resets to the project default (5)." },
+        "cooldownRemainingS": { "type": "number", "minimum": 0, "default": 0, "description": "Seconds until the next revenge launch is allowed. Set to the project default (5) on every successful launch; ticks down each fixedUpdate." }
+      }
+    },
+    "revengeBombRequestComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S211 KABOOM-REVENGE. Transient request that names the cell where a revenge bomb should spawn. Written on the dead bomber entity itself (the same entity that owns the RevengeState). revenge-system consumes + removes the component the same tick, validates RevengeState (cooldown=0 + bombsRemaining>0), then spawns a bomb at (targetGx, targetGz) with ownerId = the dead bomber.",
+      "required": ["targetGx", "targetGz"],
+      "properties": {
+        "targetGx": { "type": "integer", "description": "Grid X of the target cell." },
+        "targetGz": { "type": "integer", "description": "Grid Z of the target cell." }
       }
     },
     "lootDropDecayComponent": {
