@@ -96,6 +96,18 @@
                   "file": { "type": "string", "minLength": 1, "description": "Project-relative path to a `.cube` LUT file under `assetRoot`." },
                   "intensity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "description": "S216 ENGINE-POSTFX-VIGNETTE (GDP-2026-05-29-002 part 3): radial darkening at the screen edges, reinforcing the diorama framing.",
+                "properties": {
+                  "kind": { "const": "vignette" },
+                  "intensity": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.4, "description": "Strength of the edge darkening. 0 = no effect; 1 = fully replace with `color` at the corner." },
+                  "smoothness": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.45, "description": "How far in from the corner the darkening starts. 0 = only the very corner; 1 = covers the whole frame." },
+                  "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#000000", "description": "Tint colour mixed into the edges. Defaults to pure black for a classic vignette; theme-tinted vignettes can pass the ambient ground colour." }
+                }
               }
             ]
           }
