@@ -79,6 +79,7 @@ import { createKaboomBlastPropagationSystem } from "./src/systems/blast-propagat
 import { createKaboomSoftBlockDebrisSystem } from "./src/systems/soft-block-debris-system";
 import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
+import { createKaboomScorchTileLifetimeSystem } from "./src/systems/scorch-tile-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomRoundCelebrationFxSystem } from "./src/systems/round-celebration-fx-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
@@ -1051,6 +1052,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S121 — connected-blast-decoder now spawns BlastTile entities
     // from server's blastEvent.cells; this system decays them.
     scheduler.register(createKaboomBlastTileLifetimeSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // S213 KABOOM-SCORCH-V2 — long-lived (~3 s) dark soot marks
+    // co-spawned with each blast tile. Geometry-only fade (engine
+    // Tween shrinks scale on Transform); this system owns just the
+    // GC pass.
+    scheduler.register(createKaboomScorchTileLifetimeSystem(), { profiles: ["static", "connected"] });
     // S98 KABOOM-BLAST-DANGER-DECAL — reverted in S99 per user
     // feedback (design choice rejected in principle; see
     // feedback-no-blast-prediction-decal memory).
