@@ -446,9 +446,33 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     boost: number
   ): boolean {
     if (danger.has(cellKey(pos.gx, pos.gz))) return false; // not while fleeing
-    const stats = world.getComponent<{ activeBombs?: number; maxBombs: number; alive?: boolean }>(botId, BOMBER_STATS);
+    const stats = world.getComponent<{
+      activeBombs?: number;
+      maxBombs: number;
+      range?: number;
+      alive?: boolean;
+      remoteDetonateCharges?: number;
+    }>(botId, BOMBER_STATS);
     if (stats === undefined || stats.alive === false) return false;
     if ((stats.activeBombs ?? 0) >= stats.maxBombs) return false;
+
+    // S221 — REMOTE-DETONATE tactical placement. When the bot holds
+    // any remote charges, the next-placed bomb spawns paused
+    // (fuseRemaining=Infinity). If an alive enemy already sits in
+    // the would-be bomb's blast radius, placing here turns the
+    // bomb into a trap-with-trigger — S204 `shouldRemoteDetonate`
+    // fires on the next tick as long as the enemy stays in range,
+    // and the bot dashes off the bomb cell using the existing
+    // flee path (danger map adds the new bomb next tick). High-
+    // value shot; the bot commits past aggression dice + the
+    // adjacent-soft-block requirement.
+    if ((stats.remoteDetonateCharges ?? 0) > 0) {
+      const range = Math.max(1, Math.floor(stats.range ?? 2));
+      if (wouldKillEnemyAt(world, botId, pos, range)) {
+        return true;
+      }
+    }
+
     // S100 KABOOM-BOT-PERSONALITY-VARIANTS — personality scales the
     // base aggression. 'coward' bombs more eagerly as a defensive
     // shield; 'miner' bombs more eagerly toward soft blocks. 'hunter'
@@ -709,5 +733,24 @@ function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number
   if (bomb.gx === gx && bomb.gz === gz) return true;
   if (bomb.gx === gx && Math.abs(bomb.gz - gz) <= bomb.range) return true;
   if (bomb.gz === gz && Math.abs(bomb.gx - gx) <= bomb.range) return true;
+  return false;
+}
+
+/** S221 — bot-ai placement helper. True when a bomb of the given
+ *  range placed at `centre` would catch at least one alive enemy
+ *  bomber. Same approximation as `cellInBlast` (no wall stops —
+ *  blast walker handles those at fire time; over-trigger here is
+ *  preferable to under-trigger). Exported for unit tests. */
+export function wouldKillEnemyAt(
+  world: World,
+  ownerId: EntityId,
+  centre: { gx: number; gz: number },
+  range: number
+): boolean {
+  const enemies = collectAliveEnemyCells(world, ownerId);
+  if (enemies.length === 0) return false;
+  for (const enemy of enemies) {
+    if (cellInBlast({ gx: centre.gx, gz: centre.gz, range }, enemy.gx, enemy.gz)) return true;
+  }
   return false;
 }
