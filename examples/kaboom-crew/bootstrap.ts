@@ -108,6 +108,11 @@ import {
   LOOT_DROP_CAP_DEFAULT,
   LOOT_DROP_LIFETIME_S_DEFAULT
 } from "./src/systems/death-pickup-drop-system";
+import {
+  createKaboomRevengeSystem,
+  REVENGE_BUDGET_DEFAULT,
+  REVENGE_COOLDOWN_S_DEFAULT
+} from "./src/systems/revenge-system";
 // S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
 // builders for hard / soft blocks + floor tiles; block-variant-system
 // rewrites MeshRenderer.mesh refs of cells at scene-load so the
@@ -268,6 +273,42 @@ function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
     return isArenaThemeKey(v) ? v : undefined;
   } catch {
     return undefined;
+  }
+}
+
+// S211 KABOOM-REVENGE — read revenge URL flags:
+//   ?revenge=off              disables the feature
+//   ?revengeCount=N           per-round bomb budget per dead bomber
+//   ?revengeCooldownS=N       seconds between successive launches
+//   ?revengeBotAi=on          enable bot auto-fire (off by default;
+//                             waits for the V2 arc/telegraph polish)
+function readRevengeParamsFromUrl(): {
+  disabled: boolean;
+  bombsBudget: number;
+  cooldownS: number;
+  botAutoFire: boolean;
+} {
+  const defaults = {
+    disabled: false,
+    bombsBudget: REVENGE_BUDGET_DEFAULT,
+    cooldownS: REVENGE_COOLDOWN_S_DEFAULT,
+    botAutoFire: false
+  };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const params = new URLSearchParams(search);
+    const disabled = params.get("revenge") === "off";
+    const countRaw = params.get("revengeCount");
+    const countParsed = countRaw === null ? defaults.bombsBudget : Number(countRaw);
+    const bombsBudget = Number.isFinite(countParsed) && countParsed >= 0 ? Math.floor(countParsed) : defaults.bombsBudget;
+    const coolRaw = params.get("revengeCooldownS");
+    const coolParsed = coolRaw === null ? defaults.cooldownS : Number(coolRaw);
+    const cooldownS = Number.isFinite(coolParsed) && coolParsed >= 0 ? coolParsed : defaults.cooldownS;
+    const botAutoFire = params.get("revengeBotAi") === "on";
+    return { disabled, bombsBudget, cooldownS, botAutoFire };
+  } catch {
+    return defaults;
   }
 }
 
@@ -951,6 +992,24 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         { profiles: ["static", "connected"] }
       );
       scheduler.register(createKaboomLootDropDecaySystem(), { profiles: ["static", "connected"] });
+    }
+
+    // S211 KABOOM-REVENGE (GDP-2026-05-30-002 V1) — dead bombers
+    // keep participating: a RevengeState appears on the alive →
+    // false edge, and the bomber can launch bombs at arbitrary
+    // cells via RevengeBombRequest. Dead bots auto-fire on the
+    // nearest alive bomber. URL `?revenge=off` disables.
+    {
+      const params = readRevengeParamsFromUrl();
+      scheduler.register(
+        createKaboomRevengeSystem({
+          disabled: params.disabled,
+          bombsBudget: params.bombsBudget,
+          cooldownS: params.cooldownS,
+          botAutoFire: params.botAutoFire
+        }),
+        { profiles: ["static", "connected"] }
+      );
     }
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
