@@ -54,6 +54,16 @@ export const REVENGE_BOMB_FUSE_S_DEFAULT = 2.5;
 /** Bomb spawn-pop tween duration; copies the bomb-placement constant
  *  so the visual matches. */
 const SPAWN_POP_DURATION_S = 0.2;
+/** S219 — duration of the arena-edge → target arc, in seconds. The
+ *  arc is the visual telegraph: long enough for a survivor to see
+ *  where the bomb is headed + dodge, short enough that revenge
+ *  still feels punchy. */
+export const REVENGE_ARC_DURATION_S_DEFAULT = 0.7;
+/** S219 — apex Y above the target cell in cells (read by the
+ *  spawn tween's mid-point waypoint). 1.6 cells overshoots the
+ *  bomber-height stack so the arc reads clearly even with bombers
+ *  on raised platforms. */
+const REVENGE_ARC_PEAK_Y = 1.6;
 
 type BomberStatsRead = { alive?: boolean };
 type RevengeStateRead = { bombsRemaining?: number; cooldownRemainingS?: number };
@@ -72,15 +82,21 @@ export type KaboomRevengeSystemOptions = {
   cooldownS?: number;
   /** Override bot cooldown (defaults to REVENGE_BOT_COOLDOWN_S_DEFAULT). */
   botCooldownS?: number;
-  /** S211 hotfix: bot auto-fire is OFF by default. Without an arc
-   *  animation + warning telegraph, dead bots spamming revenge
-   *  bombs at the player's exact cell every 6 s feels unfair (the
-   *  player has no signal that a bomb is about to spawn under
-   *  them). URL `?revengeBotAi=on` re-enables once the visual
-   *  telegraph lands in V2. */
+  /** S211 hotfix: bot auto-fire was OFF by default until the V2 arc
+   *  animation landed. S219 ships the arc + flips this default back
+   *  to ON — the arc IS the telegraph, and the survivor sees the
+   *  bomb approaching from the arena edge over 0.7 s. `?revengeBotAi=off`
+   *  reverts to the V1 manual-only mode. */
   botAutoFire?: boolean;
   /** Override the revenge bomb's blast range. */
   bombRange?: number;
+  /** S219 — arena bounds in cells (max grid extents). Used to pick
+   *  the launch edge: the bomb arcs from the arena perimeter cell
+   *  nearest to the target. Accepts a thunk so a mid-session map
+   *  swap (S205 per-match rotation) re-evaluates. */
+  arenaSize?: { width: number; depth: number } | (() => { width: number; depth: number } | undefined);
+  /** S219 — override the 0.7 s arc duration (URL `?revengeArcS=N`). */
+  arcDurationS?: number;
   /** Optional id factory — tests inject deterministic counters. */
   nextBombId?: (owner: EntityId) => EntityId;
 };
@@ -91,8 +107,15 @@ export function createKaboomRevengeSystem(options: KaboomRevengeSystemOptions = 
   const bombsBudget = Math.max(0, Math.floor(options.bombsBudget ?? REVENGE_BUDGET_DEFAULT));
   const cooldownS = Math.max(0, options.cooldownS ?? REVENGE_COOLDOWN_S_DEFAULT);
   const botCooldownS = Math.max(0, options.botCooldownS ?? REVENGE_BOT_COOLDOWN_S_DEFAULT);
-  const botAutoFire = options.botAutoFire === true;
+  // S219 — auto-fire defaults to ON now that the V2 arc telegraph
+  // exists; survivors see the bomb approaching from the arena edge.
+  const botAutoFire = options.botAutoFire ?? true;
   const bombRange = Math.max(1, Math.floor(options.bombRange ?? REVENGE_BOMB_RANGE_DEFAULT));
+  const arcDurationS = Math.max(0.05, options.arcDurationS ?? REVENGE_ARC_DURATION_S_DEFAULT);
+  const arenaSizeGetter: () => { width: number; depth: number } | undefined =
+    typeof options.arenaSize === "function"
+      ? options.arenaSize
+      : (() => options.arenaSize as { width: number; depth: number } | undefined);
   let counter = 0;
   const nextBombId =
     options.nextBombId ??
@@ -213,7 +236,10 @@ export function createKaboomRevengeSystem(options: KaboomRevengeSystemOptions = 
       if (rs === undefined) continue;
       if ((rs.cooldownRemainingS ?? 0) > 0) continue;
       if ((rs.bombsRemaining ?? 0) <= 0) continue;
-      spawnRevengeBomb(world, id, req.targetGx, req.targetGz, bombRange, nextBombId);
+      spawnRevengeBomb(world, id, req.targetGx, req.targetGz, bombRange, nextBombId, {
+        arenaSize: arenaSizeGetter(),
+        arcDurationS
+      });
       const isBot = world.hasComponent(id, BOT_BRAIN);
       world.setComponent(id, REVENGE_STATE, {
         bombsRemaining: (rs.bombsRemaining ?? 0) - 1,
@@ -248,44 +274,87 @@ export function nearestAliveBomberCell(
   return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
 }
 
+/** S219 — pure helper: pick the arena-edge cell nearest to (gx, gz).
+ *  When `arenaSize` is undefined, falls back to a fixed offset from
+ *  the target (the bomb still arcs in, just from a shorter
+ *  "off-screen-ish" launch point). Exported for unit tests. */
+export function pickRevengeLaunchEdge(
+  gx: number,
+  gz: number,
+  arenaSize: { width: number; depth: number } | undefined
+): { gx: number; gz: number } {
+  if (arenaSize === undefined) {
+    return { gx: gx, gz: gz - 4 };
+  }
+  // Distance to each of the four edges of a [0..width-1, 0..depth-1] grid.
+  const w = Math.max(1, arenaSize.width);
+  const d = Math.max(1, arenaSize.depth);
+  const dN = gz;
+  const dS = (d - 1) - gz;
+  const dW = gx;
+  const dE = (w - 1) - gx;
+  const min = Math.min(dN, dS, dW, dE);
+  if (min === dN) return { gx, gz: -1 };
+  if (min === dS) return { gx, gz: d };
+  if (min === dW) return { gx: -1, gz };
+  return { gx: w, gz };
+}
+
 function spawnRevengeBomb(
   world: World,
   ownerId: EntityId,
   gx: number,
   gz: number,
   range: number,
-  nextId: (ownerId: EntityId) => EntityId
+  nextId: (ownerId: EntityId) => EntityId,
+  arc: { arenaSize: { width: number; depth: number } | undefined; arcDurationS: number }
 ): void {
   const bombId = nextId(ownerId);
   if (world.hasEntity(bombId)) return;
   const cellHeight = getCellHeight(world, gx, gz);
+  const targetY = 0.35 + cellHeight;
+  const edge = pickRevengeLaunchEdge(gx, gz, arc.arenaSize);
+  // Launch from above the edge cell — Y is set high so the arc
+  // visibly clears the arena rim. `targetY + REVENGE_ARC_PEAK_Y`
+  // is the apex; the engine Tween primitive is a single linear
+  // interp, so we approximate the parabola by lerping from
+  // (edge.x, peakY, edge.z) → (gx, targetY, gz) with easeOutQuad.
+  // Players read it as "thrown from the edge, lands at target".
+  const startPos: [number, number, number] = [edge.gx, targetY + REVENGE_ARC_PEAK_Y, edge.gz];
+  const endPos: [number, number, number] = [gx, targetY, gz];
   world.addEntity(bombId);
   world.setComponent(bombId, TRANSFORM, {
-    position: [gx, 0.35 + cellHeight, gz],
+    position: startPos,
     rotation: [0, 0, 0],
-    scale: [0, 0, 0]
+    scale: BOMB_FINAL_SCALE.slice() as unknown as ReadonlyArray<number>
   });
   world.setComponent(bombId, TWEENS, [
     {
       component: TRANSFORM,
-      property: "scale",
-      from: [0, 0, 0],
-      to: BOMB_FINAL_SCALE,
-      duration: SPAWN_POP_DURATION_S,
-      ease: "easeOutBack"
+      property: "position",
+      from: startPos,
+      to: endPos,
+      duration: arc.arcDurationS,
+      ease: "easeOutQuad"
     }
   ]);
-  // Slightly tinted bomb so a player watching can tell revenge bombs
-  // from regular ones — uses a warm rust accent on the standard dark
-  // sphere. Cheap visual cue without a new mesh asset.
   world.setComponent(bombId, MESH_RENDERER, { mesh: "sphere", color: "#3a1410" });
-  world.setComponent(bombId, GRID_POSITION, { gx, gz });
-  world.setComponent(bombId, GRID_OCCUPANT, { layer: "bomb", blocksMovement: false, blocksBlast: false });
   world.setComponent(bombId, RIGID_BODY_3D, { type: "fixed" });
   world.setComponent(bombId, COLLIDER_3D, { kind: "sphere", radius: 0.175 });
+  // GridPosition snaps to the LANDING cell immediately so the
+  // blast walker + chain detection see it at the right cell when
+  // the fuse fires post-landing. Per the throw-glove convention.
+  world.setComponent(bombId, GRID_POSITION, { gx, gz });
+  // Don't claim the "bomb"-layer GridOccupant slot while airborne
+  // — chain detection / kick should ignore the bomb in flight. The
+  // existing bomb-throw-system airborne ticker restores the
+  // occupant on landing (it queries [BOMB] so this revenge bomb
+  // lands through the same path).
   world.setComponent(bombId, BOMB, {
     fuseRemaining: REVENGE_BOMB_FUSE_S_DEFAULT,
     range,
-    ownerId
+    ownerId,
+    airborne: true,
+    airborneRemaining: arc.arcDurationS
   });
 }
