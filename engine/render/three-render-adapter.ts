@@ -2499,7 +2499,19 @@ export class ThreeRenderAdapter {
 
     if (patch.color !== undefined) material.color.set(patch.color);
     if (patch.opacity !== undefined) material.opacity = patch.opacity;
-    if (patch.transparent !== undefined) material.transparent = patch.transparent;
+    if (patch.transparent !== undefined) {
+      // S213 — flipping `transparent` from false → true requires
+      // `material.needsUpdate = true` so Three.js recompiles the
+      // shader for the alpha-blend pass. Without this, toggling
+      // `material.transparent = true` on an opaque-at-build material
+      // silently has no visual effect. Caught while debugging the
+      // (reverted) S207 scorch decals — every opacity-based fade
+      // attempt was invisible.
+      if (material.transparent !== patch.transparent) {
+        material.transparent = patch.transparent;
+        material.needsUpdate = true;
+      }
+    }
     if (patch.depthFunc !== undefined) material.depthFunc = depthFuncFor(patch.depthFunc);
     if (patch.depthWrite !== undefined) material.depthWrite = patch.depthWrite;
     if (patch.side !== undefined) material.side = sideFor(patch.side);

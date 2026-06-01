@@ -36,7 +36,8 @@
     "FloorTerrain": { "$ref": "#/definitions/floorTerrainComponent" },
     "LootDropDecay": { "$ref": "#/definitions/lootDropDecayComponent" },
     "RevengeState": { "$ref": "#/definitions/revengeStateComponent" },
-    "RevengeBombRequest": { "$ref": "#/definitions/revengeBombRequestComponent" }
+    "RevengeBombRequest": { "$ref": "#/definitions/revengeBombRequestComponent" },
+    "ScorchTile": { "$ref": "#/definitions/scorchTileComponent" }
   },
   "definitions": {
     "deathImpulseComponent": {
@@ -162,6 +163,16 @@
       "properties": {
         "targetGx": { "type": "integer", "description": "Grid X of the target cell." },
         "targetGz": { "type": "integer", "description": "Grid Z of the target cell." }
+      }
+    },
+    "scorchTileComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S213 KABOOM-SCORCH-V2 (GDP-2026-05-30-004 Approach 2). Per-cell soot mark spawned when a blast resolves. Co-spawned by blast-propagation-system at each visited cell, alongside the existing BlastTile + spark emitter. Owns its own thin-box entity (NOT projected onto the floor mesh like the reverted S207 DecalGeometry attempt) — Wang autotile re-resolves + soft-block destruction don't disturb it. Lifetime is driven by the engine Tween system shrinking Transform.scale to zero across `lifetimeMs`; this lifetime system tracks elapsed time + removes the entity once it expires.",
+      "required": ["lifetimeMs"],
+      "properties": {
+        "elapsedMs": { "type": "number", "minimum": 0, "default": 0, "description": "Time since spawn (ms). Ticks per fixedUpdate." },
+        "lifetimeMs": { "type": "number", "minimum": 0, "description": "Total visible lifetime in milliseconds. After elapsedMs >= lifetimeMs, the lifetime system removes the entity." }
       }
     },
     "lootDropDecayComponent": {

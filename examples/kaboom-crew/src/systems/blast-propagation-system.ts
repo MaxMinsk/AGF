@@ -19,6 +19,7 @@ import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 import { isPassableEdge } from "../../../../engine/grid/height-query";
+import { spawnScorchTile } from "./scorch-tile-system";
 
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const BOMB: ComponentName = "Bomb";
@@ -189,6 +190,13 @@ function spawnBlastTile(
       maxParticles: 12
     });
   }
+
+  // S213 KABOOM-SCORCH-V2 — co-spawn a dark soot mark at the cell.
+  // Each ScorchTile is its own entity (not a decal projected onto
+  // the floor mesh), so Wang autotile re-resolves + soft-block
+  // destruction don't disturb it. Tween-driven scale shrink fades
+  // the mark over ~3 s; lifetime system GCs after.
+  spawnScorchTile(world, gx, gz);
 }
 
 function softBlockIdsAt(world: World, occupancy: GridOccupancyQuery, gx: number, gz: number): EntityId[] {
