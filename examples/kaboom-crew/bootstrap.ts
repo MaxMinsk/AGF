@@ -92,7 +92,11 @@ import { createKaboomRemoteBomberInterpolatorSystem } from "./src/systems/remote
 import { createKaboomPickupSpawnSystem } from "./src/systems/pickup-spawn-system";
 import { createKaboomPickupCollectSystem } from "./src/systems/pickup-collect-system";
 import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/systems/audio-binding-system";
-import { createKaboomCameraControlSystem, type FollowMode } from "./src/systems/camera-control-system";
+import {
+  createKaboomCameraControlSystem,
+  ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT,
+  type FollowMode
+} from "./src/systems/camera-control-system";
 import { createKaboomCameraZoomSystem } from "./src/systems/camera-zoom-system";
 import { createKaboomDeathTriggerSystem } from "./src/systems/death-trigger-system";
 // S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
@@ -276,6 +280,38 @@ function readSuddenDeathFromUrl(): { enabled: boolean; triggerAtElapsedS: number
   }
 }
 
+// S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW — read adaptive-camera URL flags:
+//   ?adaptiveCamera=off       reverts to S195 unscaled follow
+//   ?minParallax=N            min per-axis follow factor on fits-in-view
+//                             arenas (default 0.05 — 5 %)
+//   ?viewSize=N               reuses the existing param (tile-wide view)
+function readAdaptiveCameraFromUrl(): {
+  disabled: boolean;
+  minParallax: number;
+  viewTilesWide: number;
+} {
+  const defaults = {
+    disabled: false,
+    minParallax: ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT,
+    viewTilesWide: 11
+  };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const p = new URLSearchParams(search);
+    const disabled = p.get("adaptiveCamera") === "off";
+    const minRaw = p.get("minParallax");
+    const minParsed = minRaw === null ? defaults.minParallax : Number(minRaw);
+    const minParallax = Number.isFinite(minParsed) ? Math.min(1, Math.max(0, minParsed)) : defaults.minParallax;
+    const vsRaw = p.get("viewSize");
+    const vsParsed = vsRaw === null ? Number.NaN : Number(vsRaw);
+    const viewTilesWide = Number.isFinite(vsParsed) && vsParsed >= 4 && vsParsed <= 30 ? vsParsed : defaults.viewTilesWide;
+    return { disabled, minParallax, viewTilesWide };
+  } catch {
+    return defaults;
+  }
+}
+
 /**
  * S81 KABOOM-PROJECT-SCAFFOLD + S82 gameplay v0.
  *
@@ -326,6 +362,26 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["grass-demo", grassDemoSceneJson]
 ]);
 type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
+
+/** S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW — bounding-box width/depth (in
+ *  tiles) of each authored arena. Used by the camera-control system
+ *  to scale follow rate per axis: arenas that fit the view (pit,
+ *  plaza Z) get a near-centred camera, large arenas (cross) follow
+ *  normally. Values derived from the max GridPosition in each
+ *  scene JSON; keep in sync when scene grids change. */
+const MAP_DIMS: ReadonlyMap<MapName, { width: number; depth: number }> = new Map([
+  ["start", { width: 14, depth: 10 }],
+  ["wide", { width: 16, depth: 12 }],
+  ["corridor", { width: 16, depth: 6 }],
+  ["plaza", { width: 12, depth: 10 }],
+  ["cross", { width: 17, depth: 17 }],
+  ["pit", { width: 11, depth: 11 }],
+  ["belt-zone", { width: 14, depth: 10 }],
+  ["warpfield", { width: 15, depth: 11 }],
+  ["plate-puzzle", { width: 15, depth: 11 }],
+  ["heightmap-demo", { width: 14, depth: 10 }],
+  ["grass-demo", { width: 14, depth: 10 }]
+]);
 
 /**
  * S205 — per-match map rotation pool. When a match ends (matchPhase
@@ -777,9 +833,24 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // picks the follow mode at boot. The combined system is the
     // antidote to S163-doubling: ONE write per fixedUpdate, no
     // frameUpdate path.
-    scheduler.register(createKaboomCameraControlSystem({ followMode: _followMode }), {
-      profiles: ["static", "connected"]
-    });
+    // S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW — feed the current arena
+    // dims + view-tile width into the camera system so the follow
+    // rate scales per axis. The thunk reads the live activeMapName
+    // so a mid-session restart (per-match rotation, ?map=) updates
+    // dims without re-registering the system.
+    const adaptiveCamera = readAdaptiveCameraFromUrl();
+    scheduler.register(
+      createKaboomCameraControlSystem({
+        followMode: _followMode,
+        arenaSize: () => MAP_DIMS.get(activeMapName),
+        viewTilesWide: adaptiveCamera.viewTilesWide,
+        minParallax: adaptiveCamera.minParallax,
+        adaptiveDisabled: adaptiveCamera.disabled
+      }),
+      {
+        profiles: ["static", "connected"]
+      }
+    );
     // S194 KABOOM-CAMERA-ZOOM-ON-ACTION — orthographicSize eases out
     // when bombs / blast tiles are active or sudden death is on; eases
     // back when the arena quiets. No position lerp (S163 doubling
