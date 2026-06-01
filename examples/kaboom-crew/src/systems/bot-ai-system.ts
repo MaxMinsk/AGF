@@ -156,6 +156,12 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   // Reset on world change or whenever a human is alive again (round
   // restart, revive, reconnect-within-grace).
   let humansAllDeadAt: number | undefined;
+  // S210 hotfix — only arm the boost when at least one PlayerControlled
+  // bomber was ALIVE earlier in the round. Demos / regression tests
+  // run pure bot-vs-bot from frame 1 (no humans ever) and must keep
+  // their deterministic baseline behaviour; the boost is a 'humans
+  // DIED' response, not a 'no humans here' response.
+  let humansEverAlive = false;
 
   function buildDangerMap(world: World): Set<string> {
     const danger = new Set<string>();
@@ -432,6 +438,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       pickups = world.createQuery([PICKUP, GRID_POSITION]);
       cachedWorld = world;
       humansAllDeadAt = undefined;
+      humansEverAlive = false;
     }
     // S84 KABOOM-TITLE-SCREEN. Game freezes while a GamePaused
     // singleton is present — bot decisions don't run so the title
@@ -441,14 +448,16 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     let danger: Set<string> | undefined;
 
     // S210 KABOOM-BOT-ACCELERATION — detect HUMANS_DEAD edge.
-    // Triggers ONLY when all human bombers are dead AND 2+ bots
-    // still remain (no point boosting a lone bot — round resolves
-    // by itself next tick). Resets immediately if any human is
-    // alive again (round restart, reconnect-within-grace, etc.).
+    // Triggers ONLY when humans were ALIVE earlier in the round AND
+    // all of them are dead now AND 2+ bots still remain. The
+    // "earlier-alive" gate keeps pure bot-vs-bot rounds (demos,
+    // regression tests) on their deterministic baseline — they have
+    // no humans from frame 1 and shouldn't fire the boost.
     let boostNow = 0;
     if (!accelerationDisabled) {
       const counts = countAliveBombers(world);
-      if (counts.humans === 0 && counts.bots >= 2) {
+      if (counts.humans > 0) humansEverAlive = true;
+      if (humansEverAlive && counts.humans === 0 && counts.bots >= 2) {
         if (humansAllDeadAt === undefined) humansAllDeadAt = context.time.elapsed;
       } else {
         humansAllDeadAt = undefined;
