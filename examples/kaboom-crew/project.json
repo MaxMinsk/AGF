@@ -9,9 +9,6 @@
     "background": "#0a0e1c",
     "batching": { "auto": true },
     "color": { "toneMapping": "aces-filmic", "exposure": 1.0 },
-    "post": [
-      { "kind": "vignette", "intensity": 0.35, "smoothness": 0.5, "color": "#000000" }
-    ],
     "particlePreWarmPresets": ["spark", "glow", "pulse"]
   },
   "physics": {

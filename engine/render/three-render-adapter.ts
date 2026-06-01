@@ -3082,6 +3082,18 @@ export class ThreeRenderAdapter {
       this.disposeComposer();
       return;
     }
+    // S217 — WebGPU path has no working EffectComposer chain in our
+    // setup (S67 audit + the early-return in setPostPipeline already
+    // gates the direct call). The same gate is needed here because
+    // camera / resize listeners call rebuildComposer too; without
+    // it, building EffectComposer around a WebGPURenderer throws on
+    // the first camera-bind after `setPostPipeline` stored a config,
+    // and the canvas goes fully black. Exposed by S216 (the first
+    // project to land a `post` entry on a WebGPU project).
+    if (this.capabilities.kind === "webgpu") {
+      this.disposeComposer();
+      return;
+    }
     this.disposeComposer();
     const composer = new EffectComposer(this.device);
     const size = this.composerSize ?? this.currentDeviceSize();
