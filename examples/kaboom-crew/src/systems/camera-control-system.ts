@@ -43,6 +43,29 @@ const SHAKE_DURATION_S = 0.45;
 const FOLLOW_RATE_PER_S = 1.5;
 const MAX_FOLLOW_OFFSET = 3;
 
+/** S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW (GDP-2026-05-29-008). */
+export const ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT = 0.05;
+/** Default view width in tiles (matches the bootstrap viewSize default). */
+export const ADAPTIVE_FOLLOW_VIEW_TILES_DEFAULT = 11;
+
+/** Pure helper — per-axis follow factor based on how much the arena
+ *  overflows the view along that axis. When the arena fits in view
+ *  (or is smaller), the factor drops to `minParallax` so the camera
+ *  stays nearly centred but never fully static. When the arena is
+ *  much larger than the view, the factor approaches 1. Exported for
+ *  unit tests + the bootstrap (which mixes the same constant into
+ *  URL defaults). */
+export function adaptiveFollowFactor(
+  arenaTiles: number,
+  viewTiles: number,
+  minParallax: number = ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT
+): number {
+  if (!Number.isFinite(arenaTiles) || arenaTiles <= 0) return 1;
+  const raw = (arenaTiles - viewTiles) / arenaTiles;
+  const clamped = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+  return Math.max(minParallax, clamped);
+}
+
 type Vec3 = [number, number, number];
 
 type TransformComponent = {
@@ -64,6 +87,23 @@ export type KaboomCameraControlOptions = {
   rng?: () => number;
   /** Optional override for the per-second follow lerp rate. */
   followRatePerSecond?: number;
+  /** S212 — current arena size in cells. When provided, the camera
+   *  scales its follow rate per axis by `adaptiveFollowFactor`, so
+   *  arenas that fit the view (pit 11×11) get near-centred framing
+   *  and large arenas (corridor 16×6 on X) stay tracked normally.
+   *  Accepts a thunk so bootstrap can swap maps mid-session without
+   *  re-registering the system. */
+  arenaSize?: { width: number; depth: number } | (() => { width: number; depth: number } | undefined);
+  /** S212 — width of the visible area in tiles (the GDP defaults to 11). */
+  viewTilesWide?: number;
+  /** S212 — minimum per-axis follow factor; preserves a tiny
+   *  breathing parallax on arenas that fully fit the view. Default
+   *  0.05 (5 %). Set to 0 for fully static centring; 1 disables
+   *  adaptive behaviour (back to S195 fixed follow). */
+  minParallax?: number;
+  /** S212 — `?adaptiveCamera=off` flag — bypasses adaptive scaling
+   *  entirely (returns to S195 follow). */
+  adaptiveDisabled?: boolean;
 };
 
 export type CameraControlApi = {
@@ -91,6 +131,13 @@ export function createKaboomCameraControlSystem(
   const followMode: FollowMode = options.followMode ?? "damped";
   const rng = options.rng ?? Math.random;
   const followRate = options.followRatePerSecond ?? FOLLOW_RATE_PER_S;
+  const viewTilesWide = options.viewTilesWide ?? ADAPTIVE_FOLLOW_VIEW_TILES_DEFAULT;
+  const minParallax = options.minParallax ?? ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT;
+  const adaptiveEnabled = options.adaptiveDisabled !== true;
+  const arenaSizeGetter: () => { width: number; depth: number } | undefined =
+    typeof options.arenaSize === "function"
+      ? options.arenaSize
+      : (() => options.arenaSize as { width: number; depth: number } | undefined);
 
   let cachedWorld: World | undefined;
   let blastQuery: QueryHandle | undefined;
@@ -168,10 +215,25 @@ export function createKaboomCameraControlSystem(
         // camera height is locked.
         const dx = (player.position[0] ?? 0) - authored[0];
         const dz = (player.position[2] ?? 0) - authored[2];
+        // S212 — per-axis adaptive scale based on arena overflow.
+        // On a fits-in-view arena (pit 11×11 at view=11) the factor
+        // collapses to `minParallax` (≈ 0.05) so the camera stays
+        // nearly centred with a tiny breathing motion. On a wide
+        // arena (cross 17×17) the factor grows, restoring active
+        // follow. Disabled via `?adaptiveCamera=off`.
+        let scaleX = 1;
+        let scaleZ = 1;
+        if (adaptiveEnabled) {
+          const arena = arenaSizeGetter();
+          if (arena !== undefined) {
+            scaleX = adaptiveFollowFactor(arena.width, viewTilesWide, minParallax);
+            scaleZ = adaptiveFollowFactor(arena.depth, viewTilesWide, minParallax);
+          }
+        }
         targetFollow = [
-          clamp(dx, -MAX_FOLLOW_OFFSET, MAX_FOLLOW_OFFSET),
+          clamp(dx * scaleX, -MAX_FOLLOW_OFFSET, MAX_FOLLOW_OFFSET),
           0,
-          clamp(dz, -MAX_FOLLOW_OFFSET, MAX_FOLLOW_OFFSET)
+          clamp(dz * scaleZ, -MAX_FOLLOW_OFFSET, MAX_FOLLOW_OFFSET)
         ];
       }
     }
