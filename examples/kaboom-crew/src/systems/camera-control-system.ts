@@ -43,6 +43,28 @@ const SHAKE_DURATION_S = 0.45;
 const FOLLOW_RATE_PER_S = 1.5;
 const MAX_FOLLOW_OFFSET = 3;
 
+/** S215 KABOOM-CAMERA-SPAWN-FLICKER (GDP-2026-05-29-003 part 2).
+ *  Local bomber spawn / round-start adds a brief Y dip to the camera
+ *  so the framing settles in from above. Mirrors visual-style.md §7.4
+ *  ("spawn flicker-in"). The dip is on top of authored Y, so the
+ *  baseline + follow + shake stack stays intact. */
+export const SPAWN_FLICKER_DURATION_S_DEFAULT = 0.3;
+export const SPAWN_FLICKER_Y_OFFSET_DEFAULT = 1.5;
+
+/** Pure helper — current Y offset (cells) at `elapsedS` seconds into
+ *  the spawn flicker. easeOutCubic so the dip starts fast and settles
+ *  smoothly into authored framing. Exported for unit tests. */
+export function spawnFlickerYAt(
+  elapsedS: number,
+  durationS: number = SPAWN_FLICKER_DURATION_S_DEFAULT,
+  peak: number = SPAWN_FLICKER_Y_OFFSET_DEFAULT
+): number {
+  if (elapsedS <= 0) return peak;
+  if (elapsedS >= durationS) return 0;
+  const remaining = 1 - elapsedS / durationS;
+  return peak * remaining * remaining * remaining;
+}
+
 /** S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW (GDP-2026-05-29-008). */
 export const ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT = 0.05;
 /** Default view width in tiles (matches the bootstrap viewSize default). */
@@ -104,6 +126,12 @@ export type KaboomCameraControlOptions = {
   /** S212 — `?adaptiveCamera=off` flag — bypasses adaptive scaling
    *  entirely (returns to S195 follow). */
   adaptiveDisabled?: boolean;
+  /** S215 — disable the spawn flicker-in (URL `?spawnFlicker=off`). */
+  spawnFlickerDisabled?: boolean;
+  /** S215 — override flicker duration in seconds (default 0.3). */
+  spawnFlickerDurationS?: number;
+  /** S215 — override peak Y offset in cells (default 1.5). */
+  spawnFlickerYOffset?: number;
 };
 
 export type CameraControlApi = {
@@ -138,6 +166,9 @@ export function createKaboomCameraControlSystem(
     typeof options.arenaSize === "function"
       ? options.arenaSize
       : (() => options.arenaSize as { width: number; depth: number } | undefined);
+  const spawnFlickerDisabled = options.spawnFlickerDisabled === true;
+  const spawnFlickerDurationS = Math.max(0, options.spawnFlickerDurationS ?? SPAWN_FLICKER_DURATION_S_DEFAULT);
+  const spawnFlickerYOffset = options.spawnFlickerYOffset ?? SPAWN_FLICKER_Y_OFFSET_DEFAULT;
 
   let cachedWorld: World | undefined;
   let blastQuery: QueryHandle | undefined;
@@ -148,6 +179,17 @@ export function createKaboomCameraControlSystem(
   let peakShake = 0;
   let shakeElapsed = 0;
   let currentShake = 0;
+  // S215 KABOOM-CAMERA-SPAWN-FLICKER — round-start edge detector.
+  // `flickerStartedAt` is the simulation time (context.time.elapsed)
+  // when the local bomber's flicker dip began; clears once duration
+  // elapses. `prevRoundPhase` remembers last tick's RoundState.phase
+  // so we can fire the dip on every (non-playing → playing) edge —
+  // covers fresh round start AND auto-restart after a resolved
+  // round. `playerEverSeen` lets the first ever load also fire
+  // (initial scene-load also has phase=playing immediately).
+  let flickerStartedAt: number | undefined;
+  let prevRoundPhase: string | undefined;
+  let playerEverSeen = false;
 
   const findActiveCamera = (world: World): EntityId | undefined => {
     for (const id of cameraQuery!.run()) {
@@ -170,6 +212,33 @@ export function createKaboomCameraControlSystem(
       peakShake = 0;
       shakeElapsed = 0;
       currentShake = 0;
+      flickerStartedAt = undefined;
+      prevRoundPhase = undefined;
+      playerEverSeen = false;
+    }
+
+    // --- S215 spawn flicker-in edge detect ---
+    // Fires whenever:
+    //   1) the local player is freshly visible this tick (initial
+    //      scene-load OR auto-restart spawn) — captured by the
+    //      `playerEverSeen` latch flipping false → true, OR
+    //   2) RoundState.phase transitions back to 'playing' from any
+    //      resolved phase ('won' / 'lost' / 'draw').
+    // Both edges feed the same flicker timer; back-to-back triggers
+    // restart the dip rather than queueing.
+    if (!spawnFlickerDisabled) {
+      const playerAlive = world.hasEntity(PLAYER_ENTITY_ID);
+      const round = world.hasEntity("kaboom.round-state")
+        ? world.getComponent<{ phase?: string }>("kaboom.round-state", "RoundState")
+        : undefined;
+      const phase = round?.phase;
+      const justSpawned = playerAlive && !playerEverSeen;
+      const justResumedPlay = phase === "playing" && prevRoundPhase !== undefined && prevRoundPhase !== "playing";
+      if (justSpawned || justResumedPlay) {
+        flickerStartedAt = context.time.elapsed;
+      }
+      if (playerAlive) playerEverSeen = true;
+      prevRoundPhase = phase;
     }
 
     const cameraId = findActiveCamera(world);
@@ -248,13 +317,24 @@ export function createKaboomCameraControlSystem(
       ];
     }
 
+    // --- S215 spawn flicker Y offset ---
+    let flickerY = 0;
+    if (flickerStartedAt !== undefined) {
+      const elapsedSinceFlicker = context.time.elapsed - flickerStartedAt;
+      if (elapsedSinceFlicker >= spawnFlickerDurationS) {
+        flickerStartedAt = undefined;
+      } else {
+        flickerY = spawnFlickerYAt(elapsedSinceFlicker, spawnFlickerDurationS, spawnFlickerYOffset);
+      }
+    }
+
     // --- Compose final position (single write) ---
     const sx = (rng() * 2 - 1) * currentShake;
     const sy = (rng() * 2 - 1) * currentShake * 0.5;
     const sz = (rng() * 2 - 1) * currentShake * 1.0;
     const finalPos: Vec3 = [
       authored[0] + currentFollow[0] + sx,
-      authored[1] + sy,
+      authored[1] + sy + flickerY,
       authored[2] + currentFollow[2] + sz
     ];
     world.setComponent(cameraId, TRANSFORM, { ...t, position: finalPos });

@@ -98,6 +98,8 @@ import { createKaboomAudioBindingSystem, type AudioEventKind } from "./src/syste
 import {
   createKaboomCameraControlSystem,
   ADAPTIVE_FOLLOW_MIN_PARALLAX_DEFAULT,
+  SPAWN_FLICKER_DURATION_S_DEFAULT,
+  SPAWN_FLICKER_Y_OFFSET_DEFAULT,
   type FollowMode
 } from "./src/systems/camera-control-system";
 import { createKaboomCameraZoomSystem } from "./src/systems/camera-zoom-system";
@@ -415,6 +417,33 @@ function readAdaptiveCameraFromUrl(): {
     const vsParsed = vsRaw === null ? Number.NaN : Number(vsRaw);
     const viewTilesWide = Number.isFinite(vsParsed) && vsParsed >= 4 && vsParsed <= 30 ? vsParsed : defaults.viewTilesWide;
     return { disabled, minParallax, viewTilesWide };
+  } catch {
+    return defaults;
+  }
+}
+
+// S215 KABOOM-CAMERA-SPAWN-FLICKER — read URL flags:
+//   ?spawnFlicker=off         disables the dip
+//   ?spawnFlickerDurationS=N  override 0.3 s
+//   ?spawnFlickerYOffset=N    override 1.5 cells
+function readSpawnFlickerFromUrl(): { disabled: boolean; durationS: number; yOffset: number } {
+  const defaults = {
+    disabled: false,
+    durationS: SPAWN_FLICKER_DURATION_S_DEFAULT,
+    yOffset: SPAWN_FLICKER_Y_OFFSET_DEFAULT
+  };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const p = new URLSearchParams(search);
+    const disabled = p.get("spawnFlicker") === "off";
+    const durRaw = p.get("spawnFlickerDurationS");
+    const durParsed = durRaw === null ? defaults.durationS : Number(durRaw);
+    const durationS = Number.isFinite(durParsed) && durParsed > 0 ? durParsed : defaults.durationS;
+    const yRaw = p.get("spawnFlickerYOffset");
+    const yParsed = yRaw === null ? defaults.yOffset : Number(yRaw);
+    const yOffset = Number.isFinite(yParsed) ? yParsed : defaults.yOffset;
+    return { disabled, durationS, yOffset };
   } catch {
     return defaults;
   }
@@ -947,13 +976,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // so a mid-session restart (per-match rotation, ?map=) updates
     // dims without re-registering the system.
     const adaptiveCamera = readAdaptiveCameraFromUrl();
+    const spawnFlicker = readSpawnFlickerFromUrl();
     scheduler.register(
       createKaboomCameraControlSystem({
         followMode: _followMode,
         arenaSize: () => MAP_DIMS.get(activeMapName),
         viewTilesWide: adaptiveCamera.viewTilesWide,
         minParallax: adaptiveCamera.minParallax,
-        adaptiveDisabled: adaptiveCamera.disabled
+        adaptiveDisabled: adaptiveCamera.disabled,
+        spawnFlickerDisabled: spawnFlicker.disabled,
+        spawnFlickerDurationS: spawnFlicker.durationS,
+        spawnFlickerYOffset: spawnFlicker.yOffset
       }),
       {
         profiles: ["static", "connected"]
