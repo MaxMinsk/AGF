@@ -41,6 +41,7 @@ import {
   SOFT_BLOCK_WANG_FAMILY
 } from "../blocks/register-wang-families";
 import {
+  bitmaskToRotationYDeg,
   grassBitmaskToVariant,
   hardBlockBitmaskToVariant,
   softBlockBitmaskToVariant,
@@ -159,7 +160,9 @@ export function createKaboomWangMeshSyncSystem(
   // mesh handle that's already pointing at the right geometry.
   // S172 — cache the (variant, theme) tuple per cell so a theme change
   // through HMR or scene-restart actually re-writes the mesh ref.
-  const lastByCell = new Map<EntityId, { variant: KaboomBlockVariantIndex; theme: string }>();
+  // S214 — cache rotationY too so a bitmask change that resolves to
+  // the SAME variant but a DIFFERENT rotation still flips Transform.
+  const lastByCell = new Map<EntityId, { variant: KaboomBlockVariantIndex; theme: string; rotationYDeg: number }>();
   let cachedWorld: World | undefined;
   let wangQuery: QueryHandle | undefined;
 
@@ -189,14 +192,44 @@ export function createKaboomWangMeshSyncSystem(
       if (variantIndex === undefined) continue;
       const meshKey = meshKeyFor(familyName, variantIndex, themeKey);
       if (meshKey === undefined) continue;
+      // S214 — per-bitmask Y rotation so adjacent edge / corner cells
+      // visibly point in the right direction with the same canonical
+      // mesh. 16 bitmasks × 4 builders → 16 distinct on-screen reads.
+      const rotationYDeg = bitmaskToRotationYDeg(bitmask);
 
       const prev = lastByCell.get(id);
-      if (prev !== undefined && prev.variant === variantIndex && prev.theme === themeKey) continue;
+      if (
+        prev !== undefined
+        && prev.variant === variantIndex
+        && prev.theme === themeKey
+        && prev.rotationYDeg === rotationYDeg
+      ) continue;
 
       const mr = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
       const next: MeshRendererComponent = { ...(mr ?? {}), mesh: meshKey };
       world.setComponent(id, MESH_RENDERER, next);
-      lastByCell.set(id, { variant: variantIndex, theme: themeKey });
+      // Write Transform.rotation only when this cell's rotation
+      // actually changed AND the rotation is non-zero, OR the
+      // previous tick wrote a non-zero rotation we now need to
+      // reset. Skipping the unchanged write keeps the per-tick churn
+      // low for cells that resolve to the same bitmask repeatedly.
+      if (prev === undefined || prev.rotationYDeg !== rotationYDeg) {
+        const t = world.getComponent<{
+          position?: ReadonlyArray<number>;
+          rotation?: ReadonlyArray<number>;
+          scale?: ReadonlyArray<number>;
+        }>(id, "Transform");
+        if (t !== undefined) {
+          const pos = t.position ?? [0, 0, 0];
+          const scl = t.scale ?? [1, 1, 1];
+          world.setComponent(id, "Transform", {
+            position: [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0],
+            rotation: [0, rotationYDeg, 0],
+            scale: [scl[0] ?? 1, scl[1] ?? 1, scl[2] ?? 1]
+          });
+        }
+      }
+      lastByCell.set(id, { variant: variantIndex, theme: themeKey, rotationYDeg });
     }
     // Prune destroyed entities — same pattern as the variant system.
     for (const id of [...lastByCell.keys()]) {
