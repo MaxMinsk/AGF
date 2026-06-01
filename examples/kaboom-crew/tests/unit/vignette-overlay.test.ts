@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildVignetteBackground,
+  hexToRgbTriplet,
   readVignetteOptionsFromUrl
 } from "../../src/ui/vignette-overlay";
 
@@ -70,5 +71,27 @@ describe("kaboom vignette overlay (S217)", () => {
     withLocation("?vignetteIntensity=0.6&vignetteFalloff=0.3", () => {
       expect(readVignetteOptionsFromUrl()).toEqual({ intensity: 0.6, falloff: 0.3 });
     });
+  });
+
+  it("hexToRgbTriplet: standard #rrggbb parses to decimal triplet", () => {
+    expect(hexToRgbTriplet("#000000")).toBe("0,0,0");
+    expect(hexToRgbTriplet("#ffffff")).toBe("255,255,255");
+    expect(hexToRgbTriplet("#2e2820")).toBe("46,40,32");
+  });
+
+  it("hexToRgbTriplet: malformed input falls back to black", () => {
+    expect(hexToRgbTriplet("not-a-hex")).toBe("0,0,0");
+    expect(hexToRgbTriplet("#fff")).toBe("0,0,0"); // 3-digit form not supported
+    expect(hexToRgbTriplet("" as unknown as string)).toBe("0,0,0");
+  });
+
+  it("S218 — buildVignetteBackground composes color into the gradient RGB triplet", () => {
+    const bg = buildVignetteBackground({ color: "#2e2820" });
+    expect(bg).toContain("rgba(46,40,32,");
+  });
+
+  it("S218 — color override + intensity round-trips through the rgba() format", () => {
+    const bg = buildVignetteBackground({ color: "#1a0c08", intensity: 0.7 });
+    expect(bg).toContain("rgba(26,12,8,0.700)");
   });
 });
