@@ -452,6 +452,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       range?: number;
       alive?: boolean;
       remoteDetonateCharges?: number;
+      shield?: boolean;
     }>(botId, BOMBER_STATS);
     if (stats === undefined || stats.alive === false) return false;
     if ((stats.activeBombs ?? 0) >= stats.maxBombs) return false;
@@ -467,6 +468,22 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     // value shot; the bot commits past aggression dice + the
     // adjacent-soft-block requirement.
     if ((stats.remoteDetonateCharges ?? 0) > 0) {
+      const range = Math.max(1, Math.floor(stats.range ?? 2));
+      if (wouldKillEnemyAt(world, botId, pos, range)) {
+        return true;
+      }
+    }
+
+    // S222 — SHIELD tactical placement. Parallel to S221's remote
+    // branch but for the shield power-up: bot trades a free hit
+    // for a clean shot. When the shield is up AND an alive enemy
+    // sits in the would-be bomb's blast from the bot's current
+    // cell, drop the bomb. Best case the bot dashes off and kills
+    // the enemy clean; worst case the shield absorbs the trade
+    // and the bomber's alive=true survives. Same approximation
+    // as S221 (no wall-stop math here — the blast walker handles
+    // real stops at fire time, over-trigger preferable).
+    if (stats.shield === true) {
       const range = Math.max(1, Math.floor(stats.range ?? 2));
       if (wouldKillEnemyAt(world, botId, pos, range)) {
         return true;
