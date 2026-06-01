@@ -165,6 +165,8 @@ import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { LUTPass } from "three/examples/jsm/postprocessing/LUTPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { buildVignetteShader } from "./postfx/vignette-pass";
 import { LUTCubeLoader } from "three/examples/jsm/loaders/LUTCubeLoader.js";
 
 export type MeshHandle = number;
@@ -473,7 +475,12 @@ export type PostPassConfig =
   | { kind: "bloom"; strength?: number; radius?: number; threshold?: number }
   | { kind: "fxaa" }
   | { kind: "ssao"; radius?: number; intensity?: number; kernelSize?: number }
-  | { kind: "color-lut"; file: string; intensity?: number };
+  | { kind: "color-lut"; file: string; intensity?: number }
+  // S216 ENGINE-POSTFX-VIGNETTE (GDP-2026-05-29-002 part 3). Subtle
+  // radial darkening at the screen edges. Cheap shader pass — one
+  // texture fetch + a smoothstep. WebGL only (engine WebGPU backend
+  // still rejects ShaderMaterial-based passes — same as bloom).
+  | { kind: "vignette"; intensity?: number; smoothness?: number; color?: string };
 
 /**
  * M21-shadow-csm — config for the Cascade Shadow Maps adapter. The
@@ -3106,6 +3113,15 @@ export class ThreeRenderAdapter {
         );
         if (pass.radius !== undefined) ssao.kernelRadius = pass.radius;
         composer.addPass(ssao);
+      } else if (pass.kind === "vignette") {
+        // S216 — radial darkening at screen edges. Composes after
+        // bloom + tonemap in the chain so the vignette colour reads
+        // against already-graded scene pixels.
+        const shaderParams: { intensity?: number; smoothness?: number; color?: string } = {};
+        if (pass.intensity !== undefined) shaderParams.intensity = pass.intensity;
+        if (pass.smoothness !== undefined) shaderParams.smoothness = pass.smoothness;
+        if (pass.color !== undefined) shaderParams.color = pass.color;
+        composer.addPass(new ShaderPass(buildVignetteShader(shaderParams)));
       } else if (pass.kind === "color-lut") {
         // S57 POST-color-lut: vendored LUTPass + LUTCubeLoader. The LUT
         // load is async — we add the pass with a placeholder identity
