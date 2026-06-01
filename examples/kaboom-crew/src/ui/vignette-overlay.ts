@@ -21,6 +21,11 @@ export type KaboomVignetteOptions = {
   /** Width of the falloff band, 0..1. 0 = only the very corner
    *  darkens; 1 = the entire frame fades. Default 0.45. */
   falloff?: number;
+  /** S218 — base RGB the gradient fades INTO at the corners.
+   *  Default black ("#000000"). The per-theme tinting path
+   *  (`applyVignetteTint`) updates this in place at runtime when
+   *  the active arena theme switches. */
+  color?: string;
 };
 
 /** Pure helper — build the CSS background-image string for a
@@ -29,12 +34,13 @@ export type KaboomVignetteOptions = {
 export function buildVignetteBackground(options: KaboomVignetteOptions = {}): string {
   const intensity = clamp01(options.intensity ?? 0.4);
   const falloff = clamp01(options.falloff ?? 0.45);
+  const rgb = hexToRgbTriplet(options.color ?? "#000000");
   // The transparent band ends at `1 - falloff` of the way out from
-  // centre; from there the band ramps to `rgba(0,0,0,intensity)` at
+  // centre; from there the band ramps to `rgba(rgb, intensity)` at
   // 100 % (the corner).
   const innerStop = Math.max(0, Math.min(100, (1 - falloff) * 100));
   const alpha = intensity.toFixed(3);
-  return `radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${innerStop.toFixed(1)}%, rgba(0,0,0,${alpha}) 100%)`;
+  return `radial-gradient(ellipse at center, rgba(${rgb},0) 0%, rgba(${rgb},0) ${innerStop.toFixed(1)}%, rgba(${rgb},${alpha}) 100%)`;
 }
 
 /** Mount the overlay on `document.body`. Safe to call multiple
@@ -82,9 +88,36 @@ export function readVignetteOptionsFromUrl(): KaboomVignetteOptions | undefined 
   }
 }
 
+/** S218 — apply a per-theme tint to the live overlay. Reads the
+ *  existing element off the document, re-writes the CSS background
+ *  with the same intensity / falloff and the new `color`. No-op
+ *  when the overlay isn't mounted or the document is unavailable
+ *  (tests, server-side, `?vignette=off`). */
+export function applyVignetteTint(color: string, options: Omit<KaboomVignetteOptions, "color"> = {}): void {
+  const doc = (globalThis as unknown as { document?: Document }).document;
+  if (doc === undefined) return;
+  const el = doc.getElementById(VIGNETTE_OVERLAY_ID);
+  if (el === null) return;
+  el.style.background = buildVignetteBackground({ ...options, color });
+}
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   if (value < 0) return 0;
   if (value > 1) return 1;
   return value;
+}
+
+/** Pure helper — `#rrggbb` → `"r,g,b"` decimal triplet for inline
+ *  rgba() composition. Falls back to `0,0,0` for malformed input.
+ *  Exported for unit tests. */
+export function hexToRgbTriplet(hex: string): string {
+  if (typeof hex !== "string") return "0,0,0";
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (m === null) return "0,0,0";
+  const v = parseInt(m[1]!, 16);
+  const r = (v >>> 16) & 0xff;
+  const g = (v >>> 8) & 0xff;
+  const b = v & 0xff;
+  return `${r},${g},${b}`;
 }

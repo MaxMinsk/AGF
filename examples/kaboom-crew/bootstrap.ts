@@ -136,6 +136,7 @@ import {
   startArenaAtmosphericApplyPoller
 } from "./src/systems/arena-theme-apply-system";
 import {
+  ARENA_THEMES,
   defaultThemeForArena,
   isArenaThemeKey,
   type ArenaThemeKey
@@ -159,7 +160,15 @@ import {
 import { createProfileStore, type ProfileStore } from "./src/profile/profile-store";
 // S217 KABOOM-VIGNETTE-OVERLAY — pure-DOM vignette (the engine
 // post-FX vignette is WebGL-only; Kaboom Crew runs on WebGPU).
-import { mountVignetteOverlay, readVignetteOptionsFromUrl } from "./src/ui/vignette-overlay";
+// S218 — tint the gradient with the active arena theme's
+// ambientHemisphericGround so the vignette pulls into the theme
+// colour family rather than crushing the corners flat black.
+import {
+  applyVignetteTint,
+  mountVignetteOverlay,
+  readVignetteOptionsFromUrl,
+  type KaboomVignetteOptions
+} from "./src/ui/vignette-overlay";
 // S156 KABOOM-COSMETIC-UNLOCKS — 5 starter unlocks + banner on threshold cross.
 import {
   checkUnlocks,
@@ -643,6 +652,35 @@ function startVertexColorsPoller(runtime: RuntimeHandle): void {
     } catch {
       // best-effort — first frames before runtime is fully ready may
       // surface transient errors; skip and try again next frame.
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/** S218 — rAF poller that mirrors `ArenaTheme.themeKey` from
+ *  `kaboom.game-state` into the vignette overlay's tint. Single
+ *  snapshot read per frame; CSS write happens only when the
+ *  theme key actually flips, so the steady-state cost is one Map
+ *  lookup + a string compare. */
+function startVignetteThemeTintPoller(
+  runtime: RuntimeHandle,
+  baseOptions: KaboomVignetteOptions
+): void {
+  if (typeof requestAnimationFrame === "undefined") return;
+  let lastKey: string | undefined;
+  const tick = (): void => {
+    try {
+      const snap = runtime.snapshot();
+      const gs = snap.entities.find((e) => e.id === "kaboom.game-state");
+      const themeRaw = (gs?.components as Record<string, { themeKey?: string } | undefined> | undefined)?.["ArenaTheme"]?.themeKey;
+      if (typeof themeRaw === "string" && themeRaw !== lastKey && isArenaThemeKey(themeRaw)) {
+        const tint = ARENA_THEMES[themeRaw].ambientHemisphericGround;
+        applyVignetteTint(tint, baseOptions);
+        lastKey = themeRaw;
+      }
+    } catch {
+      // best-effort — early ticks may surface transient errors.
     }
     requestAnimationFrame(tick);
   };
@@ -1219,9 +1257,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // screen edges. Backend-agnostic (the S216 engine pass only
     // fires on WebGL, and Kaboom Crew runs WebGPU primary).
     // `?vignette=off` skips the mount.
+    // S218 — tint the gradient with the active arena theme's
+    // ambient ground colour. A small rAF poller watches the
+    // game-state ArenaTheme; on theme key change it re-applies
+    // the tint. Cost: one snapshot read per frame, only updates
+    // CSS when the theme actually changes.
     {
       const opts = readVignetteOptionsFromUrl();
-      if (opts !== undefined) mountVignetteOverlay(opts);
+      if (opts !== undefined) {
+        mountVignetteOverlay(opts);
+        startVignetteThemeTintPoller(runtime, opts);
+      }
     }
 
     // S156 KABOOM-COSMETIC-UNLOCKS — bring up the profile store FIRST
