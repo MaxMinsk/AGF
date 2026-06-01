@@ -12,7 +12,8 @@ import {
   REVENGE_BOT_COOLDOWN_S_DEFAULT,
   REVENGE_COOLDOWN_S_DEFAULT,
   createKaboomRevengeSystem,
-  nearestAliveBomberCell
+  nearestAliveBomberCell,
+  pickRevengeLaunchEdge
 } from "../../src/systems/revenge-system";
 
 function ctx(world: World, dt = 1 / 60) {
@@ -161,12 +162,24 @@ describe("kaboom revenge (S211)", () => {
     expect(rs.cooldownRemainingS).toBeCloseTo(REVENGE_COOLDOWN_S_DEFAULT - 1, 3);
   });
 
-  it("bot auto-fire: OFF by default — dead bot does NOT spawn revenge bombs", () => {
+  it("S219: bot auto-fire is now ON by default — dead bot spawns a revenge bomb at the alive opponent's cell", () => {
     const world = new World();
     setupBomber(world, "player.1", 3, 3);
     setupBomber(world, "bot.1", 8, 8, { isBot: true });
     setupRoundState(world);
     const sys = createKaboomRevengeSystem();
+    killBomber(world, "bot.1");
+    sys.fixedUpdate!(ctx(world));
+    sys.fixedUpdate!(ctx(world));
+    expect(countRevengeBombs(world)).toBe(1);
+  });
+
+  it("explicit botAutoFire:false disables auto-fire (the V1 manual-only mode)", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 3, 3);
+    setupBomber(world, "bot.1", 8, 8, { isBot: true });
+    setupRoundState(world);
+    const sys = createKaboomRevengeSystem({ botAutoFire: false });
     killBomber(world, "bot.1");
     for (let i = 0; i < 30; i += 1) sys.fixedUpdate!(ctx(world));
     expect(countRevengeBombs(world)).toBe(0);
@@ -221,5 +234,53 @@ describe("kaboom revenge (S211)", () => {
     world.setComponent("bot.2", "BomberStats", { ...s, alive: false });
     const t = nearestAliveBomberCell(world, "player.1");
     expect(t).toEqual({ gx: 5, gz: 5 });
+  });
+
+  it("S219 pickRevengeLaunchEdge: 14×10 arena, target near N edge → launch at gz = -1", () => {
+    expect(pickRevengeLaunchEdge(7, 1, { width: 14, depth: 10 })).toEqual({ gx: 7, gz: -1 });
+  });
+
+  it("S219 pickRevengeLaunchEdge: 14×10 arena, target near S edge → launch at gz = depth", () => {
+    expect(pickRevengeLaunchEdge(7, 8, { width: 14, depth: 10 })).toEqual({ gx: 7, gz: 10 });
+  });
+
+  it("S219 pickRevengeLaunchEdge: 14×10 arena, target near W edge → launch at gx = -1", () => {
+    expect(pickRevengeLaunchEdge(1, 5, { width: 14, depth: 10 })).toEqual({ gx: -1, gz: 5 });
+  });
+
+  it("S219 pickRevengeLaunchEdge: 14×10 arena, target near E edge → launch at gx = width", () => {
+    expect(pickRevengeLaunchEdge(12, 5, { width: 14, depth: 10 })).toEqual({ gx: 14, gz: 5 });
+  });
+
+  it("S219 pickRevengeLaunchEdge: undefined arena bounds → fallback offset toward -Z", () => {
+    expect(pickRevengeLaunchEdge(7, 5, undefined)).toEqual({ gx: 7, gz: 1 });
+  });
+
+  it("S219 revenge bomb spawns in airborne state with arc tween (target snapped to landing cell)", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 3, 3);
+    setupBomber(world, "bot.1", 8, 8);
+    setupRoundState(world);
+    const sys = createKaboomRevengeSystem({ botAutoFire: false });
+    killBomber(world, "player.1");
+    sys.fixedUpdate!(ctx(world));
+    world.setComponent("player.1", "RevengeBombRequest", { targetGx: 7, targetGz: 8 });
+    sys.fixedUpdate!(ctx(world));
+    let bombId: string | undefined;
+    for (const id of world.entityIds()) if (id.startsWith("revenge-bomb.")) bombId = id;
+    expect(bombId).toBeDefined();
+    const bomb = world.getComponent<{ airborne?: boolean; airborneRemaining?: number; ownerId?: string }>(bombId!, "Bomb");
+    expect(bomb?.airborne).toBe(true);
+    expect(bomb?.airborneRemaining).toBeGreaterThan(0);
+    expect(bomb?.ownerId).toBe("player.1");
+    // GridPosition snaps to the landing cell immediately (per the
+    // throw-glove convention so blast walker + chain detection see
+    // the bomb at the right cell when the fuse fires post-landing).
+    const gp = world.getComponent<{ gx?: number; gz?: number }>(bombId!, "GridPosition");
+    expect(gp?.gx).toBe(7);
+    expect(gp?.gz).toBe(8);
+    // Tween targets `position` (not `scale` — V1 used a pop-in).
+    const tweens = world.getComponent<ReadonlyArray<{ property?: string }>>(bombId!, "Tweens") ?? [];
+    expect(tweens.some((t) => t.property === "position")).toBe(true);
   });
 });

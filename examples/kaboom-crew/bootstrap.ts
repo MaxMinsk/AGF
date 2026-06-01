@@ -113,6 +113,7 @@ import {
 } from "./src/systems/death-pickup-drop-system";
 import {
   createKaboomRevengeSystem,
+  REVENGE_ARC_DURATION_S_DEFAULT,
   REVENGE_BUDGET_DEFAULT,
   REVENGE_COOLDOWN_S_DEFAULT
 } from "./src/systems/revenge-system";
@@ -301,13 +302,18 @@ function readRevengeParamsFromUrl(): {
   disabled: boolean;
   bombsBudget: number;
   cooldownS: number;
-  botAutoFire: boolean;
+  /** Tri-state: undefined = use system default, true = force on,
+   *  false = force off. S219 flips the default to ON, so the URL
+   *  flag is now an opt-OUT (`?revengeBotAi=off`). */
+  botAutoFire: boolean | undefined;
+  arcDurationS: number;
 } {
   const defaults = {
     disabled: false,
     bombsBudget: REVENGE_BUDGET_DEFAULT,
     cooldownS: REVENGE_COOLDOWN_S_DEFAULT,
-    botAutoFire: false
+    botAutoFire: undefined as boolean | undefined,
+    arcDurationS: REVENGE_ARC_DURATION_S_DEFAULT
   };
   const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
   if (search === undefined || search.length === 0) return defaults;
@@ -320,8 +326,13 @@ function readRevengeParamsFromUrl(): {
     const coolRaw = params.get("revengeCooldownS");
     const coolParsed = coolRaw === null ? defaults.cooldownS : Number(coolRaw);
     const cooldownS = Number.isFinite(coolParsed) && coolParsed >= 0 ? coolParsed : defaults.cooldownS;
-    const botAutoFire = params.get("revengeBotAi") === "on";
-    return { disabled, bombsBudget, cooldownS, botAutoFire };
+    const botRaw = params.get("revengeBotAi");
+    const botAutoFire: boolean | undefined =
+      botRaw === "on" ? true : botRaw === "off" ? false : undefined;
+    const arcRaw = params.get("revengeArcS");
+    const arcParsed = arcRaw === null ? defaults.arcDurationS : Number(arcRaw);
+    const arcDurationS = Number.isFinite(arcParsed) && arcParsed > 0 ? arcParsed : defaults.arcDurationS;
+    return { disabled, bombsBudget, cooldownS, botAutoFire, arcDurationS };
   } catch {
     return defaults;
   }
@@ -1076,15 +1087,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // nearest alive bomber. URL `?revenge=off` disables.
     {
       const params = readRevengeParamsFromUrl();
-      scheduler.register(
-        createKaboomRevengeSystem({
-          disabled: params.disabled,
-          bombsBudget: params.bombsBudget,
-          cooldownS: params.cooldownS,
-          botAutoFire: params.botAutoFire
-        }),
-        { profiles: ["static", "connected"] }
-      );
+      const revengeOpts: Parameters<typeof createKaboomRevengeSystem>[0] = {
+        disabled: params.disabled,
+        bombsBudget: params.bombsBudget,
+        cooldownS: params.cooldownS,
+        // S219 — bot auto-fire defaults to ON (arc telegraph in place).
+        // Explicit URL `?revengeBotAi=off` is the new opt-out;
+        // `params.botAutoFire` flips true only when `?revengeBotAi=on`,
+        // so threading via setter handles the off-only override.
+        arenaSize: () => MAP_DIMS.get(activeMapName),
+        arcDurationS: params.arcDurationS
+      };
+      if (params.botAutoFire === false) revengeOpts.botAutoFire = false;
+      scheduler.register(createKaboomRevengeSystem(revengeOpts), { profiles: ["static", "connected"] });
     }
 
     // S104 KABOOM-BOMBER-ANIMATION-PROD — bench-animation-system reads
