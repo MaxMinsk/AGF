@@ -270,6 +270,62 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return nearestPickup(world, pos, danger);
   }
 
+  /** S220 — KICK opportunity detector. For each cardinal direction
+   *  D, returns D iff:
+   *    - the bot has BomberStats.canKick === true,
+   *    - the cell ahead (pos + D) holds one of THIS bot's own bombs,
+   *    - the cell beyond (pos + 2·D) is movement-passable,
+   *    - some alive enemy bomber sits between 2 and 6 cells from
+   *      the bot along D (same row / column, line-of-sight stops
+   *      at any movement-blocking cell).
+   *  Returns undefined when no cardinal qualifies. Pure read — the
+   *  caller overrides direction; bomb-kick-system does the actual
+   *  bomb-slide once the bot walks INTO the bomb cell. */
+  function findKickOpportunity(
+    world: World,
+    botId: EntityId,
+    pos: GridPos,
+    canKick: boolean
+  ): { dx: number; dz: number } | undefined {
+    if (!canKick) return undefined;
+    for (const dir of DIRECTIONS) {
+      const aheadGx = pos.gx + dir.dx;
+      const aheadGz = pos.gz + dir.dz;
+      // Own bomb in the ahead cell?
+      let ownBombHere = false;
+      for (const id of options.occupancy.occupants(aheadGx, aheadGz, "bomb")) {
+        const bomb = world.getComponent<{ ownerId?: string }>(id, BOMB);
+        if (bomb?.ownerId === botId) { ownBombHere = true; break; }
+      }
+      if (!ownBombHere) continue;
+      // Beyond cell must be movement-clear (the kick path needs
+      // somewhere to push the bomb to). The mechanic also refuses to
+      // stack two bombs at the beyond cell — close enough for the
+      // bot-side check.
+      const beyondGx = aheadGx + dir.dx;
+      const beyondGz = aheadGz + dir.dz;
+      if (options.occupancy.blocked(beyondGx, beyondGz, "movement")) continue;
+      // Alive enemy bomber along this direction, 2..6 cells away.
+      for (let step = 2; step <= 6; step += 1) {
+        const probeGx = pos.gx + dir.dx * step;
+        const probeGz = pos.gz + dir.dz * step;
+        if (step > 2 && options.occupancy.blocked(probeGx, probeGz, "movement")) break;
+        for (const id of world.entityIds()) {
+          if (id === botId) continue;
+          if (!world.hasComponent(id, BOMBER_STATS)) continue;
+          const s = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+          if (s?.alive === false) continue;
+          const p = world.getComponent<GridPos>(id, GRID_POSITION);
+          if (p === undefined) continue;
+          if (p.gx === probeGx && p.gz === probeGz) {
+            return { dx: dir.dx, dz: dir.dz };
+          }
+        }
+      }
+    }
+    return undefined;
+  }
+
   /** S210 — when HUMANS_DEAD is active, every personality (including
    *  coward) targets the nearest alive non-self bomber. This is what
    *  makes coward + coward stop their mutual avoidance and engage.
@@ -493,7 +549,15 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       } else {
         goal = personalityGoal(world, pos, brain.personality ?? "hunter", danger);
       }
-      const direction = decideDirection(pos, brain, danger, goal);
+      // S220 — KICK opportunity check. When the bot has canKick + an
+      // own bomb adjacent + an alive enemy 2..6 cells beyond it,
+      // walking INTO the bomb is the right move — bomb-kick-system
+      // slides the bomb toward the enemy and the bot proceeds in
+      // the same direction. Overrides the personality goal so this
+      // tactical shot wins over the default wander/chase.
+      const statsForKick = world.getComponent<{ canKick?: boolean }>(botId, BOMBER_STATS);
+      const kickDir = findKickOpportunity(world, botId, pos, statsForKick?.canKick === true);
+      const direction = kickDir ?? decideDirection(pos, brain, danger, goal);
 
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
       if (mover !== undefined) {
