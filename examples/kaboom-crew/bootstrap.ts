@@ -83,7 +83,10 @@ import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-syst
 import { createKaboomRoundCelebrationFxSystem } from "./src/systems/round-celebration-fx-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
-import { createKaboomBotAISystem } from "./src/systems/bot-ai-system";
+import {
+  createKaboomBotAISystem,
+  BOT_ACCELERATION_BASE_BOOST_DEFAULT
+} from "./src/systems/bot-ai-system";
 import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
 import { createKaboomRemoteBomberDecoratorSystem } from "./src/systems/remote-bomber-decorator-system";
@@ -265,6 +268,26 @@ function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
     return isArenaThemeKey(v) ? v : undefined;
   } catch {
     return undefined;
+  }
+}
+
+// S210 KABOOM-BOT-ACCELERATION — read bot-only round acceleration
+// flags:
+//   ?botAccelerate=off          disables the boost entirely
+//   ?botAccelerationBoost=N     overrides base 0.25 boost
+function readBotAccelerationFromUrl(): { disabled: boolean; baseBoost: number } {
+  const defaults = { disabled: false, baseBoost: BOT_ACCELERATION_BASE_BOOST_DEFAULT };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const params = new URLSearchParams(search);
+    const disabled = params.get("botAccelerate") === "off";
+    const raw = params.get("botAccelerationBoost");
+    const parsed = raw === null ? defaults.baseBoost : Number(raw);
+    const baseBoost = Number.isFinite(parsed) && parsed >= 0 ? parsed : defaults.baseBoost;
+    return { disabled, baseBoost };
+  } catch {
+    return defaults;
   }
 }
 
@@ -993,7 +1016,18 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // authoritative on bot AI. The local bot-AI would otherwise drive
     // a phantom local bot.1 — but we suppress that spawn entirely
     // (FEAT-CLIENT-SUPPRESS-LOCAL-BOT-001).
-    scheduler.register(createKaboomBotAISystem({ occupancy, seed: 1337 }), { profiles: ["static"] });
+    {
+      const accel = readBotAccelerationFromUrl();
+      scheduler.register(
+        createKaboomBotAISystem({
+          occupancy,
+          seed: 1337,
+          accelerationDisabled: accel.disabled,
+          accelerationBaseBoost: accel.baseBoost
+        }),
+        { profiles: ["static"] }
+      );
+    }
 
     // S152 KABOOM-BOMB-BLOCK — runs AFTER input + bot-ai so the just-
     // written GridMover.queuedDirection is cleared before the NEXT
