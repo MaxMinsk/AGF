@@ -157,6 +157,9 @@ import {
 } from "./src/powerup-icons";
 // S153 KABOOM-PLAYER-PROFILE — localStorage-backed persistent profile.
 import { createProfileStore, type ProfileStore } from "./src/profile/profile-store";
+// S217 KABOOM-VIGNETTE-OVERLAY — pure-DOM vignette (the engine
+// post-FX vignette is WebGL-only; Kaboom Crew runs on WebGPU).
+import { mountVignetteOverlay, readVignetteOptionsFromUrl } from "./src/ui/vignette-overlay";
 // S156 KABOOM-COSMETIC-UNLOCKS — 5 starter unlocks + banner on threshold cross.
 import {
   checkUnlocks,
@@ -1211,6 +1214,15 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // the right map (matches the legacy S86 behaviour where
     // buildFlatStartScene re-read the URL each call).
     seedActiveMapFromUrl();
+
+    // S217 KABOOM-VIGNETTE-OVERLAY — pure-DOM radial darkening at
+    // screen edges. Backend-agnostic (the S216 engine pass only
+    // fires on WebGL, and Kaboom Crew runs WebGPU primary).
+    // `?vignette=off` skips the mount.
+    {
+      const opts = readVignetteOptionsFromUrl();
+      if (opts !== undefined) mountVignetteOverlay(opts);
+    }
 
     // S156 KABOOM-COSMETIC-UNLOCKS — bring up the profile store FIRST
     // so the player.1 recipe spawn below can read cosmeticUnlocks and
