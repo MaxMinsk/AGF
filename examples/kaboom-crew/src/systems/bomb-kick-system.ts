@@ -21,7 +21,6 @@ import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-oc
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_MOVER: ComponentName = "GridMover";
-const PLAYER_CONTROLLED: ComponentName = "PlayerControlled";
 const BOMB: ComponentName = "Bomb";
 const TRANSFORM: ComponentName = "Transform";
 
@@ -56,7 +55,13 @@ export function createKaboomBombKickSystem(options: KaboomBombKickSystemOptions)
   const fixedUpdate = (ctx: SystemContext): void => {
     const world = ctx.world;
     if (world !== cachedWorld) {
-      kickers = world.createQuery([PLAYER_CONTROLLED, BOMBER_STATS, GRID_POSITION, GRID_MOVER]);
+      // S220 — bots also kick now. The query was filtered to
+      // PlayerControlled in V1; the mechanism is identical for any
+      // bomber with canKick + a queued direction + an own-bomb in
+      // the cell ahead. Bot-AI side decision (in bot-ai-system)
+      // walks the bot into its own bomb when an alive enemy sits
+      // beyond it; the existing kick mechanic does the rest.
+      kickers = world.createQuery([BOMBER_STATS, GRID_POSITION, GRID_MOVER]);
       cachedWorld = world;
     }
     for (const bomberId of kickers!.run()) {
