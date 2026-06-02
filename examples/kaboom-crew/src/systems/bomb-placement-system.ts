@@ -21,6 +21,7 @@ const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const TWEENS: ComponentName = "Tweens";
 const RIGID_BODY_3D: ComponentName = "RigidBody3D";
 const COLLIDER_3D: ComponentName = "Collider3D";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
 // S095 KABOOM-SPAWN-POP-TWEEN — bombs grow from a single point to full
 // size with a small overshoot on spawn. Drives the engine Tween system
@@ -168,6 +169,29 @@ export function createKaboomBombPlacementSystem(
         activeBombs: active + 1,
         remoteDetonateCharges: usesRemote ? charges - 1 : charges
       });
+
+      // S243 KABOOM-BOMB-SPAWN-PUFF (GDP-2026-06-02-001 visual cue
+      // extension). Co-spawn a short-lived spark emitter so the
+      // placement reads instantly even in chaotic moments. Mirrors
+      // S228's death-bomb puff but tighter (0.3 s lifetime, 8 max
+      // particles) so back-to-back placements don't drown the scene.
+      // ParticleEmitter self-cleans when elapsed reaches lifetime.
+      const puffId = `${bombId}.puff`;
+      if (!world.hasEntity(puffId)) {
+        world.addEntity(puffId);
+        world.setComponent(puffId, TRANSFORM, {
+          position: [pos.gx, 0.5 + cellHeight, pos.gz],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1]
+        });
+        world.setComponent(puffId, PARTICLE_EMITTER, {
+          preset: "spark",
+          lifetime: 0.3,
+          elapsed: 0,
+          rate: 30,
+          maxParticles: 8
+        });
+      }
     }
   };
 

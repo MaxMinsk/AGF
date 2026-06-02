@@ -81,6 +81,41 @@ describe("createKaboomBombPlacementSystem (S82 KABOOM-BOMB-PLACE)", () => {
     expect(collider?.radius).toBeCloseTo(0.175, 6);
   });
 
+  it("S243 KABOOM-BOMB-SPAWN-PUFF: co-spawns a short-lived ParticleEmitter at the bomb cell", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4);
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.test" });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasEntity("bomb.test.puff")).toBe(true);
+    const emitter = world.getComponent("bomb.test.puff", "ParticleEmitter") as {
+      preset?: string;
+      lifetime?: number;
+      elapsed?: number;
+      rate?: number;
+      maxParticles?: number;
+    };
+    expect(emitter.preset).toBe("spark");
+    expect(emitter.lifetime).toBeCloseTo(0.3, 6);
+    expect(emitter.elapsed).toBe(0);
+    expect(emitter.maxParticles).toBe(8);
+    const transform = world.getComponent("bomb.test.puff", "Transform") as { position: ReadonlyArray<number> };
+    expect(transform.position[0]).toBe(3);
+    expect(transform.position[2]).toBe(4);
+  });
+
+  it("S243 KABOOM-BOMB-SPAWN-PUFF: refused placement (maxBombs cap) does NOT spawn a puff", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4, { activeBombs: 1, maxBombs: 1 });
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.refused" });
+    system.frameUpdate!(ctx(world));
+    expect(world.hasEntity("bomb.refused")).toBe(false);
+    expect(world.hasEntity("bomb.refused.puff")).toBe(false);
+  });
+
   it("S095 KABOOM-SPAWN-POP-TWEEN: bomb spawns at scale 0 with an easeOutBack Tween to its final size", () => {
     const world = new World();
     makePlayer(world, "player.1", 3, 4);
