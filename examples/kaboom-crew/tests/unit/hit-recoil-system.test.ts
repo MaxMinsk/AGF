@@ -129,7 +129,7 @@ describe("createKaboomHitRecoilSystem (S109)", () => {
       rate?: number;
       maxParticles?: number;
     }>(puffId, "ParticleEmitter")!;
-    expect(emitter.preset).toBe("spark");
+    expect(emitter.preset).toBe("glow");
     expect(emitter.lifetime).toBeCloseTo(0.4, 6);
     expect(emitter.maxParticles).toBe(16);
     const transform = world.getComponent<{ position: ReadonlyArray<number> }>(puffId, "Transform")!;
