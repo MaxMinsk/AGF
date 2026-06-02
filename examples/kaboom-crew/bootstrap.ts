@@ -117,6 +117,10 @@ import {
   REVENGE_BUDGET_DEFAULT,
   REVENGE_COOLDOWN_S_DEFAULT
 } from "./src/systems/revenge-system";
+import {
+  createKaboomDeathBombDropSystem,
+  DEATH_BOMB_RANGE_DEFAULT
+} from "./src/systems/death-bomb-drop-system";
 // S165 KABOOM-MULTI-VARIANT-BLOCKS — per-cell procedural variant
 // builders for hard / soft blocks + floor tiles; block-variant-system
 // rewrites MeshRenderer.mesh refs of cells at scene-load so the
@@ -298,6 +302,26 @@ function readArenaThemeFromUrl(): ArenaThemeKey | undefined {
 //   ?revengeCooldownS=N       seconds between successive launches
 //   ?revengeBotAi=on          enable bot auto-fire (off by default;
 //                             waits for the V2 arc/telegraph polish)
+
+// S226 KABOOM-DEATH-BOMB-DROP — URL flags:
+//   ?deathBomb=off            disables the auto-bomb on death
+//   ?deathBombRange=N         override default range (1..4)
+function readDeathBombParamsFromUrl(): { disabled: boolean; range: number } {
+  const defaults = { disabled: false, range: DEATH_BOMB_RANGE_DEFAULT };
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return defaults;
+  try {
+    const p = new URLSearchParams(search);
+    const disabled = p.get("deathBomb") === "off";
+    const raw = p.get("deathBombRange");
+    const parsed = raw === null ? defaults.range : Number(raw);
+    const range = Number.isFinite(parsed) && parsed >= 1 && parsed <= 4 ? Math.floor(parsed) : defaults.range;
+    return { disabled, range };
+  } catch {
+    return defaults;
+  }
+}
+
 function readRevengeParamsFromUrl(): {
   disabled: boolean;
   bombsBudget: number;
@@ -308,8 +332,13 @@ function readRevengeParamsFromUrl(): {
   botAutoFire: boolean | undefined;
   arcDurationS: number;
 } {
+  // S226 — revenge-cart is now superseded by death-bomb-drop
+  // (GDP-2026-06-02-001). Default flips to DISABLED so two
+  // overlapping parting-shot mechanics don't bombard the survivor.
+  // Opt-IN via `?revenge=on` keeps the click-to-throw mechanic
+  // available for testing.
   const defaults = {
-    disabled: false,
+    disabled: true,
     bombsBudget: REVENGE_BUDGET_DEFAULT,
     cooldownS: REVENGE_COOLDOWN_S_DEFAULT,
     botAutoFire: undefined as boolean | undefined,
@@ -319,7 +348,8 @@ function readRevengeParamsFromUrl(): {
   if (search === undefined || search.length === 0) return defaults;
   try {
     const params = new URLSearchParams(search);
-    const disabled = params.get("revenge") === "off";
+    const revengeFlag = params.get("revenge");
+    const disabled = revengeFlag === "off" ? true : revengeFlag === "on" ? false : defaults.disabled;
     const countRaw = params.get("revengeCount");
     const countParsed = countRaw === null ? defaults.bombsBudget : Number(countRaw);
     const bombsBudget = Number.isFinite(countParsed) && countParsed >= 0 ? Math.floor(countParsed) : defaults.bombsBudget;
@@ -1078,6 +1108,26 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         { profiles: ["static", "connected"] }
       );
       scheduler.register(createKaboomLootDropDecaySystem(), { profiles: ["static", "connected"] });
+    }
+
+    // S226 KABOOM-DEATH-BOMB-DROP (GDP-2026-06-02-001) — every
+    // bomber death auto-spawns ONE bomb in a cardinal-adjacent
+    // cell (or the death cell as fallback). Owner = dead bomber
+    // (kill credit posthumously). Simpler replacement for the
+    // S211/S219 revenge-cart click-to-throw flow.
+    {
+      const params = readDeathBombParamsFromUrl();
+      scheduler.register(
+        createKaboomDeathBombDropSystem({
+          occupancy,
+          disabled: params.disabled,
+          range: params.range,
+          // Bounds-aware so death bombs never spawn off-screen
+          // when the ragdoll lands near an arena edge.
+          arenaSize: () => MAP_DIMS.get(activeMapName)
+        }),
+        { profiles: ["static", "connected"] }
+      );
     }
 
     // S211 KABOOM-REVENGE (GDP-2026-05-30-002 V1) — dead bombers
