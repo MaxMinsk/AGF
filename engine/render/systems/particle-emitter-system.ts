@@ -40,6 +40,8 @@ type ParticleEmitterComponent = {
   rate?: number;
   maxParticles?: number;
   offset?: Vec3;
+  /** S256 — optional hex colour override (preset.color is the default). */
+  color?: string;
 };
 
 type TransformComponent = { position?: Vec3 };
@@ -192,8 +194,10 @@ export function createParticleEmitterSystem(deps: {
 
     let runtime = runtimes.get(entityId);
     if (runtime === undefined) {
+      // S256 — emitter.color overrides preset.color when supplied.
+      const color = emitter.color ?? preset.color;
       const handle = adapter.acquireParticlePool({
-        color: preset.color,
+        color,
         capacity: maxParticles,
         radius: preset.radius
       });
