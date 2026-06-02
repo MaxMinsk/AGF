@@ -926,6 +926,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     _boundOccupancy = occupancy;
     scheduler.register(occupancy, { profiles: ["static", "connected"] });
 
+    // S235 walk-through-bomb fix (GDP-2026-06-02-003). bomb-block-system
+    // must fire BEFORE grid-movement-system in frameUpdate phase: if it
+    // doesn't, grid-movement consumes queuedDirection + starts a cell-
+    // tween toward the bomb cell, and bomb-block's later safety check
+    // (`if (mover.targetGx !== undefined) continue`) skips the bomber.
+    // Player walks through bombs without bombPass.
+    // Registration order = execution order per `scheduler.runFrame` —
+    // move bomb-block to the slot right after occupancy.
+    scheduler.register(createKaboomBombBlockSystem({ occupancy }), { profiles: ["static", "connected"] });
+
     scheduler.register(createGridMovementSystem({ occupancy }), { profiles: ["static", "connected"] });
     // S178 KABOOM-BOMBER-HEIGHT-LIFT — keep bombers/bombs/pickups Y in
     // sync with the cell they stand on. Runs AFTER grid-movement so
@@ -1241,13 +1251,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       );
     }
 
-    // S152 KABOOM-BOMB-BLOCK — runs AFTER input + bot-ai so the just-
-    // written GridMover.queuedDirection is cleared before the NEXT
-    // frame's grid-movement-system reads it. Implements the classic-
-    // Bomberman "bomb blocks bomber" baseline (own bomb after step-off,
-    // others' always) + the Bomb Pass override (own bomb passable for
-    // bombers with BomberStats.bombPass=true).
-    scheduler.register(createKaboomBombBlockSystem({ occupancy }), { profiles: ["static", "connected"] });
+    // (S152 bomb-block registration moved to right after occupancy in
+    // S235 walk-through fix — see comment near line 928.)
 
     // Round resolve gets a late-bound onRestart closure so it can fire
     // the auto-restart timer (default 3 s after win/loss/draw) without
