@@ -537,7 +537,13 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     // additive on top of the personality scale (cap 1.0).
     const persona = brain.personality ?? "hunter";
     const aggressionScale = persona === "coward" ? 1.5 : persona === "miner" ? 1.4 : 1.0;
-    const aggression = Math.min(1, brain.aggression * aggressionScale + boost);
+    // S227 — tally-driven personality bias (GDP-2026-05-29-010 L2).
+    // When the bots are leading 2+ rounds, Coward stops orbiting +
+    // gains aggression; when the bots are trailing 2+ rounds,
+    // Hunter dials back risky placements. Miner ignores the tally
+    // (it focuses on soft blocks regardless of score).
+    const tallyBias = personalityTallyBias(world, persona);
+    const aggression = Math.min(1, Math.max(0, brain.aggression * aggressionScale + boost + tallyBias));
     // S210 — also place bombs on EMPTY cells (no soft-block adjacent)
     // when boosted. The GDP calls for "+20% bomb-place rate" on top of
     // the personality bias; lifting the soft-block requirement under
@@ -839,6 +845,28 @@ function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number
   if (bomb.gx === gx && Math.abs(bomb.gz - gz) <= bomb.range) return true;
   if (bomb.gz === gz && Math.abs(bomb.gx - gx) <= bomb.range) return true;
   return false;
+}
+
+/** S227 — read RoundState.tally and return an additive aggression
+ *  bias for the given personality (GDP-2026-05-29-010 Layer 2).
+ *
+ *    Coward + bots leading 2+ → +0.20 (stop orbiting, engage)
+ *    Hunter + bots trailing 2+ → -0.20 (dial back risky placements)
+ *    Miner / no tally / lead within ±1 → 0
+ *
+ *  Pure helper — exported for unit tests. The system applies this
+ *  on top of `brain.aggression * personalityScale + boostNow` so
+ *  the existing HUMANS_DEAD acceleration stacks. */
+export function personalityTallyBias(world: World, persona: BotPersonality): number {
+  const round = world.hasEntity("kaboom.round-state")
+    ? world.getComponent<{ tally?: { player?: number; bot?: number } }>("kaboom.round-state", "RoundState")
+    : undefined;
+  const playerWins = round?.tally?.player ?? 0;
+  const botWins = round?.tally?.bot ?? 0;
+  const diff = botWins - playerWins;
+  if (persona === "coward" && diff >= 2) return 0.2;
+  if (persona === "hunter" && diff <= -2) return -0.2;
+  return 0;
 }
 
 /** S225 — predict the next cell given a list of recent positions
