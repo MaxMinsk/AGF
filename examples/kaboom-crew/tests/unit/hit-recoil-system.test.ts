@@ -108,6 +108,47 @@ describe("createKaboomHitRecoilSystem (S109)", () => {
     expect(torso.rotation[0]!).toBe(0);
   });
 
+  it("S244 KABOOM-SHIELD-SAVE-PUFF: co-spawns a short-lived ParticleEmitter at the bomber's cell", () => {
+    const world = new World();
+    addBomberWithTorso(world, { gx: 4, gz: 7 });
+    world.setComponent("player.1", "HitRecoilRequest", { blastOriginGx: 4, blastOriginGz: 9 });
+    const system = createKaboomHitRecoilSystem();
+    system.fixedUpdate!(ctx(world));
+    // Find the puff via the id prefix — counter is module-scoped so the
+    // suffix may be any positive integer depending on test order.
+    const puffIds: string[] = [];
+    for (const id of world.entityIds()) {
+      if (id.startsWith("player.1.shield-save.")) puffIds.push(id);
+    }
+    expect(puffIds.length).toBe(1);
+    const puffId = puffIds[0]!;
+    const emitter = world.getComponent<{
+      preset?: string;
+      lifetime?: number;
+      elapsed?: number;
+      rate?: number;
+      maxParticles?: number;
+    }>(puffId, "ParticleEmitter")!;
+    expect(emitter.preset).toBe("spark");
+    expect(emitter.lifetime).toBeCloseTo(0.4, 6);
+    expect(emitter.maxParticles).toBe(16);
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(puffId, "Transform")!;
+    expect(transform.position[0]).toBe(4);
+    expect(transform.position[2]).toBe(7);
+  });
+
+  it("S244 KABOOM-SHIELD-SAVE-PUFF: bomber with no torso does NOT spawn the puff", () => {
+    const world = new World();
+    world.addEntity("player.1");
+    world.setComponent("player.1", "GridPosition", { gx: 5, gz: 5 });
+    world.setComponent("player.1", "HitRecoilRequest", { blastOriginGx: 5, blastOriginGz: 3 });
+    const system = createKaboomHitRecoilSystem();
+    system.fixedUpdate!(ctx(world));
+    for (const id of world.entityIds()) {
+      expect(id.startsWith("player.1.shield-save.")).toBe(false);
+    }
+  });
+
   it("preserves torso rotation.Y and .Z (only writes X)", () => {
     const world = new World();
     addBomberWithTorso(world);
