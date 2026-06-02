@@ -424,6 +424,60 @@ export function nearestBotOtherBomber(
   return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
 }
 
+/** S238 — KICK opportunity detector. For each cardinal direction D,
+ *  returns D iff:
+ *    - canKick is true,
+ *    - the cell ahead (pos + D) holds one of botId's own bombs,
+ *    - the cell beyond (pos + 2·D) is movement-passable,
+ *    - some alive enemy bomber sits between 2 and 6 cells from the
+ *      bot along D, line-of-sight stopping at any movement-blocking
+ *      cell beyond step 2.
+ *  Returns undefined when no cardinal qualifies. Pure read — the
+ *  caller overrides direction; bomb-kick-system does the actual
+ *  bomb-slide once the bot walks INTO the bomb cell.
+ *
+ *  Extracted from bot-ai-system.ts (S220) for the GDP-2026-06-02-002
+ *  refactor; behaviour-preserving. */
+export function findBotKickOpportunity(
+  world: World,
+  botId: EntityId,
+  pos: { gx: number; gz: number },
+  canKick: boolean,
+  occupancy: BotOccupancyQuery
+): { dx: number; dz: number } | undefined {
+  if (!canKick) return undefined;
+  for (const dir of DIRECTIONS_4) {
+    const aheadGx = pos.gx + dir.dx;
+    const aheadGz = pos.gz + dir.dz;
+    let ownBombHere = false;
+    for (const id of occupancy.occupants(aheadGx, aheadGz, "bomb")) {
+      const bomb = world.getComponent<{ ownerId?: string }>(id, BOMB);
+      if (bomb?.ownerId === botId) { ownBombHere = true; break; }
+    }
+    if (!ownBombHere) continue;
+    const beyondGx = aheadGx + dir.dx;
+    const beyondGz = aheadGz + dir.dz;
+    if (occupancy.blocked(beyondGx, beyondGz, "movement")) continue;
+    for (let step = 2; step <= 6; step += 1) {
+      const probeGx = pos.gx + dir.dx * step;
+      const probeGz = pos.gz + dir.dz * step;
+      if (step > 2 && occupancy.blocked(probeGx, probeGz, "movement")) break;
+      for (const id of world.entityIds()) {
+        if (id === botId) continue;
+        if (!world.hasComponent(id, BOMBER_STATS)) continue;
+        const s = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+        if (s?.alive === false) continue;
+        const p = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+        if (p?.gx === undefined || p.gz === undefined) continue;
+        if (p.gx === probeGx && p.gz === probeGz) {
+          return { dx: dir.dx, dz: dir.dz };
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 /** S236 V2 — nearest PlayerControlled bomber within `maxDistance` cells. */
 export function nearestBotPlayer(
   world: World,
