@@ -1,0 +1,30 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-06-02-005",
+  "title": "Chokepoint arena variant — corridors connecting 4 quadrants via 1-cell-wide passages",
+  "createdAt": "2026-06-02T13:05:00.000Z",
+  "kind": "feature",
+  "intent": "Source: arena-complexity spike (S230) #2 ranked recommendation. Most arenas today let players orbit each other indefinitely (esp. coward vs coward — see S210 HUMANS_DEAD acceleration). A chokepoint arena forces engagement: 4 quadrants of regular play, connected by 1-cell-wide hard-block corridors. The centre is a 3×3 plaza where the main fights happen. You can't ignore your opponent — the geometry funnels them at you.",
+  "priority": "should",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "Spike scored 13/15. Pure scene-authoring (no engine work). Existing bot pathfinding handles 1-cell corridors already (passableNeighbours just checks the movement layer). Adds variety to the rotation without touching gameplay rules.",
+  "acceptanceHints": [
+    "NEW SCENE FILE: `examples/kaboom-crew/scenes/corridors.scene.json`.",
+    "DIMENSIONS: 17×17 grid (matches `cross` size for fairness with the existing 17×17 arena).",
+    "STRUCTURE:",
+    "  - 4 quadrants of ~6×6 cells each, separated by hard-block walls.",
+    "  - 4 1-cell-wide corridors connecting each quadrant to a central 3×3 plaza.",
+    "  - Each quadrant has its own spawn cell (1 per bomber, up to 4 bombers).",
+    "  - Soft-block density inside quadrants follows the global default; corridors stay clear; centre plaza pristine.",
+    "BOT AI: no changes needed — pathfinding goes through corridors naturally. The choke makes bomb placement decisions more impactful (a bomb in a corridor blocks the only route until it fuses).",
+    "WIRE-UP: add to MAP_REGISTRY + MAP_DIMS + MATCH_ROTATION_POOL in `examples/kaboom-crew/bootstrap.ts`.",
+    "TESTS:",
+    "  Visual: rendered arena shows 4 quadrants + corridors + central plaza.",
+    "  Bot-vs-bot regression: a deterministic round resolves within budget (no infinite orbit).",
+    "  Demo-30s snapshot baseline stays untouched (the new map isn't the default).",
+    "OUT OF SCOPE:",
+    "  Diagonal corridors / non-axis-aligned shapes (keep the orthogonal grid).",
+    "  Destructible corridor walls (corridors are HARD blocks by design — they shape the round).",
+    "  Asymmetric quadrants (every quadrant identical for fairness)."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-06-02-004",
+  "title": "Per-region soft-block density variation — cluster zones / pristine zones / reward rooms per arena",
+  "createdAt": "2026-06-02T13:00:00.000Z",
+  "kind": "feature",
+  "intent": "Source: top-ranked recommendation from `docs/research/arena-complexity-spike.md`. Soft-block density is currently uniform per arena (~40 %). This story extends scene JSON with an optional `terrainmap.softBlockDensity: number[][]` field that overrides the global density per cell (0..1 = spawn chance). Default arenas keep uniform; new variants can carve out cluster zones (60-70 % density, high loot reward), pristine zones (0-10 %, fast-travel corridors), and reward rooms (cul-de-sacs with 80 % density gating premium pickups). Same arena skeleton, very different round flow per zone choice.",
+  "priority": "should",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "User feedback 2026-06-01: default arena feels 'сложновато и не интересно' — addressed by the arena-complexity spike (S230). Density-variation scored 14/15 (highest impact × cost × fit) because the existing soft-block spawn pipeline already rolls per-cell — this is a per-cell override of the global rate. ~40 LOC + 2-3 new arena variants. Pairs naturally with random-elements (GDP-2026-06-02-006) which would reroll the per-cell decision each match.",
+  "acceptanceHints": [
+    "SCHEMA: extend the existing scene `terrainmap` block (`schemas/kaboom-crew/scene-extensions.schema.json` or equivalent) with an optional `softBlockDensity?: number[][]` field. One value per cell, 0..1. Same shape as the existing terrainmap arrays (per-row).",
+    "SCENE-LOADER: when `softBlockDensity[gz][gx]` is present, the soft-block spawn roll for that cell uses that value as the threshold instead of the global density (default 0.4). Out-of-bounds / missing entries fall through to the global rate.",
+    "RNG: the existing per-cell hash (S82 `seed ^ cellHash(gx, gz)`) stays as the random source — only the comparison threshold changes per cell.",
+    "AUTHORING: ship 2 new arena variants exercising the feature:",
+    "  - `cluster-rooms.scene.json`: 3 high-density cul-de-sacs in the corners + a pristine central plaza.",
+    "  - `racetrack.scene.json`: pristine outer ring (fast travel) + dense centre island (loot).",
+    "  Add both to MAP_REGISTRY + MAP_DIMS + the per-match rotation pool from S205.",
+    "TESTS:",
+    "  Unit: scene-loader honors per-cell density override (cell at (3,3) with density=1 always spawns soft; density=0 never spawns).",
+    "  Unit: missing softBlockDensity field falls through to global rate (no regression).",
+    "  Unit: the demo-30s snapshot regression for the default arena stays byte-identical (no density map on default arena).",
+    "  Visual: cluster-rooms shows visibly dense corners + open centre; racetrack shows the ring pattern.",
+    "OUT OF SCOPE:",
+    "  Dynamic mid-round density change (regrowing blocks — separate story).",
+    "  Bot-AI awareness of density zones (separate story, blocked on bot-ai refactor GDP-2026-06-02-002).",
+    "  Hard-block density variation — keep the lattice for now."
+  ]
+}
