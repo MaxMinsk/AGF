@@ -92,8 +92,10 @@ function deathSeed(bomberId: EntityId, roundNumber: number, projectSeed: number)
 
 /** Pure helper — given the candidate-set predicate and an RNG, pick
  *  the destination cell for the death bomb. Returns undefined when
- *  no valid placement is possible (silent-skip per the GDP).
- *  Exported for unit tests. */
+ *  no cardinal-adjacent cell is free — per user feedback the death
+ *  bomb only ever spawns on an unobstructed CARDINAL CELL, never on
+ *  the death cell itself. Surrounded → silent skip. Exported for
+ *  unit tests. */
 export function pickDeathBombCell(
   deathPos: { gx: number; gz: number },
   isAvailable: (cell: { gx: number; gz: number }) => boolean,
@@ -104,13 +106,9 @@ export function pickDeathBombCell(
     const cell = { gx: deathPos.gx + dir.dx, gz: deathPos.gz + dir.dz };
     if (isAvailable(cell)) candidates.push(cell);
   }
-  if (candidates.length > 0) {
-    const idx = Math.floor(rng.next() * candidates.length);
-    return candidates[Math.min(idx, candidates.length - 1)];
-  }
-  // Fallback to death cell if it's still placeable (no live bomb).
-  if (isAvailable(deathPos)) return deathPos;
-  return undefined;
+  if (candidates.length === 0) return undefined;
+  const idx = Math.floor(rng.next() * candidates.length);
+  return candidates[Math.min(idx, candidates.length - 1)];
 }
 
 export function createKaboomDeathBombDropSystem(

@@ -101,13 +101,16 @@ describe("kaboom death-bomb drop (S226)", () => {
     expect(pickDeathBombCell({ gx: 5, gz: 5 }, ok, { next: () => 0.5 })).toEqual(east);
   });
 
-  it("pickDeathBombCell: all 4 cardinals blocked + death cell free → falls back to death cell", () => {
+  it("pickDeathBombCell: all 4 cardinals blocked → undefined (silent skip — death cell NEVER used as fallback)", () => {
     const deathCell = { gx: 5, gz: 5 };
-    const ok = (cell: { gx: number; gz: number }) => cell.gx === deathCell.gx && cell.gz === deathCell.gz;
-    expect(pickDeathBombCell(deathCell, ok, { next: () => 0.5 })).toEqual(deathCell);
+    // isAvailable returns true ONLY for the death cell itself. The
+    // helper must still return undefined because cardinals are the
+    // only valid spawn cells per spec.
+    const onlyDeathOk = (cell: { gx: number; gz: number }) => cell.gx === deathCell.gx && cell.gz === deathCell.gz;
+    expect(pickDeathBombCell(deathCell, onlyDeathOk, { next: () => 0.5 })).toBeUndefined();
   });
 
-  it("pickDeathBombCell: all 4 cardinals + death cell blocked → undefined (silent skip)", () => {
+  it("pickDeathBombCell: every cell blocked → undefined (silent skip)", () => {
     const cell = pickDeathBombCell({ gx: 5, gz: 5 }, () => false, { next: () => 0.5 });
     expect(cell).toBeUndefined();
   });
@@ -167,7 +170,7 @@ describe("kaboom death-bomb drop (S226)", () => {
     expect(countDeathBombs(world)).toBe(after);
   });
 
-  it("system: bomber surrounded by hard blocks → falls back to death cell", () => {
+  it("system: bomber surrounded by hard blocks → silent skip (no spawn on death cell)", () => {
     const world = new World();
     setupBomber(world, "player.1", 5, 5);
     const occupancy = occupancyFromSets(
@@ -178,27 +181,6 @@ describe("kaboom death-bomb drop (S226)", () => {
         { gx: 5, gz: 4 }
       ],
       []
-    );
-    const sys = createKaboomDeathBombDropSystem({ occupancy });
-    sys.fixedUpdate!(ctx(world));
-    killBomber(world, "player.1");
-    sys.fixedUpdate!(ctx(world));
-    expect(countDeathBombs(world)).toBe(1);
-    const [cell] = deathBombCells(world);
-    expect(cell).toEqual({ gx: 5, gz: 5 });
-  });
-
-  it("system: surrounded + death cell holds another bomb → silent skip", () => {
-    const world = new World();
-    setupBomber(world, "player.1", 5, 5);
-    const occupancy = occupancyFromSets(
-      [
-        { gx: 6, gz: 5 },
-        { gx: 4, gz: 5 },
-        { gx: 5, gz: 6 },
-        { gx: 5, gz: 4 }
-      ],
-      [{ gx: 5, gz: 5, id: "existing.bomb" }]
     );
     const sys = createKaboomDeathBombDropSystem({ occupancy });
     sys.fixedUpdate!(ctx(world));
