@@ -559,23 +559,6 @@
       }
     },
     {
-      "id": "soft-block.1",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            1
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 1
-        }
-      }
-    },
-    {
       "id": "hard-block.20",
       "prefab": "hard-block",
       "overrides": {
@@ -593,7 +576,7 @@
       }
     },
     {
-      "id": "soft-block.2",
+      "id": "soft-block.1",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -661,7 +644,7 @@
       }
     },
     {
-      "id": "soft-block.3",
+      "id": "soft-block.2",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -717,40 +700,6 @@
       "overrides": {
         "Transform": {
           "position": [
-            8,
-            0.5,
-            2
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 2
-        }
-      }
-    },
-    {
-      "id": "soft-block.4",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            9,
-            0.5,
-            2
-          ]
-        },
-        "GridPosition": {
-          "gx": 9,
-          "gz": 2
-        }
-      }
-    },
-    {
-      "id": "hard-block.27",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
             10,
             0.5,
             2
@@ -763,7 +712,7 @@
       }
     },
     {
-      "id": "soft-block.5",
+      "id": "soft-block.3",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -780,7 +729,7 @@
       }
     },
     {
-      "id": "hard-block.28",
+      "id": "hard-block.27",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -797,7 +746,7 @@
       }
     },
     {
-      "id": "hard-block.29",
+      "id": "hard-block.28",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -814,7 +763,7 @@
       }
     },
     {
-      "id": "hard-block.30",
+      "id": "hard-block.29",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -831,7 +780,7 @@
       }
     },
     {
-      "id": "hard-block.31",
+      "id": "hard-block.30",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -848,7 +797,7 @@
       }
     },
     {
-      "id": "soft-block.6",
+      "id": "soft-block.4",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -865,7 +814,7 @@
       }
     },
     {
-      "id": "soft-block.7",
+      "id": "soft-block.5",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -882,58 +831,7 @@
       }
     },
     {
-      "id": "hard-block.32",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            3
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 3
-        }
-      }
-    },
-    {
-      "id": "soft-block.8",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            3
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 3
-        }
-      }
-    },
-    {
-      "id": "hard-block.33",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            3
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 3
-        }
-      }
-    },
-    {
-      "id": "soft-block.9",
+      "id": "soft-block.6",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -950,7 +848,7 @@
       }
     },
     {
-      "id": "soft-block.10",
+      "id": "soft-block.7",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -963,6 +861,176 @@
         "GridPosition": {
           "gx": 12,
           "gz": 3
+        }
+      }
+    },
+    {
+      "id": "soft-block.8",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            13,
+            0.5,
+            3
+          ]
+        },
+        "GridPosition": {
+          "gx": 13,
+          "gz": 3
+        }
+      }
+    },
+    {
+      "id": "soft-block.9",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            14,
+            0.5,
+            3
+          ]
+        },
+        "GridPosition": {
+          "gx": 14,
+          "gz": 3
+        }
+      }
+    },
+    {
+      "id": "hard-block.31",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            3
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 3
+        }
+      }
+    },
+    {
+      "id": "hard-block.32",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.33",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            2,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 2,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.34",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "soft-block.10",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.35",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.36",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.37",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            12,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 4
         }
       }
     },
@@ -974,113 +1042,11 @@
           "position": [
             13,
             0.5,
-            3
+            4
           ]
         },
         "GridPosition": {
           "gx": 13,
-          "gz": 3
-        }
-      }
-    },
-    {
-      "id": "soft-block.12",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            3
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 3
-        }
-      }
-    },
-    {
-      "id": "hard-block.34",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            3
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 3
-        }
-      }
-    },
-    {
-      "id": "hard-block.35",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "hard-block.36",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            2,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 2,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "hard-block.37",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            4,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 4,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "soft-block.13",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            5,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 5,
           "gz": 4
         }
       }
@@ -1091,125 +1057,6 @@
       "overrides": {
         "Transform": {
           "position": [
-            6,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "soft-block.14",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "hard-block.39",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "soft-block.15",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            9,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 9,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "hard-block.40",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "hard-block.41",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "soft-block.16",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            4
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 4
-        }
-      }
-    },
-    {
-      "id": "hard-block.42",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
             14,
             0.5,
             4
@@ -1222,7 +1069,7 @@
       }
     },
     {
-      "id": "soft-block.17",
+      "id": "soft-block.12",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
@@ -1235,6 +1082,142 @@
         "GridPosition": {
           "gx": 15,
           "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.39",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "id": "hard-block.40",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "hard-block.41",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "hard-block.42",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft-block.13",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            11,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 11,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft-block.14",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            12,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft-block.15",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            13,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 13,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft-block.16",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            15,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 15,
+          "gz": 5
         }
       }
     },
@@ -1246,12 +1229,12 @@
           "position": [
             16,
             0.5,
-            4
+            5
           ]
         },
         "GridPosition": {
           "gx": 16,
-          "gz": 4
+          "gz": 5
         }
       }
     },
@@ -1263,176 +1246,6 @@
           "position": [
             0,
             0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "hard-block.45",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft-block.18",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft-block.19",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "hard-block.46",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft-block.20",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            11,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 11,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft-block.21",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft-block.22",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft-block.23",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            15,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 15,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "hard-block.47",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "hard-block.48",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
             6
           ]
         },
@@ -1443,7 +1256,7 @@
       }
     },
     {
-      "id": "hard-block.49",
+      "id": "hard-block.45",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1460,7 +1273,7 @@
       }
     },
     {
-      "id": "hard-block.50",
+      "id": "hard-block.46",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1477,24 +1290,7 @@
       }
     },
     {
-      "id": "hard-block.51",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            3,
-            0.5,
-            6
-          ]
-        },
-        "GridPosition": {
-          "gx": 3,
-          "gz": 6
-        }
-      }
-    },
-    {
-      "id": "hard-block.52",
+      "id": "hard-block.47",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1511,7 +1307,7 @@
       }
     },
     {
-      "id": "hard-block.53",
+      "id": "hard-block.48",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1528,7 +1324,7 @@
       }
     },
     {
-      "id": "hard-block.54",
+      "id": "hard-block.49",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1545,7 +1341,7 @@
       }
     },
     {
-      "id": "hard-block.55",
+      "id": "hard-block.50",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1562,24 +1358,7 @@
       }
     },
     {
-      "id": "hard-block.56",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            6
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 6
-        }
-      }
-    },
-    {
-      "id": "hard-block.57",
+      "id": "hard-block.51",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1596,7 +1375,7 @@
       }
     },
     {
-      "id": "hard-block.58",
+      "id": "hard-block.52",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1613,7 +1392,7 @@
       }
     },
     {
-      "id": "hard-block.59",
+      "id": "hard-block.53",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1630,7 +1409,7 @@
       }
     },
     {
-      "id": "hard-block.60",
+      "id": "hard-block.54",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1647,24 +1426,7 @@
       }
     },
     {
-      "id": "hard-block.61",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            6
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 6
-        }
-      }
-    },
-    {
-      "id": "hard-block.62",
+      "id": "hard-block.55",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1681,7 +1443,7 @@
       }
     },
     {
-      "id": "hard-block.63",
+      "id": "hard-block.56",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1698,7 +1460,7 @@
       }
     },
     {
-      "id": "hard-block.64",
+      "id": "hard-block.57",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1715,7 +1477,7 @@
       }
     },
     {
-      "id": "hard-block.65",
+      "id": "hard-block.58",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1732,58 +1494,7 @@
       }
     },
     {
-      "id": "soft-block.24",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            1,
-            0.5,
-            7
-          ]
-        },
-        "GridPosition": {
-          "gx": 1,
-          "gz": 7
-        }
-      }
-    },
-    {
-      "id": "soft-block.25",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            2,
-            0.5,
-            7
-          ]
-        },
-        "GridPosition": {
-          "gx": 2,
-          "gz": 7
-        }
-      }
-    },
-    {
-      "id": "soft-block.26",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            4,
-            0.5,
-            7
-          ]
-        },
-        "GridPosition": {
-          "gx": 4,
-          "gz": 7
-        }
-      }
-    },
-    {
-      "id": "hard-block.66",
+      "id": "hard-block.59",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1800,7 +1511,7 @@
       }
     },
     {
-      "id": "hard-block.67",
+      "id": "hard-block.60",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1817,41 +1528,7 @@
       }
     },
     {
-      "id": "soft-block.27",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            7
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 7
-        }
-      }
-    },
-    {
-      "id": "soft-block.28",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            15,
-            0.5,
-            7
-          ]
-        },
-        "GridPosition": {
-          "gx": 15,
-          "gz": 7
-        }
-      }
-    },
-    {
-      "id": "hard-block.68",
+      "id": "hard-block.61",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1868,7 +1545,7 @@
       }
     },
     {
-      "id": "hard-block.69",
+      "id": "hard-block.62",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -1881,6 +1558,125 @@
         "GridPosition": {
           "gx": 0,
           "gz": 8
+        }
+      }
+    },
+    {
+      "id": "hard-block.63",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            8
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 8
+        }
+      }
+    },
+    {
+      "id": "hard-block.64",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            9
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 9
+        }
+      }
+    },
+    {
+      "id": "hard-block.65",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            9
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 9
+        }
+      }
+    },
+    {
+      "id": "hard-block.66",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            9
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 9
+        }
+      }
+    },
+    {
+      "id": "hard-block.67",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            9
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 9
+        }
+      }
+    },
+    {
+      "id": "hard-block.68",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.69",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            1,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 1,
+          "gz": 10
         }
       }
     },
@@ -1892,29 +1688,12 @@
           "position": [
             2,
             0.5,
-            8
+            10
           ]
         },
         "GridPosition": {
           "gx": 2,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "soft-block.29",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            3,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 3,
-          "gz": 8
+          "gz": 10
         }
       }
     },
@@ -1926,12 +1705,692 @@
           "position": [
             4,
             0.5,
-            8
+            10
           ]
         },
         "GridPosition": {
           "gx": 4,
-          "gz": 8
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.72",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.73",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.74",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            7,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 7,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.75",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            9,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 9,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.76",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.77",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            11,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 11,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.78",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            12,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.79",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            14,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 14,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.80",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            15,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 15,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.81",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            10
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 10
+        }
+      }
+    },
+    {
+      "id": "hard-block.82",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "soft-block.17",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            2,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 2,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "soft-block.18",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "soft-block.19",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "hard-block.83",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "hard-block.84",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "soft-block.20",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            12,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "soft-block.21",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            15,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 15,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "hard-block.85",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            11
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 11
+        }
+      }
+    },
+    {
+      "id": "hard-block.86",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "soft-block.22",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            1,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 1,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.87",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            2,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 2,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.88",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.89",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            6,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 6,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.90",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "soft-block.23",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            11,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 11,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.91",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            12,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.92",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            14,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 14,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.93",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            12
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 12
+        }
+      }
+    },
+    {
+      "id": "hard-block.94",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "soft-block.24",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            3,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 3,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "soft-block.25",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "soft-block.26",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            12,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 12,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "soft-block.27",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            13,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 13,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "soft-block.28",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            14,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 14,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "hard-block.95",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            16,
+            0.5,
+            13
+          ]
+        },
+        "GridPosition": {
+          "gx": 16,
+          "gz": 13
+        }
+      }
+    },
+    {
+      "id": "hard-block.96",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            14
+          ]
+        },
+        "GridPosition": {
+          "gx": 0,
+          "gz": 14
+        }
+      }
+    },
+    {
+      "id": "hard-block.97",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            2,
+            0.5,
+            14
+          ]
+        },
+        "GridPosition": {
+          "gx": 2,
+          "gz": 14
+        }
+      }
+    },
+    {
+      "id": "soft-block.29",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            3,
+            0.5,
+            14
+          ]
+        },
+        "GridPosition": {
+          "gx": 3,
+          "gz": 14
+        }
+      }
+    },
+    {
+      "id": "hard-block.98",
+      "prefab": "hard-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            14
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 14
         }
       }
     },
@@ -1943,624 +2402,12 @@
           "position": [
             5,
             0.5,
-            8
+            14
           ]
         },
         "GridPosition": {
           "gx": 5,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "hard-block.72",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "hard-block.73",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "hard-block.74",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "soft-block.31",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "hard-block.75",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "hard-block.76",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            8
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 8
-        }
-      }
-    },
-    {
-      "id": "hard-block.77",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "soft-block.32",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            1,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 1,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "soft-block.33",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            3,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 3,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "hard-block.78",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "hard-block.79",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "soft-block.34",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "soft-block.35",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "soft-block.36",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            15,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 15,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "hard-block.80",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            9
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 9
-        }
-      }
-    },
-    {
-      "id": "hard-block.81",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.82",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            1,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 1,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.83",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            2,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 2,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.84",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            3,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 3,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.85",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            4,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 4,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.86",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            5,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 5,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.87",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.88",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.89",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.90",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            9,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 9,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.91",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.92",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            11,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 11,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.93",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.94",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.95",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.96",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            15,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 15,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.97",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            10
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 10
-        }
-      }
-    },
-    {
-      "id": "hard-block.98",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            11
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 11
-        }
-      }
-    },
-    {
-      "id": "soft-block.37",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            2,
-            0.5,
-            11
-          ]
-        },
-        "GridPosition": {
-          "gx": 2,
-          "gz": 11
-        }
-      }
-    },
-    {
-      "id": "soft-block.38",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            4,
-            0.5,
-            11
-          ]
-        },
-        "GridPosition": {
-          "gx": 4,
-          "gz": 11
-        }
-      }
-    },
-    {
-      "id": "soft-block.39",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            5,
-            0.5,
-            11
-          ]
-        },
-        "GridPosition": {
-          "gx": 5,
-          "gz": 11
+          "gz": 14
         }
       }
     },
@@ -2572,29 +2419,12 @@
           "position": [
             6,
             0.5,
-            11
+            14
           ]
         },
         "GridPosition": {
           "gx": 6,
-          "gz": 11
-        }
-      }
-    },
-    {
-      "id": "soft-block.40",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            11
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 11
+          "gz": 14
         }
       }
     },
@@ -2606,46 +2436,29 @@
           "position": [
             10,
             0.5,
-            11
+            14
           ]
         },
         "GridPosition": {
           "gx": 10,
-          "gz": 11
+          "gz": 14
         }
       }
     },
     {
-      "id": "soft-block.41",
+      "id": "soft-block.31",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
           "position": [
-            12,
+            11,
             0.5,
-            11
+            14
           ]
         },
         "GridPosition": {
-          "gx": 12,
-          "gz": 11
-        }
-      }
-    },
-    {
-      "id": "soft-block.42",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            15,
-            0.5,
-            11
-          ]
-        },
-        "GridPosition": {
-          "gx": 15,
-          "gz": 11
+          "gx": 11,
+          "gz": 14
         }
       }
     },
@@ -2655,14 +2468,14 @@
       "overrides": {
         "Transform": {
           "position": [
-            16,
+            12,
             0.5,
-            11
+            14
           ]
         },
         "GridPosition": {
-          "gx": 16,
-          "gz": 11
+          "gx": 12,
+          "gz": 14
         }
       }
     },
@@ -2672,31 +2485,14 @@
       "overrides": {
         "Transform": {
           "position": [
-            0,
+            14,
             0.5,
-            12
+            14
           ]
         },
         "GridPosition": {
-          "gx": 0,
-          "gz": 12
-        }
-      }
-    },
-    {
-      "id": "soft-block.43",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            1,
-            0.5,
-            12
-          ]
-        },
-        "GridPosition": {
-          "gx": 1,
-          "gz": 12
+          "gx": 14,
+          "gz": 14
         }
       }
     },
@@ -2706,14 +2502,14 @@
       "overrides": {
         "Transform": {
           "position": [
-            2,
+            16,
             0.5,
-            12
+            14
           ]
         },
         "GridPosition": {
-          "gx": 2,
-          "gz": 12
+          "gx": 16,
+          "gz": 14
         }
       }
     },
@@ -2723,14 +2519,14 @@
       "overrides": {
         "Transform": {
           "position": [
-            4,
+            0,
             0.5,
-            12
+            15
           ]
         },
         "GridPosition": {
-          "gx": 4,
-          "gz": 12
+          "gx": 0,
+          "gz": 15
         }
       }
     },
@@ -2742,29 +2538,12 @@
           "position": [
             6,
             0.5,
-            12
+            15
           ]
         },
         "GridPosition": {
           "gx": 6,
-          "gz": 12
-        }
-      }
-    },
-    {
-      "id": "soft-block.44",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            12
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 12
+          "gz": 15
         }
       }
     },
@@ -2774,31 +2553,31 @@
       "overrides": {
         "Transform": {
           "position": [
-            8,
+            10,
             0.5,
-            12
+            15
           ]
         },
         "GridPosition": {
-          "gx": 8,
-          "gz": 12
+          "gx": 10,
+          "gz": 15
         }
       }
     },
     {
-      "id": "soft-block.45",
+      "id": "soft-block.32",
       "prefab": "soft-block",
       "overrides": {
         "Transform": {
           "position": [
-            9,
+            11,
             0.5,
-            12
+            15
           ]
         },
         "GridPosition": {
-          "gx": 9,
-          "gz": 12
+          "gx": 11,
+          "gz": 15
         }
       }
     },
@@ -2808,614 +2587,19 @@
       "overrides": {
         "Transform": {
           "position": [
-            10,
+            16,
             0.5,
-            12
+            15
           ]
         },
         "GridPosition": {
-          "gx": 10,
-          "gz": 12
-        }
-      }
-    },
-    {
-      "id": "soft-block.46",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            11,
-            0.5,
-            12
-          ]
-        },
-        "GridPosition": {
-          "gx": 11,
-          "gz": 12
+          "gx": 16,
+          "gz": 15
         }
       }
     },
     {
       "id": "hard-block.108",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            12
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 12
-        }
-      }
-    },
-    {
-      "id": "hard-block.109",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            12
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 12
-        }
-      }
-    },
-    {
-      "id": "hard-block.110",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            12
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 12
-        }
-      }
-    },
-    {
-      "id": "hard-block.111",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "soft-block.47",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            3,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 3,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "soft-block.48",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            4,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 4,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "hard-block.112",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "soft-block.49",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "hard-block.113",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "soft-block.50",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "soft-block.51",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            13,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 13,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "soft-block.52",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "hard-block.114",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            13
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 13
-        }
-      }
-    },
-    {
-      "id": "hard-block.115",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.116",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            2,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 2,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "soft-block.53",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            3,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 3,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.117",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            4,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 4,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "soft-block.54",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            5,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 5,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.118",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "soft-block.55",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            7,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 7,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.119",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "soft-block.56",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            9,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 9,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.120",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "soft-block.57",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            11,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 11,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.121",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            12,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 12,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.122",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            14,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 14,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.123",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            14
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 14
-        }
-      }
-    },
-    {
-      "id": "hard-block.124",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            0,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 0,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "hard-block.125",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            6,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 6,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "soft-block.58",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            8,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 8,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "soft-block.59",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            9,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 9,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "hard-block.126",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            10,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 10,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "soft-block.60",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            11,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 11,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "hard-block.127",
-      "prefab": "hard-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            16,
-            0.5,
-            15
-          ]
-        },
-        "GridPosition": {
-          "gx": 16,
-          "gz": 15
-        }
-      }
-    },
-    {
-      "id": "hard-block.128",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3432,7 +2616,7 @@
       }
     },
     {
-      "id": "hard-block.129",
+      "id": "hard-block.109",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3449,7 +2633,7 @@
       }
     },
     {
-      "id": "hard-block.130",
+      "id": "hard-block.110",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3466,7 +2650,7 @@
       }
     },
     {
-      "id": "hard-block.131",
+      "id": "hard-block.111",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3483,7 +2667,7 @@
       }
     },
     {
-      "id": "hard-block.132",
+      "id": "hard-block.112",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3500,7 +2684,7 @@
       }
     },
     {
-      "id": "hard-block.133",
+      "id": "hard-block.113",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3517,7 +2701,7 @@
       }
     },
     {
-      "id": "hard-block.134",
+      "id": "hard-block.114",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3534,7 +2718,7 @@
       }
     },
     {
-      "id": "hard-block.135",
+      "id": "hard-block.115",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3551,7 +2735,7 @@
       }
     },
     {
-      "id": "hard-block.136",
+      "id": "hard-block.116",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3568,7 +2752,7 @@
       }
     },
     {
-      "id": "hard-block.137",
+      "id": "hard-block.117",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3585,7 +2769,7 @@
       }
     },
     {
-      "id": "hard-block.138",
+      "id": "hard-block.118",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3602,7 +2786,7 @@
       }
     },
     {
-      "id": "hard-block.139",
+      "id": "hard-block.119",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3619,7 +2803,7 @@
       }
     },
     {
-      "id": "hard-block.140",
+      "id": "hard-block.120",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3636,7 +2820,7 @@
       }
     },
     {
-      "id": "hard-block.141",
+      "id": "hard-block.121",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3653,7 +2837,7 @@
       }
     },
     {
-      "id": "hard-block.142",
+      "id": "hard-block.122",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3670,7 +2854,7 @@
       }
     },
     {
-      "id": "hard-block.143",
+      "id": "hard-block.123",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
@@ -3687,7 +2871,7 @@
       }
     },
     {
-      "id": "hard-block.144",
+      "id": "hard-block.124",
       "prefab": "hard-block",
       "overrides": {
         "Transform": {
