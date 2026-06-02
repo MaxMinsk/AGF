@@ -83,6 +83,7 @@ import { createKaboomHitRecoilSystem } from "./src/systems/hit-recoil-system";
 import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-lifetime-system";
 import { createKaboomScorchTileLifetimeSystem } from "./src/systems/scorch-tile-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
+import { createKaboomSoftBlockShuffleSystem } from "./src/systems/soft-block-shuffle-system";
 import { createKaboomRoundCelebrationFxSystem } from "./src/systems/round-celebration-fx-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
@@ -442,6 +443,20 @@ function readSuddenDeathFromUrl(): { enabled: boolean; triggerAtElapsedS: number
     return { enabled, triggerAtElapsedS };
   } catch {
     return defaults;
+  }
+}
+
+// S261 KABOOM-RANDOM-LAYOUT — read `?randomLayout=on`. Default off so
+// the curated arena layouts remain canonical; opt-in re-rolls the soft-
+// block layout each round under the same hard-block skeleton.
+function readRandomLayoutFromUrl(): boolean {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return false;
+  try {
+    const p = new URLSearchParams(search);
+    return p.get("randomLayout") === "on";
+  } catch {
+    return false;
   }
 }
 
@@ -1279,6 +1294,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // S160 KABOOM-SUDDEN-DEATH — runs after round-resolve so phase-flip
     // wins over a new ring spawn on the resolving tick.
     scheduler.register(createKaboomSuddenDeathSystem(), { profiles: ["static"] });
+    // S261 KABOOM-RANDOM-LAYOUT (GDP-2026-06-02-006). Opt-in: reroll
+    // soft-block positions on each round start while keeping the hard-
+    // block skeleton + spawn corners fixed. URL: `?randomLayout=on`.
+    scheduler.register(
+      createKaboomSoftBlockShuffleSystem({
+        enabled: readRandomLayoutFromUrl(),
+        sceneSeed: 0
+      }),
+      { profiles: ["static"] }
+    );
     // S162 KABOOM-ACCESSORY-DETACH — runs every fixedUpdate. Spawns
     // AccessoryDebris on bomber death, then integrates active debris.
     scheduler.register(createKaboomAccessoryDetachSystem(), { profiles: ["static"] });
