@@ -28,11 +28,22 @@ import type { World } from "../../../../engine/core/ecs/world";
 
 export const BOT_BLUFF_STATE: ComponentName = "BotBluffState";
 
-/** Phases of the fake-flee bluff state machine. */
-export type BotBluffPhase = "fleeing" | "approaching" | "committing" | "done";
+/** Phases of the bluff state machines. The union covers every kind
+ *  the system knows about — each `kind` walks its own subset of these
+ *  phases (see `advanceBluffState`). */
+export type BotBluffPhase =
+  | "fleeing"        // fake-flee phase 1 — vector away from player
+  | "approaching"    // fake-flee phase 2 — loop back toward player
+  | "committing"     // fake-flee phase 3 — forces a bomb
+  | "placing-decoy"  // decoy-bomb phase 1 — forces a visible bomb in front of player
+  | "retreating"     // decoy-bomb phase 2 — vector away from player to set up the real trap
+  | "placing-real"   // decoy-bomb phase 3 — forces the real trap bomb
+  | "done";
+
+export type BotBluffKind = "fake-flee" | "decoy-bomb";
 
 export type BotBluffStateComponent = {
-  kind: "fake-flee";
+  kind: BotBluffKind;
   phase: BotBluffPhase;
   /** Elapsed time (seconds) since the bluff started — drives phase
    *  transitions. Decision system advances this each brain tick. */
@@ -48,8 +59,17 @@ export type BotBluffStateComponent = {
  *  while eligible — so the bluff window resolves quickly. */
 export const HUNTER_BLUFF_PROBABILITY_PER_TICK = 0.10;
 
+/** Probability per brain tick that a Coward starts a decoy-bomb bluff.
+ *  GDP-2026-05-29-010 calls for 15% per round; we apply the same
+ *  per-tick gate as the hunter — Coward fires slightly more often
+ *  reflecting its less risky bluff path. */
+export const COWARD_BLUFF_PROBABILITY_PER_TICK = 0.15;
+
 /** Bluff fleeing window — bot moves away from player. */
 export const BLUFF_FLEE_DURATION_S = 1.5;
+
+/** Decoy-bomb retreating window before the bot drops the REAL trap. */
+export const BLUFF_RETREAT_DURATION_S = 1.5;
 
 /** Distance threshold at which the "approaching" phase commits. */
 export const BLUFF_COMMIT_DISTANCE = 3;
@@ -83,17 +103,36 @@ export function shouldStartHunterBluff(
   return rng.next() < HUNTER_BLUFF_PROBABILITY_PER_TICK;
 }
 
+/** Pure helper — coward decoy-bomb trigger gate. Same distance band
+ *  as the hunter (player within 4..10 cells) and same per-tick RNG
+ *  shape; only the probability differs (15% vs 10%). */
+export function shouldStartCowardBluff(
+  pos: GridPos,
+  playerCell: GridPos,
+  rng: { next: () => number }
+): boolean {
+  const d = manhattan(pos.gx, pos.gz, playerCell.gx, playerCell.gz);
+  if (d < BLUFF_MIN_START_DISTANCE) return false;
+  if (d > BLUFF_MAX_START_DISTANCE) return false;
+  return rng.next() < COWARD_BLUFF_PROBABILITY_PER_TICK;
+}
+
 /** Pure helper — direction the bot should head while bluffing.
- *  Phase 1 ('fleeing'): vector away from player.
- *  Phase 2 ('approaching'): vector toward player.
- *  Outside those phases: undefined (caller defers to normal decision). */
+ *  - 'fleeing' / 'retreating': vector AWAY from player.
+ *  - 'approaching': vector TOWARD player.
+ *  - 'committing' / 'placing-decoy' / 'placing-real' / 'done': undefined.
+ *    The caller still drops a bomb on the commit phases; the direction
+ *    falls back to the normal decideDirection path so the bot doesn't
+ *    freeze on the same cell. */
 export function bluffPreferredDirection(
   state: BotBluffStateComponent,
   pos: GridPos,
   playerCell: GridPos
 ): { dx: number; dz: number } | undefined {
-  if (state.phase !== "fleeing" && state.phase !== "approaching") return undefined;
-  const sign = state.phase === "fleeing" ? -1 : 1;
+  let sign = 0;
+  if (state.phase === "fleeing" || state.phase === "retreating") sign = -1;
+  else if (state.phase === "approaching") sign = 1;
+  else return undefined;
   // Pick the dominant cardinal so we don't issue diagonals (grid is
   // 4-connected).
   const dx = playerCell.gx - pos.gx;
@@ -103,6 +142,15 @@ export function bluffPreferredDirection(
     return { dx: sign * Math.sign(dx), dz: 0 };
   }
   return { dx: 0, dz: sign * Math.sign(dz) };
+}
+
+/** Pure helper — does the current bluff phase force a PlaceBombRequest?
+ *  Centralised so the bot-ai integration doesn't have to know which
+ *  phases are bomb-commit edges across both kinds. */
+export function bluffForcesBomb(state: BotBluffStateComponent): boolean {
+  return state.phase === "committing"
+    || state.phase === "placing-decoy"
+    || state.phase === "placing-real";
 }
 
 /** Pure helper — advance the bluff phase based on elapsed time +
@@ -124,32 +172,46 @@ export function advanceBluffState(
   playerCell: GridPos | undefined,
   dt: number
 ): BotBluffStateComponent {
-  // Done / committing: caller drives external effects; the state is
-  // immutable beyond elapsed accumulation.
   if (state.phase === "done") return state;
-  if (state.phase === "committing") {
-    // After firing PlaceBombRequest the same tick, the caller will
-    // transition us to 'done'. Until that happens, stay parked.
-    return { ...state, phase: "done" };
-  }
+
+  // Single-tick bomb-commit phases advance to the next slot the
+  // moment the caller observes them. The caller forces the bomb on
+  // the SAME tick (bluffForcesBomb returns true), then the next
+  // tick we land here and step forward.
+  if (state.phase === "committing") return { ...state, phase: "done" };
+  if (state.phase === "placing-decoy") return { ...state, phase: "retreating", elapsed: 0 };
+  if (state.phase === "placing-real") return { ...state, phase: "done" };
+
   const elapsed = state.elapsed + Math.max(0, dt);
+
+  // Fake-flee — fleeing → approaching → committing.
   if (state.phase === "fleeing") {
     if (elapsed >= BLUFF_FLEE_DURATION_S) {
       return { ...state, phase: "approaching", elapsed };
     }
     return { ...state, elapsed };
   }
-  // phase === "approaching"
-  if (playerCell === undefined) {
-    // Player out of sight — bluff lost its target. Bail to done so
-    // the bot returns to normal decision flow.
-    return { ...state, phase: "done", elapsed };
+  if (state.phase === "approaching") {
+    if (playerCell === undefined) {
+      return { ...state, phase: "done", elapsed };
+    }
+    const d = manhattan(pos.gx, pos.gz, playerCell.gx, playerCell.gz);
+    if (d <= BLUFF_COMMIT_DISTANCE) {
+      return { ...state, phase: "committing", elapsed };
+    }
+    return { ...state, elapsed };
   }
-  const d = manhattan(pos.gx, pos.gz, playerCell.gx, playerCell.gz);
-  if (d <= BLUFF_COMMIT_DISTANCE) {
-    return { ...state, phase: "committing", elapsed };
+
+  // Decoy-bomb — placing-decoy → retreating → placing-real.
+  if (state.phase === "retreating") {
+    if (elapsed >= BLUFF_RETREAT_DURATION_S) {
+      return { ...state, phase: "placing-real", elapsed };
+    }
+    return { ...state, elapsed };
   }
-  return { ...state, elapsed };
+
+  // Defensive fallthrough — unknown phase, terminate.
+  return { ...state, phase: "done", elapsed };
 }
 
 /** Drop stale BotBluffState components when the round number advances
@@ -169,13 +231,13 @@ export function clearStaleBluffStates(world: World, currentRoundNumber: number):
 }
 
 /** Convenience type guard for callers that read the component
- *  loosely. */
+ *  loosely. True for every phase that's NOT terminal. */
 export function isBluffActive(state: BotBluffStateComponent | undefined): boolean {
   if (state === undefined) return false;
-  return state.phase === "fleeing" || state.phase === "approaching" || state.phase === "committing";
+  return state.phase !== "done";
 }
 
-/** Side-effectful helper — mount a fresh bluff state on a bot. The
+/** Side-effectful helper — mount a fresh hunter fake-flee bluff. The
  *  caller (`bot-ai-system`) has already validated personality + RNG +
  *  distance. */
 export function startHunterBluff(
@@ -186,6 +248,25 @@ export function startHunterBluff(
   const state: BotBluffStateComponent = {
     kind: "fake-flee",
     phase: "fleeing",
+    elapsed: 0,
+    startedRound: roundNumber
+  };
+  world.setComponent(botId, BOT_BLUFF_STATE, state);
+}
+
+/** Side-effectful helper — mount a fresh coward decoy-bomb bluff.
+ *  Caller has already validated personality + RNG + distance. The
+ *  state opens at the `placing-decoy` phase so the next tick's
+ *  `bluffForcesBomb` returns true and the decoy drops where the
+ *  coward stands. */
+export function startCowardBluff(
+  world: World,
+  botId: EntityId,
+  roundNumber: number
+): void {
+  const state: BotBluffStateComponent = {
+    kind: "decoy-bomb",
+    phase: "placing-decoy",
     elapsed: 0,
     startedRound: roundNumber
   };

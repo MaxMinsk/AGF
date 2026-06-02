@@ -9,12 +9,16 @@ import {
   BLUFF_FLEE_DURATION_S,
   BLUFF_MAX_START_DISTANCE,
   BLUFF_MIN_START_DISTANCE,
+  BLUFF_RETREAT_DURATION_S,
   BOT_BLUFF_STATE,
   advanceBluffState,
+  bluffForcesBomb,
   bluffPreferredDirection,
   clearStaleBluffStates,
   isBluffActive,
+  shouldStartCowardBluff,
   shouldStartHunterBluff,
+  startCowardBluff,
   startHunterBluff,
   type BotBluffStateComponent
 } from "../../src/systems/bot-ai-bluff";
@@ -181,5 +185,120 @@ describe("startHunterBluff (S262 mount)", () => {
     expect(state.phase).toBe("fleeing");
     expect(state.elapsed).toBe(0);
     expect(state.startedRound).toBe(7);
+  });
+});
+
+describe("shouldStartCowardBluff (S263 trigger gate)", () => {
+  it("uses the 15% probability slot — rng 0.10 fires, 0.20 doesn't", () => {
+    const here = { gx: 0, gz: 0 };
+    const player = { gx: BLUFF_MIN_START_DISTANCE, gz: 0 };
+    expect(shouldStartCowardBluff(here, player, makeRng([0.10]))).toBe(true);
+    expect(shouldStartCowardBluff(here, player, makeRng([0.20]))).toBe(false);
+  });
+
+  it("rejects too-close + too-far players (same distance band as Hunter)", () => {
+    const here = { gx: 0, gz: 0 };
+    expect(shouldStartCowardBluff(here, { gx: 1, gz: 0 }, makeRng([0]))).toBe(false);
+    expect(shouldStartCowardBluff(here, { gx: BLUFF_MAX_START_DISTANCE + 1, gz: 0 }, makeRng([0]))).toBe(false);
+  });
+});
+
+describe("startCowardBluff (S263 mount)", () => {
+  it("opens at placing-decoy phase (caller forces the decoy bomb the same tick)", () => {
+    const world = new World();
+    world.addEntity("bot.2");
+    startCowardBluff(world, "bot.2", 4);
+    const state = world.getComponent<BotBluffStateComponent>("bot.2", BOT_BLUFF_STATE)!;
+    expect(state.kind).toBe("decoy-bomb");
+    expect(state.phase).toBe("placing-decoy");
+    expect(state.elapsed).toBe(0);
+    expect(state.startedRound).toBe(4);
+  });
+});
+
+describe("bluffForcesBomb (S263 commit predicate)", () => {
+  it("true for committing / placing-decoy / placing-real", () => {
+    expect(bluffForcesBomb({ kind: "fake-flee", phase: "committing", elapsed: 2, startedRound: 1 })).toBe(true);
+    expect(bluffForcesBomb({ kind: "decoy-bomb", phase: "placing-decoy", elapsed: 0, startedRound: 1 })).toBe(true);
+    expect(bluffForcesBomb({ kind: "decoy-bomb", phase: "placing-real", elapsed: 1.5, startedRound: 1 })).toBe(true);
+  });
+
+  it("false for non-commit phases", () => {
+    expect(bluffForcesBomb({ kind: "fake-flee", phase: "fleeing", elapsed: 0, startedRound: 1 })).toBe(false);
+    expect(bluffForcesBomb({ kind: "fake-flee", phase: "approaching", elapsed: 1.5, startedRound: 1 })).toBe(false);
+    expect(bluffForcesBomb({ kind: "decoy-bomb", phase: "retreating", elapsed: 0, startedRound: 1 })).toBe(false);
+    expect(bluffForcesBomb({ kind: "fake-flee", phase: "done", elapsed: 5, startedRound: 1 })).toBe(false);
+  });
+});
+
+describe("advanceBluffState (S263 decoy-bomb machine)", () => {
+  it("placing-decoy → retreating (single tick)", () => {
+    const out = advanceBluffState(
+      { kind: "decoy-bomb", phase: "placing-decoy", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      0.2
+    );
+    expect(out.phase).toBe("retreating");
+    expect(out.elapsed).toBe(0);
+  });
+
+  it("retreating → placing-real after BLUFF_RETREAT_DURATION_S", () => {
+    const out = advanceBluffState(
+      { kind: "decoy-bomb", phase: "retreating", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      BLUFF_RETREAT_DURATION_S
+    );
+    expect(out.phase).toBe("placing-real");
+  });
+
+  it("retreating stays retreating before timeout", () => {
+    const out = advanceBluffState(
+      { kind: "decoy-bomb", phase: "retreating", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      0.5
+    );
+    expect(out.phase).toBe("retreating");
+    expect(out.elapsed).toBeCloseTo(0.5, 6);
+  });
+
+  it("placing-real → done (single tick)", () => {
+    const out = advanceBluffState(
+      { kind: "decoy-bomb", phase: "placing-real", elapsed: 1.5, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      0.2
+    );
+    expect(out.phase).toBe("done");
+  });
+});
+
+describe("bluffPreferredDirection (S263 decoy-bomb direction)", () => {
+  it("retreating → vector AWAY from player", () => {
+    const d = bluffPreferredDirection(
+      { kind: "decoy-bomb", phase: "retreating", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 }
+    );
+    expect(d).toEqual({ dx: -1, dz: 0 });
+  });
+
+  it("placing-decoy / placing-real → undefined (caller falls back to normal direction)", () => {
+    expect(
+      bluffPreferredDirection(
+        { kind: "decoy-bomb", phase: "placing-decoy", elapsed: 0, startedRound: 1 },
+        { gx: 5, gz: 5 },
+        { gx: 8, gz: 5 }
+      )
+    ).toBeUndefined();
+    expect(
+      bluffPreferredDirection(
+        { kind: "decoy-bomb", phase: "placing-real", elapsed: 1.5, startedRound: 1 },
+        { gx: 5, gz: 5 },
+        { gx: 8, gz: 5 }
+      )
+    ).toBeUndefined();
   });
 });

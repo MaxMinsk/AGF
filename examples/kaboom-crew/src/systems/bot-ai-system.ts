@@ -24,10 +24,13 @@ import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-oc
 import {
   BOT_BLUFF_STATE,
   advanceBluffState,
+  bluffForcesBomb,
   bluffPreferredDirection,
   clearStaleBluffStates,
   isBluffActive,
+  shouldStartCowardBluff,
   shouldStartHunterBluff,
+  startCowardBluff,
   startHunterBluff,
   type BotBluffStateComponent
 } from "./bot-ai-bluff";
@@ -421,30 +424,34 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       } else {
         goal = personalityGoal(world, pos, brain.personality ?? "hunter", danger);
       }
-      // S262 KABOOM-BOT-BLUFF — Hunter "fake flee" override. When
-      // active, the bluff state drives direction (and forces a bomb
-      // place on the commit phase). Wired BEFORE the kick / decide-
-      // direction path so the bluff isn't fought by tactical logic
-      // mid-flee. The bluff is opt-in per round (10% probability,
-      // hunter only, distance-gated).
+      // S262/S263 KABOOM-BOT-BLUFF — personality-aware bluff override.
+      // Hunter fake-flee (S262) — vector AWAY for 1.5s, loop back,
+      //   place bomb close to player.
+      // Coward decoy-bomb (S263) — place a visible decoy at the
+      //   current cell, retreat for 1.5s, place the real trap from
+      //   cover.
+      // Wired BEFORE the kick / decide-direction path so tactical
+      // logic doesn't fight the bluff mid-execution. Per-round (state
+      // drops on round-edge via clearStaleBluffStates above).
       const bluffNow = world.getComponent<BotBluffStateComponent>(botId, BOT_BLUFF_STATE);
       const playerCell = nearestPlayer(world, pos);
       let bluffOverrideDirection: { dx: number; dz: number } | undefined;
       let bluffForceBombDrop = false;
       if (bluffNow !== undefined) {
+        if (bluffForcesBomb(bluffNow)) {
+          bluffForceBombDrop = true;
+        }
         const advanced = advanceBluffState(bluffNow, pos, playerCell, dt);
         if (advanced.phase !== bluffNow.phase || advanced.elapsed !== bluffNow.elapsed) {
           world.setComponent(botId, BOT_BLUFF_STATE, advanced);
-        }
-        if (advanced.phase === "committing") {
-          bluffForceBombDrop = true;
         }
         if (isBluffActive(advanced) && playerCell !== undefined) {
           const d = bluffPreferredDirection(advanced, pos, playerCell);
           if (d !== undefined) bluffOverrideDirection = d;
         }
-      } else if ((brain.personality ?? "hunter") === "hunter" && playerCell !== undefined) {
-        if (shouldStartHunterBluff(pos, playerCell, rng)) {
+      } else if (playerCell !== undefined) {
+        const persona = brain.personality ?? "hunter";
+        if (persona === "hunter" && shouldStartHunterBluff(pos, playerCell, rng)) {
           startHunterBluff(world, botId, currentRoundNumber);
           // Direction this tick: head away from player to start the
           // visible flee immediately, instead of waiting one more
@@ -456,6 +463,12 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
           } else if (dz !== 0) {
             bluffOverrideDirection = { dx: 0, dz: -Math.sign(dz) };
           }
+        } else if (persona === "coward" && shouldStartCowardBluff(pos, playerCell, rng)) {
+          startCowardBluff(world, botId, currentRoundNumber);
+          // First tick of decoy-bomb: drop the visible decoy NOW so
+          // the player sees the threat immediately. The state machine
+          // advances on the next tick into the retreat phase.
+          bluffForceBombDrop = true;
         }
       }
       // S220 — KICK opportunity check. When the bot has canKick + an
