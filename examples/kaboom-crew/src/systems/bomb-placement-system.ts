@@ -11,22 +11,7 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 import { getCellHeight } from "../../../../engine/grid/height-query";
 import { spawnPuff } from "./spawn-puff";
-
-/** S257 — palette-tinted bomb-spawn puff. Reads the placer's personality
- *  (bots) or assumes the player palette to colour the S243 spawn puff
- *  by source. Tells the player which bot just placed in chaotic moments
- *  without adding a HUD element. Returns undefined for unknown placers
- *  (the puff falls back to the preset's default colour). */
-function bomberPuffColor(world: World, bomberId: EntityId): string | undefined {
-  if (bomberId === "player.1") return "#3ab0ff"; // sky.torsoTop
-  const brain = world.getComponent<{ personality?: "hunter" | "coward" | "miner" }>(bomberId, "BotBrain");
-  switch (brain?.personality) {
-    case "hunter": return "#e65a3a"; // ember.torsoTop
-    case "coward": return "#5a6a82"; // slate.torsoTop
-    case "miner":  return "#c9a14d"; // sand.torsoTop
-    default: return undefined;
-  }
-}
+import { bomberPuffColor } from "./bomber-palette";
 
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";

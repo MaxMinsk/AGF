@@ -15,6 +15,7 @@ import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 import { spawnPuff } from "./spawn-puff";
+import { bomberPuffColor } from "./bomber-palette";
 
 const THROW_BOMB_REQUEST: ComponentName = "ThrowBombRequest";
 const BOMB: ComponentName = "Bomb";
@@ -194,18 +195,33 @@ export function createKaboomBombThrowSystem(options: {
           blocksMovement: false,
           blocksBlast: false
         });
-        // S245 KABOOM-THROW-LAND-PUFF (S247 — via shared `spawnPuff`).
+        // S245 KABOOM-THROW-LAND-PUFF (S247 — via shared `spawnPuff`;
+        // S258 — tinted to the thrower's palette).
         const landPos = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
         if (landPos?.gx !== undefined && landPos.gz !== undefined) {
           throwLandPuffCounter += 1;
-          spawnPuff(world, {
+          const puffOpts: {
+            id: string;
+            position: [number, number, number];
+            preset: string;
+            lifetime: number;
+            rate: number;
+            maxParticles: number;
+            color?: string;
+          } = {
             id: `${id}.throw-land.${throwLandPuffCounter}`,
             position: [landPos.gx, BOMB_REST_Y + 0.1, landPos.gz],
             preset: "spark",
             lifetime: 0.25,
             rate: 35,
             maxParticles: 10
-          });
+          };
+          // `id` is the bomb's entity id; ownerId on the Bomb component
+          // points to the bomber. The bomb still has its Bomb component
+          // here (the landed branch runs while `bomb` is in scope).
+          const tint = bomberPuffColor(world, bomb.ownerId);
+          if (tint !== undefined) puffOpts.color = tint;
+          spawnPuff(world, puffOpts);
         }
       }
     }
