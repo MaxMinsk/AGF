@@ -20,6 +20,17 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 import { createSeededRng, type SeededRng } from "../../../../engine/core/util/seeded-rng";
 import { cellKey } from "../../../../engine/core/grid";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
+// S262 KABOOM-BOT-BLUFF (GDP-2026-05-29-010 Layer 3, hunter slice).
+import {
+  BOT_BLUFF_STATE,
+  advanceBluffState,
+  bluffPreferredDirection,
+  clearStaleBluffStates,
+  isBluffActive,
+  shouldStartHunterBluff,
+  startHunterBluff,
+  type BotBluffStateComponent
+} from "./bot-ai-bluff";
 
 const BOT_BRAIN: ComponentName = "BotBrain";
 const GRID_MOVER: ComponentName = "GridMover";
@@ -356,6 +367,14 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     const dt = Math.max(0, context.time.fixedDt);
     let danger: Set<string> | undefined;
 
+    // S262 KABOOM-BOT-BLUFF — drop stale bluff states when the round
+    // advances so each hunter gets one fresh bluff chance per round.
+    const roundState = world.hasEntity("kaboom.round-state")
+      ? world.getComponent<{ roundNumber?: number }>("kaboom.round-state", "RoundState")
+      : undefined;
+    const currentRoundNumber = roundState?.roundNumber ?? 1;
+    clearStaleBluffStates(world, currentRoundNumber);
+
     // S210 KABOOM-BOT-ACCELERATION — detect HUMANS_DEAD edge.
     // Triggers ONLY when humans were ALIVE earlier in the round AND
     // all of them are dead now AND 2+ bots still remain. The
@@ -402,6 +421,43 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       } else {
         goal = personalityGoal(world, pos, brain.personality ?? "hunter", danger);
       }
+      // S262 KABOOM-BOT-BLUFF — Hunter "fake flee" override. When
+      // active, the bluff state drives direction (and forces a bomb
+      // place on the commit phase). Wired BEFORE the kick / decide-
+      // direction path so the bluff isn't fought by tactical logic
+      // mid-flee. The bluff is opt-in per round (10% probability,
+      // hunter only, distance-gated).
+      const bluffNow = world.getComponent<BotBluffStateComponent>(botId, BOT_BLUFF_STATE);
+      const playerCell = nearestPlayer(world, pos);
+      let bluffOverrideDirection: { dx: number; dz: number } | undefined;
+      let bluffForceBombDrop = false;
+      if (bluffNow !== undefined) {
+        const advanced = advanceBluffState(bluffNow, pos, playerCell, dt);
+        if (advanced.phase !== bluffNow.phase || advanced.elapsed !== bluffNow.elapsed) {
+          world.setComponent(botId, BOT_BLUFF_STATE, advanced);
+        }
+        if (advanced.phase === "committing") {
+          bluffForceBombDrop = true;
+        }
+        if (isBluffActive(advanced) && playerCell !== undefined) {
+          const d = bluffPreferredDirection(advanced, pos, playerCell);
+          if (d !== undefined) bluffOverrideDirection = d;
+        }
+      } else if ((brain.personality ?? "hunter") === "hunter" && playerCell !== undefined) {
+        if (shouldStartHunterBluff(pos, playerCell, rng)) {
+          startHunterBluff(world, botId, currentRoundNumber);
+          // Direction this tick: head away from player to start the
+          // visible flee immediately, instead of waiting one more
+          // brain tick for the state machine.
+          const dx = playerCell.gx - pos.gx;
+          const dz = playerCell.gz - pos.gz;
+          if (Math.abs(dx) >= Math.abs(dz)) {
+            bluffOverrideDirection = { dx: -Math.sign(dx) || 0, dz: 0 };
+          } else if (dz !== 0) {
+            bluffOverrideDirection = { dx: 0, dz: -Math.sign(dz) };
+          }
+        }
+      }
       // S220 — KICK opportunity check. When the bot has canKick + an
       // own bomb adjacent + an alive enemy 2..6 cells beyond it,
       // walking INTO the bomb is the right move — bomb-kick-system
@@ -410,7 +466,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       // tactical shot wins over the default wander/chase.
       const statsForKick = world.getComponent<{ canKick?: boolean }>(botId, BOMBER_STATS);
       const kickDir = findKickOpportunity(world, botId, pos, statsForKick?.canKick === true);
-      const direction = kickDir ?? decideDirection(pos, brain, danger, goal);
+      const direction = bluffOverrideDirection ?? kickDir ?? decideDirection(pos, brain, danger, goal);
 
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
       if (mover !== undefined) {
@@ -453,7 +509,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         lastDecisionDz: direction.dz
       });
 
-      if (shouldDropBomb(world, botId, pos, brain, danger, boostNow)) {
+      if (bluffForceBombDrop || shouldDropBomb(world, botId, pos, brain, danger, boostNow)) {
         if (!world.hasComponent(botId, PLACE_BOMB_REQUEST)) {
           world.setComponent(botId, PLACE_BOMB_REQUEST, {});
         }
