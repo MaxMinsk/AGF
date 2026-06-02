@@ -29,6 +29,11 @@ export type SpawnPuffOptions = {
   rate: number;
   /** Hard cap on simultaneous particles. */
   maxParticles: number;
+  /** S256 — optional hex colour override (e.g. "#5fa8ff"). When set,
+   *  the engine paints the particles in this colour instead of the
+   *  preset's default. Useful for tinting a cue by event source —
+   *  e.g. bomb-spawn puff matching the placer's palette. */
+  color?: string;
 };
 
 /** Spawn a one-shot puff entity with a ParticleEmitter that self-cleans
@@ -43,11 +48,20 @@ export function spawnPuff(world: World, opts: SpawnPuffOptions): void {
     rotation: [0, 0, 0],
     scale: [1, 1, 1]
   });
-  world.setComponent(opts.id, PARTICLE_EMITTER, {
+  const emitter: {
+    preset: string;
+    lifetime: number;
+    elapsed: number;
+    rate: number;
+    maxParticles: number;
+    color?: string;
+  } = {
     preset: opts.preset,
     lifetime: opts.lifetime,
     elapsed: 0,
     rate: opts.rate,
     maxParticles: opts.maxParticles
-  });
+  };
+  if (opts.color !== undefined) emitter.color = opts.color;
+  world.setComponent(opts.id, PARTICLE_EMITTER, emitter);
 }

@@ -166,6 +166,11 @@
             0,
             0
           ]
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "S256 — optional per-emitter colour override. When set, the renderer uses this hex colour instead of the preset's built-in colour (preset still controls particle lifetime / spread / gravity / etc.). Useful for tinting one-shot puffs by event source (e.g. bomber palette)."
         }
       }
     },
