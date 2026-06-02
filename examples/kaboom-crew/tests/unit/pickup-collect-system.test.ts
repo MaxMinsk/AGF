@@ -128,7 +128,7 @@ describe("createKaboomPickupCollectSystem (S82 KABOOM-PICKUPS-AND-STATS)", () =>
       | { preset: string; lifetime?: number; rate?: number }
       | undefined;
     expect(emitter).toBeDefined();
-    expect(emitter!.preset).toBe("spark");
+    expect(emitter!.preset).toBe("pulse");
     expect(emitter!.lifetime).toBeGreaterThan(0);
     expect(emitter!.rate).toBeGreaterThan(0);
   });

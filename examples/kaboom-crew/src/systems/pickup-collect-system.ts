@@ -104,10 +104,14 @@ export function createKaboomPickupCollectSystem(options: PickupCollectSystemOpti
         // S096 KABOOM-PICKUP-COLLECT-PARTICLE — spawn a one-shot 'spark'
         // burst at the pickup's cell BEFORE removing the entity. (S247
         // shared `spawnPuff` helper.)
+        // S249 — switched to the `pulse` preset so a power-up
+        // collection reads in warm magenta, distinct from the orange
+        // `spark` used by bomb-related cues. Reinforces "you gained
+        // something" vs "a bomb did something."
         spawnPuff(world, {
           id: `${pickupId}.collect-fx`,
           position: [pos.gx, 0.4, pos.gz],
-          preset: "spark",
+          preset: "pulse",
           lifetime: COLLECT_FX_LIFETIME_S,
           rate: COLLECT_FX_RATE,
           maxParticles: COLLECT_FX_MAX_PARTICLES

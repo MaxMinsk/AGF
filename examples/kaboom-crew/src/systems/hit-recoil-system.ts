@@ -137,14 +137,15 @@ export function createKaboomHitRecoilSystem(options: { name?: string } = {}): Sy
           torsoId
         } satisfies HitRecoilActive);
 
-        // S244 KABOOM-SHIELD-SAVE-PUFF (S247 — via shared `spawnPuff`).
-        // Brighter than S243 bomb-place because this is a survival
-        // moment, not a routine action.
+        // S244 KABOOM-SHIELD-SAVE-PUFF (S247 — shared `spawnPuff`;
+        // S249 — switched to the `glow` preset so the survival moment
+        // reads in pale cyan, distinct from the warm-orange `spark`
+        // preset used by bomb-related cues).
         shieldPuffCounter += 1;
         spawnPuff(world, {
           id: `${id}.shield-save.${shieldPuffCounter}`,
           position: [gx, 0.9, gz],
-          preset: "spark",
+          preset: "glow",
           lifetime: 0.4,
           rate: 50,
           maxParticles: 16
