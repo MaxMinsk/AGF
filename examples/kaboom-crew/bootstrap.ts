@@ -27,6 +27,7 @@ import { createMinimapWidget } from "../../engine/runtime/ui/minimap";
 import startSceneJson from "./scenes/start.scene.json";
 import wideSceneJson from "./scenes/wide.scene.json";
 import corridorSceneJson from "./scenes/corridor.scene.json";
+import corridorsSceneJson from "./scenes/corridors.scene.json";
 import plazaSceneJson from "./scenes/plaza.scene.json";
 import crossSceneJson from "./scenes/cross.scene.json";
 import pitSceneJson from "./scenes/pit.scene.json";
@@ -542,6 +543,7 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["start", startSceneJson],
   ["wide", wideSceneJson],
   ["corridor", corridorSceneJson],
+  ["corridors", corridorsSceneJson],
   ["plaza", plazaSceneJson],
   ["cross", crossSceneJson],
   ["pit", pitSceneJson],
@@ -551,7 +553,7 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["heightmap-demo", heightmapDemoSceneJson],
   ["grass-demo", grassDemoSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
+type MapName = "start" | "wide" | "corridor" | "corridors" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
 
 /** S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW — bounding-box width/depth (in
  *  tiles) of each authored arena. Used by the camera-control system
@@ -563,6 +565,7 @@ const MAP_DIMS: ReadonlyMap<MapName, { width: number; depth: number }> = new Map
   ["start", { width: 14, depth: 10 }],
   ["wide", { width: 16, depth: 12 }],
   ["corridor", { width: 16, depth: 6 }],
+  ["corridors", { width: 17, depth: 17 }],
   ["plaza", { width: 12, depth: 10 }],
   ["cross", { width: 17, depth: 17 }],
   ["pit", { width: 11, depth: 11 }],
@@ -587,6 +590,7 @@ const MATCH_ROTATION_POOL: ReadonlyArray<MapName> = [
   "start",
   "wide",
   "corridor",
+  "corridors",
   "plaza",
   "cross",
   "pit",
