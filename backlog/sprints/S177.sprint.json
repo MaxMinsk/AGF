@@ -1,0 +1,96 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S177",
+  "title": "Bot AI nuance + arena polish — finish GDP-2026-05-29-010 Layer 3, push visible cues + onboarding-grade touch-ups",
+  "status": "active",
+  "startedAt": "2026-06-02",
+  "archivedAt": null,
+  "prUrl": null,
+  "notes": [
+    "Closes the remaining slices of GDP-2026-05-29-010 Layer 3 (Coward decoy bomb, Miner feign-corner) on top of the S262 Hunter fake-flee. Then a polish wave: HUD telegraph for the personality-shift state (Layer 2 already wired, but no visible signal yet), audio + landing-pop for the S181/S182 step jump, and a chain-reaction cue distinct from the regular S243 bomb-place puff so bombers can read 'this was triggered by another bomb' at a glance.",
+    "Single sprint branch (`sprint/177-bot-ai-nuance`) — stories ship as atomic commits, single PR at sprint close. Each story keeps its own commit body + acceptance line so the QA terminal can match a verification line per slice.",
+    "Sprint size 10 (matches the post-2026-05-13 doubled default per feedback-sprint-size). Mix is ~5 gameplay-mechanic + ~5 polish so the bot-AI nuance work has a clear visible payoff in the same release window."
+  ],
+  "outOfScope": [
+    "Outline-occluder shader (GDP-2026-05-28-014) — sketched in proposals but the shader pass is a meaty separate slice; lands in a future sprint",
+    "Engine billboard primitive (GDP-2026-05-27-008) — foundation work, deferred until a concrete consumer needs it",
+    "Wang 2-corner tiles / cliff-face Wang / per-biome geometry (GDP-2026-05-29-005..007, GDP-2026-05-30-003) — visual-heavy, separate sprint",
+    "Multi-bot in connected mode (GDP-2026-05-27-003) — networked, separate sprint",
+    "Multiplayer parity sweep (GDP-2026-05-27-010) — networked, separate sprint",
+    "Step-jump pathfinding cost adjustment (1.2× hop cost in GDP-2026-05-28-015) — the visible animation is what the user feels; tuning bot pathing for steps stays a stretch slice for after Player UX work"
+  ],
+  "stories": [
+    {
+      "id": "S262-KABOOM-HUNTER-FAKE-FLEE-BLUFF",
+      "title": "Hunter fake-flee bluff (GDP-2026-05-29-010 Layer 3 hunter slice)",
+      "status": "implemented",
+      "summary": "New bot-ai-bluff.ts module + BotBluffState component + integration into bot-ai-system. Hunter rolls 10% per brain tick when player is 4..10 cells away; phases are fleeing (1.5s) → approaching (until manhattan ≤ 3) → committing (forces PlaceBombRequest) → done. State drops on round-edge.",
+      "verification": [
+        "acceptance: 21 unit tests cover every state transition + edge case; live Playwright probe sees BotBluffState mount on bot.1 hunter at +1.2s when player is teleported within range; no console errors; 2366/2366 vitest pass."
+      ]
+    },
+    {
+      "id": "S263-KABOOM-COWARD-DECOY-BOMB-BLUFF",
+      "title": "Coward decoy-bomb bluff (GDP-2026-05-29-010 Layer 3 coward slice)",
+      "status": "implemented",
+      "summary": "BotBluffState union widens to kind='decoy-bomb'. Phases placing-decoy → retreating (1.5s) → placing-real → done. bluffForcesBomb predicate centralises the bomb-commit edges (committing | placing-decoy | placing-real). bluffPreferredDirection adds the 'retreating' branch (vector away from player, mirrors 'fleeing'). Coward 15%/tick gate at the same 4..10 cell distance band as the hunter.",
+      "verification": [
+        "acceptance: 11 new unit tests cover shouldStartCowardBluff probability + distance band, startCowardBluff mount, bluffForcesBomb predicate, advanceBluffState decoy phases (placing-decoy → retreating → placing-real → done), bluffPreferredDirection retreating; live Playwright probe sees bot.2 (coward) enter placing-decoy then retreating at +5.4s when player teleported into range; 2377/2377 vitest pass."
+      ]
+    },
+    {
+      "id": "S264-KABOOM-MINER-FEIGN-CORNER-BLUFF",
+      "title": "Miner feign-corner bluff (GDP-2026-05-29-010 Layer 3 miner slice)",
+      "status": "pending",
+      "summary": "Miner 5%/round chance: lure player by appearing to pin themselves against a corner, then slip past via a dash through a soft-block-rich area. New BotBluffState.kind='feign-corner'."
+    },
+    {
+      "id": "S265-KABOOM-BLUFF-HUD-TELEGRAPH",
+      "title": "HUD icon shows active bluff per bot (per GDP-2026-05-29-010 — small icon next to the tally entry)",
+      "status": "pending",
+      "summary": "Tiny icon next to each bot's tally line that flips to a 'bluff active' glyph while BotBluffState is in fleeing/approaching/committing phases. Lets the player read the bluff in flight."
+    },
+    {
+      "id": "S266-KABOOM-PERSONALITY-SHIFT-HUD",
+      "title": "HUD telegraph for L2 personality shifts (per GDP-2026-05-29-010 — Reckless / Patient / Brave Coward etc.)",
+      "status": "pending",
+      "summary": "Renders the tally bias from S227 (already adjusts aggression internally) as a visible icon ('🔥' reckless, '🛡' patient, etc.) next to each bot's tally entry. Reads RoundState.tally + bot personality at HUD-build time."
+    },
+    {
+      "id": "S267-KABOOM-STEP-JUMP-AUDIO",
+      "title": "Step-jump audio — whoosh on launch + thud on landing",
+      "status": "pending",
+      "summary": "Adds short audio cues at the takeoff + landing windows of the S181/S182 step-jump arc. Total audio ~150 ms; hooks the existing audio system. URL `?stepJumpAudio=off` disables."
+    },
+    {
+      "id": "S268-KABOOM-STEP-JUMP-LANDING-POP",
+      "title": "Step-jump landing pop — brief Transform.scale impulse on landing (in addition to the S182 squash arc)",
+      "status": "pending",
+      "summary": "On the LANDING edge (currentLerp crosses from <1 to 1 across a delta=1 cell tween), apply a 1-frame Y-squash to the bomber mesh that decays over 120ms. Reads as a 'real thud' beyond the squash arc, which is symmetric around the jump."
+    },
+    {
+      "id": "S269-KABOOM-CHAIN-REACTION-PUFF-TINT",
+      "title": "Distinct puff tint when a bomb is chain-triggered (vs its own fuse)",
+      "status": "pending",
+      "summary": "When chainBombsAt forces fuseRemaining to 0 (bomb-fuse-system), tag the chained bomb so the next-tick blast spawn carries a CHAIN-tint emitter — e.g. `glow` cyan to differentiate from the regular orange spark blast. Reads as 'I caught your other bomb in the chain' at a glance."
+    },
+    {
+      "id": "S270-KABOOM-BOMB-FUSE-CRITICAL-PULSE",
+      "title": "Bomb fuse critical-pulse — red flash on the bomb cell at fuse < 0.4s",
+      "status": "pending",
+      "summary": "Adds a one-shot red puff (spawnPuff with `color: \"#ff3030\"`, lifetime 0.15s) at the bomb cell the first tick the bomb crosses fuse < 0.4s. Telegraphs 'about to detonate' beyond the existing wiggle + colour pulse, which can be hard to read in chaotic moments."
+    },
+    {
+      "id": "S271-KABOOM-BLUFF-MESH-TINT",
+      "title": "Subtle accent on the bomber mesh while a bluff is active",
+      "status": "pending",
+      "summary": "Brief MeshRenderer.color shift on the hunter / coward / miner during their bluff phase. Picks up the bomber's palette accent so the bot LOOKS 'switched on' (visually distinct from baseline cruising). Cosmetic, not gameplay."
+    },
+    {
+      "id": "S272-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",
+      "title": "Sprint S177 close — archive proposals + render backlog views",
+      "status": "pending",
+      "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON."
+    }
+  ]
+}
