@@ -1,0 +1,25 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-06-02-003",
+  "title": "INVESTIGATE — player walks through bombs without bombPass power-up",
+  "createdAt": "2026-06-02T12:30:00.000Z",
+  "kind": "bug",
+  "intent": "User playtest 2026-06-02: 'еще какойто баг что я могу ходить сквозь бомбы даже без поверапа'. The S152 bomb-block-system should clear `GridMover.queuedDirection` when the destination cell holds a non-pass-eligible bomb (any other bomber's bomb, or own bomb after step-off without BomberStats.bombPass=true). The 11 bomb-block unit tests pass locally + on CI, so the rule logic is intact — but live in-browser playtest reports the player walks through. Likely candidates: system run order regression (bomb-block must run AFTER input + bot-ai, BEFORE grid-movement, in frameUpdate); grid-occupancy index lag when a fresh bomb spawns (the bomb has GridOccupant 'bomb' layer but the index might not refresh same-tick); a recent merge that bypassed the gate (S220 kick mechanism removed PlayerControlled filter — could there be a subtle interaction?); or the user observed step-off grace (player on cell C with own bomb at C can step OFF freely, only the return after step-off is blocked).",
+  "priority": "should",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "Direct user bug report on a long-shipped core mechanic. Could be a real regression from one of S220-S225 or earlier. Investigate first, fix second — the unit tests still pass so there's a state the tests don't model.",
+  "acceptanceHints": [
+    "STEP 1 — repro in dev mode:",
+    "  Start `npm run dev`, open kaboom-crew, place a bomb, step OFF the bomb cell (grace ends), then try walking BACK onto the bomb. Expected: blocked. Observed?",
+    "  Try the same on an ENEMY bomb (let a bot place + walk into it).",
+    "  Try with `?canKick=on` URL flag (if it exists) — does the kick mechanic alter the block path now that S220 removed the PlayerControlled filter?",
+    "STEP 2 — log probe inside bomb-block-system:",
+    "  Add `console.warn('[bomb-block]', { bomberId, dx, dz, bombs: bombs.length, blocked })` temporarily, run, see when blocked=false fires unexpectedly.",
+    "STEP 3 — frame ordering audit:",
+    "  Inspect `examples/kaboom-crew/bootstrap.ts` for scheduler.register order. bomb-block-system should sit AFTER player-input + bot-ai + dash-system, BEFORE engine grid-movement. If a recent story moved a system, the order could be off.",
+    "STEP 4 — occupancy index timing:",
+    "  Check whether `occupancy.occupants(gx, gz, 'bomb')` returns the freshly-placed bomb on the same tick it was spawned. Use `world.getComponent(bombId, 'GridOccupant')` to verify the bomb carries the right layer.",
+    "OUT OF SCOPE for this investigate ticket:",
+    "  Refactoring bomb-block or kick. Just identify the root cause and file the fix story."
+  ]
+}
