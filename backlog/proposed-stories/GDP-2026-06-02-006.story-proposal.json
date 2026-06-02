@@ -1,0 +1,29 @@
+{
+  "agfFormatVersion": 1,
+  "id": "GDP-2026-06-02-006",
+  "title": "Per-match random soft-block layout — fresh roll each match under the same arena skeleton",
+  "createdAt": "2026-06-02T13:10:00.000Z",
+  "kind": "feature",
+  "intent": "Source: arena-complexity spike (S230) #2 (tied) recommendation. Today the same arena rolled with the same seed always produces the same soft-block layout. Players who play the same map twice see the SAME crate pattern + the SAME pickup positions. This story makes each match reroll the soft-block layout under the same arena skeleton — every match is a fresh first encounter even on the same map. Deterministic per session-seed + match-number so spectators / replays still agree.",
+  "priority": "should",
+  "epic": "KABOOM-CREW-MVP-2",
+  "rationale": "Spike scored 13/15. Reuses the existing seeded-RNG roll (S82 + S89). The change is feeding `MatchState.matchNumber` into the seed so the random hash differs per match. ~30 LOC bootstrap reroute + URL flag. Pairs naturally with the per-region density variation (GDP-2026-06-02-004) — that defines WHERE blocks can spawn, this defines IF they spawn each match.",
+  "acceptanceHints": [
+    "TARGET: `examples/kaboom-crew/src/blocks/per-cell-variant-selector.ts` and the soft-block spawn roll site (likely in scene-load or scene-expansion).",
+    "MECHANISM: extend the existing `selectVariantIndex(gx, gz, sceneSeed)` (or equivalent) to ALSO mix in `MatchState.matchNumber`. The seed becomes `(sceneSeed ^ matchNumber)` — same shape as `cellHash` from S82.",
+    "FALLBACK: when no MatchState is present (single-round runs, demo-30s tests), default to matchNumber=1. demo-30s regression baseline must stay byte-identical (matchNumber=1 in that test).",
+    "URL CONFIG:",
+    "  `?matchSeed=N` override the matchNumber input — useful for replays / debug.",
+    "  `?randomLayout=off` disable the reroll, fall back to the original deterministic-by-arena behaviour. Used by bot-vs-bot regression tests if they need a stable layout.",
+    "TESTS:",
+    "  Unit: same arena + same matchNumber → identical layout. Different matchNumber → different layout.",
+    "  Unit: missing MatchState → matchNumber defaults to 1 (deterministic with the pre-S230 baseline).",
+    "  demo-30s regression: snapshot stays byte-identical because the test world doesn't bump matchNumber.",
+    "  Visual: load `wide` arena, restart match → soft-block crate pattern visibly differs from the first match.",
+    "OUT OF SCOPE:",
+    "  Random hard-block lattice (keep the odd/even grid — it's load-bearing for pathfinding).",
+    "  Random pickup TYPE per match (pickup-spawn-system rolls per-cell already; that's enough).",
+    "  Random hazard placement (separate story, depends on more hazard primitives).",
+    "  Symmetric-arena guarantee — when the random roll makes one side denser than the other, accept it. Players who want strict balance can `?randomLayout=off`."
+  ]
+}
