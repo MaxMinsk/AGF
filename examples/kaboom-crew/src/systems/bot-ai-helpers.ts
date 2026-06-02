@@ -353,3 +353,91 @@ export function botPassableNeighbours(
   }
   return out;
 }
+
+function manhattanCells(ax: number, az: number, bx: number, bz: number): number {
+  return Math.abs(ax - bx) + Math.abs(az - bz);
+}
+
+/** S236 V2 — nearest Pickup within `maxDistance` cardinal cells, in
+ *  danger-free cells only. Returns its cell coords or undefined. */
+export function nearestBotPickup(
+  world: World,
+  pos: { gx: number; gz: number },
+  danger: ReadonlySet<string>,
+  pickups: BotQueryHandleLike,
+  maxDistance: number
+): { gx: number; gz: number } | undefined {
+  let best: { gx: number; gz: number; dist: number } | undefined;
+  for (const id of pickups.run()) {
+    const p = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (p?.gx === undefined || p.gz === undefined) continue;
+    if (danger.has(cellKey(p.gx, p.gz))) continue;
+    const dist = manhattanCells(pos.gx, pos.gz, p.gx, p.gz);
+    if (dist > maxDistance) continue;
+    if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+  }
+  return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
+}
+
+/** S236 V2 — nearest soft block (movement-blocking, non-blast-blocking
+ *  occupant) within `maxDistance` cells, in a danger-free cell. Uses
+ *  `world.query` once per call (low-cadence — bot decision tick ≈ 5 Hz). */
+export function nearestBotSoftBlock(
+  world: World,
+  pos: { gx: number; gz: number },
+  danger: ReadonlySet<string>,
+  maxDistance: number
+): { gx: number; gz: number } | undefined {
+  let best: { gx: number; gz: number; dist: number } | undefined;
+  // agf-allow: world.query — runs at the bot DECISION_INTERVAL, not per-frame.
+  for (const id of world.query([GRID_POSITION, "GridOccupant"])) {
+    const p = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (p?.gx === undefined || p.gz === undefined) continue;
+    const occ = world.getComponent<{ blocksMovement?: boolean; blocksBlast?: boolean }>(id, "GridOccupant");
+    if (occ?.blocksMovement !== true || occ?.blocksBlast === true) continue;
+    if (danger.has(cellKey(p.gx, p.gz))) continue;
+    const dist = manhattanCells(pos.gx, pos.gz, p.gx, p.gz);
+    if (dist > maxDistance) continue;
+    if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+  }
+  return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
+}
+
+/** S236 V2 — nearest alive bomber (PlayerControlled OR BotBrain) other
+ *  than `selfId`. Used by HUMANS_DEAD mode to make cowards engage. */
+export function nearestBotOtherBomber(
+  world: World,
+  selfId: EntityId,
+  pos: { gx: number; gz: number }
+): { gx: number; gz: number } | undefined {
+  let best: { gx: number; gz: number; dist: number } | undefined;
+  for (const id of world.entityIds()) {
+    if (id === selfId) continue;
+    if (!world.hasComponent(id, BOMBER_STATS)) continue;
+    const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
+    if (stats?.alive === false) continue;
+    const p = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (p?.gx === undefined || p.gz === undefined) continue;
+    const dist = manhattanCells(pos.gx, pos.gz, p.gx, p.gz);
+    if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+  }
+  return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
+}
+
+/** S236 V2 — nearest PlayerControlled bomber within `maxDistance` cells. */
+export function nearestBotPlayer(
+  world: World,
+  pos: { gx: number; gz: number },
+  maxDistance: number
+): { gx: number; gz: number } | undefined {
+  let best: { gx: number; gz: number; dist: number } | undefined;
+  // agf-allow: world.query — runs at the bot DECISION_INTERVAL, not per-frame.
+  for (const id of world.query(["PlayerControlled", GRID_POSITION])) {
+    const p = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (p?.gx === undefined || p.gz === undefined) continue;
+    const dist = manhattanCells(pos.gx, pos.gz, p.gx, p.gz);
+    if (dist > maxDistance) continue;
+    if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
+  }
+  return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
+}
