@@ -156,6 +156,11 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   // Reset on world change or whenever a human is alive again (round
   // restart, revive, reconnect-within-grace).
   let humansAllDeadAt: number | undefined;
+  // S225 — per-player ring of the last 3 grid positions observed.
+  // Populated at the top of each fixedUpdate; the hunter chase
+  // path consults `anticipatedPlayerCell` to project a straight-
+  // line trajectory into the next cell.
+  const playerTracks = new Map<EntityId, ReadonlyArray<GridPos>>();
   // S210 hotfix — only arm the boost when at least one PlayerControlled
   // bomber was ALIVE earlier in the round. Demos / regression tests
   // run pure bot-vs-bot from frame 1 (no humans ever) and must keep
@@ -265,7 +270,12 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       return dPickup <= dSoft ? pickupGoal : softGoal;
     }
     // hunter (default): chase nearest player; fall through to pickup.
-    const playerGoal = nearestPlayer(world, pos);
+    // S225 — anticipatedPlayerCell returns the projected next cell
+    // when the player has been moving in a straight line for ≥ 3
+    // ticks, else falls back to the current cell. Hunter aims
+    // ahead of the player so chase + bomb-place land WHERE the
+    // player will be.
+    const playerGoal = anticipatedPlayerCell(world, pos);
     if (playerGoal !== undefined) return playerGoal;
     return nearestPickup(world, pos, danger);
   }
@@ -361,6 +371,34 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     }
     if (best === undefined) return undefined;
     return { gx: best.gx, gz: best.gz };
+  }
+
+  /** S225 — player anticipation. Returns the projected NEXT cell of
+   *  the player nearest to `pos` if the player's last 3 tracked
+   *  positions form a straight cardinal line (one direction, no
+   *  reversal), else falls back to the current cell from
+   *  nearestPlayer. The hunter chases the predicted cell to land
+   *  bombs WHERE the player will be, not where they ARE — adds
+   *  real difficulty without making the AI feel cheap, because
+   *  the prediction only fires on committed straight runs. */
+  function anticipatedPlayerCell(world: World, pos: GridPos): { gx: number; gz: number } | undefined {
+    const here = nearestPlayer(world, pos);
+    if (here === undefined) return undefined;
+    // Find the player id matching `here` — track is keyed by id.
+    let trackedId: EntityId | undefined;
+    // agf-allow: world.query — bot AI ticks at DECISION_INTERVAL (~5 Hz), not per-frame.
+    for (const id of world.query(["PlayerControlled", GRID_POSITION])) {
+      const p = world.getComponent<GridPos>(id, GRID_POSITION);
+      if (p?.gx === here.gx && p?.gz === here.gz) {
+        trackedId = id;
+        break;
+      }
+    }
+    if (trackedId === undefined) return here;
+    const recent = playerTracks.get(trackedId);
+    if (recent === undefined) return here;
+    const predicted = predictNextCell(recent);
+    return predicted ?? here;
   }
 
   function nearestSoftBlock(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
@@ -553,11 +591,29 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       cachedWorld = world;
       humansAllDeadAt = undefined;
       humansEverAlive = false;
+      playerTracks.clear();
     }
     // S84 KABOOM-TITLE-SCREEN. Game freezes while a GamePaused
     // singleton is present — bot decisions don't run so the title
     // screen looks static until the player commits.
     if (world.hasComponent("kaboom.game-state", "GamePaused")) return;
+
+    // S225 — refresh per-player tracking ring. Append the current
+    // cell for every PlayerControlled bomber; keep the last 3 cells
+    // so `predictNextCell` can see a straight-line trajectory.
+    // Static map across the whole bot loop so all bots that tick
+    // this fixedUpdate consult the SAME snapshot — keeps decisions
+    // coherent.
+    // agf-allow: world.query — bot AI ticks at 5 Hz, not per-frame.
+    for (const id of world.query(["PlayerControlled", GRID_POSITION])) {
+      const p = world.getComponent<GridPos>(id, GRID_POSITION);
+      if (p === undefined) continue;
+      const prev = playerTracks.get(id) ?? [];
+      const last = prev[prev.length - 1];
+      if (last !== undefined && last.gx === p.gx && last.gz === p.gz) continue; // dedupe stationary
+      const next = [...prev.slice(-2), { gx: p.gx, gz: p.gz }];
+      playerTracks.set(id, next);
+    }
     const dt = Math.max(0, context.time.fixedDt);
     let danger: Set<string> | undefined;
 
@@ -783,6 +839,29 @@ function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number
   if (bomb.gx === gx && Math.abs(bomb.gz - gz) <= bomb.range) return true;
   if (bomb.gz === gz && Math.abs(bomb.gx - gx) <= bomb.range) return true;
   return false;
+}
+
+/** S225 — predict the next cell given a list of recent positions
+ *  (most-recent last). Returns the projected next cell iff the
+ *  trailing 3 entries form a straight cardinal line (one direction
+ *  applied twice in a row); else undefined. Pure helper for unit
+ *  tests + the bot-ai anticipation path. */
+export function predictNextCell(
+  recent: ReadonlyArray<{ gx: number; gz: number }>
+): { gx: number; gz: number } | undefined {
+  if (recent.length < 3) return undefined;
+  const a = recent[recent.length - 3]!;
+  const b = recent[recent.length - 2]!;
+  const c = recent[recent.length - 1]!;
+  const dx1 = b.gx - a.gx;
+  const dz1 = b.gz - a.gz;
+  const dx2 = c.gx - b.gx;
+  const dz2 = c.gz - b.gz;
+  // Must be the SAME cardinal step both transitions: same dx + dz,
+  // exactly one of (|dx|, |dz|) equal to 1, the other 0.
+  if (dx1 !== dx2 || dz1 !== dz2) return undefined;
+  if (Math.abs(dx1) + Math.abs(dz1) !== 1) return undefined;
+  return { gx: c.gx + dx1, gz: c.gz + dz1 };
 }
 
 /** S223 — count soft blocks in line along `dir` starting from
