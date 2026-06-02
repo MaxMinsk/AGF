@@ -19,12 +19,12 @@
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import { spawnPuff } from "./spawn-puff";
 
 const HIT_RECOIL_REQUEST: ComponentName = "HitRecoilRequest";
 const HIT_RECOIL_ACTIVE: ComponentName = "HitRecoilActive";
 const TRANSFORM: ComponentName = "Transform";
 const GRID_POSITION: ComponentName = "GridPosition";
-const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
 /** S244 — incremental id for the shield-save spark puff so back-to-back
  *  saves on the same bomber (rare but possible) don't collide on entity
@@ -137,30 +137,18 @@ export function createKaboomHitRecoilSystem(options: { name?: string } = {}): Sy
           torsoId
         } satisfies HitRecoilActive);
 
-        // S244 KABOOM-SHIELD-SAVE-PUFF. Co-spawn a brief spark burst at
-        // the bomber's cell so the shield consumption reads visually,
-        // not just via the torso recoil + activeBombs UI tick. Slightly
-        // brighter + longer than the S243 bomb-place puff because this
-        // is "you survived a hit" — it deserves the eye-catch. The
-        // ParticleEmitter primitive (M19) self-cleans when elapsed
-        // reaches lifetime.
+        // S244 KABOOM-SHIELD-SAVE-PUFF (S247 — via shared `spawnPuff`).
+        // Brighter than S243 bomb-place because this is a survival
+        // moment, not a routine action.
         shieldPuffCounter += 1;
-        const puffId = `${id}.shield-save.${shieldPuffCounter}`;
-        if (!world.hasEntity(puffId)) {
-          world.addEntity(puffId);
-          world.setComponent(puffId, TRANSFORM, {
-            position: [gx, 0.9, gz],
-            rotation: [0, 0, 0],
-            scale: [1, 1, 1]
-          });
-          world.setComponent(puffId, PARTICLE_EMITTER, {
-            preset: "spark",
-            lifetime: 0.4,
-            elapsed: 0,
-            rate: 50,
-            maxParticles: 16
-          });
-        }
+        spawnPuff(world, {
+          id: `${id}.shield-save.${shieldPuffCounter}`,
+          position: [gx, 0.9, gz],
+          preset: "spark",
+          lifetime: 0.4,
+          rate: 50,
+          maxParticles: 16
+        });
       }
 
       // 2. Tick every active recoil. When elapsed exceeds the total

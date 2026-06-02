@@ -14,6 +14,7 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
+import { spawnPuff } from "./spawn-puff";
 
 const THROW_BOMB_REQUEST: ComponentName = "ThrowBombRequest";
 const BOMB: ComponentName = "Bomb";
@@ -23,7 +24,6 @@ const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const TRANSFORM: ComponentName = "Transform";
 const TWEENS: ComponentName = "Tweens";
 const GRID_MOVER: ComponentName = "GridMover";
-const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
 /** S245 — incremental id so multiple airborne bombs landing in the
  *  same frame don't collide on entity ids. Module-scoped, deterministic
@@ -194,32 +194,18 @@ export function createKaboomBombThrowSystem(options: {
           blocksMovement: false,
           blocksBlast: false
         });
-        // S245 KABOOM-THROW-LAND-PUFF (visual cue). Co-spawn a tight
-        // dust burst on the landing cell so the arc's end reads
-        // instantly — distinct from the S243 bomb-place puff (which
-        // covers normal placements) because thrown bombs land far
-        // from the thrower and a separate cue ties the arc to its
-        // resting point. Tighter than the S244 shield-save puff
-        // (this is a routine landing, not a survival moment).
+        // S245 KABOOM-THROW-LAND-PUFF (S247 — via shared `spawnPuff`).
         const landPos = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
         if (landPos?.gx !== undefined && landPos.gz !== undefined) {
           throwLandPuffCounter += 1;
-          const puffId = `${id}.throw-land.${throwLandPuffCounter}`;
-          if (!world.hasEntity(puffId)) {
-            world.addEntity(puffId);
-            world.setComponent(puffId, TRANSFORM, {
-              position: [landPos.gx, BOMB_REST_Y + 0.1, landPos.gz],
-              rotation: [0, 0, 0],
-              scale: [1, 1, 1]
-            });
-            world.setComponent(puffId, PARTICLE_EMITTER, {
-              preset: "spark",
-              lifetime: 0.25,
-              elapsed: 0,
-              rate: 35,
-              maxParticles: 10
-            });
-          }
+          spawnPuff(world, {
+            id: `${id}.throw-land.${throwLandPuffCounter}`,
+            position: [landPos.gx, BOMB_REST_Y + 0.1, landPos.gz],
+            preset: "spark",
+            lifetime: 0.25,
+            rate: 35,
+            maxParticles: 10
+          });
         }
       }
     }
