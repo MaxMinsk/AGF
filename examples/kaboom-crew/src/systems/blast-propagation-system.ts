@@ -20,6 +20,7 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
 import { isPassableEdge } from "../../../../engine/grid/height-query";
 import { spawnScorchTile } from "./scorch-tile-system";
+import { spawnPuff } from "./spawn-puff";
 
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const BOMB: ComponentName = "Bomb";
@@ -170,26 +171,15 @@ function spawnBlastTile(
   world.setComponent(id, GRID_OCCUPANT, { layer: "blast", blocksMovement: false, blocksBlast: false });
   world.setComponent(id, BLAST_TILE, { lifetimeRemaining: BLAST_TILE_LIFETIME, ownerId });
 
-  // S84 KABOOM-BLAST-PARTICLES. A short-lived 'spark' emitter co-spawned
-  // with each blast tile. Single inline preset reuses the engine
-  // ParticleEmitter primitive (M19); the emitter cleans itself up when
-  // ParticleEmitter.elapsed >= lifetime.
-  const emitterId = `${id}.spark`;
-  if (!world.hasEntity(emitterId)) {
-    world.addEntity(emitterId);
-    world.setComponent(emitterId, TRANSFORM, {
-      position: [gx, 0.4, gz],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1]
-    });
-    world.setComponent(emitterId, "ParticleEmitter", {
-      preset: "spark",
-      lifetime: 0.4,
-      elapsed: 0,
-      rate: 30,
-      maxParticles: 12
-    });
-  }
+  // S84 KABOOM-BLAST-PARTICLES (S247 — via shared `spawnPuff`).
+  spawnPuff(world, {
+    id: `${id}.spark`,
+    position: [gx, 0.4, gz],
+    preset: "spark",
+    lifetime: 0.4,
+    rate: 30,
+    maxParticles: 12
+  });
 
   // S213 KABOOM-SCORCH-V2 — co-spawn a dark soot mark at the cell.
   // Each ScorchTile is its own entity (not a decal projected onto
@@ -236,21 +226,16 @@ function destroySoftBlocksAt(
 /** S193 — co-spawn a short-lived spark emitter at the wall's edge.
  *  Positioned ~0.5 cells toward the camera-facing side of the wall
  *  (`-dx, -dz` from cell centre) so the sparks read as bouncing off
- *  the impact face rather than emerging from inside the block. */
+ *  the impact face rather than emerging from inside the block.
+ *  (S247 — uses the shared `spawnPuff` helper.) */
 let hardWallPingCounter = 0;
 function spawnHardWallPing(world: World, gx: number, gz: number, dx: number, dz: number): void {
   hardWallPingCounter += 1;
-  const emitterId = `kaboom.hard-wall-ping.${hardWallPingCounter}.${gx}.${gz}`;
-  world.addEntity(emitterId);
-  world.setComponent(emitterId, TRANSFORM, {
+  spawnPuff(world, {
+    id: `kaboom.hard-wall-ping.${hardWallPingCounter}.${gx}.${gz}`,
     position: [gx - dx * 0.5, 0.4, gz - dz * 0.5],
-    rotation: [0, 0, 0],
-    scale: [1, 1, 1]
-  });
-  world.setComponent(emitterId, "ParticleEmitter", {
     preset: "spark",
     lifetime: 0.18,
-    elapsed: 0,
     rate: 60,
     maxParticles: 8
   });

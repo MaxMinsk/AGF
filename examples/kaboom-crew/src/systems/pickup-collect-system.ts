@@ -16,13 +16,12 @@ import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
+import { spawnPuff } from "./spawn-puff";
 
 const PICKUP: ComponentName = "Pickup";
 const GRID_POSITION: ComponentName = "GridPosition";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_MOVER: ComponentName = "GridMover";
-const TRANSFORM: ComponentName = "Transform";
-const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
 // S096 KABOOM-PICKUP-COLLECT-PARTICLE — a one-shot 'spark' burst at the
 // pickup's cell at the moment of collection. Lives on a fresh fx entity
@@ -103,23 +102,16 @@ export function createKaboomPickupCollectSystem(options: PickupCollectSystemOpti
       });
       if (taken) {
         // S096 KABOOM-PICKUP-COLLECT-PARTICLE — spawn a one-shot 'spark'
-        // burst at the pickup's cell BEFORE removing the entity.
-        const fxId = `${pickupId}.collect-fx`;
-        if (!world.hasEntity(fxId)) {
-          world.addEntity(fxId);
-          world.setComponent(fxId, TRANSFORM, {
-            position: [pos.gx, 0.4, pos.gz],
-            rotation: [0, 0, 0],
-            scale: [1, 1, 1]
-          });
-          world.setComponent(fxId, PARTICLE_EMITTER, {
-            preset: "spark",
-            lifetime: COLLECT_FX_LIFETIME_S,
-            elapsed: 0,
-            rate: COLLECT_FX_RATE,
-            maxParticles: COLLECT_FX_MAX_PARTICLES
-          });
-        }
+        // burst at the pickup's cell BEFORE removing the entity. (S247
+        // shared `spawnPuff` helper.)
+        spawnPuff(world, {
+          id: `${pickupId}.collect-fx`,
+          position: [pos.gx, 0.4, pos.gz],
+          preset: "spark",
+          lifetime: COLLECT_FX_LIFETIME_S,
+          rate: COLLECT_FX_RATE,
+          maxParticles: COLLECT_FX_MAX_PARTICLES
+        });
         world.removeEntity(pickupId);
       }
     }
