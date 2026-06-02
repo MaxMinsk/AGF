@@ -12,6 +12,22 @@ import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-oc
 import { getCellHeight } from "../../../../engine/grid/height-query";
 import { spawnPuff } from "./spawn-puff";
 
+/** S257 — palette-tinted bomb-spawn puff. Reads the placer's personality
+ *  (bots) or assumes the player palette to colour the S243 spawn puff
+ *  by source. Tells the player which bot just placed in chaotic moments
+ *  without adding a HUD element. Returns undefined for unknown placers
+ *  (the puff falls back to the preset's default colour). */
+function bomberPuffColor(world: World, bomberId: EntityId): string | undefined {
+  if (bomberId === "player.1") return "#3ab0ff"; // sky.torsoTop
+  const brain = world.getComponent<{ personality?: "hunter" | "coward" | "miner" }>(bomberId, "BotBrain");
+  switch (brain?.personality) {
+    case "hunter": return "#e65a3a"; // ember.torsoTop
+    case "coward": return "#5a6a82"; // slate.torsoTop
+    case "miner":  return "#c9a14d"; // sand.torsoTop
+    default: return undefined;
+  }
+}
+
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";
 const PLACE_BOMB_REQUEST: ComponentName = "PlaceBombRequest";
@@ -170,17 +186,28 @@ export function createKaboomBombPlacementSystem(
         remoteDetonateCharges: usesRemote ? charges - 1 : charges
       });
 
-      // S243 KABOOM-BOMB-SPAWN-PUFF (S247 — via shared `spawnPuff`).
-      // Tighter than S228's death-bomb puff so back-to-back placements
-      // don't drown the scene.
-      spawnPuff(world, {
+      // S243 KABOOM-BOMB-SPAWN-PUFF (S247 — via shared `spawnPuff`;
+      // S257 — tinted to the placer's palette so "which bot bombed?"
+      // reads at a glance in chaotic moments).
+      const puffOpts: {
+        id: string;
+        position: [number, number, number];
+        preset: string;
+        lifetime: number;
+        rate: number;
+        maxParticles: number;
+        color?: string;
+      } = {
         id: `${bombId}.puff`,
         position: [pos.gx, 0.5 + cellHeight, pos.gz],
         preset: "spark",
         lifetime: 0.3,
         rate: 30,
         maxParticles: 8
-      });
+      };
+      const tint = bomberPuffColor(world, entityId);
+      if (tint !== undefined) puffOpts.color = tint;
+      spawnPuff(world, puffOpts);
     }
   };
 

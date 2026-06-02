@@ -105,6 +105,40 @@ describe("createKaboomBombPlacementSystem (S82 KABOOM-BOMB-PLACE)", () => {
     expect(transform.position[2]).toBe(4);
   });
 
+  it("S257 KABOOM-BOMB-SPAWN-PUFF-TINT: player.1 placement → puff carries the sky-palette color", () => {
+    const world = new World();
+    makePlayer(world, "player.1", 3, 4);
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.test" });
+    system.frameUpdate!(ctx(world));
+    const emitter = world.getComponent("bomb.test.puff", "ParticleEmitter") as { color?: string };
+    expect(emitter.color).toBe("#3ab0ff");
+  });
+
+  it("S257 KABOOM-BOMB-SPAWN-PUFF-TINT: bot.N placement → puff carries the personality palette color", () => {
+    const world = new World();
+    makePlayer(world, "bot.1", 3, 4);
+    world.setComponent("bot.1", "BotBrain", { aggression: 0, personality: "hunter" });
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.bot1" });
+    system.frameUpdate!(ctx(world));
+    const emitter = world.getComponent("bomb.bot1.puff", "ParticleEmitter") as { color?: string };
+    expect(emitter.color).toBe("#e65a3a"); // ember.torsoTop
+  });
+
+  it("S257 KABOOM-BOMB-SPAWN-PUFF-TINT: unknown placer → puff has NO color override", () => {
+    const world = new World();
+    makePlayer(world, "rando.99", 3, 4);
+    const occupancy = createGridOccupancySystem();
+    occupancy.frameUpdate!(ctx(world));
+    const system = createKaboomBombPlacementSystem({ occupancy, nextBombId: () => "bomb.rando" });
+    system.frameUpdate!(ctx(world));
+    const emitter = world.getComponent("bomb.rando.puff", "ParticleEmitter") as { color?: string };
+    expect(emitter.color).toBeUndefined();
+  });
+
   it("S243 KABOOM-BOMB-SPAWN-PUFF: refused placement (maxBombs cap) does NOT spawn a puff", () => {
     const world = new World();
     makePlayer(world, "player.1", 3, 4, { activeBombs: 1, maxBombs: 1 });
