@@ -37,6 +37,7 @@ const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const TWEENS: ComponentName = "Tweens";
 const RIGID_BODY_3D: ComponentName = "RigidBody3D";
 const COLLIDER_3D: ComponentName = "Collider3D";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 const ROUND_STATE: ComponentName = "RoundState";
 
 const ROUND_STATE_ID = "kaboom.round-state";
@@ -295,4 +296,25 @@ function spawnDeathBomb(
     range,
     ownerId
   });
+  // S228 KABOOM-DEATH-BOMB-TELEGRAPH (GDP-2026-06-02-001 visual cue).
+  // Co-spawn a short-lived spark emitter so survivors visually parse
+  // "death bomb just appeared here" vs a normal placement. The engine
+  // ParticleEmitter primitive (M19) self-cleans when elapsed reaches
+  // lifetime.
+  const puffId = `${bombId}.puff`;
+  if (!world.hasEntity(puffId)) {
+    world.addEntity(puffId);
+    world.setComponent(puffId, TRANSFORM, {
+      position: [cell.gx, 0.5 + cellHeight, cell.gz],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+    world.setComponent(puffId, PARTICLE_EMITTER, {
+      preset: "spark",
+      lifetime: 0.4,
+      elapsed: 0,
+      rate: 40,
+      maxParticles: 14
+    });
+  }
 }

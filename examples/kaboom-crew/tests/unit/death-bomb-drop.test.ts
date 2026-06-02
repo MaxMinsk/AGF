@@ -68,7 +68,10 @@ function killBomber(world: World, id: string): void {
 function countDeathBombs(world: World): number {
   let n = 0;
   for (const id of world.entityIds()) {
-    if (id.startsWith("death-bomb.")) n += 1;
+    // S228 — co-spawn telegraph emitters share the `death-bomb.`
+    // prefix (`death-bomb.<owner>.<n>.puff`). Filter on the Bomb
+    // component so only the actual bomb counts.
+    if (id.startsWith("death-bomb.") && world.hasComponent(id, "Bomb")) n += 1;
   }
   return n;
 }
@@ -77,6 +80,7 @@ function deathBombCells(world: World): Array<{ gx: number; gz: number }> {
   const out: Array<{ gx: number; gz: number }> = [];
   for (const id of world.entityIds()) {
     if (!id.startsWith("death-bomb.")) continue;
+    if (!world.hasComponent(id, "Bomb")) continue; // skip the puff emitter
     const gp = world.getComponent<{ gx?: number; gz?: number }>(id, "GridPosition");
     if (gp?.gx !== undefined && gp.gz !== undefined) out.push({ gx: gp.gx, gz: gp.gz });
   }
@@ -151,6 +155,9 @@ describe("kaboom death-bomb drop (S226)", () => {
     sys.fixedUpdate!(ctx(world));
     for (const id of world.entityIds()) {
       if (!id.startsWith("death-bomb.")) continue;
+      // Skip the S228 telegraph puff — it shares the prefix but has
+      // no Bomb component.
+      if (!world.hasComponent(id, "Bomb")) continue;
       const b = world.getComponent<{ ownerId?: string; range?: number; fuseRemaining?: number }>(id, "Bomb");
       expect(b?.ownerId).toBe("player.1");
       expect(b?.range).toBe(DEATH_BOMB_RANGE_DEFAULT);
@@ -283,5 +290,22 @@ describe("kaboom death-bomb drop (S226)", () => {
   it("readRagdollLandingCell: torso entity absent → undefined", () => {
     const world = new World();
     expect(readRagdollLandingCell(world, "player.1")).toBeUndefined();
+  });
+
+  it("S228 telegraph: bomb spawn co-creates a short-lived ParticleEmitter", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 5, 5);
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy(), deferS: 0 });
+    sys.fixedUpdate!(ctx(world));
+    killBomber(world, "player.1");
+    sys.fixedUpdate!(ctx(world));
+    let puffId: string | undefined;
+    for (const id of world.entityIds()) {
+      if (id.startsWith("death-bomb.") && id.endsWith(".puff")) puffId = id;
+    }
+    expect(puffId).toBeDefined();
+    const emitter = world.getComponent<{ preset?: string; lifetime?: number }>(puffId!, "ParticleEmitter");
+    expect(emitter?.preset).toBe("spark");
+    expect(emitter?.lifetime).toBeGreaterThan(0);
   });
 });
