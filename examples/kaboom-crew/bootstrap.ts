@@ -28,6 +28,7 @@ import startSceneJson from "./scenes/start.scene.json";
 import wideSceneJson from "./scenes/wide.scene.json";
 import corridorSceneJson from "./scenes/corridor.scene.json";
 import corridorsSceneJson from "./scenes/corridors.scene.json";
+import clusterRoomsSceneJson from "./scenes/cluster-rooms.scene.json";
 import plazaSceneJson from "./scenes/plaza.scene.json";
 import crossSceneJson from "./scenes/cross.scene.json";
 import pitSceneJson from "./scenes/pit.scene.json";
@@ -544,6 +545,7 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["wide", wideSceneJson],
   ["corridor", corridorSceneJson],
   ["corridors", corridorsSceneJson],
+  ["cluster-rooms", clusterRoomsSceneJson],
   ["plaza", plazaSceneJson],
   ["cross", crossSceneJson],
   ["pit", pitSceneJson],
@@ -553,7 +555,7 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["heightmap-demo", heightmapDemoSceneJson],
   ["grass-demo", grassDemoSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "corridors" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
+type MapName = "start" | "wide" | "corridor" | "corridors" | "cluster-rooms" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
 
 /** S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW — bounding-box width/depth (in
  *  tiles) of each authored arena. Used by the camera-control system
@@ -566,6 +568,7 @@ const MAP_DIMS: ReadonlyMap<MapName, { width: number; depth: number }> = new Map
   ["wide", { width: 16, depth: 12 }],
   ["corridor", { width: 16, depth: 6 }],
   ["corridors", { width: 17, depth: 17 }],
+  ["cluster-rooms", { width: 17, depth: 17 }],
   ["plaza", { width: 12, depth: 10 }],
   ["cross", { width: 17, depth: 17 }],
   ["pit", { width: 11, depth: 11 }],
@@ -591,6 +594,7 @@ const MATCH_ROTATION_POOL: ReadonlyArray<MapName> = [
   "wide",
   "corridor",
   "corridors",
+  "cluster-rooms",
   "plaza",
   "cross",
   "pit",
