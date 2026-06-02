@@ -18,6 +18,7 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import { spawnPuff } from "./spawn-puff";
+import { bomberPuffColor } from "./bomber-palette";
 
 const PICKUP_BOMB_REQUEST: ComponentName = "PickupBombRequest";
 const BOMB: ComponentName = "Bomb";
@@ -97,17 +98,28 @@ export function createKaboomBombPickupSystem(options: { name?: string } = {}): S
       if (world.hasComponent(bombId, GRID_OCCUPANT)) {
         world.removeComponent(bombId, GRID_OCCUPANT);
       }
-      // S246 KABOOM-BOMB-PICKUP-LIFT-PUFF (S247 — via shared `spawnPuff`).
-      // Smallest of the puff family — routine action, not survival/arc.
+      // S246 KABOOM-BOMB-PICKUP-LIFT-PUFF (S247 — via shared `spawnPuff`;
+      // S258 — tinted to the lifter's palette).
       bombPickupPuffCounter += 1;
-      spawnPuff(world, {
+      const puffOpts: {
+        id: string;
+        position: [number, number, number];
+        preset: string;
+        lifetime: number;
+        rate: number;
+        maxParticles: number;
+        color?: string;
+      } = {
         id: `${bombId}.pickup-lift.${bombPickupPuffCounter}`,
         position: [bomberPos.gx, 0.45, bomberPos.gz],
         preset: "spark",
         lifetime: 0.2,
         rate: 25,
         maxParticles: 6
-      });
+      };
+      const tint = bomberPuffColor(world, bomberId);
+      if (tint !== undefined) puffOpts.color = tint;
+      spawnPuff(world, puffOpts);
     }
   };
 

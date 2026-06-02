@@ -28,6 +28,7 @@ import { getCellHeight } from "../../../../engine/grid/height-query";
 
 import { BOMB_FINAL_SCALE } from "./bomb-placement-system";
 import { spawnPuff } from "./spawn-puff";
+import { bomberPuffColor } from "./bomber-palette";
 
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";
@@ -333,13 +334,26 @@ function spawnDeathBomb(
   // S228 KABOOM-DEATH-BOMB-TELEGRAPH (GDP-2026-06-02-001 visual cue).
   // Co-spawn a short-lived spark emitter so survivors visually parse
   // "death bomb just appeared here" vs a normal placement. (S247
-  // shared `spawnPuff` helper — self-cleans on elapsed-reaches-lifetime.)
-  spawnPuff(world, {
+  // shared `spawnPuff` helper — self-cleans on elapsed-reaches-lifetime.
+  // S258 — tinted to the dying bomber's palette so survivors read
+  // "X's death bomb" at a glance.)
+  const puffOpts: {
+    id: string;
+    position: [number, number, number];
+    preset: string;
+    lifetime: number;
+    rate: number;
+    maxParticles: number;
+    color?: string;
+  } = {
     id: `${bombId}.puff`,
     position: [cell.gx, 0.5 + cellHeight, cell.gz],
     preset: "spark",
     lifetime: 0.4,
     rate: 40,
     maxParticles: 14
-  });
+  };
+  const tint = bomberPuffColor(world, ownerId);
+  if (tint !== undefined) puffOpts.color = tint;
+  spawnPuff(world, puffOpts);
 }
