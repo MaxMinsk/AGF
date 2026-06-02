@@ -478,6 +478,53 @@ export function findBotKickOpportunity(
   return undefined;
 }
 
+/** S239 — personality goal selector. Returns the cell that the bot's
+ *  bias-toward path should chase, dispatching on personality:
+ *    - 'coward' → undefined (just wander the safe pool)
+ *    - 'miner' → nearer of nearest pickup vs nearest soft block
+ *    - 'hunter' → anticipated player cell, falling back to pickup
+ *
+ *  Pure dispatcher; the actual nearest-* lookups are injected via
+ *  `deps` so this helper has no QueryHandle / RNG / occupancy state.
+ *  Extracted from `personalityGoal` in bot-ai-system.ts (S100). */
+export function selectBotPersonalityGoal(
+  world: World,
+  pos: { gx: number; gz: number },
+  personality: BotPersonality,
+  danger: ReadonlySet<string>,
+  deps: {
+    nearestPickup: (
+      world: World,
+      pos: { gx: number; gz: number },
+      danger: ReadonlySet<string>
+    ) => { gx: number; gz: number } | undefined;
+    nearestSoftBlock: (
+      world: World,
+      pos: { gx: number; gz: number },
+      danger: ReadonlySet<string>
+    ) => { gx: number; gz: number } | undefined;
+    anticipatedPlayer: (
+      world: World,
+      pos: { gx: number; gz: number }
+    ) => { gx: number; gz: number } | undefined;
+  }
+): { gx: number; gz: number } | undefined {
+  if (personality === "coward") return undefined;
+  if (personality === "miner") {
+    const pickupGoal = deps.nearestPickup(world, pos, danger);
+    const softGoal = deps.nearestSoftBlock(world, pos, danger);
+    if (pickupGoal === undefined) return softGoal;
+    if (softGoal === undefined) return pickupGoal;
+    const dPickup = manhattanCells(pos.gx, pos.gz, pickupGoal.gx, pickupGoal.gz);
+    const dSoft = manhattanCells(pos.gx, pos.gz, softGoal.gx, softGoal.gz);
+    return dPickup <= dSoft ? pickupGoal : softGoal;
+  }
+  // 'hunter' (default): anticipated player, fall through to pickup.
+  const playerGoal = deps.anticipatedPlayer(world, pos);
+  if (playerGoal !== undefined) return playerGoal;
+  return deps.nearestPickup(world, pos, danger);
+}
+
 /** S236 V2 — nearest PlayerControlled bomber within `maxDistance` cells. */
 export function nearestBotPlayer(
   world: World,

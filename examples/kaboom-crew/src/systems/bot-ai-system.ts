@@ -79,6 +79,7 @@ export {
   nearestBotPlayer,
   nearestBotSoftBlock,
   personalityTallyBias,
+  selectBotPersonalityGoal,
   playerInDashLine,
   predictNextCell,
   shouldRemoteDetonate,
@@ -98,6 +99,7 @@ import {
   nearestBotPlayer,
   nearestBotSoftBlock,
   personalityTallyBias,
+  selectBotPersonalityGoal,
   playerInDashLine,
   predictNextCell,
   shouldRemoteDetonate,
@@ -200,48 +202,26 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
    * S236 V2 — implementation extracted to bot-ai-helpers. This thunk
    * forwards + captures the closure-bound `pickups` QueryHandle.
    */
-  function nearestPickup(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
+  function nearestPickup(world: World, pos: GridPos, danger: ReadonlySet<string>): { gx: number; gz: number } | undefined {
     if (pickups === undefined) return undefined;
     return nearestBotPickup(world, pos, danger, pickups, PICKUP_RADIUS);
   }
 
-  // S100 KABOOM-BOT-PERSONALITY-VARIANTS — pick the goal cell that
-  // the bias-toward path should chase, based on the bot's personality.
-  //
-  // 'hunter' (default): nearest player (PlayerControlled + GridPosition)
-  // within sight, falling back to the existing pickup magnet.
-  //
-  // 'coward': no goal — the bot just wanders the safe pool. Avoiding
-  // the player is implicit: hunter would chase, coward simply doesn't.
-  //
-  // 'miner': nearest pickup OR nearest soft block, whichever is closer.
-  // Soft blocks are movement-blocking, non-blast-blocking occupants
-  // (same predicate the shouldDropBomb path uses).
+  // S100 KABOOM-BOT-PERSONALITY-VARIANTS. S239 — dispatch extracted
+  // to `selectBotPersonalityGoal` in bot-ai-helpers. Local thunk wires
+  // the deps to the closure-bound thunks above (which themselves
+  // forward to the helpers).
   function personalityGoal(
     world: World,
     pos: GridPos,
     personality: BotPersonality,
     danger: Set<string>
   ): { gx: number; gz: number } | undefined {
-    if (personality === "coward") return undefined;
-    if (personality === "miner") {
-      const pickupGoal = nearestPickup(world, pos, danger);
-      const softGoal = nearestSoftBlock(world, pos, danger);
-      if (pickupGoal === undefined) return softGoal;
-      if (softGoal === undefined) return pickupGoal;
-      const dPickup = manhattan(pos.gx, pos.gz, pickupGoal.gx, pickupGoal.gz);
-      const dSoft = manhattan(pos.gx, pos.gz, softGoal.gx, softGoal.gz);
-      return dPickup <= dSoft ? pickupGoal : softGoal;
-    }
-    // hunter (default): chase nearest player; fall through to pickup.
-    // S225 — anticipatedPlayerCell returns the projected next cell
-    // when the player has been moving in a straight line for ≥ 3
-    // ticks, else falls back to the current cell. Hunter aims
-    // ahead of the player so chase + bomb-place land WHERE the
-    // player will be.
-    const playerGoal = anticipatedPlayerCell(world, pos);
-    if (playerGoal !== undefined) return playerGoal;
-    return nearestPickup(world, pos, danger);
+    return selectBotPersonalityGoal(world, pos, personality, danger, {
+      nearestPickup,
+      nearestSoftBlock,
+      anticipatedPlayer: anticipatedPlayerCell
+    });
   }
 
   /** S220 KABOOM-BOT-KICK. S238 — extracted to bot-ai-helpers
@@ -299,7 +279,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return predicted ?? here;
   }
 
-  function nearestSoftBlock(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
+  function nearestSoftBlock(world: World, pos: GridPos, danger: ReadonlySet<string>): { gx: number; gz: number } | undefined {
     // S236 V2 — forwards to `nearestBotSoftBlock` in bot-ai-helpers.
     return nearestBotSoftBlock(world, pos, danger, PICKUP_RADIUS);
   }
