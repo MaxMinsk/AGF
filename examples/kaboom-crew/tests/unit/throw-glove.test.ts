@@ -248,4 +248,38 @@ describe("createKaboomBombThrowSystem (S144)", () => {
     expect(bomb.airborneRemaining).toBe(0);
     expect(world.hasComponent("bomb.fly", "GridOccupant")).toBe(true);
   });
+
+  it("S245 KABOOM-THROW-LAND-PUFF: co-spawns a ParticleEmitter at the landing cell", () => {
+    const world = new World();
+    addBomb(world, "bomb.fly", 7, 9);
+    world.removeComponent("bomb.fly", "GridOccupant");
+    world.setComponent("bomb.fly", "Bomb", {
+      fuseRemaining: 1.5,
+      range: 2,
+      ownerId: "player.1",
+      airborne: true,
+      airborneRemaining: 1 / 60
+    });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const sys = createKaboomBombThrowSystem({ occupancy: occ });
+    sys.fixedUpdate!(ctx(world));
+    const puffIds: string[] = [];
+    for (const id of world.entityIds()) {
+      if (id.startsWith("bomb.fly.throw-land.")) puffIds.push(id);
+    }
+    expect(puffIds.length).toBe(1);
+    const puffId = puffIds[0]!;
+    const emitter = world.getComponent<{
+      preset?: string;
+      lifetime?: number;
+      maxParticles?: number;
+    }>(puffId, "ParticleEmitter")!;
+    expect(emitter.preset).toBe("spark");
+    expect(emitter.lifetime).toBeCloseTo(0.25, 6);
+    expect(emitter.maxParticles).toBe(10);
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(puffId, "Transform")!;
+    expect(transform.position[0]).toBe(7);
+    expect(transform.position[2]).toBe(9);
+  });
 });
