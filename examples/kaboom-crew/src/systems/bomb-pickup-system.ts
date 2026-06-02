@@ -23,6 +23,12 @@ const BOMB: ComponentName = "Bomb";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
+const TRANSFORM: ComponentName = "Transform";
+const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
+
+/** S246 — incremental id for the bomb-pickup lift puff so back-to-back
+ *  pickups on the same bomb don't collide. Module-scoped. */
+let bombPickupPuffCounter = 0;
 
 type BombComponent = {
   fuseRemaining: number;
@@ -91,6 +97,28 @@ export function createKaboomBombPickupSystem(options: { name?: string } = {}): S
       // when the bomb lands.
       if (world.hasComponent(bombId, GRID_OCCUPANT)) {
         world.removeComponent(bombId, GRID_OCCUPANT);
+      }
+      // S246 KABOOM-BOMB-PICKUP-LIFT-PUFF. A tiny dust burst at the
+      // pickup cell makes "you picked up the bomb" instantly readable.
+      // Smallest of the puff family — this is a routine action, not a
+      // survival or arc moment. 0.2 s lifetime, rate 25, max 6 particles.
+      // Self-cleans via the engine ParticleEmitter primitive (M19).
+      bombPickupPuffCounter += 1;
+      const puffId = `${bombId}.pickup-lift.${bombPickupPuffCounter}`;
+      if (!world.hasEntity(puffId)) {
+        world.addEntity(puffId);
+        world.setComponent(puffId, TRANSFORM, {
+          position: [bomberPos.gx, 0.45, bomberPos.gz],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1]
+        });
+        world.setComponent(puffId, PARTICLE_EMITTER, {
+          preset: "spark",
+          lifetime: 0.2,
+          elapsed: 0,
+          rate: 25,
+          maxParticles: 6
+        });
       }
     }
   };
