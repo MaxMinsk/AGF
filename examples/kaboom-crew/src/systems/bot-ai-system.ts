@@ -453,6 +453,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       alive?: boolean;
       remoteDetonateCharges?: number;
       shield?: boolean;
+      pierce?: boolean;
     }>(botId, BOMBER_STATS);
     if (stats === undefined || stats.alive === false) return false;
     if ((stats.activeBombs ?? 0) >= stats.maxBombs) return false;
@@ -504,6 +505,22 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     // the personality bias; lifting the soft-block requirement under
     // acceleration is what actually drives bot-vs-bot resolution.
     const boosting = boost > 0;
+    // S223 — PIERCE tactical placement. When the bomber holds the
+    // pierce power-up, the placed bomb's blast walks through the
+    // first soft block in each direction (per S142). If THIS cell
+    // has any cardinal with 2+ soft blocks in line, the pierce
+    // bomb is high-value (one bomb clears two crates). Commit
+    // past the aggression dice in that case — pierce bombs are
+    // rare enough that we don't want the bot to fritter them on
+    // single-crate sites. Falls through to the standard adjacent-
+    // soft-block check if no double-line found.
+    if (stats.pierce === true) {
+      for (const dir of DIRECTIONS) {
+        if (countSoftBlocksInLine(options.occupancy, pos, dir, 2) >= 2) {
+          return true;
+        }
+      }
+    }
     // Adjacent soft block? Look at the four cardinals — if any
     // contains a movement-blocking, non-blast-blocking occupant, it's
     // a soft block.
@@ -751,6 +768,34 @@ function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number
   if (bomb.gx === gx && Math.abs(bomb.gz - gz) <= bomb.range) return true;
   if (bomb.gz === gz && Math.abs(bomb.gx - gx) <= bomb.range) return true;
   return false;
+}
+
+/** S223 — count soft blocks in line along `dir` starting from
+ *  `centre + dir`. Stops at the first non-soft-block cell (hard
+ *  wall, empty floor, or out-of-bounds). Soft block detection
+ *  matches the bomb-placement rule: a cell that's
+ *  movement-blocked + NOT blast-blocked is a soft block. `cap`
+ *  bounds the walk so the helper stays O(1) per direction.
+ *  Exported for unit tests. */
+export function countSoftBlocksInLine(
+  occupancy: { blocked: (gx: number, gz: number, layer: "movement" | "blast") => boolean },
+  centre: { gx: number; gz: number },
+  dir: { dx: number; dz: number },
+  cap: number
+): number {
+  let count = 0;
+  for (let step = 1; step <= cap; step += 1) {
+    const gx = centre.gx + dir.dx * step;
+    const gz = centre.gz + dir.dz * step;
+    const movement = occupancy.blocked(gx, gz, "movement");
+    const blast = occupancy.blocked(gx, gz, "blast");
+    if (movement && !blast) {
+      count += 1;
+      continue;
+    }
+    break;
+  }
+  return count;
 }
 
 /** S221 — bot-ai placement helper. True when a bomb of the given
