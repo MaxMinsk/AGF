@@ -20,7 +20,7 @@ function setupBot(
 ): void {
   world.addEntity(id);
   const stats: Record<string, unknown> = { maxBombs: 1, range: 2, alive: true, canThrow };
-  if (typeof carryingBombId === "string") stats.carryingBombId = carryingBombId;
+  if (typeof carryingBombId === "string") stats["carryingBombId"] = carryingBombId;
   world.setComponent(id, "BomberStats", stats);
   world.setComponent(id, "GridPosition", { gx, gz });
   world.setComponent(id, "GridMover", { speed: 1 });
