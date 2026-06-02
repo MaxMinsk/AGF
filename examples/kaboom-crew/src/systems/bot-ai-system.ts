@@ -73,6 +73,10 @@ export {
   countAliveBombers,
   countSoftBlocksInLine,
   maybeFireBotThrow,
+  nearestBotOtherBomber,
+  nearestBotPickup,
+  nearestBotPlayer,
+  nearestBotSoftBlock,
   personalityTallyBias,
   playerInDashLine,
   predictNextCell,
@@ -87,6 +91,10 @@ import {
   countAliveBombers,
   countSoftBlocksInLine,
   maybeFireBotThrow,
+  nearestBotOtherBomber,
+  nearestBotPickup,
+  nearestBotPlayer,
+  nearestBotSoftBlock,
   personalityTallyBias,
   playerInDashLine,
   predictNextCell,
@@ -186,20 +194,13 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
    * S89 KABOOM-BOT-PICKUP-MAGNET. Cheap nearest-search over Pickup
    * entities within PICKUP_RADIUS manhattan; pickups in dangerous
    * cells are skipped so the magnet never overrides danger-avoid.
+   *
+   * S236 V2 — implementation extracted to bot-ai-helpers. This thunk
+   * forwards + captures the closure-bound `pickups` QueryHandle.
    */
   function nearestPickup(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
     if (pickups === undefined) return undefined;
-    let best: { gx: number; gz: number; dist: number } | undefined;
-    for (const id of pickups.run()) {
-      const p = world.getComponent<GridPos>(id, GRID_POSITION);
-      if (p === undefined) continue;
-      if (danger.has(cellKey(p.gx, p.gz))) continue;
-      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
-      if (dist > PICKUP_RADIUS) continue;
-      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
-    }
-    if (best === undefined) return undefined;
-    return { gx: best.gx, gz: best.gz };
+    return nearestBotPickup(world, pos, danger, pickups, PICKUP_RADIUS);
   }
 
   // S100 KABOOM-BOT-PERSONALITY-VARIANTS — pick the goal cell that
@@ -298,40 +299,19 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   }
 
   /** S210 — when HUMANS_DEAD is active, every personality (including
-   *  coward) targets the nearest alive non-self bomber. This is what
-   *  makes coward + coward stop their mutual avoidance and engage.
-   *  Returns undefined when no other bomber is alive. */
+   *  coward) targets the nearest alive non-self bomber. S236 V2 —
+   *  forwards to `nearestBotOtherBomber` in bot-ai-helpers. */
   function nearestOtherBomberCell(
     world: World,
     selfId: EntityId,
     pos: GridPos
   ): { gx: number; gz: number } | undefined {
-    let best: { gx: number; gz: number; dist: number } | undefined;
-    for (const id of world.entityIds()) {
-      if (id === selfId) continue;
-      if (!world.hasComponent(id, BOMBER_STATS)) continue;
-      const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
-      if (stats?.alive === false) continue;
-      const p = world.getComponent<GridPos>(id, GRID_POSITION);
-      if (p === undefined) continue;
-      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
-      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
-    }
-    return best === undefined ? undefined : { gx: best.gx, gz: best.gz };
+    return nearestBotOtherBomber(world, selfId, pos);
   }
 
   function nearestPlayer(world: World, pos: GridPos): { gx: number; gz: number } | undefined {
-    let best: { gx: number; gz: number; dist: number } | undefined;
-    // agf-allow: world.query — bot AI ticks at DECISION_INTERVAL (~5 Hz), not per-frame.
-    for (const id of world.query(["PlayerControlled", GRID_POSITION])) {
-      const p = world.getComponent<GridPos>(id, GRID_POSITION);
-      if (p === undefined) continue;
-      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
-      if (dist > PICKUP_RADIUS * 2) continue; // 'hunter' sees further than the pickup magnet
-      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
-    }
-    if (best === undefined) return undefined;
-    return { gx: best.gx, gz: best.gz };
+    // 'hunter' sees further than the pickup magnet — 2× radius.
+    return nearestBotPlayer(world, pos, PICKUP_RADIUS * 2);
   }
 
   /** S225 — player anticipation. Returns the projected NEXT cell of
@@ -363,21 +343,8 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   }
 
   function nearestSoftBlock(world: World, pos: GridPos, danger: Set<string>): { gx: number; gz: number } | undefined {
-    let best: { gx: number; gz: number; dist: number } | undefined;
-    // agf-allow: world.query — same cadence as above.
-    for (const id of world.query([GRID_POSITION, "GridOccupant"])) {
-      const p = world.getComponent<GridPos>(id, GRID_POSITION);
-      if (p === undefined) continue;
-      const occ = world.getComponent<{ layer?: string; blocksMovement?: boolean; blocksBlast?: boolean }>(id, "GridOccupant");
-      // Soft block = movement-blocker AND NOT blast-blocker (hard walls block both).
-      if (occ?.blocksMovement !== true || occ?.blocksBlast === true) continue;
-      if (danger.has(cellKey(p.gx, p.gz))) continue;
-      const dist = manhattan(pos.gx, pos.gz, p.gx, p.gz);
-      if (dist > PICKUP_RADIUS) continue;
-      if (best === undefined || dist < best.dist) best = { gx: p.gx, gz: p.gz, dist };
-    }
-    if (best === undefined) return undefined;
-    return { gx: best.gx, gz: best.gz };
+    // S236 V2 — forwards to `nearestBotSoftBlock` in bot-ai-helpers.
+    return nearestBotSoftBlock(world, pos, danger, PICKUP_RADIUS);
   }
 
   function decideDirection(
