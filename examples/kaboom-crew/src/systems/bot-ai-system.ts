@@ -80,6 +80,7 @@ export {
   nearestBotPlayer,
   nearestBotSoftBlock,
   personalityTallyBias,
+  pickBotDirection,
   selectBotPersonalityGoal,
   playerInDashLine,
   predictNextCell,
@@ -101,6 +102,7 @@ import {
   nearestBotPlayer,
   nearestBotSoftBlock,
   personalityTallyBias,
+  pickBotDirection,
   selectBotPersonalityGoal,
   playerInDashLine,
   predictNextCell,
@@ -286,60 +288,19 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return nearestBotSoftBlock(world, pos, danger, PICKUP_RADIUS);
   }
 
+  // S241 — direction-picker extracted to `pickBotDirection` in
+  // bot-ai-helpers. Local thunk forwards + captures closure-bound
+  // `passableNeighbours` thunk + the SeededRng.
   function decideDirection(
     pos: GridPos,
     brain: BotBrain,
     danger: Set<string>,
     pickupGoal: { gx: number; gz: number } | undefined
   ): { dx: number; dz: number } {
-    const neighbours = passableNeighbours(pos);
-    if (neighbours.length === 0) return { dx: 0, dz: 0 };
-
-    const inDanger = danger.has(cellKey(pos.gx, pos.gz));
-    // S88 KABOOM-BOT-DANGER-AVOID. Always prefer neighbours that are
-    // NOT in the danger map. Previously, only the flee path filtered;
-    // the wander path could (and regularly did) randomly step into a
-    // live blast or about-to-explode bomb. Falls back to ANY neighbour
-    // when every adjacent cell is dangerous so the bot still moves
-    // when boxed in.
-    const safeNeighbours = neighbours.filter((n) => !danger.has(cellKey(n.gx, n.gz)));
-    const pool = safeNeighbours.length > 0 ? safeNeighbours : neighbours;
-
-    if (inDanger) {
-      // Flee — uniform random over the safe pool so we don't bias
-      // toward the bot's last heading (which got it into danger).
-      const choice = pool[Math.floor(rng.next() * pool.length)]!;
-      return { dx: choice.dx, dz: choice.dz };
-    }
-
-    // S89 KABOOM-BOT-PICKUP-MAGNET. When a non-dangerous pickup is
-    // within PICKUP_RADIUS, prefer the safe neighbour that minimises
-    // manhattan distance to it. Falls through to normal wander when
-    // no pickup is in range OR every distance-reducing neighbour is
-    // dangerous. Danger-avoid still wins (pool is the safe-filtered
-    // set above).
-    if (pickupGoal !== undefined) {
-      const here = manhattan(pos.gx, pos.gz, pickupGoal.gx, pickupGoal.gz);
-      const closer = pool.filter((n) => manhattan(n.gx, n.gz, pickupGoal.gx, pickupGoal.gz) < here);
-      if (closer.length > 0) {
-        const choice = closer[Math.floor(rng.next() * closer.length)]!;
-        return { dx: choice.dx, dz: choice.dz };
-      }
-    }
-
-    // Wander — light bias to continue in last direction if still
-    // passable AND not dangerous, otherwise pick from the safe pool.
-    if (
-      brain.lastDecisionDx !== undefined &&
-      brain.lastDecisionDz !== undefined &&
-      (brain.lastDecisionDx !== 0 || brain.lastDecisionDz !== 0) &&
-      rng.next() < 0.6
-    ) {
-      const match = pool.find((n) => n.dx === brain.lastDecisionDx && n.dz === brain.lastDecisionDz);
-      if (match !== undefined) return { dx: match.dx, dz: match.dz };
-    }
-    const choice = pool[Math.floor(rng.next() * pool.length)]!;
-    return { dx: choice.dx, dz: choice.dz };
+    return pickBotDirection(pos, brain, danger, pickupGoal, {
+      passableNeighbours,
+      rng
+    });
   }
 
   // S240 — bomb-drop decision tree extracted to bot-ai-helpers

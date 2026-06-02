@@ -478,6 +478,63 @@ export function findBotKickOpportunity(
   return undefined;
 }
 
+/** S241 — bot direction picker. Chooses one of:
+ *    - {dx:0, dz:0} when boxed in (no passable neighbours)
+ *    - in danger: uniform-random from the safe pool (no last-heading
+ *      bias — that's what got the bot into danger)
+ *    - pickup goal: any neighbour that strictly reduces manhattan
+ *      distance to the goal (and is safe)
+ *    - wander: 60% bias toward continuing the last heading, else
+ *      uniform-random from the safe pool
+ *
+ *  Pure — `deps` carries the passable-neighbour function + the RNG.
+ *  Behaviour-preserving extract of `decideDirection`. */
+export function pickBotDirection(
+  pos: { gx: number; gz: number },
+  brain: { lastDecisionDx?: number; lastDecisionDz?: number },
+  danger: ReadonlySet<string>,
+  pickupGoal: { gx: number; gz: number } | undefined,
+  deps: {
+    passableNeighbours: (
+      pos: { gx: number; gz: number }
+    ) => Array<{ dx: number; dz: number; gx: number; gz: number }>;
+    rng: { next: () => number };
+  }
+): { dx: number; dz: number } {
+  const neighbours = deps.passableNeighbours(pos);
+  if (neighbours.length === 0) return { dx: 0, dz: 0 };
+
+  const inDanger = danger.has(cellKey(pos.gx, pos.gz));
+  const safeNeighbours = neighbours.filter((n) => !danger.has(cellKey(n.gx, n.gz)));
+  const pool = safeNeighbours.length > 0 ? safeNeighbours : neighbours;
+
+  if (inDanger) {
+    const choice = pool[Math.floor(deps.rng.next() * pool.length)]!;
+    return { dx: choice.dx, dz: choice.dz };
+  }
+
+  if (pickupGoal !== undefined) {
+    const here = manhattanCells(pos.gx, pos.gz, pickupGoal.gx, pickupGoal.gz);
+    const closer = pool.filter((n) => manhattanCells(n.gx, n.gz, pickupGoal.gx, pickupGoal.gz) < here);
+    if (closer.length > 0) {
+      const choice = closer[Math.floor(deps.rng.next() * closer.length)]!;
+      return { dx: choice.dx, dz: choice.dz };
+    }
+  }
+
+  if (
+    brain.lastDecisionDx !== undefined &&
+    brain.lastDecisionDz !== undefined &&
+    (brain.lastDecisionDx !== 0 || brain.lastDecisionDz !== 0) &&
+    deps.rng.next() < 0.6
+  ) {
+    const match = pool.find((n) => n.dx === brain.lastDecisionDx && n.dz === brain.lastDecisionDz);
+    if (match !== undefined) return { dx: match.dx, dz: match.dz };
+  }
+  const choice = pool[Math.floor(deps.rng.next() * pool.length)]!;
+  return { dx: choice.dx, dz: choice.dz };
+}
+
 /** S240 — bot bomb-drop decision tree. Returns true iff the bot
  *  should drop a bomb THIS tick.
  *
