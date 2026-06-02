@@ -386,6 +386,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     if (here === undefined) return undefined;
     // Find the player id matching `here` — track is keyed by id.
     let trackedId: EntityId | undefined;
+    // agf-allow: world.query — bot AI ticks at DECISION_INTERVAL (~5 Hz), not per-frame.
     for (const id of world.query(["PlayerControlled", GRID_POSITION])) {
       const p = world.getComponent<GridPos>(id, GRID_POSITION);
       if (p?.gx === here.gx && p?.gz === here.gz) {
