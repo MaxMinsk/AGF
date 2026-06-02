@@ -332,8 +332,13 @@ function readRevengeParamsFromUrl(): {
   botAutoFire: boolean | undefined;
   arcDurationS: number;
 } {
+  // S226 — revenge-cart is now superseded by death-bomb-drop
+  // (GDP-2026-06-02-001). Default flips to DISABLED so two
+  // overlapping parting-shot mechanics don't bombard the survivor.
+  // Opt-IN via `?revenge=on` keeps the click-to-throw mechanic
+  // available for testing.
   const defaults = {
-    disabled: false,
+    disabled: true,
     bombsBudget: REVENGE_BUDGET_DEFAULT,
     cooldownS: REVENGE_COOLDOWN_S_DEFAULT,
     botAutoFire: undefined as boolean | undefined,
@@ -343,7 +348,8 @@ function readRevengeParamsFromUrl(): {
   if (search === undefined || search.length === 0) return defaults;
   try {
     const params = new URLSearchParams(search);
-    const disabled = params.get("revenge") === "off";
+    const revengeFlag = params.get("revenge");
+    const disabled = revengeFlag === "off" ? true : revengeFlag === "on" ? false : defaults.disabled;
     const countRaw = params.get("revengeCount");
     const countParsed = countRaw === null ? defaults.bombsBudget : Number(countRaw);
     const bombsBudget = Number.isFinite(countParsed) && countParsed >= 0 ? Math.floor(countParsed) : defaults.bombsBudget;
