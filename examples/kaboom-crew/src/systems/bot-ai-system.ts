@@ -68,6 +68,8 @@ export {
   BOT_ACCELERATION_ESCALATION_INTERVAL_S,
   BOT_ACCELERATION_ESCALATION_STEP,
   botAccelerationBoost,
+  botPassableNeighbours,
+  buildBotDangerMap,
   countAliveBombers,
   countSoftBlocksInLine,
   maybeFireBotThrow,
@@ -80,6 +82,8 @@ export {
 import {
   BOT_ACCELERATION_BASE_BOOST_DEFAULT,
   botAccelerationBoost,
+  botPassableNeighbours,
+  buildBotDangerMap,
   countAliveBombers,
   countSoftBlocksInLine,
   maybeFireBotThrow,
@@ -161,57 +165,21 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   // DIED' response, not a 'no humans here' response.
   let humansEverAlive = false;
 
+  // S236 V1 — `buildDangerMap` + `passableNeighbours` were extracted
+  // to bot-ai-helpers (`buildBotDangerMap` / `botPassableNeighbours`).
+  // Local thunks here keep the call-sites + closure-captured query
+  // handles unchanged. Behaviour preserving.
   function buildDangerMap(world: World): Set<string> {
-    const danger = new Set<string>();
-    // S88 KABOOM-BOT-DANGER-AVOID. Live BlastTile cells: walking onto
-    // one means instant death. Treat them as danger so the bot picks
-    // a longer path that avoids the active fan-out of an explosion
-    // that's still in flight.
-    if (blastTiles !== undefined) {
-      for (const id of blastTiles.run()) {
-        const pos = world.getComponent<GridPos>(id, GRID_POSITION);
-        if (pos === undefined) continue;
-        danger.add(cellKey(pos.gx, pos.gz));
-      }
-    }
-    for (const id of bombs!.run()) {
-      const pos = world.getComponent<GridPos>(id, GRID_POSITION);
-      const bomb = world.getComponent<Bomb>(id, BOMB);
-      if (pos === undefined || bomb === undefined) continue;
-      danger.add(cellKey(pos.gx, pos.gz));
-      for (const dir of DIRECTIONS) {
-        for (let step = 1; step <= bomb.range; step += 1) {
-          const gx = pos.gx + dir.dx * step;
-          const gz = pos.gz + dir.dz * step;
-          if (options.occupancy.blocked(gx, gz, "blast")) break;
-          danger.add(cellKey(gx, gz));
-          // Soft blocks shield further cells.
-          // GridOccupancyQuery.blocked('blast') is true only for hard
-          // walls; we manually check for any block-layer occupant + stop.
-          let softHere = false;
-          for (const occId of options.occupancy.occupants(gx, gz)) {
-            if (options.occupancy.blocked(gx, gz, "movement") && !options.occupancy.blocked(gx, gz, "blast")) {
-              softHere = true;
-              break;
-            }
-            void occId;
-          }
-          if (softHere) break;
-        }
-      }
-    }
-    return danger;
+    const deps: { occupancy: GridOccupancyQuery; bombs: QueryHandle; blastTiles?: QueryHandle } = {
+      occupancy: options.occupancy,
+      bombs: bombs!
+    };
+    if (blastTiles !== undefined) deps.blastTiles = blastTiles;
+    return buildBotDangerMap(world, deps);
   }
 
   function passableNeighbours(pos: GridPos): Array<{ dx: number; dz: number; gx: number; gz: number }> {
-    const out: Array<{ dx: number; dz: number; gx: number; gz: number }> = [];
-    for (const dir of DIRECTIONS) {
-      const gx = pos.gx + dir.dx;
-      const gz = pos.gz + dir.dz;
-      if (options.occupancy.blocked(gx, gz, "movement")) continue;
-      out.push({ ...dir, gx, gz });
-    }
-    return out;
+    return botPassableNeighbours(pos, options.occupancy);
   }
 
   /**
