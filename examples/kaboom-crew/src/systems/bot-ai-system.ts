@@ -674,6 +674,21 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
           world.setComponent(botId, REMOTE_DETONATE_REQUEST, {});
         }
       }
+
+      // S224 — THROW tactical slice. When a bot holds canThrow,
+      // mirror the player's pickup → throw two-step:
+      //   - If already carrying (carryingBombId set on stats),
+      //     emit ThrowBombRequest. The throw-system reads the bot's
+      //     facing rotation (driven by GridMover queuedDirection)
+      //     and picks a landing 3 cells along that line.
+      //   - Else if standing on top of an OWN bomb, 30 %/brain-tick
+      //     emits PickupBombRequest{ bombId } — the bomb-pickup
+      //     system pauses the fuse + parents the bomb to the
+      //     bomber's back socket. Next brain tick the carrying
+      //     branch fires the throw.
+      // No personality variation here yet (V1 = hunter-only feel);
+      // miner / coward THROW lands as a follow-up.
+      maybeFireBotThrow(world, botId, pos, rng);
     }
   };
 
@@ -815,4 +830,51 @@ export function wouldKillEnemyAt(
     if (cellInBlast({ gx: centre.gx, gz: centre.gz, range }, enemy.gx, enemy.gz)) return true;
   }
   return false;
+}
+
+/** S224 — THROW probability per brain tick when the bot is standing
+ *  on top of its own bomb + has canThrow. Low value keeps the bot
+ *  from spamming pickup requests; tuned for ~one throw every few
+ *  seconds while the bomb sits at the bot's feet. */
+const BOT_THROW_PICKUP_PROBABILITY = 0.3;
+
+/** S224 — bot THROW slice. If already carrying a bomb, fire a
+ *  ThrowBombRequest (throw-system picks landing from facing).
+ *  Else if the bot stands on top of an own bomb with canThrow,
+ *  fire a PickupBombRequest with that bomb's id with
+ *  BOT_THROW_PICKUP_PROBABILITY chance. Exported so tests can
+ *  drive the helper directly without spinning a full system. */
+export function maybeFireBotThrow(
+  world: World,
+  botId: EntityId,
+  pos: { gx: number; gz: number },
+  rng: { next: () => number }
+): void {
+  const stats = world.getComponent<{ canThrow?: boolean; carryingBombId?: string; alive?: boolean }>(botId, BOMBER_STATS);
+  if (stats?.canThrow !== true || stats.alive === false) return;
+  // Carrying — throw on the next brain tick (always; the throw
+  // system already gates on a valid landing cell).
+  if (typeof stats.carryingBombId === "string" && stats.carryingBombId.length > 0) {
+    if (!world.hasComponent(botId, "ThrowBombRequest")) {
+      world.setComponent(botId, "ThrowBombRequest", {});
+    }
+    return;
+  }
+  // Not carrying — look for an own bomb under the bot's current
+  // cell + roll the pickup chance.
+  let ownBombId: string | undefined;
+  for (const id of world.entityIds()) {
+    if (!world.hasComponent(id, BOMB)) continue;
+    const bomb = world.getComponent<{ ownerId?: string }>(id, BOMB);
+    if (bomb?.ownerId !== botId) continue;
+    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
+    if (gp?.gx === pos.gx && gp.gz === pos.gz) {
+      ownBombId = id;
+      break;
+    }
+  }
+  if (ownBombId === undefined) return;
+  if (rng.next() >= BOT_THROW_PICKUP_PROBABILITY) return;
+  if (world.hasComponent(botId, "PickupBombRequest")) return;
+  world.setComponent(botId, "PickupBombRequest", { bombId: ownBombId });
 }
