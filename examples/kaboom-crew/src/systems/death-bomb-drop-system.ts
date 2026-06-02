@@ -55,6 +55,13 @@ export const DEATH_BOMB_FUSE_S_DEFAULT = 2.5;
 /** Slight tint so survivors can read 'death bomb' at a glance —
  *  warmer red than the bomber-coloured #1a1a1a baseline. */
 const DEATH_BOMB_HEX = "#3a1010";
+/** Seconds we defer the bomb spawn after alive→false — gives the
+ *  S128 ragdoll a chance to fly + settle. We read the torso mesh's
+ *  final Transform.position at expiry and base the cardinal pick
+ *  on THAT cell, matching user request "рядом с тем местом куда
+ *  улетел рагдолл". Default 0.6 s matches the ragdoll despawn
+ *  timeline from S105/S108. */
+export const DEATH_BOMB_DEFER_S_DEFAULT = 0.6;
 
 const DIRECTIONS: ReadonlyArray<{ dx: number; dz: number }> = [
   { dx: 1, dz: 0 },
@@ -76,6 +83,15 @@ export type KaboomDeathBombDropOptions = {
   range?: number;
   /** Seeded RNG salt. Combined with bomberId + roundNumber. */
   seed?: number;
+  /** Override the post-death defer (ragdoll landing wait). 0 = spawn
+   *  on the same tick the bomber dies (V1 behaviour, useful for
+   *  tests). */
+  deferS?: number;
+  /** S226 — arena bounds in cells. When provided, candidate cardinals
+   *  outside `[0..width-1, 0..depth-1]` are filtered out so the death
+   *  bomb never spawns off-screen. Accepts a thunk so a mid-session
+   *  map swap (S205 rotation) re-evaluates. */
+  arenaSize?: { width: number; depth: number } | (() => { width: number; depth: number } | undefined);
   /** Optional id factory — tests use a deterministic counter. */
   nextBombId?: (ownerId: EntityId) => EntityId;
 };
@@ -111,6 +127,16 @@ export function pickDeathBombCell(
   return candidates[Math.min(idx, candidates.length - 1)];
 }
 
+/** Pending-spawn entry — queued at the alive→false moment, fires
+ *  after `deferRemainingS` ticks down to 0 so the ragdoll has time
+ *  to settle. */
+type PendingDeathBomb = {
+  bomberId: EntityId;
+  fallbackPos: { gx: number; gz: number };
+  roundNumber: number;
+  deferRemainingS: number;
+};
+
 export function createKaboomDeathBombDropSystem(
   options: KaboomDeathBombDropOptions
 ): System {
@@ -118,6 +144,11 @@ export function createKaboomDeathBombDropSystem(
   const disabled = options.disabled === true;
   const range = Math.max(1, Math.min(4, Math.floor(options.range ?? DEATH_BOMB_RANGE_DEFAULT)));
   const projectSeed = options.seed ?? DEATH_BOMB_SEED_DEFAULT;
+  const deferS = Math.max(0, options.deferS ?? DEATH_BOMB_DEFER_S_DEFAULT);
+  const arenaSizeGetter: () => { width: number; depth: number } | undefined =
+    typeof options.arenaSize === "function"
+      ? options.arenaSize
+      : (() => options.arenaSize as { width: number; depth: number } | undefined);
   let counter = 0;
   const nextBombId =
     options.nextBombId ??
@@ -127,6 +158,7 @@ export function createKaboomDeathBombDropSystem(
     });
 
   const prevAlive = new Map<EntityId, boolean>();
+  const pending: PendingDeathBomb[] = [];
   let cachedWorld: World | undefined;
   let bombers: QueryHandle | undefined;
 
@@ -136,10 +168,13 @@ export function createKaboomDeathBombDropSystem(
       bombers = world.createQuery([BOMBER_STATS]);
       cachedWorld = world;
       prevAlive.clear();
+      pending.length = 0;
     }
     if (disabled) return;
 
-    // Detect alive true → false transitions.
+    const dt = Math.max(0, context.time.fixedDt);
+
+    // Detect alive true → false transitions; queue a pending spawn.
     const current = new Map<EntityId, boolean>();
     for (const id of bombers!.run()) {
       const stats = world.getComponent<BomberStatsRead>(id, BOMBER_STATS);
@@ -147,34 +182,81 @@ export function createKaboomDeathBombDropSystem(
     }
     for (const [id, nowAlive] of current) {
       const wasAlive = prevAlive.get(id) ?? true;
-      if (wasAlive && !nowAlive) handleDeath(world, id);
+      if (wasAlive && !nowAlive) queueDeath(world, id);
     }
     for (const id of prevAlive.keys()) {
       if (!current.has(id)) prevAlive.delete(id);
     }
     for (const [id, alive] of current) prevAlive.set(id, alive);
+
+    // Tick pending entries; fire any whose timer reached 0.
+    for (let i = pending.length - 1; i >= 0; i -= 1) {
+      const entry = pending[i]!;
+      entry.deferRemainingS -= dt;
+      if (entry.deferRemainingS > 0) continue;
+      // Try to read the ragdoll torso's final position. S132 detaches
+      // the bomber's 10 mesh entities + their ids follow the pattern
+      // `${bomberRoot}.torso`. After the ragdoll runs, the torso's
+      // Transform.position.xz is "where the ragdoll landed". If the
+      // torso entity is gone (engine ragdoll module despawned it
+      // already) we fall back to the savedDeath cell.
+      const basis = readRagdollLandingCell(world, entry.bomberId) ?? entry.fallbackPos;
+      const rng = createSeededRng(deathSeed(entry.bomberId, entry.roundNumber, projectSeed));
+      const arena = arenaSizeGetter();
+      const isAvailable = (cell: { gx: number; gz: number }): boolean => {
+        // S226 — never spawn off-screen. When arenaSize is known,
+        // restrict to [0..width-1, 0..depth-1]; without bounds the
+        // legacy "anything goes" behaviour stays (tests + projects
+        // that don't ship MAP_DIMS).
+        if (arena !== undefined) {
+          if (cell.gx < 0 || cell.gz < 0) return false;
+          if (cell.gx >= arena.width || cell.gz >= arena.depth) return false;
+        }
+        if (options.occupancy.blocked(cell.gx, cell.gz, "movement")) return false;
+        if (options.occupancy.occupants(cell.gx, cell.gz, "bomb").length > 0) return false;
+        return true;
+      };
+      const target = pickDeathBombCell(basis, isAvailable, rng);
+      pending.splice(i, 1);
+      if (target === undefined) continue;
+      spawnDeathBomb(world, entry.bomberId, target, range, nextBombId);
+    }
   };
 
-  function handleDeath(world: World, bomberId: EntityId): void {
+  function queueDeath(world: World, bomberId: EntityId): void {
     const pos = world.getComponent<GridPos>(bomberId, GRID_POSITION);
     if (pos === undefined) return;
     const roundNumber = world.hasEntity(ROUND_STATE_ID)
       ? world.getComponent<RoundStateRead>(ROUND_STATE_ID, ROUND_STATE)?.roundNumber ?? 1
       : 1;
-    const rng = createSeededRng(deathSeed(bomberId, roundNumber, projectSeed));
-    const isAvailable = (cell: { gx: number; gz: number }): boolean => {
-      if (options.occupancy.blocked(cell.gx, cell.gz, "movement")) return false;
-      // Any "bomb"-layer occupant blocks death-bomb placement.
-      const occupants = options.occupancy.occupants(cell.gx, cell.gz, "bomb");
-      if (occupants.length > 0) return false;
-      return true;
-    };
-    const target = pickDeathBombCell(pos, isAvailable, rng);
-    if (target === undefined) return;
-    spawnDeathBomb(world, bomberId, target, range, nextBombId);
+    pending.push({
+      bomberId,
+      fallbackPos: { gx: pos.gx, gz: pos.gz },
+      roundNumber,
+      deferRemainingS: deferS
+    });
   }
 
   return { name, fixedUpdate };
+}
+
+/** Pure helper — try to read the torso mesh entity's grid cell from
+ *  Transform.position.xz. Returns undefined when the entity is gone
+ *  (engine ragdoll despawned it) or the position is invalid. */
+export function readRagdollLandingCell(
+  world: World,
+  bomberRootId: EntityId
+): { gx: number; gz: number } | undefined {
+  const torsoId = `${bomberRootId}.torso`;
+  if (!world.hasEntity(torsoId)) return undefined;
+  const t = world.getComponent<{ position?: ReadonlyArray<number> }>(torsoId, TRANSFORM);
+  const pos = t?.position;
+  if (pos === undefined) return undefined;
+  const x = pos[0];
+  const z = pos[2];
+  if (typeof x !== "number" || typeof z !== "number") return undefined;
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return undefined;
+  return { gx: Math.round(x), gz: Math.round(z) };
 }
 
 function spawnDeathBomb(

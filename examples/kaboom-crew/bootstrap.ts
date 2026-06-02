@@ -1121,7 +1121,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
         createKaboomDeathBombDropSystem({
           occupancy,
           disabled: params.disabled,
-          range: params.range
+          range: params.range,
+          // Bounds-aware so death bombs never spawn off-screen
+          // when the ragdoll lands near an arena edge.
+          arenaSize: () => MAP_DIMS.get(activeMapName)
         }),
         { profiles: ["static", "connected"] }
       );

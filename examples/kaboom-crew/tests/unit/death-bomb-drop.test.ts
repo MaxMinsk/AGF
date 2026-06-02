@@ -8,7 +8,8 @@ import { World } from "../../../../engine/core/ecs/world";
 import {
   DEATH_BOMB_RANGE_DEFAULT,
   createKaboomDeathBombDropSystem,
-  pickDeathBombCell
+  pickDeathBombCell,
+  readRagdollLandingCell
 } from "../../src/systems/death-bomb-drop-system";
 
 function ctx(world: World, dt = 1 / 60) {
@@ -118,7 +119,7 @@ describe("kaboom death-bomb drop (S226)", () => {
   it("system: bomber dies on open cell → exactly one death-bomb spawns adjacent", () => {
     const world = new World();
     setupBomber(world, "player.1", 5, 5);
-    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy() });
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy(), deferS: 0 });
     sys.fixedUpdate!(ctx(world));
     expect(countDeathBombs(world)).toBe(0);
     killBomber(world, "player.1");
@@ -134,7 +135,7 @@ describe("kaboom death-bomb drop (S226)", () => {
   it("system: ?deathBomb=off equivalent (disabled:true) → no bomb on death", () => {
     const world = new World();
     setupBomber(world, "player.1", 5, 5);
-    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy(), disabled: true });
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy(), disabled: true, deferS: 0 });
     sys.fixedUpdate!(ctx(world));
     killBomber(world, "player.1");
     sys.fixedUpdate!(ctx(world));
@@ -144,7 +145,7 @@ describe("kaboom death-bomb drop (S226)", () => {
   it("system: kill credit — death bomb's ownerId = the dead bomber", () => {
     const world = new World();
     setupBomber(world, "player.1", 5, 5);
-    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy() });
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy(), deferS: 0 });
     sys.fixedUpdate!(ctx(world));
     killBomber(world, "player.1");
     sys.fixedUpdate!(ctx(world));
@@ -160,7 +161,7 @@ describe("kaboom death-bomb drop (S226)", () => {
   it("system: re-triggering same alive=false doesn't double-spawn", () => {
     const world = new World();
     setupBomber(world, "player.1", 5, 5);
-    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy() });
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy(), deferS: 0 });
     sys.fixedUpdate!(ctx(world));
     killBomber(world, "player.1");
     sys.fixedUpdate!(ctx(world));
@@ -182,7 +183,7 @@ describe("kaboom death-bomb drop (S226)", () => {
       ],
       []
     );
-    const sys = createKaboomDeathBombDropSystem({ occupancy });
+    const sys = createKaboomDeathBombDropSystem({ occupancy, deferS: 0 });
     sys.fixedUpdate!(ctx(world));
     killBomber(world, "player.1");
     sys.fixedUpdate!(ctx(world));
@@ -200,12 +201,87 @@ describe("kaboom death-bomb drop (S226)", () => {
         { gx: 5, gz: 6, id: "e.bomb" }
       ]
     );
-    const sys = createKaboomDeathBombDropSystem({ occupancy });
+    const sys = createKaboomDeathBombDropSystem({ occupancy, deferS: 0 });
     sys.fixedUpdate!(ctx(world));
     killBomber(world, "player.1");
     sys.fixedUpdate!(ctx(world));
     // Only (5, 4) remains free among cardinals.
     expect(countDeathBombs(world)).toBe(1);
     expect(deathBombCells(world)[0]).toEqual({ gx: 5, gz: 4 });
+  });
+
+  it("system: defer — bomb does NOT spawn on the same tick the bomber dies", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 5, 5);
+    // 0.6 s defer (default). Tick once to seed prevAlive.
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy() });
+    sys.fixedUpdate!(ctx(world));
+    killBomber(world, "player.1");
+    // The kill is detected here, but the spawn must wait for the
+    // ragdoll-landing defer.
+    sys.fixedUpdate!(ctx(world));
+    expect(countDeathBombs(world)).toBe(0);
+  });
+
+  it("system: spawn fires after enough ticks elapse (defer ≈ 0.6 s)", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 5, 5);
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy() });
+    sys.fixedUpdate!(ctx(world));
+    killBomber(world, "player.1");
+    // 0.6 s at 1/60 dt ≈ 36 ticks. Loop 40 ticks to be safe.
+    for (let i = 0; i < 40; i += 1) sys.fixedUpdate!(ctx(world));
+    expect(countDeathBombs(world)).toBe(1);
+  });
+
+  it("system: arena-bounds gate — bomber dies in corner cell + cardinals out of bounds → silent skip", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 0, 0);
+    // Cardinals of (0,0): (1,0), (-1,0), (0,1), (0,-1). Two are out
+    // of bounds on a 1×1 arena.
+    const sys = createKaboomDeathBombDropSystem({
+      occupancy: emptyOccupancy(),
+      deferS: 0,
+      arenaSize: { width: 1, depth: 1 }
+    });
+    sys.fixedUpdate!(ctx(world));
+    killBomber(world, "player.1");
+    sys.fixedUpdate!(ctx(world));
+    expect(countDeathBombs(world)).toBe(0);
+  });
+
+  it("system: arena-bounds gate — bomber dies inside 3×3 arena → only in-bounds cardinals are eligible", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 0, 0);
+    // (0,0) corner of a 3×3 grid → only (1,0) and (0,1) are in bounds.
+    const sys = createKaboomDeathBombDropSystem({
+      occupancy: emptyOccupancy(),
+      deferS: 0,
+      arenaSize: { width: 3, depth: 3 }
+    });
+    sys.fixedUpdate!(ctx(world));
+    killBomber(world, "player.1");
+    sys.fixedUpdate!(ctx(world));
+    expect(countDeathBombs(world)).toBe(1);
+    const [cell] = deathBombCells(world);
+    expect(cell).toBeDefined();
+    expect(cell!.gx >= 0 && cell!.gx < 3 && cell!.gz >= 0 && cell!.gz < 3).toBe(true);
+  });
+
+  it("readRagdollLandingCell: returns torso Transform.position rounded to grid", () => {
+    const world = new World();
+    world.addEntity("player.1.torso");
+    world.setComponent("player.1.torso", "Transform", {
+      position: [7.3, 0.2, 4.6],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
+    const cell = readRagdollLandingCell(world, "player.1");
+    expect(cell).toEqual({ gx: 7, gz: 5 });
+  });
+
+  it("readRagdollLandingCell: torso entity absent → undefined", () => {
+    const world = new World();
+    expect(readRagdollLandingCell(world, "player.1")).toBeUndefined();
   });
 });
