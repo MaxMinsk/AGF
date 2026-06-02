@@ -52,11 +52,43 @@ const DIRECTIONS: ReadonlyArray<{ dx: number; dz: number }> = [
 
 const DECISION_INTERVAL = 0.2; // seconds between brain ticks
 
-// S100 KABOOM-BOT-PERSONALITY-VARIANTS. Each personality biases two
-// decisions: (1) WHERE to wander (which cell is the bias goal) and
-// (2) WHEN to drop a bomb. 'hunter' = current default; 'coward' bombs
-// more often defensively; 'miner' chases soft blocks + bombs them.
-export type BotPersonality = "hunter" | "coward" | "miner";
+// S100 KABOOM-BOT-PERSONALITY-VARIANTS. 'hunter' / 'coward' / 'miner'
+// drive both the wander goal + the bomb-drop rate. The type lives in
+// bot-ai-helpers (S234 refactor); re-export keeps existing imports
+// from `bot-ai-system` working.
+export { type BotPersonality } from "./bot-ai-helpers";
+import type { BotPersonality } from "./bot-ai-helpers";
+// S234 — re-export the pure tactical/decision helpers from their
+// new home so tests + downstream callers don't have to update
+// their import paths. New code can import directly from
+// `bot-ai-helpers` to avoid the indirection.
+export {
+  BOT_ACCELERATION_BASE_BOOST_DEFAULT,
+  BOT_ACCELERATION_ESCALATION_CAP,
+  BOT_ACCELERATION_ESCALATION_INTERVAL_S,
+  BOT_ACCELERATION_ESCALATION_STEP,
+  botAccelerationBoost,
+  countAliveBombers,
+  countSoftBlocksInLine,
+  maybeFireBotThrow,
+  personalityTallyBias,
+  playerInDashLine,
+  predictNextCell,
+  shouldRemoteDetonate,
+  wouldKillEnemyAt
+} from "./bot-ai-helpers";
+import {
+  BOT_ACCELERATION_BASE_BOOST_DEFAULT,
+  botAccelerationBoost,
+  countAliveBombers,
+  countSoftBlocksInLine,
+  maybeFireBotThrow,
+  personalityTallyBias,
+  playerInDashLine,
+  predictNextCell,
+  shouldRemoteDetonate,
+  wouldKillEnemyAt
+} from "./bot-ai-helpers";
 
 type BotBrain = {
   aggression: number;
@@ -95,47 +127,8 @@ export type BotAISystemOptions = {
   accelerationBaseBoost?: number;
 };
 
-/** S210 KABOOM-BOT-ACCELERATION default base boost. Exposed for the
- *  bootstrap URL parser + unit tests. */
-export const BOT_ACCELERATION_BASE_BOOST_DEFAULT = 0.25;
-/** S210 — boost added per 15 s elapsed since humans-all-dead. */
-export const BOT_ACCELERATION_ESCALATION_STEP = 0.10;
-/** S210 — max escalation bonus on top of the base boost. */
-export const BOT_ACCELERATION_ESCALATION_CAP = 0.30;
-/** S210 — escalation interval in seconds. */
-export const BOT_ACCELERATION_ESCALATION_INTERVAL_S = 15;
-
-/** Pure helper — given the timestamp humans first all died (or
- *  undefined when still alive), return the current aggression boost
- *  to add to `brain.aggression * personalityScale`. Exported so tests
- *  lock the escalation math without spinning the whole system. */
-export function botAccelerationBoost(
-  humansAllDeadAt: number | undefined,
-  nowS: number,
-  baseBoost: number = BOT_ACCELERATION_BASE_BOOST_DEFAULT
-): number {
-  if (humansAllDeadAt === undefined) return 0;
-  const elapsed = Math.max(0, nowS - humansAllDeadAt);
-  const steps = Math.floor(elapsed / BOT_ACCELERATION_ESCALATION_INTERVAL_S);
-  const escalation = Math.min(BOT_ACCELERATION_ESCALATION_CAP, steps * BOT_ACCELERATION_ESCALATION_STEP);
-  return baseBoost + escalation;
-}
-
-/** S210 — count alive PlayerControlled bombers + alive bots in one
- *  pass. Used by the bot-ai system to enter / exit HUMANS_DEAD mode.
- *  Exported for tests. */
-export function countAliveBombers(world: World): { humans: number; bots: number } {
-  let humans = 0;
-  let bots = 0;
-  for (const id of world.entityIds()) {
-    if (!world.hasComponent(id, "BomberStats")) continue;
-    const stats = world.getComponent<{ alive?: boolean }>(id, "BomberStats");
-    if (stats?.alive === false) continue;
-    if (world.hasComponent(id, "PlayerControlled")) humans += 1;
-    else if (world.hasComponent(id, "BotBrain")) bots += 1;
-  }
-  return { humans, bots };
-}
+// S210 KABOOM-BOT-ACCELERATION constants + helpers live in
+// bot-ai-helpers.ts (re-exported above).
 
 export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   const name = options.name ?? "kaboom.bot-ai";
@@ -768,220 +761,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
  *  fire an offensive DashRequest in the same direction so it closes
  *  distance on the player before the player can react. Exported for
  *  unit tests. */
-export function playerInDashLine(
-  world: World,
-  pos: { gx: number; gz: number },
-  direction: { dx: number; dz: number }
-): boolean {
-  if (direction.dx === 0 && direction.dz === 0) return false;
-  if (direction.dx !== 0 && direction.dz !== 0) return false; // cardinal only
-  for (const id of world.entityIds()) {
-    if (!id.startsWith("player.")) continue;
-    if (!world.hasComponent(id, BOMBER_STATS)) continue;
-    const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
-    if (stats?.alive === false) continue;
-    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
-    if (gp?.gx === undefined || gp?.gz === undefined) continue;
-    const stepGx = gp.gx - pos.gx;
-    const stepGz = gp.gz - pos.gz;
-    if (direction.dx !== 0) {
-      if (stepGz !== 0) continue;
-      const dist = stepGx * Math.sign(direction.dx);
-      if (dist === 2 || dist === 3) return true;
-    } else {
-      if (stepGx !== 0) continue;
-      const dist = stepGz * Math.sign(direction.dz);
-      if (dist === 2 || dist === 3) return true;
-    }
-  }
-  return false;
-}
-
-export function shouldRemoteDetonate(world: World, ownerId: EntityId): boolean {
-  const pausedBombs: Array<{ gx: number; gz: number; range: number }> = [];
-  for (const id of world.entityIds()) {
-    if (!world.hasComponent(id, BOMB)) continue;
-    const b = world.getComponent<{ fuseRemaining?: number; range?: number; ownerId?: string }>(id, BOMB);
-    if (b === undefined) continue;
-    if (b.ownerId !== ownerId) continue;
-    if (Number.isFinite(b.fuseRemaining)) continue; // paused only
-    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
-    if (gp?.gx === undefined || gp?.gz === undefined) continue;
-    pausedBombs.push({ gx: gp.gx, gz: gp.gz, range: b.range ?? 2 });
-  }
-  if (pausedBombs.length === 0) return false;
-  const enemyCells = collectAliveEnemyCells(world, ownerId);
-  if (enemyCells.length === 0) return false;
-  for (const bomb of pausedBombs) {
-    for (const enemy of enemyCells) {
-      if (cellInBlast(bomb, enemy.gx, enemy.gz)) return true;
-    }
-  }
-  return false;
-}
-
-function collectAliveEnemyCells(world: World, ownerId: EntityId): Array<{ gx: number; gz: number }> {
-  const out: Array<{ gx: number; gz: number }> = [];
-  for (const id of world.entityIds()) {
-    if (id === ownerId) continue;
-    if (!world.hasComponent(id, BOMBER_STATS)) continue;
-    const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
-    if (stats?.alive === false) continue;
-    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
-    if (gp?.gx === undefined || gp?.gz === undefined) continue;
-    out.push({ gx: gp.gx, gz: gp.gz });
-  }
-  return out;
-}
-
-/** Returns true when (gx, gz) is within `bomb.range` cardinal cells of
- *  the bomb's centre. Doesn't model wall-stops — blast walls are a
- *  per-tick concern in propagation, and approximating them here would
- *  cost more than the AI policy needs. Slight over-trigger (detonate
- *  a bomb whose blast would actually stop at a wall before the enemy)
- *  is preferable to under-trigger here. */
-function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number, gz: number): boolean {
-  if (bomb.gx === gx && bomb.gz === gz) return true;
-  if (bomb.gx === gx && Math.abs(bomb.gz - gz) <= bomb.range) return true;
-  if (bomb.gz === gz && Math.abs(bomb.gx - gx) <= bomb.range) return true;
-  return false;
-}
-
-/** S227 — read RoundState.tally and return an additive aggression
- *  bias for the given personality (GDP-2026-05-29-010 Layer 2).
- *
- *    Coward + bots leading 2+ → +0.20 (stop orbiting, engage)
- *    Hunter + bots trailing 2+ → -0.20 (dial back risky placements)
- *    Miner / no tally / lead within ±1 → 0
- *
- *  Pure helper — exported for unit tests. The system applies this
- *  on top of `brain.aggression * personalityScale + boostNow` so
- *  the existing HUMANS_DEAD acceleration stacks. */
-export function personalityTallyBias(world: World, persona: BotPersonality): number {
-  const round = world.hasEntity("kaboom.round-state")
-    ? world.getComponent<{ tally?: { player?: number; bot?: number } }>("kaboom.round-state", "RoundState")
-    : undefined;
-  const playerWins = round?.tally?.player ?? 0;
-  const botWins = round?.tally?.bot ?? 0;
-  const diff = botWins - playerWins;
-  if (persona === "coward" && diff >= 2) return 0.2;
-  if (persona === "hunter" && diff <= -2) return -0.2;
-  return 0;
-}
-
-/** S225 — predict the next cell given a list of recent positions
- *  (most-recent last). Returns the projected next cell iff the
- *  trailing 3 entries form a straight cardinal line (one direction
- *  applied twice in a row); else undefined. Pure helper for unit
- *  tests + the bot-ai anticipation path. */
-export function predictNextCell(
-  recent: ReadonlyArray<{ gx: number; gz: number }>
-): { gx: number; gz: number } | undefined {
-  if (recent.length < 3) return undefined;
-  const a = recent[recent.length - 3]!;
-  const b = recent[recent.length - 2]!;
-  const c = recent[recent.length - 1]!;
-  const dx1 = b.gx - a.gx;
-  const dz1 = b.gz - a.gz;
-  const dx2 = c.gx - b.gx;
-  const dz2 = c.gz - b.gz;
-  // Must be the SAME cardinal step both transitions: same dx + dz,
-  // exactly one of (|dx|, |dz|) equal to 1, the other 0.
-  if (dx1 !== dx2 || dz1 !== dz2) return undefined;
-  if (Math.abs(dx1) + Math.abs(dz1) !== 1) return undefined;
-  return { gx: c.gx + dx1, gz: c.gz + dz1 };
-}
-
-/** S223 — count soft blocks in line along `dir` starting from
- *  `centre + dir`. Stops at the first non-soft-block cell (hard
- *  wall, empty floor, or out-of-bounds). Soft block detection
- *  matches the bomb-placement rule: a cell that's
- *  movement-blocked + NOT blast-blocked is a soft block. `cap`
- *  bounds the walk so the helper stays O(1) per direction.
- *  Exported for unit tests. */
-export function countSoftBlocksInLine(
-  occupancy: { blocked: (gx: number, gz: number, layer: "movement" | "blast") => boolean },
-  centre: { gx: number; gz: number },
-  dir: { dx: number; dz: number },
-  cap: number
-): number {
-  let count = 0;
-  for (let step = 1; step <= cap; step += 1) {
-    const gx = centre.gx + dir.dx * step;
-    const gz = centre.gz + dir.dz * step;
-    const movement = occupancy.blocked(gx, gz, "movement");
-    const blast = occupancy.blocked(gx, gz, "blast");
-    if (movement && !blast) {
-      count += 1;
-      continue;
-    }
-    break;
-  }
-  return count;
-}
-
-/** S221 — bot-ai placement helper. True when a bomb of the given
- *  range placed at `centre` would catch at least one alive enemy
- *  bomber. Same approximation as `cellInBlast` (no wall stops —
- *  blast walker handles those at fire time; over-trigger here is
- *  preferable to under-trigger). Exported for unit tests. */
-export function wouldKillEnemyAt(
-  world: World,
-  ownerId: EntityId,
-  centre: { gx: number; gz: number },
-  range: number
-): boolean {
-  const enemies = collectAliveEnemyCells(world, ownerId);
-  if (enemies.length === 0) return false;
-  for (const enemy of enemies) {
-    if (cellInBlast({ gx: centre.gx, gz: centre.gz, range }, enemy.gx, enemy.gz)) return true;
-  }
-  return false;
-}
-
-/** S224 — THROW probability per brain tick when the bot is standing
- *  on top of its own bomb + has canThrow. Low value keeps the bot
- *  from spamming pickup requests; tuned for ~one throw every few
- *  seconds while the bomb sits at the bot's feet. */
-const BOT_THROW_PICKUP_PROBABILITY = 0.3;
-
-/** S224 — bot THROW slice. If already carrying a bomb, fire a
- *  ThrowBombRequest (throw-system picks landing from facing).
- *  Else if the bot stands on top of an own bomb with canThrow,
- *  fire a PickupBombRequest with that bomb's id with
- *  BOT_THROW_PICKUP_PROBABILITY chance. Exported so tests can
- *  drive the helper directly without spinning a full system. */
-export function maybeFireBotThrow(
-  world: World,
-  botId: EntityId,
-  pos: { gx: number; gz: number },
-  rng: { next: () => number }
-): void {
-  const stats = world.getComponent<{ canThrow?: boolean; carryingBombId?: string; alive?: boolean }>(botId, BOMBER_STATS);
-  if (stats?.canThrow !== true || stats.alive === false) return;
-  // Carrying — throw on the next brain tick (always; the throw
-  // system already gates on a valid landing cell).
-  if (typeof stats.carryingBombId === "string" && stats.carryingBombId.length > 0) {
-    if (!world.hasComponent(botId, "ThrowBombRequest")) {
-      world.setComponent(botId, "ThrowBombRequest", {});
-    }
-    return;
-  }
-  // Not carrying — look for an own bomb under the bot's current
-  // cell + roll the pickup chance.
-  let ownBombId: string | undefined;
-  for (const id of world.entityIds()) {
-    if (!world.hasComponent(id, BOMB)) continue;
-    const bomb = world.getComponent<{ ownerId?: string }>(id, BOMB);
-    if (bomb?.ownerId !== botId) continue;
-    const gp = world.getComponent<{ gx?: number; gz?: number }>(id, GRID_POSITION);
-    if (gp?.gx === pos.gx && gp.gz === pos.gz) {
-      ownBombId = id;
-      break;
-    }
-  }
-  if (ownBombId === undefined) return;
-  if (rng.next() >= BOT_THROW_PICKUP_PROBABILITY) return;
-  if (world.hasComponent(botId, "PickupBombRequest")) return;
-  world.setComponent(botId, "PickupBombRequest", { bombId: ownBombId });
-}
+// S234 — playerInDashLine / shouldRemoteDetonate / cellInBlast /
+// collectAliveEnemyCells / personalityTallyBias / predictNextCell /
+// countSoftBlocksInLine / wouldKillEnemyAt / maybeFireBotThrow all
+// live in bot-ai-helpers.ts (re-exported at the top of this file).
