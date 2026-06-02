@@ -292,6 +292,29 @@ describe("kaboom death-bomb drop (S226)", () => {
     expect(readRagdollLandingCell(world, "player.1")).toBeUndefined();
   });
 
+  it("S228 hotfix: pending death-bomb is discarded when the round restarts before defer elapses", () => {
+    const world = new World();
+    setupBomber(world, "player.1", 5, 5);
+    if (!world.hasEntity("kaboom.round-state")) world.addEntity("kaboom.round-state");
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", roundNumber: 1 });
+    const sys = createKaboomDeathBombDropSystem({ occupancy: emptyOccupancy() });
+    sys.fixedUpdate!(ctx(world));
+    // Death queued late in the round.
+    killBomber(world, "player.1");
+    sys.fixedUpdate!(ctx(world));
+    // Round resolves before the 0.6s defer fires.
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "won", roundNumber: 1 });
+    sys.fixedUpdate!(ctx(world));
+    // New round starts: phase back to 'playing', roundNumber bumped,
+    // player respawned alive=true.
+    world.setComponent("kaboom.round-state", "RoundState", { phase: "playing", roundNumber: 2 });
+    const cur = world.getComponent<Record<string, unknown>>("player.1", "BomberStats") ?? {};
+    world.setComponent("player.1", "BomberStats", { ...cur, alive: true });
+    // Tick past the original defer window — nothing should spawn now.
+    for (let i = 0; i < 40; i += 1) sys.fixedUpdate!(ctx(world));
+    expect(countDeathBombs(world)).toBe(0);
+  });
+
   it("S228 telegraph: bomb spawn co-creates a short-lived ParticleEmitter", () => {
     const world = new World();
     setupBomber(world, "player.1", 5, 5);

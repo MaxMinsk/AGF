@@ -162,6 +162,15 @@ export function createKaboomDeathBombDropSystem(
   const pending: PendingDeathBomb[] = [];
   let cachedWorld: World | undefined;
   let bombers: QueryHandle | undefined;
+  // S228 hotfix — track round boundary so a pending spawn queued
+  // in the previous round can't fire across the restart. The
+  // user reported a death-bomb appearing next to the freshly
+  // respawned player at round-start; root cause was the pending
+  // queue surviving the round-resolve gap (world reference stays
+  // the same across scene.load, so the world-change cache reset
+  // never fired).
+  let prevRoundNumber: number | undefined;
+  let prevRoundPhase: string | undefined;
 
   const fixedUpdate = (context: SystemContext): void => {
     const world = context.world;
@@ -170,8 +179,33 @@ export function createKaboomDeathBombDropSystem(
       cachedWorld = world;
       prevAlive.clear();
       pending.length = 0;
+      prevRoundNumber = undefined;
+      prevRoundPhase = undefined;
     }
     if (disabled) return;
+
+    // Round boundary edge — bumped roundNumber OR phase resumed
+    // 'playing' from a resolved phase. Either edge means a new
+    // round is starting; pending spawns from the prior round are
+    // stale and must be discarded.
+    const round = world.hasEntity(ROUND_STATE_ID)
+      ? world.getComponent<{ phase?: string; roundNumber?: number }>(ROUND_STATE_ID, ROUND_STATE)
+      : undefined;
+    const roundNumber = round?.roundNumber;
+    const phase = round?.phase;
+    const roundChanged =
+      roundNumber !== undefined && prevRoundNumber !== undefined && roundNumber !== prevRoundNumber;
+    const phaseResumed =
+      phase === "playing" && prevRoundPhase !== undefined && prevRoundPhase !== "playing";
+    if (roundChanged || phaseResumed) {
+      pending.length = 0;
+      // Re-seed prevAlive so bombers freshly respawned at round-
+      // start don't read a stale `alive=false` from the previous
+      // round + immediately fire the death edge.
+      prevAlive.clear();
+    }
+    prevRoundNumber = roundNumber;
+    prevRoundPhase = phase;
 
     const dt = Math.max(0, context.time.fixedDt);
 
