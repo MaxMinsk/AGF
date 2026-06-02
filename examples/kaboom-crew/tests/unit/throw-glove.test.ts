@@ -80,6 +80,43 @@ describe("createKaboomBombPickupSystem (S144)", () => {
     expect(world.hasComponent("player.1", "PickupBombRequest")).toBe(false);
   });
 
+  it("S246 KABOOM-BOMB-PICKUP-LIFT-PUFF: successful pickup co-spawns a ParticleEmitter at the bomber's cell", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 6, { canThrow: true });
+    addBomb(world, "bomb.lift", 5, 6, { owner: "player.1" });
+    world.setComponent("player.1", "PickupBombRequest", { bombId: "bomb.lift" });
+    const sys = createKaboomBombPickupSystem();
+    sys.fixedUpdate!(ctx(world));
+    const puffIds: string[] = [];
+    for (const id of world.entityIds()) {
+      if (id.startsWith("bomb.lift.pickup-lift.")) puffIds.push(id);
+    }
+    expect(puffIds.length).toBe(1);
+    const emitter = world.getComponent<{
+      preset?: string;
+      lifetime?: number;
+      maxParticles?: number;
+    }>(puffIds[0]!, "ParticleEmitter")!;
+    expect(emitter.preset).toBe("spark");
+    expect(emitter.lifetime).toBeCloseTo(0.2, 6);
+    expect(emitter.maxParticles).toBe(6);
+    const transform = world.getComponent<{ position: ReadonlyArray<number> }>(puffIds[0]!, "Transform")!;
+    expect(transform.position[0]).toBe(5);
+    expect(transform.position[2]).toBe(6);
+  });
+
+  it("S246 KABOOM-BOMB-PICKUP-LIFT-PUFF: refused pickup (wrong owner) does NOT spawn a puff", () => {
+    const world = new World();
+    addBomber(world, "player.1", 3, 4, { canThrow: true });
+    addBomb(world, "bomb.other", 3, 4, { owner: "bot.1" });
+    world.setComponent("player.1", "PickupBombRequest", { bombId: "bomb.other" });
+    const sys = createKaboomBombPickupSystem();
+    sys.fixedUpdate!(ctx(world));
+    for (const id of world.entityIds()) {
+      expect(id.includes(".pickup-lift.")).toBe(false);
+    }
+  });
+
   it("PickupBombRequest with wrong-owner bomb → silent NO-OP", () => {
     const world = new World();
     addBomber(world, "player.1", 3, 4, { canThrow: true });
