@@ -478,6 +478,94 @@ export function findBotKickOpportunity(
   return undefined;
 }
 
+/** S240 — bot bomb-drop decision tree. Returns true iff the bot
+ *  should drop a bomb THIS tick.
+ *
+ *  Branches (in priority order):
+ *    1. Never bomb a cell already in the danger map (would step into
+ *       own blast).
+ *    2. Skip if dead / at maxBombs cap.
+ *    3. REMOTE-DETONATE (S221): if remoteDetonateCharges > 0 + would
+ *       kill an enemy → commit.
+ *    4. SHIELD (S222): if shield up + would kill an enemy → commit.
+ *    5. PIERCE (S223): if pierce up + a cardinal line has 2+ soft
+ *       blocks → commit.
+ *    6. ADJACENT-SOFT (S82): a cardinal cell holds a soft block →
+ *       roll vs aggression × personality × tally × boost.
+ *    7. BOOST-EMPTY (S210): under HUMANS_DEAD boost, bomb open cells
+ *       with probability scaled by `boost`.
+ *
+ *  Pure — deps are passed via `deps`. Behaviour-preserving extract
+ *  of `shouldDropBomb` originally inline in bot-ai-system.ts. */
+export function decideBotShouldDropBomb(
+  world: World,
+  botId: EntityId,
+  pos: { gx: number; gz: number },
+  brain: { aggression: number; personality?: BotPersonality },
+  danger: ReadonlySet<string>,
+  boost: number,
+  deps: {
+    occupancy: BotOccupancyQuery;
+    rng: { next: () => number };
+  }
+): boolean {
+  if (danger.has(cellKey(pos.gx, pos.gz))) return false; // not while fleeing
+  const stats = world.getComponent<{
+    activeBombs?: number;
+    maxBombs: number;
+    range?: number;
+    alive?: boolean;
+    remoteDetonateCharges?: number;
+    shield?: boolean;
+    pierce?: boolean;
+  }>(botId, BOMBER_STATS);
+  if (stats === undefined || stats.alive === false) return false;
+  if ((stats.activeBombs ?? 0) >= stats.maxBombs) return false;
+
+  // S221 — REMOTE-DETONATE tactical placement.
+  if ((stats.remoteDetonateCharges ?? 0) > 0) {
+    const range = Math.max(1, Math.floor(stats.range ?? 2));
+    if (wouldKillEnemyAt(world, botId, pos, range)) return true;
+  }
+
+  // S222 — SHIELD tactical placement.
+  if (stats.shield === true) {
+    const range = Math.max(1, Math.floor(stats.range ?? 2));
+    if (wouldKillEnemyAt(world, botId, pos, range)) return true;
+  }
+
+  // S100 — personality scales the base aggression. 'coward' /
+  // 'miner' bomb more eagerly. S210 — `boost` is additive HUMANS_DEAD
+  // acceleration. S227 — `tallyBias` adds round-tally feedback.
+  const persona = brain.personality ?? "hunter";
+  const aggressionScale = persona === "coward" ? 1.5 : persona === "miner" ? 1.4 : 1.0;
+  const tallyBias = personalityTallyBias(world, persona);
+  const aggression = Math.min(1, Math.max(0, brain.aggression * aggressionScale + boost + tallyBias));
+  const boosting = boost > 0;
+
+  // S223 — PIERCE: if 2+ soft blocks in any cardinal line → commit.
+  if (stats.pierce === true) {
+    for (const dir of DIRECTIONS_4) {
+      if (countSoftBlocksInLine(deps.occupancy, pos, dir, 2) >= 2) return true;
+    }
+  }
+
+  // Adjacent soft block? Movement-blocking + non-blast-blocking
+  // occupant in a cardinal → roll vs aggression.
+  for (const dir of DIRECTIONS_4) {
+    const gx = pos.gx + dir.dx;
+    const gz = pos.gz + dir.dz;
+    if (deps.occupancy.blocked(gx, gz, "movement") && !deps.occupancy.blocked(gx, gz, "blast")) {
+      return deps.rng.next() < aggression;
+    }
+  }
+
+  // BOOST-EMPTY (S210): under acceleration, bomb open cells too with
+  // probability scaled by `boost`.
+  if (boosting) return deps.rng.next() < Math.min(1, boost);
+  return false;
+}
+
 /** S239 — personality goal selector. Returns the cell that the bot's
  *  bias-toward path should chase, dispatching on personality:
  *    - 'coward' → undefined (just wander the safe pool)

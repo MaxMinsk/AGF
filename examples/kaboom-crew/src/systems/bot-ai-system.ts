@@ -72,6 +72,7 @@ export {
   buildBotDangerMap,
   countAliveBombers,
   countSoftBlocksInLine,
+  decideBotShouldDropBomb,
   findBotKickOpportunity,
   maybeFireBotThrow,
   nearestBotOtherBomber,
@@ -92,6 +93,7 @@ import {
   buildBotDangerMap,
   countAliveBombers,
   countSoftBlocksInLine,
+  decideBotShouldDropBomb,
   findBotKickOpportunity,
   maybeFireBotThrow,
   nearestBotOtherBomber,
@@ -340,6 +342,9 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     return { dx: choice.dx, dz: choice.dz };
   }
 
+  // S240 — bomb-drop decision tree extracted to bot-ai-helpers
+  // (`decideBotShouldDropBomb`). Local thunk forwards + captures
+  // closure-bound `options.occupancy` + `rng`.
   function shouldDropBomb(
     world: World,
     botId: EntityId,
@@ -348,108 +353,10 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
     danger: Set<string>,
     boost: number
   ): boolean {
-    if (danger.has(cellKey(pos.gx, pos.gz))) return false; // not while fleeing
-    const stats = world.getComponent<{
-      activeBombs?: number;
-      maxBombs: number;
-      range?: number;
-      alive?: boolean;
-      remoteDetonateCharges?: number;
-      shield?: boolean;
-      pierce?: boolean;
-    }>(botId, BOMBER_STATS);
-    if (stats === undefined || stats.alive === false) return false;
-    if ((stats.activeBombs ?? 0) >= stats.maxBombs) return false;
-
-    // S221 — REMOTE-DETONATE tactical placement. When the bot holds
-    // any remote charges, the next-placed bomb spawns paused
-    // (fuseRemaining=Infinity). If an alive enemy already sits in
-    // the would-be bomb's blast radius, placing here turns the
-    // bomb into a trap-with-trigger — S204 `shouldRemoteDetonate`
-    // fires on the next tick as long as the enemy stays in range,
-    // and the bot dashes off the bomb cell using the existing
-    // flee path (danger map adds the new bomb next tick). High-
-    // value shot; the bot commits past aggression dice + the
-    // adjacent-soft-block requirement.
-    if ((stats.remoteDetonateCharges ?? 0) > 0) {
-      const range = Math.max(1, Math.floor(stats.range ?? 2));
-      if (wouldKillEnemyAt(world, botId, pos, range)) {
-        return true;
-      }
-    }
-
-    // S222 — SHIELD tactical placement. Parallel to S221's remote
-    // branch but for the shield power-up: bot trades a free hit
-    // for a clean shot. When the shield is up AND an alive enemy
-    // sits in the would-be bomb's blast from the bot's current
-    // cell, drop the bomb. Best case the bot dashes off and kills
-    // the enemy clean; worst case the shield absorbs the trade
-    // and the bomber's alive=true survives. Same approximation
-    // as S221 (no wall-stop math here — the blast walker handles
-    // real stops at fire time, over-trigger preferable).
-    if (stats.shield === true) {
-      const range = Math.max(1, Math.floor(stats.range ?? 2));
-      if (wouldKillEnemyAt(world, botId, pos, range)) {
-        return true;
-      }
-    }
-
-    // S100 KABOOM-BOT-PERSONALITY-VARIANTS — personality scales the
-    // base aggression. 'coward' bombs more eagerly as a defensive
-    // shield; 'miner' bombs more eagerly toward soft blocks. 'hunter'
-    // uses the unscaled aggression.
-    // S210 — `boost` is the HUMANS_DEAD acceleration term; it's
-    // additive on top of the personality scale (cap 1.0).
-    const persona = brain.personality ?? "hunter";
-    const aggressionScale = persona === "coward" ? 1.5 : persona === "miner" ? 1.4 : 1.0;
-    // S227 — tally-driven personality bias (GDP-2026-05-29-010 L2).
-    // When the bots are leading 2+ rounds, Coward stops orbiting +
-    // gains aggression; when the bots are trailing 2+ rounds,
-    // Hunter dials back risky placements. Miner ignores the tally
-    // (it focuses on soft blocks regardless of score).
-    const tallyBias = personalityTallyBias(world, persona);
-    const aggression = Math.min(1, Math.max(0, brain.aggression * aggressionScale + boost + tallyBias));
-    // S210 — also place bombs on EMPTY cells (no soft-block adjacent)
-    // when boosted. The GDP calls for "+20% bomb-place rate" on top of
-    // the personality bias; lifting the soft-block requirement under
-    // acceleration is what actually drives bot-vs-bot resolution.
-    const boosting = boost > 0;
-    // S223 — PIERCE tactical placement. When the bomber holds the
-    // pierce power-up, the placed bomb's blast walks through the
-    // first soft block in each direction (per S142). If THIS cell
-    // has any cardinal with 2+ soft blocks in line, the pierce
-    // bomb is high-value (one bomb clears two crates). Commit
-    // past the aggression dice in that case — pierce bombs are
-    // rare enough that we don't want the bot to fritter them on
-    // single-crate sites. Falls through to the standard adjacent-
-    // soft-block check if no double-line found.
-    if (stats.pierce === true) {
-      for (const dir of DIRECTIONS) {
-        if (countSoftBlocksInLine(options.occupancy, pos, dir, 2) >= 2) {
-          return true;
-        }
-      }
-    }
-    // Adjacent soft block? Look at the four cardinals — if any
-    // contains a movement-blocking, non-blast-blocking occupant, it's
-    // a soft block.
-    for (const dir of DIRECTIONS) {
-      const gx = pos.gx + dir.dx;
-      const gz = pos.gz + dir.dz;
-      if (
-        options.occupancy.blocked(gx, gz, "movement") &&
-        !options.occupancy.blocked(gx, gz, "blast")
-      ) {
-        return rng.next() < aggression;
-      }
-    }
-    if (boosting) {
-      // Under HUMANS_DEAD acceleration, bots will bomb open cells too,
-      // since no soft blocks usually remain by then. Probability scales
-      // with `boost` so early HUMANS_DEAD is gentler than escalated.
-      return rng.next() < Math.min(1, boost);
-    }
-    return false;
+    return decideBotShouldDropBomb(world, botId, pos, brain, danger, boost, {
+      occupancy: options.occupancy,
+      rng
+    });
   }
 
   const fixedUpdate = (context: SystemContext): void => {
