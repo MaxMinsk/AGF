@@ -25,7 +25,7 @@ const OUTLINE_OPACITY = 0.85;
 // Match the bomber softEdge so the engine NodeMaterial cache key
 // `(color, opacity, softEdge)` lines up — and so the same camera-
 // derived occluder threshold drives both.
-const OUTLINE_SOFT_EDGE = 0.02;
+const OUTLINE_SOFT_EDGE = 0.04;
 
 type MeshRendererLike = { mesh: string };
 type BombLike = { ownerId?: string };

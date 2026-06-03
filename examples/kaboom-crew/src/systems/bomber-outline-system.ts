@@ -51,7 +51,7 @@ const OUTLINE_OPACITY = 0.85;
 // commonly lands at 0.02 or more. softEdge = 0.02 gives near-zero
 // intra-bomber bleed (smoothstep ≈ 0.05 → final opacity ≈ 0.04) while
 // the cross-wall delta saturates to full opacity.
-const OUTLINE_SOFT_EDGE = 0.02;
+const OUTLINE_SOFT_EDGE = 0.04;
 
 type MeshRendererLike = { mesh: string };
 type TransformLike = { parent?: string };
