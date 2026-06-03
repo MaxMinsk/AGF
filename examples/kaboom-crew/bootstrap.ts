@@ -56,6 +56,8 @@ import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-
 import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-movement-system";
+import { createKaboomBomberOutlineSystem } from "./src/systems/bomber-outline-system";
+import { createKaboomBombOutlineSystem } from "./src/systems/bomb-outline-system";
 
 // S104 KABOOM-MIGRATE-PREFABS + S139 KABOOM-BOT-PERSONALITY-VISUALS.
 // The pure recipe derivation lives in ./src/kaboom-recipe so it can
@@ -285,6 +287,22 @@ function readFollowModeFromUrl(): FollowMode {
     return "damped";
   } catch {
     return "damped";
+  }
+}
+
+// S277 — outline-occluder URL gate. `?occluderOutline=off` disables the
+// see-through bomber silhouette feature; default ON now that the engine
+// drives a proper depth pre-pass (no self-occlusion, single extra render
+// at half resolution).
+function resolveOccluderOutlineEnabled(): boolean {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return true;
+  try {
+    const v = new URLSearchParams(search).get("occluderOutline");
+    if (v === "off" || v === "false" || v === "0") return false;
+    return true;
+  } catch {
+    return true;
   }
 }
 
@@ -1025,6 +1043,16 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static", "connected"] });
     // S108 KABOOM-BOMBER-FACE-MOVEMENT — root Y rotation tracks GridMover.
     scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static", "connected"] });
+    // S277 KABOOM-OUTLINE-OCCLUDER-V2 — see-through bomber silhouettes
+    // when occluded by walls / hard blocks. Drives a per-part outline
+    // duplicate carrying the engine's `OutlineOccluder` component;
+    // engine `render.outline-occluder` swaps in the WebGPU NodeMaterial.
+    // URL gate: `?occluderOutline=on` enables. Default OFF until the
+    // perf + visibility regressions are fixed (S277 follow-up).
+    if (resolveOccluderOutlineEnabled()) {
+      scheduler.register(createKaboomBomberOutlineSystem(), { profiles: ["static", "connected"] });
+      scheduler.register(createKaboomBombOutlineSystem(), { profiles: ["static", "connected"] });
+    }
 
     // Bomb pipeline.
     // S117 KABOOM-MP-SPRINT-B — on the connected profile the relay runs

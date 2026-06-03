@@ -2487,6 +2487,7 @@ export class ThreeRenderAdapter {
     mesh.renderOrder = order;
   }
 
+
   setMeshMaterialPatch(handle: MeshHandle, patch: MaterialPatch): void {
     const mesh = this.meshes.get(handle);
     if (mesh === undefined) return;

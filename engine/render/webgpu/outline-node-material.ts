@@ -89,19 +89,26 @@ export async function createOutlineOccluderMaterial(
 }
 
 /**
- * S187 — optimised variant: samples `viewportDepthTexture` (the
- * currently-bound colour pass's depth buffer) instead of a pre-pass
- * RT. Trades the multi-pass cost (RT alloc + double-render of the
- * scene) for relying on render order: the outline must render AFTER
- * everything else in the main pass, so the depth buffer it samples
- * already contains the world's depth at this pixel.
+ * S187 — optimised variant: samples `viewportLinearDepth` (the
+ * currently-bound depth buffer, converted to LINEAR depth in [0,1]
+ * via Three's standard `linearDepth(viewportDepthTexture())` helper)
+ * instead of a pre-pass RT. Reading linear depth sidesteps the NDC
+ * non-linearity that makes a fixed-pixel-units `softEdge` work
+ * unpredictably across the visible range — at the near plane an NDC
+ * delta of 0.001 may correspond to centimetres, near the far plane
+ * to many metres.
+ *
+ * `softEdge` is now in metres-equivalent linear-depth units (a
+ * normalised [0, 1] range where 0 = near plane, 1 = far plane). A
+ * default of 0.005 ≈ 0.5% of `cameraFar` — for a typical
+ * Far=100m camera that's a 0.5 m feather window.
  *
  * Self-occlusion caveat: a bomber's own torso also writes depth, so
  * the same outline material sees its own arm as "occluded by torso".
- * The smoothstep across `softEdge` masks small NDC deltas (limb-vs-
- * torso depth differences are millimetre-scale in NDC); cross-wall
- * occlusion has much larger deltas and reads as full opacity. Tune
- * `softEdge` if self-overlap becomes visible.
+ * Cross-wall deltas are typically much larger than intra-bomber
+ * deltas, so the smoothstep separates them cleanly; tune `softEdge`
+ * up for more aggressive intra-bomber masking, down for sharper
+ * wall-occlusion. S277 currently runs `softEdge = 0.005`.
  */
 export async function createOutlineOccluderViewportMaterial(
   opts: Omit<OutlineOccluderOptions, "depthTexture">
@@ -124,11 +131,16 @@ export async function createOutlineOccluderViewportMaterial(
   material.depthTest = false;
 
   const opacity = opts.opacity ?? 0.85;
-  const softEdge = opts.softEdge ?? 0.01;
+  const softEdge = opts.softEdge ?? 0.005;
 
-  const sceneDepth = t.viewportDepthTexture(t.screenUV).r;
-  const myDepth = t.screenCoordinate.z;
-  const occluded = t.smoothstep(t.float(0), t.float(softEdge), myDepth.sub(sceneDepth));
+  // Linear depth (always 0=near, 1=far regardless of reverse-Z
+  // convention) for the scene at this pixel and for the current
+  // fragment. Three's `linearDepth()` with no args reads
+  // `positionView.z`, so we don't have to thread cameraNear/Far in.
+  const sceneLinearDepth = t.viewportLinearDepth;
+  const myLinearDepth = t.linearDepth();
+  const delta = myLinearDepth.sub(sceneLinearDepth);
+  const occluded = t.smoothstep(t.float(0), t.float(softEdge), delta);
 
   material.colorNode = t.color(opts.color);
   material.opacityNode = occluded.mul(t.float(opacity));
@@ -159,9 +171,8 @@ type TslFactories = {
 };
 
 type TslFactoriesViewport = {
-  viewportDepthTexture(uv: TslNode): TslNode;
-  screenUV: TslNode;
-  screenCoordinate: TslNode;
+  viewportLinearDepth: TslNode;
+  linearDepth(value?: TslNode): TslNode;
   color(input: string | number): TslNode;
   float(value: number): TslNode;
   smoothstep(low: TslNode, high: TslNode, value: TslNode): TslNode;

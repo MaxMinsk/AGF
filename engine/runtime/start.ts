@@ -631,6 +631,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const { createPlanarMirrorSystem } = await import("../render/systems/planar-mirror-system");
     const pms = createPlanarMirrorSystem({ adapter: renderer.adapter });
     if (!scheduler.has(pms.name)) scheduler.register(pms);
+
+    // S277 ENGINE-OUTLINE-OCCLUDER. For every entity with
+    // `OutlineOccluder`, swap the mesh's material for a WebGPU TSL
+    // NodeMaterial that paints a see-through silhouette wherever the
+    // fragment is behind the rest of the scene (sampled via Three's
+    // `viewportDepthTexture`). WebGL = no-op (NodeMaterial has no
+    // WebGL fallback for this graph).
+    const { createOutlineOccluderSystem } = await import(
+      "../render/systems/outline-occluder-system"
+    );
+    const oos = createOutlineOccluderSystem({ adapter: renderer.adapter });
+    if (!scheduler.has(oos.name)) scheduler.register(oos);
   }
 
   const time: TimeContext = {

@@ -140,6 +140,15 @@
       "title": "Sprint S177 close — archive proposals + render backlog views",
       "status": "pending",
       "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship; GDP-2026-05-28-012 with 4/5 families shipped; GDP-2026-05-28-014 V0), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON."
+    },
+    {
+      "id": "S277-OUTLINE-OCCLUDER-V2-VIEWPORT-LINEAR-DEPTH",
+      "title": "Outline-occluder V2 — WebGPU viewport-depth NodeMaterial + linear-depth smoothstep (replaces S273-275 stencil attempts)",
+      "status": "implemented",
+      "summary": "S273/S274/S275/S276 tried stencil-based outline-occluders on the WebGL path — none worked because kaboom-crew runs on WebGPU where the WebGL stencil buffer never activates. S277 rewires the feature: a new engine `render.outline-occluder` system swaps the existing WebGPU TSL `createOutlineOccluderViewportMaterial` (S187) onto every entity with `OutlineOccluder { color, opacity, softEdge }`. Material now compares LINEAR depth (`viewportLinearDepth` + `linearDepth()`) instead of NDC so a fixed `softEdge` reads in metres-equivalent units and works the same near the camera and at the far plane — the original NDC-units variant returned ~0 opacity for typical cross-wall deltas, which is why the silhouette was invisible. NodeMaterials are de-duplicated by (color, opacity, softEdge) → 4 WebGPU pipelines for a 4-bomber match instead of 40, fixing the FPS regression. Kaboom-side: `bomber-outline-system` spawns 10 `<part>.outline-occluder` duplicates per bomber (LimbPivots root); `bomb-outline-system` spawns one `<bombId>.outline-occluder` per placed bomb tinted in the placer's palette colour. URL gate: `?occluderOutline=off` disables.",
+      "verification": [
+        "acceptance: 4 unit tests for bomber-outline (spawn shape per part with right OutlineOccluder colour, idempotency, fallback colour, BotBrain personality colour) + 5 unit tests for bomb-outline (spawn shape, owner palette, fallback, idempotency, round-reset recovery) — all 9 pass. typecheck clean. WebGPU material updated to sample linearDepth on both sides of the comparison (sidesteps reverse-Z + NDC non-linearity that broke the previous variant). User-reported cross-wall silhouette visible after the change."
+      ]
     }
   ]
 }
