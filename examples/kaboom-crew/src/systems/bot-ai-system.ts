@@ -30,8 +30,10 @@ import {
   isBluffActive,
   shouldStartCowardBluff,
   shouldStartHunterBluff,
+  shouldStartMinerBluff,
   startCowardBluff,
   startHunterBluff,
+  startMinerBluff,
   type BotBluffStateComponent
 } from "./bot-ai-bluff";
 
@@ -441,7 +443,12 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
         if (bluffForcesBomb(bluffNow)) {
           bluffForceBombDrop = true;
         }
-        const advanced = advanceBluffState(bluffNow, pos, playerCell, dt);
+        // S264 fix — advance with the brain-tick interval, not the
+        // fixedUpdate dt. The bluff block only runs once per brain
+        // decision (~5Hz, cooldown-gated above), so elapsed must
+        // accumulate at DECISION_INTERVAL per call to match wall-
+        // clock-style durations like BLUFF_FEIGN_DURATION_S = 1.5s.
+        const advanced = advanceBluffState(bluffNow, pos, playerCell, DECISION_INTERVAL);
         if (advanced.phase !== bluffNow.phase || advanced.elapsed !== bluffNow.elapsed) {
           world.setComponent(botId, BOT_BLUFF_STATE, advanced);
         }
@@ -469,6 +476,11 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
           // the player sees the threat immediately. The state machine
           // advances on the next tick into the retreat phase.
           bluffForceBombDrop = true;
+        } else if (persona === "miner" && shouldStartMinerBluff(pos, playerCell, rng)) {
+          startMinerBluff(world, botId, currentRoundNumber);
+          // First tick of feign-corner: hold position. The 'feigning'
+          // phase sets direction = {0,0} via bluffPreferredDirection.
+          bluffOverrideDirection = { dx: 0, dz: 0 };
         }
       }
       // S220 — KICK opportunity check. When the bot has canKick + an
