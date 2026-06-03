@@ -43,11 +43,9 @@ describe("createKaboomBombOutlineSystem (S277d)", () => {
     expect(renderer).toMatchObject({
       mesh: "sphere",
       color: "#3ab0ff",
-      transparent: true,
       depthFunc: "greater",
       depthWrite: false
     });
-    expect(renderer?.opacity).toBeGreaterThan(0);
   });
 
   it("uses placer-personality colour for NPC bombs", () => {

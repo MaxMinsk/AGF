@@ -54,11 +54,16 @@ export function createKaboomBombOutlineSystem(): System {
           rotation: [0, 0, 0],
           scale: [1, 1, 1]
         });
+        // OPAQUE silhouette (transparent: false) so it sorts into the
+        // opaque queue + the depthFunc='greater' GPU state is actually
+        // honored — early tests with transparent: true had the duplicate
+        // covering the live bomb on WebGPU, suggesting Three's WebGPU
+        // backend ignores depthFunc on the transparent pass. depthWrite
+        // is still false so we don't poison the depth buffer for later
+        // passes.
         world.setComponent(outlineId, MESH_RENDERER, {
           mesh: renderer.mesh,
           color,
-          transparent: true,
-          opacity: OUTLINE_OPACITY,
           depthFunc: "greater",
           depthWrite: false
         });
