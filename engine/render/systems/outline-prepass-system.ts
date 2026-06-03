@@ -1,4 +1,4 @@
-// S278 ENGINE-OUTLINE-PRE-PASS. (S280-quiet: diagnostic logs removed.)
+// S278 ENGINE-OUTLINE-PRE-PASS.
 //
 // Drives a depth-only pre-pass that powers the outline-occluder
 // silhouette material. Each frame:

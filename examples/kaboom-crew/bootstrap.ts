@@ -1044,12 +1044,13 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static", "connected"] });
     // S108 KABOOM-BOMBER-FACE-MOVEMENT — root Y rotation tracks GridMover.
     scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static", "connected"] });
-    // S277 KABOOM-OUTLINE-OCCLUDER-V2 — see-through bomber silhouettes
-    // when occluded by walls / hard blocks. Drives a per-part outline
-    // duplicate carrying the engine's `OutlineOccluder` component;
-    // engine `render.outline-occluder` swaps in the WebGPU NodeMaterial.
-    // URL gate: `?occluderOutline=on` enables. Default OFF until the
-    // perf + visibility regressions are fixed (S277 follow-up).
+    // S277/S280 KABOOM-OUTLINE-OCCLUDER — see-through bomber + bomb
+    // silhouettes when occluded by walls / hard blocks. Each system
+    // spawns outline-duplicate entities carrying the engine
+    // `OutlineOccluder` component; `render.outline-prepass` builds a
+    // bomber-excluded depth target and `render.outline-occluder`
+    // swaps in the WebGPU NodeMaterial that samples it.
+    // URL gate `?occluderOutline=off` disables; default ON.
     if (resolveOccluderOutlineEnabled()) {
       scheduler.register(createKaboomBomberOutlineSystem(), { profiles: ["static", "connected"] });
       scheduler.register(createKaboomBombOutlineSystem(), { profiles: ["static", "connected"] });
