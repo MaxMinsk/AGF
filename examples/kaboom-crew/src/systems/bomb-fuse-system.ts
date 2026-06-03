@@ -14,6 +14,15 @@ import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types"
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
 import { BOMB_FINAL_SCALE } from "./bomb-placement-system";
+import { spawnPuff } from "./spawn-puff";
+
+/** S270 — fuse value at which the bomb fires its one-shot critical
+ *  pulse. The bomb is about to detonate in well under half a second;
+ *  the cell pulses red so the player has a final "GET OUT" cue
+ *  beyond the existing mesh wiggle + colour pulse, which can be
+ *  hard to read in chaotic moments. */
+const CRITICAL_PULSE_FUSE_THRESHOLD_S = 0.4;
+const CRITICAL_PULSE_COLOR = "#ff3030";
 
 const BOMB: ComponentName = "Bomb";
 const BLAST_EVENT: ComponentName = "BlastEvent";
@@ -80,7 +89,7 @@ export function bombWiggleScale(fuseRemaining: number, now: number = Date.now())
   return 1 + Math.sin(phase) * amplitude;
 }
 
-type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean; carriedBy?: EntityId; airborne?: boolean; chained?: boolean };
+type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean; carriedBy?: EntityId; airborne?: boolean; chained?: boolean; criticalPulseFired?: boolean };
 type GridPosition = { gx: number; gz: number };
 
 export function createKaboomBombFuseSystem(options: { name?: string; nextEventId?: () => EntityId } = {}): System {
@@ -142,7 +151,24 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
       }
       const next = bomb.fuseRemaining - dt;
       if (next > 0) {
-        world.setComponent(entityId, BOMB, { ...bomb, fuseRemaining: next });
+        // S270 — fire the critical-pulse red puff once, the first
+        // tick the fuse crosses below CRITICAL_PULSE_FUSE_THRESHOLD_S.
+        // Sticky `criticalPulseFired` flag avoids re-spawning every
+        // frame between the threshold crossing and detonation.
+        let firedCritical = bomb.criticalPulseFired === true;
+        if (!firedCritical && next <= CRITICAL_PULSE_FUSE_THRESHOLD_S) {
+          spawnPuff(world, {
+            id: `${entityId}.critical-pulse`,
+            position: [pos.gx, 0.5, pos.gz],
+            preset: "spark",
+            lifetime: 0.15,
+            rate: 60,
+            maxParticles: 16,
+            color: CRITICAL_PULSE_COLOR
+          });
+          firedCritical = true;
+        }
+        world.setComponent(entityId, BOMB, { ...bomb, fuseRemaining: next, criticalPulseFired: firedCritical });
         // S87 KABOOM-BOMB-COUNTDOWN-PULSE — paint the bomb mesh with a
         // pulse colour. Cheap per-frame component.set; renderer treats
         // colour as a uniform so this doesn't churn the geometry.
