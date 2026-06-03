@@ -68,14 +68,16 @@ export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
 
   const applied = new Map<EntityId, AppliedState>();
   const pending = new Set<EntityId>();
-  // S277 — share one Material instance per (color, opacity, softEdge)
-  // triple. Without this we'd allocate one MeshBasicNodeMaterial per
-  // outline duplicate (40+ for a 4-bomber match), each with its own
-  // WebGPU pipeline → measurable per-frame and compile-stall cost.
-  const materialCache = new Map<string, Promise<Material>>();
-  function materialKey(color: string | number, opacity: number, softEdge: number): string {
-    return `${typeof color === "number" ? color.toString(16) : color}|${opacity}|${softEdge}`;
-  }
+  // S277 — DO NOT share material instances across meshes. The adapter's
+  // `releaseMesh` disposes the mesh's material, and sharing would let
+  // one entity's release tear the material out from under every other
+  // outline mesh in the world (visible as: bomber silhouettes stop
+  // working after a map restart, because the player.1 outline material
+  // got disposed when the round-end teardown released ONE outline
+  // mesh). Three's WebGPU pipeline cache de-duplicates by shader-graph
+  // hash, so creating a fresh NodeMaterial per outline still hits the
+  // pre-compiled pipeline — no compile-stall cost beyond the first
+  // bomber of each unique colour.
 
   function ensureRendererKind(): boolean {
     if (webgpuChecked) return webgpuActive;
@@ -120,7 +122,11 @@ export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
         if (matches) continue;
         if (pending.has(id)) continue;
         pending.add(id);
-        applyOutline(deps, id, handle, { color, opacity, softEdge }, applied, pending, materialCache, materialKey);
+        // Hide the duplicate until the WebGPU NodeMaterial is ready,
+        // so the default MeshStandardMaterial doesn't briefly paint
+        // over the live source mesh.
+        deps.adapter.setMeshVisible(handle, false);
+        applyOutline(deps, id, handle, { color, opacity, softEdge }, applied, pending);
       }
       for (const id of applied.keys()) {
         if (!seen.has(id)) {
@@ -137,30 +143,24 @@ function applyOutline(
   handle: number,
   opts: { color: string | number; opacity: number; softEdge: number },
   applied: Map<EntityId, AppliedState>,
-  pending: Set<EntityId>,
-  materialCache: Map<string, Promise<Material>>,
-  materialKey: (color: string | number, opacity: number, softEdge: number) => string
+  pending: Set<EntityId>
 ): void {
   void (async () => {
     try {
-      const key = materialKey(opts.color, opts.opacity, opts.softEdge);
-      let materialP = materialCache.get(key);
-      if (materialP === undefined) {
-        materialP = (async () => {
-          const { createOutlineOccluderViewportMaterial } = await import(
-            "../webgpu/outline-node-material"
-          );
-          return createOutlineOccluderViewportMaterial({
-            color: opts.color,
-            opacity: opts.opacity,
-            softEdge: opts.softEdge
-          });
-        })();
-        materialCache.set(key, materialP);
-      }
-      const material = await materialP;
+      const { createOutlineOccluderViewportMaterial } = await import(
+        "../webgpu/outline-node-material"
+      );
+      const material = await createOutlineOccluderViewportMaterial({
+        color: opts.color,
+        opacity: opts.opacity,
+        softEdge: opts.softEdge
+      });
       deps.adapter.setMeshMaterial(handle, material);
       deps.adapter.setMeshRenderOrder(handle, OUTLINE_RENDER_ORDER);
+      // NodeMaterial is now in place — safe to make the duplicate
+      // visible. From here the smoothstep opacityNode controls draw
+      // (0 alpha when the source is visible, 0.85 when occluded).
+      deps.adapter.setMeshVisible(handle, true);
       applied.set(entityId, {
         color: opts.color,
         opacity: opts.opacity,

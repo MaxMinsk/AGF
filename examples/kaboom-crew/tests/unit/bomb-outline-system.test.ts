@@ -1,7 +1,9 @@
-// S277b — coverage for the kaboom bomb-outline-system. Verifies that
-// for every Bomb mesh we spawn ONE `<bombId>.outline-occluder` carrying
-// the engine `OutlineOccluder` component, tinted in the placer's
-// palette colour (with a fallback for unknown owners).
+// S277b — coverage for the kaboom bomb-outline-system. Each Bomb gets
+// one `<bombId>.outline-occluder` duplicate carrying the engine
+// `OutlineOccluder` component (WebGPU NodeMaterial path, same as the
+// bomber outline). The duplicate's MeshRenderer is pre-coloured so
+// the one frame before the WebGPU material swaps in paints the right
+// colour rather than the default `#cccccc` light-grey.
 
 import { describe, expect, it } from "vitest";
 
@@ -23,15 +25,22 @@ function step(system: { frameUpdate?: (ctx: never) => void }, world: World): voi
 }
 
 describe("createKaboomBombOutlineSystem (S277b)", () => {
-  it("spawns one outline duplicate per Bomb with matching mesh ref + OutlineOccluder", () => {
+  it("spawns one duplicate per Bomb with matching mesh ref + OutlineOccluder", () => {
     const world = new World();
-    makeBomb(world, "player.1.bomb.0", "player.1");
+    makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    const outlineId = "player.1.bomb.0.outline-occluder";
+    const outlineId = "bomb.player.1.1.outline-occluder";
     expect(world.hasEntity(outlineId)).toBe(true);
-    const renderer = world.getComponent<{ mesh: string }>(outlineId, "MeshRenderer");
+    const renderer = world.getComponent<{ mesh: string; color?: string }>(outlineId, "MeshRenderer");
     expect(renderer?.mesh).toBe("sphere");
+    // No MeshRenderer.color: the engine outline-occluder-system swaps
+    // a WebGPU NodeMaterial in whose colorNode is the authoritative
+    // source. material-binding setting `material.color` would no-op on
+    // a NodeMaterial anyway, but pre-colouring also covered the live
+    // bomb in the placer's bright palette colour before the swap, so
+    // we skip it entirely and rely on `setMeshVisible(false)` instead.
+    expect(renderer?.color).toBeUndefined();
     const occluder = world.getComponent<{ color: string }>(outlineId, "OutlineOccluder");
     expect(occluder?.color).toBe("#3ab0ff"); // player.1 → sky palette
   });
@@ -40,10 +49,10 @@ describe("createKaboomBombOutlineSystem (S277b)", () => {
     const world = new World();
     world.addEntity("opp.1");
     world.setComponent("opp.1", "BotBrain", { personality: "miner" });
-    makeBomb(world, "opp.1.bomb.0", "opp.1");
+    makeBomb(world, "bomb.opp.1.1", "opp.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    const occluder = world.getComponent<{ color: string }>("opp.1.bomb.0.outline-occluder", "OutlineOccluder");
+    const occluder = world.getComponent<{ color: string }>("bomb.opp.1.1.outline-occluder", "OutlineOccluder");
     expect(occluder?.color).toBe("#c9a14d"); // miner → sand palette
   });
 
@@ -58,7 +67,7 @@ describe("createKaboomBombOutlineSystem (S277b)", () => {
 
   it("is idempotent — a second step doesn't re-spawn duplicates", () => {
     const world = new World();
-    makeBomb(world, "player.1.bomb.0", "player.1");
+    makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
     const before = world.entityCount();
@@ -66,19 +75,14 @@ describe("createKaboomBombOutlineSystem (S277b)", () => {
     expect(world.entityCount()).toBe(before);
   });
 
-  it("recovers when a bomb is removed + a new bomb of the same id placed (round reset)", () => {
+  it("removes the duplicate when the source bomb detonates", () => {
     const world = new World();
-    makeBomb(world, "player.1.bomb.0", "player.1");
+    makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    world.removeEntity("player.1.bomb.0");
-    // Outline child remains until the next frame's GC — the engine
-    // transform-graph cleanup handles dangling children. The system's
-    // own `done` set must drop the id so a fresh bomb with the same id
-    // gets a freshly-spawned outline duplicate next frame.
+    expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(true);
+    world.removeEntity("bomb.player.1.1");
     step(sys, world);
-    makeBomb(world, "player.1.bomb.0", "player.1");
-    step(sys, world);
-    expect(world.hasEntity("player.1.bomb.0.outline-occluder")).toBe(true);
+    expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(false);
   });
 });

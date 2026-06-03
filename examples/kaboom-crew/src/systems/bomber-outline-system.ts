@@ -102,16 +102,15 @@ export function createKaboomBomberOutlineSystem(
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          // Pre-set the duplicate's MeshRenderer.color to the bomber
-          // palette colour so the brief window before the engine
-          // `render.outline-occluder` system swaps in the WebGPU
-          // NodeMaterial paints the duplicate as a visually-identical
-          // overlay (same colour as the bomber part), not the default
-          // `#cccccc` light-grey MeshStandardMaterial.
-          world.setComponent(outlineId, MESH_RENDERER, {
-            mesh: renderer.mesh,
-            color
-          });
+          // No MeshRenderer.color — the engine outline-occluder-system
+          // swaps a WebGPU NodeMaterial in whose colorNode is the
+          // authoritative colour source. Pre-colouring covered the
+          // live source during the swap window; the system now hides
+          // the duplicate via `setMeshVisible(false)` until the
+          // NodeMaterial is ready, which avoids both the "white"
+          // (default `#cccccc`) AND the "palette-coloured live mesh"
+          // failure modes.
+          world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
           world.setComponent(outlineId, OUTLINE_OCCLUDER, { color, opacity, softEdge });
         }
         if (allSpawned) done.add(rootId);

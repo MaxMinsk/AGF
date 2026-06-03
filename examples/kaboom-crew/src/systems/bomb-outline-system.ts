@@ -1,15 +1,12 @@
-// S277b KABOOM-BOMB-OUTLINE-OCCLUDER. Same idea as
-// `bomber-outline-system` but for the bomb entities placed by
-// `bomb-placement-system`. Each Bomb mesh gets ONE `<bombId>.outline-
-// occluder` duplicate with the engine's `OutlineOccluder` component
-// tinted in the owner's palette colour so the player can tell whose
-// bomb is sitting behind that wall.
+// S277b KABOOM-BOMB-OUTLINE-OCCLUDER. Per-bomb silhouette behind walls.
 //
-// We only spawn duplicates ONCE per bomb root (the bomb is short-lived
-// — fuse + explosion takes a few seconds — so per-frame discovery
-// would otherwise re-scan every alive bomb every frame). Duplicates
-// inherit transforms from their bomb parent so they ride the spawn-pop
-// tween + heightmap offset automatically.
+// Mirrors the bomber-outline-system path: a duplicate child entity per
+// bomb carrying the engine `OutlineOccluder` component, which the
+// engine `render.outline-occluder` system swaps out for a WebGPU TSL
+// NodeMaterial. The NodeMaterial's opacityNode returns 0 at pixels
+// where the bomb is visible (no depth delta against the world) — so
+// the duplicate never paints over the live bomb, and the S270 red
+// fuse critical-pulse + S099 wiggle stay readable.
 
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -23,9 +20,12 @@ const TRANSFORM: ComponentName = "Transform";
 const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
 
 const OUTLINE_SUFFIX = "outline-occluder";
-const FALLBACK_COLOR = "#ff7a3a"; // warm orange — clearly readable as "bomb here"
+const FALLBACK_COLOR = "#ff7a3a";
+// Match bomber softEdge — user-verified value where the silhouette
+// reads clearly behind walls but the smoothstep zeroes out for
+// fully-visible meshes.
 const OUTLINE_OPACITY = 0.85;
-const OUTLINE_SOFT_EDGE = 0.005;
+const OUTLINE_SOFT_EDGE = 0.04;
 
 type MeshRendererLike = { mesh: string };
 type BombLike = { ownerId?: string };
@@ -63,16 +63,18 @@ export function createKaboomBombOutlineSystem(): System {
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          // Pre-set the duplicate's MeshRenderer.color to the bomb's
-          // own colour so the brief window before the engine
-          // `render.outline-occluder` system swaps in the WebGPU
-          // NodeMaterial paints the duplicate as a visually-identical
-          // overlay (dark bomb sphere over the dark bomb), not the
-          // default `#cccccc` light-grey MeshStandardMaterial which
-          // user-reported as "white bombs".
+          // Leave the duplicate's MeshRenderer.color UNSET so material-
+          // binding doesn't keep stomping `material.color` on the
+          // WebGPU NodeMaterial after it swaps in. The NodeMaterial's
+          // colorNode is the sole colour authority — pre-colouring the
+          // duplicate covered the live bomb in the placer's palette
+          // colour (user-reported "bombs are player-coloured not
+          // black"). The brief default-gray flash before NodeMaterial
+          // applies is acceptable; the only short-lived hosts here
+          // are mid-game bombs and the swap typically lands in 1-2
+          // frames.
           world.setComponent(outlineId, MESH_RENDERER, {
-            mesh: renderer.mesh,
-            color: "#1a1a1a"
+            mesh: renderer.mesh
           });
           world.setComponent(outlineId, OUTLINE_OCCLUDER, {
             color,
@@ -82,6 +84,10 @@ export function createKaboomBombOutlineSystem(): System {
         }
         done.add(bombId);
       }
+      // GC: when a bomb is removed (detonated / sudden-death / round
+      // reset), remove the outline duplicate too. Without this the
+      // duplicate keeps its MeshRenderer + dangling Transform.parent
+      // and renders at a stale position.
       for (const bombId of done) {
         if (live.has(bombId)) continue;
         const outlineId = `${bombId}.${OUTLINE_SUFFIX}`;

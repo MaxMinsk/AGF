@@ -2487,6 +2487,18 @@ export class ThreeRenderAdapter {
     mesh.renderOrder = order;
   }
 
+  /** S277b — flip the Three.Object3D `visible` flag on a mesh. Used by
+   *  the outline-occluder system to keep a duplicate hidden until its
+   *  WebGPU NodeMaterial async-loads + swaps in; without this guard the
+   *  duplicate flashes the default `#cccccc` MeshStandardMaterial over
+   *  its source for 1-3 frames, which reads as "white bomb" / "player-
+   *  coloured bomb" depending on what other patches are pending. */
+  setMeshVisible(handle: MeshHandle, visible: boolean): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    mesh.visible = visible;
+  }
+
 
   setMeshMaterialPatch(handle: MeshHandle, patch: MaterialPatch): void {
     const mesh = this.meshes.get(handle);
