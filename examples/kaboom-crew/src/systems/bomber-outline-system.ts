@@ -95,7 +95,26 @@ export function createKaboomBomberOutlineSystem(
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
+          // Layer two approaches:
+          //   * S273 `depthFunc='greater'` MeshRenderer patch is the
+          //     WebGL-compatible baseline — silhouette through walls
+          //     works, with some intra-bomber bleed.
+          //   * `OutlineOccluder` triggers the engine WebGPU NodeMaterial
+          //     swap which uses a linear-depth smoothstep that
+          //     suppresses the intra-bomber bleed cleanly.
+          // The engine system flips `Object3D.visible = false` while the
+          // NodeMaterial is async-loading, so on WebGPU the duplicate
+          // stays hidden until the smoothstep material is ready, then
+          // shows the cleaner silhouette. On WebGL the swap never
+          // happens and the MeshRenderer-patch silhouette stands.
+          world.setComponent(outlineId, MESH_RENDERER, {
+            mesh: renderer.mesh,
+            color,
+            transparent: true,
+            opacity,
+            depthFunc: "greater",
+            depthWrite: false
+          });
           world.setComponent(outlineId, OUTLINE_OCCLUDER, { color, opacity, softEdge });
         }
       }
