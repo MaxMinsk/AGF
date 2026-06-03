@@ -139,9 +139,9 @@
       "properties": {
         "family": {
           "type": "string",
-          "enum": ["floor", "grass"],
+          "enum": ["floor", "grass", "path"],
           "default": "floor",
-          "description": "Terrain family. 'floor' is the default backdrop (no overlay entity needed). 'grass' spawns a thin overlay slab whose Wang variant resolves from neighbouring grass cells."
+          "description": "Terrain family. 'floor' is the default backdrop (no overlay entity needed). 'grass' spawns a thin overlay slab whose Wang variant resolves from neighbouring grass cells. S271 — 'path' is the second non-default family — same shape as grass with an earth-tone palette."
         }
       }
     },

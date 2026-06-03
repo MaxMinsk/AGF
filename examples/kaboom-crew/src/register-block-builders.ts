@@ -35,6 +35,10 @@ import {
   type GrassVariantIndex
 } from "./blocks/grass-variants";
 import {
+  buildPathVariant,
+  type PathVariantIndex
+} from "./blocks/path-variants";
+import {
   decodeBlockSeed,
   selectVariantIndex,
   type VariantIndex
@@ -68,6 +72,13 @@ export const GRASS_VARIANT_KEYS = [
   "kaboom-grass-1",
   "kaboom-grass-2",
   "kaboom-grass-3"
+] as const;
+/** S271 — per-variant mesh keys for the path floor-overlay family. */
+export const PATH_VARIANT_KEYS = [
+  "kaboom-path-0",
+  "kaboom-path-1",
+  "kaboom-path-2",
+  "kaboom-path-3"
 ] as const;
 
 /**
@@ -121,6 +132,15 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     const variantIndex = i as GrassVariantIndex;
     registry.register(GRASS_VARIANT_KEYS[i]!, (_seed) =>
       buildGrassVariant(variantIndex)
+    );
+  }
+  // S271 — register the 4 path variant keys alongside grass. Same
+  // shape (no palette parameter; one geometry per variant cached
+  // globally), different colour palette baked into the vertex paint.
+  for (let i = 0; i < PATH_VARIANT_KEYS.length; i += 1) {
+    const variantIndex = i as PathVariantIndex;
+    registry.register(PATH_VARIANT_KEYS[i]!, (_seed) =>
+      buildPathVariant(variantIndex)
     );
   }
 }
