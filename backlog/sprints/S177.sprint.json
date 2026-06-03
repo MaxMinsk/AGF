@@ -104,8 +104,18 @@
     {
       "id": "S271-KABOOM-BLUFF-MESH-TINT",
       "title": "Subtle accent on the bomber mesh while a bluff is active",
-      "status": "pending",
-      "summary": "Brief MeshRenderer.color shift on the hunter / coward / miner during their bluff phase. Picks up the bomber's palette accent so the bot LOOKS 'switched on' (visually distinct from baseline cruising). Cosmetic, not gameplay."
+      "status": "deferred",
+      "summary": "Brief MeshRenderer.color shift on the hunter / coward / miner during their bluff phase. Picks up the bomber's palette accent so the bot LOOKS 'switched on' (visually distinct from baseline cruising). Cosmetic, not gameplay.",
+      "deferredReason": "User asked for something more substantial mid-sprint. Replaced this slot with the path-family Wang tile work (S271b — second of GDP-2026-05-28-012's five floor families on top of S176 grass infra)."
+    },
+    {
+      "id": "S271B-KABOOM-FLOOR-WANG-PATH",
+      "title": "Second terrain family — path (earth tones) — on top of S176 grass infrastructure",
+      "status": "implemented",
+      "summary": "Closes a slice of GDP-2026-05-28-012 (5 terrain families). path-variants.ts builds 4 thin earth-tone slabs mirroring grass-variants. wang-family-lookup adds pathBitmaskToVariant (re-uses the 16→4 table). register-wang-families adds PATH_WANG_FAMILY='kaboom-path'. register-block-builders adds PATH_VARIANT_KEYS + builder registration. bootstrap-helpers' FloorTerrainFamily union widens to include 'path' + wangFamilyFor returns kaboom-path. scene-extensions schema enum gains 'path'. Authors can now use 'path' alongside 'grass' in any scene's terrainmap[][] field.",
+      "verification": [
+        "acceptance: 5 new unit tests (4 variants distinguishable, attributes present, slab dims, bitmask ignored, palette differs from grass) + npm run engine:check examples/kaboom-crew passes (schema accepts 'path'). npm run typecheck + build clean. npx vitest run — 2417/2417 pass (+5 since S270)."
+      ]
     },
     {
       "id": "S272-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",

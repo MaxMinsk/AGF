@@ -118,6 +118,16 @@ export function grassBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex 
 }
 
 /**
+ * S271 KABOOM-FLOOR-WANG-PATH — second terrain family added on top of
+ * the S176 grass infrastructure. Re-uses the same 16→4 lookup table
+ * because the role assignment (edge / corner / filler / isolated)
+ * generalises across families.
+ */
+export function pathBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
+  return LOOKUP_TABLE[clampBitmask(bitmask)]!.variant;
+}
+
+/**
  * S214 — Y rotation (degrees) for the same bitmask. Pulled out so
  * the variant index + the rotation can be cached independently in
  * the mesh-sync system.

@@ -42,7 +42,7 @@ describe("S270 KABOOM-BOMB-FUSE-CRITICAL-PULSE", () => {
     // Tick 2: fuse drops below 0.4 → puff fires.
     fuse.fixedUpdate!(ctx(world));
     expect(world.hasEntity("bomb.x.critical-pulse")).toBe(true);
-    bomb = world.getComponent<{ criticalPulseFired?: boolean }>("bomb.x", "Bomb")!;
+    bomb = world.getComponent<{ criticalPulseFired?: boolean; fuseRemaining: number }>("bomb.x", "Bomb")!;
     expect(bomb.criticalPulseFired).toBe(true);
     const emitter = world.getComponent<{ color?: string; preset?: string; lifetime?: number }>("bomb.x.critical-pulse", "ParticleEmitter")!;
     expect(emitter.color).toBe("#ff3030");

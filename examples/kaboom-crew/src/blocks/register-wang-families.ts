@@ -28,6 +28,7 @@ import {
 import {
   grassBitmaskToVariant,
   hardBlockBitmaskToVariant,
+  pathBitmaskToVariant,
   softBlockBitmaskToVariant
 } from "./wang-family-lookup";
 
@@ -37,6 +38,8 @@ export const HARD_BLOCK_WANG_FAMILY = "kaboom-hard-block";
 export const SOFT_BLOCK_WANG_FAMILY = "kaboom-soft-block";
 /** S176 — Wang family name for grass floor-overlay terrain cells. */
 export const GRASS_WANG_FAMILY = "kaboom-grass";
+/** S271 — Wang family name for path (earth-tone) floor-overlay cells. */
+export const PATH_WANG_FAMILY = "kaboom-path";
 
 /**
  * Register every Kaboom Crew Wang family with the engine registry.
@@ -56,6 +59,7 @@ export function registerKaboomWangFamilies(): void {
   registerFamilySafe(buildHardBlockFamily());
   registerFamilySafe(buildSoftBlockFamily());
   registerFamilySafe(buildGrassFamily());
+  registerFamilySafe(buildPathFamily());
 }
 
 function registerFamilySafe(family: WangTileFamily): void {
@@ -89,6 +93,13 @@ function buildGrassFamily(): WangTileFamily {
   return {
     name: GRASS_WANG_FAMILY,
     variants: buildVariants(GRASS_WANG_FAMILY, grassBitmaskToVariant)
+  };
+}
+
+function buildPathFamily(): WangTileFamily {
+  return {
+    name: PATH_WANG_FAMILY,
+    variants: buildVariants(PATH_WANG_FAMILY, pathBitmaskToVariant)
   };
 }
 
