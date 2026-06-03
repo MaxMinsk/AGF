@@ -36,8 +36,8 @@ const SOFT_BLOCK_DESTROYED_EVENT: ComponentName = "SoftBlockDestroyedEvent";
 // removes it the same fixedUpdate it appears.
 const HIT_RECOIL_REQUEST: ComponentName = "HitRecoilRequest";
 
-type BlastEvent = { originGx: number; originGz: number; range: number; ownerId: EntityId; pierce?: boolean };
-type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean };
+type BlastEvent = { originGx: number; originGz: number; range: number; ownerId: EntityId; pierce?: boolean; chained?: boolean };
+type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean; chained?: boolean };
 type GridPos = { gx: number; gz: number };
 type Occupant = { layer?: string; blocksMovement?: boolean; blocksBlast?: boolean };
 
@@ -82,8 +82,9 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
       const event = world.getComponent<BlastEvent>(eventId, BLAST_EVENT);
       if (event === undefined) continue;
 
+      const chained = event.chained === true;
       // Origin cell always gets a tile + damage.
-      spawnBlastTile(world, event.originGx, event.originGz, event.ownerId, nextTileId);
+      spawnBlastTile(world, event.originGx, event.originGz, event.ownerId, nextTileId, chained);
       damageBombersAt(world, options.occupancy, event.originGx, event.originGz, event.originGx, event.originGz);
       chainBombsAt(world, options.occupancy, event.originGx, event.originGz);
       // Soft blocks at origin (rare, but a bomb could land beside a wall
@@ -123,7 +124,7 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
               // SoftBlockDestroyedEvent so PickupSpawnSystem can roll
               // a pickup at this cell. Pierce-branch: if we still have
               // budget, continue past this cell after destroying.
-              spawnBlastTile(world, gx, gz, event.ownerId, nextTileId);
+              spawnBlastTile(world, gx, gz, event.ownerId, nextTileId, chained);
               for (const id of softHere) world.removeEntity(id);
               emitSoftBlockDestroyed(world, gx, gz, nextEventId);
               if (pierceBudget > 0) {
@@ -138,7 +139,7 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
             }
             break;
           }
-          spawnBlastTile(world, gx, gz, event.ownerId, nextTileId);
+          spawnBlastTile(world, gx, gz, event.ownerId, nextTileId, chained);
           damageBombersAt(world, options.occupancy, gx, gz, event.originGx, event.originGz);
           chainBombsAt(world, options.occupancy, gx, gz);
         }
@@ -151,12 +152,18 @@ export function createKaboomBlastPropagationSystem(options: BlastPropagationSyst
   return { name, fixedUpdate };
 }
 
+/** S269 — chain-trigger spark colour. Cyan (matches the `glow` preset
+ *  palette) so the player reads "this bomb went off because another
+ *  bomb caught it" instantly. */
+const CHAIN_SPARK_COLOR = "#7fd6ff";
+
 function spawnBlastTile(
   world: World,
   gx: number,
   gz: number,
   ownerId: EntityId,
-  nextId: (gx: number, gz: number) => EntityId
+  nextId: (gx: number, gz: number) => EntityId,
+  chained: boolean = false
 ): void {
   const id = nextId(gx, gz);
   if (world.hasEntity(id)) return;
@@ -171,15 +178,28 @@ function spawnBlastTile(
   world.setComponent(id, GRID_OCCUPANT, { layer: "blast", blocksMovement: false, blocksBlast: false });
   world.setComponent(id, BLAST_TILE, { lifetimeRemaining: BLAST_TILE_LIFETIME, ownerId });
 
-  // S84 KABOOM-BLAST-PARTICLES (S247 — via shared `spawnPuff`).
-  spawnPuff(world, {
+  // S84 KABOOM-BLAST-PARTICLES (S247 — via shared `spawnPuff`;
+  // S269 — when the blast is chain-triggered, override the preset
+  // colour so the spark reads as "another bomb caught me" rather
+  // than a normal fuse detonation).
+  const puffOpts: {
+    id: string;
+    position: [number, number, number];
+    preset: string;
+    lifetime: number;
+    rate: number;
+    maxParticles: number;
+    color?: string;
+  } = {
     id: `${id}.spark`,
     position: [gx, 0.4, gz],
     preset: "spark",
     lifetime: 0.4,
     rate: 30,
     maxParticles: 12
-  });
+  };
+  if (chained) puffOpts.color = CHAIN_SPARK_COLOR;
+  spawnPuff(world, puffOpts);
 
   // S213 KABOOM-SCORCH-V2 — co-spawn a dark soot mark at the cell.
   // Each ScorchTile is its own entity (not a decal projected onto
@@ -317,6 +337,9 @@ function chainBombsAt(world: World, occupancy: GridOccupancyQuery, gx: number, g
   for (const id of occupancy.occupants(gx, gz, "bomb")) {
     const bomb = world.getComponent<BombComponent>(id, BOMB);
     if (bomb === undefined || bomb.fuseRemaining <= 0) continue;
-    world.setComponent(id, BOMB, { ...bomb, fuseRemaining: 0 });
+    // S269 — tag the bomb as chain-triggered so bomb-fuse-system can
+    // copy the flag onto the BlastEvent it emits, and blast-propagation
+    // picks a distinct spark colour at spawn time.
+    world.setComponent(id, BOMB, { ...bomb, fuseRemaining: 0, chained: true });
   }
 }
