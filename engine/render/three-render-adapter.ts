@@ -2532,8 +2532,26 @@ export class ThreeRenderAdapter {
         material.needsUpdate = true;
       }
     }
-    if (patch.depthFunc !== undefined) material.depthFunc = depthFuncFor(patch.depthFunc);
-    if (patch.depthWrite !== undefined) material.depthWrite = patch.depthWrite;
+    if (patch.depthFunc !== undefined) {
+      const next = depthFuncFor(patch.depthFunc);
+      if (material.depthFunc !== next) {
+        material.depthFunc = next;
+        // S277d — WebGPU bakes depth state into the render pipeline.
+        // Toggling material.depthFunc after the first render leaves
+        // the pipeline locked to its original LessEqual, which is why
+        // the outline-occluder duplicates rendered ON TOP of their
+        // live source instead of failing the greater-than test
+        // ("white bombs / player-coloured bombs"). Mark needsUpdate
+        // to force Three to rebuild the pipeline.
+        material.needsUpdate = true;
+      }
+    }
+    if (patch.depthWrite !== undefined) {
+      if (material.depthWrite !== patch.depthWrite) {
+        material.depthWrite = patch.depthWrite;
+        material.needsUpdate = true;
+      }
+    }
     if (patch.side !== undefined) material.side = sideFor(patch.side);
     if (patch.polygonOffset !== undefined) {
       material.polygonOffset = true;

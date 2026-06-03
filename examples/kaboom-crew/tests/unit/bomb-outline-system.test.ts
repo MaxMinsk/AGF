@@ -1,9 +1,7 @@
-// S277b — coverage for the kaboom bomb-outline-system. Each Bomb gets
-// one `<bombId>.outline-occluder` duplicate carrying the engine
-// `OutlineOccluder` component (WebGPU NodeMaterial path, same as the
-// bomber outline). The duplicate's MeshRenderer is pre-coloured so
-// the one frame before the WebGPU material swaps in paints the right
-// colour rather than the default `#cccccc` light-grey.
+// S277d — coverage for the kaboom bomb-outline-system. Bombs use the
+// S273 `depthFunc='greater'` MeshRenderer-patch path so the silhouette
+// only ever draws WHERE the depth buffer holds a closer surface — the
+// live bomb mesh keeps its colour + fuse pulse intact.
 
 import { describe, expect, it } from "vitest";
 
@@ -24,25 +22,32 @@ function step(system: { frameUpdate?: (ctx: never) => void }, world: World): voi
   });
 }
 
-describe("createKaboomBombOutlineSystem (S277b)", () => {
-  it("spawns one duplicate per Bomb with matching mesh ref + OutlineOccluder", () => {
+type OutlineMeshRenderer = {
+  mesh: string;
+  color: string;
+  transparent: boolean;
+  opacity: number;
+  depthFunc: string;
+  depthWrite: boolean;
+};
+
+describe("createKaboomBombOutlineSystem (S277d)", () => {
+  it("spawns one duplicate per Bomb with depthFunc='greater' + placer-palette colour", () => {
     const world = new World();
     makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
     const outlineId = "bomb.player.1.1.outline-occluder";
     expect(world.hasEntity(outlineId)).toBe(true);
-    const renderer = world.getComponent<{ mesh: string; color?: string }>(outlineId, "MeshRenderer");
-    expect(renderer?.mesh).toBe("sphere");
-    // No MeshRenderer.color: the engine outline-occluder-system swaps
-    // a WebGPU NodeMaterial in whose colorNode is the authoritative
-    // source. material-binding setting `material.color` would no-op on
-    // a NodeMaterial anyway, but pre-colouring also covered the live
-    // bomb in the placer's bright palette colour before the swap, so
-    // we skip it entirely and rely on `setMeshVisible(false)` instead.
-    expect(renderer?.color).toBeUndefined();
-    const occluder = world.getComponent<{ color: string }>(outlineId, "OutlineOccluder");
-    expect(occluder?.color).toBe("#3ab0ff"); // player.1 → sky palette
+    const renderer = world.getComponent<OutlineMeshRenderer>(outlineId, "MeshRenderer");
+    expect(renderer).toMatchObject({
+      mesh: "sphere",
+      color: "#3ab0ff",
+      transparent: true,
+      depthFunc: "greater",
+      depthWrite: false
+    });
+    expect(renderer?.opacity).toBeGreaterThan(0);
   });
 
   it("uses placer-personality colour for NPC bombs", () => {
@@ -52,17 +57,17 @@ describe("createKaboomBombOutlineSystem (S277b)", () => {
     makeBomb(world, "bomb.opp.1.1", "opp.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    const occluder = world.getComponent<{ color: string }>("bomb.opp.1.1.outline-occluder", "OutlineOccluder");
-    expect(occluder?.color).toBe("#c9a14d"); // miner → sand palette
+    const renderer = world.getComponent<OutlineMeshRenderer>("bomb.opp.1.1.outline-occluder", "MeshRenderer");
+    expect(renderer?.color).toBe("#c9a14d");
   });
 
-  it("uses the warm-orange fallback when ownerId is missing / unknown", () => {
+  it("falls back to warm-orange when ownerId is missing / unknown", () => {
     const world = new World();
     makeBomb(world, "stale.bomb.0", undefined);
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    const occluder = world.getComponent<{ color: string }>("stale.bomb.0.outline-occluder", "OutlineOccluder");
-    expect(occluder?.color).toBe("#ff7a3a");
+    const renderer = world.getComponent<OutlineMeshRenderer>("stale.bomb.0.outline-occluder", "MeshRenderer");
+    expect(renderer?.color).toBe("#ff7a3a");
   });
 
   it("is idempotent — a second step doesn't re-spawn duplicates", () => {
@@ -75,14 +80,19 @@ describe("createKaboomBombOutlineSystem (S277b)", () => {
     expect(world.entityCount()).toBe(before);
   });
 
-  it("removes the duplicate when the source bomb detonates", () => {
+  it("survives a 'map restart' (same bomb-id re-used after deletion)", () => {
     const world = new World();
     makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
     expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(true);
+    // detonation
     world.removeEntity("bomb.player.1.1");
-    step(sys, world);
+    step(sys, world); // GC orphan
     expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(false);
+    // restart: new bomb with the same id
+    makeBomb(world, "bomb.player.1.1", "player.1");
+    step(sys, world);
+    expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(true);
   });
 });
