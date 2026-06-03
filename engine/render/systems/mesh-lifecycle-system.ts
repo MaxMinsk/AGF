@@ -1,4 +1,4 @@
-// M21-d: own the create/destroy lifecycle of renderer mesh handles. Reads
+// M21-d (S280-fix2): own the create/destroy lifecycle of renderer mesh handles. Reads
 // `MeshRenderer` (presence) and the `MeshRenderer.mesh` + `.color` fields;
 // writes `RenderMeshHandle { id: number }` as a renderer-internal component
 // so MaterialBindingSystem (M21-e) and MeshTransformSyncSystem (M21-f) can

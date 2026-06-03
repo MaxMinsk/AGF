@@ -133,4 +133,23 @@ describe("MeshLifecycleSystem", () => {
     expect(reg.released).toEqual([1]);
     expect(reg.handleFor("a")).toBe(2);
   });
+
+  it("skips entities with Batchable but processes those with Batchable: { enabled: false }", () => {
+    // S280-fix2: `Batchable: { enabled: false }` is the documented
+    // opt-out — those entities must get a per-entity RenderMeshHandle.
+    const world = new World();
+    world.addEntity("batched");
+    world.setComponent("batched", "MeshRenderer", { mesh: "box" });
+    world.setComponent("batched", "Batchable", {});
+    world.addEntity("opted-out");
+    world.setComponent("opted-out", "MeshRenderer", { mesh: "sphere" });
+    world.setComponent("opted-out", "Batchable", { enabled: false });
+
+    const reg = stubRegistry();
+    const system = createMeshLifecycleSystem(reg);
+    system.frameUpdate?.(ctx(world));
+
+    expect(world.hasComponent("batched", RENDER_MESH_HANDLE)).toBe(false);
+    expect(world.hasComponent("opted-out", RENDER_MESH_HANDLE)).toBe(true);
+  });
 });
