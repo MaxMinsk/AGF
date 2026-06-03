@@ -76,17 +76,56 @@ function cellInBlast(bomb: { gx: number; gz: number; range: number }, gx: number
   return false;
 }
 
-/** S227 — additive aggression bias driven by RoundState.tally. */
+/** S227 + S266 — additive aggression bias driven by RoundState.tally.
+ *  Implements the full GDP-2026-05-29-010 Layer 2 mapping (six
+ *  situational shifts; S227 originally shipped 2 of 6 — the rest land
+ *  here so the HUD telegraph (S266) has a coherent underlying weight). */
 export function personalityTallyBias(world: World, persona: BotPersonality): number {
   const round = world.hasEntity("kaboom.round-state")
     ? world.getComponent<{ tally?: { player?: number; bot?: number } }>("kaboom.round-state", "RoundState")
     : undefined;
   const playerWins = round?.tally?.player ?? 0;
   const botWins = round?.tally?.bot ?? 0;
-  const diff = botWins - playerWins;
-  if (persona === "coward" && diff >= 2) return 0.2;
-  if (persona === "hunter" && diff <= -2) return -0.2;
+  return tallyBiasForDiff(persona, botWins - playerWins);
+}
+
+/** Pure helper — given the bot-vs-player win differential, return the
+ *  aggression bias. Exported so unit tests + the HUD label can share
+ *  the exact mapping. */
+export function tallyBiasForDiff(persona: BotPersonality, diff: number): number {
+  if (persona === "coward") {
+    if (diff >= 2) return 0.2;   // Brave Coward — comfortably ahead
+    if (diff <= -2) return -0.1; // Pure Coward — too late to take chances
+    return 0;
+  }
+  if (persona === "hunter") {
+    if (diff >= 2) return 0.2;   // Reckless Hunter — aggressive finisher
+    if (diff <= -2) return -0.2; // Patient Hunter — stop rushing
+    return 0;
+  }
+  // miner
+  if (diff >= 2) return -0.1;    // Pure Miner — ignore combat
+  if (diff <= -2) return 0.2;    // Combat Miner — panic combat
   return 0;
+}
+
+/** S266 — HUD-friendly label for the bot's current personality shift.
+ *  Returns undefined when the bot sits at baseline (|diff| ≤ 1). */
+export function shiftedPersonalityLabel(persona: BotPersonality, diff: number): string | undefined {
+  if (persona === "coward") {
+    if (diff >= 2) return "brave";
+    if (diff <= -2) return "fearful";
+    return undefined;
+  }
+  if (persona === "hunter") {
+    if (diff >= 2) return "reckless";
+    if (diff <= -2) return "patient";
+    return undefined;
+  }
+  // miner
+  if (diff >= 2) return "calm";
+  if (diff <= -2) return "combat";
+  return undefined;
 }
 
 /** S223 — count soft blocks in line along `dir` starting from

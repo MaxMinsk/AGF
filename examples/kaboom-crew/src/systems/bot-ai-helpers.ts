@@ -52,6 +52,8 @@ export {
 export {
   shouldRemoteDetonate,
   personalityTallyBias,
+  tallyBiasForDiff,
+  shiftedPersonalityLabel,
   countSoftBlocksInLine,
   wouldKillEnemyAt,
   maybeFireBotThrow,
