@@ -29,6 +29,7 @@ const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
 const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
 const OUTLINE_PREPASS_EXCLUDED: ComponentName = "OutlinePrePassExcluded";
+const BATCHABLE: ComponentName = "Batchable";
 
 const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#ff7a3a";
@@ -65,6 +66,17 @@ export function createKaboomBombOutlineSystem(): System {
         if (!world.hasComponent(bombId, OUTLINE_PREPASS_EXCLUDED)) {
           world.setComponent(bombId, OUTLINE_PREPASS_EXCLUDED, {});
         }
+        // S280 — also opt the bomb out of auto-batching. The bomb mesh
+        // is a "sphere" primitive which `render.batching.auto: true`
+        // (kaboom-crew project.json) buckets into an InstancedMesh.
+        // Batched entities have no per-entity `RenderMeshHandle`, so
+        // `setMeshOutlinePrePassExcluded(handle)` can't reach them — the
+        // pre-pass would still see the bomb in its depth target and
+        // the outline would zero out at every bomb pixel (including
+        // the cross-wall ones we want to silhouette).
+        if (!world.hasComponent(bombId, BATCHABLE)) {
+          world.setComponent(bombId, BATCHABLE, { enabled: false });
+        }
 
         const outlineId = `${bombId}.${OUTLINE_SUFFIX}`;
         if (world.hasEntity(outlineId)) continue;
@@ -80,17 +92,23 @@ export function createKaboomBombOutlineSystem(): System {
           scale: [1, 1, 1]
         });
         world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
+        // S280 — opt out of auto-batching. The bomb outline uses the
+        // built-in "sphere" primitive, which the engine batching
+        // system auto-buckets into a shared InstancedMesh. Batched
+        // entities are skipped by `mesh-lifecycle`, so they never get
+        // a `RenderMeshHandle`, so the engine `render.outline-occluder`
+        // system never finds them in its query — the outline ends up
+        // drawn by the batched InstancedMesh with the default white
+        // material, covering the live bomb. Per-mesh-handle path is
+        // mandatory for the WebGPU NodeMaterial swap to land on this
+        // entity.
+        world.setComponent(outlineId, BATCHABLE, { enabled: false });
         world.setComponent(outlineId, OUTLINE_OCCLUDER, {
           color,
           opacity: OUTLINE_OPACITY,
           softEdge: OUTLINE_SOFT_EDGE
         });
         world.setComponent(outlineId, OUTLINE_PREPASS_EXCLUDED, {});
-        // S280-diag — verify bomb outlines are actually being spawned
-        // in the user's session. Drop when the bomb-through-walls
-        // feature is confirmed stable.
-        // eslint-disable-next-line no-console
-        console.log(`[bomb-outline] spawned ${outlineId} (color=${color}, mesh=${renderer.mesh})`);
       }
 
       // GC orphan outlines whose source bomb is gone.

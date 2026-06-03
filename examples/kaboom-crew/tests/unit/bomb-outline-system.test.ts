@@ -50,6 +50,25 @@ describe("createKaboomBombOutlineSystem (S280)", () => {
     expect(world.hasComponent("bomb.player.1.1.outline-occluder", "OutlinePrePassExcluded")).toBe(true);
   });
 
+  it("opts both the source bomb AND the outline duplicate out of auto-batching", () => {
+    // Kaboom-crew runs with project.json `render.batching.auto: true` —
+    // primitive-mesh entities (sphere/box/plane) are bucketed into an
+    // InstancedMesh and skipped by mesh-lifecycle. The outline shader
+    // path needs per-entity handles to land setMeshMaterial, so both
+    // sides of the silhouette must opt out.
+    const world = new World();
+    makeBomb(world, "bomb.player.1.1", "player.1");
+    const sys = createKaboomBombOutlineSystem();
+    step(sys, world);
+    const bombBatchable = world.getComponent<{ enabled?: boolean }>("bomb.player.1.1", "Batchable");
+    expect(bombBatchable?.enabled).toBe(false);
+    const outlineBatchable = world.getComponent<{ enabled?: boolean }>(
+      "bomb.player.1.1.outline-occluder",
+      "Batchable"
+    );
+    expect(outlineBatchable?.enabled).toBe(false);
+  });
+
   it("uses placer-personality colour for NPC bombs", () => {
     const world = new World();
     world.addEntity("opp.1");
