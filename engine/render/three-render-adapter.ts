@@ -1569,6 +1569,12 @@ export class ThreeRenderAdapter {
     depthTexture: DepthTexture | undefined;
   }>();
   private nextRenderTargetHandle = 1;
+  // S278 — meshes hidden during the outline pre-pass (so the depth
+  // texture the outline shader samples reflects only WORLD geometry,
+  // not the bomber that owns the silhouette). Mutated through
+  // `setMeshOutlinePrePassExcluded`; cleaned up by `releaseMesh` so
+  // a disposed mesh doesn't linger in the set.
+  private readonly outlinePrePassExcluded = new Set<Mesh>();
 
   /**
    * Acquire a render target sized `(width × height)`. When `depthTexture`
@@ -2454,6 +2460,9 @@ export class ThreeRenderAdapter {
     mesh.geometry.dispose();
     disposeMaterial(mesh.material);
     this.meshes.delete(handle);
+    // S278 — drop any outline-prepass exclusion for this mesh so the
+    // set doesn't pin a disposed Mesh reference.
+    this.outlinePrePassExcluded.delete(mesh);
   }
 
   setMeshGeometry(handle: MeshHandle, geometry: BufferGeometry): void {
@@ -2487,6 +2496,51 @@ export class ThreeRenderAdapter {
     mesh.renderOrder = order;
   }
 
+  /** S277b — flip the Three.Object3D `visible` flag on a mesh. Used by
+   *  the outline-occluder system to keep a duplicate hidden until its
+   *  WebGPU NodeMaterial async-loads + swaps in; without this guard the
+   *  duplicate flashes the default `#cccccc` MeshStandardMaterial over
+   *  its source for 1-3 frames, which reads as "white bomb" / "player-
+   *  coloured bomb" depending on what other patches are pending. */
+  setMeshVisible(handle: MeshHandle, visible: boolean): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    mesh.visible = visible;
+  }
+
+  /** S278 — public scene + camera accessors for the outline pre-pass
+   *  system, which needs them to drive `renderSceneToTarget`. The
+   *  adapter still owns the graph; treat the returned values as
+   *  read-only (mutating either breaks every other render path). */
+  getScene(): Scene {
+    return this.scene;
+  }
+  getActiveCamera(): PerspectiveCamera | OrthographicCamera | undefined {
+    return this.activeCamera();
+  }
+
+  /** S278 — tag (or untag) a mesh as "excluded from the outline
+   *  pre-pass". The pre-pass system flips `Mesh.visible = false` on
+   *  every tagged mesh, renders the depth-only target, then restores
+   *  `visible`. Cheaper than juggling Three's layer masks across the
+   *  main camera + shadow cameras + reflection probes. Idempotent —
+   *  the underlying storage is a `Set<Mesh>`. */
+  setMeshOutlinePrePassExcluded(handle: MeshHandle, excluded: boolean): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    if (excluded) this.outlinePrePassExcluded.add(mesh);
+    else this.outlinePrePassExcluded.delete(mesh);
+  }
+
+  /** S278 — iterable view of meshes the outline pre-pass should hide
+   *  before rendering. The returned set is owned by the adapter; the
+   *  caller MUST NOT mutate it (use `setMeshOutlinePrePassExcluded`
+   *  for changes so cleanup happens correctly during releaseMesh). */
+  outlinePrePassExcludedMeshes(): ReadonlySet<Mesh> {
+    return this.outlinePrePassExcluded;
+  }
+
+
   setMeshMaterialPatch(handle: MeshHandle, patch: MaterialPatch): void {
     const mesh = this.meshes.get(handle);
     if (mesh === undefined) return;
@@ -2519,8 +2573,26 @@ export class ThreeRenderAdapter {
         material.needsUpdate = true;
       }
     }
-    if (patch.depthFunc !== undefined) material.depthFunc = depthFuncFor(patch.depthFunc);
-    if (patch.depthWrite !== undefined) material.depthWrite = patch.depthWrite;
+    if (patch.depthFunc !== undefined) {
+      const next = depthFuncFor(patch.depthFunc);
+      if (material.depthFunc !== next) {
+        material.depthFunc = next;
+        // S277d — WebGPU bakes depth state into the render pipeline.
+        // Toggling material.depthFunc after the first render leaves
+        // the pipeline locked to its original LessEqual, which is why
+        // the outline-occluder duplicates rendered ON TOP of their
+        // live source instead of failing the greater-than test
+        // ("white bombs / player-coloured bombs"). Mark needsUpdate
+        // to force Three to rebuild the pipeline.
+        material.needsUpdate = true;
+      }
+    }
+    if (patch.depthWrite !== undefined) {
+      if (material.depthWrite !== patch.depthWrite) {
+        material.depthWrite = patch.depthWrite;
+        material.needsUpdate = true;
+      }
+    }
     if (patch.side !== undefined) material.side = sideFor(patch.side);
     if (patch.polygonOffset !== undefined) {
       material.polygonOffset = true;

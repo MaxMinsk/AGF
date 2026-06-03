@@ -56,6 +56,8 @@ import { createSpringPivotSystem } from "../procbomber-bench/src/systems/spring-
 import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft-attach-sway-system";
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-movement-system";
+import { createKaboomBomberOutlineSystem } from "./src/systems/bomber-outline-system";
+import { createKaboomBombOutlineSystem } from "./src/systems/bomb-outline-system";
 
 // S104 KABOOM-MIGRATE-PREFABS + S139 KABOOM-BOT-PERSONALITY-VISUALS.
 // The pure recipe derivation lives in ./src/kaboom-recipe so it can
@@ -131,6 +133,7 @@ import {
 // renderer resolves through these procedural builders instead of the
 // engine box primitive.
 import { registerKaboomBlockBuilders } from "./src/register-block-builders";
+import { registerKaboomBombOutlineBuilder } from "./src/register-bomb-outline-builder";
 import {
   createKaboomBlockVariantSystem,
   createKaboomWangMeshSyncSystem
@@ -285,6 +288,22 @@ function readFollowModeFromUrl(): FollowMode {
     return "damped";
   } catch {
     return "damped";
+  }
+}
+
+// S277 — outline-occluder URL gate. `?occluderOutline=off` disables the
+// see-through bomber silhouette feature; default ON now that the engine
+// drives a proper depth pre-pass (no self-occlusion, single extra render
+// at half resolution).
+function resolveOccluderOutlineEnabled(): boolean {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return true;
+  try {
+    const v = new URLSearchParams(search).get("occluderOutline");
+    if (v === "off" || v === "false" || v === "0") return false;
+    return true;
+  } catch {
+    return true;
   }
 }
 
@@ -1025,6 +1044,17 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     scheduler.register(createKaboomBomberAnimationDriverSystem(), { profiles: ["static", "connected"] });
     // S108 KABOOM-BOMBER-FACE-MOVEMENT — root Y rotation tracks GridMover.
     scheduler.register(createKaboomBomberFaceMovementSystem(), { profiles: ["static", "connected"] });
+    // S277/S280 KABOOM-OUTLINE-OCCLUDER — see-through bomber + bomb
+    // silhouettes when occluded by walls / hard blocks. Each system
+    // spawns outline-duplicate entities carrying the engine
+    // `OutlineOccluder` component; `render.outline-prepass` builds a
+    // bomber-excluded depth target and `render.outline-occluder`
+    // swaps in the WebGPU NodeMaterial that samples it.
+    // URL gate `?occluderOutline=off` disables; default ON.
+    if (resolveOccluderOutlineEnabled()) {
+      scheduler.register(createKaboomBomberOutlineSystem(), { profiles: ["static", "connected"] });
+      scheduler.register(createKaboomBombOutlineSystem(), { profiles: ["static", "connected"] });
+    }
 
     // Bomb pipeline.
     // S117 KABOOM-MP-SPRINT-B — on the connected profile the relay runs
@@ -1590,6 +1620,11 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // `procedural:kaboom-hard-block-N` onto MeshRenderer.mesh. The
     // registry needs ALL the keys before the renderer sync ticks.
     registerKaboomBlockBuilders(runtime.renderer);
+    // S280 — bomb outline duplicate uses a procedural-mesh ref to
+    // bypass the auto-batch path; register its geometry builder
+    // alongside the block builders so it's ready before the first
+    // bomb spawns.
+    registerKaboomBombOutlineBuilder(runtime.renderer);
     // S170 — Wang family registration is idempotent (HMR-safe) so the
     // call is unconditional.
     registerKaboomWangFamilies();

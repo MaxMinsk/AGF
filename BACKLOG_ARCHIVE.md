@@ -180,5 +180,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S173](backlog/sprints/S173.sprint.json)** — Variable cell height MVP — Heightmap singleton + cliff-aware blast + movement — 7 implemented · archived 2026-05-28
 - **[S174](backlog/sprints/S174.sprint.json)** — Ramps MVP — per-cell Ramp component bridges a single-step cliff for movement + blast — 7 implemented · archived 2026-05-28
 - **[S176](backlog/sprints/S176.sprint.json)** — Floor Wang tiles MVP — FloorTerrain component + grass family + per-cell overlay spawn — 6 implemented · archived 2026-05-28
+- **[S177](backlog/sprints/S177.sprint.json)** — Bot AI nuance + arena polish — finish GDP-2026-05-29-010 Layer 3, push visible cues + onboarding-grade touch-ups — 17 implemented, 1 deferred · archived 2026-06-03
 
 <!-- backlog:render:end -->
