@@ -102,16 +102,15 @@ export function createKaboomBomberOutlineSystem(
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          // Initial `transparent: true, opacity: 0` keeps the duplicate
-          // invisible for the one frame between the kaboom system
-          // adding the entity and the engine `render.outline-occluder`
-          // system swapping in the WebGPU NodeMaterial. Without this
-          // guard, very-short-lived hosts (bombs about to detonate)
-          // flash a default white mesh.
+          // Pre-set the duplicate's MeshRenderer.color to the bomber
+          // palette colour so the brief window before the engine
+          // `render.outline-occluder` system swaps in the WebGPU
+          // NodeMaterial paints the duplicate as a visually-identical
+          // overlay (same colour as the bomber part), not the default
+          // `#cccccc` light-grey MeshStandardMaterial.
           world.setComponent(outlineId, MESH_RENDERER, {
             mesh: renderer.mesh,
-            transparent: true,
-            opacity: 0
+            color
           });
           world.setComponent(outlineId, OUTLINE_OCCLUDER, { color, opacity, softEdge });
         }

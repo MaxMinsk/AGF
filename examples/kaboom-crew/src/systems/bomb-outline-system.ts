@@ -63,15 +63,16 @@ export function createKaboomBombOutlineSystem(): System {
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          // Initial transparent+opacity=0: the engine `render.outline-
-          // occluder` system swaps a WebGPU NodeMaterial in on the next
-          // frame; without this guard the duplicate flashes the default
-          // white Three.js material for one frame which reads as a
-          // "white bomb" for very-short-lived bombs.
+          // Pre-set the duplicate's MeshRenderer.color to the bomb's
+          // own colour so the brief window before the engine
+          // `render.outline-occluder` system swaps in the WebGPU
+          // NodeMaterial paints the duplicate as a visually-identical
+          // overlay (dark bomb sphere over the dark bomb), not the
+          // default `#cccccc` light-grey MeshStandardMaterial which
+          // user-reported as "white bombs".
           world.setComponent(outlineId, MESH_RENDERER, {
             mesh: renderer.mesh,
-            transparent: true,
-            opacity: 0
+            color: "#1a1a1a"
           });
           world.setComponent(outlineId, OUTLINE_OCCLUDER, {
             color,
