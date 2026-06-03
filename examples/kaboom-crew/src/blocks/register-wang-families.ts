@@ -26,10 +26,12 @@ import {
 } from "../../../../engine/render/autotile";
 
 import {
+  dirtBitmaskToVariant,
   grassBitmaskToVariant,
   hardBlockBitmaskToVariant,
   pathBitmaskToVariant,
-  softBlockBitmaskToVariant
+  softBlockBitmaskToVariant,
+  stoneBitmaskToVariant
 } from "./wang-family-lookup";
 
 /** Wang family name for Kaboom hard (indestructible) blocks. */
@@ -40,6 +42,10 @@ export const SOFT_BLOCK_WANG_FAMILY = "kaboom-soft-block";
 export const GRASS_WANG_FAMILY = "kaboom-grass";
 /** S271 — Wang family name for path (earth-tone) floor-overlay cells. */
 export const PATH_WANG_FAMILY = "kaboom-path";
+/** S272 — Wang family name for stone (grey) floor-overlay cells. */
+export const STONE_WANG_FAMILY = "kaboom-stone";
+/** S272 — Wang family name for dirt (rust-brown) floor-overlay cells. */
+export const DIRT_WANG_FAMILY = "kaboom-dirt";
 
 /**
  * Register every Kaboom Crew Wang family with the engine registry.
@@ -60,6 +66,8 @@ export function registerKaboomWangFamilies(): void {
   registerFamilySafe(buildSoftBlockFamily());
   registerFamilySafe(buildGrassFamily());
   registerFamilySafe(buildPathFamily());
+  registerFamilySafe(buildStoneFamily());
+  registerFamilySafe(buildDirtFamily());
 }
 
 function registerFamilySafe(family: WangTileFamily): void {
@@ -100,6 +108,20 @@ function buildPathFamily(): WangTileFamily {
   return {
     name: PATH_WANG_FAMILY,
     variants: buildVariants(PATH_WANG_FAMILY, pathBitmaskToVariant)
+  };
+}
+
+function buildStoneFamily(): WangTileFamily {
+  return {
+    name: STONE_WANG_FAMILY,
+    variants: buildVariants(STONE_WANG_FAMILY, stoneBitmaskToVariant)
+  };
+}
+
+function buildDirtFamily(): WangTileFamily {
+  return {
+    name: DIRT_WANG_FAMILY,
+    variants: buildVariants(DIRT_WANG_FAMILY, dirtBitmaskToVariant)
   };
 }
 

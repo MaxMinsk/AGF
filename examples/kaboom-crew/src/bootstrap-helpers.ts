@@ -24,8 +24,8 @@ import {
   isArenaThemeKey
 } from "./themes/theme-table";
 
-/** S176 + S271 — terrain family identifier (must match scene-extensions.schema.json). */
-export type FloorTerrainFamily = "floor" | "grass" | "path";
+/** S176 + S271 + S272 — terrain family identifier (must match scene-extensions.schema.json). */
+export type FloorTerrainFamily = "floor" | "grass" | "path" | "stone" | "dirt";
 
 /** S176 — the family name treated as the no-overlay default. Cells of
  *  this family get no per-cell entity (the scene's stretched-box floor
@@ -37,6 +37,8 @@ export const DEFAULT_TERRAIN_FAMILY: FloorTerrainFamily = "floor";
  *  helper free of cyclic imports. */
 const GRASS_WANG_FAMILY_NAME = "kaboom-grass";
 const PATH_WANG_FAMILY_NAME = "kaboom-path";
+const STONE_WANG_FAMILY_NAME = "kaboom-stone";
+const DIRT_WANG_FAMILY_NAME = "kaboom-dirt";
 
 /**
  * Build an idempotent set of commands that creates the entity if it
@@ -259,6 +261,8 @@ export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
 function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
   if (family === "grass") return GRASS_WANG_FAMILY_NAME;
   if (family === "path") return PATH_WANG_FAMILY_NAME;
+  if (family === "stone") return STONE_WANG_FAMILY_NAME;
+  if (family === "dirt") return DIRT_WANG_FAMILY_NAME;
   // 'floor' has no overlay entity; anything else is unknown.
   return undefined;
 }

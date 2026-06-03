@@ -127,6 +127,16 @@ export function pathBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
   return LOOKUP_TABLE[clampBitmask(bitmask)]!.variant;
 }
 
+/** S272 KABOOM-FLOOR-WANG-STONE — third terrain family. Same table. */
+export function stoneBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
+  return LOOKUP_TABLE[clampBitmask(bitmask)]!.variant;
+}
+
+/** S272 KABOOM-FLOOR-WANG-DIRT — fourth terrain family. Same table. */
+export function dirtBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
+  return LOOKUP_TABLE[clampBitmask(bitmask)]!.variant;
+}
+
 /**
  * S214 — Y rotation (degrees) for the same bitmask. Pulled out so
  * the variant index + the rotation can be cached independently in
