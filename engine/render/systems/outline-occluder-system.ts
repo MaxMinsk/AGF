@@ -87,6 +87,12 @@ export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
     } catch {
       webgpuActive = false;
     }
+    // S277f-diag — print once at first invocation so we can read the
+    // user's browser console + know whether the NodeMaterial path is
+    // even active in their environment. Will be removed once the
+    // outline-occluder feature stabilises.
+    // eslint-disable-next-line no-console
+    console.log(`[outline-occluder] webgpuActive=${webgpuActive} renderer=${(deps.adapter.info() as { renderer?: string }).renderer ?? "?"}`);
     return webgpuActive;
   }
 
@@ -161,6 +167,8 @@ function applyOutline(
       // visible. From here the smoothstep opacityNode controls draw
       // (0 alpha when the source is visible, 0.85 when occluded).
       deps.adapter.setMeshVisible(handle, true);
+      // eslint-disable-next-line no-console
+      console.log(`[outline-occluder] applied NodeMaterial to ${entityId} (color=${opts.color}, softEdge=${opts.softEdge})`);
       applied.set(entityId, {
         color: opts.color,
         opacity: opts.opacity,
