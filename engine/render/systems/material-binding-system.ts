@@ -47,14 +47,23 @@ type MeshRendererComponent = {
   // forwarded to the underlying material (S184 plumbing in the
   // ThreeRenderAdapter). Lets projects spawn outline-occluder
   // duplicate meshes that draw ONLY where they're behind something
-  // else (depthFunc='greater' + depthWrite=false). Stencil knobs
-  // intentionally NOT exposed yet — they belong to a project that
-  // sets up the matching original-mesh stencil write.
+  // else (depthFunc='greater' + depthWrite=false).
   depthFunc?: "less" | "lessEqual" | "greater" | "greaterEqual" | "always";
   depthWrite?: boolean;
   transparent?: boolean;
   opacity?: number;
   polygonOffset?: { factor: number; units: number };
+  // S274 — stencil knobs. Bomber mesh parts stamp `stencilWrite=true
+  // + stencilRef=1 + stencilFunc='always' + stencilZPass='replace'`
+  // so the buffer carries "this is the bomber" at every part-pixel.
+  // The outline duplicate tests `stencilFunc='notEqual' +
+  // stencilRef=1` to skip the bomber's own pixels — kills the
+  // S273 self-occlusion artifact (outline-of-torso painting through
+  // head, etc.).
+  stencilWrite?: boolean;
+  stencilRef?: number;
+  stencilFunc?: "always" | "never" | "equal" | "notEqual" | "less" | "lessEqual" | "greater" | "greaterEqual";
+  stencilZPass?: "keep" | "replace" | "increment" | "decrement" | "invert" | "zero";
 };
 
 export type MaterialBindingDeps = {
@@ -122,6 +131,22 @@ export function createMaterialBindingSystem(
       }
       if (mesh.polygonOffset !== undefined) {
         renderStatePatch.polygonOffset = mesh.polygonOffset;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.stencilWrite !== undefined) {
+        renderStatePatch.stencilWrite = mesh.stencilWrite;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.stencilRef !== undefined) {
+        renderStatePatch.stencilRef = mesh.stencilRef;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.stencilFunc !== undefined) {
+        renderStatePatch.stencilFunc = mesh.stencilFunc;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.stencilZPass !== undefined) {
+        renderStatePatch.stencilZPass = mesh.stencilZPass;
         hasRenderStatePatch = true;
       }
       if (hasRenderStatePatch) {

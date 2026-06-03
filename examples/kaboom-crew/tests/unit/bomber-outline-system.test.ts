@@ -1,12 +1,14 @@
-// S273 KABOOM-OUTLINE-OCCLUDER — bomber outline duplicate spawn system.
+// S273 + S274 KABOOM-OUTLINE-OCCLUDER — bomber outline pillar +
+// stencil-mask test coverage.
 
 import { describe, expect, it } from "vitest";
 
 import { World } from "../../../../engine/core/ecs/world";
 import {
+  BOMBER_STENCIL_REF,
   createKaboomBomberOutlineSystem,
-  outlineEntityIdFor,
-  torsoEntityIdFor
+  OUTLINE_PILLAR_DIMS,
+  outlineEntityIdFor
 } from "../../src/systems/bomber-outline-system";
 
 function ctx(world: World, dt = 1 / 60) {
@@ -16,124 +18,158 @@ function ctx(world: World, dt = 1 / 60) {
   };
 }
 
-function addBomberWithTorso(world: World, rootId: string, opts: { meshRef?: string } = {}): void {
-  const meshRef = opts.meshRef ?? `procedural:procbomber-torso#${rootId}`;
+function addBomber(world: World, rootId: string): void {
   world.addEntity(rootId);
   world.setComponent(rootId, "BomberStats", { maxBombs: 1, range: 2, alive: true });
-  const torsoId = torsoEntityIdFor(rootId);
-  world.addEntity(torsoId);
-  world.setComponent(torsoId, "Transform", { parent: rootId, position: [0, 0.6, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
-  world.setComponent(torsoId, "MeshRenderer", { mesh: meshRef, color: "#ff0000" });
+  world.setComponent(rootId, "Transform", { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
 }
 
-describe("createKaboomBomberOutlineSystem (S273)", () => {
-  it("disabled → no outline entity spawns", () => {
+function addBomberPart(world: World, bomberRoot: string, partSuffix: string, meshRef: string): string {
+  const id = `${bomberRoot}.${partSuffix}`;
+  world.addEntity(id);
+  world.setComponent(id, "Transform", { parent: bomberRoot, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+  world.setComponent(id, "MeshRenderer", { mesh: meshRef, color: "#ff0000" });
+  return id;
+}
+
+describe("createKaboomBomberOutlineSystem (S273 + S274)", () => {
+  it("disabled → no outline pillar, no stencil stamping", () => {
     const world = new World();
-    addBomberWithTorso(world, "player.1");
+    addBomber(world, "player.1");
+    addBomberPart(world, "player.1", "torso", "procedural:procbomber-torso#player.1");
     const sys = createKaboomBomberOutlineSystem({ enabled: false });
     sys.fixedUpdate!(ctx(world));
     expect(world.hasEntity(outlineEntityIdFor("player.1"))).toBe(false);
+    const torso = world.getComponent<{ stencilWrite?: boolean }>("player.1.torso", "MeshRenderer")!;
+    expect(torso.stencilWrite).toBeUndefined();
   });
 
-  it("spawns an outline duplicate parented to the torso, with depthFunc='greater' + depthWrite=false + same mesh ref", () => {
+  it("spawns a pillar at the bomber root with depthFunc='greater', stencilFunc='notEqual', stencilRef=BOMBER_STENCIL_REF", () => {
     const world = new World();
-    addBomberWithTorso(world, "player.1");
+    addBomber(world, "player.1");
     const sys = createKaboomBomberOutlineSystem({ enabled: true });
     sys.fixedUpdate!(ctx(world));
     const outlineId = outlineEntityIdFor("player.1");
     expect(world.hasEntity(outlineId)).toBe(true);
-    const transform = world.getComponent<{ parent?: string }>(outlineId, "Transform")!;
-    expect(transform.parent).toBe(torsoEntityIdFor("player.1"));
+    const tr = world.getComponent<{ parent?: string; position?: ReadonlyArray<number>; scale?: ReadonlyArray<number> }>(outlineId, "Transform")!;
+    expect(tr.parent).toBe("player.1");
+    expect(tr.position).toEqual([0, OUTLINE_PILLAR_DIMS.centerY, 0]);
+    expect(tr.scale).toEqual([OUTLINE_PILLAR_DIMS.width, OUTLINE_PILLAR_DIMS.height, OUTLINE_PILLAR_DIMS.width]);
     const mesh = world.getComponent<{
       mesh?: string;
-      color?: string;
       depthFunc?: string;
       depthWrite?: boolean;
       transparent?: boolean;
       opacity?: number;
-      polygonOffset?: { factor: number; units: number };
+      stencilFunc?: string;
+      stencilRef?: number;
     }>(outlineId, "MeshRenderer")!;
-    expect(mesh.mesh).toBe("procedural:procbomber-torso#player.1");
+    expect(mesh.mesh).toBe("cylinder");
     expect(mesh.depthFunc).toBe("greater");
     expect(mesh.depthWrite).toBe(false);
     expect(mesh.transparent).toBe(true);
     expect(mesh.opacity).toBeCloseTo(0.85, 4);
-    expect(mesh.polygonOffset).toEqual({ factor: -1, units: -1 });
+    expect(mesh.stencilFunc).toBe("notEqual");
+    expect(mesh.stencilRef).toBe(BOMBER_STENCIL_REF);
   });
 
-  it("picks up the bomber palette color (player.1 → sky tint)", () => {
+  it("stamps every bomber-part MeshRenderer with stencilWrite=true + stencilRef=BOMBER_STENCIL_REF + stencilFunc='always' + stencilZPass='replace'", () => {
     const world = new World();
-    addBomberWithTorso(world, "player.1");
-    const sys = createKaboomBomberOutlineSystem({ enabled: true });
-    sys.fixedUpdate!(ctx(world));
-    const mesh = world.getComponent<{ color?: string }>(outlineEntityIdFor("player.1"), "MeshRenderer")!;
-    expect(mesh.color).toBe("#3ab0ff");
-  });
-
-  it("hunter bot → ember tint", () => {
-    const world = new World();
-    addBomberWithTorso(world, "bot.1");
+    addBomber(world, "bot.1");
     world.setComponent("bot.1", "BotBrain", { aggression: 0, personality: "hunter" });
+    addBomberPart(world, "bot.1", "torso", "procedural:procbomber-torso#bot.1");
+    addBomberPart(world, "bot.1", "head", "procedural:procbomber-head#bot.1");
+    addBomberPart(world, "bot.1", "upperArmL", "procedural:procbomber-upperArm#bot.1");
     const sys = createKaboomBomberOutlineSystem({ enabled: true });
     sys.fixedUpdate!(ctx(world));
-    const mesh = world.getComponent<{ color?: string }>(outlineEntityIdFor("bot.1"), "MeshRenderer")!;
-    expect(mesh.color).toBe("#e65a3a");
+    for (const partId of ["bot.1.torso", "bot.1.head", "bot.1.upperArmL"]) {
+      const mesh = world.getComponent<{
+        stencilWrite?: boolean;
+        stencilRef?: number;
+        stencilFunc?: string;
+        stencilZPass?: string;
+      }>(partId, "MeshRenderer")!;
+      expect(mesh.stencilWrite, `${partId}.stencilWrite`).toBe(true);
+      expect(mesh.stencilRef, `${partId}.stencilRef`).toBe(BOMBER_STENCIL_REF);
+      expect(mesh.stencilFunc, `${partId}.stencilFunc`).toBe("always");
+      expect(mesh.stencilZPass, `${partId}.stencilZPass`).toBe("replace");
+    }
   });
 
-  it("unknown placer falls back to the default outline color (#7fd6ff)", () => {
+  it("DOES NOT stamp stencil on the outline pillar itself", () => {
     const world = new World();
-    addBomberWithTorso(world, "rando.99");
+    addBomber(world, "player.1");
     const sys = createKaboomBomberOutlineSystem({ enabled: true });
     sys.fixedUpdate!(ctx(world));
-    const mesh = world.getComponent<{ color?: string }>(outlineEntityIdFor("rando.99"), "MeshRenderer")!;
-    expect(mesh.color).toBe("#7fd6ff");
+    const pillar = world.getComponent<{
+      stencilWrite?: boolean;
+      stencilFunc?: string;
+    }>(outlineEntityIdFor("player.1"), "MeshRenderer")!;
+    // The pillar's stencilFunc must remain 'notEqual' (the test);
+    // it should NOT have stencilZPass='replace' bolted on by the
+    // stamp pass (that would make the pillar itself write the
+    // stencil, blocking subsequent bomber updates).
+    expect(pillar.stencilFunc).toBe("notEqual");
+    expect(pillar.stencilWrite).toBeUndefined();
   });
 
-  it("is idempotent — repeated ticks don't re-spawn or churn the component", () => {
+  it("colour picks up the bomber palette (player.1 → sky, hunter → ember, unknown → fallback cyan)", () => {
     const world = new World();
-    addBomberWithTorso(world, "player.1");
+    addBomber(world, "player.1");
+    addBomber(world, "bot.1");
+    world.setComponent("bot.1", "BotBrain", { aggression: 0, personality: "hunter" });
+    addBomber(world, "rando.99");
     const sys = createKaboomBomberOutlineSystem({ enabled: true });
     sys.fixedUpdate!(ctx(world));
-    const before = world.getComponent("player.1.torso-outline", "MeshRenderer");
+    expect(world.getComponent<{ color?: string }>(outlineEntityIdFor("player.1"), "MeshRenderer")!.color).toBe("#3ab0ff");
+    expect(world.getComponent<{ color?: string }>(outlineEntityIdFor("bot.1"), "MeshRenderer")!.color).toBe("#e65a3a");
+    expect(world.getComponent<{ color?: string }>(outlineEntityIdFor("rando.99"), "MeshRenderer")!.color).toBe("#7fd6ff");
+  });
+
+  it("idempotency — multiple ticks don't re-create the pillar or churn part stamps", () => {
+    const world = new World();
+    addBomber(world, "player.1");
+    addBomberPart(world, "player.1", "torso", "procedural:procbomber-torso#player.1");
+    const sys = createKaboomBomberOutlineSystem({ enabled: true });
+    sys.fixedUpdate!(ctx(world));
+    const torsoBefore = JSON.stringify(world.getComponent("player.1.torso", "MeshRenderer"));
     for (let i = 0; i < 5; i += 1) sys.fixedUpdate!(ctx(world));
-    const after = world.getComponent("player.1.torso-outline", "MeshRenderer");
-    // The component object reference can change because setComponent
-    // is only called on the FIRST tick; subsequent ticks short-circuit
-    // through the `seen` cache. Either way the content should match.
-    expect(after).toEqual(before);
+    expect(JSON.stringify(world.getComponent("player.1.torso", "MeshRenderer"))).toBe(torsoBefore);
   });
 
-  it("respawns the outline if it gets deleted between ticks (defensive)", () => {
+  it("respawns the pillar if it gets deleted between ticks (defensive)", () => {
     const world = new World();
-    addBomberWithTorso(world, "player.1");
+    addBomber(world, "player.1");
     const sys = createKaboomBomberOutlineSystem({ enabled: true });
     sys.fixedUpdate!(ctx(world));
-    // Editor / probe deletes the outline.
-    world.removeEntity("player.1.torso-outline");
-    expect(world.hasEntity("player.1.torso-outline")).toBe(false);
+    world.removeEntity(outlineEntityIdFor("player.1"));
+    expect(world.hasEntity(outlineEntityIdFor("player.1"))).toBe(false);
     sys.fixedUpdate!(ctx(world));
-    expect(world.hasEntity("player.1.torso-outline")).toBe(true);
+    expect(world.hasEntity(outlineEntityIdFor("player.1"))).toBe(true);
   });
 
-  it("bomber without a torso entity → no outline spawned (no crash)", () => {
-    const world = new World();
-    world.addEntity("bot.x");
-    world.setComponent("bot.x", "BomberStats", { maxBombs: 1, range: 2, alive: true });
-    const sys = createKaboomBomberOutlineSystem({ enabled: true });
-    sys.fixedUpdate!(ctx(world));
-    expect(world.hasEntity(outlineEntityIdFor("bot.x"))).toBe(false);
-  });
-
-  it("clears the seen cache on world swap", () => {
+  it("clears the seen cache on world swap (handles scene.load)", () => {
     const world1 = new World();
-    addBomberWithTorso(world1, "player.1");
+    addBomber(world1, "player.1");
     const sys = createKaboomBomberOutlineSystem({ enabled: true });
     sys.fixedUpdate!(ctx(world1));
     expect(world1.hasEntity(outlineEntityIdFor("player.1"))).toBe(true);
-    // Fresh world — the cache should reset so the new bomber is processed.
     const world2 = new World();
-    addBomberWithTorso(world2, "player.1");
+    addBomber(world2, "player.1");
     sys.fixedUpdate!(ctx(world2));
     expect(world2.hasEntity(outlineEntityIdFor("player.1"))).toBe(true);
+  });
+
+  it("stencil stamp picks up late-spawned parts on subsequent ticks", () => {
+    const world = new World();
+    addBomber(world, "bot.1");
+    const sys = createKaboomBomberOutlineSystem({ enabled: true });
+    sys.fixedUpdate!(ctx(world));
+    // Late-spawned mesh part (e.g. an accessory the recipe added).
+    addBomberPart(world, "bot.1", "cap", "procedural:procbomber-accessory-cap#bot.1");
+    sys.fixedUpdate!(ctx(world));
+    const cap = world.getComponent<{ stencilWrite?: boolean; stencilRef?: number }>("bot.1.cap", "MeshRenderer")!;
+    expect(cap.stencilWrite).toBe(true);
+    expect(cap.stencilRef).toBe(BOMBER_STENCIL_REF);
   });
 });

@@ -64,6 +64,24 @@
             "units": { "type": "number" }
           },
           "required": ["factor", "units"]
+        },
+        "stencilWrite": {
+          "type": "boolean",
+          "description": "S274 — enable stencil-buffer writes for this material. Combined with stencilRef + stencilZPass='replace' this paints stencilRef into the buffer at every drawn pixel — used by the outline-occluder pattern to mark 'this is the bomber' so the outline pass can skip pixels owned by the bomber itself (avoids self-occlusion artifacts)."
+        },
+        "stencilRef": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "S274 — stencil reference value compared against the buffer per fragment. 8-bit (0..255)."
+        },
+        "stencilFunc": {
+          "enum": ["always", "never", "equal", "notEqual", "less", "lessEqual", "greater", "greaterEqual"],
+          "description": "S274 — stencil test function. The outline-occluder duplicate uses 'notEqual' (skip pixels stamped with the bomber's ref) so it never paints over the bomber itself."
+        },
+        "stencilZPass": {
+          "enum": ["keep", "replace", "increment", "decrement", "invert", "zero"],
+          "description": "S274 — stencil op applied when BOTH depth + stencil tests pass. The bomber parts use 'replace' to write stencilRef; the outline duplicate uses the default 'keep'."
         }
       }
     },
