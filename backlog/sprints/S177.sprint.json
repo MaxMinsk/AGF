@@ -118,7 +118,16 @@
       ]
     },
     {
-      "id": "S272-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",
+      "id": "S272-KABOOM-FLOOR-WANG-STONE-DIRT",
+      "title": "Two more floor terrain families — stone (grey) + dirt (rust)",
+      "status": "implemented",
+      "summary": "Continuation of GDP-2026-05-28-012. After S176 grass + S271b path, ships the third + fourth families. stone-variants.ts (cool grey #777a82) + dirt-variants.ts (rust #8a5a3a) follow the exact shape of grass-variants/path-variants. wang-family-lookup gains stoneBitmaskToVariant + dirtBitmaskToVariant. register-wang-families adds STONE_WANG_FAMILY + DIRT_WANG_FAMILY. register-block-builders adds STONE/DIRT_VARIANT_KEYS + 8 builder registrations. bootstrap-helpers' FloorTerrainFamily widens to all 5 families. Schema enum gets 'stone' + 'dirt'. With this slice authors can use all 5 floor families authored via `terrainmap`.",
+      "verification": [
+        "acceptance: 8 unit tests for stone + dirt variants + cross-family palette differentiation (every variant of each family has a colour-sum distinct from the other 3 families). engine:check examples/kaboom-crew OK (schema accepts the 2 new enum values). typecheck + build clean. npx vitest run — 2425/2425 pass (+8 since S271b)."
+      ]
+    },
+    {
+      "id": "S272B-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",
       "title": "Sprint S177 close — archive proposals + render backlog views",
       "status": "pending",
       "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON."

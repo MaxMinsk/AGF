@@ -39,6 +39,14 @@ import {
   type PathVariantIndex
 } from "./blocks/path-variants";
 import {
+  buildStoneVariant,
+  type StoneVariantIndex
+} from "./blocks/stone-variants";
+import {
+  buildDirtVariant,
+  type DirtVariantIndex
+} from "./blocks/dirt-variants";
+import {
   decodeBlockSeed,
   selectVariantIndex,
   type VariantIndex
@@ -79,6 +87,20 @@ export const PATH_VARIANT_KEYS = [
   "kaboom-path-1",
   "kaboom-path-2",
   "kaboom-path-3"
+] as const;
+/** S272 — per-variant mesh keys for the stone floor-overlay family. */
+export const STONE_VARIANT_KEYS = [
+  "kaboom-stone-0",
+  "kaboom-stone-1",
+  "kaboom-stone-2",
+  "kaboom-stone-3"
+] as const;
+/** S272 — per-variant mesh keys for the dirt floor-overlay family. */
+export const DIRT_VARIANT_KEYS = [
+  "kaboom-dirt-0",
+  "kaboom-dirt-1",
+  "kaboom-dirt-2",
+  "kaboom-dirt-3"
 ] as const;
 
 /**
@@ -141,6 +163,20 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     const variantIndex = i as PathVariantIndex;
     registry.register(PATH_VARIANT_KEYS[i]!, (_seed) =>
       buildPathVariant(variantIndex)
+    );
+  }
+  // S272 — third + fourth families: stone (cool grey) + dirt (rust
+  // brown). Same plumbing as grass + path.
+  for (let i = 0; i < STONE_VARIANT_KEYS.length; i += 1) {
+    const variantIndex = i as StoneVariantIndex;
+    registry.register(STONE_VARIANT_KEYS[i]!, (_seed) =>
+      buildStoneVariant(variantIndex)
+    );
+  }
+  for (let i = 0; i < DIRT_VARIANT_KEYS.length; i += 1) {
+    const variantIndex = i as DirtVariantIndex;
+    registry.register(DIRT_VARIANT_KEYS[i]!, (_seed) =>
+      buildDirtVariant(variantIndex)
     );
   }
 }
