@@ -57,6 +57,7 @@ import { createSoftAttachSwaySystem } from "../procbomber-bench/src/systems/soft
 import { createKaboomBomberAnimationDriverSystem } from "./src/systems/bomber-animation-driver";
 import { createKaboomBomberFaceMovementSystem } from "./src/systems/bomber-face-movement-system";
 import { createKaboomBomberOutlineSystem } from "./src/systems/bomber-outline-system";
+import { createKaboomBombOutlineSystem } from "./src/systems/bomb-outline-system";
 
 // S104 KABOOM-MIGRATE-PREFABS + S139 KABOOM-BOT-PERSONALITY-VISUALS.
 // The pure recipe derivation lives in ./src/kaboom-recipe so it can
@@ -1050,6 +1051,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // perf + visibility regressions are fixed (S277 follow-up).
     if (resolveOccluderOutlineEnabled()) {
       scheduler.register(createKaboomBomberOutlineSystem(), { profiles: ["static", "connected"] });
+      scheduler.register(createKaboomBombOutlineSystem(), { profiles: ["static", "connected"] });
     }
 
     // Bomb pipeline.
