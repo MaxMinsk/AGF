@@ -51,7 +51,12 @@ const OUTLINE_OPACITY = 0.85;
 // commonly lands at 0.02 or more. softEdge = 0.02 gives near-zero
 // intra-bomber bleed (smoothstep ≈ 0.05 → final opacity ≈ 0.04) while
 // the cross-wall delta saturates to full opacity.
-const OUTLINE_SOFT_EDGE = 0.04;
+// Tight feather so a 1m hard block (~0.006 of linear-depth at the
+// orthographic camera angle) saturates the smoothstep to full
+// opacity. The intra-bomber head-vs-torso delta (~0.004) still
+// produces a faint bleed (~50% opacity) but the cross-wall feedback
+// is the priority — without it the feature is invisible.
+const OUTLINE_SOFT_EDGE = 0.003;
 
 type MeshRendererLike = { mesh: string };
 type TransformLike = { parent?: string };

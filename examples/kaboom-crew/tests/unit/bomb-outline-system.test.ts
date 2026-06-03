@@ -33,7 +33,7 @@ describe("createKaboomBombOutlineSystem (S277i)", () => {
     expect(renderer?.mesh).toBe("sphere");
     const occluder = world.getComponent<{ color: string; softEdge?: number }>(outlineId, "OutlineOccluder");
     expect(occluder?.color).toBe("#3ab0ff");
-    expect(occluder?.softEdge).toBe(0.04);
+    expect(occluder?.softEdge).toBe(0.003);
   });
 
   it("uses placer-personality colour for NPC bombs", () => {

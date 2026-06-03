@@ -22,10 +22,15 @@ const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
 const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#ff7a3a";
 const OUTLINE_OPACITY = 0.85;
-// Match the bomber softEdge so the engine NodeMaterial cache key
-// `(color, opacity, softEdge)` lines up — and so the same camera-
-// derived occluder threshold drives both.
-const OUTLINE_SOFT_EDGE = 0.04;
+// Bombs are a SINGLE sphere — no intra-mesh delta to worry about, so
+// we can drive softEdge much tighter than the bomber (which needs a
+// wide feather to zero out the head-vs-torso bleed). The kaboom-crew
+// orthographic camera + far=100 puts a hard-block-in-front-of-bomb
+// occluder delta around 0.006 of linear depth; softEdge = 0.003
+// saturates the smoothstep to full opacity at that distance while
+// still returning 0 at the bomb's own pixels (delta = 0). Bombers
+// keep the wider 0.04 to mask their intra-bomber bleed.
+const OUTLINE_SOFT_EDGE = 0.003;
 
 type MeshRendererLike = { mesh: string };
 type BombLike = { ownerId?: string };
