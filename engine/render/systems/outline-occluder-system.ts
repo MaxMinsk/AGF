@@ -161,6 +161,8 @@ function applyOutline(
       deps.adapter.setMeshMaterial(handle, material);
       deps.adapter.setMeshRenderOrder(handle, OUTLINE_RENDER_ORDER);
       deps.adapter.setMeshVisible(handle, true);
+      // eslint-disable-next-line no-console
+      console.log(`[outline-occluder] applied prepass NodeMaterial to ${entityId} (color=${opts.color}, softEdge=${opts.softEdge})`);
       applied.set(entityId, {
         color: opts.color,
         opacity: opts.opacity,

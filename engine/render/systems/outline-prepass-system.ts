@@ -65,6 +65,7 @@ export function createOutlinePrePassSystem(
   let lastWidth = 0;
   let lastHeight = 0;
   let depthTexture: DepthTexture | undefined;
+  let loggedFirst = false;
   // Handles currently flagged via setMeshOutlinePrePassExcluded; diffed
   // against `excludedQuery` each frame so a dropped marker component
   // untags the adapter mesh exactly once.
@@ -146,11 +147,23 @@ export function createOutlinePrePassSystem(
 
       // Dormant when nothing needs the pre-pass.
       if (!anyOccluder) return;
-      if (!ensureRenderTarget()) return;
+      if (!ensureRenderTarget()) {
+        if (!loggedFirst) {
+          loggedFirst = true;
+          // eslint-disable-next-line no-console
+          console.warn(`[outline-prepass] ensureRenderTarget failed: camera=${deps.adapter.getActiveCamera() !== undefined}`);
+        }
+        return;
+      }
       if (rtHandle === undefined) return;
       const camera = deps.adapter.getActiveCamera();
       if (camera === undefined) return;
       const scene = deps.adapter.getScene();
+      if (!loggedFirst) {
+        loggedFirst = true;
+        // eslint-disable-next-line no-console
+        console.log(`[outline-prepass] first pass — depthTexture=${depthTexture !== undefined}, excluded=${flaggedHandles.size}, rt=${rtHandle}, lastWidth=${lastWidth}, lastHeight=${lastHeight}`);
+      }
 
       // Visibility toggle for every excluded mesh, render, restore.
       const restore: Array<{ mesh: Mesh; wasVisible: boolean }> = [];
