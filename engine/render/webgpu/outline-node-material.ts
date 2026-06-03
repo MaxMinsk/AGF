@@ -70,17 +70,22 @@ export async function createOutlineOccluderMaterial(
   const opacity = opts.opacity ?? 0.85;
   const softEdge = opts.softEdge ?? 0.01;
 
-  // Sample the pre-pass depth at this fragment's screen position.
+  // Sample the pre-pass depth at this fragment's screen position. For
+  // a DepthTexture Three.TSL infers the texture's element type as
+  // float — passing the sample directly through `linearDepth` does the
+  // perspective→view→linear conversion (orthographic just returns
+  // it). Mirrors three's own `viewportLinearDepth` definition.
   const sampled = t.texture(opts.depthTexture, t.screenUV);
-  const sceneDepth = sampled.r;
+  const sceneLinearDepth = t.linearDepth(sampled);
+  // `linearDepth()` with no args reads `positionView.z` of the current
+  // fragment + converts to the same [0,1] linear-depth space.
+  const myLinearDepth = t.linearDepth();
 
-  // Current fragment's NDC depth. `screenCoordinate.z` reads gl_FragCoord.z
-  // equivalent in TSL — it's the depth in NDC [0,1] post-projection.
-  const myDepth = t.screenCoordinate.z;
-
-  // Occluded when myDepth (further from camera) > sceneDepth (closer).
-  // Use smoothstep for a soft feather across `softEdge` NDC units.
-  const occluded = t.smoothstep(t.float(0), t.float(softEdge), myDepth.sub(sceneDepth));
+  // Occluded when myLinearDepth (further from camera) is larger than
+  // the world depth captured in the pre-pass (closer). The smoothstep
+  // feathers the transition over `softEdge` of linear depth.
+  const delta = myLinearDepth.sub(sceneLinearDepth);
+  const occluded = t.smoothstep(t.float(0), t.float(softEdge), delta);
 
   material.colorNode = t.color(opts.color);
   material.opacityNode = occluded.mul(t.float(opacity));
@@ -164,7 +169,7 @@ type TslNode = {
 type TslFactories = {
   texture(map: DepthTexture, uv: TslNode): TslNode;
   screenUV: TslNode;
-  screenCoordinate: TslNode;
+  linearDepth(value?: TslNode): TslNode;
   color(input: string | number): TslNode;
   float(value: number): TslNode;
   smoothstep(low: TslNode, high: TslNode, value: TslNode): TslNode;
