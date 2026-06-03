@@ -89,7 +89,8 @@ import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
 import {
   createKaboomBotAISystem,
-  BOT_ACCELERATION_BASE_BOOST_DEFAULT
+  BOT_ACCELERATION_BASE_BOOST_DEFAULT,
+  shiftedPersonalityLabel
 } from "./src/systems/bot-ai-system";
 import { createKaboomBombBlockSystem } from "./src/systems/bomb-block-system";
 import { createKaboomAgentGotoSystem } from "./src/systems/agent-goto-system";
@@ -1975,6 +1976,21 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
                 if (bs.phase === undefined || bs.phase === "done") return undefined;
                 if (bs.kind === undefined) return undefined;
                 return { kind: bs.kind, phase: bs.phase };
+              })(),
+              // S266 — situational personality shift label driven by
+              // the round-tally bias. Undefined at baseline (±1 win
+              // diff). The bot-ai-system already feeds the same diff
+              // into its aggression weight via personalityTallyBias;
+              // the HUD reads the label so the player can correlate
+              // a bot's vibe with its in-flight numbers.
+              shiftedLabel: ((): string | undefined => {
+                const brain = c["BotBrain"] as { personality?: "hunter" | "coward" | "miner" } | undefined;
+                const persona = brain?.personality;
+                if (persona === undefined) return undefined;
+                const tally = (round as { tally?: { player?: number; bot?: number } } | undefined)?.tally;
+                const playerWins = tally?.player ?? 0;
+                const botWins = tally?.bot ?? 0;
+                return shiftedPersonalityLabel(persona, botWins - playerWins);
               })()
             };
           });
@@ -2903,7 +2919,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number; dashCooldownRemainingMs?: number; dashing?: boolean; bluff?: { kind: string; phase: string } }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number; dashCooldownRemainingMs?: number; dashing?: boolean; bluff?: { kind: string; phase: string }; shiftedLabel?: string }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number; owner?: string }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -2970,8 +2986,14 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             else if (kind === "decoy-bomb") bluffTag = " [decoy]";
             else if (kind === "feign-corner") bluffTag = " [feint]";
           }
+          // S266 — show the L2 personality-shift label when no bluff
+          // is in flight (bluff dominates because it's live action).
+          let shiftTag = "";
+          if (bluffTag === "" && p.shiftedLabel !== undefined) {
+            shiftTag = ` [${p.shiftedLabel}]`;
+          }
           lines.push(
-            `${p.id}${dead}${bluffTag}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
+            `${p.id}${dead}${bluffTag}${shiftTag}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
           );
         }
         // S114 KABOOM-MP-HUD-PEER-COUNT — only render when there are

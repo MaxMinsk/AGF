@@ -58,9 +58,12 @@
     },
     {
       "id": "S266-KABOOM-PERSONALITY-SHIFT-HUD",
-      "title": "HUD telegraph for L2 personality shifts (per GDP-2026-05-29-010 — Reckless / Patient / Brave Coward etc.)",
-      "status": "pending",
-      "summary": "Renders the tally bias from S227 (already adjusts aggression internally) as a visible icon ('🔥' reckless, '🛡' patient, etc.) next to each bot's tally entry. Reads RoundState.tally + bot personality at HUD-build time."
+      "title": "HUD telegraph for L2 personality shifts (complete the GDP mapping + render labels)",
+      "status": "implemented",
+      "summary": "personalityTallyBias extended from 2 to 6 mappings (Pure Coward / Reckless Hunter / Combat Miner / Pure Miner added). New tallyBiasForDiff + shiftedPersonalityLabel pure helpers in bot-ai-tactical. api.status() surfaces shiftedLabel per bomber; the kaboom.stats HUD widget appends [reckless]/[patient]/[brave]/[fearful]/[combat]/[calm] when the bot is shifted. Bluff tag dominates when both could fire; shift falls through when there's no bluff in flight.",
+      "verification": [
+        "acceptance: 14 new unit tests cover the full 6-shift bias mapping + label helper; existing S227 tests updated for new miner behaviour (miner is no longer tally-agnostic). Live Playwright probe: bots-ahead 2-0 renders [reckless]/[brave]/[calm], bots-behind 0-2 renders [patient]/[fearful]/[combat]. npm run typecheck + build clean. npx vitest run — 2396/2396 pass."
+      ]
     },
     {
       "id": "S267-KABOOM-STEP-JUMP-AUDIO",
