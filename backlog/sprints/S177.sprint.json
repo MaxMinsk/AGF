@@ -2,9 +2,9 @@
   "agfFormatVersion": 1,
   "id": "S177",
   "title": "Bot AI nuance + arena polish — finish GDP-2026-05-29-010 Layer 3, push visible cues + onboarding-grade touch-ups",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-06-02",
-  "archivedAt": null,
+  "archivedAt": "2026-06-03",
   "prUrl": null,
   "notes": [
     "Closes the remaining slices of GDP-2026-05-29-010 Layer 3 (Coward decoy bomb, Miner feign-corner) on top of the S262 Hunter fake-flee. Then a polish wave: HUD telegraph for the personality-shift state (Layer 2 already wired, but no visible signal yet), audio + landing-pop for the S181/S182 step jump, and a chain-reaction cue distinct from the regular S243 bomb-place puff so bombers can read 'this was triggered by another bomb' at a glance.",
@@ -138,8 +138,29 @@
     {
       "id": "S273B-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",
       "title": "Sprint S177 close — archive proposals + render backlog views",
-      "status": "pending",
-      "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship; GDP-2026-05-28-012 with 4/5 families shipped; GDP-2026-05-28-014 V0), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON."
+      "status": "implemented",
+      "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship; GDP-2026-05-28-012 with 4/5 families shipped; GDP-2026-05-28-014 V0), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON.",
+      "verification": [
+        "acceptance: GDP-2026-05-29-010 (all 3 bluff types shipped S262+S263+S264) + GDP-2026-05-28-014 (outline-occluder V0+V2+prepass shipped S273+S277+S278+S279+S280) moved to archive/already-done/. backlog:check + backlog:render clean. Sprint status set to archived."
+      ]
+    },
+    {
+      "id": "S278-ENGINE-OUTLINE-PREPASS",
+      "title": "Engine outline pre-pass — depth render target without occluded meshes",
+      "status": "implemented",
+      "summary": "New `render.outline-prepass` engine system. Adapter gains getScene(), getActiveCamera(), setMeshOutlinePrePassExcluded(handle, excluded), outlinePrePassExcludedMeshes(); releaseMesh drops the exclusion set entry. Per-frame: diffs ECS OutlinePrePassExcluded + OutlineOccluder markers against an internal cache, forwards add/remove to adapter, snapshots Mesh.visible on excluded meshes, renders scene to a half-canvas depth-only RenderTarget via renderSceneToTarget (bomber geometry excluded from the depth), restores visibility, exposes getDepthTexture() for downstream. Dormant when no entity has OutlineOccluder. Registered in start.ts BEFORE outline-occluder so texture is current on first read. Cache resets cleanly across map restarts.",
+      "verification": [
+        "acceptance: 6 unit tests (dormant case, exclusion of OutlinePrePassExcluded + OutlineOccluder marker types, untag on component removal, depth texture exposure, default + custom resolution scale). Full suite 2438/2438 pass. typecheck clean."
+      ]
+    },
+    {
+      "id": "S279-ENGINE-OUTLINE-PREPASS-MATERIAL",
+      "title": "Outline-occluder system — switch to pre-pass depth material variant",
+      "status": "implemented",
+      "summary": "`render.outline-occluder` now consumes the pre-pass via the injected `prepass` dependency and uses `createOutlineOccluderMaterial` (the S186 pre-pass variant sampling a custom DepthTexture) instead of the viewport variant. Tracks depth texture identity per entity; rebuilds material if prepass swaps targets on canvas resize. Default softEdge tightened to 0.01. `bomber-outline-system` tags every source bomber part AND every outline duplicate with OutlinePrePassExcluded; softEdge defaults to 0.01. Intra-bomber bleed eliminated; cross-wall silhouette crisp.",
+      "verification": [
+        "acceptance: 2 new bomber-outline unit tests asserting OutlinePrePassExcluded on source parts AND duplicates. Existing 5 bomber-outline tests unchanged. Full suite 2438/2438 pass. typecheck clean."
+      ]
     },
     {
       "id": "S277-OUTLINE-OCCLUDER-V2-VIEWPORT-LINEAR-DEPTH",
@@ -148,6 +169,15 @@
       "summary": "S273/S274/S275/S276 tried stencil-based outline-occluders on the WebGL path — none worked because kaboom-crew runs on WebGPU where the WebGL stencil buffer never activates. S277 rewires the feature: a new engine `render.outline-occluder` system swaps the existing WebGPU TSL `createOutlineOccluderViewportMaterial` (S187) onto every entity with `OutlineOccluder { color, opacity, softEdge }`. Material now compares LINEAR depth (`viewportLinearDepth` + `linearDepth()`) instead of NDC so a fixed `softEdge` reads in metres-equivalent units and works the same near the camera and at the far plane — the original NDC-units variant returned ~0 opacity for typical cross-wall deltas, which is why the silhouette was invisible. NodeMaterials are de-duplicated by (color, opacity, softEdge) → 4 WebGPU pipelines for a 4-bomber match instead of 40, fixing the FPS regression. Kaboom-side: `bomber-outline-system` spawns 10 `<part>.outline-occluder` duplicates per bomber (LimbPivots root); `bomb-outline-system` spawns one `<bombId>.outline-occluder` per placed bomb tinted in the placer's palette colour. URL gate: `?occluderOutline=off` disables.",
       "verification": [
         "acceptance: 4 unit tests for bomber-outline (spawn shape per part with right OutlineOccluder colour, idempotency, fallback colour, BotBrain personality colour) + 5 unit tests for bomb-outline (spawn shape, owner palette, fallback, idempotency, round-reset recovery) — all 9 pass. typecheck clean. WebGPU material updated to sample linearDepth on both sides of the comparison (sidesteps reverse-Z + NDC non-linearity that broke the previous variant). User-reported cross-wall silhouette visible after the change."
+      ]
+    },
+    {
+      "id": "S280-KABOOM-BOMB-OUTLINE-PREPASS",
+      "title": "Bomb outline-occluder on pre-pass foundation",
+      "status": "implemented",
+      "summary": "New `kaboom.bomb-outline` system. Per-frame: for every entity with Bomb + MeshRenderer, spawns `<bombId>.outline-occluder` carrying OutlineOccluder (color = placer palette via bomberPuffColor, softEdge=0.01, opacity=0.85). Tags the source bomb AND the outline duplicate with OutlinePrePassExcluded so the engine pre-pass excludes bomb geometry from the depth target. Orphan-GC pass removes the duplicate when the source bomb is gone (detonation, sudden-death, reset). Registered after `kaboom.bomber-outline` in bootstrap; gated by `?occluderOutline` URL flag. mesh-lifecycle-system extended to respect Batchable.enabled=false opt-out so auto-batcher does not absorb procedural-mesh-ref entities and HMR replacements are stable.",
+      "verification": [
+        "acceptance: 6 unit tests (spawn shape, source + duplicate prepass tags, NPC palette colour, fallback colour for unknown owner, idempotency, map-restart with re-used bomb-id). mesh-lifecycle Batchable.enabled=false opt-out covered by 1 unit test. Full suite 2445/2445 pass. typecheck clean. Bomb silhouette visible through hard/soft blocks; S270 red critical-pulse and fuse-wiggle remain readable."
       ]
     }
   ]
