@@ -24,6 +24,10 @@ export type AudioEventKind =
   | "match-lost"
   | "match-draw"
   | "footstep"
+  // S267 KABOOM-STEP-JUMP-AUDIO — short whoosh at the takeoff edge
+  // of a delta=1 step-jump arc + a low thud at the landing edge.
+  | "step-jump-launch"
+  | "step-jump-land"
   // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — five per-bomber voice slots.
   // Carry an entityId in the play context; the bus derives the voice
   // colour from voiceParamsFromSeed(entityId).
@@ -588,6 +592,42 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
     osc.stop(now + 0.05);
   }
 
+  // S267 KABOOM-STEP-JUMP-AUDIO. Short ascending whoosh at takeoff:
+  // sine ramp from ~280 Hz up to ~480 Hz over 80 ms, soft attack.
+  // Distinct from the percussive footstep (which is triangle-down) so
+  // a sequence "footstep → step-jump-launch → step-jump-land" reads
+  // as walk → hop → thud.
+  function playStepJumpLaunch(c: AudioContextLike, position?: readonly [number, number, number]): void {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "sine";
+    const now = c.currentTime;
+    osc.frequency.setValueAtTime(280, now);
+    osc.frequency.exponentialRampToValueAtTime(480, now + 0.08);
+    envelope(c, gain, 0.005, masterGain * 0.22, 0.08);
+    osc.connect(gain);
+    connectOutput(c, gain, position);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
+  // S267 — Landing thud: short low square-wave blip ~70 ms with a
+  // hard attack, mimicking a soft impact. Slightly louder than the
+  // launch whoosh so the land reads as the "thud" beat.
+  function playStepJumpLand(c: AudioContextLike, position?: readonly [number, number, number]): void {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "square";
+    const now = c.currentTime;
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(95, now + 0.05);
+    envelope(c, gain, 0.002, masterGain * 0.28, 0.07);
+    osc.connect(gain);
+    connectOutput(c, gain, position);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
   return {
     play(kind: AudioEventKind, context?: PositionalPlayContext): void {
       if (muted) return;
@@ -617,6 +657,8 @@ export function createKaboomAudioFx(options: AudioFxOptions = {}): KaboomAudioFx
         else if (kind === "match-lost") { duckFor(c, 0.6, 0.3); playMatchLost(c); }
         else if (kind === "match-draw") { duckFor(c, 0.6, 0.3); playMatchDraw(c); }
         else if (kind === "footstep") playFootstep(c, pos);
+        else if (kind === "step-jump-launch") playStepJumpLaunch(c, pos);
+        else if (kind === "step-jump-land") playStepJumpLand(c, pos);
         else if (kind === "shield-pop") playShieldPop(c, pos);
         else if (kind === "voice-place-bomb") playVoice(c, context?.entityId, "place-bomb", pos);
         else if (kind === "voice-hit") playVoice(c, context?.entityId, "hit", pos);

@@ -447,6 +447,20 @@ function readSuddenDeathFromUrl(): { enabled: boolean; triggerAtElapsedS: number
   }
 }
 
+// S267 KABOOM-STEP-JUMP-AUDIO — read `?stepJumpAudio=off` to disable
+// the takeoff whoosh + landing thud. Default on. Useful for tests +
+// a calmer audio mix.
+function readStepJumpAudioFromUrl(): boolean {
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
+  if (search === undefined || search.length === 0) return true;
+  try {
+    const p = new URLSearchParams(search);
+    return p.get("stepJumpAudio") !== "off";
+  } catch {
+    return true;
+  }
+}
+
 // S261 KABOOM-RANDOM-LAYOUT — read `?randomLayout=on`. Default off so
 // the curated arena layouts remain canonical; opt-in re-rolls the soft-
 // block layout each round under the same hard-block skeleton.
@@ -1075,7 +1089,10 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       createKaboomAudioBindingSystem({
         onEvent(kind, c): void {
           if (_boundAudioEvent !== undefined) _boundAudioEvent(kind, c);
-        }
+        },
+        // S267 — `?stepJumpAudio=off` disables the launch/land cues
+        // (useful for snapshot tests + a quieter SFX mode).
+        stepJumpAudioEnabled: readStepJumpAudioFromUrl()
       }),
       { profiles: ["static", "connected"] }
     );
