@@ -1963,7 +1963,19 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
               dashCooldownRemainingMs: (c["BomberStats"] as { dashCooldownRemainingMs?: number })?.dashCooldownRemainingMs,
               dashing: (c["BomberStats"] as { dashing?: boolean })?.dashing,
               targetGx: (c["AgentGoto"] as { targetGx?: number })?.targetGx,
-              targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz
+              targetGz: (c["AgentGoto"] as { targetGz?: number })?.targetGz,
+              // S265 — surface the active bluff on the player record so
+              // the HUD can paint a per-bot tag without re-walking
+              // the world. Always-on `done` writes are dropped here
+              // (treated as no-bluff) so the tag only shows during
+              // visible phases.
+              bluff: ((): { kind: string; phase: string } | undefined => {
+                const bs = c["BotBluffState"] as { kind?: string; phase?: string } | undefined;
+                if (bs === undefined) return undefined;
+                if (bs.phase === undefined || bs.phase === "done") return undefined;
+                if (bs.kind === undefined) return undefined;
+                return { kind: bs.kind, phase: bs.phase };
+              })()
             };
           });
         const bombs = snap.entities
@@ -2891,7 +2903,7 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
             lastMatchWinner?: "player" | "bot" | "draw";
             resolvedAt?: number;
           };
-          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number; dashCooldownRemainingMs?: number; dashing?: boolean }>;
+          players: ReadonlyArray<{ id: string; gx?: number; gz?: number; alive?: boolean; maxBombs?: number; range?: number; activeBombs?: number; canKick?: boolean; remoteDetonateCharges?: number; shield?: boolean; pierce?: boolean; canThrow?: boolean; bombPass?: boolean; speed?: number; dashCooldownRemainingMs?: number; dashing?: boolean; bluff?: { kind: string; phase: string } }>;
           remotePeers?: number;
           bombs: ReadonlyArray<{ id: string; gx?: number; gz?: number; owner?: string }>;
           pickups: ReadonlyArray<{ id: string; gx?: number; gz?: number; kind?: string }>;
@@ -2948,8 +2960,18 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
           // S148 — text power-up flags removed; the powerup-grid widget
           // below renders the active state as icons. Stats line keeps
           // bombs/fire for at-a-glance numeric reference only.
+          // S265 — when a bot is mid-bluff, append a compact tag so
+          // the player can READ the bluff in flight. Tag derived from
+          // BotBluffState.kind (filtered out for phase=done upstream).
+          let bluffTag = "";
+          if (p.bluff !== undefined) {
+            const kind = p.bluff.kind;
+            if (kind === "fake-flee") bluffTag = " [bait]";
+            else if (kind === "decoy-bomb") bluffTag = " [decoy]";
+            else if (kind === "feign-corner") bluffTag = " [feint]";
+          }
           lines.push(
-            `${p.id}${dead}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
+            `${p.id}${dead}${bluffTag}   bombs ${p.activeBombs ?? 0}/${p.maxBombs ?? 1}   fire ${p.range ?? 2}`
           );
         }
         // S114 KABOOM-MP-HUD-PEER-COUNT — only render when there are
