@@ -49,9 +49,12 @@
     },
     {
       "id": "S265-KABOOM-BLUFF-HUD-TELEGRAPH",
-      "title": "HUD icon shows active bluff per bot (per GDP-2026-05-29-010 — small icon next to the tally entry)",
-      "status": "pending",
-      "summary": "Tiny icon next to each bot's tally line that flips to a 'bluff active' glyph while BotBluffState is in fleeing/approaching/committing phases. Lets the player read the bluff in flight."
+      "title": "HUD tag shows active bluff per bot",
+      "status": "implemented",
+      "summary": "api.status() now surfaces BotBluffState per bomber (filtered to phase != done); the kaboom.stats HUD widget appends a compact tag to each bot line — '[bait]' for fake-flee, '[decoy]' for decoy-bomb, '[feint]' for feign-corner. Lets the player read the bluff in flight without digging into devtools.",
+      "verification": [
+        "acceptance: live Playwright probe mounts BotBluffState on bot.1/bot.2/bot.3 (one of each kind) and reads the rendered HUD DOM — bot.2 line is 'bot.2 [decoy]   bombs 0/1   fire 2'; bot.3 is 'bot.3 [feint]   bombs 0/1   fire 2'; bot.1 advanced to done and shows no tag (filter intact). npm run typecheck clean. npx vitest run — 2386/2386 pass."
+      ]
     },
     {
       "id": "S266-KABOOM-PERSONALITY-SHIFT-HUD",
