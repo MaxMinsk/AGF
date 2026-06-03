@@ -68,8 +68,11 @@
     {
       "id": "S267-KABOOM-STEP-JUMP-AUDIO",
       "title": "Step-jump audio — whoosh on launch + thud on landing",
-      "status": "pending",
-      "summary": "Adds short audio cues at the takeoff + landing windows of the S181/S182 step-jump arc. Total audio ~150 ms; hooks the existing audio system. URL `?stepJumpAudio=off` disables."
+      "status": "implemented",
+      "summary": "audio-binding-system tracks per-bomber step-jump-tween state; false→true edge fires 'step-jump-launch', true→false fires 'step-jump-land'. audio-fx adds matching procedural synths — 80ms sine ramp-up for the launch whoosh, 70ms square low-thud for the land. Both pan via the existing positional bus. URL `?stepJumpAudio=off` suppresses the kind at the binding layer.",
+      "verification": [
+        "acceptance: 4 new unit tests cover the launch edge, land edge, no-fire on flat tween, and the disabled-flag suppression. npm run typecheck + build clean. npx vitest run — 2400/2400 pass (+4 since S266)."
+      ]
     },
     {
       "id": "S268-KABOOM-STEP-JUMP-LANDING-POP",

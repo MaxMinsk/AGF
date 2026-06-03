@@ -23,12 +23,14 @@
 import type { ComponentName, EntityId } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
 import type { System, SystemContext } from "../../../../engine/core/systems/types";
+import { getCellHeight } from "../../../../engine/grid/height-query";
 
 const BOMB: ComponentName = "Bomb";
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const PICKUP: ComponentName = "Pickup";
 const BOMBER_STATS: ComponentName = "BomberStats";
 const GRID_POSITION: ComponentName = "GridPosition";
+const GRID_MOVER: ComponentName = "GridMover";
 const TRANSFORM: ComponentName = "Transform";
 const PARTICLE_EMITTER: ComponentName = "ParticleEmitter";
 
@@ -42,6 +44,11 @@ export type AudioEventKind =
   | "match-lost"
   | "match-draw"
   | "footstep"
+  // S267 KABOOM-STEP-JUMP-AUDIO — takeoff + landing edges of the
+  // delta=1 step-jump arc (S181 visual). Bomber position is read
+  // from GridPosition; the audio bus pans the SFX accordingly.
+  | "step-jump-launch"
+  | "step-jump-land"
   // S109 KABOOM-PROCEDURAL-VOCAL-SYNTH — per-bomber voice slots.
   // entityId in the event context is the bomber id; the audio bus
   // derives the voice colour from voiceParamsFromSeed(entityId).
@@ -65,11 +72,15 @@ export type KaboomAudioBindingOptions = {
   name?: string;
   /** Required — called once per detected event. */
   onEvent: AudioEventListener;
+  /** S267 — gate the step-jump-launch / step-jump-land events. URL
+   *  `?stepJumpAudio=off` flips this to false; default true. */
+  stepJumpAudioEnabled?: boolean;
 };
 
 export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOptions): System {
   const name = options.name ?? "kaboom.audio-binding";
   const onEvent = options.onEvent;
+  const stepJumpAudioEnabled = options.stepJumpAudioEnabled ?? true;
 
   let cachedWorld: World | undefined;
   let bombs: QueryHandle | undefined;
@@ -93,6 +104,11 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
   // bomber. A cell change between ticks fires one 'footstep' event.
   // Map key = entity id; value = packed `gx,gz` string.
   let prevBomberCell = new Map<EntityId, string>();
+  // S267 KABOOM-STEP-JUMP-AUDIO. Last observed step-jump-tween state
+  // per bomber. true while the bomber is mid-tween between two cells
+  // whose height differs by 1. A false → true edge fires
+  // 'step-jump-launch'; true → false fires 'step-jump-land'.
+  let prevStepJumping = new Map<EntityId, boolean>();
   // S88 KABOOM-WIN-CHIME. Track previous matchPhase so we fire a
   // 'match-{won|lost|draw}' event exactly once per matchPhase
   // transition out of 'in-progress'. Defaults to 'in-progress' so
@@ -121,6 +137,7 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       prevShield = new Map();
       prevStatsTotal = new Map();
       prevBomberCell = new Map();
+      prevStepJumping = new Map();
       prevMatchPhase = "in-progress";
     }
 
@@ -310,6 +327,7 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
     // refreshed each tick so a fresh world (cleared at the top)
     // starts from a clean slate.
     const currentCells = new Map<EntityId, string>();
+    const currentStepJumping = new Map<EntityId, boolean>();
     for (const id of bombers!.run()) {
       const stats = world.getComponent<{ alive?: boolean }>(id, BOMBER_STATS);
       if (stats !== undefined && stats.alive === false) continue;
@@ -321,8 +339,37 @@ export function createKaboomAudioBindingSystem(options: KaboomAudioBindingOption
       if (prev !== undefined && prev !== key) {
         onEvent("footstep", { entityId: id, position: [gp.gx, 0, gp.gz] as const });
       }
+      // S267 — step-jump edge detection. The bomber is mid-step-jump
+      // when its GridMover tween is active (currentLerp ∈ (0,1)) AND
+      // the from-cell vs target-cell heights differ by exactly 1.
+      // Larger deltas are blocked by isPassableEdge (S179) so they
+      // shouldn't appear here, but the abs===1 check makes us robust.
+      let stepJumpingNow = false;
+      if (stepJumpAudioEnabled) {
+        const mover = world.getComponent<{ currentLerp?: number; targetGx?: number; targetGz?: number }>(id, GRID_MOVER);
+        if (
+          mover !== undefined
+          && typeof mover.targetGx === "number"
+          && typeof mover.targetGz === "number"
+          && typeof mover.currentLerp === "number"
+          && mover.currentLerp > 0
+          && mover.currentLerp < 1
+        ) {
+          const fromH = getCellHeight(world, gp.gx, gp.gz);
+          const toH = getCellHeight(world, mover.targetGx, mover.targetGz);
+          if (Math.abs(toH - fromH) === 1) stepJumpingNow = true;
+        }
+      }
+      currentStepJumping.set(id, stepJumpingNow);
+      const wasJumping = prevStepJumping.get(id) ?? false;
+      if (!wasJumping && stepJumpingNow) {
+        onEvent("step-jump-launch", { entityId: id, position: [gp.gx, 0, gp.gz] as const });
+      } else if (wasJumping && !stepJumpingNow) {
+        onEvent("step-jump-land", { entityId: id, position: [gp.gx, 0, gp.gz] as const });
+      }
     }
     prevBomberCell = currentCells;
+    prevStepJumping = currentStepJumping;
 
     // S88 KABOOM-WIN-CHIME. Detect a matchPhase transition out of
     // 'in-progress' on the kaboom.round-state singleton and fire the

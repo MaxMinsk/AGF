@@ -371,4 +371,83 @@ describe("createKaboomAudioBindingSystem (S84 KABOOM-AUDIO-WIRE)", () => {
     const voiceVictoryCalls = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "voice-victory");
     expect(voiceVictoryCalls.length).toBe(0);
   });
+
+  // S267 — step-jump audio edge detection.
+  describe("S267 KABOOM-STEP-JUMP-AUDIO", () => {
+    function setupBomberOnHeightmap(
+      world: World,
+      bomberId: string,
+      heights: number[][]
+    ): void {
+      world.addEntity("grid.config");
+      world.setComponent("grid.config", "Grid", { sizeX: 4, sizeZ: 4, cellSize: 1 });
+      world.setComponent("grid.config", "Heightmap", { values: heights });
+      world.addEntity(bomberId);
+      world.setComponent(bomberId, "BomberStats", { maxBombs: 1, range: 2, alive: true });
+      world.setComponent(bomberId, "GridPosition", { gx: 0, gz: 0 });
+      world.setComponent(bomberId, "GridMover", { speed: 4, currentLerp: 0 });
+    }
+
+    it("fires step-jump-launch on the 0 → mid-tween edge over a delta=1 cliff", () => {
+      const world = new World();
+      // Heights: [0][0]=0, [0][1]=1 → step up of 1 cell east.
+      setupBomberOnHeightmap(world, "bot.j", [[0, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+      const onEvent = vi.fn();
+      const system = createKaboomAudioBindingSystem({ onEvent });
+      // Tick 1: stationary.
+      system.fixedUpdate!(ctx(world));
+      onEvent.mockClear();
+      // Tick 2: start tween from (0,0) → (1,0). currentLerp 0.5.
+      world.setComponent("bot.j", "GridMover", { speed: 4, currentLerp: 0.5, targetGx: 1, targetGz: 0 });
+      system.fixedUpdate!(ctx(world));
+      const launches = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "step-jump-launch");
+      expect(launches.length).toBe(1);
+    });
+
+    it("fires step-jump-land on the mid-tween → done edge", () => {
+      const world = new World();
+      setupBomberOnHeightmap(world, "bot.j", [[0, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+      const onEvent = vi.fn();
+      const system = createKaboomAudioBindingSystem({ onEvent });
+      world.setComponent("bot.j", "GridMover", { speed: 4, currentLerp: 0.5, targetGx: 1, targetGz: 0 });
+      system.fixedUpdate!(ctx(world));
+      onEvent.mockClear();
+      // Tick complete: lerp cleared, GridPosition snaps to (1,0).
+      world.setComponent("bot.j", "GridMover", { speed: 4, currentLerp: 0 });
+      world.setComponent("bot.j", "GridPosition", { gx: 1, gz: 0 });
+      system.fixedUpdate!(ctx(world));
+      const lands = onEvent.mock.calls.filter((args: unknown[]) => args[0] === "step-jump-land");
+      expect(lands.length).toBe(1);
+    });
+
+    it("does NOT fire on a flat-cell tween (no height delta)", () => {
+      const world = new World();
+      setupBomberOnHeightmap(world, "bot.j", [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+      const onEvent = vi.fn();
+      const system = createKaboomAudioBindingSystem({ onEvent });
+      system.fixedUpdate!(ctx(world));
+      onEvent.mockClear();
+      world.setComponent("bot.j", "GridMover", { speed: 4, currentLerp: 0.5, targetGx: 1, targetGz: 0 });
+      system.fixedUpdate!(ctx(world));
+      const allKinds = onEvent.mock.calls.map((args: unknown[]) => args[0]);
+      expect(allKinds).not.toContain("step-jump-launch");
+      expect(allKinds).not.toContain("step-jump-land");
+    });
+
+    it("stepJumpAudioEnabled=false suppresses both events", () => {
+      const world = new World();
+      setupBomberOnHeightmap(world, "bot.j", [[0, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+      const onEvent = vi.fn();
+      const system = createKaboomAudioBindingSystem({ onEvent, stepJumpAudioEnabled: false });
+      system.fixedUpdate!(ctx(world));
+      world.setComponent("bot.j", "GridMover", { speed: 4, currentLerp: 0.5, targetGx: 1, targetGz: 0 });
+      system.fixedUpdate!(ctx(world));
+      world.setComponent("bot.j", "GridMover", { speed: 4, currentLerp: 0 });
+      world.setComponent("bot.j", "GridPosition", { gx: 1, gz: 0 });
+      system.fixedUpdate!(ctx(world));
+      const allKinds = onEvent.mock.calls.map((args: unknown[]) => args[0]);
+      expect(allKinds).not.toContain("step-jump-launch");
+      expect(allKinds).not.toContain("step-jump-land");
+    });
+  });
 });
