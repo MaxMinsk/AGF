@@ -1,7 +1,9 @@
-// S277d — coverage for the kaboom bomber-outline-system. Each bomber
+// S277e — coverage for the kaboom bomber-outline-system. Each bomber
 // root (entity with `LimbPivots`) spawns 10 outline-duplicate children
-// driven by the S273 `depthFunc='greater'` MeshRenderer-patch path
-// (NOT the WebGPU NodeMaterial). Idempotent + survives map restart.
+// driven by the engine `OutlineOccluder` WebGPU NodeMaterial path —
+// the linear-depth smoothstep is the only mechanism that suppresses
+// the head-vs-torso intra-bomber bleed the simpler `depthFunc='greater'`
+// patch can't.
 
 import { describe, expect, it } from "vitest";
 
@@ -37,17 +39,8 @@ function step(system: { frameUpdate?: (ctx: never) => void }, world: World): voi
   });
 }
 
-type OutlineMeshRenderer = {
-  mesh: string;
-  color: string;
-  transparent: boolean;
-  opacity: number;
-  depthFunc: string;
-  depthWrite: boolean;
-};
-
-describe("createKaboomBomberOutlineSystem (S277d)", () => {
-  it("spawns one duplicate per body part with depthFunc='greater' + palette colour", () => {
+describe("createKaboomBomberOutlineSystem (S277e)", () => {
+  it("spawns one duplicate per body part with the OutlineOccluder palette colour", () => {
     const world = new World();
     makeBomber(world, "player.1");
     const sys = createKaboomBomberOutlineSystem();
@@ -55,14 +48,10 @@ describe("createKaboomBomberOutlineSystem (S277d)", () => {
     for (const part of PARTS) {
       const outlineId = `player.1.${part}.outline-occluder`;
       expect(world.hasEntity(outlineId), `expected outline ${outlineId}`).toBe(true);
-      const renderer = world.getComponent<OutlineMeshRenderer>(outlineId, "MeshRenderer");
-      expect(renderer).toMatchObject({
-        mesh: `procedural:procbomber-${part}#player.1`,
-        color: "#3ab0ff",
-        transparent: true,
-        depthFunc: "greater",
-        depthWrite: false
-      });
+      const renderer = world.getComponent<{ mesh: string }>(outlineId, "MeshRenderer");
+      expect(renderer?.mesh).toBe(`procedural:procbomber-${part}#player.1`);
+      const occluder = world.getComponent<{ color: string }>(outlineId, "OutlineOccluder");
+      expect(occluder?.color).toBe("#3ab0ff");
     }
   });
 
@@ -72,11 +61,11 @@ describe("createKaboomBomberOutlineSystem (S277d)", () => {
     world.setComponent("opponent.1", "BotBrain", { personality: "hunter" });
     const sys = createKaboomBomberOutlineSystem();
     step(sys, world);
-    const renderer = world.getComponent<OutlineMeshRenderer>(
+    const occluder = world.getComponent<{ color: string }>(
       "opponent.1.torso.outline-occluder",
-      "MeshRenderer"
+      "OutlineOccluder"
     );
-    expect(renderer?.color).toBe("#e65a3a");
+    expect(occluder?.color).toBe("#e65a3a");
   });
 
   it("is idempotent — second step doesn't re-spawn duplicates", () => {
@@ -95,20 +84,18 @@ describe("createKaboomBomberOutlineSystem (S277d)", () => {
     const sys = createKaboomBomberOutlineSystem();
     step(sys, world);
     expect(world.hasEntity("player.1.torso.outline-occluder")).toBe(true);
-    // map restart: tear the bomber down
     world.removeEntity("player.1");
     for (const part of PARTS) world.removeEntity(`player.1.${part}`);
-    step(sys, world); // GC orphans
+    step(sys, world);
     expect(world.hasEntity("player.1.torso.outline-occluder")).toBe(false);
-    // respawn the bomber with the same id
     makeBomber(world, "player.1");
     step(sys, world);
     expect(world.hasEntity("player.1.torso.outline-occluder")).toBe(true);
-    const renderer = world.getComponent<OutlineMeshRenderer>(
+    const occluder = world.getComponent<{ color: string }>(
       "player.1.torso.outline-occluder",
-      "MeshRenderer"
+      "OutlineOccluder"
     );
-    expect(renderer?.depthFunc).toBe("greater");
+    expect(occluder?.color).toBe("#3ab0ff");
   });
 
   it("falls back to a sky-leaning colour for unknown bomber ids", () => {
@@ -116,10 +103,10 @@ describe("createKaboomBomberOutlineSystem (S277d)", () => {
     makeBomber(world, "unknown.42");
     const sys = createKaboomBomberOutlineSystem();
     step(sys, world);
-    const renderer = world.getComponent<OutlineMeshRenderer>(
+    const occluder = world.getComponent<{ color: string }>(
       "unknown.42.torso.outline-occluder",
-      "MeshRenderer"
+      "OutlineOccluder"
     );
-    expect(renderer?.color).toBe("#7fd6ff");
+    expect(occluder?.color).toBe("#7fd6ff");
   });
 });

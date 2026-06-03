@@ -1,18 +1,21 @@
-// S277d KABOOM-BOMBER-OUTLINE-OCCLUDER. Per-bomber-part see-through
-// silhouette. Uses the S273 `depthFunc='greater'` MeshRenderer-patch
-// approach — works on WebGL AND WebGPU without the async NodeMaterial
-// path that kept regressing across map restarts.
+// S277e KABOOM-BOMBER-OUTLINE-OCCLUDER. Per-bomber-part see-through
+// silhouette using the engine's WebGPU TSL `OutlineOccluder` path.
 //
-// Per-frame contract:
-//   1. For every bomber-root entity (entity with `LimbPivots`), make
-//      sure every body part has a sibling outline duplicate. Use
-//      `world.hasEntity(outlineId)` as the idempotent guard — NO
-//      module-level done-set, because a map restart re-uses bomber
-//      ids (`player.1`, `bot.1`, …) and any done-set would skip the
-//      newly-spawned bomber while its just-deleted predecessor's
-//      entry was still cached.
-//   2. GC: walk the outline entities, drop any whose parent bomber
-//      part no longer exists.
+// Why NodeMaterial here (and not the simpler depthFunc='greater' patch
+// the bombs use): a bomber has 10 part meshes. Under depthFunc='greater'
+// alone, the torso's outline-duplicate tests against the depth buffer
+// AFTER the head writes its depth — at head-overlap pixels the torso's
+// `torso_z > head_z` test passes and the torso silhouette bleeds
+// through the head ("body shines through head" — user-reported in S273
+// and again in early S277). The WebGPU TSL material samples a
+// LINEAR-DEPTH viewport delta with a `softEdge` feather wide enough to
+// zero out the centimetre-scale intra-bomber deltas while still
+// returning full opacity at the metre-scale cross-wall delta.
+//
+// The duplicate stays `Object3D.visible = false` until the engine
+// `render.outline-occluder` system finishes async-loading the
+// NodeMaterial; without that guard the default MeshStandardMaterial
+// flashes white/grey over the live source.
 
 import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -23,6 +26,7 @@ import { bomberPuffColor } from "./bomber-palette";
 const LIMB_PIVOTS: ComponentName = "LimbPivots";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
+const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
 
 const PART_SUFFIXES: ReadonlyArray<string> = [
   "torso",
@@ -40,19 +44,27 @@ const PART_SUFFIXES: ReadonlyArray<string> = [
 const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#7fd6ff";
 const OUTLINE_OPACITY = 0.85;
+// Linear-depth feather — see `engine/render/webgpu/outline-node-material.ts`.
+// Tuned for the kaboom-crew tilted top-down camera: head-vs-torso
+// deltas land around 0.001 of linear-depth; wall-vs-bomber land
+// around 0.007. softEdge = 0.005 gives effectively zero intra-bomber
+// bleed (smoothstep ≈ 0.04 → opacity ≈ 0.03) while saturating to full
+// opacity on the cross-wall delta.
+const OUTLINE_SOFT_EDGE = 0.005;
 
 type MeshRendererLike = { mesh: string };
 type TransformLike = { parent?: string };
 
 export type BomberOutlineSystemOptions = {
-  /** Outline opacity in [0,1]. Default 0.85. */
   opacity?: number;
+  softEdge?: number;
 };
 
 export function createKaboomBomberOutlineSystem(
   options: BomberOutlineSystemOptions = {}
 ): System {
   const opacity = options.opacity ?? OUTLINE_OPACITY;
+  const softEdge = options.softEdge ?? OUTLINE_SOFT_EDGE;
   let cachedWorld: World | undefined;
   let rootQuery: QueryHandle | undefined;
   let outlineQuery: QueryHandle | undefined;
@@ -63,13 +75,10 @@ export function createKaboomBomberOutlineSystem(
       const world = context.world;
       if (world !== cachedWorld) {
         rootQuery = world.createQuery([LIMB_PIVOTS]);
-        // Index outlines by their MeshRenderer + Transform so we can
-        // GC orphans once the source part disappears.
         outlineQuery = world.createQuery([MESH_RENDERER, TRANSFORM]);
         cachedWorld = world;
       }
 
-      // (1) spawn missing outline duplicates for every live bomber part.
       for (const rootId of rootQuery!.run()) {
         const color = bomberPuffColor(world, rootId) ?? FALLBACK_COLOR;
         for (const suffix of PART_SUFFIXES) {
@@ -86,21 +95,14 @@ export function createKaboomBomberOutlineSystem(
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          world.setComponent(outlineId, MESH_RENDERER, {
-            mesh: renderer.mesh,
-            color,
-            transparent: true,
-            opacity,
-            depthFunc: "greater",
-            depthWrite: false
-          });
+          world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
+          world.setComponent(outlineId, OUTLINE_OCCLUDER, { color, opacity, softEdge });
         }
       }
 
-      // (2) GC: walk every entity whose id ends with the outline
-      // suffix; if its parent Transform.parent references an entity
-      // that no longer exists, remove the outline. This survives map
-      // restarts cleanly because we never cache bomber-root state.
+      // GC orphans: outline-suffixed entities whose Transform.parent
+      // no longer resolves. Survives map restart cleanly because we
+      // never cache root state.
       for (const id of outlineQuery!.run()) {
         if (!id.endsWith(`.${OUTLINE_SUFFIX}`)) continue;
         const transform = world.getComponent<TransformLike>(id, TRANSFORM);
