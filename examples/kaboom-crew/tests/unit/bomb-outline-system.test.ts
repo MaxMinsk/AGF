@@ -1,8 +1,9 @@
 // S280 — coverage for the kaboom bomb-outline-system on top of the
 // S278/S279 pre-pass infrastructure. Each Bomb spawns one
-// `<bombId>.outline-occluder` duplicate carrying `OutlineOccluder`;
-// the source bomb gets `OutlinePrePassExcluded` so the engine prepass
-// masks it out of the depth target the silhouette samples.
+// `<bombId>.outline-occluder` duplicate carrying the engine
+// `OutlineOccluder` component; the duplicate uses a procedural-mesh
+// ref to bypass auto-batching so the engine NodeMaterial swap can
+// land on it.
 
 import { describe, expect, it } from "vitest";
 
@@ -28,7 +29,7 @@ function step(system: { frameUpdate?: (ctx: never) => void }, world: World): voi
 }
 
 describe("createKaboomBombOutlineSystem (S280)", () => {
-  it("spawns one duplicate per Bomb with matching mesh ref + placer-palette OutlineOccluder", () => {
+  it("spawns one outline duplicate per Bomb with a procedural-mesh ref + placer-palette OutlineOccluder", () => {
     const world = new World();
     makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
@@ -36,37 +37,13 @@ describe("createKaboomBombOutlineSystem (S280)", () => {
     const outlineId = "bomb.player.1.1.outline-occluder";
     expect(world.hasEntity(outlineId)).toBe(true);
     const renderer = world.getComponent<{ mesh: string }>(outlineId, "MeshRenderer");
-    expect(renderer?.mesh).toBe("sphere");
+    // Procedural mesh ref — see register-bomb-outline-builder.ts.
+    // CRITICAL: must NOT be the bare "sphere" primitive, which would
+    // route the outline through the auto-batch path and prevent the
+    // engine NodeMaterial swap from landing.
+    expect(renderer?.mesh).toBe("procedural:bomb-outline-sphere");
     const occluder = world.getComponent<{ color: string }>(outlineId, "OutlineOccluder");
     expect(occluder?.color).toBe("#3ab0ff");
-  });
-
-  it("tags the source bomb AND the outline duplicate with OutlinePrePassExcluded", () => {
-    const world = new World();
-    makeBomb(world, "bomb.player.1.1", "player.1");
-    const sys = createKaboomBombOutlineSystem();
-    step(sys, world);
-    expect(world.hasComponent("bomb.player.1.1", "OutlinePrePassExcluded")).toBe(true);
-    expect(world.hasComponent("bomb.player.1.1.outline-occluder", "OutlinePrePassExcluded")).toBe(true);
-  });
-
-  it("opts both the source bomb AND the outline duplicate out of auto-batching", () => {
-    // Kaboom-crew runs with project.json `render.batching.auto: true` —
-    // primitive-mesh entities (sphere/box/plane) are bucketed into an
-    // InstancedMesh and skipped by mesh-lifecycle. The outline shader
-    // path needs per-entity handles to land setMeshMaterial, so both
-    // sides of the silhouette must opt out.
-    const world = new World();
-    makeBomb(world, "bomb.player.1.1", "player.1");
-    const sys = createKaboomBombOutlineSystem();
-    step(sys, world);
-    const bombBatchable = world.getComponent<{ enabled?: boolean }>("bomb.player.1.1", "Batchable");
-    expect(bombBatchable?.enabled).toBe(false);
-    const outlineBatchable = world.getComponent<{ enabled?: boolean }>(
-      "bomb.player.1.1.outline-occluder",
-      "Batchable"
-    );
-    expect(outlineBatchable?.enabled).toBe(false);
   });
 
   it("uses placer-personality colour for NPC bombs", () => {
@@ -99,7 +76,16 @@ describe("createKaboomBombOutlineSystem (S280)", () => {
     expect(world.entityCount()).toBe(before);
   });
 
-  it("survives a map restart: same bomb-id re-used after detonation", () => {
+  it("does NOT tag the source bomb with Batchable or OutlinePrePassExcluded — those workarounds are no longer needed", () => {
+    const world = new World();
+    makeBomb(world, "bomb.player.1.1", "player.1");
+    const sys = createKaboomBombOutlineSystem();
+    step(sys, world);
+    expect(world.hasComponent("bomb.player.1.1", "Batchable")).toBe(false);
+    expect(world.hasComponent("bomb.player.1.1", "OutlinePrePassExcluded")).toBe(false);
+  });
+
+  it("survives a 'map restart' (same bomb-id re-used after detonation)", () => {
     const world = new World();
     makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();

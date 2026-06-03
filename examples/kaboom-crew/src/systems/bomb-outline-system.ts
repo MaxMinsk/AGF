@@ -1,22 +1,31 @@
 // S280 KABOOM-BOMB-OUTLINE-OCCLUDER. Per-bomb see-through silhouette
 // on top of the S278/S279 pre-pass infrastructure.
 //
-// For each `Bomb` mesh:
-//   • spawn `<bombId>.outline-occluder` (sibling-style child carrying
-//     `OutlineOccluder` — the engine `render.outline-occluder` system
-//     swaps a WebGPU TSL NodeMaterial in);
-//   • tag the bomb itself with `OutlinePrePassExcluded` so the engine
-//     prepass excludes it from the depth target the silhouette
-//     samples (otherwise the bomb's own depth would zero the
-//     smoothstep at every bomb pixel — i.e. silhouette only visible
-//     where the bomb does NOT cover, which is nowhere useful).
+// For each `Bomb` mesh, spawn `<bombId>.outline-occluder` carrying the
+// engine `OutlineOccluder` component (the engine
+// `render.outline-occluder` system swaps a WebGPU TSL NodeMaterial in).
 //
-// The outline duplicate also gets `OutlinePrePassExcluded` so its
-// transparent material never contributes to the depth target.
+// Mesh ref note: the outline duplicate uses
+// `procedural:bomb-outline-sphere` (registered in
+// `register-bomb-outline-builder.ts`) rather than the built-in
+// `"sphere"` primitive. Why: kaboom-crew runs with
+// `project.json#render.batching.auto: true`, so every primitive-mesh
+// entity is auto-bucketed into an InstancedMesh and SKIPPED by
+// `mesh-lifecycle` — meaning no per-entity `RenderMeshHandle` for the
+// engine outline-occluder query to match. Procedural mesh refs go
+// down the per-entity path, so the NodeMaterial swap lands cleanly.
 //
-// Survives map restart (no module-level cache of bomb identity).
-// GC pass drops orphan outlines whose source bomb was removed by
-// detonation, sudden-death, or round reset.
+// The source bomb stays auto-batched (its visual is unchanged). We do
+// NOT exclude it from the pre-pass — and we don't need to: with the
+// single-sphere outline, intra-mesh bleed is impossible, and the
+// math still works correctly when the bomb writes its own depth into
+// the prepass target:
+//   • Visible bomb pixel  → prepass depth = bomb_z, outline delta=0
+//                           → smoothstep 0 → invisible. Bomb shows
+//                           its own colour + S270 red fuse pulse.
+//   • Occluded bomb pixel → prepass depth = wall_z (bomb's instance
+//                           rejected by wall's closer z), outline
+//                           delta = bomb_z - wall_z > 0 → silhouette.
 
 import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -28,16 +37,13 @@ const BOMB: ComponentName = "Bomb";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
 const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
-const OUTLINE_PREPASS_EXCLUDED: ComponentName = "OutlinePrePassExcluded";
-const BATCHABLE: ComponentName = "Batchable";
 
 const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#ff7a3a";
 const OUTLINE_OPACITY = 0.85;
-// Tight feather — same as bombers. With the bomb excluded from the
-// prepass depth, any cross-wall delta saturates the smoothstep to
-// full opacity.
 const OUTLINE_SOFT_EDGE = 0.01;
+/** Procedural mesh ref — see `register-bomb-outline-builder.ts`. */
+const OUTLINE_MESH_REF = "procedural:bomb-outline-sphere";
 
 type MeshRendererLike = { mesh: string };
 type BombLike = { ownerId?: string };
@@ -59,25 +65,11 @@ export function createKaboomBombOutlineSystem(): System {
       }
 
       for (const bombId of bombQuery!.run()) {
-        const renderer = world.getComponent<MeshRendererLike>(bombId, MESH_RENDERER);
-        if (renderer === undefined) continue;
-
-        // Tag the source bomb so the prepass excludes it.
-        if (!world.hasComponent(bombId, OUTLINE_PREPASS_EXCLUDED)) {
-          world.setComponent(bombId, OUTLINE_PREPASS_EXCLUDED, {});
-        }
-        // S280 — also opt the bomb out of auto-batching. The bomb mesh
-        // is a "sphere" primitive which `render.batching.auto: true`
-        // (kaboom-crew project.json) buckets into an InstancedMesh.
-        // Batched entities have no per-entity `RenderMeshHandle`, so
-        // `setMeshOutlinePrePassExcluded(handle)` can't reach them — the
-        // pre-pass would still see the bomb in its depth target and
-        // the outline would zero out at every bomb pixel (including
-        // the cross-wall ones we want to silhouette).
-        if (!world.hasComponent(bombId, BATCHABLE)) {
-          world.setComponent(bombId, BATCHABLE, { enabled: false });
-        }
-
+        // We need the source bomb's MeshRenderer presence to confirm
+        // the bomb is fully spawned; we don't read its mesh ref —
+        // outlines use the dedicated procedural-mesh ref.
+        const _renderer = world.getComponent<MeshRendererLike>(bombId, MESH_RENDERER);
+        if (_renderer === undefined) continue;
         const outlineId = `${bombId}.${OUTLINE_SUFFIX}`;
         if (world.hasEntity(outlineId)) continue;
         const bomb = world.getComponent<BombLike>(bombId, BOMB);
@@ -91,27 +83,15 @@ export function createKaboomBombOutlineSystem(): System {
           rotation: [0, 0, 0],
           scale: [1, 1, 1]
         });
-        world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
-        // S280 — opt out of auto-batching. The bomb outline uses the
-        // built-in "sphere" primitive, which the engine batching
-        // system auto-buckets into a shared InstancedMesh. Batched
-        // entities are skipped by `mesh-lifecycle`, so they never get
-        // a `RenderMeshHandle`, so the engine `render.outline-occluder`
-        // system never finds them in its query — the outline ends up
-        // drawn by the batched InstancedMesh with the default white
-        // material, covering the live bomb. Per-mesh-handle path is
-        // mandatory for the WebGPU NodeMaterial swap to land on this
-        // entity.
-        world.setComponent(outlineId, BATCHABLE, { enabled: false });
+        world.setComponent(outlineId, MESH_RENDERER, { mesh: OUTLINE_MESH_REF });
         world.setComponent(outlineId, OUTLINE_OCCLUDER, {
           color,
           opacity: OUTLINE_OPACITY,
           softEdge: OUTLINE_SOFT_EDGE
         });
-        world.setComponent(outlineId, OUTLINE_PREPASS_EXCLUDED, {});
       }
 
-      // GC orphan outlines whose source bomb is gone.
+      // GC orphans (source bomb removed, outline survives).
       for (const id of outlineQuery!.run()) {
         if (!id.endsWith(`.${OUTLINE_SUFFIX}`)) continue;
         const transform = world.getComponent<TransformLike>(id, TRANSFORM);
