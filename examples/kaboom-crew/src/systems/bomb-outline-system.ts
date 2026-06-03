@@ -86,6 +86,11 @@ export function createKaboomBombOutlineSystem(): System {
           softEdge: OUTLINE_SOFT_EDGE
         });
         world.setComponent(outlineId, OUTLINE_PREPASS_EXCLUDED, {});
+        // S280-diag — verify bomb outlines are actually being spawned
+        // in the user's session. Drop when the bomb-through-walls
+        // feature is confirmed stable.
+        // eslint-disable-next-line no-console
+        console.log(`[bomb-outline] spawned ${outlineId} (color=${color}, mesh=${renderer.mesh})`);
       }
 
       // GC orphan outlines whose source bomb is gone.
