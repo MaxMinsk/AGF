@@ -127,10 +127,19 @@
       ]
     },
     {
-      "id": "S272B-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",
+      "id": "S273-KABOOM-OUTLINE-OCCLUDER",
+      "title": "Outline-occluder shader for bombers (GDP-2026-05-28-014 V0)",
+      "status": "implemented",
+      "summary": "Schema extension: MeshRenderer gains optional depthFunc/depthWrite/transparent/opacity/polygonOffset fields exposing the S184 ThreeRenderAdapter outline plumbing. material-binding-system forwards them through setMeshMaterialPatch. New kaboom system bomber-outline-system spawns a `<root>.torso-outline` duplicate per bomber parented to the torso, using the same procedural mesh ref + the bomber's palette colour + depthFunc='greater' + depthWrite=false + transparent + opacity 0.85 + polygonOffset {-1,-1}. Result: each bomber's torso renders a coloured silhouette when occluded by hard / soft blocks. URL `?occluderOutline=off` disables.",
+      "verification": [
+        "acceptance: 9 new unit tests for the kaboom system (disabled no-op, spawn shape including all render-state fields, palette colour per bomber id, unknown-id fallback colour, idempotency, defensive re-spawn on deletion, missing-torso no-crash, world-swap cache reset). schema accepted by engine:check. npm run typecheck + build clean. npx vitest run — 2434/2434 pass. Live Playwright probe: 4 outline entities mount (player.1 + bot.1/2/3) with correct MeshRenderer + Transform.parent. No console errors."
+      ]
+    },
+    {
+      "id": "S273B-KABOOM-SPRINT-CLOSE-HOUSEKEEPING",
       "title": "Sprint S177 close — archive proposals + render backlog views",
       "status": "pending",
-      "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON."
+      "summary": "Mark S177 archived, set archivedAt + prUrl, archive any proposal files closed by the sprint slices (e.g. GDP-2026-05-29-010 once all three bluff types ship; GDP-2026-05-28-012 with 4/5 families shipped; GDP-2026-05-28-014 V0), and re-run backlog:render so BACKLOG.md / BACKLOG_ARCHIVE.md regenerate from the JSON."
     }
   ]
 }

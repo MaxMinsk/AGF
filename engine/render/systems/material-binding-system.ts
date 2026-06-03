@@ -43,6 +43,18 @@ type MeshRendererComponent = {
   mesh: string;
   material?: string;
   color?: string;
+  // S273 KABOOM-OUTLINE-OCCLUDER — optional render-state overrides
+  // forwarded to the underlying material (S184 plumbing in the
+  // ThreeRenderAdapter). Lets projects spawn outline-occluder
+  // duplicate meshes that draw ONLY where they're behind something
+  // else (depthFunc='greater' + depthWrite=false). Stencil knobs
+  // intentionally NOT exposed yet — they belong to a project that
+  // sets up the matching original-mesh stencil write.
+  depthFunc?: "less" | "lessEqual" | "greater" | "greaterEqual" | "always";
+  depthWrite?: boolean;
+  transparent?: boolean;
+  opacity?: number;
+  polygonOffset?: { factor: number; units: number };
 };
 
 export type MaterialBindingDeps = {
@@ -85,6 +97,35 @@ export function createMaterialBindingSystem(
       // Inline color updates land instantly when there's no manifest ref.
       if (mesh.material === undefined && mesh.color !== undefined) {
         deps.adapter.setMeshMaterialPatch(handle, { color: mesh.color });
+      }
+
+      // S273 — forward inline render-state overrides on every frame so
+      // hot-edits land instantly. Cheap: setMeshMaterialPatch only
+      // writes fields that are actually present on the patch object.
+      const renderStatePatch: import("../three-render-adapter").MaterialPatch = {};
+      let hasRenderStatePatch = false;
+      if (mesh.depthFunc !== undefined) {
+        renderStatePatch.depthFunc = mesh.depthFunc;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.depthWrite !== undefined) {
+        renderStatePatch.depthWrite = mesh.depthWrite;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.transparent !== undefined) {
+        renderStatePatch.transparent = mesh.transparent;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.opacity !== undefined) {
+        renderStatePatch.opacity = mesh.opacity;
+        hasRenderStatePatch = true;
+      }
+      if (mesh.polygonOffset !== undefined) {
+        renderStatePatch.polygonOffset = mesh.polygonOffset;
+        hasRenderStatePatch = true;
+      }
+      if (hasRenderStatePatch) {
+        deps.adapter.setMeshMaterialPatch(handle, renderStatePatch);
       }
 
       reconcileGeometry(world, id, handle, mesh.mesh, deps);
