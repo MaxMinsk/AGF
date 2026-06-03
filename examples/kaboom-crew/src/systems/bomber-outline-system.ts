@@ -45,12 +45,13 @@ const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#7fd6ff";
 const OUTLINE_OPACITY = 0.85;
 // Linear-depth feather — see `engine/render/webgpu/outline-node-material.ts`.
-// Tuned for the kaboom-crew tilted top-down camera: head-vs-torso
-// deltas land around 0.001 of linear-depth; wall-vs-bomber land
-// around 0.007. softEdge = 0.005 gives effectively zero intra-bomber
-// bleed (smoothstep ≈ 0.04 → opacity ≈ 0.03) while saturating to full
-// opacity on the cross-wall delta.
-const OUTLINE_SOFT_EDGE = 0.005;
+// Camera in kaboom-crew is ORTHOGRAPHIC at a 55° pitch with far = 100,
+// so depth is linear with distance along the camera Z axis. Intra-
+// bomber head-vs-torso projects to ~0.0026 of linear-depth; cross-wall
+// commonly lands at 0.02 or more. softEdge = 0.02 gives near-zero
+// intra-bomber bleed (smoothstep ≈ 0.05 → final opacity ≈ 0.04) while
+// the cross-wall delta saturates to full opacity.
+const OUTLINE_SOFT_EDGE = 0.02;
 
 type MeshRendererLike = { mesh: string };
 type TransformLike = { parent?: string };

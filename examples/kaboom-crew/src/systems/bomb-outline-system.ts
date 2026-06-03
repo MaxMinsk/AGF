@@ -1,9 +1,12 @@
-// S277d KABOOM-BOMB-OUTLINE-OCCLUDER. Per-bomb see-through silhouette
-// via the S273 `depthFunc='greater'` MeshRenderer-patch path. Works
-// in WebGL AND WebGPU (no async material loading), and survives map
-// restarts cleanly because nothing is cached at module scope — every
-// frame we re-discover bombs via the ECS query and idempotently spawn
-// the duplicate keyed off `world.hasEntity(outlineId)`.
+// S277i KABOOM-BOMB-OUTLINE-OCCLUDER. Per-bomb see-through silhouette
+// using the engine WebGPU TSL `OutlineOccluder` path — same machinery
+// as `bomber-outline-system`. The engine `render.outline-occluder`
+// system swaps in a NodeMaterial that returns opacity 0 at pixels
+// where the source bomb is visible (no depth delta vs the world) and
+// opacity ~ 0.85 at pixels where the bomb sits behind an occluder.
+// The engine flips `Object3D.visible = false` until the NodeMaterial
+// loads, so the default MeshStandardMaterial never paints over the
+// live bomb.
 
 import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -14,10 +17,15 @@ import { bomberPuffColor } from "./bomber-palette";
 const BOMB: ComponentName = "Bomb";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
+const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
 
 const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#ff7a3a";
 const OUTLINE_OPACITY = 0.85;
+// Match the bomber softEdge so the engine NodeMaterial cache key
+// `(color, opacity, softEdge)` lines up — and so the same camera-
+// derived occluder threshold drives both.
+const OUTLINE_SOFT_EDGE = 0.02;
 
 type MeshRendererLike = { mesh: string };
 type BombLike = { ownerId?: string };
@@ -54,22 +62,20 @@ export function createKaboomBombOutlineSystem(): System {
           rotation: [0, 0, 0],
           scale: [1, 1, 1]
         });
-        // OPAQUE silhouette (transparent: false) so it sorts into the
-        // opaque queue + the depthFunc='greater' GPU state is actually
-        // honored — early tests with transparent: true had the duplicate
-        // covering the live bomb on WebGPU, suggesting Three's WebGPU
-        // backend ignores depthFunc on the transparent pass. depthWrite
-        // is still false so we don't poison the depth buffer for later
-        // passes.
-        world.setComponent(outlineId, MESH_RENDERER, {
-          mesh: renderer.mesh,
+        // NodeMaterial-only: no MeshRenderer.color or depthFunc fields.
+        // The engine outline-occluder-system flips visibility to false
+        // until the NodeMaterial is async-loaded, so the default
+        // MeshStandardMaterial never paints over the live bomb.
+        world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
+        world.setComponent(outlineId, OUTLINE_OCCLUDER, {
           color,
-          depthFunc: "greater",
-          depthWrite: false
+          opacity: OUTLINE_OPACITY,
+          softEdge: OUTLINE_SOFT_EDGE
         });
       }
 
-      // GC orphans (source bomb removed, outline survives).
+      // GC orphan outlines whose source bomb is gone (detonation,
+      // sudden-death, round reset).
       for (const id of outlineQuery!.run()) {
         if (!id.endsWith(`.${OUTLINE_SUFFIX}`)) continue;
         const transform = world.getComponent<TransformLike>(id, TRANSFORM);

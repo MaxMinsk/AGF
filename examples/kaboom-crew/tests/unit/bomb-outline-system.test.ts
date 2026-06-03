@@ -1,7 +1,6 @@
-// S277d — coverage for the kaboom bomb-outline-system. Bombs use the
-// S273 `depthFunc='greater'` MeshRenderer-patch path so the silhouette
-// only ever draws WHERE the depth buffer holds a closer surface — the
-// live bomb mesh keeps its colour + fuse pulse intact.
+// S277i — coverage for the kaboom bomb-outline-system. Bombs use the
+// engine `OutlineOccluder` NodeMaterial path (same as bombers) — the
+// engine system handles the WebGPU material swap + visibility gating.
 
 import { describe, expect, it } from "vitest";
 
@@ -22,30 +21,19 @@ function step(system: { frameUpdate?: (ctx: never) => void }, world: World): voi
   });
 }
 
-type OutlineMeshRenderer = {
-  mesh: string;
-  color: string;
-  transparent: boolean;
-  opacity: number;
-  depthFunc: string;
-  depthWrite: boolean;
-};
-
-describe("createKaboomBombOutlineSystem (S277d)", () => {
-  it("spawns one duplicate per Bomb with depthFunc='greater' + placer-palette colour", () => {
+describe("createKaboomBombOutlineSystem (S277i)", () => {
+  it("spawns one duplicate per Bomb with matching mesh ref + placer-palette OutlineOccluder", () => {
     const world = new World();
     makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
     const outlineId = "bomb.player.1.1.outline-occluder";
     expect(world.hasEntity(outlineId)).toBe(true);
-    const renderer = world.getComponent<OutlineMeshRenderer>(outlineId, "MeshRenderer");
-    expect(renderer).toMatchObject({
-      mesh: "sphere",
-      color: "#3ab0ff",
-      depthFunc: "greater",
-      depthWrite: false
-    });
+    const renderer = world.getComponent<{ mesh: string }>(outlineId, "MeshRenderer");
+    expect(renderer?.mesh).toBe("sphere");
+    const occluder = world.getComponent<{ color: string; softEdge?: number }>(outlineId, "OutlineOccluder");
+    expect(occluder?.color).toBe("#3ab0ff");
+    expect(occluder?.softEdge).toBe(0.02);
   });
 
   it("uses placer-personality colour for NPC bombs", () => {
@@ -55,8 +43,8 @@ describe("createKaboomBombOutlineSystem (S277d)", () => {
     makeBomb(world, "bomb.opp.1.1", "opp.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    const renderer = world.getComponent<OutlineMeshRenderer>("bomb.opp.1.1.outline-occluder", "MeshRenderer");
-    expect(renderer?.color).toBe("#c9a14d");
+    const occluder = world.getComponent<{ color: string }>("bomb.opp.1.1.outline-occluder", "OutlineOccluder");
+    expect(occluder?.color).toBe("#c9a14d");
   });
 
   it("falls back to warm-orange when ownerId is missing / unknown", () => {
@@ -64,8 +52,8 @@ describe("createKaboomBombOutlineSystem (S277d)", () => {
     makeBomb(world, "stale.bomb.0", undefined);
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
-    const renderer = world.getComponent<OutlineMeshRenderer>("stale.bomb.0.outline-occluder", "MeshRenderer");
-    expect(renderer?.color).toBe("#ff7a3a");
+    const occluder = world.getComponent<{ color: string }>("stale.bomb.0.outline-occluder", "OutlineOccluder");
+    expect(occluder?.color).toBe("#ff7a3a");
   });
 
   it("is idempotent — a second step doesn't re-spawn duplicates", () => {
@@ -78,17 +66,15 @@ describe("createKaboomBombOutlineSystem (S277d)", () => {
     expect(world.entityCount()).toBe(before);
   });
 
-  it("survives a 'map restart' (same bomb-id re-used after deletion)", () => {
+  it("survives a 'map restart' (same bomb-id re-used after detonation)", () => {
     const world = new World();
     makeBomb(world, "bomb.player.1.1", "player.1");
     const sys = createKaboomBombOutlineSystem();
     step(sys, world);
     expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(true);
-    // detonation
     world.removeEntity("bomb.player.1.1");
-    step(sys, world); // GC orphan
+    step(sys, world);
     expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(false);
-    // restart: new bomb with the same id
     makeBomb(world, "bomb.player.1.1", "player.1");
     step(sys, world);
     expect(world.hasEntity("bomb.player.1.1.outline-occluder")).toBe(true);
