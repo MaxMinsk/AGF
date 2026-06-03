@@ -632,16 +632,26 @@ export async function startRuntime(options: RuntimeOptions): Promise<RuntimeHand
     const pms = createPlanarMirrorSystem({ adapter: renderer.adapter });
     if (!scheduler.has(pms.name)) scheduler.register(pms);
 
+    // S278 ENGINE-OUTLINE-PRE-PASS. Renders the scene without bomber-
+    // tagged meshes into a depth-only render target each frame so the
+    // outline-occluder NodeMaterial samples WORLD-only depth (no
+    // intra-bomber bleed). Dormant when no entity has `OutlineOccluder`.
+    // Registered BEFORE outline-occluder so the depth texture is
+    // current when the occluder material reads it.
+    const { createOutlinePrePassSystem } = await import(
+      "../render/systems/outline-prepass-system"
+    );
+    const opps = createOutlinePrePassSystem({ adapter: renderer.adapter });
+    if (!scheduler.has(opps.name)) scheduler.register(opps);
+
     // S277 ENGINE-OUTLINE-OCCLUDER. For every entity with
     // `OutlineOccluder`, swap the mesh's material for a WebGPU TSL
     // NodeMaterial that paints a see-through silhouette wherever the
-    // fragment is behind the rest of the scene (sampled via Three's
-    // `viewportDepthTexture`). WebGL = no-op (NodeMaterial has no
-    // WebGL fallback for this graph).
+    // fragment is behind the rest of the scene. WebGL = no-op.
     const { createOutlineOccluderSystem } = await import(
       "../render/systems/outline-occluder-system"
     );
-    const oos = createOutlineOccluderSystem({ adapter: renderer.adapter });
+    const oos = createOutlineOccluderSystem({ adapter: renderer.adapter, prepass: opps });
     if (!scheduler.has(oos.name)) scheduler.register(oos);
   }
 

@@ -55,6 +55,28 @@ describe("createKaboomBomberOutlineSystem (S277e)", () => {
     }
   });
 
+  it("tags every source bomber part with OutlinePrePassExcluded so the engine prepass masks them out", () => {
+    const world = new World();
+    makeBomber(world, "player.1");
+    const sys = createKaboomBomberOutlineSystem();
+    step(sys, world);
+    for (const part of PARTS) {
+      const partId = `player.1.${part}`;
+      expect(world.hasComponent(partId, "OutlinePrePassExcluded"), partId).toBe(true);
+    }
+  });
+
+  it("tags every outline duplicate with OutlinePrePassExcluded too", () => {
+    const world = new World();
+    makeBomber(world, "player.1");
+    const sys = createKaboomBomberOutlineSystem();
+    step(sys, world);
+    for (const part of PARTS) {
+      const outlineId = `player.1.${part}.outline-occluder`;
+      expect(world.hasComponent(outlineId, "OutlinePrePassExcluded"), outlineId).toBe(true);
+    }
+  });
+
   it("uses BotBrain personality colour for NPC bombers", () => {
     const world = new World();
     makeBomber(world, "opponent.1");

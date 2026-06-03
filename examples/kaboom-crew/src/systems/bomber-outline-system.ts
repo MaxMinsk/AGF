@@ -1,21 +1,21 @@
-// S277e KABOOM-BOMBER-OUTLINE-OCCLUDER. Per-bomber-part see-through
-// silhouette using the engine's WebGPU TSL `OutlineOccluder` path.
+// S279 KABOOM-BOMBER-OUTLINE-OCCLUDER (pre-pass variant).
 //
-// Why NodeMaterial here (and not the simpler depthFunc='greater' patch
-// the bombs use): a bomber has 10 part meshes. Under depthFunc='greater'
-// alone, the torso's outline-duplicate tests against the depth buffer
-// AFTER the head writes its depth — at head-overlap pixels the torso's
-// `torso_z > head_z` test passes and the torso silhouette bleeds
-// through the head ("body shines through head" — user-reported in S273
-// and again in early S277). The WebGPU TSL material samples a
-// LINEAR-DEPTH viewport delta with a `softEdge` feather wide enough to
-// zero out the centimetre-scale intra-bomber deltas while still
-// returning full opacity at the metre-scale cross-wall delta.
+// Per bomber root (every entity that owns `LimbPivots`):
+//   • walk the 10 named body parts; for each part that has a
+//     `MeshRenderer`, spawn one outline duplicate
+//     `<part>.outline-occluder` with the engine `OutlineOccluder`
+//     component;
+//   • tag the source bomber part with `OutlinePrePassExcluded` so
+//     the engine `render.outline-prepass` system masks it out of the
+//     depth target the outline material samples. The outline
+//     duplicates also get the same tag (they have transparent +
+//     depthWrite=false NodeMaterials but tagging is the
+//     belt-and-braces guarantee).
 //
-// The duplicate stays `Object3D.visible = false` until the engine
-// `render.outline-occluder` system finishes async-loading the
-// NodeMaterial; without that guard the default MeshStandardMaterial
-// flashes white/grey over the live source.
+// Idempotent against map restart: we never cache root state at module
+// level, the loop keys off `world.hasEntity(outlineId)` per frame and
+// the orphan-GC pass walks outline-suffixed entities, dropping any
+// whose `Transform.parent` no longer resolves.
 
 import type { ComponentName } from "../../../../engine/core/ecs/types";
 import type { QueryHandle, World } from "../../../../engine/core/ecs/world";
@@ -27,6 +27,7 @@ const LIMB_PIVOTS: ComponentName = "LimbPivots";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
 const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
+const OUTLINE_PREPASS_EXCLUDED: ComponentName = "OutlinePrePassExcluded";
 
 const PART_SUFFIXES: ReadonlyArray<string> = [
   "torso",
@@ -44,19 +45,12 @@ const PART_SUFFIXES: ReadonlyArray<string> = [
 const OUTLINE_SUFFIX = "outline-occluder";
 const FALLBACK_COLOR = "#7fd6ff";
 const OUTLINE_OPACITY = 0.85;
-// Linear-depth feather — see `engine/render/webgpu/outline-node-material.ts`.
-// Camera in kaboom-crew is ORTHOGRAPHIC at a 55° pitch with far = 100,
-// so depth is linear with distance along the camera Z axis. Intra-
-// bomber head-vs-torso projects to ~0.0026 of linear-depth; cross-wall
-// commonly lands at 0.02 or more. softEdge = 0.02 gives near-zero
-// intra-bomber bleed (smoothstep ≈ 0.05 → final opacity ≈ 0.04) while
-// the cross-wall delta saturates to full opacity.
-// 0.04 is the value the user confirmed works without intra-bomber
-// bleed under the kaboom-crew orthographic camera at -55° pitch.
-// Cross-wall close-occluder visibility is the known weak spot of
-// this single-pass approach; a follow-up depth-pre-pass commit will
-// fix it without re-introducing the bleed.
-const OUTLINE_SOFT_EDGE = 0.04;
+// With the pre-pass excluding bomber meshes from the sampled depth,
+// we no longer need a wide feather to mask intra-bomber bleed —
+// 0.01 of NDC depth gives full silhouette opacity for any close
+// occluder (a 1m hard block in front of the bomber projects to
+// 0.001+ of NDC depth under the orthographic camera).
+const OUTLINE_SOFT_EDGE = 0.01;
 
 type MeshRendererLike = { mesh: string };
 type TransformLike = { parent?: string };
@@ -85,6 +79,7 @@ export function createKaboomBomberOutlineSystem(
         cachedWorld = world;
       }
 
+      // (1) spawn missing outline duplicates + tag source parts.
       for (const rootId of rootQuery!.run()) {
         const color = bomberPuffColor(world, rootId) ?? FALLBACK_COLOR;
         for (const suffix of PART_SUFFIXES) {
@@ -92,6 +87,13 @@ export function createKaboomBomberOutlineSystem(
           if (!world.hasEntity(partId)) continue;
           const renderer = world.getComponent<MeshRendererLike>(partId, MESH_RENDERER);
           if (renderer === undefined) continue;
+
+          // Tag the source part so the prepass excludes it from the
+          // depth target the silhouette material samples.
+          if (!world.hasComponent(partId, OUTLINE_PREPASS_EXCLUDED)) {
+            world.setComponent(partId, OUTLINE_PREPASS_EXCLUDED, {});
+          }
+
           const outlineId = `${partId}.${OUTLINE_SUFFIX}`;
           if (world.hasEntity(outlineId)) continue;
           world.addEntity(outlineId);
@@ -101,26 +103,22 @@ export function createKaboomBomberOutlineSystem(
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           });
-          // WebGPU NodeMaterial path only — the engine system swaps
-          // the linear-depth smoothstep TSL material in, which is the
-          // only mechanism that suppresses head-vs-torso intra-bomber
-          // bleed. setMeshVisible(false) on the engine side keeps the
-          // duplicate hidden until the swap lands.
           world.setComponent(outlineId, MESH_RENDERER, { mesh: renderer.mesh });
           world.setComponent(outlineId, OUTLINE_OCCLUDER, { color, opacity, softEdge });
+          // Outline duplicates ALSO get the prepass-excluded tag (the
+          // NodeMaterial has depthWrite=false, but tagging keeps the
+          // pre-pass tidy if any other system reads our depth target).
+          world.setComponent(outlineId, OUTLINE_PREPASS_EXCLUDED, {});
         }
       }
 
-      // GC orphans: outline-suffixed entities whose Transform.parent
-      // no longer resolves. Survives map restart cleanly because we
-      // never cache root state.
+      // (2) GC orphans (parent gone). Survives map restart since we
+      //     never cache root identity.
       for (const id of outlineQuery!.run()) {
         if (!id.endsWith(`.${OUTLINE_SUFFIX}`)) continue;
         const transform = world.getComponent<TransformLike>(id, TRANSFORM);
         if (transform?.parent === undefined) continue;
-        if (!world.hasEntity(transform.parent)) {
-          world.removeEntity(id);
-        }
+        if (!world.hasEntity(transform.parent)) world.removeEntity(id);
       }
     }
   };

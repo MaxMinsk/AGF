@@ -1,30 +1,32 @@
-// S277 ENGINE-OUTLINE-OCCLUDER-SYSTEM.
+// S279 ENGINE-OUTLINE-OCCLUDER-SYSTEM.
 //
 // For every entity with `OutlineOccluder { color, opacity?, softEdge? }`
 // + `RenderMeshHandle`, this system swaps the mesh's material for the
-// WebGPU outline-occluder NodeMaterial (see
-// `engine/render/webgpu/outline-node-material.ts`).
+// WebGPU outline-occluder NodeMaterial — the PRE-PASS variant from
+// S186 (`createOutlineOccluderMaterial`). The pre-pass depth comes
+// from `render.outline-prepass` (S278), which renders the world
+// WITHOUT bomber meshes; so the depth the silhouette material samples
+// only ever reflects WORLD geometry. That sidesteps the intra-bomber
+// bleed the live-viewport variant suffered from (head-vs-torso depth
+// deltas were indistinguishable from cross-wall deltas in a single
+// shared buffer).
 //
-// We use the VIEWPORT variant of the outline material — it samples
-// `viewportDepthTexture` (Three's WebGPU-native depth read from the
-// currently-bound framebuffer). The PRE-PASS variant we tried first
-// requires sampling a custom DepthTexture, which Three's WebGPU
-// backend doesn't expose through `t.texture(map, uv)` cleanly without
-// a full PassNode rebuild. The viewport variant gives correct
-// behaviour for the dominant cross-wall case; intra-bomber overlap
-// (head-vs-torso bleed) is masked by the smoothstep `softEdge`
-// feathered around 0 NDC delta.
+// While the NodeMaterial async-loads, the duplicate is hidden via
+// `setMeshVisible(handle, false)` so the default MeshStandardMaterial
+// never paints over the live source. When the pre-pass depth texture
+// changes (canvas resize) the per-entity applied material is dropped
+// + recreated against the new texture.
 //
-// WebGL = no-op (the TSL graph has no WebGL fallback). Projects can
-// author OutlineOccluder freely; the system stays silent on a WebGL
-// build instead of throwing.
+// WebGL = no-op (the TSL graph has no WebGL fallback).
 
-import type { Material } from "three";
+import type { DepthTexture, Material } from "three";
 
 import type { ComponentName, EntityId } from "../../core/ecs/types";
 import type { QueryHandle, World } from "../../core/ecs/world";
 import type { System, SystemContext } from "../../core/systems/types";
 import type { ThreeRenderAdapter } from "../three-render-adapter";
+
+import type { OutlinePrePassSystemHandle } from "./outline-prepass-system";
 
 export const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
 const RENDER_MESH_HANDLE: ComponentName = "RenderMeshHandle";
@@ -46,18 +48,22 @@ type AppliedState = {
   softEdge: number;
   material: Material;
   handle: number;
+  /** Tracks the DepthTexture instance the material captured. If the
+   *  pre-pass swaps render-target (canvas resize), this changes and
+   *  we rebuild the material so it samples the right depth. */
+  depthTexture: DepthTexture;
 };
 
 export type OutlineOccluderDeps = {
   adapter: ThreeRenderAdapter;
+  prepass: OutlinePrePassSystemHandle;
 };
 
 const DEFAULT_OPACITY = 0.85;
-// NDC delta where the silhouette is fully opaque. Bomber-internal
-// overlap (head-vs-torso) is typically < 0.01 NDC; cross-wall is well
-// above 0.05. 0.04 balances both — most inter-part bleed faded, walls
-// still fully opaque.
-const DEFAULT_SOFT_EDGE = 0.04;
+// NDC depth feather. Tight by default — the pre-pass depth excludes
+// the bomber so we no longer need a wide feather to mask intra-bomber
+// bleed; a tight value gives full opacity on any close occluder.
+const DEFAULT_SOFT_EDGE = 0.01;
 const OUTLINE_RENDER_ORDER = 1;
 
 export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
@@ -68,16 +74,6 @@ export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
 
   const applied = new Map<EntityId, AppliedState>();
   const pending = new Set<EntityId>();
-  // S277 — DO NOT share material instances across meshes. The adapter's
-  // `releaseMesh` disposes the mesh's material, and sharing would let
-  // one entity's release tear the material out from under every other
-  // outline mesh in the world (visible as: bomber silhouettes stop
-  // working after a map restart, because the player.1 outline material
-  // got disposed when the round-end teardown released ONE outline
-  // mesh). Three's WebGPU pipeline cache de-duplicates by shader-graph
-  // hash, so creating a fresh NodeMaterial per outline still hits the
-  // pre-compiled pipeline — no compile-stall cost beyond the first
-  // bomber of each unique colour.
 
   function ensureRendererKind(): boolean {
     if (webgpuChecked) return webgpuActive;
@@ -101,6 +97,12 @@ export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
         applied.clear();
         pending.clear();
       }
+      const depthTexture = deps.prepass.getDepthTexture();
+      if (depthTexture === undefined) {
+        // Pre-pass hasn't produced a depth target yet (warm-up frame
+        // before the camera is available). Try again next frame.
+        return;
+      }
       const seen = new Set<EntityId>();
       for (const id of query!.run()) {
         seen.add(id);
@@ -118,20 +120,19 @@ export function createOutlineOccluderSystem(deps: OutlineOccluderDeps): System {
           state.handle === handle &&
           state.color === color &&
           state.opacity === opacity &&
-          state.softEdge === softEdge;
+          state.softEdge === softEdge &&
+          state.depthTexture === depthTexture;
         if (matches) continue;
         if (pending.has(id)) continue;
         pending.add(id);
-        // Hide the duplicate until the WebGPU NodeMaterial is ready,
-        // so the default MeshStandardMaterial doesn't briefly paint
-        // over the live source mesh.
+        // Hide the duplicate while the NodeMaterial async-loads so
+        // the default MeshStandardMaterial doesn't briefly paint over
+        // the live source mesh.
         deps.adapter.setMeshVisible(handle, false);
-        applyOutline(deps, id, handle, { color, opacity, softEdge }, applied, pending);
+        applyOutline(deps, id, handle, { color, opacity, softEdge }, depthTexture, applied, pending);
       }
       for (const id of applied.keys()) {
-        if (!seen.has(id)) {
-          applied.delete(id);
-        }
+        if (!seen.has(id)) applied.delete(id);
       }
     }
   };
@@ -142,31 +143,31 @@ function applyOutline(
   entityId: EntityId,
   handle: number,
   opts: { color: string | number; opacity: number; softEdge: number },
+  depthTexture: DepthTexture,
   applied: Map<EntityId, AppliedState>,
   pending: Set<EntityId>
 ): void {
   void (async () => {
     try {
-      const { createOutlineOccluderViewportMaterial } = await import(
+      const { createOutlineOccluderMaterial } = await import(
         "../webgpu/outline-node-material"
       );
-      const material = await createOutlineOccluderViewportMaterial({
+      const material = await createOutlineOccluderMaterial({
+        depthTexture,
         color: opts.color,
         opacity: opts.opacity,
         softEdge: opts.softEdge
       });
       deps.adapter.setMeshMaterial(handle, material);
       deps.adapter.setMeshRenderOrder(handle, OUTLINE_RENDER_ORDER);
-      // NodeMaterial is now in place — safe to make the duplicate
-      // visible. From here the smoothstep opacityNode controls draw
-      // (0 alpha when the source is visible, 0.85 when occluded).
       deps.adapter.setMeshVisible(handle, true);
       applied.set(entityId, {
         color: opts.color,
         opacity: opts.opacity,
         softEdge: opts.softEdge,
         material,
-        handle
+        handle,
+        depthTexture
       });
     } catch (err) {
       console.warn("[render.outline-occluder] failed to apply outline material:", err);
