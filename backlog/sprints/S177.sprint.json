@@ -77,8 +77,11 @@
     {
       "id": "S268-KABOOM-STEP-JUMP-LANDING-POP",
       "title": "Step-jump landing pop — brief Transform.scale impulse on landing (in addition to the S182 squash arc)",
-      "status": "pending",
-      "summary": "On the LANDING edge (currentLerp crosses from <1 to 1 across a delta=1 cell tween), apply a 1-frame Y-squash to the bomber mesh that decays over 120ms. Reads as a 'real thud' beyond the squash arc, which is symmetric around the jump."
+      "status": "implemented",
+      "summary": "bomber-height-lift-system tracks per-bomber step-jump-tween state; the TRUE→FALSE edge starts a landPopElapsedS timer at 0. The squash function multiplies the existing S182 symmetric squash by (1 - 0.18 × (1 - t)^2) over 120ms after touchdown. Pure helper landingPopScaleY exported for testing.",
+      "verification": [
+        "acceptance: 4 new unit tests cover the helper curve (pop at t=0, baseline at t=duration, monotone non-decreasing, midpoint) + 3 integration tests (edge starts the pop, pop wears off after 0.12s, flat tween does NOT pop). Existing S182 squash tests still pass. npm run typecheck + build clean. npx vitest run — 2407/2407 pass (+7 since S267)."
+      ]
     },
     {
       "id": "S269-KABOOM-CHAIN-REACTION-PUFF-TINT",

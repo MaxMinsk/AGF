@@ -42,6 +42,24 @@ const STEP_JUMP_ARC_PEAK = 0.4;
 const SQUASH_AMOUNT = 0.12;
 const SQUASH_WIDTH = 0.18;
 
+/** S268 — landing pop. Extra one-shot Y-squash that fires on the
+ *  step-jump TRUE→FALSE edge so the touchdown reads as a real thud
+ *  rather than the mirror-image of the takeoff. Amplitude decays as
+ *  `(1-t)^2` over `LAND_POP_DURATION_S`. */
+const LAND_POP_AMOUNT = 0.18;
+const LAND_POP_DURATION_S = 0.12;
+
+/** Pure helper — landing-pop Y-scale multiplier. t is elapsed/duration
+ *  (clamped to [0, 1]). Returns 1 - amount × (1 - t)^2 so the pop is
+ *  hardest at t=0 and gone by t=1. Exported for unit tests. */
+export function landingPopScaleY(elapsedS: number, amount: number = LAND_POP_AMOUNT, durationS: number = LAND_POP_DURATION_S): number {
+  if (elapsedS <= 0) return 1 - amount;
+  if (elapsedS >= durationS) return 1;
+  const t = elapsedS / durationS;
+  const remaining = 1 - t;
+  return 1 - amount * remaining * remaining;
+}
+
 type TransformLike = {
   position?: ReadonlyArray<number>;
   rotation?: ReadonlyArray<number>;
@@ -61,6 +79,13 @@ export function createKaboomBomberHeightLiftSystem(): System {
   // S182 — authored Transform.scale per bomber, captured on first sight
   // so the step-jump squash modulates from the right baseline.
   const authoredScale = new Map<EntityId, [number, number, number]>();
+  // S268 — per-bomber state for the landing pop. `prevStepJumping`
+  // tracks whether the bomber was mid step-jump on the previous tick;
+  // a true→false transition kicks off `landPopElapsedS` from 0. The
+  // squash decays as (1 - t)^2 and the entry is dropped when elapsed
+  // exceeds LAND_POP_DURATION_S.
+  const prevStepJumping = new Map<EntityId, boolean>();
+  const landPopElapsedS = new Map<EntityId, number>();
   let cachedWorld: World | undefined;
   let bombers: QueryHandle | undefined;
   let bombs: QueryHandle | undefined;
@@ -75,6 +100,8 @@ export function createKaboomBomberHeightLiftSystem(): System {
       cachedWorld = world;
       authoredBaseY.clear();
       authoredScale.clear();
+      prevStepJumping.clear();
+      landPopElapsedS.clear();
     }
 
     const liftOne = (entityId: EntityId): void => {
@@ -113,9 +140,29 @@ export function createKaboomBomberHeightLiftSystem(): System {
       });
     };
 
+    const dt = Math.max(0, context.time.fixedDt);
     for (const id of bombers!.run()) {
       liftOne(id);
-      applyStepJumpSquash(world, id, authoredScale);
+      // S268 — detect the step-jump landing edge BEFORE applying the
+      // squash so the squash function can read landPopElapsedS for
+      // this entity in the same tick the pop starts.
+      const stepJumping = isCurrentlyStepJumping(world, id);
+      const wasJumping = prevStepJumping.get(id) ?? false;
+      if (wasJumping && !stepJumping) {
+        landPopElapsedS.set(id, 0);
+      }
+      prevStepJumping.set(id, stepJumping);
+      // Advance the pop timer; drop when finished.
+      const popElapsed = landPopElapsedS.get(id);
+      if (popElapsed !== undefined) {
+        const nextElapsed = popElapsed + dt;
+        if (nextElapsed >= LAND_POP_DURATION_S) {
+          landPopElapsedS.delete(id);
+        } else {
+          landPopElapsedS.set(id, nextElapsed);
+        }
+      }
+      applyStepJumpSquash(world, id, authoredScale, landPopElapsedS.get(id));
     }
     for (const id of bombs!.run()) liftOne(id);
     for (const id of pickups!.run()) liftOne(id);
@@ -127,9 +174,36 @@ export function createKaboomBomberHeightLiftSystem(): System {
     for (const id of [...authoredScale.keys()]) {
       if (!world.hasEntity(id)) authoredScale.delete(id);
     }
+    for (const id of [...prevStepJumping.keys()]) {
+      if (!world.hasEntity(id)) prevStepJumping.delete(id);
+    }
+    for (const id of [...landPopElapsedS.keys()]) {
+      if (!world.hasEntity(id)) landPopElapsedS.delete(id);
+    }
   };
 
   return { name, fixedUpdate };
+}
+
+/** S268 — true when the bomber is mid-tween between two cells whose
+ *  height delta is exactly 1. Shared between the edge detector + the
+ *  squash function so they agree on the "step-jumping" predicate. */
+function isCurrentlyStepJumping(world: World, entityId: EntityId): boolean {
+  const mover = world.getComponent<GridMover>(entityId, GRID_MOVER);
+  const pos = world.getComponent<GridPos>(entityId, GRID_POSITION);
+  if (
+    mover === undefined
+    || pos?.gx === undefined
+    || pos?.gz === undefined
+    || typeof mover.targetGx !== "number"
+    || typeof mover.targetGz !== "number"
+    || typeof mover.currentLerp !== "number"
+    || mover.currentLerp <= 0
+    || mover.currentLerp >= 1
+  ) return false;
+  const fromH = getCellHeight(world, pos.gx, pos.gz);
+  const toH = getCellHeight(world, mover.targetGx, mover.targetGz);
+  return Math.abs(toH - fromH) === 1;
 }
 
 /** S182 — apply step-jump body squash to a bomber's Transform.scale.
@@ -137,11 +211,16 @@ export function createKaboomBomberHeightLiftSystem(): System {
  *  (t=1) ends of the arc, returning to 1 by t=SQUASH_WIDTH and again
  *  from t=1-SQUASH_WIDTH onward. X/Z scale compensate slightly so the
  *  volume reads as a squash rather than a shrink. Outside the
- *  step-jump window, restore the bomber's authored base scale. */
+ *  step-jump window, restore the bomber's authored base scale.
+ *
+ *  S268 — when `landPopElapsedS` is defined, multiply the Y-scale by
+ *  an additional landing-pop curve so the touchdown reads as a real
+ *  thud rather than the mirror of the takeoff. */
 function applyStepJumpSquash(
   world: World,
   entityId: EntityId,
-  authoredScale: Map<EntityId, [number, number, number]>
+  authoredScale: Map<EntityId, [number, number, number]>,
+  landPopElapsedS: number | undefined
 ): void {
   const transform = world.getComponent<TransformLike>(entityId, TRANSFORM);
   if (transform === undefined || transform.scale === undefined) return;
@@ -176,6 +255,10 @@ function applyStepJumpSquash(
       const landing = Math.max(0, 1 - (1 - t) / SQUASH_WIDTH);
       squashY = 1 - SQUASH_AMOUNT * Math.max(takeoff, landing);
     }
+  }
+  // S268 — chain the landing-pop multiplier on top.
+  if (landPopElapsedS !== undefined) {
+    squashY *= landingPopScaleY(landPopElapsedS);
   }
   const stretch = 1 + (1 - squashY) * 0.5; // volume-preserving widen in X/Z
   const targetX = base[0] * stretch;
