@@ -5,7 +5,7 @@
   "status": "archived",
   "startedAt": "2026-06-02",
   "archivedAt": "2026-06-03",
-  "prUrl": null,
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/335",
   "notes": [
     "Closes the remaining slices of GDP-2026-05-29-010 Layer 3 (Coward decoy bomb, Miner feign-corner) on top of the S262 Hunter fake-flee. Then a polish wave: HUD telegraph for the personality-shift state (Layer 2 already wired, but no visible signal yet), audio + landing-pop for the S181/S182 step jump, and a chain-reaction cue distinct from the regular S243 bomb-place puff so bombers can read 'this was triggered by another bomb' at a glance.",
     "Single sprint branch (`sprint/177-bot-ai-nuance`) — stories ship as atomic commits, single PR at sprint close. Each story keeps its own commit body + acceptance line so the QA terminal can match a verification line per slice.",
