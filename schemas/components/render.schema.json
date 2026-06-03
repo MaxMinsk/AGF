@@ -36,6 +36,34 @@
         "color": {
           "type": "string",
           "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "depthFunc": {
+          "enum": ["less", "lessEqual", "greater", "greaterEqual", "always"],
+          "description": "S273 KABOOM-OUTLINE-OCCLUDER. Per-mesh depth comparison override. `greater` renders this fragment ONLY where the depth buffer says something else is in front (i.e. the mesh is OCCLUDED) — building block for outline-occluder duplicate meshes that paint a see-through silhouette behind walls."
+        },
+        "depthWrite": {
+          "type": "boolean",
+          "description": "S273 — disable depth writes for the outline duplicate so it doesn't poison the buffer for later passes."
+        },
+        "transparent": {
+          "type": "boolean",
+          "description": "S273 — flip the material to the transparent (alpha-blend) pass. Required when the outline opacity drops below 1 so the result composites cleanly over the scene."
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "S273 — opacity multiplier on the material. Combine with `transparent: true` for partially see-through outline silhouettes."
+        },
+        "polygonOffset": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "S273 — polygon-offset pair. Positive values push the geometry AWAY from the camera in depth; useful to prevent the outline duplicate from z-fighting with the surface it shadows when depthFunc='greater'+/-.",
+          "properties": {
+            "factor": { "type": "number" },
+            "units": { "type": "number" }
+          },
+          "required": ["factor", "units"]
         }
       }
     },
