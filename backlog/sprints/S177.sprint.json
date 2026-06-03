@@ -41,8 +41,11 @@
     {
       "id": "S264-KABOOM-MINER-FEIGN-CORNER-BLUFF",
       "title": "Miner feign-corner bluff (GDP-2026-05-29-010 Layer 3 miner slice)",
-      "status": "pending",
-      "summary": "Miner 5%/round chance: lure player by appearing to pin themselves against a corner, then slip past via a dash through a soft-block-rich area. New BotBluffState.kind='feign-corner'."
+      "status": "implemented",
+      "summary": "BotBluffKind widens to 'feign-corner'. Phases feigning (1.5s, dir={0,0}) → slipping (1.5s, dir=away) → done. Most subtle of the three bluffs — no bomb commit, pure psychological misdirection. Also fixes a dt-unit bug that was applying to all bluff kinds: the bluff advance lived inside the brain-tick cooldown gate, so passing fixedDt (1/60s) made elapsed accumulate ~12× too slowly. Switched to DECISION_INTERVAL (0.2s) so wall-clock durations match the GDP's intended timings.",
+      "verification": [
+        "acceptance: 9 new unit tests cover shouldStartMinerBluff probability + distance band, startMinerBluff mount, feign-corner state machine transitions (feigning → slipping → done), bluffPreferredDirection (feigning returns {0,0}, slipping returns vector-away), bluffForcesBomb returns false for both feign-corner phases; live Playwright probe sees bot.3 (miner) walk feigning → slipping → done within 4.2s real time after player teleport into range; 2386/2386 vitest pass; no console errors."
+      ]
     },
     {
       "id": "S265-KABOOM-BLUFF-HUD-TELEGRAPH",

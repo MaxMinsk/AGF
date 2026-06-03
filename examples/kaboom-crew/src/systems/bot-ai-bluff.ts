@@ -38,9 +38,11 @@ export type BotBluffPhase =
   | "placing-decoy"  // decoy-bomb phase 1 — forces a visible bomb in front of player
   | "retreating"     // decoy-bomb phase 2 — vector away from player to set up the real trap
   | "placing-real"   // decoy-bomb phase 3 — forces the real trap bomb
+  | "feigning"       // feign-corner phase 1 — hold position (looks cornered)
+  | "slipping"       // feign-corner phase 2 — vector away, slip past the now-relaxed player
   | "done";
 
-export type BotBluffKind = "fake-flee" | "decoy-bomb";
+export type BotBluffKind = "fake-flee" | "decoy-bomb" | "feign-corner";
 
 export type BotBluffStateComponent = {
   kind: BotBluffKind;
@@ -65,11 +67,22 @@ export const HUNTER_BLUFF_PROBABILITY_PER_TICK = 0.10;
  *  reflecting its less risky bluff path. */
 export const COWARD_BLUFF_PROBABILITY_PER_TICK = 0.15;
 
+/** Probability per brain tick that a Miner starts a feign-corner bluff.
+ *  GDP-2026-05-29-010 calls for the rarest rate (5%) — the Miner's
+ *  bluff is the most subtle of the three. */
+export const MINER_BLUFF_PROBABILITY_PER_TICK = 0.05;
+
 /** Bluff fleeing window — bot moves away from player. */
 export const BLUFF_FLEE_DURATION_S = 1.5;
 
 /** Decoy-bomb retreating window before the bot drops the REAL trap. */
 export const BLUFF_RETREAT_DURATION_S = 1.5;
+
+/** Feign-corner feigning window — bot holds position (looks cornered). */
+export const BLUFF_FEIGN_DURATION_S = 1.5;
+
+/** Feign-corner slipping window — bot bolts away after the feign. */
+export const BLUFF_SLIP_DURATION_S = 1.5;
 
 /** Distance threshold at which the "approaching" phase commits. */
 export const BLUFF_COMMIT_DISTANCE = 3;
@@ -117,9 +130,23 @@ export function shouldStartCowardBluff(
   return rng.next() < COWARD_BLUFF_PROBABILITY_PER_TICK;
 }
 
+/** Pure helper — miner feign-corner trigger gate. 5% per tick; same
+ *  distance band as the other two bluffs. The miner-only path. */
+export function shouldStartMinerBluff(
+  pos: GridPos,
+  playerCell: GridPos,
+  rng: { next: () => number }
+): boolean {
+  const d = manhattan(pos.gx, pos.gz, playerCell.gx, playerCell.gz);
+  if (d < BLUFF_MIN_START_DISTANCE) return false;
+  if (d > BLUFF_MAX_START_DISTANCE) return false;
+  return rng.next() < MINER_BLUFF_PROBABILITY_PER_TICK;
+}
+
 /** Pure helper — direction the bot should head while bluffing.
- *  - 'fleeing' / 'retreating': vector AWAY from player.
+ *  - 'fleeing' / 'retreating' / 'slipping': vector AWAY from player.
  *  - 'approaching': vector TOWARD player.
+ *  - 'feigning': {dx:0,dz:0} — bot holds position (looks cornered).
  *  - 'committing' / 'placing-decoy' / 'placing-real' / 'done': undefined.
  *    The caller still drops a bomb on the commit phases; the direction
  *    falls back to the normal decideDirection path so the bot doesn't
@@ -129,8 +156,13 @@ export function bluffPreferredDirection(
   pos: GridPos,
   playerCell: GridPos
 ): { dx: number; dz: number } | undefined {
+  if (state.phase === "feigning") return { dx: 0, dz: 0 };
   let sign = 0;
-  if (state.phase === "fleeing" || state.phase === "retreating") sign = -1;
+  if (
+    state.phase === "fleeing"
+    || state.phase === "retreating"
+    || state.phase === "slipping"
+  ) sign = -1;
   else if (state.phase === "approaching") sign = 1;
   else return undefined;
   // Pick the dominant cardinal so we don't issue diagonals (grid is
@@ -210,6 +242,22 @@ export function advanceBluffState(
     return { ...state, elapsed };
   }
 
+  // Feign-corner — feigning → slipping → done. No bomb commit; the
+  // bluff is purely psychological misdirection (player relaxes
+  // thinking the miner is pinned, miner bolts past them).
+  if (state.phase === "feigning") {
+    if (elapsed >= BLUFF_FEIGN_DURATION_S) {
+      return { ...state, phase: "slipping", elapsed: 0 };
+    }
+    return { ...state, elapsed };
+  }
+  if (state.phase === "slipping") {
+    if (elapsed >= BLUFF_SLIP_DURATION_S) {
+      return { ...state, phase: "done", elapsed };
+    }
+    return { ...state, elapsed };
+  }
+
   // Defensive fallthrough — unknown phase, terminate.
   return { ...state, phase: "done", elapsed };
 }
@@ -267,6 +315,26 @@ export function startCowardBluff(
   const state: BotBluffStateComponent = {
     kind: "decoy-bomb",
     phase: "placing-decoy",
+    elapsed: 0,
+    startedRound: roundNumber
+  };
+  world.setComponent(botId, BOT_BLUFF_STATE, state);
+}
+
+/** Side-effectful helper — mount a fresh miner feign-corner bluff.
+ *  Caller has already validated personality + RNG + distance.
+ *  The state opens at the `feigning` phase so the bot holds position
+ *  for 1.5s (looks cornered), then `slipping` for 1.5s (vector away
+ *  past the now-relaxed player). No bomb commit — the bluff is pure
+ *  psychological misdirection. */
+export function startMinerBluff(
+  world: World,
+  botId: EntityId,
+  roundNumber: number
+): void {
+  const state: BotBluffStateComponent = {
+    kind: "feign-corner",
+    phase: "feigning",
     elapsed: 0,
     startedRound: roundNumber
   };

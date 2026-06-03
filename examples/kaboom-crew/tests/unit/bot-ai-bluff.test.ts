@@ -6,10 +6,12 @@ import { describe, expect, it } from "vitest";
 import { World } from "../../../../engine/core/ecs/world";
 import {
   BLUFF_COMMIT_DISTANCE,
+  BLUFF_FEIGN_DURATION_S,
   BLUFF_FLEE_DURATION_S,
   BLUFF_MAX_START_DISTANCE,
   BLUFF_MIN_START_DISTANCE,
   BLUFF_RETREAT_DURATION_S,
+  BLUFF_SLIP_DURATION_S,
   BOT_BLUFF_STATE,
   advanceBluffState,
   bluffForcesBomb,
@@ -18,8 +20,10 @@ import {
   isBluffActive,
   shouldStartCowardBluff,
   shouldStartHunterBluff,
+  shouldStartMinerBluff,
   startCowardBluff,
   startHunterBluff,
+  startMinerBluff,
   type BotBluffStateComponent
 } from "../../src/systems/bot-ai-bluff";
 
@@ -272,6 +276,95 @@ describe("advanceBluffState (S263 decoy-bomb machine)", () => {
       0.2
     );
     expect(out.phase).toBe("done");
+  });
+});
+
+describe("shouldStartMinerBluff (S264 trigger gate)", () => {
+  it("uses the 5% probability slot — rng 0.04 fires, 0.06 doesn't", () => {
+    const here = { gx: 0, gz: 0 };
+    const player = { gx: BLUFF_MIN_START_DISTANCE, gz: 0 };
+    expect(shouldStartMinerBluff(here, player, makeRng([0.04]))).toBe(true);
+    expect(shouldStartMinerBluff(here, player, makeRng([0.06]))).toBe(false);
+  });
+
+  it("rejects too-close + too-far players", () => {
+    const here = { gx: 0, gz: 0 };
+    expect(shouldStartMinerBluff(here, { gx: 1, gz: 0 }, makeRng([0]))).toBe(false);
+    expect(shouldStartMinerBluff(here, { gx: BLUFF_MAX_START_DISTANCE + 1, gz: 0 }, makeRng([0]))).toBe(false);
+  });
+});
+
+describe("startMinerBluff (S264 mount)", () => {
+  it("opens at feigning phase", () => {
+    const world = new World();
+    world.addEntity("bot.3");
+    startMinerBluff(world, "bot.3", 5);
+    const state = world.getComponent<BotBluffStateComponent>("bot.3", BOT_BLUFF_STATE)!;
+    expect(state.kind).toBe("feign-corner");
+    expect(state.phase).toBe("feigning");
+    expect(state.elapsed).toBe(0);
+    expect(state.startedRound).toBe(5);
+  });
+});
+
+describe("advanceBluffState (S264 feign-corner machine)", () => {
+  it("feigning → slipping after BLUFF_FEIGN_DURATION_S; elapsed resets", () => {
+    const out = advanceBluffState(
+      { kind: "feign-corner", phase: "feigning", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      BLUFF_FEIGN_DURATION_S
+    );
+    expect(out.phase).toBe("slipping");
+    expect(out.elapsed).toBe(0);
+  });
+
+  it("feigning stays feigning before timeout", () => {
+    const out = advanceBluffState(
+      { kind: "feign-corner", phase: "feigning", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      0.5
+    );
+    expect(out.phase).toBe("feigning");
+    expect(out.elapsed).toBeCloseTo(0.5, 6);
+  });
+
+  it("slipping → done after BLUFF_SLIP_DURATION_S", () => {
+    const out = advanceBluffState(
+      { kind: "feign-corner", phase: "slipping", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 },
+      BLUFF_SLIP_DURATION_S
+    );
+    expect(out.phase).toBe("done");
+  });
+});
+
+describe("bluffPreferredDirection (S264 feign-corner)", () => {
+  it("feigning → {0, 0} (hold position)", () => {
+    const d = bluffPreferredDirection(
+      { kind: "feign-corner", phase: "feigning", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 }
+    );
+    expect(d).toEqual({ dx: 0, dz: 0 });
+  });
+
+  it("slipping → vector AWAY from player (mirrors fleeing/retreating)", () => {
+    const d = bluffPreferredDirection(
+      { kind: "feign-corner", phase: "slipping", elapsed: 0, startedRound: 1 },
+      { gx: 5, gz: 5 },
+      { gx: 8, gz: 5 }
+    );
+    expect(d).toEqual({ dx: -1, dz: 0 });
+  });
+});
+
+describe("bluffForcesBomb (S264 — feign-corner never forces a bomb)", () => {
+  it("false for feigning and slipping (no bomb commit in feign-corner)", () => {
+    expect(bluffForcesBomb({ kind: "feign-corner", phase: "feigning", elapsed: 0, startedRound: 1 })).toBe(false);
+    expect(bluffForcesBomb({ kind: "feign-corner", phase: "slipping", elapsed: 1, startedRound: 1 })).toBe(false);
   });
 });
 
