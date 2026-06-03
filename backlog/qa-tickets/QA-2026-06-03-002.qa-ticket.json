@@ -1,8 +1,8 @@
 {
   "agfFormatVersion": 1,
-  "id": "QA-2026-06-03-001",
+  "id": "QA-2026-06-03-002",
   "title": "S269 chain-cyan spark not observed live — sparks render orange/default despite chain firing",
-  "filedAt": "2026-06-03T07:06:04.393Z",
+  "filedAt": "2026-06-03T07:06:04.373Z",
   "foundInPr": 326,
   "severity": "minor",
   "type": "bug",
