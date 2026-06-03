@@ -56,13 +56,20 @@ export function createMeshLifecycleSystem(
     // is an InstancedMesh slot, not a per-entity Mesh. Skip them here so
     // the two systems don't double-up. Two signals matter:
     //   1. explicit `Batchable` component — opt-in from the historical
-    //      tagged path;
+    //      tagged path. EXCEPT when `Batchable: { enabled: false }`:
+    //      that's the documented opt-OUT path, and skipping such an
+    //      entity here would leave it on neither rendering path
+    //      (no BatchedMeshHandle from batching, no RenderMeshHandle
+    //      from us) — the mesh would vanish entirely. Detected on
+    //      kaboom-crew bombs after S280 opted them out for the
+    //      outline-occluder feature.
     //   2. `BatchedMeshHandle` set by BatchingSystem after it placed the
     //      entity in a bucket — covers the S50 auto-batch path where the
     //      entity has no Batchable tag.
     const renderable = new Set<EntityId>();
     for (const id of renderableQuery!.run()) {
-      if (world.hasComponent(id, BATCHABLE)) continue;
+      const batchable = world.getComponent<{ enabled?: boolean }>(id, BATCHABLE);
+      if (batchable !== undefined && batchable.enabled !== false) continue;
       if (world.hasComponent(id, "BatchedMeshHandle")) continue;
       renderable.add(id);
     }
