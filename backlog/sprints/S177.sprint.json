@@ -95,8 +95,11 @@
     {
       "id": "S270-KABOOM-BOMB-FUSE-CRITICAL-PULSE",
       "title": "Bomb fuse critical-pulse — red flash on the bomb cell at fuse < 0.4s",
-      "status": "pending",
-      "summary": "Adds a one-shot red puff (spawnPuff with `color: \"#ff3030\"`, lifetime 0.15s) at the bomb cell the first tick the bomb crosses fuse < 0.4s. Telegraphs 'about to detonate' beyond the existing wiggle + colour pulse, which can be hard to read in chaotic moments."
+      "status": "implemented",
+      "summary": "BombComponent gains criticalPulseFired sticky flag. bomb-fuse-system fires a one-shot spawnPuff (preset spark, color #ff3030, lifetime 0.15s) the first tick fuse drops at/below 0.4s. The flag persists on the bomb to avoid re-spawning every frame between threshold + detonation.",
+      "verification": [
+        "acceptance: 3 new unit tests cover threshold crossing (fires + sets sticky flag), no-re-fire across subsequent ticks, and high-fuse bomb never fires. npm run typecheck clean. npx vitest run — 2412/2412 pass (+3 since S269)."
+      ]
     },
     {
       "id": "S271-KABOOM-BLUFF-MESH-TINT",
