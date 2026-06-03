@@ -80,7 +80,7 @@ export function bombWiggleScale(fuseRemaining: number, now: number = Date.now())
   return 1 + Math.sin(phase) * amplitude;
 }
 
-type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean; carriedBy?: EntityId; airborne?: boolean };
+type BombComponent = { fuseRemaining: number; range: number; ownerId: EntityId; pierce?: boolean; carriedBy?: EntityId; airborne?: boolean; chained?: boolean };
 type GridPosition = { gx: number; gz: number };
 
 export function createKaboomBombFuseSystem(options: { name?: string; nextEventId?: () => EntityId } = {}): System {
@@ -183,13 +183,16 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
       const eventId = nextEventId();
       if (!world.hasEntity(eventId)) {
         world.addEntity(eventId);
-        const eventData: { originGx: number; originGz: number; range: number; ownerId: EntityId; pierce?: boolean } = {
+        const eventData: { originGx: number; originGz: number; range: number; ownerId: EntityId; pierce?: boolean; chained?: boolean } = {
           originGx: pos.gx,
           originGz: pos.gz,
           range: bomb.range,
           ownerId: bomb.ownerId
         };
         if (bomb.pierce === true) eventData.pierce = true;
+        // S269 — propagate the chain-trigger flag so the blast-tile
+        // spark uses the chain colour instead of the regular orange.
+        if (bomb.chained === true) eventData.chained = true;
         world.setComponent(eventId, BLAST_EVENT, eventData);
       }
       // Decrement the owner's activeBombs counter so they can place more.

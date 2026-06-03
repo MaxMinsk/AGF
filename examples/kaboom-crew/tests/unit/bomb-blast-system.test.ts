@@ -404,4 +404,64 @@ describe("Kaboom bomb pipeline (S82)", () => {
     }
     expect(remainingTiles).toBe(0);
   });
+
+  // S269 — chain-reaction puff tint. A bomb caught by another bomb's
+  // blast should produce a CYAN spark instead of the regular orange,
+  // so the player reads "this one was triggered by the chain" instantly.
+  it("S269: chain-triggered blast tile carries cyan spark colour", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    // A.B side-by-side, both with full fuse. Bomb A detonates this
+    // tick; its blast catches B, B's chained flag goes up, then B
+    // detonates next tick with chained=true on its BlastEvent.
+    addBomb(world, "bomb.a", 5, 5, { fuse: 1 / 60, range: 2, owner: "player.1" });
+    addBomb(world, "bomb.b", 6, 5, { fuse: 5, range: 2, owner: "player.1" });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const fuse = createKaboomBombFuseSystem();
+    const blast = createKaboomBlastPropagationSystem({ occupancy: occ });
+    // Tick 1: bomb.a detonates, BlastEvent A in flight.
+    fuse.fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    blast.fixedUpdate!(ctx(world));
+    // bomb.b should now have chained=true (set by chainBombsAt).
+    const bombB = world.getComponent<{ chained?: boolean; fuseRemaining: number }>("bomb.b", "Bomb")!;
+    expect(bombB.chained).toBe(true);
+    expect(bombB.fuseRemaining).toBe(0);
+    // Tick 2: bomb.b detonates, BlastEvent B carries chained=true,
+    // propagation spawns blast tiles with cyan spark colour.
+    occ.frameUpdate!(ctx(world));
+    fuse.fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    blast.fixedUpdate!(ctx(world));
+    // Find a spark co-spawn for one of bomb.b's blast tiles.
+    let foundChainSpark = false;
+    for (const id of world.entityIds()) {
+      if (!id.endsWith(".spark")) continue;
+      const e = world.getComponent<{ color?: string }>(id, "ParticleEmitter");
+      if (e?.color === "#7fd6ff") foundChainSpark = true;
+    }
+    expect(foundChainSpark).toBe(true);
+  });
+
+  it("S269: a NON-chain blast tile keeps the default (no color override)", () => {
+    const world = new World();
+    addBomber(world, "player.1", 5, 5);
+    addBomb(world, "bomb.solo", 5, 5, { fuse: 1 / 60, range: 2 });
+    const occ = createGridOccupancySystem();
+    occ.frameUpdate!(ctx(world));
+    const fuse = createKaboomBombFuseSystem();
+    fuse.fixedUpdate!(ctx(world));
+    occ.frameUpdate!(ctx(world));
+    const blast = createKaboomBlastPropagationSystem({ occupancy: occ });
+    blast.fixedUpdate!(ctx(world));
+    // No spark should carry the chain-cyan colour.
+    let foundChainSpark = false;
+    for (const id of world.entityIds()) {
+      if (!id.endsWith(".spark")) continue;
+      const e = world.getComponent<{ color?: string }>(id, "ParticleEmitter");
+      if (e?.color === "#7fd6ff") foundChainSpark = true;
+    }
+    expect(foundChainSpark).toBe(false);
+  });
 });
