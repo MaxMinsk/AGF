@@ -84,7 +84,6 @@ import { createKaboomBlastTileLifetimeSystem } from "./src/systems/blast-tile-li
 import { createKaboomScorchTileLifetimeSystem } from "./src/systems/scorch-tile-system";
 import { createKaboomRoundResolveSystem } from "./src/systems/round-resolve-system";
 import { createKaboomSoftBlockShuffleSystem } from "./src/systems/soft-block-shuffle-system";
-import { createKaboomBomberOutlineSystem } from "./src/systems/bomber-outline-system";
 import { createKaboomRoundCelebrationFxSystem } from "./src/systems/round-celebration-fx-system";
 import { createKaboomSuddenDeathSystem } from "./src/systems/sudden-death-system";
 import { createKaboomAccessoryDetachSystem } from "./src/systems/accessory-detach-system";
@@ -462,18 +461,6 @@ function readStepJumpAudioFromUrl(): boolean {
   }
 }
 
-// S273 KABOOM-OUTLINE-OCCLUDER — read `?occluderOutline=off` to disable
-// the through-wall bomber silhouette. Default on.
-function readOccluderOutlineFromUrl(): boolean {
-  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search;
-  if (search === undefined || search.length === 0) return true;
-  try {
-    const p = new URLSearchParams(search);
-    return p.get("occluderOutline") !== "off";
-  } catch {
-    return true;
-  }
-}
 
 // S261 KABOOM-RANDOM-LAYOUT — read `?randomLayout=on`. Default off so
 // the curated arena layouts remain canonical; opt-in re-rolls the soft-
@@ -1337,13 +1324,6 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
       { profiles: ["static"] }
     );
 
-    // S273 KABOOM-OUTLINE-OCCLUDER (GDP-2026-05-28-014). Per-bomber
-    // outline duplicate mesh rendered through occluders via the S184
-    // depthFunc='greater' material patch. URL: `?occluderOutline=off`.
-    scheduler.register(
-      createKaboomBomberOutlineSystem({ enabled: readOccluderOutlineFromUrl() }),
-      { profiles: ["static", "connected"] }
-    );
     // S162 KABOOM-ACCESSORY-DETACH — runs every fixedUpdate. Spawns
     // AccessoryDebris on bomber death, then integrates active debris.
     scheduler.register(createKaboomAccessoryDetachSystem(), { profiles: ["static"] });
