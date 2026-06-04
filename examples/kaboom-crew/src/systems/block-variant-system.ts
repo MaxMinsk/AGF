@@ -109,7 +109,12 @@ export function createKaboomBlockVariantSystem(
     }
     let stamped = 0;
     for (const id of cellQuery!.run()) {
-      if (applied.has(id)) continue;
+      // QA — `scene.load` (round restart) wipes + recreates entities in the
+      // SAME World instance, so the `applied` id-set survives with stale
+      // entries while the recreated blocks have NO WangTile yet. Gate on the
+      // live component instead: re-stamp any block missing WangTile so the
+      // resolver + mesh-sync re-run and the block keeps its mesh/texture.
+      if (applied.has(id) && world.hasComponent(id, WANG_TILE)) continue;
       const occ = world.getComponent<GridOccupantComponent>(id, GRID_OCCUPANT);
       const layer = occ?.layer;
       const familyName = layer === "wall"
@@ -262,14 +267,20 @@ export function createKaboomWangMeshSyncSystem(
       const rotationYDeg = bitmaskToRotationYDeg(bitmask);
 
       const prev = lastByCell.get(id);
+      const mr = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
+      // QA — `scene.load` (round restart) wipes + recreates entities in the
+      // SAME World, so this cache survives with stale "already wrote" entries
+      // while the recreated hard/soft block starts at its placeholder mesh.
+      // Gate the skip on the LIVE MeshRenderer.mesh too so recreated blocks
+      // get rewritten instead of keeping the untextured placeholder.
       if (
         prev !== undefined
         && prev.variant === variantIndex
         && prev.theme === themeKey
         && prev.rotationYDeg === rotationYDeg
+        && mr?.mesh === meshKey
       ) continue;
 
-      const mr = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
       const next: MeshRendererComponent = { ...(mr ?? {}), mesh: meshKey };
       world.setComponent(id, MESH_RENDERER, next);
       // Write Transform.rotation only when this cell's rotation
