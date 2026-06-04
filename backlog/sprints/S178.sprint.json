@@ -2,10 +2,10 @@
   "agfFormatVersion": 1,
   "id": "S178",
   "title": "A* pathfinding + terrain edge quality — bot intelligence on complex maps + tile-edge-library foundation",
-  "status": "active",
+  "status": "archived",
   "startedAt": "2026-06-03",
-  "archivedAt": null,
-  "prUrl": null,
+  "archivedAt": "2026-06-04",
+  "prUrl": "https://github.com/MaxMinsk/AGF/pull/338",
   "notes": [
     "Two axes of work: (1) A* engine pathfinding module + bot AI integration so bots stop oscillating at chokepoints on the S231/S233 arena variants; (2) tile-edge-library foundation + grass visual rewrite so cells stop reading as flat cubes. Both axes address user-reported quality gaps from 2026-06-02 / 2026-06-03.",
     "Two QA bug fixes ride at the start of the sprint (bomb-pulse phase from Date.now() + chain-cyan spark not visible live) — quick, self-contained, unblock QA terminal re-test.",
