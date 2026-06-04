@@ -1,0 +1,21 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-06-04-002",
+  "title": "Grass terrain tiles render as white boxes for 1.5-5s after round restart — mesh-sync bridge lags on world swap",
+  "filedAt": "2026-06-04T09:15:00.000Z",
+  "foundInPr": 226,
+  "severity": "minor",
+  "type": "bug",
+  "summary": "On `?map=grass-demo`, pressing R to restart a round causes all 13 grass terrain overlay entities to display as flat white boxes for 1.5–5+ seconds before eventually resolving to the correct `procedural:kaboom-grass-*` mesh shapes. The ECS state is actually correct much sooner: `WangTile.currentMeshKey` is populated with the right variant key within ~250ms, but `MeshRenderer.mesh` stays `box` — the kaboom mesh-sync bridge (`createKaboomWangMeshSyncSystem`) does not propagate the resolver output back to `MeshRenderer` promptly after a world swap. On initial load the same entities display correctly, so the regression is specific to the restart path.",
+  "repro": [
+    "Boot `?project=kaboom-crew&map=grass-demo`, start round (Space).",
+    "Confirm grass tiles visible as green organic shapes in the centre-right of the arena.",
+    "Press R to restart.",
+    "Observe: grass tiles show as flat white boxes (the placeholder `box` mesh with default #ffffff colour).",
+    "Wait ~5-10s: grass tiles eventually return to the correct procedural shapes without further interaction.",
+    "Probe confirms: immediately after restart `WangTile.currentMeshKey=procedural:kaboom-grass-N` but `MeshRenderer.mesh=box`."
+  ],
+  "expected": "Grass tiles display the correct `procedural:kaboom-grass-*` mesh shapes immediately after round restart, matching their appearance on initial load. No visible white-box flash.",
+  "actual": "All 13 terrain overlay entities show flat white boxes for 1.5–5+ seconds after pressing R. Eventually resolve to correct appearance without user input. Confirmed live via Playwright (qa-artifacts/grass-before-restart.png vs qa-artifacts/grass-after-restart.png).",
+  "logs": "Before restart — terrain entities (sample):\n  terrain.6.3  MeshRenderer.mesh=procedural:kaboom-grass-C-1  WangTile.currentMeshKey=procedural:kaboom-grass-C-1  (correct)\n  terrain.7.4  MeshRenderer.mesh=procedural:kaboom-grass-F-0  WangTile.currentMeshKey=procedural:kaboom-grass-F-0  (correct)\n\nAfter restart (1.5s) — terrain entities (sample):\n  terrain.6.3  MeshRenderer.mesh=box   WangTile.currentMeshKey=procedural:kaboom-grass-C-1  (bridge lag)\n  terrain.7.4  MeshRenderer.mesh=box   WangTile.currentMeshKey=procedural:kaboom-grass-F-0  (bridge lag)\n\nNote: MeshRenderer.color is #ffffff on ALL terrain entities even before restart. This is a pre-existing issue — the colour field appears unused; the procedural mesh builders apply their own vertex colours.\n\nPlausible cause: `createKaboomWangMeshSyncSystem` in examples/kaboom-crew/src/systems/block-variant-system.ts caches the query handle and last-seen-variant-index per entity. On world swap the cache is cleared and the system rebuilds from scratch. However, the restart path re-creates terrain overlay entities (via applyTerrainmapCommands in bootstrap.ts restart batch) and the standalone resolveAll() call in createKaboomBlockVariantSystem may run on the same tick as — or before — the mesh-sync system, leaving the mesh-sync query stale or its dirty-queue not yet populated when it first runs. The V2 terrain branch reads `wang.currentMeshKey` which IS correct per the probe, so the issue is either a one-tick delay in the mesh-sync system seeing the new component writes, or the mesh-sync query handle not re-warming on the first post-swap tick.\n\nScreenshots: qa-artifacts/grass-before-restart.png (correct), qa-artifacts/grass-after-restart.png (white boxes)."
+}
