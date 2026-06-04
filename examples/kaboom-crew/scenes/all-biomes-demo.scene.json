@@ -1,0 +1,496 @@
+{
+  "id": "all-biomes-demo",
+  "terrainmap": [
+    [
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor"
+    ],
+    [
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "path",
+      "path",
+      "path",
+      "floor",
+      "floor",
+      "stone",
+      "stone",
+      "stone",
+      "floor"
+    ],
+    [
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "path",
+      "path",
+      "path",
+      "floor",
+      "floor",
+      "stone",
+      "stone",
+      "stone",
+      "floor"
+    ],
+    [
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "path",
+      "path",
+      "path",
+      "floor",
+      "floor",
+      "stone",
+      "stone",
+      "stone",
+      "floor"
+    ],
+    [
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor"
+    ],
+    [
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor"
+    ],
+    [
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor"
+    ],
+    [
+      "floor",
+      "dirt",
+      "dirt",
+      "dirt",
+      "floor",
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "stone",
+      "stone",
+      "stone",
+      "floor"
+    ],
+    [
+      "floor",
+      "dirt",
+      "dirt",
+      "dirt",
+      "floor",
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "stone",
+      "stone",
+      "stone",
+      "floor"
+    ],
+    [
+      "floor",
+      "dirt",
+      "dirt",
+      "dirt",
+      "floor",
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "stone",
+      "stone",
+      "stone",
+      "floor"
+    ],
+    [
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
+      "floor"
+    ]
+  ],
+  "entities": [
+    {
+      "id": "camera.main",
+      "components": {
+        "Camera": {
+          "kind": "orthographic",
+          "active": true,
+          "orthographicSize": 8,
+          "near": 0.1,
+          "far": 100
+        },
+        "Transform": {
+          "position": [
+            7,
+            10,
+            12
+          ],
+          "rotation": [
+            -55,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "light.sun",
+      "components": {
+        "Light": {
+          "kind": "directional",
+          "color": "#ffffff",
+          "intensity": 2.16,
+          "castShadow": true,
+          "shadow": {
+            "mapSize": 2048,
+            "bias": 0,
+            "normalBias": 0.285,
+            "radius": 4.4,
+            "camera": {
+              "left": -26,
+              "right": 26,
+              "top": 26,
+              "bottom": -26,
+              "near": 0.5,
+              "far": 60
+            }
+          }
+        },
+        "Transform": {
+          "position": [
+            -2,
+            8.5,
+            2.5
+          ],
+          "rotation": [
+            -45,
+            30,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "light.ambient",
+      "components": {
+        "Light": {
+          "kind": "ambient",
+          "color": "#ffffff",
+          "intensity": 0.18
+        },
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "grid.config",
+      "components": {
+        "Grid": {
+          "cellSize": 1,
+          "sizeX": 15,
+          "sizeZ": 11,
+          "originX": 0,
+          "originZ": 0
+        },
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "position": [
+            7,
+            -0.05,
+            5
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            15,
+            0.1,
+            11
+          ]
+        },
+        "MeshRenderer": {
+          "mesh": "box",
+          "color": "#1d2536"
+        },
+        "RigidBody3D": {
+          "type": "fixed"
+        },
+        "Collider3D": {
+          "kind": "box",
+          "size": [
+            15,
+            0.1,
+            11
+          ]
+        }
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "player.1",
+      "prefab": "player",
+      "overrides": {
+        "Transform": {
+          "position": [
+            1,
+            0.4,
+            1
+          ]
+        },
+        "GridPosition": {
+          "gx": 1,
+          "gz": 1
+        }
+      }
+    },
+    {
+      "id": "bot.1",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": {
+          "position": [
+            13,
+            0.4,
+            9
+          ]
+        },
+        "GridPosition": {
+          "gx": 13,
+          "gz": 9
+        }
+      }
+    },
+    {
+      "id": "bot.2",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": {
+          "position": [
+            1,
+            0.4,
+            9
+          ]
+        },
+        "GridPosition": {
+          "gx": 1,
+          "gz": 9
+        }
+      }
+    },
+    {
+      "id": "bot.3",
+      "prefab": "bot",
+      "overrides": {
+        "Transform": {
+          "position": [
+            13,
+            0.4,
+            1
+          ]
+        },
+        "GridPosition": {
+          "gx": 13,
+          "gz": 1
+        }
+      }
+    },
+    {
+      "id": "soft.1",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.45,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft.2",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.45,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft.3",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            9,
+            0.45,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 9,
+          "gz": 5
+        }
+      }
+    },
+    {
+      "id": "soft.4",
+      "prefab": "soft-block",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.45,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 5
+        }
+      }
+    }
+  ]
+}

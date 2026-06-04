@@ -51,7 +51,7 @@ import {
   softBlockBitmaskToVariant,
   type KaboomBlockVariantIndex
 } from "../blocks/wang-family-lookup";
-import { grassShapeForBitmask } from "../blocks/grass-variants";
+import { shapeForBitmask } from "../blocks/biome-tile-builder";
 import {
   GRASS_VARIANT_KEYS,
   HARD_BLOCK_VARIANT_KEYS,
@@ -212,9 +212,12 @@ export function createKaboomWangMeshSyncSystem(
       if (V2_TERRAIN_FAMILIES.has(familyName)) {
         const meshKey = wang.currentMeshKey;
         if (meshKey === undefined) continue;
-        const rot = familyName === GRASS_WANG_FAMILY
-          ? grassShapeForBitmask(bitmask).rotationYDeg
-          : 0;
+        // GDP-2026-06-04-003/004 — grass/path/stone/dirt use 6 canonical
+        // shapes covering 16 bitmasks via per-cell Y rotation. Floor is
+        // role-based (no rotation).
+        const rot = familyName === FLOOR_WANG_FAMILY
+          ? 0
+          : shapeForBitmask(bitmask).rotationYDeg;
         const prevV2 = lastByCell.get(id);
         if (prevV2 !== undefined && prevV2.meshKey === meshKey && prevV2.rotationYDeg === rot) continue;
         const mrV2 = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);

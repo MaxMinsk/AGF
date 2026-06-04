@@ -35,7 +35,7 @@ import {
   stoneBitmaskToVariant,
   type KaboomBlockVariantIndex
 } from "./wang-family-lookup";
-import { grassShapeForBitmask } from "./grass-variants";
+import { shapeForBitmask } from "./biome-tile-builder";
 
 function floorBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
   // Reuse the shared 16→4 lookup table — same role assignment as other families.
@@ -76,13 +76,38 @@ export const WALL_SHADOW_WANG_FAMILY = "kaboom-wall-shadow";
 export function registerKaboomWangFamilies(): void {
   registerFamilySafe(buildHardBlockFamily());
   registerFamilySafe(buildSoftBlockFamily());
-  registerGrassFamilyV2Safe();
-  registerFamilyV2Safe(PATH_WANG_FAMILY, pathBitmaskToVariant);
-  registerFamilyV2Safe(STONE_WANG_FAMILY, stoneBitmaskToVariant);
-  registerFamilyV2Safe(DIRT_WANG_FAMILY, dirtBitmaskToVariant);
+  // GDP-2026-06-04-003/004 — grass/path/stone/dirt use the 6-shape curved-
+  // outline meshes (bitmask → shape + per-cell Transform rotation).
+  registerShapeFamilySafe(GRASS_WANG_FAMILY);
+  registerShapeFamilySafe(PATH_WANG_FAMILY);
+  registerShapeFamilySafe(STONE_WANG_FAMILY);
+  registerShapeFamilySafe(DIRT_WANG_FAMILY);
+  // Floor is the backdrop family — kept role-based (no overlay entities spawn
+  // for the default 'floor' family, so this is registration-only).
   registerFamilyV2Safe(FLOOR_WANG_FAMILY, floorBitmaskToVariant);
   // S287 — wall-shadow V1 family: 16 variants, one per bitmask index.
   registerFamilySafe(buildWallShadowFamily());
+}
+
+/** GDP-2026-06-04-004 — register a curved-outline biome family. Each bitmask
+ *  maps to its canonical shape (A-F); the mesh-sync bridge applies the
+ *  per-bitmask Y rotation on the cell Transform. 3 sub-variants per shape. */
+function registerShapeFamilySafe(name: string): void {
+  try {
+    const table: ReadonlyArray<ReadonlyArray<WangTileVariant>> = Array.from({ length: 16 }, (_, bitmask) => {
+      const { shape } = shapeForBitmask(bitmask);
+      return [
+        { meshKey: `procedural:${name}-${shape}-0` },
+        { meshKey: `procedural:${name}-${shape}-1` },
+        { meshKey: `procedural:${name}-${shape}-2` }
+      ];
+    });
+    registerWangFamilyWithSubvariants(name, table);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("duplicate name")) {
+      throw error;
+    }
+  }
 }
 
 function buildWallShadowFamily(): WangTileFamily {
@@ -109,37 +134,8 @@ function registerFamilySafe(family: WangTileFamily): void {
 }
 
 /**
- * S284 — register the grass family as V2 (3 sub-variants per bitmask index).
- * Idempotent across HMR — swallows duplicate-name errors.
- */
-function registerGrassFamilyV2Safe(): void {
-  try {
-    const table = buildGrassSubvariantTable();
-    registerWangFamilyWithSubvariants(GRASS_WANG_FAMILY, table);
-  } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("duplicate name")) {
-      throw error;
-    }
-  }
-}
-
-function buildGrassSubvariantTable(): ReadonlyArray<ReadonlyArray<WangTileVariant>> {
-  // GDP-2026-06-04-003: map each bitmask → its canonical shape (A-F). The
-  // mesh-sync bridge applies the per-bitmask Y rotation on the cell Transform
-  // so the 6 shapes cover all 16 bitmasks (S214 shape+rotation factoring).
-  return Array.from({ length: 16 }, (_, bitmask) => {
-    const { shape } = grassShapeForBitmask(bitmask);
-    return [
-      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${shape}-0` },
-      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${shape}-1` },
-      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${shape}-2` }
-    ];
-  });
-}
-
-/**
- * S285 — generic V2 registration for path / stone / dirt families.
- * 3 sub-variants per bitmask index, mesh keys follow `procedural:<name>-<role>-<sub>`.
+ * S285/S286 — role-based V2 registration (kept for the floor backdrop family).
+ * 3 sub-variants per bitmask index, mesh keys `procedural:<name>-<role>-<sub>`.
  */
 function registerFamilyV2Safe(
   name: string,

@@ -1,83 +1,52 @@
-// S272 KABOOM-FLOOR-WANG-STONE + KABOOM-FLOOR-WANG-DIRT — coverage for
-// the procedural stone + dirt variant builders. Mirrors the
-// path-variants tests; adds cross-family palette differentiation
-// (stone vs dirt vs path vs grass) so a future palette regression
-// is caught early.
+// GDP-2026-06-04-004 — stone + dirt biome curved-outline mesh tests.
 
 import { describe, expect, it } from "vitest";
 
-import { buildStoneVariant } from "../../src/blocks/stone-variants";
-import { buildDirtVariant } from "../../src/blocks/dirt-variants";
-import { buildPathVariant } from "../../src/blocks/path-variants";
-import { buildGrassVariant } from "../../src/blocks/grass-variants";
+import { buildStoneShape } from "../../src/blocks/stone-variants";
+import { buildDirtShape } from "../../src/blocks/dirt-variants";
 
-type Builder = (i: 0 | 1 | 2 | 3) => ReturnType<typeof buildGrassVariant>;
+function span(g: { computeBoundingBox: () => void; boundingBox: unknown }): { x: number; z: number } {
+  g.computeBoundingBox();
+  const b = (g as { boundingBox: { max: { x: number; z: number }; min: { x: number; z: number } } }).boundingBox;
+  return { x: b.max.x - b.min.x, z: b.max.z - b.min.z };
+}
 
-function colorSum(g: ReturnType<typeof buildGrassVariant>): number {
-  const color = g.getAttribute("color");
-  if (color === undefined) return 0;
-  let sum = 0;
-  for (let i = 0; i < color.count; i += 1) {
-    sum += color.getX(i) + color.getY(i) + color.getZ(i);
+function topYValues(g: { getAttribute: (n: string) => { count: number; getY: (i: number) => number } }): Set<number> {
+  const pos = g.getAttribute("position");
+  const ys = new Set<number>();
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y > 0.01) ys.add(Math.round(y * 1000));
   }
-  return Math.round(sum * 1000) / 1000;
+  return ys;
 }
 
-function vertexCount(g: ReturnType<typeof buildGrassVariant>): number {
-  return g.getAttribute("position").count;
-}
-
-function describeFamily(name: string, build: Builder): void {
-  describe(name, () => {
-    it("produces 4 distinguishable geometries", () => {
-      const sigs = [0, 1, 2, 3].map((i) => {
-        const g = build(i as 0 | 1 | 2 | 3);
-        return `${vertexCount(g)}:${colorSum(g)}`;
-      });
-      expect(new Set(sigs).size, `distinct sigs: ${sigs.join(" | ")}`).toBe(4);
-    });
-
-    it("attaches position + color attributes", () => {
-      for (const i of [0, 1, 2, 3] as const) {
-        const g = build(i);
-        expect(g.getAttribute("position")).toBeDefined();
-        expect(g.getAttribute("color")).toBeDefined();
-        expect(g.getAttribute("position").count).toBeGreaterThan(0);
-      }
-    });
-
-    it("uses the thin-slab 1 × 0.05 × 1 outer dimensions", () => {
-      for (const i of [0, 1, 2, 3] as const) {
-        const g = build(i);
-        g.computeBoundingBox();
-        const box = g.boundingBox!;
-        expect(Math.abs(box.max.x - box.min.x) - 1).toBeLessThan(0.01);
-        expect(Math.abs(box.max.y - box.min.y) - 0.05).toBeLessThan(0.01);
-        expect(Math.abs(box.max.z - box.min.z) - 1).toBeLessThan(0.01);
-      }
-    });
+describe("buildStoneShape (GDP-2026-06-04-004)", () => {
+  it("Shape F is ~1x1; Shape A has overhang", () => {
+    expect(Math.abs(span(buildStoneShape("F", 0)).x - 1.0)).toBeLessThan(0.02);
+    expect(span(buildStoneShape("A", 0)).x).toBeGreaterThan(1.0);
   });
-}
-
-describeFamily("buildStoneVariant (S272)", (i) => buildStoneVariant(i));
-describeFamily("buildDirtVariant (S272)", (i) => buildDirtVariant(i));
-
-describe("S272 cross-family palette differentiation", () => {
-  it("stone palette differs from grass + path + dirt on every variant", () => {
-    for (const i of [0, 1, 2, 3] as const) {
-      const stone = colorSum(buildStoneVariant(i));
-      expect(stone).not.toBeCloseTo(colorSum(buildGrassVariant(i)), 2);
-      expect(stone).not.toBeCloseTo(colorSum(buildPathVariant(i)), 2);
-      expect(stone).not.toBeCloseTo(colorSum(buildDirtVariant(i)), 2);
-    }
+  it("filler has faceting — multiple distinct top Y levels", () => {
+    expect(topYValues(buildStoneShape("F", 0)).size).toBeGreaterThanOrEqual(2);
   });
+  it("all 18 combos valid", () => {
+    for (const shape of ["A", "B", "C", "D", "E", "F"] as const)
+      for (const sub of [0, 1, 2] as const)
+        expect(buildStoneShape(shape, sub).getAttribute("position").count).toBeGreaterThan(0);
+  });
+});
 
-  it("dirt palette differs from grass + path + stone on every variant", () => {
-    for (const i of [0, 1, 2, 3] as const) {
-      const dirt = colorSum(buildDirtVariant(i));
-      expect(dirt).not.toBeCloseTo(colorSum(buildGrassVariant(i)), 2);
-      expect(dirt).not.toBeCloseTo(colorSum(buildPathVariant(i)), 2);
-      expect(dirt).not.toBeCloseTo(colorSum(buildStoneVariant(i)), 2);
-    }
+describe("buildDirtShape (GDP-2026-06-04-004)", () => {
+  it("Shape F is ~1x1; Shape A has overhang", () => {
+    expect(Math.abs(span(buildDirtShape("F", 0)).x - 1.0)).toBeLessThan(0.02);
+    expect(span(buildDirtShape("A", 0)).x).toBeGreaterThan(1.0);
+  });
+  it("filler has rough noisy top — many distinct Y values", () => {
+    expect(topYValues(buildDirtShape("F", 0)).size).toBeGreaterThanOrEqual(5);
+  });
+  it("all 18 combos valid", () => {
+    for (const shape of ["A", "B", "C", "D", "E", "F"] as const)
+      for (const sub of [0, 1, 2] as const)
+        expect(buildDirtShape(shape, sub).getAttribute("position").count).toBeGreaterThan(0);
   });
 });
