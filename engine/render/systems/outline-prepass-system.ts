@@ -30,7 +30,7 @@ import type { System, SystemContext } from "../../core/systems/types";
 import type { ThreeRenderAdapter } from "../three-render-adapter";
 
 const OUTLINE_OCCLUDER: ComponentName = "OutlineOccluder";
-const OUTLINE_PREPASS_EXCLUDED: ComponentName = "OutlinePrePassExcluded";
+const OUTLINE_OCCLUDER_SURFACE: ComponentName = "OutlineOccluderSurface";
 const RENDER_MESH_HANDLE: ComponentName = "RenderMeshHandle";
 
 type RenderMeshHandleComponent = { id: number };
@@ -60,15 +60,14 @@ export function createOutlinePrePassSystem(
   const scale = Math.max(0.25, Math.min(1, deps.resolutionScale ?? DEFAULT_RESOLUTION_SCALE));
   let cachedWorld: World | undefined;
   let occluderQuery: QueryHandle | undefined;
-  let excludedQuery: QueryHandle | undefined;
+  let surfaceQuery: QueryHandle | undefined;
   let rtHandle: number | undefined;
   let lastWidth = 0;
   let lastHeight = 0;
   let depthTexture: DepthTexture | undefined;
-  // Handles currently flagged via setMeshOutlinePrePassExcluded; diffed
-  // against `excludedQuery` each frame so a dropped marker component
-  // untags the adapter mesh exactly once.
-  const flaggedHandles = new Set<number>();
+  // Handles currently flagged as occluder-surface via the adapter; diffed
+  // against `surfaceQuery` each frame so a dropped marker untags exactly once.
+  const flaggedSurfaceHandles = new Set<number>();
 
   function ensureRenderTarget(): boolean {
     const camera = deps.adapter.getActiveCamera();
@@ -108,56 +107,60 @@ export function createOutlinePrePassSystem(
       const world = context.world;
       if (world !== cachedWorld) {
         occluderQuery = world.createQuery([OUTLINE_OCCLUDER, RENDER_MESH_HANDLE]);
-        excludedQuery = world.createQuery([OUTLINE_PREPASS_EXCLUDED, RENDER_MESH_HANDLE]);
+        surfaceQuery = world.createQuery([OUTLINE_OCCLUDER_SURFACE, RENDER_MESH_HANDLE]);
         cachedWorld = world;
-        flaggedHandles.clear();
+        flaggedSurfaceHandles.clear();
       }
 
-      // Build "this frame's exclusion set" from BOTH:
-      //   • every OutlineOccluder mesh (the silhouette duplicates) — so
-      //     they don't pollute the depth texture they themselves sample;
-      //   • every `OutlinePrePassExcluded` mesh (the source bombers /
-      //     bombs) — so the depth target sees the world WITHOUT them.
-      // Diff against `flaggedHandles` to untag handles whose tagging
-      // component was dropped.
-      const seenHandles = new Set<number>();
+      // S294 — INCLUSION model. The pre-pass renders ONLY the TALL occluder
+      // surfaces (meshes tagged `OutlineOccluderSurface`), so the silhouette
+      // fires only behind geometry that genuinely hides a bomber. Diff the
+      // marker set against the adapter so dropped tags untag exactly once.
+      const seenSurface = new Set<number>();
+      for (const id of surfaceQuery!.run()) {
+        const h = world.getComponent<RenderMeshHandleComponent>(id, RENDER_MESH_HANDLE);
+        if (h !== undefined) seenSurface.add(h.id);
+      }
+      for (const handle of seenSurface) {
+        if (!flaggedSurfaceHandles.has(handle)) {
+          deps.adapter.setMeshOutlineOccluderSurface(handle, true);
+          flaggedSurfaceHandles.add(handle);
+        }
+      }
+      for (const handle of flaggedSurfaceHandles) {
+        if (!seenSurface.has(handle)) {
+          deps.adapter.setMeshOutlineOccluderSurface(handle, false);
+          flaggedSurfaceHandles.delete(handle);
+        }
+      }
+
+      // Is the silhouette feature active at all? (any bomber/bomb OutlineOccluder)
       let anyOccluder = false;
-      for (const id of occluderQuery!.run()) {
-        anyOccluder = true;
-        const h = world.getComponent<RenderMeshHandleComponent>(id, RENDER_MESH_HANDLE);
-        if (h !== undefined) seenHandles.add(h.id);
-      }
-      for (const id of excludedQuery!.run()) {
-        const h = world.getComponent<RenderMeshHandleComponent>(id, RENDER_MESH_HANDLE);
-        if (h !== undefined) seenHandles.add(h.id);
-      }
-      for (const handle of seenHandles) {
-        if (!flaggedHandles.has(handle)) {
-          deps.adapter.setMeshOutlinePrePassExcluded(handle, true);
-          flaggedHandles.add(handle);
-        }
-      }
-      for (const handle of flaggedHandles) {
-        if (!seenHandles.has(handle)) {
-          deps.adapter.setMeshOutlinePrePassExcluded(handle, false);
-          flaggedHandles.delete(handle);
-        }
-      }
+      for (const _ of occluderQuery!.run()) { anyOccluder = true; break; }
 
-      // Dormant when nothing needs the pre-pass.
+      // Dormant when the feature is off OR there are no tall occluders to
+      // hide behind (flat arena → empty surface set → no x-ray, no cost).
       if (!anyOccluder) return;
+      if (deps.adapter.outlineOccluderSurfaceMeshes().size === 0) return;
       if (!ensureRenderTarget()) return;
       if (rtHandle === undefined) return;
       const camera = deps.adapter.getActiveCamera();
       if (camera === undefined) return;
       const scene = deps.adapter.getScene();
 
-      // Visibility toggle for every excluded mesh, render, restore.
+      // Render ONLY the occluder surfaces: hide every other visible mesh,
+      // render the depth target, restore. (Bombers/bombs are not in the
+      // surface set, so they never pollute the occluder depth.)
+      const surfaces = deps.adapter.outlineOccluderSurfaceMeshes();
       const restore: Array<{ mesh: Mesh; wasVisible: boolean }> = [];
-      for (const mesh of deps.adapter.outlinePrePassExcludedMeshes()) {
-        restore.push({ mesh, wasVisible: mesh.visible });
-        mesh.visible = false;
-      }
+      scene.traverse((obj) => {
+        const mesh = obj as Mesh;
+        if (mesh.isMesh !== true) return;
+        if (mesh.visible && !surfaces.has(mesh)) {
+          restore.push({ mesh, wasVisible: true });
+          mesh.visible = false;
+        }
+      });
       try {
         deps.adapter.renderSceneToTarget(rtHandle, scene, camera);
       } finally {
