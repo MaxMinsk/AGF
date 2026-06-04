@@ -8,40 +8,14 @@ You are the **QA terminal** in a two-Claude workflow. The other terminal — the
 
 ## How to launch the QA terminal
 
-The QA Claude runs in its own **git worktree** so that branch checkouts never conflict with the dev terminal. Set up the worktree once; after that just `cd` into it and start Claude.
+The QA Claude is a separate `claude` session running in the same repo. Three working options, pick whichever fits your harness:
 
-### One-time worktree setup
+### Option A — plain `claude` session with a kickoff prompt (simplest)
 
-Run this once from the main repo root (dev terminal or shell):
+Open a second terminal at the repo root and run:
 
 ```bash
 cd "/path/to/AGF"
-# If the weekly branch already exists remotely:
-git worktree add "/path/to/AGF-QA" qa-intake/$(date +%Y-%V)
-# If starting a fresh week (branch doesn't exist yet):
-git worktree add -b qa-intake/$(date +%Y-%V) "/path/to/AGF-QA" origin/main
-```
-
-The worktree lives at a sibling path (e.g. `/Users/maximkaz/Documents/AGF-QA`). Dev keeps working in the original directory; QA works exclusively in the worktree. They share the same `.git` object store and remote but can each be on different branches simultaneously — no stashing, no checkout conflicts.
-
-Symlink `node_modules` so `npm run` scripts work without a second install:
-
-```bash
-ln -s "/path/to/AGF/node_modules" "/path/to/AGF-QA/node_modules"
-```
-
-**After the weekly branch rotates** (new ISO week): from inside the worktree, create the new branch:
-
-```bash
-cd "/path/to/AGF-QA"
-git fetch origin
-git checkout -b qa-intake/$(date +%Y-%V) origin/main
-```
-
-### Option A — worktree + kickoff prompt (recommended)
-
-```bash
-cd "/path/to/AGF-QA"
 claude
 ```
 
@@ -65,10 +39,10 @@ The first system read pulls `docs/qa/agent.md` into context; `npm run qa:next-pr
 
 ### Option B — `.claude/agents/qa-reviewer.md` subagent
 
-`.claude/agents/qa-reviewer.md` (S93 QA-AGENT-DEFINITION) means the dev terminal can delegate verification via the Agent tool, but you can also boot a *standalone* session that loads the subagent definition as its system prompt. From the worktree:
+`.claude/agents/qa-reviewer.md` (S93 QA-AGENT-DEFINITION) means the dev terminal can delegate verification via the Agent tool, but you can also boot a *standalone* session that loads the subagent definition as its system prompt. From the second terminal:
 
 ```bash
-cd "/path/to/AGF-QA"
+cd "/path/to/AGF"
 claude --agent qa-reviewer
 ```
 
@@ -86,11 +60,9 @@ node scripts/backlog/qa-ticket.mjs new "<title>" --severity ... --type ... --fou
 
 You lose the LLM's ability to reason about screenshots / unexpected console output, but you keep the schema + promotion path.
 
-### Multi-session and worktree safety
+### Multi-session safety
 
-- **ID races:** two QA sessions in parallel on the same day can race on the `QA-YYYY-MM-DD-NNN` slot. The scaffold script reads the directory before allocating, so the *first* writer wins. By convention only one QA session is active at any time.
-- **Untracked dev files not present in the worktree:** the worktree has its own working directory. Dev's untracked files (`qa-artifacts/`, `scripts/probe-*.mjs`, etc.) are not automatically present — this is by design and avoids pollution. If you need to reference a dev-side probe script, copy it explicitly.
-- **Never run `npm install` in the worktree** if the main repo already has `node_modules` — use the symlink approach above instead.
+Two QA sessions in parallel on the same day can race on the `QA-YYYY-MM-DD-NNN` slot. The scaffold script (`scripts/backlog/qa-ticket.mjs`) reads the directory before allocating, so the *first* writer wins; the second gets the next free slot. If both are on different branches, conflicts will still appear at merge time — by convention only one QA session is active at any time.
 
 ---
 
