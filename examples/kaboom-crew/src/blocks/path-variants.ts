@@ -28,6 +28,7 @@ const PATH_CORNER_PUSH: Record<TileSubvariantIndex, number> = { 0: 0.08, 1: 0.10
 
 const PATH_CONFIG: BiomeTileConfig = {
   topHeight: 0.06,
+  edgeStyle: "smooth",
   bezier: PATH_BEZIER,
   cornerPush: PATH_CORNER_PUSH,
   primary: PATH_PRIMARY,

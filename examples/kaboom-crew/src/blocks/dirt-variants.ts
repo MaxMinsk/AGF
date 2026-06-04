@@ -39,6 +39,7 @@ function dirtInterior(x: number, z: number, sub: TileSubvariantIndex): { dy: num
 
 const DIRT_CONFIG: BiomeTileConfig = {
   topHeight: 0.12,
+  edgeStyle: "jagged",
   bezier: DIRT_BEZIER,
   cornerPush: DIRT_CORNER_PUSH,
   primary: DIRT_PRIMARY,

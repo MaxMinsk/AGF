@@ -38,6 +38,7 @@ function stoneInterior(x: number, z: number, sub: TileSubvariantIndex): { dy: nu
 
 const STONE_CONFIG: BiomeTileConfig = {
   topHeight: 0.18,
+  edgeStyle: "angular",
   bezier: STONE_BEZIER,
   cornerPush: STONE_CORNER_PUSH,
   primary: STONE_PRIMARY,

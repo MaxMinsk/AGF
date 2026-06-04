@@ -37,6 +37,7 @@ import warpfieldSceneJson from "./scenes/warpfield.scene.json";
 import platePuzzleSceneJson from "./scenes/plate-puzzle.scene.json";
 import heightmapDemoSceneJson from "./scenes/heightmap-demo.scene.json";
 import grassDemoSceneJson from "./scenes/grass-demo.scene.json";
+import allBiomesDemoSceneJson from "./scenes/all-biomes-demo.scene.json";
 // Static prefab imports. Vite picks them up at build time so the
 // restart path doesn't have to round-trip through `import.meta.glob`.
 import playerPrefab from "./prefabs/player.prefab.json";
@@ -603,9 +604,10 @@ const MAP_REGISTRY: ReadonlyMap<string, unknown> = new Map<string, unknown>([
   ["warpfield", warpfieldSceneJson],
   ["plate-puzzle", platePuzzleSceneJson],
   ["heightmap-demo", heightmapDemoSceneJson],
-  ["grass-demo", grassDemoSceneJson]
+  ["grass-demo", grassDemoSceneJson],
+  ["all-biomes-demo", allBiomesDemoSceneJson]
 ]);
-type MapName = "start" | "wide" | "corridor" | "corridors" | "cluster-rooms" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo";
+type MapName = "start" | "wide" | "corridor" | "corridors" | "cluster-rooms" | "plaza" | "cross" | "pit" | "belt-zone" | "warpfield" | "plate-puzzle" | "heightmap-demo" | "grass-demo" | "all-biomes-demo";
 
 /** S212 KABOOM-CAMERA-ADAPTIVE-FOLLOW — bounding-box width/depth (in
  *  tiles) of each authored arena. Used by the camera-control system
@@ -626,7 +628,8 @@ const MAP_DIMS: ReadonlyMap<MapName, { width: number; depth: number }> = new Map
   ["warpfield", { width: 15, depth: 11 }],
   ["plate-puzzle", { width: 15, depth: 11 }],
   ["heightmap-demo", { width: 14, depth: 10 }],
-  ["grass-demo", { width: 14, depth: 10 }]
+  ["grass-demo", { width: 14, depth: 10 }],
+  ["all-biomes-demo", { width: 14, depth: 10 }]
 ]);
 
 /**
@@ -741,7 +744,15 @@ function startVertexColorsPoller(runtime: RuntimeHandle): void {
             && !key.startsWith("procedural:kaboom-hard-block")
             && !key.startsWith("procedural:kaboom-soft-block")
             && !key.startsWith("procedural:kaboom-floor-tile")
-            && !key.startsWith("procedural:kaboom-grass")) continue;
+            // GDP-2026-06-04-004 — all curved-outline terrain biomes use
+            // per-vertex palette; cover grass/path/stone/dirt/floor + the
+            // wall-shadow overlay so none render with the default white.
+            && !key.startsWith("procedural:kaboom-grass")
+            && !key.startsWith("procedural:kaboom-path")
+            && !key.startsWith("procedural:kaboom-stone")
+            && !key.startsWith("procedural:kaboom-dirt")
+            && !key.startsWith("procedural:kaboom-floor")
+            && !key.startsWith("procedural:kaboom-wall-shadow")) continue;
         const handle = registry.handleFor(entity.id);
         if (handle === undefined) continue;
         if (patchedHandles.has(handle)) continue;

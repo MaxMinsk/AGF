@@ -61,6 +61,7 @@ function grassInterior(x: number, z: number, sub: TileSubvariantIndex): { dy: nu
 
 const GRASS_CONFIG: BiomeTileConfig = {
   topHeight: 0.20,
+  edgeStyle: "smooth",
   bezier: GRASS_BEZIER,
   cornerPush: GRASS_CORNER_PUSH,
   primary: GRASS_PRIMARY,

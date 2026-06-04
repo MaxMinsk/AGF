@@ -25,9 +25,17 @@ export type BezierCfg =
   | { kind: "single"; outward: number; lateral: number }
   | { kind: "double"; a: [number, number]; b: [number, number]; valley: number };
 
+/** Open-edge silhouette character — the main per-biome differentiator.
+ *   smooth  — quadratic Bezier bulge (grass / path: organic, soft)
+ *   angular — straight-segment trapezoidal bevel (stone: faceted rock)
+ *   jagged  — Bezier + per-point outward noise (dirt: rough irregular) */
+export type EdgeStyle = "smooth" | "angular" | "jagged";
+
 export interface BiomeTileConfig {
   /** Nominal top-face height (cell units). */
   topHeight: number;
+  /** Open-edge silhouette character. */
+  edgeStyle: EdgeStyle;
   /** Outline Bezier control per sub-variant. */
   bezier: Record<TileSubvariantIndex, BezierCfg>;
   /** C-4 convex-corner push per sub-variant. */
@@ -98,13 +106,16 @@ export function shapeForBitmask(bitmask: number): { shape: TileShape; rotationYD
 
 export function buildBiomeTile(cfg: BiomeTileConfig, shape: TileShape, sub: TileSubvariantIndex): BufferGeometry {
   const flush = SHAPE_FLUSH[shape];
-  const outline = buildOutline(flush, cfg.bezier[sub], cfg.cornerPush[sub]);
+  // Stone (angular) keeps sharp corners — don't round them; the bevelled
+  // edges carry the character. Smooth / jagged round their convex corners.
+  const cornerPush = cfg.edgeStyle === "angular" ? 0 : cfg.cornerPush[sub];
+  const outline = buildOutline(flush, cfg.bezier[sub], cornerPush, cfg.edgeStyle, sub);
   return assemble(outline, shape, sub, cfg);
 }
 
 // ── Outline ────────────────────────────────────────────────────────────────
 
-function buildOutline(flush: Record<EdgeKey, boolean>, cfg: BezierCfg, cornerPush: number): Vector2[] {
+function buildOutline(flush: Record<EdgeKey, boolean>, cfg: BezierCfg, cornerPush: number, style: EdgeStyle, sub: number): Vector2[] {
   const pushedCorner = (a: Vector2, eA: EdgeKey, eB: EdgeKey): Vector2 => {
     if (flush[eA] || flush[eB]) return a.clone();
     const diag = new Vector2(Math.sign(a.x), Math.sign(a.y)).normalize();
@@ -118,13 +129,19 @@ function buildOutline(flush: Record<EdgeKey, boolean>, cfg: BezierCfg, cornerPus
   ]);
 
   const pts: Vector2[] = [];
-  for (const e of EDGES) {
+  EDGES.forEach((e, edgeIdx) => {
     const start = byCorner.get(e.start)!;
     const end   = byCorner.get(e.end)!;
-    if (flush[e.key]) pts.push(start.clone());
-    else appendBezier(pts, start, end, e.out, cfg, true);
-  }
+    if (flush[e.key]) { pts.push(start.clone()); return; }
+    appendEdge(pts, start, end, e.out, cfg, style, edgeIdx + sub * 4, true);
+  });
   return pts;
+}
+
+function appendEdge(out: Vector2[], p0: Vector2, p2: Vector2, outward: Vector2, cfg: BezierCfg, style: EdgeStyle, seed: number, skipLast: boolean): void {
+  if (style === "angular") { appendAngular(out, p0, p2, outward, cfg, skipLast); return; }
+  if (style === "jagged")  { appendJagged(out, p0, p2, outward, cfg, seed, skipLast); return; }
+  appendBezier(out, p0, p2, outward, cfg, skipLast);
 }
 
 function appendBezier(out: Vector2[], p0: Vector2, p2: Vector2, outward: Vector2, cfg: BezierCfg, skipLast: boolean): void {
@@ -141,6 +158,42 @@ function appendBezier(out: Vector2[], p0: Vector2, p2: Vector2, outward: Vector2
     const c2 = midOffset(mid, p2, outward, cfg.b[0], along, cfg.b[1]);
     sampleQuad(out, p0, c1, mid, BEZIER_PTS, true);
     sampleQuad(out, mid, c2, p2, BEZIER_PTS, skipLast);
+  }
+}
+
+/** Angular (stone): straight-segment trapezoidal bevel — flat-topped ridge
+ *  with hard 45-ish breaks instead of a smooth curve. Reads as faceted rock. */
+function appendAngular(out: Vector2[], p0: Vector2, p2: Vector2, outward: Vector2, cfg: BezierCfg, skipLast: boolean): void {
+  const amt = cfg.kind === "single" ? cfg.outward : cfg.a[0];
+  const lerp = (t: number): Vector2 => new Vector2(p0.x + (p2.x - p0.x) * t, p0.y + (p2.y - p0.y) * t);
+  const lift = (p: Vector2, k: number): Vector2 => new Vector2(p.x + outward.x * amt * k, p.y + outward.y * amt * k);
+  // p0 → ramp up to a flat top (0.22..0.78) → ramp down → p2. Straight segments.
+  out.push(p0.clone());
+  out.push(lift(lerp(0.22), 1));
+  out.push(lift(lerp(0.5), 1.12)); // slight central peak so facets read
+  out.push(lift(lerp(0.78), 1));
+  if (!skipLast) out.push(p2.clone());
+}
+
+/** Jagged (dirt): Bezier spine + per-point outward noise → rough irregular
+ *  edge. Endpoints stay exact (seam-safe); only interior points jitter. */
+function appendJagged(out: Vector2[], p0: Vector2, p2: Vector2, outward: Vector2, cfg: BezierCfg, seed: number, skipLast: boolean): void {
+  const along = new Vector2(p2.x - p0.x, p2.y - p0.y).normalize();
+  const amt = cfg.kind === "single" ? cfg.outward : cfg.a[0];
+  const lat = cfg.kind === "single" ? cfg.lateral : 0;
+  const ctrl = midOffset(p0, p2, outward, amt, along, lat);
+  const n = BEZIER_PTS;
+  const count = skipLast ? n : n + 1;
+  for (let i = 0; i < count; i++) {
+    const t = i / n, mt = 1 - t;
+    let x = mt * mt * p0.x + 2 * mt * t * ctrl.x + t * t * p2.x;
+    let z = mt * mt * p0.y + 2 * mt * t * ctrl.y + t * t * p2.y;
+    if (i > 0 && i < n) { // interior only — endpoints pinned
+      const h = (Math.abs(Math.sin((i + seed * 3.7) * 91.17) * 4731.3) % 1) - 0.5;
+      x += outward.x * h * 0.18;
+      z += outward.y * h * 0.18;
+    }
+    out.push(new Vector2(x, z));
   }
 }
 
