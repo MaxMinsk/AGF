@@ -1,0 +1,19 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-06-04-001",
+  "title": "Outline prepass consumes needsUpdate shadow token — bomber and bomb shadows disappear after first movement",
+  "filedAt": "2026-06-04T07:40:26.833Z",
+  "foundInPr": 335,
+  "severity": "major",
+  "type": "bug",
+  "summary": "S177 landed the outline-occluder prepass system (S278/S279). The prepass calls `adapter.renderSceneToTarget()` — which calls `device.render(scene, camera)` — BEFORE the main render. When the dynamic-shadow-system (S52) has set `shadowMap.autoUpdate=false` and queued `shadowMap.needsUpdate=true` (happens after the first bomber/bomb movement), the prepass `device.render()` consumes the `needsUpdate` token while source bombers and bombs are HIDDEN (toggled `visible=false` by outline-prepass-system). Three.js bakes the shadow map without any moving casters, clears `needsUpdate`. The subsequent main render sees `needsUpdate=false` and skips the shadow update entirely, leaving the shadow map empty of character/bomb shadows. Visually: the floor is uniformly lit, no shadows under bombers or bombs after the first movement.",
+  "repro": [
+    "Boot `?project=kaboom-crew`, start a round (Space).",
+    "Let any bomber (bot or player) take one step — dynamic-shadow-system detects the first LTW delta, flips `autoUpdate=false`, queues `needsUpdate=true`.",
+    "Observe the floor: shadows under bombers and bombs are absent. The floor is uniformly lit regardless of bomber position.",
+    "Cross-check: load with `?occluderOutline=off` — shadows are correct, confirming the regression is in the prepass render consuming the needsUpdate token."
+  ],
+  "expected": "Ground shadows visible under all bombers and placed bombs throughout a round, matching the S180 shadow baseline (light.sun castShadow=true, bias=0, normalBias=0.285, 2048 shadow map).",
+  "actual": "Floor uniformly lit after the first frame any bomber moves. No shadow drop visible under bombers or bombs for the rest of the round. Confirmed via Playwright screenshot (qa-artifacts/shadow-check-2026-06-04.png) and snapshot probe: shadowCasters=1 light with castShadow=true, 43 ShadowCaster{dynamic:true} entities, floor shows no shadows.",
+  "logs": "Root cause — DSS/prepass ordering race in the frame pipeline:\n\n  Frame N:\n    1. dynamic-shadow-system.frameUpdate: bomber LTW changed → invalidateShadowMap() → needsUpdate=true.\n    2. outline-prepass-system.frameUpdate: source bombers set visible=false, renderSceneToTarget() calls device.render().\n       Three.js sees autoUpdate=false + needsUpdate=true → bakes shadow map with bombers hidden → needsUpdate=false.\n    3. draw(): device.render() — main render.\n       Three.js sees autoUpdate=false + needsUpdate=false → skips shadow update.\n       Scene renders with shadow map from step 2 (no bomber shadows).\n\nAffected files:\n  engine/render/three-render-adapter.ts:1630-1637  renderSceneToTarget — no shadow-state guard\n  engine/render/systems/dynamic-shadow-system.ts:165-177  sets autoUpdate=false + invalidates on movement\n  engine/render/systems/outline-prepass-system.ts:170  renderSceneToTarget call site\n\nFix outline (one change in renderSceneToTarget):\n  Save+clear shadow state before secondary render, restore after, so the prepass never consumes a pending needsUpdate token:\n    const savedAutoUpdate = this.device.shadowMap.autoUpdate;\n    const savedNeedsUpdate = this.device.shadowMap.needsUpdate;\n    this.device.shadowMap.autoUpdate = false;\n    this.device.shadowMap.needsUpdate = false;\n    // ... render to target ...\n    this.device.shadowMap.autoUpdate = savedAutoUpdate;\n    this.device.shadowMap.needsUpdate = savedNeedsUpdate;\n  Regression test: ShadowCaster{dynamic:true} bombers + outline prepass enabled → floor has non-zero shadow after first movement."
+}
