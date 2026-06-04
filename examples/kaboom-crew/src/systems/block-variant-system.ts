@@ -36,9 +36,13 @@ import {
   type WangTileFamilyMemberComponent
 } from "../../../../engine/render/autotile";
 import {
+  DIRT_WANG_FAMILY,
+  FLOOR_WANG_FAMILY,
   GRASS_WANG_FAMILY,
   HARD_BLOCK_WANG_FAMILY,
-  SOFT_BLOCK_WANG_FAMILY
+  PATH_WANG_FAMILY,
+  SOFT_BLOCK_WANG_FAMILY,
+  STONE_WANG_FAMILY
 } from "../blocks/register-wang-families";
 import {
   bitmaskToRotationYDeg,
@@ -47,6 +51,7 @@ import {
   softBlockBitmaskToVariant,
   type KaboomBlockVariantIndex
 } from "../blocks/wang-family-lookup";
+import { shapeForBitmask } from "../blocks/biome-tile-builder";
 import {
   GRASS_VARIANT_KEYS,
   HARD_BLOCK_VARIANT_KEYS,
@@ -56,6 +61,18 @@ import {
 const GRID_OCCUPANT: ComponentName = "GridOccupant";
 const GRID_POSITION: ComponentName = "GridPosition";
 const MESH_RENDERER: ComponentName = "MeshRenderer";
+
+/** GDP-2026-06-04-003/004 — V2 terrain families resolve to bitmask-specific
+ *  meshes (already oriented per bitmask), so the mesh-sync bridge uses the
+ *  engine resolver's `currentMeshKey` directly with ZERO rotation. The old
+ *  4-role + Y-rotation path only applies to V1 hard/soft block families. */
+const V2_TERRAIN_FAMILIES: ReadonlySet<string> = new Set([
+  GRASS_WANG_FAMILY,
+  PATH_WANG_FAMILY,
+  STONE_WANG_FAMILY,
+  DIRT_WANG_FAMILY,
+  FLOOR_WANG_FAMILY
+]);
 
 type GridOccupantComponent = { layer?: string };
 type GridPositionComponent = { gx?: number; gz?: number };
@@ -92,7 +109,12 @@ export function createKaboomBlockVariantSystem(
     }
     let stamped = 0;
     for (const id of cellQuery!.run()) {
-      if (applied.has(id)) continue;
+      // QA — `scene.load` (round restart) wipes + recreates entities in the
+      // SAME World instance, so the `applied` id-set survives with stale
+      // entries while the recreated blocks have NO WangTile yet. Gate on the
+      // live component instead: re-stamp any block missing WangTile so the
+      // resolver + mesh-sync re-run and the block keeps its mesh/texture.
+      if (applied.has(id) && world.hasComponent(id, WANG_TILE)) continue;
       const occ = world.getComponent<GridOccupantComponent>(id, GRID_OCCUPANT);
       const layer = occ?.layer;
       const familyName = layer === "wall"
@@ -162,7 +184,7 @@ export function createKaboomWangMeshSyncSystem(
   // through HMR or scene-restart actually re-writes the mesh ref.
   // S214 — cache rotationY too so a bitmask change that resolves to
   // the SAME variant but a DIFFERENT rotation still flips Transform.
-  const lastByCell = new Map<EntityId, { variant: KaboomBlockVariantIndex; theme: string; rotationYDeg: number }>();
+  const lastByCell = new Map<EntityId, { variant: KaboomBlockVariantIndex; theme: string; rotationYDeg: number; meshKey?: string }>();
   let cachedWorld: World | undefined;
   let wangQuery: QueryHandle | undefined;
 
@@ -188,6 +210,53 @@ export function createKaboomWangMeshSyncSystem(
       // resolver writes it next tick.
       if (bitmask === undefined) continue;
 
+      // GDP-2026-06-04-003/004 — V2 terrain families: the engine resolver
+      // wrote `currentMeshKey` (shape + sub-variant). Use it verbatim. Grass
+      // uses 6 canonical shapes covering 16 bitmasks via per-cell Y rotation
+      // (S214 factoring), so apply that rotation on the cell Transform.
+      if (V2_TERRAIN_FAMILIES.has(familyName)) {
+        const meshKey = wang.currentMeshKey;
+        if (meshKey === undefined) continue;
+        // GDP-2026-06-04-003/004 — grass/path/stone/dirt use 6 canonical
+        // shapes covering 16 bitmasks via per-cell Y rotation. Floor is
+        // role-based (no rotation).
+        const rot = familyName === FLOOR_WANG_FAMILY
+          ? 0
+          : shapeForBitmask(bitmask).rotationYDeg;
+        const prevV2 = lastByCell.get(id);
+        const mrV2 = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
+        // QA-2026-06-04-002 — also gate on the LIVE MeshRenderer.mesh, not
+        // just the lastByCell cache. On a round restart that reuses the World
+        // instance, the cache keeps stale "already wrote" entries while the
+        // recreated terrain entities start at the placeholder `box` mesh; a
+        // cache-only skip left them white for seconds until an unrelated
+        // re-resolve. Writing whenever the live mesh differs fixes that.
+        if (
+          prevV2 !== undefined
+          && prevV2.meshKey === meshKey
+          && prevV2.rotationYDeg === rot
+          && mrV2?.mesh === meshKey
+        ) continue;
+        world.setComponent(id, MESH_RENDERER, { ...(mrV2 ?? {}), mesh: meshKey });
+        if (prevV2 === undefined || prevV2.rotationYDeg !== rot) {
+          const t = world.getComponent<{
+            position?: ReadonlyArray<number>;
+            scale?: ReadonlyArray<number>;
+          }>(id, "Transform");
+          if (t !== undefined) {
+            const p = t.position ?? [0, 0, 0];
+            const s = t.scale ?? [1, 1, 1];
+            world.setComponent(id, "Transform", {
+              position: [p[0] ?? 0, p[1] ?? 0, p[2] ?? 0],
+              rotation: [0, rot, 0],
+              scale: [s[0] ?? 1, s[1] ?? 1, s[2] ?? 1]
+            });
+          }
+        }
+        lastByCell.set(id, { variant: 0, theme: themeKey, rotationYDeg: rot, meshKey });
+        continue;
+      }
+
       const variantIndex = mapFamilyBitmask(familyName, bitmask);
       if (variantIndex === undefined) continue;
       const meshKey = meshKeyFor(familyName, variantIndex, themeKey);
@@ -198,14 +267,20 @@ export function createKaboomWangMeshSyncSystem(
       const rotationYDeg = bitmaskToRotationYDeg(bitmask);
 
       const prev = lastByCell.get(id);
+      const mr = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
+      // QA — `scene.load` (round restart) wipes + recreates entities in the
+      // SAME World, so this cache survives with stale "already wrote" entries
+      // while the recreated hard/soft block starts at its placeholder mesh.
+      // Gate the skip on the LIVE MeshRenderer.mesh too so recreated blocks
+      // get rewritten instead of keeping the untextured placeholder.
       if (
         prev !== undefined
         && prev.variant === variantIndex
         && prev.theme === themeKey
         && prev.rotationYDeg === rotationYDeg
+        && mr?.mesh === meshKey
       ) continue;
 
-      const mr = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
       const next: MeshRendererComponent = { ...(mr ?? {}), mesh: meshKey };
       world.setComponent(id, MESH_RENDERER, next);
       // Write Transform.rotation only when this cell's rotation

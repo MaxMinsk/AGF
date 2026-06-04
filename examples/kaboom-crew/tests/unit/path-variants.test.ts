@@ -1,64 +1,38 @@
-// S271 KABOOM-FLOOR-WANG-PATH — coverage for the procedural path
-// variant builders. Mirrors grass-variants.test.ts.
+// GDP-2026-06-04-004 — path biome curved-outline mesh tests.
 
 import { describe, expect, it } from "vitest";
 
-import { buildPathVariant } from "../../src/blocks/path-variants";
-import { buildGrassVariant } from "../../src/blocks/grass-variants";
+import { buildPathShape } from "../../src/blocks/path-variants";
+import { buildGrassShape } from "../../src/blocks/grass-variants";
 
-function colorSum(g: ReturnType<typeof buildPathVariant>): number {
-  const color = g.getAttribute("color");
-  if (color === undefined) return 0;
-  let sum = 0;
-  for (let i = 0; i < color.count; i += 1) {
-    sum += color.getX(i) + color.getY(i) + color.getZ(i);
-  }
-  return Math.round(sum * 1000) / 1000;
+function span(g: ReturnType<typeof buildPathShape>): { x: number; z: number } {
+  g.computeBoundingBox();
+  const b = g.boundingBox!;
+  return { x: b.max.x - b.min.x, z: b.max.z - b.min.z };
 }
 
-function vertexCount(g: ReturnType<typeof buildPathVariant>): number {
-  return g.getAttribute("position").count;
-}
-
-describe("buildPathVariant (S271)", () => {
-  it("produces 4 distinguishable geometries", () => {
-    const geoms = [0, 1, 2, 3].map((i) => buildPathVariant(i as 0 | 1 | 2 | 3));
-    const sigs = geoms.map((g) => `${vertexCount(g)}:${colorSum(g)}`);
-    expect(new Set(sigs).size, `distinct sigs: ${sigs.join(" | ")}`).toBe(4);
+describe("buildPathShape (GDP-2026-06-04-004)", () => {
+  it("Shape A (isolated) has overhang — XZ span > 1.0", () => {
+    expect(span(buildPathShape("A", 0)).x).toBeGreaterThan(1.0);
   });
 
-  it("attaches position + color attributes to every variant", () => {
-    for (const i of [0, 1, 2, 3] as const) {
-      const g = buildPathVariant(i);
-      expect(g.getAttribute("position")).toBeDefined();
-      expect(g.getAttribute("color")).toBeDefined();
-      expect(g.getAttribute("position").count).toBeGreaterThan(0);
+  it("Shape F (filler) is a ~1x1 square", () => {
+    const s = span(buildPathShape("F", 0));
+    expect(Math.abs(s.x - 1.0)).toBeLessThan(0.02);
+    expect(Math.abs(s.z - 1.0)).toBeLessThan(0.02);
+  });
+
+  it("all 18 shape x sub combos have position + color attributes", () => {
+    for (const shape of ["A", "B", "C", "D", "E", "F"] as const) {
+      for (const sub of [0, 1, 2] as const) {
+        const g = buildPathShape(shape, sub);
+        expect(g.getAttribute("position").count, `${shape}-${sub}`).toBeGreaterThan(0);
+        expect(g.getAttribute("color"), `${shape}-${sub}`).toBeDefined();
+      }
     }
   });
 
-  it("uses the thin-slab 1 × 0.05 × 1 outer dimensions", () => {
-    for (const i of [0, 1, 2, 3] as const) {
-      const g = buildPathVariant(i);
-      g.computeBoundingBox();
-      const box = g.boundingBox!;
-      expect(Math.abs(box.max.x - box.min.x) - 1).toBeLessThan(0.01);
-      expect(Math.abs(box.max.y - box.min.y) - 0.05).toBeLessThan(0.01);
-      expect(Math.abs(box.max.z - box.min.z) - 1).toBeLessThan(0.01);
-    }
-  });
-
-  it("ignores the bitmask parameter (reserved for future sub-variants)", () => {
-    const a = buildPathVariant(0, 0);
-    const b = buildPathVariant(0, 15);
-    expect(vertexCount(a)).toBe(vertexCount(b));
-    expect(colorSum(a)).toBeCloseTo(colorSum(b), 3);
-  });
-
-  it("path colour palette differs from grass on every variant", () => {
-    for (const i of [0, 1, 2, 3] as const) {
-      const path = colorSum(buildPathVariant(i));
-      const grass = colorSum(buildGrassVariant(i));
-      expect(path, `variant ${i}: path colour-sum must differ from grass`).not.toBeCloseTo(grass, 2);
-    }
+  it("path is flatter than grass — Shape A overhang smaller than grass", () => {
+    expect(span(buildPathShape("A", 0)).x).toBeLessThan(span(buildGrassShape("A", 0)).x);
   });
 });

@@ -31,29 +31,14 @@ import {
   type FloorTileVariantIndex
 } from "./blocks/floor-tile-variants";
 import {
-  buildGrassVariant,
-  buildGrassSubvariant,
-  type GrassVariantIndex,
+  buildGrassShape,
+  type GrassShape,
   type GrassSubvariantIndex
 } from "./blocks/grass-variants";
-import {
-  buildPathVariant,
-  buildPathSubvariant,
-  type PathVariantIndex,
-  type PathSubvariantIndex
-} from "./blocks/path-variants";
-import {
-  buildStoneVariant,
-  buildStoneSubvariant,
-  type StoneVariantIndex,
-  type StoneSubvariantIndex
-} from "./blocks/stone-variants";
-import {
-  buildDirtVariant,
-  buildDirtSubvariant,
-  type DirtVariantIndex,
-  type DirtSubvariantIndex
-} from "./blocks/dirt-variants";
+import { buildPathShape } from "./blocks/path-variants";
+import { buildStoneShape } from "./blocks/stone-variants";
+import { buildDirtShape } from "./blocks/dirt-variants";
+import type { TileShape, TileSubvariantIndex } from "./blocks/biome-tile-builder";
 import {
   buildFloorSubvariant,
   type FloorVariantIndex,
@@ -98,55 +83,21 @@ export const GRASS_VARIANT_KEYS = [
   "kaboom-grass-2",
   "kaboom-grass-3"
 ] as const;
-/** S284 — sub-variant mesh keys for the grass V2 family (role × sub). */
-export const GRASS_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
-  ["kaboom-grass-0-0", "kaboom-grass-0-1", "kaboom-grass-0-2"],
-  ["kaboom-grass-1-0", "kaboom-grass-1-1", "kaboom-grass-1-2"],
-  ["kaboom-grass-2-0", "kaboom-grass-2-1", "kaboom-grass-2-2"],
-  ["kaboom-grass-3-0", "kaboom-grass-3-1", "kaboom-grass-3-2"]
-] as const;
-/** S271 — legacy per-variant mesh keys for path. */
-export const PATH_VARIANT_KEYS = [
-  "kaboom-path-0",
-  "kaboom-path-1",
-  "kaboom-path-2",
-  "kaboom-path-3"
-] as const;
-/** S285 — sub-variant mesh keys for path V2 (role × sub). */
-export const PATH_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
-  ["kaboom-path-0-0", "kaboom-path-0-1", "kaboom-path-0-2"],
-  ["kaboom-path-1-0", "kaboom-path-1-1", "kaboom-path-1-2"],
-  ["kaboom-path-2-0", "kaboom-path-2-1", "kaboom-path-2-2"],
-  ["kaboom-path-3-0", "kaboom-path-3-1", "kaboom-path-3-2"]
-] as const;
-/** S272 — legacy per-variant mesh keys for stone. */
-export const STONE_VARIANT_KEYS = [
-  "kaboom-stone-0",
-  "kaboom-stone-1",
-  "kaboom-stone-2",
-  "kaboom-stone-3"
-] as const;
-/** S285 — sub-variant mesh keys for stone V2 (role × sub). */
-export const STONE_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
-  ["kaboom-stone-0-0", "kaboom-stone-0-1", "kaboom-stone-0-2"],
-  ["kaboom-stone-1-0", "kaboom-stone-1-1", "kaboom-stone-1-2"],
-  ["kaboom-stone-2-0", "kaboom-stone-2-1", "kaboom-stone-2-2"],
-  ["kaboom-stone-3-0", "kaboom-stone-3-1", "kaboom-stone-3-2"]
-] as const;
-/** S272 — legacy per-variant mesh keys for dirt. */
-export const DIRT_VARIANT_KEYS = [
-  "kaboom-dirt-0",
-  "kaboom-dirt-1",
-  "kaboom-dirt-2",
-  "kaboom-dirt-3"
-] as const;
-/** S285 — sub-variant mesh keys for dirt V2 (role × sub). */
-export const DIRT_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
-  ["kaboom-dirt-0-0", "kaboom-dirt-0-1", "kaboom-dirt-0-2"],
-  ["kaboom-dirt-1-0", "kaboom-dirt-1-1", "kaboom-dirt-1-2"],
-  ["kaboom-dirt-2-0", "kaboom-dirt-2-1", "kaboom-dirt-2-2"],
-  ["kaboom-dirt-3-0", "kaboom-dirt-3-1", "kaboom-dirt-3-2"]
-] as const;
+/** GDP-2026-06-04-003 — grass shape-based mesh keys (6 shapes × 3 sub = 18). */
+export const GRASS_SHAPES = ["A", "B", "C", "D", "E", "F"] as const;
+export const GRASS_SHAPE_KEYS: ReadonlyArray<ReadonlyArray<string>> = GRASS_SHAPES.map(
+  (shape) => [`kaboom-grass-${shape}-0`, `kaboom-grass-${shape}-1`, `kaboom-grass-${shape}-2`]
+);
+/** GDP-2026-06-04-004 — path/stone/dirt shape-based keys (6 shapes × 3 sub). */
+export const PATH_SHAPE_KEYS: ReadonlyArray<ReadonlyArray<string>> = GRASS_SHAPES.map(
+  (s) => [`kaboom-path-${s}-0`, `kaboom-path-${s}-1`, `kaboom-path-${s}-2`]
+);
+export const STONE_SHAPE_KEYS: ReadonlyArray<ReadonlyArray<string>> = GRASS_SHAPES.map(
+  (s) => [`kaboom-stone-${s}-0`, `kaboom-stone-${s}-1`, `kaboom-stone-${s}-2`]
+);
+export const DIRT_SHAPE_KEYS: ReadonlyArray<ReadonlyArray<string>> = GRASS_SHAPES.map(
+  (s) => [`kaboom-dirt-${s}-0`, `kaboom-dirt-${s}-1`, `kaboom-dirt-${s}-2`]
+);
 /** S287 — wall-shadow variant keys (one per bitmask index 0-15). */
 export const WALL_SHADOW_VARIANT_KEYS: ReadonlyArray<string> = Array.from(
   { length: 16 }, (_, i) => `kaboom-wall-shadow-${i}`
@@ -201,71 +152,29 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
       buildSoftBlockVariant(variantIndex, softPaletteForSeed(seed))
     );
   }
-  // S176 KABOOM-FLOOR-WANG-TILES MVP — register the 4 grass variant
-  // keys. No palette parameter this sprint — terrain palettes are
-  // hardcoded (theme integration is a follow-up). The seed is ignored
-  // because the mesh-sync bridge writes a constant seed (one geometry
-  // per variant cached for the whole world).
-  for (let i = 0; i < GRASS_VARIANT_KEYS.length; i += 1) {
-    const variantIndex = i as GrassVariantIndex;
-    registry.register(GRASS_VARIANT_KEYS[i]!, (_seed) =>
-      buildGrassVariant(variantIndex)
-    );
-  }
-  // S284 — register 12 grass sub-variant builders (4 roles × 3 sub-variants).
-  for (let role = 0; role < GRASS_SUBVARIANT_KEYS.length; role += 1) {
-    const subs = GRASS_SUBVARIANT_KEYS[role]!;
+  // GDP-2026-06-04-003 — 18 grass shape builders (6 shapes × 3 sub-variants).
+  for (let si = 0; si < GRASS_SHAPES.length; si += 1) {
+    const shape = GRASS_SHAPES[si]!;
+    const subs  = GRASS_SHAPE_KEYS[si]!;
     for (let sub = 0; sub < subs.length; sub += 1) {
-      const r = role as GrassVariantIndex;
       const s = sub as GrassSubvariantIndex;
-      registry.register(subs[sub]!, (_seed) => buildGrassSubvariant(r, s));
+      registry.register(subs[sub]!, (_seed) => buildGrassShape(shape as GrassShape, s));
     }
   }
-  // S271 — register the 4 path variant keys.
-  for (let i = 0; i < PATH_VARIANT_KEYS.length; i += 1) {
-    const variantIndex = i as PathVariantIndex;
-    registry.register(PATH_VARIANT_KEYS[i]!, (_seed) =>
-      buildPathVariant(variantIndex)
-    );
-  }
-  // S285 — register 12 path sub-variant builders.
-  for (let role = 0; role < PATH_SUBVARIANT_KEYS.length; role += 1) {
-    const subs = PATH_SUBVARIANT_KEYS[role]!;
-    for (let sub = 0; sub < subs.length; sub += 1) {
-      const r = role as PathVariantIndex;
-      const s = sub as PathSubvariantIndex;
-      registry.register(subs[sub]!, (_seed) => buildPathSubvariant(r, s));
-    }
-  }
-  // S272 — third + fourth families: stone + dirt.
-  for (let i = 0; i < STONE_VARIANT_KEYS.length; i += 1) {
-    const variantIndex = i as StoneVariantIndex;
-    registry.register(STONE_VARIANT_KEYS[i]!, (_seed) =>
-      buildStoneVariant(variantIndex)
-    );
-  }
-  // S285 — register 12 stone sub-variant builders.
-  for (let role = 0; role < STONE_SUBVARIANT_KEYS.length; role += 1) {
-    const subs = STONE_SUBVARIANT_KEYS[role]!;
-    for (let sub = 0; sub < subs.length; sub += 1) {
-      const r = role as StoneVariantIndex;
-      const s = sub as StoneSubvariantIndex;
-      registry.register(subs[sub]!, (_seed) => buildStoneSubvariant(r, s));
-    }
-  }
-  for (let i = 0; i < DIRT_VARIANT_KEYS.length; i += 1) {
-    const variantIndex = i as DirtVariantIndex;
-    registry.register(DIRT_VARIANT_KEYS[i]!, (_seed) =>
-      buildDirtVariant(variantIndex)
-    );
-  }
-  // S285 — register 12 dirt sub-variant builders.
-  for (let role = 0; role < DIRT_SUBVARIANT_KEYS.length; role += 1) {
-    const subs = DIRT_SUBVARIANT_KEYS[role]!;
-    for (let sub = 0; sub < subs.length; sub += 1) {
-      const r = role as DirtVariantIndex;
-      const s = sub as DirtSubvariantIndex;
-      registry.register(subs[sub]!, (_seed) => buildDirtSubvariant(r, s));
+  // GDP-2026-06-04-004 — 18 shape builders each for path / stone / dirt.
+  const biomeShapeBuilders: Array<[ReadonlyArray<ReadonlyArray<string>>, (shape: TileShape, sub: TileSubvariantIndex) => import("three").BufferGeometry]> = [
+    [PATH_SHAPE_KEYS, buildPathShape],
+    [STONE_SHAPE_KEYS, buildStoneShape],
+    [DIRT_SHAPE_KEYS, buildDirtShape]
+  ];
+  for (const [keys, build] of biomeShapeBuilders) {
+    for (let si = 0; si < GRASS_SHAPES.length; si += 1) {
+      const shape = GRASS_SHAPES[si] as TileShape;
+      const subs = keys[si]!;
+      for (let sub = 0; sub < subs.length; sub += 1) {
+        const s = sub as TileSubvariantIndex;
+        registry.register(subs[sub]!, (_seed) => build(shape, s));
+      }
     }
   }
   // S286 — register 12 floor sub-variant builders.

@@ -125,6 +125,33 @@
       "verification": [
         "acceptance: path=arcTopFace (smooth centre lift), stone=sharpBevelTopEdge (hard step bevel), dirt=roughenTopEdge (deterministic irregular displacement). All 5 families now visually distinct by silhouette not just colour. typecheck clean. 2471/2471 vitest."
       ]
+    },
+    {
+      "id": "S289-KABOOM-GRASS-CURVED-OUTLINE",
+      "title": "Grass curved-outline mesh (GDP-2026-06-04-003/006) — replace box-with-paint",
+      "status": "implemented",
+      "summary": "S284 shipped grass as a BoxGeometry with vertex paint; the design required a curved-outline polygon mesh. Rewrote into a shared biome-tile-builder: 6 canonical Wang shapes A-F x 3 sub-variants = 18 cached meshes, per-bitmask Y rotation on the cell Transform. Quality contract C-1 (seam-pin) / C-3 (crisp rim) / C-4 (convex-corner rounding). GDP-006 variety: 3 distinct filler interiors (calm/tufted/grained) + clearly different sub-variant outlines + wide corner-push spread.",
+      "verification": [
+        "acceptance: 15 grass unit tests (shape spans, bitmask->shape map, filler distinctness, seam-pin perimeter, corner-push spread). typecheck + build clean. Live: organic island reads correctly. PR https://github.com/MaxMinsk/AGF/pull/338."
+      ]
+    },
+    {
+      "id": "S290-KABOOM-BIOME-CURVED-OUTLINE",
+      "title": "Path/stone/dirt curved-outline meshes + per-biome edge styles (GDP-2026-06-04-004)",
+      "status": "implemented",
+      "summary": "Extracted the grass pipeline into biome-tile-builder with per-biome configs + an edgeStyle (smooth/angular/jagged): path=smooth flat footpath, stone=angular faceted bevels, dirt=jagged noisy edges. Distinct silhouettes, not just colour. Fixed white terrain (vertexColors poller now covers path/stone/dirt/floor/wall-shadow prefixes).",
+      "verification": [
+        "acceptance: 10 path + stone/dirt unit tests (span, filler faceting/noise, all-18-combos). typecheck + build + engine:check clean. Live: 4 biomes visually distinct. PR https://github.com/MaxMinsk/AGF/pull/338."
+      ]
+    },
+    {
+      "id": "S291-KABOOM-ALL-BIOMES-ARENA",
+      "title": "all-biomes-demo playable showcase arena + restart-mesh fixes",
+      "status": "implemented",
+      "summary": "New all-biomes-demo arena: irregular organic biome blobs + path roads + blocks, C-2-validated (no different biomes cardinally adjacent), 4 spawns. Registered in MAP_REGISTRY/MAP_DIMS/MATCH_ROTATION_POOL. Restart fixes (scene.load reuses World): mesh-sync + block stamp now gate on live component state instead of stale id caches, so terrain (QA-2026-06-04-002) and hard/soft blocks keep meshes/textures after R.",
+      "verification": [
+        "acceptance: engine:check OK. Live loadMap restart probe: 0 placeholder / 48 terrain + 16 block meshes resolved at t+150ms (was 1.5-5s white). 2479 tests pass. PR https://github.com/MaxMinsk/AGF/pull/338."
+      ]
     }
   ]
 }

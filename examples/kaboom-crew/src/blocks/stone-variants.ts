@@ -1,191 +1,61 @@
-// S272 KABOOM-FLOOR-WANG-STONE — third floor terrain family. Same
-// shape as S176 grass / S271b path: 4 procedural variant builders
-// with vertex-painted thin 1×0.05×1 slabs. Cool-grey palette so
-// stone reads as "weathered slab" alongside grass (verdant) and
-// path (earthy).
-//
-// Variant 0 — plain stone tile (uniform STONE_PRIMARY).
-// Variant 1 — corner-darkened (suggests cracked edge).
-// Variant 2 — centre highlight (suggests a polished spot or chip).
-// Variant 3 — stripe (suggests a grout line).
+// GDP-2026-06-04-004 — stone biome config. Angular geometric rock: tight
+// curves, chunky profile, faceted top (region-stepped Y + light/dark facets).
+
+import type { BufferGeometry } from "three";
 
 import {
-  BoxGeometry,
-  BufferAttribute,
-  BufferGeometry,
-  Color
-} from "three";
+  buildBiomeTile,
+  type BezierCfg,
+  type BiomeTileConfig,
+  type TileShape,
+  type TileSubvariantIndex
+} from "./biome-tile-builder";
 
-import { paintVertexColors } from "./hard-block-variants";
-
-/** Weathered cool-grey primary tone (docs/game-design/terrain-design.md §3 stone). */
-export const STONE_PRIMARY = "#777a82";
-/** Darker crack / shadow tint. */
-export const STONE_SHADOW = "#4a4d54";
-/** Brighter polish / chip highlight. */
-export const STONE_HIGHLIGHT = "#9ea2ad";
+export const STONE_PRIMARY   = "#6a6a5a";
+export const STONE_HIGHLIGHT = "#8a8a7a";
+export const STONE_SHADOW    = "#2a2a1a";
 
 export type StoneVariantIndex = 0 | 1 | 2 | 3;
-export type StoneSubvariantIndex = 0 | 1 | 2;
+export type StoneSubvariantIndex = TileSubvariantIndex;
 
-const TILE_W = 1.0;
-const TILE_H = 0.05;
-const TILE_D = 1.0;
+const STONE_BEZIER: Record<TileSubvariantIndex, BezierCfg> = {
+  0: { kind: "single", outward: 0.10, lateral: 0.0  },
+  1: { kind: "single", outward: 0.12, lateral: -0.06 },
+  2: { kind: "double", a: [0.08, 0.12], b: [0.08, -0.12], valley: 0.02 }
+};
 
-export function buildStoneVariant(
-  index: StoneVariantIndex,
-  bitmask?: number
-): BufferGeometry {
-  void bitmask;
-  return buildStoneSubvariant(index, 0);
+const STONE_CORNER_PUSH: Record<TileSubvariantIndex, number> = { 0: 0.06, 1: 0.10, 2: 0.04 };
+
+/** Faceting — quantise into a coarse grid, constant Y + brightness step per region. */
+function stoneInterior(x: number, z: number, sub: TileSubvariantIndex): { dy: number; t: number } {
+  const gx = Math.min(2, Math.floor((x + 0.5) * 3));
+  const gz = Math.min(2, Math.floor((z + 0.5) * 3));
+  const region = (gx * 3 + gz + sub * 5) % 4;
+  const dyByRegion = [0, 0.02, 0.01, 0.015];
+  const tByRegion  = [0.0, 0.5, 0.2, 0.35];
+  return { dy: dyByRegion[region]!, t: tByRegion[region]! };
 }
 
-/** S285 — stone sub-variant builder. 3 crack-pattern variations per role. */
-export function buildStoneSubvariant(
-  role: StoneVariantIndex,
-  sub: StoneSubvariantIndex
-): BufferGeometry {
-  const g = new BoxGeometry(TILE_W, TILE_H, TILE_D, 4, 1, 4);
-  paintVertexColors(g, STONE_PRIMARY);
-  // S288 per-biome shape: stone tiles have a sharp 90-degree bevel (chiseled look).
-  sharpBevelTopEdge(g, 0.009);
-  switch (role) {
-    case 0: // edge — crack along border
-      if (sub === 0) paintBorder(g, STONE_SHADOW, 0.35);
-      else if (sub === 1) { paintBorder(g, STONE_SHADOW, 0.4); paintCentre(g, STONE_HIGHLIGHT, 0.2); }
-      else paintCrossHatch(g, STONE_SHADOW);
-      break;
-    case 1: // corner — bevel shadow
-      if (sub === 0) paintCorners(g, STONE_SHADOW);
-      else if (sub === 1) paintCorners(g, STONE_HIGHLIGHT);
-      else { paintCorners(g, STONE_SHADOW); paintCentre(g, STONE_HIGHLIGHT, 0.15); }
-      break;
-    case 2: // filler — subtle grain
-      if (sub === 0) paintCentre(g, STONE_HIGHLIGHT, 0.1);
-      else if (sub === 1) paintCrossHatch(g, STONE_SHADOW);
-      else paintBorder(g, STONE_SHADOW, 0.32);
-      break;
-    case 3: // isolated
-      if (sub === 0) { /* plain */ }
-      else if (sub === 1) paintCorners(g, STONE_SHADOW);
-      else paintBorder(g, STONE_SHADOW, 0.3);
-      break;
-  }
-  return g;
+const STONE_CONFIG: BiomeTileConfig = {
+  topHeight: 0.18,
+  edgeStyle: "angular",
+  bezier: STONE_BEZIER,
+  cornerPush: STONE_CORNER_PUSH,
+  primary: STONE_PRIMARY,
+  highlight: STONE_HIGHLIGHT,
+  shadow: STONE_SHADOW,
+  side: STONE_SHADOW,
+  interior: stoneInterior
+};
+
+export function buildStoneShape(shape: TileShape, sub: TileSubvariantIndex): BufferGeometry {
+  return buildBiomeTile(STONE_CONFIG, shape, sub);
 }
 
-/**
- * Sharp step-bevel: outer edge band snapped to a lower Y level (hard step,
- * not a smooth slope) — chiseled/beveled stone appearance.
- */
-function sharpBevelTopEdge(geometry: BufferGeometry, depth: number): void {
-  const position = geometry.getAttribute("position") as BufferAttribute;
-  const halfH = TILE_H / 2;
-  const edgeBand = 0.3;
-  for (let i = 0; i < position.count; i++) {
-    if (Math.abs(position.getY(i) - halfH) > 0.001) continue;
-    const x = Math.abs(position.getX(i));
-    const z = Math.abs(position.getZ(i));
-    if (x > edgeBand || z > edgeBand) {
-      position.setY(i, halfH - depth);
-    }
-  }
-  position.needsUpdate = true;
-  geometry.computeVertexNormals();
+export function buildStoneVariant(_index: StoneVariantIndex, _bitmask?: number): BufferGeometry {
+  return buildStoneShape("F", 0);
 }
-
-function paintBorder(geometry: BufferGeometry, hex: string, threshold: number): void {
-  const position = geometry.getAttribute("position") as BufferAttribute;
-  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
-  if (color === undefined) return;
-  const c = new Color(hex);
-  for (let i = 0; i < position.count; i += 1) {
-    if (Math.abs(position.getX(i)) > threshold || Math.abs(position.getZ(i)) > threshold) {
-      color.setXYZ(i, c.r, c.g, c.b);
-    }
-  }
-  color.needsUpdate = true;
-}
-
-function paintCentre(geometry: BufferGeometry, hex: string, radius: number): void {
-  const position = geometry.getAttribute("position") as BufferAttribute;
-  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
-  if (color === undefined) return;
-  const c = new Color(hex);
-  for (let i = 0; i < position.count; i += 1) {
-    if (Math.abs(position.getX(i)) < radius && Math.abs(position.getZ(i)) < radius) {
-      color.setXYZ(i, c.r, c.g, c.b);
-    }
-  }
-  color.needsUpdate = true;
-}
-
-function paintCrossHatch(geometry: BufferGeometry, hex: string): void {
-  // Two thin orthogonal stripes creating a cross-hatch crack pattern.
-  const position = geometry.getAttribute("position") as BufferAttribute;
-  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
-  if (color === undefined) return;
-  const c = new Color(hex);
-  for (let i = 0; i < position.count; i += 1) {
-    const x = Math.abs(position.getX(i));
-    const z = Math.abs(position.getZ(i));
-    if (x < 0.1 || z < 0.1) color.setXYZ(i, c.r, c.g, c.b);
-  }
-  color.needsUpdate = true;
-}
-
-function buildVariant0Plain(): BufferGeometry {
-  const g = new BoxGeometry(TILE_W, TILE_H, TILE_D, 1, 1, 1);
-  paintVertexColors(g, STONE_PRIMARY);
-  return g;
-}
-
-function buildVariant1CornerTint(): BufferGeometry {
-  const g = new BoxGeometry(TILE_W, TILE_H, TILE_D, 4, 1, 4);
-  paintVertexColors(g, STONE_PRIMARY);
-  paintCorners(g, STONE_SHADOW);
-  return g;
-}
-
-function buildVariant2CentreHighlight(): BufferGeometry {
-  const g = new BoxGeometry(TILE_W, TILE_H, TILE_D, 4, 1, 4);
-  paintVertexColors(g, STONE_PRIMARY);
-  paintCentre(g, STONE_HIGHLIGHT, 0.15);
-  return g;
-}
-
-function buildVariant3Stripe(): BufferGeometry {
-  const g = new BoxGeometry(TILE_W, TILE_H, TILE_D, 4, 1, 4);
-  paintVertexColors(g, STONE_PRIMARY);
-  paintStripe(g, STONE_SHADOW);
-  return g;
-}
-
-function paintCorners(geometry: BufferGeometry, hex: string): void {
-  const position = geometry.getAttribute("position") as BufferAttribute;
-  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
-  if (color === undefined) return;
-  const c = new Color(hex);
-  for (let i = 0; i < position.count; i += 1) {
-    const x = position.getX(i);
-    const z = position.getZ(i);
-    if (Math.abs(x) > 0.4 && Math.abs(z) > 0.4) {
-      color.setXYZ(i, c.r, c.g, c.b);
-    }
-  }
-  color.needsUpdate = true;
-}
-
-function paintStripe(geometry: BufferGeometry, hex: string): void {
-  const position = geometry.getAttribute("position") as BufferAttribute;
-  const color = geometry.getAttribute("color") as BufferAttribute | undefined;
-  if (color === undefined) return;
-  const c = new Color(hex);
-  for (let i = 0; i < position.count; i += 1) {
-    const x = position.getX(i);
-    if (Math.abs(x) < 0.15) {
-      color.setXYZ(i, c.r, c.g, c.b);
-    }
-  }
-  color.needsUpdate = true;
+export function buildStoneSubvariant(role: StoneVariantIndex, sub: StoneSubvariantIndex): BufferGeometry {
+  const rep: Record<number, TileShape> = { 0: "B", 1: "C", 2: "F", 3: "A" };
+  return buildStoneShape(rep[role] ?? "F", sub);
 }
