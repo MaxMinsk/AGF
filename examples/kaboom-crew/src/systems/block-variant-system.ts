@@ -219,8 +219,19 @@ export function createKaboomWangMeshSyncSystem(
           ? 0
           : shapeForBitmask(bitmask).rotationYDeg;
         const prevV2 = lastByCell.get(id);
-        if (prevV2 !== undefined && prevV2.meshKey === meshKey && prevV2.rotationYDeg === rot) continue;
         const mrV2 = world.getComponent<MeshRendererComponent>(id, MESH_RENDERER);
+        // QA-2026-06-04-002 — also gate on the LIVE MeshRenderer.mesh, not
+        // just the lastByCell cache. On a round restart that reuses the World
+        // instance, the cache keeps stale "already wrote" entries while the
+        // recreated terrain entities start at the placeholder `box` mesh; a
+        // cache-only skip left them white for seconds until an unrelated
+        // re-resolve. Writing whenever the live mesh differs fixes that.
+        if (
+          prevV2 !== undefined
+          && prevV2.meshKey === meshKey
+          && prevV2.rotationYDeg === rot
+          && mrV2?.mesh === meshKey
+        ) continue;
         world.setComponent(id, MESH_RENDERER, { ...(mrV2 ?? {}), mesh: meshKey });
         if (prevV2 === undefined || prevV2.rotationYDeg !== rot) {
           const t = world.getComponent<{
