@@ -146,13 +146,17 @@ export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeK
       // S294 — a pillar's top Y ≈ h. Tag it as an outline-occluder surface
       // when it's TALL enough (≥ TALL_OCCLUDER_THRESHOLD) to genuinely hide a
       // standing bomber, so the x-ray silhouette only fires behind real cover.
+      // S293/S298 — full-cell box (scale 1.0) so adjacent raised cells merge
+      // into one plateau with NO inter-pillar gaps, and the cliff faces overlay
+      // the sides flush (no corner notches). Box top colour matches the cell's
+      // cliff biome so the plateau surface reads as the same rock/turf.
       const pillarComponents: Record<string, unknown> = {
         Transform: {
-          position: [gx, h / 2 - 0.025, gz],
+          position: [gx, h / 2, gz],
           rotation: [0, 0, 0],
-          scale: [0.96, h + 0.05, 0.96]
+          scale: [1.0, h, 1.0]
         },
-        MeshRenderer: { mesh: "box", color: colorForHeight(h, resolvedTheme) }
+        MeshRenderer: { mesh: "box", color: plateauTopColor(scene, gx, gz, h, resolvedTheme) }
       };
       if (isTallOccluder(h)) pillarComponents["OutlineOccluderSurface"] = {};
       commands.push({
@@ -283,29 +287,31 @@ function emitCliffFaceCommands(
           }
         } as EngineCommand);
       }
-      // Corner caps: where two perpendicular faces meet at a cell corner.
-      const cornerPairs = [
-        { a: DIRS[0], b: DIRS[1], cx: 0.5, cz: -0.5 },  // N+E → NE
-        { a: DIRS[1], b: DIRS[2], cx: 0.5, cz: 0.5 },   // E+S → SE
-        { a: DIRS[2], b: DIRS[3], cx: -0.5, cz: 0.5 },  // S+W → SW
-        { a: DIRS[3], b: DIRS[0], cx: -0.5, cz: -0.5 }  // W+N → NW
-      ];
-      for (const cp of cornerPairs) {
-        if (!faces(gx, gz, cp.a) || !faces(gx, gz, cp.b)) continue;
-        const biome = biomeAt(gx, gz);
-        const delta = cellH; // cap spans down to base; visual filler only
-        commands.push({
-          kind: "entity.create",
-          entityId: `cliff.${gx}.${gz}.cap.${cp.cx > 0 ? "E" : "W"}${cp.cz > 0 ? "S" : "N"}`,
-          components: {
-            Transform: { position: [gx + cp.cx, cellH / 2, gz + cp.cz], rotation: [0, 0, 0], scale: [1, 1, 1] },
-            MeshRenderer: { mesh: `procedural:kaboom-${biome}-corner#${delta}`, color: "#ffffff" }
-          }
-        } as EngineCommand);
-      }
+      // No corner caps — the full-cell box fills the corner, the flush faces
+      // overlay the sides, so convex corners read clean without a wedge.
     }
   }
   return commands;
+}
+
+/** S298 — plateau-top colour matching the cell's cliff biome so the raised
+ *  surface reads as the same rock/turf as the cliff face beneath it. Falls
+ *  back to the height gradient on arenas without a terrainmap. */
+function plateauTopColor(
+  scene: SceneInput,
+  gx: number,
+  gz: number,
+  h: number,
+  themeKey: ArenaThemeKey
+): string {
+  const fam = scene.terrainmap?.[gz]?.[gx];
+  if (fam === "grass") return "#4a8a3e"; // green turf crown
+  if (fam === "dirt") return "#8a6740";  // soil
+  if (fam === "path") return "#7a5c3a";
+  if (fam === "stone") return "#9a9488"; // weathered rock
+  // No biome authored (e.g. heightmap-demo) → keep the S188 height-gradient
+  // tint; the warm cliff-stone face palette reads close enough to it.
+  return colorForHeight(h, themeKey);
 }
 
 /**

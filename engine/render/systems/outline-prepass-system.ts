@@ -138,10 +138,14 @@ export function createOutlinePrePassSystem(
       let anyOccluder = false;
       for (const _ of occluderQuery!.run()) { anyOccluder = true; break; }
 
-      // Dormant when the feature is off OR there are no tall occluders to
-      // hide behind (flat arena → empty surface set → no x-ray, no cost).
+      // Dormant only when the feature is off (no bomber/bomb OutlineOccluder).
+      // When it's on but there are NO tall occluders (flat arena), we STILL
+      // render — with the surface set empty the pass clears the depth target
+      // to far, so the silhouette material reads "nothing occludes" and the
+      // outline duplicates stay invisible. (Skipping the render here would
+      // leave the material with stale/undefined depth → duplicates show as
+      // solid blobs — QA: bombs rendered as opaque spheres on flat arenas.)
       if (!anyOccluder) return;
-      if (deps.adapter.outlineOccluderSurfaceMeshes().size === 0) return;
       if (!ensureRenderTarget()) return;
       if (rtHandle === undefined) return;
       const camera = deps.adapter.getActiveCamera();

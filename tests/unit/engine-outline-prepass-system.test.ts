@@ -68,12 +68,13 @@ describe("createOutlinePrePassSystem (S278/S294)", () => {
     expect(calls.some((c) => c[0] === "render")).toBe(false);
   });
 
-  it("dormant when occluder present but NO tall surface tagged (flat arena → no x-ray)", () => {
+  it("renders a CLEAR pass when occluder present but NO tall surface (flat arena) — keeps the silhouette material reading 'nothing occludes' so outline duplicates stay invisible, not solid blobs", () => {
     const { adapter, calls } = createFakeAdapter();
     const world = new World();
     withOccluder(world);
     step(createOutlinePrePassSystem({ adapter }), world);
-    expect(calls.some((c) => c[0] === "render")).toBe(false);
+    expect(calls.some((c) => c[0] === "render")).toBe(true);
+    expect(calls.some((c) => c[0] === "surface" && c[2] === true)).toBe(false);
   });
 
   it("renders the pre-pass once an OutlineOccluderSurface is tagged", () => {

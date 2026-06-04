@@ -24,17 +24,20 @@ export type CliffBiome = "cliff-grass" | "cliff-stone";
 export type CliffVariantIndex = 0 | 1 | 2 | 3;
 export type CliffSubvariant = 0 | 1;
 
-// Grass palette + soil bands.
+// Grass cliff: thin green crown over warm soil strata, darkening to a deep
+// shadowed base — reads as an earthy bank.
 const GRASS_PRIMARY = "#4a8a3e";
-const GRASS_HIGHLIGHT = "#5fa84a";
-const SOIL_LIGHT = "#7a5c3a";
-const SOIL_MID = "#5a3e22";
-const SOIL_DARK = "#3a2810";
-// Stone palette.
-const STONE_LIGHT = "#8a8a7a";
-const STONE_MID = "#6a6a5a";
-const STONE_DARK = "#4a4a3a";
-const STONE_SHADOW = "#2a2a1a";
+const GRASS_HIGHLIGHT = "#6bbf52";
+const SOIL_LIGHT = "#8a6740";
+const SOIL_MID = "#664a2a";
+const SOIL_DARK = "#3e2c18";
+// Stone cliff: weathered warm-grey rock with clear sedimentary layers,
+// deliberately cooler + darker than the beige plateau top so the face reads
+// as rock, not an extension of the box.
+const STONE_LIGHT = "#9a9488";
+const STONE_MID = "#6b665b";
+const STONE_DARK = "#494438";
+const STONE_SHADOW = "#2c2820";
 
 const HALF = 0.5;
 const COLS = 6;   // vertical columns across the 1-cell width
@@ -66,42 +69,36 @@ export function buildCliffFace(
   const topY = H / 2;
   const botY = -H / 2;
 
-  // Colour for a band row (0 = bottom … BANDS = top).
-  const bandColor = (row: number): Color => {
-    const t = row / BANDS; // 0 bottom → 1 top
+  // Smooth vertical gradient (0 = bottom … 1 = top): a weathered crown fading
+  // through a mid tone to a deep, contact-shadowed base. Clean 3-stop ramp —
+  // no discrete bands / panel grid (those read as a checkerboard).
+  const lo = new Color(isGrass ? "#241a0e" : STONE_SHADOW);
+  const md = new Color(isGrass ? SOIL_MID : STONE_MID);
+  const hi = new Color(isGrass ? SOIL_LIGHT : STONE_LIGHT);
+  const grassCrown = new Color(GRASS_PRIMARY);
+  const ramp3 = (t: number): Color =>
+    t < 0.5 ? lo.clone().lerp(md, t * 2) : md.clone().lerp(hi, (t - 0.5) * 2);
+  const colorAtV = (v: number): Color => {
     if (isGrass) {
-      if (t > 0.95) return new Color(GRASS_PRIMARY);
-      if (t > 0.66) return new Color(SOIL_LIGHT);
-      if (t > 0.45) return new Color(SOIL_MID);
-      return new Color(SOIL_DARK);
+      if (v > 0.88) return grassCrown.clone(); // thin green turf crown
+      return ramp3(Math.min(1, v / 0.88));     // soil ramp below the crown
     }
-    if (t > 0.8) return new Color(STONE_LIGHT);
-    if (t > 0.35) return new Color(STONE_MID);
-    return new Color(STONE_DARK);
+    return ramp3(v);
   };
 
   // Outward Z offset for a vertex at (u = 0..1 across width, v = 0..1 up).
   const outwardZ = (u: number, v: number): number => {
     let z = 0;
-    // Sub-variant body relief.
-    if (isGrass) {
-      if (sub === 0) z += 0.05 * Math.sin(Math.PI * v); // gentle bulge, peak mid
-      else { // layered strata: two step ledges
-        if (v > 0.30 && v < 0.40) z += 0.03;
-        if (v > 0.63 && v < 0.73) z += 0.03;
-      }
-    } else {
-      if (sub === 0) z += 0.02 * Math.sin(Math.PI * v); // minimal convexity
-      else { // crevice: inward cut at ~45% height
-        if (v > 0.40 && v < 0.50) z -= 0.06;
-      }
-    }
-    // Base undercut (grass) / flare (stone) on the bottom 10%.
-    if (v < 0.10) z += isGrass ? -0.05 * (1 - v / 0.10) : 0.04 * (1 - v / 0.10);
-    // End taper on isolated ends (u near 0 = left, u near 1 = right).
+    // The face is a FLAT vertical plane flush at the cell boundary (z≈0) —
+    // it recolours the pillar side with biome banding rather than bulging out
+    // (earlier outward lip/convexity/flare read as lumpy growths from the
+    // top-down camera). The only departure from flat is a small inward taper
+    // on isolated ends so a lone cliff rounds off instead of a hard slab edge.
     if (!leftConnected && u < 0.15) z -= taper * (1 - u / 0.15);
     if (!rightConnected && u > 0.85) z -= taper * ((u - 0.85) / 0.15);
-    return z;
+    // A hair outward so the face sits just proud of the 0.96-scaled pillar box
+    // (avoids z-fighting) without visibly protruding.
+    return z + 0.01;
   };
 
   // Build the face as a COLS×BANDS quad grid.
@@ -115,42 +112,15 @@ export function buildCliffFace(
       const u0 = c / COLS, u1 = (c + 1) / COLS;
       const v0 = b / BANDS, v1 = (b + 1) / BANDS;
       const a = vert(u0, v0), bb = vert(u1, v0), cc = vert(u1, v1), d = vert(u0, v1);
-      const cLow = bandColor(b), cHigh = bandColor(b + 1);
+      const cLow = colorAtV(v0);
+      const cHigh = colorAtV(v1);
       pushQuad(pos, nor, col, a, bb, cc, d, cLow, cHigh);
     }
   }
 
-  // Grass lip: a thin overhang shelf at the top, sloping down + outward.
-  if (isGrass) {
-    const lipZ = 0.12;
-    const u = (i: number): number => i / COLS;
-    for (let c = 0; c < COLS; c++) {
-      const u0 = u(c), u1 = u(c + 1);
-      const innerL: [number, number, number] = [-HALF + u0, topY, 0];
-      const innerR: [number, number, number] = [-HALF + u1, topY, 0];
-      const outerR: [number, number, number] = [-HALF + u1, topY - 0.04, lipZ];
-      const outerL: [number, number, number] = [-HALF + u0, topY - 0.04, lipZ];
-      const base = new Color(GRASS_PRIMARY), tip = new Color(GRASS_HIGHLIGHT);
-      // Top-facing shelf — quad innerL,innerR,outerR,outerL with up-ish normal.
-      pushShelf(pos, nor, col, innerL, innerR, outerR, outerL, base, tip);
-    }
-  } else {
-    // Stone top bevel: a 0.02 chamfer strip.
-    const u = (i: number): number => i / COLS;
-    for (let c = 0; c < COLS; c++) {
-      const u0 = u(c), u1 = u(c + 1);
-      const innerL: [number, number, number] = [-HALF + u0, topY, 0];
-      const innerR: [number, number, number] = [-HALF + u1, topY, 0];
-      const outerR: [number, number, number] = [-HALF + u1, topY - 0.02, 0.02];
-      const outerL: [number, number, number] = [-HALF + u0, topY - 0.02, 0.02];
-      const light = new Color(STONE_LIGHT);
-      pushShelf(pos, nor, col, innerL, innerR, outerR, outerL, light, light);
-    }
-  }
-
-  // Stone crevice interior darkening (sub 1) — approximate by tinting; the
-  // -Z cut is already in outwardZ. (Crevice colour blends via band; keep simple.)
-  void hash; void STONE_SHADOW;
+  // No protruding lip / bevel shelf — the flat banded face IS the cliff side.
+  // (The grass top-edge highlight already comes from the top band colour.)
+  void hash; void STONE_SHADOW; void GRASS_HIGHLIGHT; void STONE_LIGHT; void pushShelf;
 
   const geo = new BufferGeometry();
   geo.setAttribute("position", new BufferAttribute(new Float32Array(pos), 3));
