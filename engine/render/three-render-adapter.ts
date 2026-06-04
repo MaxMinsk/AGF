@@ -688,6 +688,33 @@ export type EnvironmentSpec =
 
 const DEFAULT_COLOR = "#cccccc";
 
+/** Minimal shadow-map shape touched by {@link withShadowMapSuspended}. */
+export interface ShadowMapToggles {
+  autoUpdate: boolean;
+  needsUpdate: boolean;
+}
+
+/**
+ * QA-2026-06-04-001 — run `fn` (a render that must not touch shadows, e.g. the
+ * outline pre-pass) with the shadow map suspended, then restore the prior
+ * `autoUpdate` / `needsUpdate` state. Without this an off-screen pre-pass
+ * render would consume the dynamic-shadow `needsUpdate` token and bake an
+ * empty shadow map, leaving the main render with nothing to update.
+ * Restores in a `finally` so a throwing render can't strand the suspended flags.
+ */
+export function withShadowMapSuspended(shadowMap: ShadowMapToggles, fn: () => void): void {
+  const prevAutoUpdate = shadowMap.autoUpdate;
+  const prevNeedsUpdate = shadowMap.needsUpdate;
+  shadowMap.autoUpdate = false;
+  shadowMap.needsUpdate = false;
+  try {
+    fn();
+  } finally {
+    shadowMap.autoUpdate = prevAutoUpdate;
+    shadowMap.needsUpdate = prevNeedsUpdate;
+  }
+}
+
 export class ThreeRenderAdapter {
   private readonly canvas: HTMLCanvasElement;
   // S84 AGF-LOG-RENDERER-DIAGNOSTICS-WIRE.
@@ -1626,14 +1653,26 @@ export class ThreeRenderAdapter {
    * Render `scene` into the target using `camera`. The device's current
    * render target is saved + restored so this method is safe to call
    * mid-frame as a pre-pass.
+   *
+   * QA-2026-06-04-001 — a pre-pass render must NOT bake or consume the
+   * dynamic-shadow map. The S52 dynamic-shadow-system sets
+   * `shadowMap.autoUpdate=false` and queues `needsUpdate=true` after the
+   * first bomber/bomb movement; an unguarded pre-pass `render()` would
+   * consume that token while the outline-prepass has bombers/bombs hidden,
+   * baking an empty shadow map and leaving the main render with
+   * `needsUpdate=false` → character/bomb shadows vanish. Suspend the shadow
+   * map for the pre-pass and restore the queued state afterwards so the
+   * main render does the real bake with casters visible.
    */
   renderSceneToTarget(handle: number, scene: Scene, camera: Camera): void {
     const entry = this.renderTargets.get(handle);
     if (entry === undefined) return;
     const previous = (this.device as { getRenderTarget?(): WebGLRenderTarget | null }).getRenderTarget?.() ?? null;
-    this.device.setRenderTarget(entry.target);
-    this.device.render(scene, camera);
-    this.device.setRenderTarget(previous);
+    withShadowMapSuspended(this.device.shadowMap, () => {
+      this.device.setRenderTarget(entry.target);
+      this.device.render(scene, camera);
+      this.device.setRenderTarget(previous);
+    });
   }
 
   /** Colour texture written by `renderSceneToTarget`. */
