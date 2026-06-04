@@ -49,6 +49,13 @@ import {
   type WallShadowVariantIndex
 } from "./blocks/wall-shadow-variants";
 import {
+  buildCliffFace,
+  buildCliffCorner,
+  type CliffBiome,
+  type CliffVariantIndex,
+  type CliffSubvariant
+} from "./blocks/cliff-face-variants";
+import {
   decodeBlockSeed,
   selectVariantIndex,
   type VariantIndex
@@ -191,6 +198,28 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     const idx = i as WallShadowVariantIndex;
     registry.register(WALL_SHADOW_VARIANT_KEYS[i]!, (_seed) => buildWallShadowVariant(idx));
   }
+  // S293 — cliff-face builders: 2 biomes x 4 variants x 2 sub = 16 faces +
+  // 2 corner caps. Key = `kaboom-cliff-{biome}-{variant}-{sub}`, the `#seed`
+  // carries the integer height delta so one builder caches per (variant, delta).
+  const cliffBiomes: CliffBiome[] = ["cliff-grass", "cliff-stone"];
+  for (const biome of cliffBiomes) {
+    for (let v = 0; v < 4; v += 1) {
+      for (let s = 0; s < 2; s += 1) {
+        const variant = v as CliffVariantIndex;
+        const subv = s as CliffSubvariant;
+        registry.register(`kaboom-${biome}-${v}-${s}`, (seed) =>
+          buildCliffFace(biome, variant, subv, parseDelta(seed))
+        );
+      }
+    }
+    registry.register(`kaboom-${biome}-corner`, (seed) => buildCliffCorner(biome, parseDelta(seed)));
+  }
+}
+
+/** Parse the `#seed` of a cliff mesh ref back to an integer height delta (≥1). */
+function parseDelta(seed: string): number {
+  const n = Number.parseInt(seed, 10);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
 }
 
 /**

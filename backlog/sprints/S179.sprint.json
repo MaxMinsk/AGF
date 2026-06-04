@@ -28,8 +28,11 @@
     {
       "id": "S293-KABOOM-CLIFF-FACE-WANG",
       "title": "Cliff face Wang autotiling — vertical edge meshes between height-differing cells (GDP-2026-06-04-001)",
-      "status": "pending",
-      "summary": "Extend the tile-edge pattern to LAYER 4 (cliff faces): vertical edges between cells of differing height get curved-outline edge meshes per cliff orientation, reusing the same Wang shape+rotation factoring. Cliff-grass + cliff-stone biome variants + corner caps so plateaus read as natural terraces, not raw extruded boxes."
+      "status": "implemented",
+      "summary": "Extend the tile-edge pattern to LAYER 4 (cliff faces): vertical edges between cells of differing height get curved-outline edge meshes per cliff orientation, reusing the same Wang shape+rotation factoring. Cliff-grass + cliff-stone biome variants + corner caps so plateaus read as natural terraces, not raw extruded boxes.",
+      "verification": [
+        "acceptance: cliff faces emit at scene-load for every exposed vertical edge (heightmap delta>0) with banded biome geometry (cliff-grass lip / cliff-stone bevel), 2-bit left/right variant for flush vs tapered ends, 2 sub-variants, corner caps. Builders registered (16 faces + 2 corners, delta via #seed). vertexColors poller covers cliff prefix. 6 builder unit tests; live heightmap-demo shows 31 terraced faces with soil banding. typecheck + engine:check + 2496 tests pass."
+      ]
     },
     {
       "id": "S294-KABOOM-OUTLINE-TALL-OCCLUDER-GATE",

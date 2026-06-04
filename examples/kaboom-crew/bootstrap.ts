@@ -791,7 +791,8 @@ function startVertexColorsPoller(runtime: RuntimeHandle): void {
             && !key.startsWith("procedural:kaboom-stone")
             && !key.startsWith("procedural:kaboom-dirt")
             && !key.startsWith("procedural:kaboom-floor")
-            && !key.startsWith("procedural:kaboom-wall-shadow")) continue;
+            && !key.startsWith("procedural:kaboom-wall-shadow")
+            && !key.startsWith("procedural:kaboom-cliff-")) continue;
         const handle = registry.handleFor(entity.id);
         if (handle === undefined) continue;
         if (patchedHandles.has(handle)) continue;
