@@ -19,8 +19,11 @@
     {
       "id": "S292-SCENE-VALIDATION-OVERLAY-ADJACENCY",
       "title": "Scene validation — reject cardinally-adjacent different floor-overlay biomes (tile-edge C-2)",
-      "status": "pending",
-      "summary": "GDP-2026-06-04-005. The curved-outline overhang relies on C-2: every open edge faces base floor, never a different biome. Add an engine-check terrainmap scan that fails with a clear diagnostic when two different non-floor overlay families sit on cardinally-adjacent cells. Same-family adjacency is fine; only different non-floor families are rejected. Makes the tile-edge contract self-enforcing instead of silently violable by scene authors."
+      "status": "implemented",
+      "summary": "GDP-2026-06-04-005. The curved-outline overhang relies on C-2: every open edge faces base floor, never a different biome. Add an engine-check terrainmap scan that fails with a clear diagnostic when two different non-floor overlay families sit on cardinally-adjacent cells. Same-family adjacency is fine; only different non-floor families are rejected. Makes the tile-edge contract self-enforcing instead of silently violable by scene authors.",
+      "verification": [
+        "acceptance: validateTerrainmapAdjacency in project-check flags two different non-floor overlay biomes that are cardinally adjacent (AGF_TERRAINMAP_OVERLAY_ADJACENT) — same-family + floor-separated are allowed. 7 unit tests + engine:check on kaboom-crew (all-biomes-demo C-2-clean) pass. typecheck clean. 2490 tests pass."
+      ]
     },
     {
       "id": "S293-KABOOM-CLIFF-FACE-WANG",

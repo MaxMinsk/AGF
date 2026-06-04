@@ -10,7 +10,7 @@ Status: **active** (started 2026-06-04). Source: `backlog/sprints/S179.sprint.js
 
 ### Stories
 
-- **S292-SCENE-VALIDATION-OVERLAY-ADJACENCY** — Scene validation — reject cardinally-adjacent different floor-overlay biomes (tile-edge C-2) _(pending)_
+- **S292-SCENE-VALIDATION-OVERLAY-ADJACENCY** — Scene validation — reject cardinally-adjacent different floor-overlay biomes (tile-edge C-2) _(implemented)_
   GDP-2026-06-04-005. The curved-outline overhang relies on C-2: every open edge faces base floor, never a different biome. Add an engine-check terrainmap scan that fails with a clear diagnostic when two different non-floor overlay families sit on cardinally-adjacent cells. Same-family adjacency is fine; only different non-floor families are rejected. Makes the tile-edge contract self-enforcing instead of silently violable by scene authors.
 - **S293-KABOOM-CLIFF-FACE-WANG** — Cliff face Wang autotiling — vertical edge meshes between height-differing cells (GDP-2026-06-04-001) _(pending)_
   Extend the tile-edge pattern to LAYER 4 (cliff faces): vertical edges between cells of differing height get curved-outline edge meshes per cliff orientation, reusing the same Wang shape+rotation factoring. Cliff-grass + cliff-stone biome variants + corner caps so plateaus read as natural terraces, not raw extruded boxes.
