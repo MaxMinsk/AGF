@@ -20,6 +20,8 @@ import type { System, SystemContext } from "../../../../engine/core/systems/type
 import { createSeededRng, type SeededRng } from "../../../../engine/core/util/seeded-rng";
 import { cellKey } from "../../../../engine/core/grid";
 import type { GridOccupancyQuery } from "../../../../engine/core/systems/grid-occupancy-system";
+// S282 KABOOM-BOT-ASTAR-INTEGRATION — goal-based A* navigation.
+import { findPath } from "../../../../engine/grid/pathfinding/index";
 // S262 KABOOM-BOT-BLUFF (GDP-2026-05-29-010 Layer 3, hunter slice).
 import {
   BOT_BLUFF_STATE,
@@ -311,12 +313,41 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
   // S241 — direction-picker extracted to `pickBotDirection` in
   // bot-ai-helpers. Local thunk forwards + captures closure-bound
   // `passableNeighbours` thunk + the SeededRng.
+  //
+  // S282 — when bot is not in immediate danger AND a personality goal
+  // exists, run A* to extract the first-step direction. If the A* step
+  // leads to a safe cell, use it directly so bots route around
+  // chokepoints instead of oscillating with the old direction-scoring.
+  // Falls back to pickBotDirection on null path or dangerous first step.
   function decideDirection(
     pos: GridPos,
     brain: BotBrain,
     danger: Set<string>,
-    pickupGoal: { gx: number; gz: number } | undefined
+    pickupGoal: { gx: number; gz: number } | undefined,
+    pathGoal?: { gx: number; gz: number }
   ): { dx: number; dz: number } {
+    const inDanger = danger.has(cellKey(pos.gx, pos.gz));
+    // S282 — use A* only when the bot is not in immediate danger, the
+    // goal is reachable within the navigation horizon (8 cells manhattan),
+    // and the cell is not trivially adjacent (1 step — already handled by
+    // pickBotDirection). Beyond the horizon, old wander logic stays active
+    // so bots don't tunnel straight to a corner pickup and miss encounters.
+    const ASTAR_HORIZON = 8;
+    if (!inDanger && pathGoal !== undefined) {
+      const dist = Math.abs(pathGoal.gx - pos.gx) + Math.abs(pathGoal.gz - pos.gz);
+      if (dist > 1 && dist <= ASTAR_HORIZON) {
+        const path = findPath(options.occupancy, pos, pathGoal);
+        if (path !== null && path.length >= 2) {
+          const next = path[1]!;
+          const dx = next.gx - pos.gx;
+          const dz = next.gz - pos.gz;
+          // Only use the A* step if the destination is safe.
+          if (!danger.has(cellKey(next.gx, next.gz))) {
+            return { dx, dz };
+          }
+        }
+      }
+    }
     return pickBotDirection(pos, brain, danger, pickupGoal, {
       passableNeighbours,
       rng
@@ -495,7 +526,7 @@ export function createKaboomBotAISystem(options: BotAISystemOptions): System {
       // tactical shot wins over the default wander/chase.
       const statsForKick = world.getComponent<{ canKick?: boolean }>(botId, BOMBER_STATS);
       const kickDir = findKickOpportunity(world, botId, pos, statsForKick?.canKick === true);
-      const direction = bluffOverrideDirection ?? kickDir ?? decideDirection(pos, brain, danger, goal);
+      const direction = bluffOverrideDirection ?? kickDir ?? decideDirection(pos, brain, danger, goal, goal);
 
       const mover = world.getComponent<GridMoverComponent>(botId, GRID_MOVER);
       if (mover !== undefined) {

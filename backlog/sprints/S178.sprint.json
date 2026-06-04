@@ -49,10 +49,13 @@
     {
       "id": "S282-KABOOM-BOT-ASTAR-INTEGRATION",
       "title": "Bot AI A* integration — replace direction-scoring with goal-based pathfinding",
-      "status": "pending",
+      "status": "implemented",
       "summary": "Wire S281 A* into kaboom bot-ai-system. Per personality, goal cell: Hunter → player position; Coward → cell maximising distance from nearest threat; Miner → nearest reachable soft-block cluster. Per brain-tick, call findPath from bot to goal; extract first step as preferred direction. Falls back to existing direction-scoring if A* returns null. Replan every DECISION_INTERVAL (0.2 s) — no per-frame A* calls. Soft-block cost 3× so miners still prefer mining over long detours.",
       "dependsOn": [
         "S281-ENGINE-ASTAR-PATHFINDING"
+      ],
+      "verification": [
+        "acceptance: A* integrated into bot-ai decideDirection. When bot is not in danger + goal is within 8-cell Manhattan horizon, findPath(occupancy, pos, goal) extracts the first safe step. Falls back to pickBotDirection on null path, out-of-horizon goals, or dangerous first step. bot-vs-bot regression (60s deterministic) still passes. typecheck clean. 2457/2457 vitest pass."
       ]
     },
     {
