@@ -726,6 +726,42 @@ function buildFlatStartScene(map: MapName = activeMapName): SceneInput {
  * Cost: O(N) per frame where N = procbomber mesh count (~10/bomber × 4
  * bombers = ~40). String-prefix check + Set.has each. Negligible.
  */
+/**
+ * S293 dev aid — when the URL carries `?tuneShadows` (or `?tuneShadows=1`),
+ * register live sliders for the sun light's shadow params via the engine
+ * dev-tuner. Lets the designer dial bias / normalBias / radius / intensity
+ * in real time without code edits. No-op without the flag, and best-effort:
+ * polls a few frames for `__agf.dev.tuner` (created in main.ts after bootstrap).
+ */
+function startShadowTunerIfRequested(): void {
+  if (typeof requestAnimationFrame === "undefined") return;
+  const search = (globalThis as unknown as { location?: { search?: string } }).location?.search ?? "";
+  if (!/[?&]tuneShadows(=|&|$)/.test(search)) return;
+
+  type Tuner = { add(s: unknown): void; list(): ReadonlyArray<unknown> };
+  const sliders = [
+    { name: "sun.intensity",     target: { entityId: "light.sun", component: "Light", path: "intensity" },          min: 0, max: 5, step: 0.02, label: "sun intensity" },
+    { name: "sun.shadow.bias",   target: { entityId: "light.sun", component: "Light", path: "shadow.bias" },        min: -0.005, max: 0.005, step: 0.0001, label: "shadow bias" },
+    { name: "sun.shadow.normal", target: { entityId: "light.sun", component: "Light", path: "shadow.normalBias" },  min: 0, max: 1, step: 0.005, label: "shadow normalBias" },
+    { name: "sun.shadow.radius", target: { entityId: "light.sun", component: "Light", path: "shadow.radius" },      min: 0, max: 12, step: 0.1, label: "shadow radius" }
+  ];
+  let tries = 0;
+  const tick = (): void => {
+    const tuner = (globalThis as unknown as { __agf?: { dev?: { tuner?: Tuner } } }).__agf?.dev?.tuner;
+    if (tuner !== undefined) {
+      try {
+        const existing = new Set(tuner.list().map((s) => (s as { name?: string }).name));
+        for (const s of sliders) if (!existing.has(s.name)) tuner.add(s);
+      } catch {
+        // best-effort — retry next frame if the world isn't ready yet.
+      }
+      return;
+    }
+    if (tries++ < 120) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 function startVertexColorsPoller(runtime: RuntimeHandle): void {
   if (typeof requestAnimationFrame === "undefined") return; // SSR / node — no-op
   // S171 fix: key the patched-set by HANDLE id, not entity id. scene.load
@@ -1662,6 +1698,8 @@ export const kaboomCrewBootstrap: ProjectBootstrap = {
     // spawns once + needs an explicit poll until every mesh handle
     // exists (MeshLifecycleSystem creates them on the next tick).
     startVertexColorsPoller(runtime);
+    // S293 dev aid — `?tuneShadows` surfaces live shadow-tuning sliders.
+    startShadowTunerIfRequested();
     // S189 KABOOM-ARENA-SKY-COLOR — sync the scene background to the
     // active theme's skyColor whenever the ArenaTheme component
     // changes (initial load + restart + URL flag flip).
