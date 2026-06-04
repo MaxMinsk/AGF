@@ -181,17 +181,42 @@ Per-family sub-variant count is tunable: grass = 3, stone = 2 (geometric biomes 
 
 ---
 
-## 8. Cliff face adaptation (same pattern, vertical orientation)
+## 8. Cliffs = the biome tile, EXTRUDED tall (revised 2026-06-04)
 
-Cliff faces are between height-differing cells. Wang resolver runs over cliff EDGES (not cells), bitmask computed by neighbouring cliffs at same height level.
+> **Superseded approach:** an earlier draft (and S293) built a SEPARATE
+> cliff-face system — cliff-grass/cliff-stone biomes, vertical face meshes
+> over cliff EDGES, corner caps. It read as coloured CUBES and thrashed.
+> The game camera is orthographic pitched −55° (angled top-down): the
+> most-visible line is the TOP EDGE, not the vertical face. Elaborate
+> face geometry is invisible or artefacts. Dropped.
 
-Differences from horizontal:
-- Outline in YZ plane (north/south cliff) or XY plane (east/west cliff) instead of XZ.
-- "Open edge" = where the cliff face TERMINATES (no neighbouring cliff at same height).
-- "Overhang" = small undercut into the lower cell (~0.05 cells of overhang into adjacent ground).
-- Sub-variants vary vertical profile: jagged vs smooth vs stepped.
+**A cliff is not a special thing. It is a biome tile that is tall.**
 
-Cliff face material picks up biome of the TOP cell — grass-topped cliff has "cliff-grass" family with grass-overhang at top edge; stone-topped cliff has "cliff-stone" with sharp bevels.
+A raised cell renders the SAME curved-outline Wang tile as flat ground —
+the biome's corner / edge / strip / T / filler shapes + 3 sub-variants —
+just EXTRUDED to the cell's height, with the side walls painted in the
+biome's colour but darker.
+
+- **Top face**: the normal curved Wang outline (organic corners + overhang),
+  placed at Y = cell height. A grass plateau looks like grass; a stone
+  plateau like stone — same tile, raised.
+- **Side walls**: the existing extruded side faces (the biome tile already
+  builds darker sides — they're just thin at 0.20), extended down to the
+  drop. Colour = biome top × a vertical darken ramp (~0.6× crown → ~0.35×
+  base = contact shadow). Literally "the top colour, but darker".
+- **Autotiling**: a raised cell's bitmask is computed over cardinal
+  neighbours that are ALSO raised to the same height AND same biome. Flush
+  where the plateau continues (tiles merge), open + curved + tall dark side
+  where it drops off. Plateaus get rounded convex corners (Shape C) exactly
+  like a flat island — no cubes, no corner caps.
+- **Overhang** sits at the TOP rim (grass lip curling over the drop) — reads
+  correctly from the −55° camera because it is on the silhouette, not the
+  face.
+- **delta ≥ 2**: same tile, taller extrusion. Stacks naturally.
+
+No separate cliff biomes, no cliff Wang resolver, no corner caps, no pillar
+boxes. The C-1 seam-pin / C-3 split-normals / C-4 corner-rounding rules
+(§4.4) apply unchanged. Implementation: GDP-2026-06-04-009.
 
 ---
 

@@ -46,11 +46,13 @@ const DIRT_CONFIG: BiomeTileConfig = {
   highlight: DIRT_HIGHLIGHT,
   shadow: DIRT_SHADOW,
   side: DIRT_SHADOW,
+  // GDP-2026-06-04-009 — loose-soil cliff wall: rust crown → deep shadow base.
+  sideRamp: ["#1e1206", "#3a2010", "#8a5a2a", "#a0723a"],
   interior: dirtInterior
 };
 
-export function buildDirtShape(shape: TileShape, sub: TileSubvariantIndex): BufferGeometry {
-  return buildBiomeTile(DIRT_CONFIG, shape, sub);
+export function buildDirtShape(shape: TileShape, sub: TileSubvariantIndex, heightCells = 0): BufferGeometry {
+  return buildBiomeTile(DIRT_CONFIG, shape, sub, heightCells);
 }
 
 export function buildDirtVariant(_index: DirtVariantIndex, _bitmask?: number): BufferGeometry {

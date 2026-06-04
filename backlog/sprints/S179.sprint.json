@@ -29,7 +29,7 @@
       "id": "S293-KABOOM-CLIFF-FACE-WANG",
       "title": "Cliff face Wang autotiling — vertical edge meshes between height-differing cells (GDP-2026-06-04-001)",
       "status": "implemented",
-      "summary": "Extend the tile-edge pattern to LAYER 4 (cliff faces): vertical edges between cells of differing height get curved-outline edge meshes per cliff orientation, reusing the same Wang shape+rotation factoring. Cliff-grass + cliff-stone biome variants + corner caps so plateaus read as natural terraces, not raw extruded boxes.",
+      "summary": "SUPERSEDED by S299 (GDP-2026-06-04-009): the separate cliff-face system shipped here was removed because raised plateaus read as coloured cubes; cliffs are now the same curved Wang biome tile extruded tall. Original scope: extend the tile-edge pattern to LAYER 4 (cliff faces): vertical edges between cells of differing height get curved-outline edge meshes per cliff orientation, reusing the same Wang shape+rotation factoring. Cliff-grass + cliff-stone biome variants + corner caps so plateaus read as natural terraces, not raw extruded boxes.",
       "verification": [
         "acceptance: cliff faces emit at scene-load for every exposed vertical edge (heightmap delta>0) with banded biome geometry (cliff-grass lip / cliff-stone bevel), 2-bit left/right variant for flush vs tapered ends, 2 sub-variants, corner caps. Builders registered (16 faces + 2 corners, delta via #seed). vertexColors poller covers cliff prefix. 6 builder unit tests; live heightmap-demo shows 31 terraced faces with soil banding. typecheck + engine:check + 2496 tests pass."
       ]
@@ -58,7 +58,7 @@
     {
       "id": "S297-KABOOM-WALL-SHADOW-CURVED",
       "title": "Wall-shadow overlay on the curved-outline pipeline — soft contact shadow under blocks/cliffs",
-      "status": "pending",
+      "status": "in_progress",
       "summary": "S287 added a box-based wall-shadow Wang layer; re-do it on the curved-outline builder so the darkening overlay near walls/cliffs reads as a soft organic contact shadow matching the new tile silhouettes, not a hard square."
     },
     {
@@ -68,6 +68,15 @@
       "summary": "Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation.",
       "verification": [
         "acceptance: all-biomes-demo gains a heightmap with two height-1 plateaus (stone top-right → cliff-stone faces, grass bottom-right → cliff-grass faces) exercising S293; path biome routed as connecting roads (vertical mid-road + horizontal spur), floor-margined per C-2. Generator validates C-2 + flood-fill connectivity (all 4 spawns reachable over height-0 non-block cells). engine:check OK, 33 cliff entities render, 2496 tests pass. Stays in MATCH_ROTATION_POOL."
+      ]
+    },
+    {
+      "id": "S299-KABOOM-CLIFF-AS-TALL-BIOME-TILE",
+      "title": "CORRECTION: cliffs = the biome's curved Wang tile EXTRUDED tall, replacing the S293 separate cliff-face box system (GDP-2026-06-04-009)",
+      "status": "implemented",
+      "summary": "GDP-2026-06-04-009. S293 built a separate cliff-face system (cliff-grass/cliff-stone biomes, flat face meshes, corner caps) but raised plateaus still read as coloured cubes while flat ground was organic curved tiles. Redesign: a cliff IS the same biome tile, just extruded to the cell height — top is the curved Wang shape (corner/edge/strip/T/filler + 3 sub-variants), side walls drop to Y=0 painted in the biome colour with the dev's vertical gradient (weathered crown → near-black contact-shadow base). Raised-cell bitmask computed over same-height + same-biome cardinal neighbours (flush plateau) vs lower/different/void (open = cliff drop). Delete the S293 cliff-face system; keep gameplay cliff rules (blast/grid) untouched.",
+      "verification": [
+        "acceptance: cliffs render as tall biome tiles — biome-tile-builder.buildBiomeTile gains a heightCells param (0 = flat 0.20 slab; >0 = plateau extruded to Y=heightCells with side walls dropping to Y=0) and a per-config sideRamp vertical gradient; buildGrass/Path/Stone/DirtShape accept heightCells. register-block-builders parses #h<N> from the procedural seed and registers all four biomes uniformly. bootstrap-helpers.applyTerrainmapCommands emits a static tall tile for raised biome cells (Wang bitmask over same-height+same-biome neighbours via shapeForBitmask, mesh procedural:kaboom-<biome>-<shape>-<sub>#h<N>, OutlineOccluderSurface when tall); pillar boxes now spawn ONLY for raised cells with no biome (neutral fallback); emitCliffFaceCommands + plateauTopColor removed. cliff-face-variants.ts + its test deleted. 5 new tall-cliff tests (flat≈0.20, tall Y-span≈2, linear height scaling, side gradient luminance top>base, tall corner overhang>0.5) + existing grass/stone/path/dirt + Wang-bitmask tests pass. typecheck + build + 1170 kaboom unit tests pass. Live all-biomes-demo: 11 dirt/grass cliff cells render with organic curved tops + gradient walls, 0 console errors; heightmap-demo keeps neutral fallback pillars."
       ]
     }
   ]

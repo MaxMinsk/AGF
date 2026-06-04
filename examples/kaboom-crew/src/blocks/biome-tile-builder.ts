@@ -44,6 +44,11 @@ export interface BiomeTileConfig {
   highlight: string;
   shadow: string;
   side: string;
+  /** GDP-2026-06-04-009 — vertical side-wall gradient stops, base[0] → crown[last].
+   *  Used when the tile is extruded tall (a cliff): the wall reads as the biome
+   *  colour, brighter at the weathered crown, darkening to a contact-shadow base.
+   *  Falls back to a flat `side` colour when omitted (thin flat overlay). */
+  sideRamp?: readonly string[];
   /** Interior surface detail; caller applies the C-1 boundary falloff. */
   interior: (x: number, z: number, sub: TileSubvariantIndex) => { dy: number; t: number };
 }
@@ -104,13 +109,19 @@ export function shapeForBitmask(bitmask: number): { shape: TileShape; rotationYD
 
 // ── Public builder ────────────────────────────────────────────────────────
 
-export function buildBiomeTile(cfg: BiomeTileConfig, shape: TileShape, sub: TileSubvariantIndex): BufferGeometry {
+/**
+ * @param heightCells extrusion height in cells. 0 (default) = flat overlay
+ *   (thin slab at `cfg.topHeight`); >0 = a plateau/cliff — the SAME curved Wang
+ *   top placed at Y=heightCells with side walls dropping to Y=0, painted with
+ *   the biome's darkening `sideRamp` (GDP-2026-06-04-009).
+ */
+export function buildBiomeTile(cfg: BiomeTileConfig, shape: TileShape, sub: TileSubvariantIndex, heightCells = 0): BufferGeometry {
   const flush = SHAPE_FLUSH[shape];
   // Stone (angular) keeps sharp corners — don't round them; the bevelled
   // edges carry the character. Smooth / jagged round their convex corners.
   const cornerPush = cfg.edgeStyle === "angular" ? 0 : cfg.cornerPush[sub];
   const outline = buildOutline(flush, cfg.bezier[sub], cornerPush, cfg.edgeStyle, sub);
-  return assemble(outline, shape, sub, cfg);
+  return assemble(outline, shape, sub, cfg, heightCells);
 }
 
 // ── Outline ────────────────────────────────────────────────────────────────
@@ -234,7 +245,7 @@ function distToBoundary(x: number, z: number): number {
 
 interface TopVert { x: number; y: number; z: number; c: Color; }
 
-function assemble(outline: Vector2[], shape: TileShape, sub: TileSubvariantIndex, cfg: BiomeTileConfig): BufferGeometry {
+function assemble(outline: Vector2[], shape: TileShape, sub: TileSubvariantIndex, cfg: BiomeTileConfig, heightCells: number): BufferGeometry {
   const n = outline.length;
   let cx = 0, cz = 0;
   for (const p of outline) { cx += p.x; cz += p.y; }
@@ -245,7 +256,20 @@ function assemble(outline: Vector2[], shape: TileShape, sub: TileSubvariantIndex
     highlight: new Color(cfg.highlight),
     side: new Color(cfg.side)
   };
-  const top = cfg.topHeight;
+  // Flat overlay → thin slab at cfg.topHeight; tall (cliff) → top at heightCells.
+  const top = heightCells > 0 ? heightCells : cfg.topHeight;
+
+  // Side-wall colour at vertical fraction v (0 = base … 1 = crown). For a tall
+  // tile this is the weathered-crown→shadowed-base gradient; flat tiles compress
+  // it to a sliver. Falls back to the flat `side` colour with no ramp.
+  const ramp = cfg.sideRamp;
+  const sideColorAt = (v: number): Color => {
+    if (ramp === undefined || ramp.length === 0) return C.side.clone();
+    if (ramp.length === 1) return new Color(ramp[0]!);
+    const f = Math.max(0, Math.min(1, v)) * (ramp.length - 1);
+    const i = Math.min(ramp.length - 2, Math.floor(f));
+    return new Color(ramp[i]!).lerp(new Color(ramp[i + 1]!), f - i);
+  };
 
   const sampleTop = (x: number, z: number, pinned: boolean): TopVert => {
     if (pinned) return { x, y: top, z, c: C.primary };
@@ -269,10 +293,12 @@ function assemble(outline: Vector2[], shape: TileShape, sub: TileSubvariantIndex
     const mx = (a.x + b.x) / 2 - cx, mz = (a.y + b.y) / 2 - cz;
     if (nx * mx + nz * mz < 0) { nx = -nx; nz = -nz; }
     const len = Math.hypot(nx, nz) || 1; nx /= len; nz /= len;
-    const aT: TopVert = { x: a.x, y: top, z: a.y, c: C.side };
-    const bT: TopVert = { x: b.x, y: top, z: b.y, c: C.side };
-    const aB: TopVert = { x: a.x, y: 0, z: a.y, c: C.side };
-    const bB: TopVert = { x: b.x, y: 0, z: b.y, c: C.side };
+    const cTop = sideColorAt(1);
+    const cBase = sideColorAt(0);
+    const aT: TopVert = { x: a.x, y: top, z: a.y, c: cTop };
+    const bT: TopVert = { x: b.x, y: top, z: b.y, c: cTop };
+    const aB: TopVert = { x: a.x, y: 0, z: a.y, c: cBase };
+    const bB: TopVert = { x: b.x, y: 0, z: b.y, c: cBase };
     pushSide(pos, nor, col, aT, bT, bB, nx, nz);
     pushSide(pos, nor, col, aT, bB, aB, nx, nz);
   }

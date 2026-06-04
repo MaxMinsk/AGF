@@ -30,11 +30,7 @@ import {
   buildFloorTileVariant,
   type FloorTileVariantIndex
 } from "./blocks/floor-tile-variants";
-import {
-  buildGrassShape,
-  type GrassShape,
-  type GrassSubvariantIndex
-} from "./blocks/grass-variants";
+import { buildGrassShape } from "./blocks/grass-variants";
 import { buildPathShape } from "./blocks/path-variants";
 import { buildStoneShape } from "./blocks/stone-variants";
 import { buildDirtShape } from "./blocks/dirt-variants";
@@ -48,13 +44,6 @@ import {
   buildWallShadowVariant,
   type WallShadowVariantIndex
 } from "./blocks/wall-shadow-variants";
-import {
-  buildCliffFace,
-  buildCliffCorner,
-  type CliffBiome,
-  type CliffVariantIndex,
-  type CliffSubvariant
-} from "./blocks/cliff-face-variants";
 import {
   decodeBlockSeed,
   selectVariantIndex,
@@ -159,17 +148,15 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
       buildSoftBlockVariant(variantIndex, softPaletteForSeed(seed))
     );
   }
-  // GDP-2026-06-04-003 — 18 grass shape builders (6 shapes × 3 sub-variants).
-  for (let si = 0; si < GRASS_SHAPES.length; si += 1) {
-    const shape = GRASS_SHAPES[si]!;
-    const subs  = GRASS_SHAPE_KEYS[si]!;
-    for (let sub = 0; sub < subs.length; sub += 1) {
-      const s = sub as GrassSubvariantIndex;
-      registry.register(subs[sub]!, (_seed) => buildGrassShape(shape as GrassShape, s));
-    }
-  }
-  // GDP-2026-06-04-004 — 18 shape builders each for path / stone / dirt.
-  const biomeShapeBuilders: Array<[ReadonlyArray<ReadonlyArray<string>>, (shape: TileShape, sub: TileSubvariantIndex) => import("three").BufferGeometry]> = [
+  // GDP-2026-06-04-003/004/009 — 18 shape builders per biome (6 shapes × 3 sub).
+  // The procedural `#seed` carries the extrusion height: "h<N>" → a tall cliff
+  // tile N cells high; absent / "default" → a flat overlay (height 0).
+  const parseHeight = (seed: string): number => {
+    const m = /^h(\d+(?:\.\d+)?)$/.exec(seed);
+    return m ? Number.parseFloat(m[1]!) : 0;
+  };
+  const biomeShapeBuilders: Array<[ReadonlyArray<ReadonlyArray<string>>, (shape: TileShape, sub: TileSubvariantIndex, h: number) => import("three").BufferGeometry]> = [
+    [GRASS_SHAPE_KEYS, buildGrassShape],
     [PATH_SHAPE_KEYS, buildPathShape],
     [STONE_SHAPE_KEYS, buildStoneShape],
     [DIRT_SHAPE_KEYS, buildDirtShape]
@@ -180,7 +167,7 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
       const subs = keys[si]!;
       for (let sub = 0; sub < subs.length; sub += 1) {
         const s = sub as TileSubvariantIndex;
-        registry.register(subs[sub]!, (_seed) => build(shape, s));
+        registry.register(subs[sub]!, (seed) => build(shape, s, parseHeight(seed)));
       }
     }
   }
@@ -198,28 +185,8 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
     const idx = i as WallShadowVariantIndex;
     registry.register(WALL_SHADOW_VARIANT_KEYS[i]!, (_seed) => buildWallShadowVariant(idx));
   }
-  // S293 — cliff-face builders: 2 biomes x 4 variants x 2 sub = 16 faces +
-  // 2 corner caps. Key = `kaboom-cliff-{biome}-{variant}-{sub}`, the `#seed`
-  // carries the integer height delta so one builder caches per (variant, delta).
-  const cliffBiomes: CliffBiome[] = ["cliff-grass", "cliff-stone"];
-  for (const biome of cliffBiomes) {
-    for (let v = 0; v < 4; v += 1) {
-      for (let s = 0; s < 2; s += 1) {
-        const variant = v as CliffVariantIndex;
-        const subv = s as CliffSubvariant;
-        registry.register(`kaboom-${biome}-${v}-${s}`, (seed) =>
-          buildCliffFace(biome, variant, subv, parseDelta(seed))
-        );
-      }
-    }
-    registry.register(`kaboom-${biome}-corner`, (seed) => buildCliffCorner(biome, parseDelta(seed)));
-  }
-}
-
-/** Parse the `#seed` of a cliff mesh ref back to an integer height delta (≥1). */
-function parseDelta(seed: string): number {
-  const n = Number.parseInt(seed, 10);
-  return Number.isFinite(n) && n >= 1 ? n : 1;
+  // GDP-2026-06-04-009 — cliffs are now tall biome tiles (the #h<N> seed on the
+  // biome shape builders above), not a separate cliff-face system.
 }
 
 /**

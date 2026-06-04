@@ -68,13 +68,16 @@ const GRASS_CONFIG: BiomeTileConfig = {
   highlight: GRASS_HIGHLIGHT,
   shadow: GRASS_SHADOW,
   side: GRASS_SHADOW,
+  // GDP-2026-06-04-009 — grass-topped soil cliff wall: green crown over warm
+  // soil dropping to a near-black contact-shadow base.
+  sideRamp: ["#241a0e", "#5e3f20", "#9a6f3e", "#5aa838"],
   interior: grassInterior
 };
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export function buildGrassShape(shape: GrassShape, sub: GrassSubvariantIndex): BufferGeometry {
-  return buildBiomeTile(GRASS_CONFIG, shape, sub);
+export function buildGrassShape(shape: GrassShape, sub: GrassSubvariantIndex, heightCells = 0): BufferGeometry {
+  return buildBiomeTile(GRASS_CONFIG, shape, sub, heightCells);
 }
 
 /** Re-export for the mesh-sync bridge + Wang family registration. */

@@ -35,12 +35,14 @@ const PATH_CONFIG: BiomeTileConfig = {
   highlight: PATH_HIGHLIGHT,
   shadow: PATH_SHADOW,
   side: PATH_SHADOW,
+  // GDP-2026-06-04-009 — packed-earth cliff wall: light path tone → deep shadow.
+  sideRamp: ["#1a1108", "#3a2010", "#6e4d2a", "#8a6a4a"],
   // Flat, compacted — faint centre lightening only.
   interior: (x, z, _sub) => ({ dy: 0, t: 0.18 * Math.max(0, 1 - (x * x + z * z) * 3) })
 };
 
-export function buildPathShape(shape: TileShape, sub: TileSubvariantIndex): BufferGeometry {
-  return buildBiomeTile(PATH_CONFIG, shape, sub);
+export function buildPathShape(shape: TileShape, sub: TileSubvariantIndex, heightCells = 0): BufferGeometry {
+  return buildBiomeTile(PATH_CONFIG, shape, sub, heightCells);
 }
 
 export function buildPathVariant(_index: PathVariantIndex, _bitmask?: number): BufferGeometry {

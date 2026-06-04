@@ -45,11 +45,13 @@ const STONE_CONFIG: BiomeTileConfig = {
   highlight: STONE_HIGHLIGHT,
   shadow: STONE_SHADOW,
   side: STONE_SHADOW,
+  // GDP-2026-06-04-009 — weathered rock cliff wall: lit upper face → near-black base.
+  sideRamp: ["#19170f", "#33302a", "#565145", "#8f897b"],
   interior: stoneInterior
 };
 
-export function buildStoneShape(shape: TileShape, sub: TileSubvariantIndex): BufferGeometry {
-  return buildBiomeTile(STONE_CONFIG, shape, sub);
+export function buildStoneShape(shape: TileShape, sub: TileSubvariantIndex, heightCells = 0): BufferGeometry {
+  return buildBiomeTile(STONE_CONFIG, shape, sub, heightCells);
 }
 
 export function buildStoneVariant(_index: StoneVariantIndex, _bitmask?: number): BufferGeometry {

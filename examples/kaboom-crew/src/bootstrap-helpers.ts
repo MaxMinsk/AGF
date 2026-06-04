@@ -18,6 +18,7 @@ import type { EngineCommand } from "../../../engine/core/commands/types";
 import type { SceneInput } from "../../../engine/core/ecs/types";
 import type { World } from "../../../engine/core/ecs/world";
 import { readHeightFromValues } from "../../../engine/grid/height-query";
+import { shapeForBitmask } from "./blocks/biome-tile-builder";
 import {
   ARENA_THEMES,
   type ArenaThemeKey,
@@ -136,27 +137,33 @@ export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeK
   // step delta>1 — but the user can't see WHERE the steps are).
   // Color brightens with height so the user reads a gradient (H=1 →
   // lighter, H=2+ → lightest).
+  // GDP-2026-06-04-009 — raised biome cells render as tall curved Wang
+  // tiles via applyTerrainmapCommands (the cliff IS the biome tile). The
+  // neutral pillar box survives ONLY as a fallback for raised cells with
+  // NO terrainmap biome (e.g. heightmap-demo), so those steps stay visible.
+  const terrainmap = scene.terrainmap;
+  const hasBiome = (gx: number, gz: number): boolean => {
+    const fam = terrainmap?.[gz]?.[gx];
+    return fam !== undefined && fam !== DEFAULT_TERRAIN_FAMILY;
+  };
   for (let gz = 0; gz < heightmap.length; gz += 1) {
     const row = heightmap[gz];
     if (row === undefined) continue;
     for (let gx = 0; gx < row.length; gx += 1) {
       const h = row[gx] ?? 0;
       if (h <= 0) continue;
+      if (hasBiome(gx, gz)) continue; // tall biome tile covers this cell
       const pillarId = `heightmap.pillar.${gx}.${gz}`;
       // S294 — a pillar's top Y ≈ h. Tag it as an outline-occluder surface
       // when it's TALL enough (≥ TALL_OCCLUDER_THRESHOLD) to genuinely hide a
       // standing bomber, so the x-ray silhouette only fires behind real cover.
-      // S293/S298 — full-cell box (scale 1.0) so adjacent raised cells merge
-      // into one plateau with NO inter-pillar gaps, and the cliff faces overlay
-      // the sides flush (no corner notches). Box top colour matches the cell's
-      // cliff biome so the plateau surface reads as the same rock/turf.
       const pillarComponents: Record<string, unknown> = {
         Transform: {
           position: [gx, h / 2, gz],
           rotation: [0, 0, 0],
           scale: [1.0, h, 1.0]
         },
-        MeshRenderer: { mesh: "box", color: plateauTopColor(scene, gx, gz, h, resolvedTheme) }
+        MeshRenderer: { mesh: "box", color: colorForHeight(h, resolvedTheme) }
       };
       if (isTallOccluder(h)) pillarComponents["OutlineOccluderSurface"] = {};
       commands.push({
@@ -211,107 +218,7 @@ export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeK
     }
   }
 
-  // S293 — cliff faces on every exposed vertical edge between height-differing
-  // cells (replaces the bare pillar-box sides with curved-outline terraces).
-  commands.push(...emitCliffFaceCommands(scene, heightmap));
-
   return commands;
-}
-
-/**
- * S293 (GDP-2026-06-04-001) — emit cliff-face + corner-cap entities for every
- * exposed vertical edge in the heightmap. Cliffs are static per scene, so we
- * resolve the Wang left/right variant once here at scene-load (no runtime
- * resolver), mirroring how floor overlays + pillars are emitted.
- */
-function emitCliffFaceCommands(
-  scene: SceneInput,
-  heightmap: ReadonlyArray<ReadonlyArray<number>>
-): EngineCommand[] {
-  const commands: EngineCommand[] = [];
-  const terrainmap = scene.terrainmap;
-  const h = (gx: number, gz: number): number => readHeightFromValues(heightmap, gx, gz);
-  const biomeAt = (gx: number, gz: number): "cliff-grass" | "cliff-stone" => {
-    const fam = terrainmap?.[gz]?.[gx];
-    return fam === "grass" ? "cliff-grass" : "cliff-stone";
-  };
-  // direction → outward delta toward the LOWER cell + the Y rotation (deg).
-  // The face mesh is built with its visible front toward LOCAL +Z; rotation
-  // turns +Z to point at the lower cell: N(lower -Z)=180, E(+X)=90, S(+Z)=0,
-  // W(-X)=270. `idx` seeds the sub-variant hash (rot alone is always even).
-  const DIRS = [
-    { key: "N", idx: 0, odx: 0, odz: -1, rot: 180, px: 0,    pz: -0.5 },
-    { key: "E", idx: 1, odx: 1, odz: 0,  rot: 90,  px: 0.5,  pz: 0 },
-    { key: "S", idx: 2, odx: 0, odz: 1,  rot: 0,   px: 0,    pz: 0.5 },
-    { key: "W", idx: 3, odx: -1, odz: 0, rot: 270, px: -0.5, pz: 0 }
-  ] as const;
-  // Per-direction LEFT/RIGHT strip steps (outward-facing perspective, §A3).
-  const STRIP: Record<string, { lx: number; lz: number; rx: number; rz: number }> = {
-    N: { lx: -1, lz: 0, rx: 1, rz: 0 },
-    E: { lx: 0, lz: -1, rx: 0, rz: 1 },
-    S: { lx: 1, lz: 0, rx: -1, rz: 0 },
-    W: { lx: 0, lz: 1, rx: 0, rz: -1 }
-  };
-
-  /** Does cell (gx,gz) expose a cliff face toward `dir` (taller than that neighbour)? */
-  const faces = (gx: number, gz: number, d: typeof DIRS[number]): boolean =>
-    h(gx, gz) > h(gx + d.odx, gz + d.odz);
-
-  for (let gz = 0; gz < heightmap.length; gz += 1) {
-    const row = heightmap[gz];
-    if (row === undefined) continue;
-    for (let gx = 0; gx < row.length; gx += 1) {
-      const cellH = h(gx, gz);
-      if (cellH <= 0) continue;
-      const biome = biomeAt(gx, gz);
-      for (const d of DIRS) {
-        if (!faces(gx, gz, d)) continue;
-        const delta = cellH - h(gx + d.odx, gz + d.odz);
-        if (delta <= 0) continue;
-        const midY = h(gx + d.odx, gz + d.odz) + delta / 2;
-        const strip = STRIP[d.key]!;
-        const leftPresent = faces(gx + strip.lx, gz + strip.lz, d);
-        const rightPresent = faces(gx + strip.rx, gz + strip.rz, d);
-        const variant = (leftPresent ? 0b01 : 0) | (rightPresent ? 0b10 : 0);
-        const sub = ((gx * 31 + gz * 7 + d.idx) % 2 + 2) % 2;
-        commands.push({
-          kind: "entity.create",
-          entityId: `cliff.${gx}.${gz}.${d.key}`,
-          components: {
-            Transform: {
-              position: [gx + d.px, midY, gz + d.pz],
-              rotation: [0, d.rot, 0],
-              scale: [1, 1, 1]
-            },
-            MeshRenderer: { mesh: `procedural:kaboom-${biome}-${variant}-${sub}#${delta}`, color: "#ffffff" }
-          }
-        } as EngineCommand);
-      }
-      // No corner caps — the full-cell box fills the corner, the flush faces
-      // overlay the sides, so convex corners read clean without a wedge.
-    }
-  }
-  return commands;
-}
-
-/** S298 — plateau-top colour matching the cell's cliff biome so the raised
- *  surface reads as the same rock/turf as the cliff face beneath it. Falls
- *  back to the height gradient on arenas without a terrainmap. */
-function plateauTopColor(
-  scene: SceneInput,
-  gx: number,
-  gz: number,
-  h: number,
-  themeKey: ArenaThemeKey
-): string {
-  const fam = scene.terrainmap?.[gz]?.[gx];
-  if (fam === "grass") return "#4a8a3e"; // green turf crown
-  if (fam === "dirt") return "#8a6740";  // soil
-  if (fam === "path") return "#7a5c3a";
-  if (fam === "stone") return "#9a9488"; // weathered rock
-  // No biome authored (e.g. heightmap-demo) → keep the S188 height-gradient
-  // tint; the warm cliff-stone face palette reads close enough to it.
-  return colorForHeight(h, themeKey);
 }
 
 /**
@@ -354,6 +261,16 @@ export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
   // compute wall-shadow bitmasks without the occupancy system.
   const hardBlockCells = collectHardBlockCells(scene);
 
+  // GDP-2026-06-04-009 — a raised biome cell IS the cliff: render the
+  // biome's curved Wang tile extruded up to its heightmap height, with
+  // dark gradient side walls on every OPEN edge (the cliff drop). The
+  // bitmask is computed statically here over cardinal neighbours that are
+  // ALSO raised to the SAME height AND the SAME biome (flush plateau);
+  // lower / different-biome / void neighbours read as open → cliff face.
+  const heightmap = scene.heightmap;
+  const heightAt = (gx: number, gz: number): number =>
+    heightmap === undefined ? 0 : readHeightFromValues(heightmap, gx, gz);
+
   const commands: EngineCommand[] = [];
   for (let gz = 0; gz < terrainmap.length; gz += 1) {
     const row = terrainmap[gz];
@@ -365,6 +282,16 @@ export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
       const wangFamilyName = wangFamilyFor(family as FloorTerrainFamily);
       if (wangFamilyName === undefined) continue;
       const entityId = `terrain.${gx}.${gz}`;
+
+      const cellH = heightAt(gx, gz);
+      if (cellH > 0) {
+        // Tall biome cell → static cliff tile (no runtime Wang resolver).
+        commands.push(
+          emitTallBiomeTile(gx, gz, cellH, family as FloorTerrainFamily, heightAt, terrainmap)
+        );
+        continue;
+      }
+
       commands.push({
         kind: "entity.create",
         entityId,
@@ -434,6 +361,73 @@ function computeShadowBitmask(gx: number, gz: number, hardCells: Set<string>): n
   if (hardCells.has(`${gx},${gz + 1}`)) mask |= 0b0010; // S
   if (hardCells.has(`${gx - 1},${gz}`)) mask |= 0b0001; // W
   return mask;
+}
+
+/** GDP-2026-06-04-009 — map a terrain family to its procedural mesh-key
+ *  stem (`kaboom-<stem>-<shape>-<sub>`). Returns undefined for families
+ *  with no curved-tile builder (e.g. the default 'floor'). */
+function biomeMeshStem(family: FloorTerrainFamily): string | undefined {
+  if (family === "grass") return "grass";
+  if (family === "path") return "path";
+  if (family === "stone") return "stone";
+  if (family === "dirt") return "dirt";
+  return undefined;
+}
+
+/**
+ * GDP-2026-06-04-009 — emit ONE static tall biome tile for a raised cell.
+ * The Wang bitmask is computed over cardinal neighbours that are ALSO
+ * raised to the SAME height AND the SAME biome → flush plateau edge;
+ * every other neighbour (lower / different biome / void) is open and the
+ * builder drops a dark-gradient side wall there = the cliff face.
+ *
+ * Bit convention matches the engine resolver: N=8, E=4, S=2, W=1. The
+ * tile is built extruded from y=0 up to `cellH` (top surface at y=cellH),
+ * so it sits flush on the floor with NO heightmap lift and NO pillar box.
+ */
+function emitTallBiomeTile(
+  gx: number,
+  gz: number,
+  cellH: number,
+  family: FloorTerrainFamily,
+  heightAt: (gx: number, gz: number) => number,
+  terrainmap: ReadonlyArray<ReadonlyArray<string>>
+): EngineCommand {
+  const stem = biomeMeshStem(family) ?? "stone";
+  const biomeAt = (nx: number, nz: number): string | undefined => terrainmap[nz]?.[nx];
+  /** A neighbour is flush iff it is the same biome raised to the same height. */
+  const flush = (nx: number, nz: number): boolean =>
+    biomeAt(nx, nz) === family && heightAt(nx, nz) === cellH;
+  let bitmask = 0;
+  if (flush(gx, gz - 1)) bitmask |= 0b1000; // N
+  if (flush(gx + 1, gz)) bitmask |= 0b0100; // E
+  if (flush(gx, gz + 1)) bitmask |= 0b0010; // S
+  if (flush(gx - 1, gz)) bitmask |= 0b0001; // W
+  const { shape, rotationYDeg } = shapeForBitmask(bitmask);
+  const sub = (((gx * 31 + gz * 7) % 3) + 3) % 3;
+
+  const components: Record<string, unknown> = {
+    GridPosition: { gx, gz },
+    Transform: {
+      position: [gx, 0, gz],
+      rotation: [0, rotationYDeg, 0],
+      scale: [1, 1, 1]
+    },
+    MeshRenderer: {
+      mesh: `procedural:kaboom-${stem}-${shape}-${sub}#h${cellH}`,
+      color: "#ffffff"
+    },
+    FloorTerrain: { family }
+  };
+  // S294 — tag tall tiles that can hide a standing bomber as outline
+  // occluders so the x-ray silhouette fires only behind real cover.
+  if (isTallOccluder(cellH)) components["OutlineOccluderSurface"] = {};
+
+  return {
+    kind: "entity.create",
+    entityId: `terrain.${gx}.${gz}`,
+    components
+  } as EngineCommand;
 }
 
 function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
