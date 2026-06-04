@@ -22,7 +22,7 @@ Status: **active** (started 2026-06-04). Source: `backlog/sprints/S179.sprint.js
   GDP-2026-05-27-008. A reusable engine billboard primitive (camera-facing quad anchored above an entity) for above-head HUD elements (bluff tags, personality icons, damage numbers). Foundation work with a concrete first consumer: move the kaboom bluff/shift HUD tags from DOM overlay to world-space billboards.
 - **S297-KABOOM-WALL-SHADOW-CURVED** — Wall-shadow overlay on the curved-outline pipeline — soft contact shadow under blocks/cliffs _(pending)_
   S287 added a box-based wall-shadow Wang layer; re-do it on the curved-outline builder so the darkening overlay near walls/cliffs reads as a soft organic contact shadow matching the new tile silhouettes, not a hard square.
-- **S298-KABOOM-ALL-BIOMES-POLISH** — all-biomes-demo polish pass — height variation + path roads connecting rooms _(pending)_
+- **S298-KABOOM-ALL-BIOMES-POLISH** — all-biomes-demo polish pass — height variation + path roads connecting rooms _(implemented)_
   Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation.
 
 ### Out of scope

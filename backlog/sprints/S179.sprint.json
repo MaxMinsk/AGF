@@ -61,8 +61,11 @@
     {
       "id": "S298-KABOOM-ALL-BIOMES-POLISH",
       "title": "all-biomes-demo polish pass — height variation + path roads connecting rooms",
-      "status": "pending",
-      "summary": "Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation."
+      "status": "implemented",
+      "summary": "Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation.",
+      "verification": [
+        "acceptance: all-biomes-demo gains a heightmap with two height-1 plateaus (stone top-right → cliff-stone faces, grass bottom-right → cliff-grass faces) exercising S293; path biome routed as connecting roads (vertical mid-road + horizontal spur), floor-margined per C-2. Generator validates C-2 + flood-fill connectivity (all 4 spawns reachable over height-0 non-block cells). engine:check OK, 33 cliff entities render, 2496 tests pass. Stays in MATCH_ROTATION_POOL."
+      ]
     }
   ]
 }
