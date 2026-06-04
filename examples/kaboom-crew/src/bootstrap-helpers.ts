@@ -39,6 +39,9 @@ const GRASS_WANG_FAMILY_NAME = "kaboom-grass";
 const PATH_WANG_FAMILY_NAME = "kaboom-path";
 const STONE_WANG_FAMILY_NAME = "kaboom-stone";
 const DIRT_WANG_FAMILY_NAME = "kaboom-dirt";
+const FLOOR_WANG_FAMILY_NAME = "kaboom-floor";
+const WALL_SHADOW_WANG_FAMILY_NAME = "kaboom-wall-shadow";
+const HARD_BLOCK_WANG_FAMILY_NAME = "kaboom-hard-block";
 
 /**
  * Build an idempotent set of commands that creates the entity if it
@@ -215,6 +218,10 @@ export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
   const terrainmap = scene.terrainmap;
   if (terrainmap === undefined || terrainmap.length === 0) return [];
 
+  // S287 — collect hard-block cell positions from the scene so we can
+  // compute wall-shadow bitmasks without the occupancy system.
+  const hardBlockCells = collectHardBlockCells(scene);
+
   const commands: EngineCommand[] = [];
   for (let gz = 0; gz < terrainmap.length; gz += 1) {
     const row = terrainmap[gz];
@@ -224,7 +231,7 @@ export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
       if (family === undefined) continue;
       if (family === DEFAULT_TERRAIN_FAMILY) continue;
       const wangFamilyName = wangFamilyFor(family as FloorTerrainFamily);
-      if (wangFamilyName === undefined) continue; // unknown family — skip silently.
+      if (wangFamilyName === undefined) continue;
       const entityId = `terrain.${gx}.${gz}`;
       commands.push({
         kind: "entity.create",
@@ -241,21 +248,60 @@ export function applyTerrainmapCommands(scene: SceneInput): EngineCommand[] {
             rotation: [0, 0, 0],
             scale: [1, 1, 1]
           },
-          MeshRenderer: {
-            // Placeholder — kaboom mesh-sync rewrites this once the
-            // Wang resolver writes `currentVariantIndex`. Using the
-            // 'box' built-in keeps the renderer happy in the gap.
-            mesh: "box",
-            color: "#ffffff"
-          },
+          MeshRenderer: { mesh: "box", color: "#ffffff" },
           FloorTerrain: { family },
           WangTile: { familyName: wangFamilyName },
           WangTileFamilyMember: { familyName: wangFamilyName }
         }
       } as EngineCommand);
+
+      // S287 — spawn a wall-shadow overlay entity when at least one
+      // cardinal neighbor is a hard block (bitmask > 0).
+      const shadowMask = computeShadowBitmask(gx, gz, hardBlockCells);
+      if (shadowMask > 0) {
+        commands.push({
+          kind: "entity.create",
+          entityId: `terrain-shadow.${gx}.${gz}`,
+          components: {
+            GridPosition: { gx, gz },
+            Transform: {
+              position: [gx, 0.03, gz],
+              rotation: [0, 0, 0],
+              scale: [1, 1, 1]
+            },
+            MeshRenderer: { mesh: "box", color: "#222222" },
+            WangTile: { familyName: WALL_SHADOW_WANG_FAMILY_NAME },
+            WangTileFamilyMember: { familyName: HARD_BLOCK_WANG_FAMILY_NAME }
+          }
+        } as EngineCommand);
+      }
     }
   }
   return commands;
+}
+
+/** S287 — collect hard-block cell positions from the scene instances. */
+function collectHardBlockCells(scene: SceneInput): Set<string> {
+  const cells = new Set<string>();
+  for (const inst of scene.instances ?? []) {
+    if (inst.prefab !== "hard-block") continue;
+    const overrides = (inst as { overrides?: Record<string, unknown> }).overrides ?? {};
+    const pos = overrides["GridPosition"] as { gx?: number; gz?: number } | undefined;
+    if (pos?.gx !== undefined && pos?.gz !== undefined) {
+      cells.add(`${pos.gx},${pos.gz}`);
+    }
+  }
+  return cells;
+}
+
+/** S287 — compute N/E/S/W hard-block adjacency bitmask for a cell. */
+function computeShadowBitmask(gx: number, gz: number, hardCells: Set<string>): number {
+  let mask = 0;
+  if (hardCells.has(`${gx},${gz - 1}`)) mask |= 0b1000; // N
+  if (hardCells.has(`${gx + 1},${gz}`)) mask |= 0b0100; // E
+  if (hardCells.has(`${gx},${gz + 1}`)) mask |= 0b0010; // S
+  if (hardCells.has(`${gx - 1},${gz}`)) mask |= 0b0001; // W
+  return mask;
 }
 
 function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
@@ -263,7 +309,8 @@ function wangFamilyFor(family: FloorTerrainFamily): string | undefined {
   if (family === "path") return PATH_WANG_FAMILY_NAME;
   if (family === "stone") return STONE_WANG_FAMILY_NAME;
   if (family === "dirt") return DIRT_WANG_FAMILY_NAME;
-  // 'floor' has no overlay entity; anything else is unknown.
+  // S286 — floor now has its own Wang overlay family.
+  if (family === "floor") return FLOOR_WANG_FAMILY_NAME;
   return undefined;
 }
 

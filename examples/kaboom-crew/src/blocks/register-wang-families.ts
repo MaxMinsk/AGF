@@ -21,6 +21,7 @@
 
 import {
   registerWangTileFamily,
+  registerWangFamilyWithSubvariants,
   type WangTileFamily,
   type WangTileVariant
 } from "../../../../engine/render/autotile";
@@ -31,8 +32,14 @@ import {
   hardBlockBitmaskToVariant,
   pathBitmaskToVariant,
   softBlockBitmaskToVariant,
-  stoneBitmaskToVariant
+  stoneBitmaskToVariant,
+  type KaboomBlockVariantIndex
 } from "./wang-family-lookup";
+
+function floorBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
+  // Reuse the shared 16→4 lookup table — same role assignment as other families.
+  return dirtBitmaskToVariant(bitmask);
+}
 
 /** Wang family name for Kaboom hard (indestructible) blocks. */
 export const HARD_BLOCK_WANG_FAMILY = "kaboom-hard-block";
@@ -46,6 +53,10 @@ export const PATH_WANG_FAMILY = "kaboom-path";
 export const STONE_WANG_FAMILY = "kaboom-stone";
 /** S272 — Wang family name for dirt (rust-brown) floor-overlay cells. */
 export const DIRT_WANG_FAMILY = "kaboom-dirt";
+/** S286 — Wang family name for floor (neutral grey) interior cells. */
+export const FLOOR_WANG_FAMILY = "kaboom-floor";
+/** S287 — Wang family name for the wall-shadow overlay layer. */
+export const WALL_SHADOW_WANG_FAMILY = "kaboom-wall-shadow";
 
 /**
  * Register every Kaboom Crew Wang family with the engine registry.
@@ -64,10 +75,23 @@ export const DIRT_WANG_FAMILY = "kaboom-dirt";
 export function registerKaboomWangFamilies(): void {
   registerFamilySafe(buildHardBlockFamily());
   registerFamilySafe(buildSoftBlockFamily());
-  registerFamilySafe(buildGrassFamily());
-  registerFamilySafe(buildPathFamily());
-  registerFamilySafe(buildStoneFamily());
-  registerFamilySafe(buildDirtFamily());
+  registerGrassFamilyV2Safe();
+  registerFamilyV2Safe(PATH_WANG_FAMILY, pathBitmaskToVariant);
+  registerFamilyV2Safe(STONE_WANG_FAMILY, stoneBitmaskToVariant);
+  registerFamilyV2Safe(DIRT_WANG_FAMILY, dirtBitmaskToVariant);
+  registerFamilyV2Safe(FLOOR_WANG_FAMILY, floorBitmaskToVariant);
+  // S287 — wall-shadow V1 family: 16 variants, one per bitmask index.
+  registerFamilySafe(buildWallShadowFamily());
+}
+
+function buildWallShadowFamily(): WangTileFamily {
+  // Variants 0-15 each have a unique mesh key; the bitmask is passed
+  // through directly (no 16→4 collapse) so shadow depth correlates
+  // exactly with hard-block neighbour count.
+  const variants: WangTileVariant[] = Array.from({ length: 16 }, (_, i) => ({
+    meshKey: `procedural:${WALL_SHADOW_WANG_FAMILY}-${i}`
+  }));
+  return { name: WALL_SHADOW_WANG_FAMILY, variants };
 }
 
 function registerFamilySafe(family: WangTileFamily): void {
@@ -77,6 +101,57 @@ function registerFamilySafe(family: WangTileFamily): void {
     // Duplicate-name guard — module-level registries persist across
     // Vite HMR re-imports, so the second registration would throw.
     // Any other error (validation, malformed variant) still bubbles.
+    if (!(error instanceof Error) || !error.message.includes("duplicate name")) {
+      throw error;
+    }
+  }
+}
+
+/**
+ * S284 — register the grass family as V2 (3 sub-variants per bitmask index).
+ * Idempotent across HMR — swallows duplicate-name errors.
+ */
+function registerGrassFamilyV2Safe(): void {
+  try {
+    const table = buildGrassSubvariantTable();
+    registerWangFamilyWithSubvariants(GRASS_WANG_FAMILY, table);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("duplicate name")) {
+      throw error;
+    }
+  }
+}
+
+function buildGrassSubvariantTable(): ReadonlyArray<ReadonlyArray<WangTileVariant>> {
+  return Array.from({ length: 16 }, (_, bitmask) => {
+    const role = grassBitmaskToVariant(bitmask);
+    return [
+      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${role}-0` },
+      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${role}-1` },
+      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${role}-2` }
+    ];
+  });
+}
+
+/**
+ * S285 — generic V2 registration for path / stone / dirt families.
+ * 3 sub-variants per bitmask index, mesh keys follow `procedural:<name>-<role>-<sub>`.
+ */
+function registerFamilyV2Safe(
+  name: string,
+  lookup: (bitmask: number) => KaboomBlockVariantIndex
+): void {
+  try {
+    const table: ReadonlyArray<ReadonlyArray<WangTileVariant>> = Array.from({ length: 16 }, (_, bitmask) => {
+      const role = lookup(bitmask);
+      return [
+        { meshKey: `procedural:${name}-${role}-0` },
+        { meshKey: `procedural:${name}-${role}-1` },
+        { meshKey: `procedural:${name}-${role}-2` }
+      ];
+    });
+    registerWangFamilyWithSubvariants(name, table);
+  } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("duplicate name")) {
       throw error;
     }
@@ -94,34 +169,6 @@ function buildSoftBlockFamily(): WangTileFamily {
   return {
     name: SOFT_BLOCK_WANG_FAMILY,
     variants: buildVariants(SOFT_BLOCK_WANG_FAMILY, softBlockBitmaskToVariant)
-  };
-}
-
-function buildGrassFamily(): WangTileFamily {
-  return {
-    name: GRASS_WANG_FAMILY,
-    variants: buildVariants(GRASS_WANG_FAMILY, grassBitmaskToVariant)
-  };
-}
-
-function buildPathFamily(): WangTileFamily {
-  return {
-    name: PATH_WANG_FAMILY,
-    variants: buildVariants(PATH_WANG_FAMILY, pathBitmaskToVariant)
-  };
-}
-
-function buildStoneFamily(): WangTileFamily {
-  return {
-    name: STONE_WANG_FAMILY,
-    variants: buildVariants(STONE_WANG_FAMILY, stoneBitmaskToVariant)
-  };
-}
-
-function buildDirtFamily(): WangTileFamily {
-  return {
-    name: DIRT_WANG_FAMILY,
-    variants: buildVariants(DIRT_WANG_FAMILY, dirtBitmaskToVariant)
   };
 }
 

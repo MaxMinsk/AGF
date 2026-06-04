@@ -21,18 +21,18 @@ Status: **active** (started 2026-06-03). Source: `backlog/sprints/S178.sprint.js
   Depends on: S281-ENGINE-ASTAR-PATHFINDING.
 - **S283-ENGINE-WANG-SUBVARIANT** — Engine Wang sub-variant support — variants[16][] per family + deterministic per-cell hash _(implemented)_
   Extend engine Wang module: WangVariant table upgraded from `T[]` (one per bitmask index) to `T[][]` (array of sub-variants per index). Deterministic per-cell selector: `subvariantIndex(entityId, gx, gz, subCount)` hashes position to a stable slot — same cell always picks the same sub-variant. Backwards-compatible: existing `T[]` registration auto-wraps each entry as `[entry]`. Exposes `registerWangFamilyWithSubvariants(familyId, table: T[][])`. `lookupWangVariant` gains optional `(gx, gz, entityId)` param.
-- **S284-KABOOM-GRASS-EDGE-REWRITE** — Grass family rewrite — curved edges + 3 sub-variants per Wang index (tile-edge-library first consumer) _(pending)_
+- **S284-KABOOM-GRASS-EDGE-REWRITE** — Grass family rewrite — curved edges + 3 sub-variants per Wang index (tile-edge-library first consumer) _(implemented)_
   Replace S176 flat-slab grass-variants with curved-edge geometry using S283 sub-variants. Per Wang index: 3 sub-variants with distinct edge profiles (slight curve, overhang protrusion, irregular notch). Procedurally built — no external assets. Closes the 2026-06-03 user feedback 'tiles read as cubes, edges need to be irregular'.
   Depends on: S283-ENGINE-WANG-SUBVARIANT.
-- **S285-KABOOM-TERRAIN-SUBVARIANT-UPGRADE** — Path/stone/dirt sub-variant upgrade — 3 sub-variants per Wang index for all 3 existing families _(pending)_
+- **S285-KABOOM-TERRAIN-SUBVARIANT-UPGRADE** — Path/stone/dirt sub-variant upgrade — 3 sub-variants per Wang index for all 3 existing families _(implemented)_
   Upgrade S271B path-variants, S272 stone-variants, S272 dirt-variants to use S283 sub-variant system. Path: slight-curve variations. Stone: crack-pattern variations. Dirt: roughness/grain variations. Same cell always picks the same sub-variant (deterministic hash). Result: no two adjacent same-biome cells look identical.
   Depends on: S283-ENGINE-WANG-SUBVARIANT.
-- **S286-KABOOM-FLOOR-WANG-FIFTH** — Fifth terrain family — floor (neutral grey interior) + 3 sub-variants (closes GDP-2026-05-28-012 five families) _(pending)_
+- **S286-KABOOM-FLOOR-WANG-FIFTH** — Fifth terrain family — floor (neutral grey interior) + 3 sub-variants (closes GDP-2026-05-28-012 five families) _(implemented)_
   Add the fifth floor Wang family: 'floor' — cool neutral grey (#888c94) for interior/dungeon biomes. 3 sub-variants per Wang index via S283. Registers as FLOOR_WANG_FAMILY='kaboom-floor'. FloorTerrainFamily union + schema enum gain 'floor'. GDP-2026-05-28-012 core families (grass/path/stone/dirt/floor) complete.
   Depends on: S283-ENGINE-WANG-SUBVARIANT.
-- **S287-KABOOM-WANG-WALL-SHADOW** — Wall-shadow Wang layer — darker overlay on floor cells adjacent to hard blocks _(pending)_
+- **S287-KABOOM-WANG-WALL-SHADOW** — Wall-shadow Wang layer — darker overlay on floor cells adjacent to hard blocks _(implemented)_
   Second Wang layer composited on top of base floor Wang: cells adjacent to hard blocks get a shadow-depth overlay variant. New WallShadow family with 16 variants indexed by same bitmask as floor Wang — fully transparent at index 0, progressively darker overlay for increasing adjacency. Composited via a second mesh at slight Y offset. Closes GDP-2026-05-28-012 wall-shadow slice. Result: cliff-bases shadow the floor; arena reads as spatially deep.
-- **S288-KABOOM-BIOME-GEOMETRY-STYLES** — Per-biome geometry styles — distinct edge/corner shapes per terrain family (GDP-2026-05-29-005) _(pending)_
+- **S288-KABOOM-BIOME-GEOMETRY-STYLES** — Per-biome geometry styles — distinct edge/corner shapes per terrain family (GDP-2026-05-29-005) _(implemented)_
   Leverage S283-S286 to differentiate edge geometry per biome. Grass: organic undulating edges (S284). Path: smooth-arc chamfers on corners. Stone: sharp 90-degree bevels. Dirt: rough irregular notches. Floor: minimal clean chamfer. Closes GDP-2026-05-29-005 core intent. Result: five families visually distinct by silhouette, not just colour.
   Depends on: S284-KABOOM-GRASS-EDGE-REWRITE, S285-KABOOM-TERRAIN-SUBVARIANT-UPGRADE, S286-KABOOM-FLOOR-WANG-FIFTH.
 

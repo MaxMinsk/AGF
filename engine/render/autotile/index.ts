@@ -5,9 +5,14 @@
 export {
   clearWangTileFamilies,
   getWangTileFamily,
+  getWangTileFamilyV2,
   listWangTileFamilies,
+  lookupWangVariant,
+  registerWangFamilyWithSubvariants,
   registerWangTileFamily,
+  subvariantIndex,
   type WangTileFamily,
+  type WangTileFamilyV2,
   type WangTileVariant
 } from "./family-registry";
 

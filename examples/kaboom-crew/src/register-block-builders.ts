@@ -32,20 +32,37 @@ import {
 } from "./blocks/floor-tile-variants";
 import {
   buildGrassVariant,
-  type GrassVariantIndex
+  buildGrassSubvariant,
+  type GrassVariantIndex,
+  type GrassSubvariantIndex
 } from "./blocks/grass-variants";
 import {
   buildPathVariant,
-  type PathVariantIndex
+  buildPathSubvariant,
+  type PathVariantIndex,
+  type PathSubvariantIndex
 } from "./blocks/path-variants";
 import {
   buildStoneVariant,
-  type StoneVariantIndex
+  buildStoneSubvariant,
+  type StoneVariantIndex,
+  type StoneSubvariantIndex
 } from "./blocks/stone-variants";
 import {
   buildDirtVariant,
-  type DirtVariantIndex
+  buildDirtSubvariant,
+  type DirtVariantIndex,
+  type DirtSubvariantIndex
 } from "./blocks/dirt-variants";
+import {
+  buildFloorSubvariant,
+  type FloorVariantIndex,
+  type FloorSubvariantIndex
+} from "./blocks/floor-variants";
+import {
+  buildWallShadowVariant,
+  type WallShadowVariantIndex
+} from "./blocks/wall-shadow-variants";
 import {
   decodeBlockSeed,
   selectVariantIndex,
@@ -74,33 +91,72 @@ export const SOFT_BLOCK_VARIANT_KEYS = [
   "kaboom-soft-block-2",
   "kaboom-soft-block-3"
 ] as const;
-/** S176 — per-variant mesh keys for the grass floor-overlay family. */
+/** S176 — legacy per-variant mesh keys (V1 family, kept for registry compat). */
 export const GRASS_VARIANT_KEYS = [
   "kaboom-grass-0",
   "kaboom-grass-1",
   "kaboom-grass-2",
   "kaboom-grass-3"
 ] as const;
-/** S271 — per-variant mesh keys for the path floor-overlay family. */
+/** S284 — sub-variant mesh keys for the grass V2 family (role × sub). */
+export const GRASS_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["kaboom-grass-0-0", "kaboom-grass-0-1", "kaboom-grass-0-2"],
+  ["kaboom-grass-1-0", "kaboom-grass-1-1", "kaboom-grass-1-2"],
+  ["kaboom-grass-2-0", "kaboom-grass-2-1", "kaboom-grass-2-2"],
+  ["kaboom-grass-3-0", "kaboom-grass-3-1", "kaboom-grass-3-2"]
+] as const;
+/** S271 — legacy per-variant mesh keys for path. */
 export const PATH_VARIANT_KEYS = [
   "kaboom-path-0",
   "kaboom-path-1",
   "kaboom-path-2",
   "kaboom-path-3"
 ] as const;
-/** S272 — per-variant mesh keys for the stone floor-overlay family. */
+/** S285 — sub-variant mesh keys for path V2 (role × sub). */
+export const PATH_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["kaboom-path-0-0", "kaboom-path-0-1", "kaboom-path-0-2"],
+  ["kaboom-path-1-0", "kaboom-path-1-1", "kaboom-path-1-2"],
+  ["kaboom-path-2-0", "kaboom-path-2-1", "kaboom-path-2-2"],
+  ["kaboom-path-3-0", "kaboom-path-3-1", "kaboom-path-3-2"]
+] as const;
+/** S272 — legacy per-variant mesh keys for stone. */
 export const STONE_VARIANT_KEYS = [
   "kaboom-stone-0",
   "kaboom-stone-1",
   "kaboom-stone-2",
   "kaboom-stone-3"
 ] as const;
-/** S272 — per-variant mesh keys for the dirt floor-overlay family. */
+/** S285 — sub-variant mesh keys for stone V2 (role × sub). */
+export const STONE_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["kaboom-stone-0-0", "kaboom-stone-0-1", "kaboom-stone-0-2"],
+  ["kaboom-stone-1-0", "kaboom-stone-1-1", "kaboom-stone-1-2"],
+  ["kaboom-stone-2-0", "kaboom-stone-2-1", "kaboom-stone-2-2"],
+  ["kaboom-stone-3-0", "kaboom-stone-3-1", "kaboom-stone-3-2"]
+] as const;
+/** S272 — legacy per-variant mesh keys for dirt. */
 export const DIRT_VARIANT_KEYS = [
   "kaboom-dirt-0",
   "kaboom-dirt-1",
   "kaboom-dirt-2",
   "kaboom-dirt-3"
+] as const;
+/** S285 — sub-variant mesh keys for dirt V2 (role × sub). */
+export const DIRT_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["kaboom-dirt-0-0", "kaboom-dirt-0-1", "kaboom-dirt-0-2"],
+  ["kaboom-dirt-1-0", "kaboom-dirt-1-1", "kaboom-dirt-1-2"],
+  ["kaboom-dirt-2-0", "kaboom-dirt-2-1", "kaboom-dirt-2-2"],
+  ["kaboom-dirt-3-0", "kaboom-dirt-3-1", "kaboom-dirt-3-2"]
+] as const;
+/** S287 — wall-shadow variant keys (one per bitmask index 0-15). */
+export const WALL_SHADOW_VARIANT_KEYS: ReadonlyArray<string> = Array.from(
+  { length: 16 }, (_, i) => `kaboom-wall-shadow-${i}`
+);
+/** S286 — sub-variant mesh keys for floor V2 (role × sub). */
+export const FLOOR_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["kaboom-floor-0-0", "kaboom-floor-0-1", "kaboom-floor-0-2"],
+  ["kaboom-floor-1-0", "kaboom-floor-1-1", "kaboom-floor-1-2"],
+  ["kaboom-floor-2-0", "kaboom-floor-2-1", "kaboom-floor-2-2"],
+  ["kaboom-floor-3-0", "kaboom-floor-3-1", "kaboom-floor-3-2"]
 ] as const;
 
 /**
@@ -156,28 +212,75 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
       buildGrassVariant(variantIndex)
     );
   }
-  // S271 — register the 4 path variant keys alongside grass. Same
-  // shape (no palette parameter; one geometry per variant cached
-  // globally), different colour palette baked into the vertex paint.
+  // S284 — register 12 grass sub-variant builders (4 roles × 3 sub-variants).
+  for (let role = 0; role < GRASS_SUBVARIANT_KEYS.length; role += 1) {
+    const subs = GRASS_SUBVARIANT_KEYS[role]!;
+    for (let sub = 0; sub < subs.length; sub += 1) {
+      const r = role as GrassVariantIndex;
+      const s = sub as GrassSubvariantIndex;
+      registry.register(subs[sub]!, (_seed) => buildGrassSubvariant(r, s));
+    }
+  }
+  // S271 — register the 4 path variant keys.
   for (let i = 0; i < PATH_VARIANT_KEYS.length; i += 1) {
     const variantIndex = i as PathVariantIndex;
     registry.register(PATH_VARIANT_KEYS[i]!, (_seed) =>
       buildPathVariant(variantIndex)
     );
   }
-  // S272 — third + fourth families: stone (cool grey) + dirt (rust
-  // brown). Same plumbing as grass + path.
+  // S285 — register 12 path sub-variant builders.
+  for (let role = 0; role < PATH_SUBVARIANT_KEYS.length; role += 1) {
+    const subs = PATH_SUBVARIANT_KEYS[role]!;
+    for (let sub = 0; sub < subs.length; sub += 1) {
+      const r = role as PathVariantIndex;
+      const s = sub as PathSubvariantIndex;
+      registry.register(subs[sub]!, (_seed) => buildPathSubvariant(r, s));
+    }
+  }
+  // S272 — third + fourth families: stone + dirt.
   for (let i = 0; i < STONE_VARIANT_KEYS.length; i += 1) {
     const variantIndex = i as StoneVariantIndex;
     registry.register(STONE_VARIANT_KEYS[i]!, (_seed) =>
       buildStoneVariant(variantIndex)
     );
   }
+  // S285 — register 12 stone sub-variant builders.
+  for (let role = 0; role < STONE_SUBVARIANT_KEYS.length; role += 1) {
+    const subs = STONE_SUBVARIANT_KEYS[role]!;
+    for (let sub = 0; sub < subs.length; sub += 1) {
+      const r = role as StoneVariantIndex;
+      const s = sub as StoneSubvariantIndex;
+      registry.register(subs[sub]!, (_seed) => buildStoneSubvariant(r, s));
+    }
+  }
   for (let i = 0; i < DIRT_VARIANT_KEYS.length; i += 1) {
     const variantIndex = i as DirtVariantIndex;
     registry.register(DIRT_VARIANT_KEYS[i]!, (_seed) =>
       buildDirtVariant(variantIndex)
     );
+  }
+  // S285 — register 12 dirt sub-variant builders.
+  for (let role = 0; role < DIRT_SUBVARIANT_KEYS.length; role += 1) {
+    const subs = DIRT_SUBVARIANT_KEYS[role]!;
+    for (let sub = 0; sub < subs.length; sub += 1) {
+      const r = role as DirtVariantIndex;
+      const s = sub as DirtSubvariantIndex;
+      registry.register(subs[sub]!, (_seed) => buildDirtSubvariant(r, s));
+    }
+  }
+  // S286 — register 12 floor sub-variant builders.
+  for (let role = 0; role < FLOOR_SUBVARIANT_KEYS.length; role += 1) {
+    const subs = FLOOR_SUBVARIANT_KEYS[role]!;
+    for (let sub = 0; sub < subs.length; sub += 1) {
+      const r = role as FloorVariantIndex;
+      const s = sub as FloorSubvariantIndex;
+      registry.register(subs[sub]!, (_seed) => buildFloorSubvariant(r, s));
+    }
+  }
+  // S287 — register 16 wall-shadow variant builders (one per bitmask index).
+  for (let i = 0; i < WALL_SHADOW_VARIANT_KEYS.length; i += 1) {
+    const idx = i as WallShadowVariantIndex;
+    registry.register(WALL_SHADOW_VARIANT_KEYS[i]!, (_seed) => buildWallShadowVariant(idx));
   }
 }
 
