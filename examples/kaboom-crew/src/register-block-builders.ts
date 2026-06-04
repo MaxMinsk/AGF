@@ -31,9 +31,8 @@ import {
   type FloorTileVariantIndex
 } from "./blocks/floor-tile-variants";
 import {
-  buildGrassVariant,
-  buildGrassSubvariant,
-  type GrassVariantIndex,
+  buildGrassShape,
+  type GrassShape,
   type GrassSubvariantIndex
 } from "./blocks/grass-variants";
 import {
@@ -98,13 +97,11 @@ export const GRASS_VARIANT_KEYS = [
   "kaboom-grass-2",
   "kaboom-grass-3"
 ] as const;
-/** S284 — sub-variant mesh keys for the grass V2 family (role × sub). */
-export const GRASS_SUBVARIANT_KEYS: ReadonlyArray<ReadonlyArray<string>> = [
-  ["kaboom-grass-0-0", "kaboom-grass-0-1", "kaboom-grass-0-2"],
-  ["kaboom-grass-1-0", "kaboom-grass-1-1", "kaboom-grass-1-2"],
-  ["kaboom-grass-2-0", "kaboom-grass-2-1", "kaboom-grass-2-2"],
-  ["kaboom-grass-3-0", "kaboom-grass-3-1", "kaboom-grass-3-2"]
-] as const;
+/** GDP-2026-06-04-003 — grass shape-based mesh keys (6 shapes × 3 sub = 18). */
+export const GRASS_SHAPES = ["A", "B", "C", "D", "E", "F"] as const;
+export const GRASS_SHAPE_KEYS: ReadonlyArray<ReadonlyArray<string>> = GRASS_SHAPES.map(
+  (shape) => [`kaboom-grass-${shape}-0`, `kaboom-grass-${shape}-1`, `kaboom-grass-${shape}-2`]
+);
 /** S271 — legacy per-variant mesh keys for path. */
 export const PATH_VARIANT_KEYS = [
   "kaboom-path-0",
@@ -201,24 +198,13 @@ export function registerKaboomBlockBuilders(renderer: ThreeRenderer): void {
       buildSoftBlockVariant(variantIndex, softPaletteForSeed(seed))
     );
   }
-  // S176 KABOOM-FLOOR-WANG-TILES MVP — register the 4 grass variant
-  // keys. No palette parameter this sprint — terrain palettes are
-  // hardcoded (theme integration is a follow-up). The seed is ignored
-  // because the mesh-sync bridge writes a constant seed (one geometry
-  // per variant cached for the whole world).
-  for (let i = 0; i < GRASS_VARIANT_KEYS.length; i += 1) {
-    const variantIndex = i as GrassVariantIndex;
-    registry.register(GRASS_VARIANT_KEYS[i]!, (_seed) =>
-      buildGrassVariant(variantIndex)
-    );
-  }
-  // S284 — register 12 grass sub-variant builders (4 roles × 3 sub-variants).
-  for (let role = 0; role < GRASS_SUBVARIANT_KEYS.length; role += 1) {
-    const subs = GRASS_SUBVARIANT_KEYS[role]!;
+  // GDP-2026-06-04-003 — 18 grass shape builders (6 shapes × 3 sub-variants).
+  for (let si = 0; si < GRASS_SHAPES.length; si += 1) {
+    const shape = GRASS_SHAPES[si]!;
+    const subs  = GRASS_SHAPE_KEYS[si]!;
     for (let sub = 0; sub < subs.length; sub += 1) {
-      const r = role as GrassVariantIndex;
       const s = sub as GrassSubvariantIndex;
-      registry.register(subs[sub]!, (_seed) => buildGrassSubvariant(r, s));
+      registry.register(subs[sub]!, (_seed) => buildGrassShape(shape as GrassShape, s));
     }
   }
   // S271 — register the 4 path variant keys.

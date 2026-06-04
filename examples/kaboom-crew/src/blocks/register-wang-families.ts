@@ -35,6 +35,7 @@ import {
   stoneBitmaskToVariant,
   type KaboomBlockVariantIndex
 } from "./wang-family-lookup";
+import { grassShapeForBitmask } from "./grass-variants";
 
 function floorBitmaskToVariant(bitmask: number): KaboomBlockVariantIndex {
   // Reuse the shared 16→4 lookup table — same role assignment as other families.
@@ -123,12 +124,15 @@ function registerGrassFamilyV2Safe(): void {
 }
 
 function buildGrassSubvariantTable(): ReadonlyArray<ReadonlyArray<WangTileVariant>> {
+  // GDP-2026-06-04-003: map each bitmask → its canonical shape (A-F). The
+  // mesh-sync bridge applies the per-bitmask Y rotation on the cell Transform
+  // so the 6 shapes cover all 16 bitmasks (S214 shape+rotation factoring).
   return Array.from({ length: 16 }, (_, bitmask) => {
-    const role = grassBitmaskToVariant(bitmask);
+    const { shape } = grassShapeForBitmask(bitmask);
     return [
-      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${role}-0` },
-      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${role}-1` },
-      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${role}-2` }
+      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${shape}-0` },
+      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${shape}-1` },
+      { meshKey: `procedural:${GRASS_WANG_FAMILY}-${shape}-2` }
     ];
   });
 }
