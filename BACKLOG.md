@@ -35,6 +35,12 @@ Status: **active** (started 2026-06-03). Source: `backlog/sprints/S178.sprint.js
 - **S288-KABOOM-BIOME-GEOMETRY-STYLES** — Per-biome geometry styles — distinct edge/corner shapes per terrain family (GDP-2026-05-29-005) _(implemented)_
   Leverage S283-S286 to differentiate edge geometry per biome. Grass: organic undulating edges (S284). Path: smooth-arc chamfers on corners. Stone: sharp 90-degree bevels. Dirt: rough irregular notches. Floor: minimal clean chamfer. Closes GDP-2026-05-29-005 core intent. Result: five families visually distinct by silhouette, not just colour.
   Depends on: S284-KABOOM-GRASS-EDGE-REWRITE, S285-KABOOM-TERRAIN-SUBVARIANT-UPGRADE, S286-KABOOM-FLOOR-WANG-FIFTH.
+- **S289-KABOOM-GRASS-CURVED-OUTLINE** — Grass curved-outline mesh (GDP-2026-06-04-003/006) — replace box-with-paint _(implemented)_
+  S284 shipped grass as a BoxGeometry with vertex paint; the design required a curved-outline polygon mesh. Rewrote into a shared biome-tile-builder: 6 canonical Wang shapes A-F x 3 sub-variants = 18 cached meshes, per-bitmask Y rotation on the cell Transform. Quality contract C-1 (seam-pin) / C-3 (crisp rim) / C-4 (convex-corner rounding). GDP-006 variety: 3 distinct filler interiors (calm/tufted/grained) + clearly different sub-variant outlines + wide corner-push spread.
+- **S290-KABOOM-BIOME-CURVED-OUTLINE** — Path/stone/dirt curved-outline meshes + per-biome edge styles (GDP-2026-06-04-004) _(implemented)_
+  Extracted the grass pipeline into biome-tile-builder with per-biome configs + an edgeStyle (smooth/angular/jagged): path=smooth flat footpath, stone=angular faceted bevels, dirt=jagged noisy edges. Distinct silhouettes, not just colour. Fixed white terrain (vertexColors poller now covers path/stone/dirt/floor/wall-shadow prefixes).
+- **S291-KABOOM-ALL-BIOMES-ARENA** — all-biomes-demo playable showcase arena + restart-mesh fixes _(implemented)_
+  New all-biomes-demo arena: irregular organic biome blobs + path roads + blocks, C-2-validated (no different biomes cardinally adjacent), 4 spawns. Registered in MAP_REGISTRY/MAP_DIMS/MATCH_ROTATION_POOL. Restart fixes (scene.load reuses World): mesh-sync + block stamp now gate on live component state instead of stale id caches, so terrain (QA-2026-06-04-002) and hard/soft blocks keep meshes/textures after R.
 
 ### Out of scope
 
