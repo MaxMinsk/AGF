@@ -40,8 +40,11 @@
     {
       "id": "S281-ENGINE-ASTAR-PATHFINDING",
       "title": "Engine A* pathfinding module — grid-aware A* with binary-heap priority queue",
-      "status": "pending",
-      "summary": "New `engine/grid/pathfinding/` module. Public API: `findPath(grid, from, to, opts?)`. Internally: binary-heap min-priority queue for O(log n) open-set ops; f = g + h where h = octile distance. Blocked-cell predicate driven by occupancy: hard-block + wall = impassable; soft-block = traversable with configurable cost override (default 3×). Returns `Cell[]` from start to goal (inclusive) or `null` if no path. Max-iterations cap (default 1024) prevents runaway. No Three.js / DOM imports."
+      "status": "implemented",
+      "summary": "New `engine/grid/pathfinding/` module. Public API: `findPath(grid, from, to, opts?)`. Internally: binary-heap min-priority queue for O(log n) open-set ops; f = g + h where h = octile distance. Blocked-cell predicate driven by occupancy: hard-block + wall = impassable; soft-block = traversable with configurable cost override (default 3×). Returns `Cell[]` from start to goal (inclusive) or `null` if no path. Max-iterations cap (default 1024) prevents runaway. No Three.js / DOM imports.",
+      "verification": [
+        "acceptance: 11 unit tests (trivial same-cell, straight corridor, navigate-around-wall, null-when-no-path, null-when-goal-blocked, route-through-soft, prefer-open-over-soft, maxIterations-cap, softBlockCost-detour-preference, path-endpoints, optimal-length) — all pass. typecheck clean. 2457/2457 vitest pass (+11 since S280)."
+      ]
     },
     {
       "id": "S282-KABOOM-BOT-ASTAR-INTEGRATION",
