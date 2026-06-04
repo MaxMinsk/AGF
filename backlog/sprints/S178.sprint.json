@@ -61,8 +61,11 @@
     {
       "id": "S283-ENGINE-WANG-SUBVARIANT",
       "title": "Engine Wang sub-variant support — variants[16][] per family + deterministic per-cell hash",
-      "status": "pending",
-      "summary": "Extend engine Wang module: WangVariant table upgraded from `T[]` (one per bitmask index) to `T[][]` (array of sub-variants per index). Deterministic per-cell selector: `subvariantIndex(entityId, gx, gz, subCount)` hashes position to a stable slot — same cell always picks the same sub-variant. Backwards-compatible: existing `T[]` registration auto-wraps each entry as `[entry]`. Exposes `registerWangFamilyWithSubvariants(familyId, table: T[][])`. `lookupWangVariant` gains optional `(gx, gz, entityId)` param."
+      "status": "implemented",
+      "summary": "Extend engine Wang module: WangVariant table upgraded from `T[]` (one per bitmask index) to `T[][]` (array of sub-variants per index). Deterministic per-cell selector: `subvariantIndex(entityId, gx, gz, subCount)` hashes position to a stable slot — same cell always picks the same sub-variant. Backwards-compatible: existing `T[]` registration auto-wraps each entry as `[entry]`. Exposes `registerWangFamilyWithSubvariants(familyId, table: T[][])`. `lookupWangVariant` gains optional `(gx, gz, entityId)` param.",
+      "verification": [
+        "acceptance: 14 unit tests (register valid/invalid tables, subvariantIndex determinism + distribution, lookupWangVariant V2 mesh selection + sub-variant stability + all-3-seen across grid + bitmask clamp + undefined for unknown family). All pass. typecheck clean. 2471/2471 vitest pass (+14 since S282)."
+      ]
     },
     {
       "id": "S284-KABOOM-GRASS-EDGE-REWRITE",

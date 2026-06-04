@@ -31,7 +31,7 @@ import type { ComponentName, EntityId } from "../../core/ecs/types";
 import type { QueryHandle, World } from "../../core/ecs/world";
 import type { System, SystemContext } from "../../core/systems/types";
 import { computeWangBitmask, resolveVariantIndex, type SameFamilyPredicate } from "./bitmask";
-import { getWangTileFamily, type WangTileFamily } from "./family-registry";
+import { getWangTileFamily, lookupWangVariant, type WangTileFamily } from "./family-registry";
 
 export const WANG_TILE: ComponentName = "WangTile";
 export const WANG_TILE_FAMILY_MEMBER: ComponentName = "WangTileFamilyMember";
@@ -42,6 +42,8 @@ type WangTileComponent = {
   currentVariantIndex?: number;
   currentMeshKey?: string;
   currentMeshEntityId?: string;
+  /** S283 — index into the sub-variant array for the resolved bitmask. 0 for V1 families. */
+  currentSubvariantIndex?: number;
 };
 
 type WangTileFamilyMemberComponent = {
@@ -104,14 +106,30 @@ function resolveOne(
   if (wang === undefined) return;
   const pos = world.getComponent<GridPositionComponent>(entityId, GRID_POSITION);
   if (pos === undefined) return;
-  const family = getWangTileFamily(wang.familyName);
-  if (family === undefined) return; // unknown family — leave the cell unresolved.
   const predicate = factory.predicateFor(wang.familyName);
   const mask = computeWangBitmask(pos.gx, pos.gz, predicate);
+
+  // S283 — try sub-variant (V2) lookup first, fall back to V1.
+  const resolved = lookupWangVariant(wang.familyName, mask, entityId, pos.gx, pos.gz);
+  if (resolved !== undefined) {
+    const next: WangTileComponent = {
+      ...wang,
+      currentVariantIndex: resolved.variantIndex,
+      currentSubvariantIndex: resolved.subvariantIndex,
+      currentMeshKey: resolved.meshKey
+    };
+    world.setComponent(entityId, WANG_TILE, next);
+    return;
+  }
+
+  // Legacy V1 path (family not found in either registry — leave unresolved).
+  const family = getWangTileFamily(wang.familyName);
+  if (family === undefined) return;
   const { variant, index } = resolveVariantIndex(mask, family);
   const next: WangTileComponent = {
     ...wang,
     currentVariantIndex: index,
+    currentSubvariantIndex: 0,
     currentMeshKey: variant.meshKey
   };
   world.setComponent(entityId, WANG_TILE, next);
