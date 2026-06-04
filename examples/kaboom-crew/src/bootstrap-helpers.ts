@@ -93,6 +93,18 @@ export function upsertEntityCommands(
  * Returns an empty array when the scene has no heightmap so flat
  * arenas pay zero overhead.
  */
+/** S294 — an occluder counts as TALL (eligible to cast the hidden-bomber
+ *  silhouette) when the top of its mesh is at least this many cells above the
+ *  floor. A lone 1-tall block (top ≈ 1) does NOT qualify; a 2-tall pillar or a
+ *  block on a raised cell (top ≥ 2) does. Single tunable constant. */
+export const TALL_OCCLUDER_THRESHOLD = 2.0;
+
+/** S294 — true when a mesh whose top sits at world-Y `topY` is tall enough to
+ *  hide a standing bomber from the angled camera (inclusive of the threshold). */
+export function isTallOccluder(topY: number): boolean {
+  return topY >= TALL_OCCLUDER_THRESHOLD;
+}
+
 export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeKey | string): EngineCommand[] {
   const resolvedTheme: ArenaThemeKey = isArenaThemeKey(themeKey) ? themeKey : "warehouse";
   const heightmap = scene.heightmap;
@@ -131,17 +143,22 @@ export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeK
       const h = row[gx] ?? 0;
       if (h <= 0) continue;
       const pillarId = `heightmap.pillar.${gx}.${gz}`;
+      // S294 — a pillar's top Y ≈ h. Tag it as an outline-occluder surface
+      // when it's TALL enough (≥ TALL_OCCLUDER_THRESHOLD) to genuinely hide a
+      // standing bomber, so the x-ray silhouette only fires behind real cover.
+      const pillarComponents: Record<string, unknown> = {
+        Transform: {
+          position: [gx, h / 2 - 0.025, gz],
+          rotation: [0, 0, 0],
+          scale: [0.96, h + 0.05, 0.96]
+        },
+        MeshRenderer: { mesh: "box", color: colorForHeight(h, resolvedTheme) }
+      };
+      if (isTallOccluder(h)) pillarComponents["OutlineOccluderSurface"] = {};
       commands.push({
         kind: "entity.create",
         entityId: pillarId,
-        components: {
-          Transform: {
-            position: [gx, h / 2 - 0.025, gz],
-            rotation: [0, 0, 0],
-            scale: [0.96, h + 0.05, 0.96]
-          },
-          MeshRenderer: { mesh: "box", color: colorForHeight(h, resolvedTheme) }
-        }
+        components: pillarComponents
       } as EngineCommand);
     }
   }
@@ -177,6 +194,17 @@ export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeK
       component: "Transform",
       data: { ...transform, position: [tx, (ty ?? 0) + liftHeight, tz] }
     });
+    // S294 — a ~1-tall block lifted onto a raised cell has top Y ≈
+    // liftHeight + 1; tag it as a tall occluder when that clears the
+    // threshold so it casts the hidden-bomber silhouette.
+    if (isTallOccluder(liftHeight + 1)) {
+      commands.push({
+        kind: "component.set",
+        entityId: entity.id,
+        component: "OutlineOccluderSurface",
+        data: {}
+      } as EngineCommand);
+    }
   }
 
   // S293 — cliff faces on every exposed vertical edge between height-differing

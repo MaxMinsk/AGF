@@ -1602,6 +1602,9 @@ export class ThreeRenderAdapter {
   // `setMeshOutlinePrePassExcluded`; cleaned up by `releaseMesh` so
   // a disposed mesh doesn't linger in the set.
   private readonly outlinePrePassExcluded = new Set<Mesh>();
+  // S294 — inclusion set: the TALL occluder meshes the pre-pass renders into
+  // the depth target (everything else is hidden for the pass).
+  private readonly outlineOccluderSurface = new Set<Mesh>();
 
   /**
    * Acquire a render target sized `(width × height)`. When `depthTexture`
@@ -2502,6 +2505,7 @@ export class ThreeRenderAdapter {
     // S278 — drop any outline-prepass exclusion for this mesh so the
     // set doesn't pin a disposed Mesh reference.
     this.outlinePrePassExcluded.delete(mesh);
+    this.outlineOccluderSurface.delete(mesh);
   }
 
   setMeshGeometry(handle: MeshHandle, geometry: BufferGeometry): void {
@@ -2577,6 +2581,24 @@ export class ThreeRenderAdapter {
    *  for changes so cleanup happens correctly during releaseMesh). */
   outlinePrePassExcludedMeshes(): ReadonlySet<Mesh> {
     return this.outlinePrePassExcluded;
+  }
+
+  /** S294 — tag (or untag) a mesh as an outline-occluder SURFACE: the
+   *  inclusion set the pre-pass renders into the depth target. Only TALL
+   *  occluders (hard walls, cliffs) are tagged, so the silhouette fires
+   *  only behind geometry that genuinely hides a standing bomber. When the
+   *  set is empty the pre-pass renders nothing → no x-ray (flat-arena default). */
+  setMeshOutlineOccluderSurface(handle: MeshHandle, on: boolean): void {
+    const mesh = this.meshes.get(handle);
+    if (mesh === undefined) return;
+    if (on) this.outlineOccluderSurface.add(mesh);
+    else this.outlineOccluderSurface.delete(mesh);
+  }
+
+  /** S294 — iterable view of the tall-occluder surface meshes. Owned by the
+   *  adapter; mutate via `setMeshOutlineOccluderSurface`. */
+  outlineOccluderSurfaceMeshes(): ReadonlySet<Mesh> {
+    return this.outlineOccluderSurface;
   }
 
 

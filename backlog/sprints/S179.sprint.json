@@ -37,8 +37,11 @@
     {
       "id": "S294-KABOOM-OUTLINE-TALL-OCCLUDER-GATE",
       "title": "Outline silhouette only behind TALL occluders — gate the x-ray (GDP-2026-06-04-007)",
-      "status": "pending",
-      "summary": "GDP-2026-06-04-007. The outline-occluder currently x-rays bombers behind ANY occluder including thin floor overlays / short blocks. Gate the silhouette so it only appears when the occluding geometry is actually TALL enough to hide the bomber (hard blocks, cliffs), not low terrain — so the outline reads as 'hidden behind a wall', not a constant ghost."
+      "status": "implemented",
+      "summary": "GDP-2026-06-04-007. The outline-occluder currently x-rays bombers behind ANY occluder including thin floor overlays / short blocks. Gate the silhouette so it only appears when the occluding geometry is actually TALL enough to hide the bomber (hard blocks, cliffs), not low terrain — so the outline reads as 'hidden behind a wall', not a constant ghost.",
+      "verification": [
+        "acceptance: outline pre-pass inverted to inclusion model — renders ONLY meshes tagged OutlineOccluderSurface (adapter set + scene-traverse hide-others), dormant when the set is empty. Kaboom tags tall occluders at scene-load: pillars h>=2 + blocks lifted to top>=2 (TALL_OCCLUDER_THRESHOLD=2.0). Live: heightmap-demo tags 9 surfaces, all-biomes-demo (h=1) tags 0 → no x-ray on flat/low arenas. 7 prepass + 7 predicate unit tests; typecheck + 2503 tests pass."
+      ]
     },
     {
       "id": "S295-KABOOM-STEP-JUMP-CLIFF-ANIM",
@@ -61,8 +64,11 @@
     {
       "id": "S298-KABOOM-ALL-BIOMES-POLISH",
       "title": "all-biomes-demo polish pass — height variation + path roads connecting rooms",
-      "status": "pending",
-      "summary": "Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation."
+      "status": "implemented",
+      "summary": "Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation.",
+      "verification": [
+        "acceptance: all-biomes-demo gains a heightmap with two height-1 plateaus (stone top-right → cliff-stone faces, grass bottom-right → cliff-grass faces) exercising S293; path biome routed as connecting roads (vertical mid-road + horizontal spur), floor-margined per C-2. Generator validates C-2 + flood-fill connectivity (all 4 spawns reachable over height-0 non-block cells). engine:check OK, 33 cliff entities render, 2496 tests pass. Stays in MATCH_ROTATION_POOL."
+      ]
     }
   ]
 }
