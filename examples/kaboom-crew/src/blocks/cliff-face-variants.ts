@@ -41,7 +41,7 @@ const STONE_SHADOW = "#2c2820";
 
 const HALF = 0.5;
 const COLS = 6;   // vertical columns across the 1-cell width
-const BANDS = 6;  // horizontal bands up the face
+const BANDS = 14; // horizontal bands up the face (fine → crisp strata lines)
 
 const TAPER = { "cliff-grass": 0.06, "cliff-stone": 0.04 } as const;
 
@@ -78,12 +78,28 @@ export function buildCliffFace(
   const grassCrown = new Color(GRASS_PRIMARY);
   const ramp3 = (t: number): Color =>
     t < 0.5 ? lo.clone().lerp(md, t * 2) : md.clone().lerp(hi, (t - 0.5) * 2);
-  const colorAtV = (v: number): Color => {
-    if (isGrass) {
-      if (v > 0.88) return grassCrown.clone(); // thin green turf crown
-      return ramp3(Math.min(1, v / 0.88));     // soil ramp below the crown
+  // Faint sedimentary strata — thin darker lines at a few irregular heights.
+  // Colour-only (no geometry), no vertical component → no checkerboard. The
+  // line set varies per (sub, delta) so stacked cliffs don't look stamped.
+  const strataSeed = sub * 0.37 + (H % 3) * 0.11;
+  const strataAt = [0.30, 0.52, 0.71, 0.85].map((s, i) => (s + ((strataSeed * (i + 1)) % 0.06) - 0.03));
+  const strataDarken = (v: number): number => {
+    for (const s of strataAt) {
+      const d = Math.abs(v - s);
+      if (d < 0.018) return 0.78;       // crisp dark seam
+      if (d < 0.035) return 0.90;       // soft shoulder
     }
-    return ramp3(v);
+    return 1.0;
+  };
+  const colorAtV = (v: number): Color => {
+    let c: Color;
+    if (isGrass) {
+      if (v > 0.88) return grassCrown.clone(); // thin green turf crown (no strata)
+      c = ramp3(Math.min(1, v / 0.88));        // soil ramp below the crown
+    } else {
+      c = ramp3(v);
+    }
+    return c.multiplyScalar(strataDarken(v));
   };
 
   // Outward Z offset for a vertex at (u = 0..1 across width, v = 0..1 up).
