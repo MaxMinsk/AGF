@@ -3,31 +3,13 @@
   "terrainmap": [
     [
       "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor"
-    ],
-    [
-      "floor",
       "grass",
       "grass",
       "grass",
       "floor",
       "floor",
-      "path",
-      "path",
-      "path",
+      "floor",
+      "floor",
       "floor",
       "floor",
       "stone",
@@ -36,37 +18,51 @@
       "floor"
     ],
     [
-      "floor",
       "grass",
       "grass",
       "grass",
+      "grass",
       "floor",
       "floor",
-      "path",
-      "path",
-      "path",
+      "floor",
+      "floor",
       "floor",
       "floor",
       "stone",
+      "stone",
+      "stone",
+      "stone"
+    ],
+    [
+      "floor",
+      "grass",
+      "grass",
+      "floor",
+      "floor",
+      "floor",
+      "path",
+      "floor",
+      "floor",
+      "floor",
+      "floor",
       "stone",
       "stone",
       "floor"
     ],
     [
       "floor",
+      "floor",
       "grass",
-      "grass",
-      "grass",
+      "floor",
       "floor",
       "floor",
       "path",
       "path",
-      "path",
       "floor",
       "floor",
+      "floor",
       "stone",
-      "stone",
-      "stone",
+      "floor",
       "floor"
     ],
     [
@@ -76,9 +72,8 @@
       "floor",
       "floor",
       "floor",
-      "floor",
-      "floor",
-      "floor",
+      "path",
+      "path",
       "floor",
       "floor",
       "floor",
@@ -92,27 +87,9 @@
       "floor",
       "floor",
       "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor"
-    ],
-    [
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
-      "floor",
+      "path",
+      "path",
+      "path",
       "floor",
       "floor",
       "floor",
@@ -124,58 +101,54 @@
       "floor",
       "dirt",
       "dirt",
-      "dirt",
+      "floor",
+      "floor",
+      "floor",
+      "path",
+      "path",
       "floor",
       "floor",
       "grass",
       "grass",
       "grass",
-      "floor",
-      "floor",
-      "stone",
-      "stone",
-      "stone",
       "floor"
     ],
     [
       "floor",
       "dirt",
       "dirt",
+      "floor",
+      "floor",
+      "floor",
+      "path",
+      "floor",
+      "floor",
+      "floor",
+      "grass",
+      "grass",
+      "grass",
+      "grass"
+    ],
+    [
+      "dirt",
+      "dirt",
+      "dirt",
       "dirt",
       "floor",
       "floor",
-      "grass",
-      "grass",
-      "grass",
       "floor",
       "floor",
-      "stone",
-      "stone",
-      "stone",
+      "floor",
+      "floor",
+      "floor",
+      "grass",
+      "floor",
       "floor"
     ],
     [
       "floor",
+      "floor",
       "dirt",
-      "dirt",
-      "dirt",
-      "floor",
-      "floor",
-      "grass",
-      "grass",
-      "grass",
-      "floor",
-      "floor",
-      "stone",
-      "stone",
-      "stone",
-      "floor"
-    ],
-    [
-      "floor",
-      "floor",
-      "floor",
-      "floor",
       "floor",
       "floor",
       "floor",
@@ -357,8 +330,8 @@
   ],
   "instances": [
     {
-      "id": "player.1",
       "prefab": "player",
+      "id": "player.1",
       "overrides": {
         "Transform": {
           "position": [
@@ -374,121 +347,325 @@
       }
     },
     {
+      "prefab": "bot",
       "id": "bot.1",
-      "prefab": "bot",
       "overrides": {
         "Transform": {
           "position": [
-            13,
+            12,
             0.4,
-            9
+            8
           ]
         },
         "GridPosition": {
-          "gx": 13,
-          "gz": 9
+          "gx": 12,
+          "gz": 8
         }
       }
     },
     {
-      "id": "bot.2",
       "prefab": "bot",
+      "id": "bot.2",
       "overrides": {
         "Transform": {
           "position": [
             1,
             0.4,
-            9
+            8
           ]
         },
         "GridPosition": {
           "gx": 1,
-          "gz": 9
+          "gz": 8
         }
       }
     },
     {
-      "id": "bot.3",
       "prefab": "bot",
+      "id": "bot.3",
       "overrides": {
         "Transform": {
           "position": [
-            13,
+            12,
             0.4,
             1
           ]
         },
         "GridPosition": {
-          "gx": 13,
+          "gx": 12,
           "gz": 1
         }
       }
     },
     {
-      "id": "soft.1",
-      "prefab": "soft-block",
+      "prefab": "hard-block",
+      "id": "wall.0",
       "overrides": {
         "Transform": {
           "position": [
             4,
-            0.45,
-            5
+            0.5,
+            2
           ]
         },
         "GridPosition": {
           "gx": 4,
-          "gz": 5
+          "gz": 2
         }
       }
     },
     {
-      "id": "soft.2",
-      "prefab": "soft-block",
-      "overrides": {
-        "Transform": {
-          "position": [
-            5,
-            0.45,
-            5
-          ]
-        },
-        "GridPosition": {
-          "gx": 5,
-          "gz": 5
-        }
-      }
-    },
-    {
-      "id": "soft.3",
-      "prefab": "soft-block",
+      "prefab": "hard-block",
+      "id": "wall.1",
       "overrides": {
         "Transform": {
           "position": [
             9,
-            0.45,
-            5
+            0.5,
+            2
           ]
         },
         "GridPosition": {
           "gx": 9,
+          "gz": 2
+        }
+      }
+    },
+    {
+      "prefab": "hard-block",
+      "id": "wall.2",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "prefab": "hard-block",
+      "id": "wall.3",
+      "overrides": {
+        "Transform": {
+          "position": [
+            9,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 9,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "prefab": "hard-block",
+      "id": "wall.4",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "prefab": "hard-block",
+      "id": "wall.5",
+      "overrides": {
+        "Transform": {
+          "position": [
+            9,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 9,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.0",
+      "overrides": {
+        "Transform": {
+          "position": [
+            3,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 3,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.1",
+      "overrides": {
+        "Transform": {
+          "position": [
+            10,
+            0.5,
+            4
+          ]
+        },
+        "GridPosition": {
+          "gx": 10,
+          "gz": 4
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.2",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.5,
+            2
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 2
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.3",
+      "overrides": {
+        "Transform": {
+          "position": [
+            8,
+            0.5,
+            2
+          ]
+        },
+        "GridPosition": {
+          "gx": 8,
+          "gz": 2
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.4",
+      "overrides": {
+        "Transform": {
+          "position": [
+            5,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 5,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.5",
+      "overrides": {
+        "Transform": {
+          "position": [
+            8,
+            0.5,
+            7
+          ]
+        },
+        "GridPosition": {
+          "gx": 8,
+          "gz": 7
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.6",
+      "overrides": {
+        "Transform": {
+          "position": [
+            3,
+            0.5,
+            5
+          ]
+        },
+        "GridPosition": {
+          "gx": 3,
           "gz": 5
         }
       }
     },
     {
-      "id": "soft.4",
       "prefab": "soft-block",
+      "id": "soft.7",
       "overrides": {
         "Transform": {
           "position": [
             10,
-            0.45,
+            0.5,
             5
           ]
         },
         "GridPosition": {
           "gx": 10,
           "gz": 5
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.8",
+      "overrides": {
+        "Transform": {
+          "position": [
+            4,
+            0.5,
+            6
+          ]
+        },
+        "GridPosition": {
+          "gx": 4,
+          "gz": 6
+        }
+      }
+    },
+    {
+      "prefab": "soft-block",
+      "id": "soft.9",
+      "overrides": {
+        "Transform": {
+          "position": [
+            9,
+            0.5,
+            6
+          ]
+        },
+        "GridPosition": {
+          "gx": 9,
+          "gz": 6
         }
       }
     }

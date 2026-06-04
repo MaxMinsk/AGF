@@ -636,9 +636,11 @@ const MAP_DIMS: ReadonlyMap<MapName, { width: number; depth: number }> = new Map
  * S205 — per-match map rotation pool. When a match ends (matchPhase
  * resolves), the next match steps to the next entry. Intra-match
  * rounds stay on the same arena so players don't switch venues
- * mid-best-of-N. Demo arenas (heightmap-demo, grass-demo) are
- * excluded — they exist for runtime feature tests, not playable
- * matches. URL `?map=X` overrides the rotation: when a map was
+ * mid-best-of-N. Feature-test demo arenas (heightmap-demo, grass-demo)
+ * are excluded — they exist for runtime checks, not matches. The
+ * all-biomes-demo arena IS included: it's a full playable layout
+ * (4 spawns + blocks) that also showcases every terrain biome.
+ * URL `?map=X` overrides the rotation: when a map was
  * picked from the URL at boot, the rotation is suppressed and every
  * match restart uses the URL-picked map.
  */
@@ -653,7 +655,8 @@ const MATCH_ROTATION_POOL: ReadonlyArray<MapName> = [
   "pit",
   "belt-zone",
   "warpfield",
-  "plate-puzzle"
+  "plate-puzzle",
+  "all-biomes-demo"
 ];
 let mapLockedFromUrl = false;
 let activeMapName: MapName = "start";
