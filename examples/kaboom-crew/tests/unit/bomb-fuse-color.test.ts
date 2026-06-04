@@ -103,6 +103,23 @@ describe("kaboom bomb-fuse-color (S196)", () => {
       expect(colorOf(world, "bomb")).toBe("#1a1a1a");
     });
 
+    it("fresh-placed bomb (fuse 2.5) stays dark on every tick — regression for BUG-POOL-REUSED-BOMBS-FLASH-001", () => {
+      // Before the fix, bomb-fuse-system overwrote MeshRenderer.color with a
+      // Date.now()-based orange pulse on the very first tick BEFORE this
+      // system ran, causing the authored-colour capture to latch onto orange.
+      // The fix removed that overwrite; this test verifies the dark colour
+      // holds for several consecutive ticks (not just on construction).
+      const world = new World();
+      spawnBomb(world, "bomb", 2.5);
+      const sys = createKaboomBombFuseColorSystem();
+      sys.fixedUpdate!(ctx(world));
+      expect(colorOf(world, "bomb")).toBe("#1a1a1a");
+      // Second tick — authored colour must still hold.
+      world.setComponent("bomb", "Bomb", { fuseRemaining: 2.48, range: 2, ownerId: "p" });
+      sys.fixedUpdate!(ctx(world));
+      expect(colorOf(world, "bomb")).toBe("#1a1a1a");
+    });
+
     it("multiple bombs lerp independently from their own captured authored colour", () => {
       const world = new World();
       spawnBomb(world, "bomb.a", 0, "#1a1a1a");

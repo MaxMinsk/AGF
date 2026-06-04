@@ -28,39 +28,12 @@ const BOMB: ComponentName = "Bomb";
 const BLAST_EVENT: ComponentName = "BlastEvent";
 const GRID_POSITION: ComponentName = "GridPosition";
 const BOMBER_STATS: ComponentName = "BomberStats";
-const MESH_RENDERER: ComponentName = "MeshRenderer";
 const TRANSFORM: ComponentName = "Transform";
 // S100 KABOOM-REMOTE-DETONATE-PUP — transient input on a bomber. We
 // read + remove it at the top of each fixedUpdate, dropping the
 // fuse on every paused bomb that bomber owns.
 const REMOTE_DETONATE_REQUEST: ComponentName = "RemoteDetonateRequest";
 
-/**
- * S87 KABOOM-BOMB-COUNTDOWN-PULSE. Pure helper — returns the bomb
- * mesh colour for a given fuseRemaining. Pulse period scales linearly
- * with fuse time so the bomb effectively flashes faster as it ages.
- * Exported so unit tests can drive it without spinning the system.
- */
-export function bombPulseColor(fuseRemaining: number): string {
-  const t = Math.max(0, fuseRemaining);
-  // Pulse period in seconds — clamped so the very-near-zero case stays
-  // visible (~12 Hz) and the fresh-bomb case stays calm (~0.3 Hz at
-  // fuseRemaining=2.5).
-  const period = Math.max(0.08, t / 8);
-  // A second-resolution clock against an arbitrary epoch is fine here
-  // — pulse is purely cosmetic; replay determinism doesn't depend on
-  // exact phase because the bomb mesh colour isn't snapshotted.
-  const phase = (Date.now() / 1000) % period / period;
-  // Triangle wave between 0 and 1 for a clean linear blend.
-  const tri = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
-  // Lerp #2a2a2a (dark grey) ↔ #ff5a2a (warm orange) in sRGB. We
-  // sidestep colour-space gymnastics by interpolating channel-wise.
-  const lerp = (a: number, b: number): number => Math.round(a + (b - a) * tri);
-  const r = lerp(0x2a, 0xff);
-  const g = lerp(0x2a, 0x5a);
-  const b = lerp(0x2a, 0x2a);
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}
 
 /**
  * S90 KABOOM-BOMB-FUSE-WIGGLE. Per-frame Transform.scale modifier
@@ -169,16 +142,6 @@ export function createKaboomBombFuseSystem(options: { name?: string; nextEventId
           firedCritical = true;
         }
         world.setComponent(entityId, BOMB, { ...bomb, fuseRemaining: next, criticalPulseFired: firedCritical });
-        // S87 KABOOM-BOMB-COUNTDOWN-PULSE — paint the bomb mesh with a
-        // pulse colour. Cheap per-frame component.set; renderer treats
-        // colour as a uniform so this doesn't churn the geometry.
-        const renderer = world.getComponent<{ mesh?: string; color?: string }>(entityId, MESH_RENDERER);
-        if (renderer !== undefined) {
-          const nextColor = bombPulseColor(next);
-          if (renderer.color !== nextColor) {
-            world.setComponent(entityId, MESH_RENDERER, { ...renderer, color: nextColor });
-          }
-        }
         // S90 KABOOM-BOMB-FUSE-WIGGLE. Modulate the bomb's
         // Transform.scale uniformly so the mesh visibly throbs as
         // the fuse runs down. Skipped when fuse > 2 — the helper
