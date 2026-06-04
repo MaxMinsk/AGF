@@ -1,0 +1,68 @@
+{
+  "agfFormatVersion": 1,
+  "id": "S179",
+  "title": "Terrain & visual finishing — scene-validation contract, cliff faces, outline gating, step-jump polish",
+  "status": "active",
+  "startedAt": "2026-06-04",
+  "archivedAt": null,
+  "prUrl": null,
+  "notes": [
+    "Builds on the S178 curved-outline biome system. Closes the tile-edge contract (scene validation C-2), extends the pattern to cliff faces, and finishes the deferred visual-polish items (outline-occluder gating, step-jump cliff animation, billboard primitive).",
+    "Sprint size target 8 (post-2026-05-13 doubled default). Mostly visual/terrain follow-ups from the GDP-2026-06-04 batch + a couple older deferred should-haves.",
+    "Single sprint branch / atomic commits; per-story acceptance line for the QA terminal."
+  ],
+  "outOfScope": [
+    "Multiplayer parity sweep (GDP-2026-05-27-010) — networked, separate sprint",
+    "Ragdoll physics engine module — depends on physics integration planning"
+  ],
+  "stories": [
+    {
+      "id": "S292-SCENE-VALIDATION-OVERLAY-ADJACENCY",
+      "title": "Scene validation — reject cardinally-adjacent different floor-overlay biomes (tile-edge C-2)",
+      "status": "implemented",
+      "summary": "GDP-2026-06-04-005. The curved-outline overhang relies on C-2: every open edge faces base floor, never a different biome. Add an engine-check terrainmap scan that fails with a clear diagnostic when two different non-floor overlay families sit on cardinally-adjacent cells. Same-family adjacency is fine; only different non-floor families are rejected. Makes the tile-edge contract self-enforcing instead of silently violable by scene authors.",
+      "verification": [
+        "acceptance: validateTerrainmapAdjacency in project-check flags two different non-floor overlay biomes that are cardinally adjacent (AGF_TERRAINMAP_OVERLAY_ADJACENT) — same-family + floor-separated are allowed. 7 unit tests + engine:check on kaboom-crew (all-biomes-demo C-2-clean) pass. typecheck clean. 2490 tests pass."
+      ]
+    },
+    {
+      "id": "S293-KABOOM-CLIFF-FACE-WANG",
+      "title": "Cliff face Wang autotiling — vertical edge meshes between height-differing cells (GDP-2026-06-04-001)",
+      "status": "implemented",
+      "summary": "Extend the tile-edge pattern to LAYER 4 (cliff faces): vertical edges between cells of differing height get curved-outline edge meshes per cliff orientation, reusing the same Wang shape+rotation factoring. Cliff-grass + cliff-stone biome variants + corner caps so plateaus read as natural terraces, not raw extruded boxes.",
+      "verification": [
+        "acceptance: cliff faces emit at scene-load for every exposed vertical edge (heightmap delta>0) with banded biome geometry (cliff-grass lip / cliff-stone bevel), 2-bit left/right variant for flush vs tapered ends, 2 sub-variants, corner caps. Builders registered (16 faces + 2 corners, delta via #seed). vertexColors poller covers cliff prefix. 6 builder unit tests; live heightmap-demo shows 31 terraced faces with soil banding. typecheck + engine:check + 2496 tests pass."
+      ]
+    },
+    {
+      "id": "S294-KABOOM-OUTLINE-TALL-OCCLUDER-GATE",
+      "title": "Outline silhouette only behind TALL occluders — gate the x-ray (GDP-2026-06-04-007)",
+      "status": "pending",
+      "summary": "GDP-2026-06-04-007. The outline-occluder currently x-rays bombers behind ANY occluder including thin floor overlays / short blocks. Gate the silhouette so it only appears when the occluding geometry is actually TALL enough to hide the bomber (hard blocks, cliffs), not low terrain — so the outline reads as 'hidden behind a wall', not a constant ghost."
+    },
+    {
+      "id": "S295-KABOOM-STEP-JUMP-CLIFF-ANIM",
+      "title": "Step-jump animation — bombers auto-arc onto delta=1 cliffs with crouch+launch+landing (GDP-2026-05-28-015)",
+      "status": "pending",
+      "summary": "GDP-2026-05-28-015. When a bomber moves onto a cell one height-step up, play an auto-arc hop: crouch anticipation, launch arc, landing settle. Builds on the S181/S182 step-jump tween + S267/S268 audio/landing-pop. Makes variable-height arenas read as climbable terraces."
+    },
+    {
+      "id": "S296-ENGINE-BILLBOARD-PRIMITIVE",
+      "title": "Engine world-space billboard primitive — engine/render/billboard/ for above-entity HUD (GDP-2026-05-27-008)",
+      "status": "pending",
+      "summary": "GDP-2026-05-27-008. A reusable engine billboard primitive (camera-facing quad anchored above an entity) for above-head HUD elements (bluff tags, personality icons, damage numbers). Foundation work with a concrete first consumer: move the kaboom bluff/shift HUD tags from DOM overlay to world-space billboards."
+    },
+    {
+      "id": "S297-KABOOM-WALL-SHADOW-CURVED",
+      "title": "Wall-shadow overlay on the curved-outline pipeline — soft contact shadow under blocks/cliffs",
+      "status": "pending",
+      "summary": "S287 added a box-based wall-shadow Wang layer; re-do it on the curved-outline builder so the darkening overlay near walls/cliffs reads as a soft organic contact shadow matching the new tile silhouettes, not a hard square."
+    },
+    {
+      "id": "S298-KABOOM-ALL-BIOMES-POLISH",
+      "title": "all-biomes-demo polish pass — height variation + path roads connecting rooms",
+      "status": "pending",
+      "summary": "Iterate the showcase arena: add a heightmap step (a low plateau) so cliff faces (S293) are exercised, route the path biome as actual connecting roads between biome rooms (floor-margined per C-2), and tune block layout for balanced play. Keep it in the match rotation."
+    }
+  ]
+}

@@ -179,6 +179,104 @@ export function applyHeightmapCommands(scene: SceneInput, themeKey?: ArenaThemeK
     });
   }
 
+  // S293 — cliff faces on every exposed vertical edge between height-differing
+  // cells (replaces the bare pillar-box sides with curved-outline terraces).
+  commands.push(...emitCliffFaceCommands(scene, heightmap));
+
+  return commands;
+}
+
+/**
+ * S293 (GDP-2026-06-04-001) — emit cliff-face + corner-cap entities for every
+ * exposed vertical edge in the heightmap. Cliffs are static per scene, so we
+ * resolve the Wang left/right variant once here at scene-load (no runtime
+ * resolver), mirroring how floor overlays + pillars are emitted.
+ */
+function emitCliffFaceCommands(
+  scene: SceneInput,
+  heightmap: ReadonlyArray<ReadonlyArray<number>>
+): EngineCommand[] {
+  const commands: EngineCommand[] = [];
+  const terrainmap = scene.terrainmap;
+  const h = (gx: number, gz: number): number => readHeightFromValues(heightmap, gx, gz);
+  const biomeAt = (gx: number, gz: number): "cliff-grass" | "cliff-stone" => {
+    const fam = terrainmap?.[gz]?.[gx];
+    return fam === "grass" ? "cliff-grass" : "cliff-stone";
+  };
+  // direction → outward delta toward the LOWER cell + the Y rotation (deg).
+  // The face mesh is built with its visible front toward LOCAL +Z; rotation
+  // turns +Z to point at the lower cell: N(lower -Z)=180, E(+X)=90, S(+Z)=0,
+  // W(-X)=270. `idx` seeds the sub-variant hash (rot alone is always even).
+  const DIRS = [
+    { key: "N", idx: 0, odx: 0, odz: -1, rot: 180, px: 0,    pz: -0.5 },
+    { key: "E", idx: 1, odx: 1, odz: 0,  rot: 90,  px: 0.5,  pz: 0 },
+    { key: "S", idx: 2, odx: 0, odz: 1,  rot: 0,   px: 0,    pz: 0.5 },
+    { key: "W", idx: 3, odx: -1, odz: 0, rot: 270, px: -0.5, pz: 0 }
+  ] as const;
+  // Per-direction LEFT/RIGHT strip steps (outward-facing perspective, §A3).
+  const STRIP: Record<string, { lx: number; lz: number; rx: number; rz: number }> = {
+    N: { lx: -1, lz: 0, rx: 1, rz: 0 },
+    E: { lx: 0, lz: -1, rx: 0, rz: 1 },
+    S: { lx: 1, lz: 0, rx: -1, rz: 0 },
+    W: { lx: 0, lz: 1, rx: 0, rz: -1 }
+  };
+
+  /** Does cell (gx,gz) expose a cliff face toward `dir` (taller than that neighbour)? */
+  const faces = (gx: number, gz: number, d: typeof DIRS[number]): boolean =>
+    h(gx, gz) > h(gx + d.odx, gz + d.odz);
+
+  for (let gz = 0; gz < heightmap.length; gz += 1) {
+    const row = heightmap[gz];
+    if (row === undefined) continue;
+    for (let gx = 0; gx < row.length; gx += 1) {
+      const cellH = h(gx, gz);
+      if (cellH <= 0) continue;
+      const biome = biomeAt(gx, gz);
+      for (const d of DIRS) {
+        if (!faces(gx, gz, d)) continue;
+        const delta = cellH - h(gx + d.odx, gz + d.odz);
+        if (delta <= 0) continue;
+        const midY = h(gx + d.odx, gz + d.odz) + delta / 2;
+        const strip = STRIP[d.key]!;
+        const leftPresent = faces(gx + strip.lx, gz + strip.lz, d);
+        const rightPresent = faces(gx + strip.rx, gz + strip.rz, d);
+        const variant = (leftPresent ? 0b01 : 0) | (rightPresent ? 0b10 : 0);
+        const sub = ((gx * 31 + gz * 7 + d.idx) % 2 + 2) % 2;
+        commands.push({
+          kind: "entity.create",
+          entityId: `cliff.${gx}.${gz}.${d.key}`,
+          components: {
+            Transform: {
+              position: [gx + d.px, midY, gz + d.pz],
+              rotation: [0, d.rot, 0],
+              scale: [1, 1, 1]
+            },
+            MeshRenderer: { mesh: `procedural:kaboom-${biome}-${variant}-${sub}#${delta}`, color: "#ffffff" }
+          }
+        } as EngineCommand);
+      }
+      // Corner caps: where two perpendicular faces meet at a cell corner.
+      const cornerPairs = [
+        { a: DIRS[0], b: DIRS[1], cx: 0.5, cz: -0.5 },  // N+E → NE
+        { a: DIRS[1], b: DIRS[2], cx: 0.5, cz: 0.5 },   // E+S → SE
+        { a: DIRS[2], b: DIRS[3], cx: -0.5, cz: 0.5 },  // S+W → SW
+        { a: DIRS[3], b: DIRS[0], cx: -0.5, cz: -0.5 }  // W+N → NW
+      ];
+      for (const cp of cornerPairs) {
+        if (!faces(gx, gz, cp.a) || !faces(gx, gz, cp.b)) continue;
+        const biome = biomeAt(gx, gz);
+        const delta = cellH; // cap spans down to base; visual filler only
+        commands.push({
+          kind: "entity.create",
+          entityId: `cliff.${gx}.${gz}.cap.${cp.cx > 0 ? "E" : "W"}${cp.cz > 0 ? "S" : "N"}`,
+          components: {
+            Transform: { position: [gx + cp.cx, cellH / 2, gz + cp.cz], rotation: [0, 0, 0], scale: [1, 1, 1] },
+            MeshRenderer: { mesh: `procedural:kaboom-${biome}-corner#${delta}`, color: "#ffffff" }
+          }
+        } as EngineCommand);
+      }
+    }
+  }
   return commands;
 }
 

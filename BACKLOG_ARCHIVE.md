@@ -181,5 +181,6 @@ Each entry links to its `backlog/sprints/<id>.sprint.json` — open the JSON for
 - **[S174](backlog/sprints/S174.sprint.json)** — Ramps MVP — per-cell Ramp component bridges a single-step cliff for movement + blast — 7 implemented · archived 2026-05-28
 - **[S176](backlog/sprints/S176.sprint.json)** — Floor Wang tiles MVP — FloorTerrain component + grass family + per-cell overlay spawn — 6 implemented · archived 2026-05-28
 - **[S177](backlog/sprints/S177.sprint.json)** — Bot AI nuance + arena polish — finish GDP-2026-05-29-010 Layer 3, push visible cues + onboarding-grade touch-ups — 17 implemented, 1 deferred · archived 2026-06-03
+- **[S178](backlog/sprints/S178.sprint.json)** — A* pathfinding + terrain edge quality — bot intelligence on complex maps + tile-edge-library foundation — 13 implemented · archived 2026-06-04
 
 <!-- backlog:render:end -->

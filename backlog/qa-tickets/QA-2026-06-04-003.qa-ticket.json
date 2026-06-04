@@ -1,0 +1,19 @@
+{
+  "agfFormatVersion": 1,
+  "id": "QA-2026-06-04-003",
+  "title": "Outline occluder arm visible through bomber hat — intra-body z-fighting from depthFunc greater",
+  "filedAt": "2026-06-04T11:48:08.251Z",
+  "foundInPr": 335,
+  "severity": "minor",
+  "type": "bug",
+  "summary": "The outline-occluder system (S277-S280, PR #335) renders bomber duplicate meshes with depthFunc='greater' so silhouettes show through hard/soft blocks. This side-effect also causes the arm's outline-occluder mesh to bleed through the bomber's own hat accessory — the hat is not a wall block, but the arm silhouette renders on top of it anyway. Additionally, the hat accessory does not cast a ground shadow. User observation: shadow present under bomber body, absent under hat; arm visible through hat from camera angle.",
+  "repro": [
+    "Boot `?project=kaboom-crew`, start a round (Space).",
+    "Observe a bomber with a hat accessory from the default isometric camera angle.",
+    "Look at the hat: the arm/limb mesh (or its outline-occluder duplicate) is visible through the hat geometry.",
+    "Check the floor beneath the hat: no shadow blob cast by the hat, unlike the bomber body which casts one."
+  ],
+  "expected": "Outline-occluder silhouette renders only through HARD/SOFT block entities (the designed see-through targets). The hat accessory should fully occlude arm meshes behind it. Shadow cast from all bomber meshes including hat accessory.",
+  "actual": "Arm outline-occluder mesh (depthFunc:greater) bleeds through the hat. No shadow from hat. The wall see-through feature works correctly for hard/soft blocks but has unintended intra-bomber depth bleed.",
+  "logs": "Root cause candidates: (1) hat accessory entities spawned via accessory-detach/attach path may not receive OutlinePrePassExcluded — making them absent from the prepass exclusion zone and transparent to the arm's occluder depth test; (2) hat mesh may lack ShadowCaster or ShadowFlags, skipping the setMeshShadowFlags path in mesh-transform-sync-system (line 64). Fix: stamp OutlinePrePassExcluded on all accessory child entities + ensure accessories go through the same castShadow path as bomber limbs."
+}

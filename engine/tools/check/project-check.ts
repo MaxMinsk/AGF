@@ -189,6 +189,7 @@ function validateStartScene(
   diagnostics.push(...validatePhysicsColliders(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validateScenePrefabInstances(sceneJson.data, scenePath, projectDir));
   diagnostics.push(...validateGridComponents(sceneJson.data, scenePath, projectDir));
+  diagnostics.push(...validateTerrainmapAdjacency(sceneJson.data, scenePath, projectDir));
 
   if (assetRoot !== undefined && isDirectory(resolve(projectDir, assetRoot))) {
     diagnostics.push(...validateSceneAssetReferences(sceneJson.data, scenePath, projectDir, assetRoot));
@@ -896,6 +897,63 @@ function validateGridComponents(
     }
   }
 
+  return diagnostics;
+}
+
+/**
+ * S292 (GDP-2026-06-04-005) — enforce the tile-edge contract C-2: different
+ * floor-overlay biomes must NOT be cardinally adjacent. Curved-outline tiles
+ * overhang their open edges into neighbouring base-floor cells; two different
+ * overlay families side-by-side would interpenetrate → z-fighting. Authors
+ * must separate biomes with ≥1 base-floor ('floor') cell.
+ *
+ * `terrainmap` is an optional `string[][]` (outer index = gz, inner = gx).
+ * The 'floor' value is the documented no-overlay base; same-family adjacency
+ * is the normal Wang case and is allowed.
+ */
+const TERRAINMAP_BASE_FAMILY = "floor";
+
+export function validateTerrainmapAdjacency(
+  sceneData: JsonValue,
+  scenePath: string,
+  projectDir: string
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  if (!isJsonObject(sceneData)) return diagnostics;
+  const terrainmap = sceneData["terrainmap"];
+  if (!Array.isArray(terrainmap)) return diagnostics;
+  const file = toProjectRelativeFile(scenePath, projectDir);
+
+  const cellAt = (gx: number, gz: number): string | undefined => {
+    const row = terrainmap[gz];
+    if (!Array.isArray(row)) return undefined;
+    const v = row[gx];
+    return typeof v === "string" ? v : undefined;
+  };
+
+  for (let gz = 0; gz < terrainmap.length; gz += 1) {
+    const row = terrainmap[gz];
+    if (!Array.isArray(row)) continue;
+    for (let gx = 0; gx < row.length; gx += 1) {
+      const here = cellAt(gx, gz);
+      if (here === undefined || here === TERRAINMAP_BASE_FAMILY) continue;
+      // East + south only — each adjacent pair is visited once.
+      for (const [dx, dz] of [[1, 0], [0, 1]] as const) {
+        const neighbour = cellAt(gx + dx, gz + dz);
+        if (neighbour === undefined || neighbour === TERRAINMAP_BASE_FAMILY) continue;
+        if (neighbour !== here) {
+          diagnostics.push({
+            severity: "error",
+            code: "AGF_TERRAINMAP_OVERLAY_ADJACENT",
+            file,
+            path: `$.terrainmap[${gz}][${gx}]`,
+            message: `Floor-overlay biomes '${here}' (${gx},${gz}) and '${neighbour}' (${gx + dx},${gz + dz}) are cardinally adjacent. Different overlay families overhang into each other and z-fight.`,
+            suggestion: `Separate different biomes with at least one '${TERRAINMAP_BASE_FAMILY}' cell (tile-edge contract C-2). Same-family adjacency is fine.`
+          });
+        }
+      }
+    }
+  }
   return diagnostics;
 }
 
